@@ -560,7 +560,12 @@ function onMenu(){
     showToast('走行中はMenuを開けません');
     return;
   }
-  window.location.href='settings.html';
+  // aタグを動的に生成してクリック（iOS Safari対策）
+  const a = document.createElement('a');
+  a.href = 'settings.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 // ─── 確定ボタン（旧Send）───
