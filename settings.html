@@ -175,9 +175,9 @@ function load(){
     const obj = JSON.parse(s);
     surchargeEnabled = obj.surchargeEnabled || false;
     timeEnabled      = obj.timeEnabled      || false;
-    document.getElementById('vehicleId').value = obj.vehicleId || 'v1';
     if(obj.surchargeRate) document.getElementById('surchargeRate').value = obj.surchargeRate;
     if(obj.timeRate)      document.getElementById('timeRate').value      = obj.timeRate;
+    if(obj.resetTime)     document.getElementById('resetTime').value      = obj.resetTime;
   }
   updateSurchargeUI();
   updateTimeUI();
