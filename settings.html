@@ -273,9 +273,7 @@ function saveAll(){
     // Firebase保存（失敗しても続行）
     try { FB.saveFareConfig(cfg); } catch(e){ console.error('Firebase save error:', e); }
 
-    const msg=document.getElementById('saveMsg');
-    msg.textContent='✓ 保存しました';
-    setTimeout(()=>msg.textContent='',3000);
+    setTimeout(()=>{ location.href='index.html'; }, 500);
   } catch(e){
     console.error('saveAll error:', e);
     alert('保存に失敗しました: ' + e.message);
