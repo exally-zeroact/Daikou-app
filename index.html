@@ -18,12 +18,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .gps-dot.ok{opacity:1;background:#4ade80;}
 .gps-acc{font-size:11px;color:#fff;opacity:0.8;}
 .surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
-.surcharge-badge span{font-size:11px;color:#fff;font-weight:700;}
-.menu-btn{background:rgba(255,255,255,0.2);border:none;border-radius:8px;padding:4px 12px;cursor:pointer;color:#fff;font-size:20px;font-weight:700;font-family:'Noto Sans JP',sans-serif;-webkit-transition:transform 0.1s;transition:transform 0.1s;display:flex;align-items:center;-webkit-appearance:none;}
+.menu-btn{
+  background:rgba(255,255,255,0.2);border:none;border-radius:8px;
+  padding:4px 12px;cursor:pointer;
+  color:#fff;font-size:20px;font-weight:700;
+  font-family:'Noto Sans JP',sans-serif;
+  -webkit-transition:transform 0.1s,-webkit-filter 0.1s;
+  transition:transform 0.1s,filter 0.1s;
+  -webkit-appearance:none;
+  display:flex;align-items:center;
+}
 .menu-btn:active{-webkit-transform:scale(0.9);transform:scale(0.9);}
+.surcharge-badge span{font-size:11px;color:#fff;font-weight:700;}
 
 /* コンテンツエリア */
-.content{flex:1;padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;}
+.content{flex:1;padding:16px;overflow-y:hidden;display:flex;flex-direction:column;gap:12px;min-height:0;}
 
 /* IDLE */
 .idle-datetime{text-align:center;padding:12px 0;}
@@ -44,6 +53,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .meter-unit{font-size:14px;color:#aaa;}
 .meter-sub{font-size:12px;color:#FF3B30;margin-top:4px;}
 .extras-list{display:flex;flex-direction:column;gap:6px;}
+/* 履歴スクロールボックス */
+.history-box{
+  flex:1;
+  min-height:80px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  -webkit-overflow-scrolling:touch;
+}
 .extra-item{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;}
 .extra-item span{font-size:12px;color:#FF9500;font-weight:700;}
 .extra-del-btn{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
@@ -70,11 +89,24 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
 .btn-idle{background:#8E8E93;}
 .btn-menu{background:#8E8E93;}
-.btn-extra{background:#FF9500;}
-.btn-send{background:#34C759;}
 
-.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;font-weight:700;z-index:200;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;}
+.btn-extra{background:#FF9500;}
+.btn-confirm{background:#34C759;}
+
+/* トースト通知 */
+.toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.75);color:#fff;
+  padding:10px 20px;border-radius:20px;
+  font-size:14px;font-weight:700;
+  z-index:200;opacity:0;transition:opacity 0.2s;
+  pointer-events:none;white-space:nowrap;
+}
 .toast.show{opacity:1;}
+
+/* 走行中の空車・Menuボタンをグレーアウト */
+.btn-sub.disabled{opacity:0.35;pointer-events:none;}
+
 /* 追加料金モーダル */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:none;align-items:flex-end;}
 .modal-overlay.show{display:flex;}
@@ -94,21 +126,67 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 
 /* 横画面対応 */
 @media (orientation:landscape){
+  /* 全体：左右分割レイアウト */
   body{flex-direction:row;flex-wrap:wrap;}
-  .appbar{width:100%;flex-shrink:0;padding:0 12px !important;padding-top:0 !important;padding-bottom:0 !important;height:36px !important;min-height:0 !important;max-height:36px !important;}
+  .appbar{
+    width:100% !important;
+    flex-shrink:0 !important;
+    padding:0 12px !important;
+    padding-top:0 !important;
+    padding-bottom:0 !important;
+    height:36px !important;
+    min-height:0 !important;
+    max-height:36px !important;
+  }
   .appbar-title{font-size:13px !important;line-height:36px !important;}
   .gps-acc{font-size:10px !important;}
   .menu-btn{padding:2px 8px !important;font-size:14px !important;}
   .gps-pill{padding:2px 8px !important;}
-  .content{flex:1;padding:12px 16px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 36px);}
-  .btn-area{width:200px;flex-shrink:0;padding:12px;display:flex;flex-direction:column;gap:8px;border-top:none;border-left:0.5px solid #f0f0f0;max-height:calc(100vh - 36px);justify-content:center;}
+
+  /* コンテンツ：左半分 */
+  .content{
+    flex:1;
+    padding:12px 16px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    max-height:calc(100vh - 52px);
+  }
+
+  /* ボタンエリア：右半分（縦に並ぶ）*/
+  .btn-area{
+    width:200px;
+    flex-shrink:0;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    border-top:none;
+    border-left:0.5px solid #f0f0f0;
+    max-height:calc(100vh - 52px);
+    justify-content:center;
+  }
+
+  /* 大ボタンを横画面でも見やすく */
   .btn-main{padding:14px;font-size:15px;}
   .btn-sub{padding:10px 0;font-size:12px;}
+
+  /* IDLE：時計を小さく */
   .idle-time{font-size:36px;}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-value{font-size:18px;}
+
+  /* DRIVING：2カラム */
   .driving-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
   .meter-value{font-size:32px;}
+
+  /* FARE：スクロール可能に */
   #screenFare{overflow-y:auto;}
   .fare-total-amount{font-size:40px;}
+
+  /* 走行に戻るボタンが切れないように */
+  #screenFare button{margin-top:10px;}
 }
 </style>
 </head>
@@ -125,7 +203,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
     <div class="surcharge-badge" id="surchargeBadge" style="display:none;" onclick="toggleSurcharge()">
       <span id="surchargeLabel">割増 ON</span>
     </div>
-    <div class="menu-btn" onclick="onMenu()">≡</div>
+    <button class="menu-btn" onclick="onMenu()">≡</button>
   </div>
 </div>
 
@@ -133,7 +211,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 <div class="content" id="content">
 
   <!-- IDLE -->
-  <div id="screenIdle">
+  <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;">
     <div class="idle-datetime">
       <div class="idle-time" id="clockTime">00:00</div>
       <div class="idle-date" id="clockDate"></div>
@@ -147,6 +225,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
         <div class="stat-label">走行回数</div>
         <div class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></div>
       </div>
+    </div>
+    <!-- 本日の履歴インライン表示 -->
+    <div id="inlineHistoryWrap" style="display:none;margin-top:12px;flex:1;min-height:0;display:flex;flex-direction:column;">
+      <div style="font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;">本日の走行履歴</div>
+      <div id="inlineHistory" class="history-box"></div>
     </div>
   </div>
 
@@ -193,11 +276,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
   <div class="btn-row">
     <button class="btn-sub btn-idle" onclick="onIdle()">空車</button>
     <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
-    <button class="btn-sub btn-send" onclick="onSend()">確定</button>
+    <button class="btn-sub btn-confirm" onclick="onSend()">確定</button>
   </div>
 </div>
 
-<!-- トースト -->
+<!-- トースト通知 -->
 <div class="toast" id="toast"></div>
 
 <!-- 追加料金モーダル -->
@@ -395,7 +478,7 @@ function onMainBtn(){
     document.getElementById('appbarTitle').textContent='代行中';
     // 仕事開始時刻を記録（自動リセット判定用）
     localStorage.setItem('daikou_last_start', Date.now().toString());
-    localStorage.setItem('daikou_last_start', Date.now().toString());
+    // GPS・計算・Firebase
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
     try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
@@ -410,7 +493,6 @@ function renderFare(s, fare, extraTotal, total){
   const cfg = Meter.getFareConfig();
   let html = '';
   html += row('基本料金', '¥'+cfg.base_fare.toLocaleString());
-  const distAdd = fare - cfg.base_fare - (surchargeOn ? Math.round((cfg.base_fare*(surchargeRate-1))) : 0);
   html += row('距離料金', '¥'+(s.fare_yen - cfg.base_fare).toLocaleString());
   if(surchargeOn){
     const diff = fare - s.fare_yen;
@@ -425,13 +507,9 @@ function renderFare(s, fare, extraTotal, total){
   // 今日の実績更新
   todayDist  += s.distance_m;
   todayCount += 1;
-  localStorage.setItem('daikou_today', JSON.stringify({date:new Date().toDateString(),dist:todayDist,count:todayCount}));
-  // 履歴保存
-  const now = new Date();
-  const histKey = 'daikou_history_' + now.toDateString();
-  const hist = JSON.parse(localStorage.getItem(histKey)||'[]');
-  hist.push({time:now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0'),distance_m:Math.round(s.distance_m),fare:total,surcharge:surchargeOn,extras:[...extras]});
-  localStorage.setItem(histKey, JSON.stringify(hist));
+  localStorage.setItem('daikou_today', JSON.stringify({
+    date:new Date().toDateString(), dist:todayDist, count:todayCount
+  }));
   // 履歴に保存
   const now = new Date();
   const histKey = 'daikou_history_' + now.toDateString();
@@ -453,10 +531,12 @@ function row(lbl,val,cls=''){
 // ─── 空車ボタン ───
 function onIdle(){
   if(appState==='driving'){
+    // 走行中は空車に戻れない
     showToast('先に「確定」を押してください');
     return;
   }
   if(appState==='fare'){
+    // 確定画面からのみ空車に戻れる
     Meter.stop();
     if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
   }
@@ -468,9 +548,19 @@ function onIdle(){
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
   showScreen('idle');
+  renderInlineHistory();
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
+}
+
+// ─── Menuボタン ───
+function onMenu(){
+  if(appState==='driving'){
+    showToast('走行中はMenuを開けません');
+    return;
+  }
+  location.href='settings.html';
 }
 
 // ─── 確定ボタン（旧Send）───
@@ -495,6 +585,14 @@ function onSend(){
   } else if(appState==='fare'){
     // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
   }
+}
+
+// ─── トースト通知 ───
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>{ t.classList.remove('show'); }, 2000);
 }
 
 // ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
@@ -553,15 +651,43 @@ function addCustomExtra(){
   closeExtraModal();
 }
 
+// ─── 本日の履歴インライン表示 ───
+function renderInlineHistory(){
+  const today = new Date();
+  const key = 'daikou_history_' + today.toDateString();
+  const rides = JSON.parse(localStorage.getItem(key) || '[]');
+  const el = document.getElementById('inlineHistory');
+  const wrap = document.getElementById('inlineHistoryWrap');
+  if(!el || !wrap) return;
+  if(rides.length === 0){
+    el.innerHTML = '';
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+  el.innerHTML = rides.map((r,i)=>`
+    <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;
+      display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div>
+        <span style="font-size:11px;color:#aaa;">${i+1}回目　${r.time}</span><br>
+        <span style="font-size:13px;color:#555;">${(r.distance_m/1000).toFixed(2)}km</span>
+      </div>
+      <span style="font-size:16px;font-weight:900;color:#111;">¥${r.fare.toLocaleString()}</span>
+    </div>
+  `).join('');
+}
+
 // ─── 画面切替 ───
 function showScreen(name){
-  document.getElementById('screenIdle').style.display    = name==='idle'    ? 'block' : 'none';
+  // screenIdleはflexレイアウトなのでflexで表示
+  document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
 }
 
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
+renderInlineHistory();
 </script>
 </body>
 </html>
