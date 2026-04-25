@@ -249,13 +249,22 @@ function updateClock(){
 setInterval(updateClock, 1000);
 updateClock();
 
-// ─── GPS ───
-GPS.start(function(g){
-  const dot = document.getElementById('gpsDot');
-  dot.className = 'gps-dot ok';
-  document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
-  if(appState==='driving') Meter.update(g);
-});
+// ─── GPS（代行開始時に初めて起動） ───
+let gpsStarted = false;
+function startGPS(){
+  if(gpsStarted) return;
+  gpsStarted = true;
+  try {
+    GPS.start(function(g){
+      try {
+        const dot = document.getElementById('gpsDot');
+        dot.className = 'gps-dot ok';
+        document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
+        if(appState==='driving') Meter.update(g);
+      } catch(e){ console.error('GPS callback error:', e); }
+    });
+  } catch(e){ console.error('GPS start error:', e); }
+}
 
 // ─── UIタイマー ───
 function startUiTimer(){
@@ -308,11 +317,14 @@ function onMainBtn(){
     appState='driving';
     extras=[];
     surchargeOn=false;
-    Meter.start();
-    FB.startSession(Meter.getFareConfig());
-    startUiTimer();
+    // UI更新を先に行う
     showScreen('driving');
     document.getElementById('appbarTitle').textContent='代行中';
+    // GPS・計算・Firebase
+    startGPS();
+    try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
+    try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
+    startUiTimer();
   } else if(appState==='driving'){
     // 料金確定
     appState='fare';
@@ -443,7 +455,7 @@ function showScreen(name){
 }
 
 loadSettings();
-FB.setIdle();
+try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 </script>
 </body>
 </html>
