@@ -10,7 +10,7 @@
 body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height:100vh;display:flex;flex-direction:column;overflow:hidden;}
 
 /* AppBar */
-.appbar{background:#007AFF;padding:12px 16px;padding-top:max(12px, env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.appbar{background:#007AFF;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .appbar-title{font-size:18px;font-weight:700;color:#fff;letter-spacing:2px;}
 .appbar-right{display:flex;align-items:center;gap:8px;}
 .gps-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.2);border-radius:20px;padding:4px 10px;}
@@ -18,6 +18,14 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .gps-dot.ok{opacity:1;background:#4ade80;}
 .gps-acc{font-size:11px;color:#fff;opacity:0.8;}
 .surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
+.menu-btn{
+  background:rgba(255,255,255,0.2);border-radius:8px;
+  padding:4px 12px;cursor:pointer;
+  color:#fff;font-size:20px;font-weight:700;
+  -webkit-transition:transform 0.1s,-webkit-filter 0.1s;
+  transition:transform 0.1s,filter 0.1s;
+}
+.menu-btn:active{-webkit-transform:scale(0.9);transform:scale(0.9);}
 .surcharge-badge span{font-size:11px;color:#fff;font-weight:700;}
 
 /* コンテンツエリア */
@@ -63,13 +71,29 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
 .btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
 .btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
-.btn-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;}
+.btn-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 .btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
 .btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
 .btn-idle{background:#8E8E93;}
 .btn-menu{background:#8E8E93;}
+.menu-btn{background:rgba(255,255,255,0.2);border:none;border-radius:8px;padding:5px 10px;cursor:pointer;color:#fff;font-size:18px;line-height:1;-webkit-transition:transform 0.1s;transition:transform 0.1s;}
+.menu-btn:active{-webkit-transform:scale(0.9);transform:scale(0.9);}
 .btn-extra{background:#FF9500;}
-.btn-send{background:#0040A0;}
+.btn-confirm{background:#34C759;}
+
+/* トースト通知 */
+.toast{
+  position:fixed;top:70px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.75);color:#fff;
+  padding:10px 20px;border-radius:20px;
+  font-size:14px;font-weight:700;
+  z-index:200;opacity:0;transition:opacity 0.2s;
+  pointer-events:none;white-space:nowrap;
+}
+.toast.show{opacity:1;}
+
+/* 走行中の空車・Menuボタンをグレーアウト */
+.btn-sub.disabled{opacity:0.35;pointer-events:none;}
 
 /* 追加料金モーダル */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:none;align-items:flex-end;}
@@ -92,7 +116,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 @media (orientation:landscape){
   /* 全体：左右分割レイアウト */
   body{flex-direction:row;flex-wrap:wrap;}
-  .appbar{width:100%;flex-shrink:0;}
+  .appbar{width:100%;flex-shrink:0;padding:5px 16px;padding-top:max(5px,env(safe-area-inset-top));}
+  .appbar-title{font-size:14px;}
+  .gps-acc{font-size:10px;}
 
   /* コンテンツ：左半分 */
   .content{
@@ -154,6 +180,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
     <div class="surcharge-badge" id="surchargeBadge" style="display:none;" onclick="toggleSurcharge()">
       <span id="surchargeLabel">割増 ON</span>
     </div>
+    <button class="menu-btn" onclick="onMenu()">≡</button>
   </div>
 </div>
 
@@ -223,11 +250,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
   <div class="btn-row">
     <button class="btn-sub btn-idle" onclick="onIdle()">空車</button>
-    <button class="btn-sub btn-menu" onclick="location.href='settings.html'">Menu</button>
     <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
-    <button class="btn-sub btn-send" onclick="onSend()">確定</button>
+    <button class="btn-sub btn-confirm" onclick="onSend()">確定</button>
   </div>
 </div>
+
+<!-- トースト通知 -->
+<div class="toast" id="toast"></div>
 
 <!-- 追加料金モーダル -->
 <div class="modal-overlay" id="modalOverlay">
@@ -477,7 +506,12 @@ function row(lbl,val,cls=''){
 // ─── 空車ボタン ───
 function onIdle(){
   if(appState==='driving'){
-    if(!confirm('走行を終了して空車に戻りますか？')) return;
+    // 走行中は空車に戻れない
+    showToast('先に「確定」を押してください');
+    return;
+  }
+  if(appState==='fare'){
+    // 確定画面からのみ空車に戻れる
     Meter.stop();
     if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
   }
@@ -492,6 +526,15 @@ function onIdle(){
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
+}
+
+// ─── Menuボタン ───
+function onMenu(){
+  if(appState==='driving'){
+    showToast('走行中はMenuを開けません');
+    return;
+  }
+  location.href='settings.html';
 }
 
 // ─── 確定ボタン（旧Send）───
@@ -516,6 +559,14 @@ function onSend(){
   } else if(appState==='fare'){
     // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
   }
+}
+
+// ─── トースト通知 ───
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>{ t.classList.remove('show'); }, 2000);
 }
 
 // ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
