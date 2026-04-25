@@ -58,7 +58,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .breakdown-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
 
 /* ボタンエリア（固定） */
-.btn-area{padding:10px 16px 16px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
+.btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
 .btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;}
 .btn-main:active{opacity:0.8;}
 .btn-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;}
@@ -141,10 +141,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
       <div class="meter-card">
         <div class="meter-label">走行距離</div>
         <div class="meter-value"><span id="driveDist">0.00</span><span class="meter-unit">km</span></div>
-      </div>
-      <div class="meter-card">
-        <div class="meter-label">経過時間</div>
-        <div class="meter-value"><span id="driveTime">00:00</span></div>
       </div>
       <div class="meter-card">
         <div class="meter-label">現在料金</div>
@@ -276,7 +272,6 @@ function startUiTimer(){
     let total = fare + extraTotal;
 
     document.getElementById('driveDist').textContent = (s.distance_m/1000).toFixed(2);
-    document.getElementById('driveTime').textContent = fmt(s.elapsed_sec);
     document.getElementById('driveFare').textContent = total.toLocaleString();
 
     if(surchargeOn){
