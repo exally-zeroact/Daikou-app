@@ -216,6 +216,15 @@ function loadSettings(){
     surchargeEnabled = obj.surchargeEnabled || false;
     surchargeRate    = obj.surchargeRate    || 1.2;
     vehicleId        = obj.vehicleId        || 'v1';
+    // localStorageから料金設定も読み込む（Firebase未接続時の保険）
+    if(obj.baseFare){
+      Meter.setFareConfig({
+        base_fare:       obj.baseFare       || 1300,
+        base_distance_m: obj.baseDistanceM  || 1000,
+        add_distance_m:  obj.addDistanceM   || 420,
+        add_fare:        obj.addFare        || 100,
+      });
+    }
   }
   const td = localStorage.getItem('daikou_today');
   if(td){
