@@ -1,127 +1,270 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>設定</title>
-  <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>設定</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-height:100vh;}
+.appbar{background:#007AFF;padding:12px 16px;display:flex;align-items:center;gap:12px;}
+.appbar-back{color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;}
+.appbar-title{font-size:17px;font-weight:700;color:#fff;}
+.wrap{padding:16px;display:flex;flex-direction:column;gap:16px;}
+.section{background:#fff;border-radius:12px;overflow:hidden;}
+.section-title{font-size:12px;color:#8E8E93;padding:12px 16px 4px;letter-spacing:1px;}
+.row{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #f0f0f0;}
+.row:last-child{border-bottom:none;}
+.row-label{font-size:15px;color:#111;}
+.row-input{width:120px;border:0.5px solid #ddd;border-radius:8px;padding:8px 10px;font-size:15px;text-align:right;font-family:'Noto Sans JP',sans-serif;background:#f9f9f9;}
+.row-unit{font-size:13px;color:#8E8E93;margin-left:4px;}
+.toggle{width:44px;height:26px;background:#ddd;border-radius:13px;position:relative;cursor:pointer;transition:background 0.2s;}
+.toggle.on{background:#007AFF;}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:22px;height:22px;background:#fff;border-radius:50%;transition:left 0.2s;}
+.toggle.on::after{left:20px;}
+.preview{background:#fff8f0;border-radius:8px;padding:12px;font-size:13px;color:#888;line-height:2.2;}
+.preview span.val{color:#111;font-weight:700;}
+.btn-save{width:100%;padding:16px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.save-msg{text-align:center;color:#34C759;font-size:13px;min-height:20px;margin-top:4px;}
+
+/* 追加料金リスト */
+.extra-item{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid #f0f0f0;}
+.extra-item:last-child{border-bottom:none;}
+.extra-name{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 10px;font-size:14px;font-family:'Noto Sans JP',sans-serif;}
+.extra-amount{width:90px;border:0.5px solid #ddd;border-radius:8px;padding:8px 10px;font-size:14px;text-align:right;font-family:'Noto Sans JP',sans-serif;}
+.extra-del{background:#FF3B30;border:none;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.btn-add{width:100%;padding:12px;background:#f5f5f5;border:0.5px solid #ddd;border-radius:10px;color:#007AFF;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;margin-top:8px;}
+
+/* 車両選択 */
+.vehicle-select{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;background:#f9f9f9;font-family:'Noto Sans JP',sans-serif;}
+</style>
 </head>
 <body>
 
-<div class="header">
-  <h1>⚙️ 設定</h1>
-  <a href="index.html" style="color:var(--text2);font-size:13px;text-decoration:none;">← 戻る</a>
+<div class="appbar">
+  <div class="appbar-back" onclick="location.href='index.html'">＜</div>
+  <div class="appbar-title">設定</div>
 </div>
 
-<div class="main">
+<div class="wrap">
+
+  <!-- 車両設定 -->
+  <div class="section">
+    <div class="section-title">車両</div>
+    <div class="row">
+      <div class="row-label">使用車両</div>
+      <select class="vehicle-select" id="vehicleId" style="width:120px;">
+        <option value="v1">1号車</option>
+        <option value="v2">2号車</option>
+        <option value="v3">3号車</option>
+        <option value="v4">4号車</option>
+      </select>
+    </div>
+  </div>
 
   <!-- 料金設定 -->
-  <div class="settings-section">
-    <h2>💰 料金設定</h2>
-
-    <div class="field">
-      <label>初乗り料金（円）</label>
-      <input type="number" id="base_fare" value="1300" min="0">
+  <div class="section">
+    <div class="section-title">料金設定</div>
+    <div class="row">
+      <div class="row-label">初乗り料金</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="baseFare" value="1300">
+        <span class="row-unit">円</span>
+      </div>
     </div>
-
-    <div class="field">
-      <label>初乗り距離（m）</label>
-      <input type="number" id="base_distance_m" value="1000" min="1">
+    <div class="row">
+      <div class="row-label">初乗り距離</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="baseDist" value="1000">
+        <span class="row-unit">m</span>
+      </div>
     </div>
-
-    <div class="field">
-      <label>加算料金（円）</label>
-      <input type="number" id="add_fare" value="100" min="0">
+    <div class="row">
+      <div class="row-label">加算距離</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="addDist" value="420">
+        <span class="row-unit">mごと</span>
+      </div>
     </div>
-
-    <div class="field">
-      <label>加算距離（m）</label>
-      <input type="number" id="add_distance_m" value="420" min="1">
+    <div class="row">
+      <div class="row-label">加算金額</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="addFare" value="100">
+        <span class="row-unit">円</span>
+      </div>
     </div>
-
-    <button class="btn btn-start" onclick="saveConfig()" style="margin-top:8px">
-      💾 保存する
-    </button>
+    <div style="padding:12px 16px;">
+      <div class="preview" id="preview"></div>
+    </div>
   </div>
 
-  <!-- 料金プレビュー -->
-  <div class="settings-section">
-    <h2>📋 料金プレビュー</h2>
-    <div id="preview-table" style="font-size:14px;color:var(--text2);line-height:2"></div>
+  <!-- 割増設定 -->
+  <div class="section">
+    <div class="section-title">割増設定</div>
+    <div class="row">
+      <div class="row-label">割増ボタンを表示</div>
+      <div class="toggle" id="surchargeToggle" onclick="toggleSurcharge()"></div>
+    </div>
+    <div class="row" id="surchargeRateRow" style="display:none;">
+      <div class="row-label">割増率</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="surchargeRate" value="1.2" step="0.1" min="1.0">
+        <span class="row-unit">倍</span>
+      </div>
+    </div>
   </div>
 
-  <div id="save-msg" style="text-align:center;color:var(--accent);font-size:14px;display:none">
-    ✅ 保存しました
+  <!-- 時間料金設定 -->
+  <div class="section">
+    <div class="section-title">時間料金（オプション）</div>
+    <div class="row">
+      <div class="row-label">時間料金を使用</div>
+      <div class="toggle" id="timeToggle" onclick="toggleTime()"></div>
+    </div>
+    <div class="row" id="timeRateRow" style="display:none;">
+      <div class="row-label">時間単価</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="timeRate" value="30">
+        <span class="row-unit">円/分</span>
+      </div>
+    </div>
   </div>
+
+  <!-- 追加料金項目 -->
+  <div class="section">
+    <div class="section-title">追加料金項目</div>
+    <div id="extraItems"></div>
+    <div style="padding:8px 16px 16px;">
+      <button class="btn-add" onclick="addExtraItem()">＋ 項目を追加</button>
+    </div>
+  </div>
+
+  <button class="btn-save" onclick="saveAll()">保　存</button>
+  <div class="save-msg" id="saveMsg"></div>
 
 </div>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-
-<script src="js/gps.js"></script>
-<script src="js/meter.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
 <script src="js/firebase.js"></script>
-
 <script>
-  window.addEventListener('DOMContentLoaded', async () => {
-    // Firestoreから現在の料金設定を取得して表示
-    const config = await FirebaseManager.getFareConfig();
-    if (config) {
-      document.getElementById('base_fare').value = config.base_fare;
-      document.getElementById('base_distance_m').value = config.base_distance_m;
-      document.getElementById('add_fare').value = config.add_fare;
-      document.getElementById('add_distance_m').value = config.add_distance_m;
-    }
+let surchargeEnabled = false;
+let timeEnabled = false;
+let extraItems = [];
+
+function load(){
+  FB.loadFareConfig(cfg=>{
+    if(cfg.base_fare)       document.getElementById('baseFare').value = cfg.base_fare;
+    if(cfg.base_distance_m) document.getElementById('baseDist').value  = cfg.base_distance_m;
+    if(cfg.add_distance_m)  document.getElementById('addDist').value   = cfg.add_distance_m;
+    if(cfg.add_fare)        document.getElementById('addFare').value    = cfg.add_fare;
     updatePreview();
   });
+  const s = localStorage.getItem('daikou_settings');
+  if(s){
+    const obj = JSON.parse(s);
+    surchargeEnabled = obj.surchargeEnabled || false;
+    timeEnabled      = obj.timeEnabled      || false;
+    document.getElementById('vehicleId').value = obj.vehicleId || 'v1';
+    if(obj.surchargeRate) document.getElementById('surchargeRate').value = obj.surchargeRate;
+    if(obj.timeRate)      document.getElementById('timeRate').value      = obj.timeRate;
+  }
+  updateSurchargeUI();
+  updateTimeUI();
 
-  // 入力変更時にプレビューを更新
-  ['base_fare','base_distance_m','add_fare','add_distance_m'].forEach(id => {
-    document.getElementById(id).addEventListener('input', updatePreview);
+  extraItems = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
+  renderExtraItems();
+  updatePreview();
+}
+
+// 料金プレビュー
+['baseFare','baseDist','addDist','addFare'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', updatePreview);
+});
+
+function updatePreview(){
+  const bf = parseInt(document.getElementById('baseFare').value)||1300;
+  const bd = parseInt(document.getElementById('baseDist').value)||1000;
+  const ad = parseInt(document.getElementById('addDist').value)||420;
+  const af = parseInt(document.getElementById('addFare').value)||100;
+  const pts = [0, bd, bd+ad, bd+ad*2, bd+ad*5, bd+ad*10];
+  let html = '';
+  pts.forEach(m=>{
+    const km=(m/1000).toFixed(2);
+    const fare = m<=bd ? bf : bf+Math.floor((m-bd)/ad)*af;
+    html+=`<span style="color:#aaa;">${km}km</span>　→　<span class="val">¥${fare.toLocaleString()}</span><br>`;
   });
+  document.getElementById('preview').innerHTML=html;
+}
 
-  function getFormConfig() {
-    return {
-      base_fare: parseInt(document.getElementById('base_fare').value) || 1300,
-      base_distance_m: parseInt(document.getElementById('base_distance_m').value) || 1000,
-      add_fare: parseInt(document.getElementById('add_fare').value) || 100,
-      add_distance_m: parseInt(document.getElementById('add_distance_m').value) || 420,
-    };
-  }
+function toggleSurcharge(){
+  surchargeEnabled=!surchargeEnabled;
+  updateSurchargeUI();
+}
+function updateSurchargeUI(){
+  document.getElementById('surchargeToggle').className='toggle'+(surchargeEnabled?' on':'');
+  document.getElementById('surchargeRateRow').style.display=surchargeEnabled?'flex':'none';
+}
 
-  function updatePreview() {
-    const c = getFormConfig();
-    Meter.setFareConfig(c);
+function toggleTime(){
+  timeEnabled=!timeEnabled;
+  updateTimeUI();
+}
+function updateTimeUI(){
+  document.getElementById('timeToggle').className='toggle'+(timeEnabled?' on':'');
+  document.getElementById('timeRateRow').style.display=timeEnabled?'flex':'none';
+}
 
-    const rows = [];
-    // 初乗り〜10km分のプレビュー
-    const checkpoints = [0, c.base_distance_m];
-    for (let m = c.base_distance_m + c.add_distance_m; m <= 10000; m += c.add_distance_m) {
-      checkpoints.push(m);
-    }
-    checkpoints.forEach(m => {
-      const fare = Meter.calcFare(m);
-      const dist = m < 1000 ? `${m}m` : `${(m/1000).toFixed(2)}km`;
-      rows.push(`<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--bg3);padding:4px 0">
-        <span>${dist}</span>
-        <span style="color:var(--accent);font-weight:700">¥${fare.toLocaleString()}</span>
-      </div>`);
-    });
-    document.getElementById('preview-table').innerHTML = rows.join('');
-  }
+function renderExtraItems(){
+  const el=document.getElementById('extraItems');
+  el.innerHTML=extraItems.map((item,i)=>`
+    <div class="extra-item">
+      <input class="extra-name" type="text" value="${item.name}" placeholder="項目名"
+        oninput="extraItems[${i}].name=this.value">
+      <input class="extra-amount" type="number" value="${item.amount}" placeholder="金額"
+        oninput="extraItems[${i}].amount=parseInt(this.value)||0">
+      <button class="extra-del" onclick="removeExtra(${i})">削除</button>
+    </div>
+  `).join('');
+}
 
-  async function saveConfig() {
-    const config = getFormConfig();
-    const ok = await FirebaseManager.saveFareConfig(config);
-    const msg = document.getElementById('save-msg');
-    msg.style.display = 'block';
-    msg.textContent = ok ? '✅ 保存しました' : '❌ 保存に失敗しました';
-    setTimeout(() => { msg.style.display = 'none'; }, 3000);
-  }
+function addExtraItem(){
+  extraItems.push({name:'',amount:0});
+  renderExtraItems();
+}
+
+function removeExtra(i){
+  extraItems.splice(i,1);
+  renderExtraItems();
+}
+
+function saveAll(){
+  const cfg={
+    base_fare:      parseInt(document.getElementById('baseFare').value)||1300,
+    base_distance_m:parseInt(document.getElementById('baseDist').value)||1000,
+    add_distance_m: parseInt(document.getElementById('addDist').value)||420,
+    add_fare:       parseInt(document.getElementById('addFare').value)||100,
+  };
+  FB.saveFareConfig(cfg);
+
+  const settings={
+    vehicleId:        document.getElementById('vehicleId').value,
+    surchargeEnabled: surchargeEnabled,
+    surchargeRate:    parseFloat(document.getElementById('surchargeRate').value)||1.2,
+    timeEnabled:      timeEnabled,
+    timeRate:         parseInt(document.getElementById('timeRate').value)||30,
+  };
+  localStorage.setItem('daikou_settings', JSON.stringify(settings));
+  localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
+
+  const msg=document.getElementById('saveMsg');
+  msg.textContent='✓ 保存しました';
+  setTimeout(()=>msg.textContent='',3000);
+}
+
+load();
 </script>
-
 </body>
 </html>
