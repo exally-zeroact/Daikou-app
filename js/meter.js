@@ -66,8 +66,7 @@ const Meter = (() => {
   }
 
   function calcFare(distanceM){
-    if(distanceM <= fareConfig.base_distance_m) return fareConfig.base_fare;
-    // 1km超えた瞬間に1回加算・以降420mごとに加算
+    if(distanceM < fareConfig.base_distance_m) return fareConfig.base_fare;
     const extra = distanceM - fareConfig.base_distance_m;
     const steps = Math.floor(extra / fareConfig.add_distance_m) + 1;
     return fareConfig.base_fare + (steps * fareConfig.add_fare);
