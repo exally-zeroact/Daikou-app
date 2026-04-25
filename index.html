@@ -203,7 +203,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
     <div class="surcharge-badge" id="surchargeBadge" style="display:none;" onclick="toggleSurcharge()">
       <span id="surchargeLabel">割増 ON</span>
     </div>
-    <button type="button" class="menu-btn" onclick="onMenu()">≡</button>
+    <a href="settings.html" class="menu-btn" id="menuBtn" onclick="return onMenuClick()">≡</a>
   </div>
 </div>
 
@@ -555,17 +555,12 @@ function onIdle(){
 }
 
 // ─── Menuボタン ───
-function onMenu(){
+function onMenuClick(){
   if(appState==='driving'){
     showToast('走行中はMenuを開けません');
-    return;
+    return false; // リンクをキャンセル
   }
-  // aタグを動的に生成してクリック（iOS Safari対策）
-  const a = document.createElement('a');
-  a.href = 'settings.html';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  return true; // リンクを通す
 }
 
 // ─── 確定ボタン（旧Send）───
