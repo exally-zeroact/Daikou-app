@@ -188,12 +188,12 @@ function updatePreview(){
   const bd = parseInt(document.getElementById('baseDist').value)||1000;
   const ad = parseInt(document.getElementById('addDist').value)||420;
   const af = parseInt(document.getElementById('addFare').value)||100;
-  const pts = [0, bd, bd+1, bd+ad, bd+ad*2, bd+ad*5, bd+ad*10];
+  const pts = [0, bd-1, bd, bd+ad, bd+ad*2, bd+ad*5, bd+ad*10];
   let html = '';
   pts.forEach(m=>{
     const km=(m/1000).toFixed(2);
     let fare;
-    if(m<=bd){ fare=bf; }
+    if(m<bd){ fare=bf; }
     else { fare=bf+(Math.floor((m-bd)/ad)+1)*af; }
     html+=`<span style="color:#aaa;">${km}km</span>　→　<span class="val">¥${fare.toLocaleString()}</span><br>`;
   });
