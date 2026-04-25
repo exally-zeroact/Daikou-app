@@ -11,7 +11,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 .appbar{background:#007AFF;padding:12px 16px;display:flex;align-items:center;gap:12px;}
 .appbar-back{color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;}
 .appbar-title{font-size:17px;font-weight:700;color:#fff;}
-.wrap{padding:16px;display:flex;flex-direction:column;gap:16px;}
+.wrap{padding:16px;padding-bottom:80px;display:flex;flex-direction:column;gap:16px;}
 .section{background:#fff;border-radius:12px;overflow:hidden;}
 .section-title{font-size:12px;color:#8E8E93;padding:12px 16px 4px;letter-spacing:1px;}
 .row{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #f0f0f0;}
@@ -247,27 +247,39 @@ function removeExtra(i){
 }
 
 function saveAll(){
-  const cfg={
-    base_fare:      parseInt(document.getElementById('baseFare').value)||1300,
-    base_distance_m:parseInt(document.getElementById('baseDist').value)||1000,
-    add_distance_m: parseInt(document.getElementById('addDist').value)||420,
-    add_fare:       parseInt(document.getElementById('addFare').value)||100,
-  };
-  FB.saveFareConfig(cfg);
+  try {
+    const cfg={
+      base_fare:      parseInt(document.getElementById('baseFare').value)||1300,
+      base_distance_m:parseInt(document.getElementById('baseDist').value)||1000,
+      add_distance_m: parseInt(document.getElementById('addDist').value)||420,
+      add_fare:       parseInt(document.getElementById('addFare').value)||100,
+    };
 
-  const settings={
-    vehicleId:        document.getElementById('vehicleId').value,
-    surchargeEnabled: surchargeEnabled,
-    surchargeRate:    parseFloat(document.getElementById('surchargeRate').value)||1.2,
-    timeEnabled:      timeEnabled,
-    timeRate:         parseInt(document.getElementById('timeRate').value)||30,
-  };
-  localStorage.setItem('daikou_settings', JSON.stringify(settings));
-  localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
+    // localStorage保存を先に実行（Firebaseより優先）
+    const settings={
+      vehicleId:        document.getElementById('vehicleId').value,
+      surchargeEnabled: surchargeEnabled,
+      surchargeRate:    parseFloat(document.getElementById('surchargeRate').value)||1.2,
+      timeEnabled:      timeEnabled,
+      timeRate:         parseInt(document.getElementById('timeRate').value)||30,
+      baseFare:         cfg.base_fare,
+      baseDistanceM:    cfg.base_distance_m,
+      addDistanceM:     cfg.add_distance_m,
+      addFare:          cfg.add_fare,
+    };
+    localStorage.setItem('daikou_settings', JSON.stringify(settings));
+    localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
 
-  const msg=document.getElementById('saveMsg');
-  msg.textContent='✓ 保存しました';
-  setTimeout(()=>msg.textContent='',3000);
+    // Firebase保存（失敗しても続行）
+    try { FB.saveFareConfig(cfg); } catch(e){ console.error('Firebase save error:', e); }
+
+    const msg=document.getElementById('saveMsg');
+    msg.textContent='✓ 保存しました';
+    setTimeout(()=>msg.textContent='',3000);
+  } catch(e){
+    console.error('saveAll error:', e);
+    alert('保存に失敗しました: ' + e.message);
+  }
 }
 
 load();
