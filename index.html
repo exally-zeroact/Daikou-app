@@ -398,7 +398,6 @@ function renderFare(s, fare, extraTotal, total){
   const cfg = Meter.getFareConfig();
   let html = '';
   html += row('基本料金', '¥'+cfg.base_fare.toLocaleString());
-  const distAdd = fare - cfg.base_fare - (surchargeOn ? Math.round((cfg.base_fare*(surchargeRate-1))) : 0);
   html += row('距離料金', '¥'+(s.fare_yen - cfg.base_fare).toLocaleString());
   if(surchargeOn){
     const diff = fare - s.fare_yen;
