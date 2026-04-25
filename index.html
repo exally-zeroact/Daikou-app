@@ -254,6 +254,37 @@ function loadSettings(){
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
   if(surchargeEnabled) document.getElementById('surchargeBadge').style.display='flex';
+
+  // 自動リセットチェック
+  autoResetCheck();
+}
+
+function autoResetCheck(){
+  const s = localStorage.getItem('daikou_settings');
+  const resetTime = s ? (JSON.parse(s).resetTime || '12:00') : '12:00';
+  const [resetH, resetM] = resetTime.split(':').map(Number);
+
+  const now = new Date();
+  const resetToday = new Date(now);
+  resetToday.setHours(resetH, resetM, 0, 0);
+
+  // 最後の仕事開始時刻を取得
+  const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
+
+  // 今日のリセット時間を過ぎている かつ 最後の仕事開始がリセット時間より前
+  if(now >= resetToday && lastStart < resetToday.getTime()){
+    // リセット実行
+    todayDist = 0;
+    todayCount = 0;
+    localStorage.setItem('daikou_today', JSON.stringify({
+      date: now.toDateString(), dist: 0, count: 0
+    }));
+    // 当日の履歴もクリア
+    const histKey = 'daikou_history_' + now.toDateString();
+    localStorage.removeItem(histKey);
+    document.getElementById('todayDist').textContent  = '0.0';
+    document.getElementById('todayCount').textContent = '0';
+  }
 }
 
 // ─── 時計 ───
@@ -350,6 +381,8 @@ function onMainBtn(){
     // UI更新を先に行う
     showScreen('driving');
     document.getElementById('appbarTitle').textContent='代行中';
+    // 仕事開始時刻を記録（自動リセット判定用）
+    localStorage.setItem('daikou_last_start', Date.now().toString());
     // GPS・計算・Firebase
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
