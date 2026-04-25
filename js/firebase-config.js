@@ -10,4 +10,4 @@ const firebaseConfig = {
 };
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// dbはfirebase.jsで宣言するため、ここでは宣言しない
