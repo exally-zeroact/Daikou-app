@@ -61,11 +61,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 
 /* ボタンエリア（固定） */
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
-.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;}
-.btn-main:active{opacity:0.8;}
+.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:transform 0.1s,filter 0.1s;}
+.btn-main:active{transform:scale(0.97);filter:brightness(0.85);}
 .btn-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;}
-.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;}
-.btn-sub:active{opacity:0.8;}
+.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;transition:transform 0.1s,filter 0.1s;}
+.btn-sub:active{transform:scale(0.95);filter:brightness(0.8);}
 .btn-idle{background:#8E8E93;}
 .btn-menu{background:#8E8E93;}
 .btn-extra{background:#FF9500;}
@@ -383,6 +383,18 @@ function renderFare(s, fare, extraTotal, total){
   localStorage.setItem('daikou_today', JSON.stringify({
     date:new Date().toDateString(), dist:todayDist, count:todayCount
   }));
+  // 履歴に保存
+  const now = new Date();
+  const histKey = 'daikou_history_' + now.toDateString();
+  const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+  hist.push({
+    time: now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0'),
+    distance_m: Math.round(s.distance_m),
+    fare: total,
+    surcharge: surchargeOn,
+    extras: [...extras]
+  });
+  localStorage.setItem(histKey, JSON.stringify(hist));
 }
 
 function row(lbl,val,cls=''){
