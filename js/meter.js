@@ -74,5 +74,13 @@ const Meter = (() => {
 
   function getState(){ return { ...state }; }
 
-  return { start, stop, reset, update, getState, setFareConfig, getFareConfig, calcFare };
+  // 確定キャンセル時に状態を保持したまま再開
+  function resume(){
+    if(state.running) return; // 既に動いてる場合は何もしない
+    state.running = true;
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
+  }
+
+  return { start, stop, reset, resume, update, getState, setFareConfig, getFareConfig, calcFare };
 })();
