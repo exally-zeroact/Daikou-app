@@ -44,6 +44,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 .extras-list{display:flex;flex-direction:column;gap:6px;}
 .extra-item{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;}
 .extra-item span{font-size:12px;color:#FF9500;font-weight:700;}
+.extra-del-btn{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
+.extra-del-btn:active{color:#FF3B30;}
 
 /* FARE */
 .fare-total{text-align:center;padding:12px 0;}
@@ -304,9 +306,20 @@ function startUiTimer(){
 
 function renderExtras(){
   const el = document.getElementById('extrasList');
-  el.innerHTML = extras.map(e=>
-    `<div class="extra-item"><span>${e.name}</span><span>+¥${e.amount.toLocaleString()}</span></div>`
+  el.innerHTML = extras.map((e,i)=>
+    `<div class="extra-item" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>${e.name}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span>+¥${e.amount.toLocaleString()}</span>
+        <button class="extra-del-btn" onclick="removeExtra(${i})">✕</button>
+      </div>
+    </div>`
   ).join('');
+}
+
+function removeExtra(i){
+  extras.splice(i, 1);
+  renderExtras();
 }
 
 function fmt(sec){
