@@ -160,6 +160,15 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
       <div class="fare-total-amount">¥<span id="fareTotalAmount">0</span></div>
     </div>
     <div class="breakdown" id="breakdown"></div>
+    <button onclick="cancelFare()" style="
+      width:100%;margin-top:16px;padding:14px;
+      background:#fff;border:1.5px solid #8E8E93;
+      border-radius:12px;color:#8E8E93;
+      font-size:16px;font-weight:700;
+      font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+      letter-spacing:2px;">
+      ← 走行に戻る
+    </button>
   </div>
 
 </div>
@@ -170,8 +179,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
   <div class="btn-row">
     <button class="btn-sub btn-idle" onclick="onIdle()">空車</button>
     <button class="btn-sub btn-menu" onclick="location.href='settings.html'">Menu</button>
-    <button class="btn-sub btn-extra" onclick="openExtraModal()">追加</button>
-    <button class="btn-sub btn-send" onclick="onSend()">Send</button>
+    <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
+    <button class="btn-sub btn-send" onclick="onSend()">確定</button>
   </div>
 </div>
 
@@ -186,7 +195,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
     <div class="modal-custom" style="margin-top:8px;">
       <span>任意入力</span>
       <input type="number" id="customAmount" placeholder="0" inputmode="numeric">
-      <button class="modal-custom-btn" onclick="addCustomExtra()">追加</button>
+      <button class="modal-custom-btn" onclick="addCustomExtra()">追加料金</button>
     </div>
   </div>
 </div>
@@ -343,19 +352,7 @@ function onMainBtn(){
     try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
     startUiTimer();
   } else if(appState==='driving'){
-    // 料金確定
-    appState='fare';
-    Meter.stop();
-    if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
-    const s = Meter.getState();
-    let fare = s.fare_yen;
-    if(surchargeOn) fare = Math.round(fare * surchargeRate);
-    let extraTotal = extras.reduce((a,b)=>a+b.amount,0);
-    let total = fare + extraTotal;
-    FB.endSession({distance_m:s.distance_m, fare_yen:total, elapsed_sec:s.elapsed_sec});
-    renderFare(s, fare, extraTotal, total);
-    showScreen('fare');
-    document.getElementById('appbarTitle').textContent='料　金';
+    // 代行開始ボタンを再押し → 何もしない（Drivingのまま）
   }
 }
 
@@ -408,16 +405,39 @@ function onIdle(){
   updateSurchargeBadge();
 }
 
-// ─── Sendボタン ───
+// ─── 確定ボタン（旧Send）───
 function onSend(){
-  if(appState==='fare'){
+  if(appState==='driving'){
+    // Driving中に確定を押したら → 確定画面へ（カウントは継続）
+    appState='fare';
     const s = Meter.getState();
     let fare = s.fare_yen;
     if(surchargeOn) fare = Math.round(fare * surchargeRate);
-    let total = fare + extras.reduce((a,b)=>a+b.amount,0);
-    FB.updateVehicle({status:'finished',
-      session:{distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec}});
+    let extraTotal = extras.reduce((a,b)=>a+b.amount,0);
+    let total = fare + extraTotal;
+    // Firebaseにfinished送信（サブ機に料金表示）
+    try {
+      FB.endSession({distance_m:s.distance_m, fare_yen:total, elapsed_sec:s.elapsed_sec});
+      FB.updateVehicle({status:'finished',
+        session:{distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec}});
+    } catch(e){ console.error(e); }
+    renderFare(s, fare, extraTotal, total);
+    showScreen('fare');
+    document.getElementById('appbarTitle').textContent='料　金';
+  } else if(appState==='fare'){
+    // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
   }
+}
+
+// ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
+function cancelFare(){
+  appState='driving';
+  // カウントを再開（時間は確定画面中も継続していたのでそのまま）
+  try { Meter.resume(); } catch(e){ console.error(e); }
+  // Firebaseをdriving状態に戻す
+  try { FB.updateVehicle({status:'driving'}); } catch(e){ console.error(e); }
+  showScreen('driving');
+  document.getElementById('appbarTitle').textContent='代行中';
 }
 
 // ─── 割増トグル ───
@@ -429,6 +449,7 @@ function updateSurchargeBadge(){
   const badge = document.getElementById('surchargeBadge');
   if(!surchargeEnabled){ badge.style.display='none'; return; }
   badge.style.display='flex';
+  // デフォルトOFF：グレー、押してON：赤
   badge.style.background = surchargeOn ? '#FF3B30' : '#8E8E93';
   document.getElementById('surchargeLabel').textContent = surchargeOn ? '割増 ON' : '割増 OFF';
 }
