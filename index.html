@@ -90,13 +90,54 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 
 /* 横画面対応 */
 @media (orientation:landscape){
-  body{flex-direction:column;}
-  .content{flex-direction:row;flex-wrap:wrap;align-items:flex-start;}
-  .idle-datetime{flex:0 0 100%;}
-  .stats-grid{flex:1;}
-  .driving-grid{flex-direction:row;flex-wrap:wrap;}
-  .meter-card{flex:1;min-width:30%;}
-  .extras-list{flex:0 0 100%;}
+  /* 全体：左右分割レイアウト */
+  body{flex-direction:row;flex-wrap:wrap;}
+  .appbar{width:100%;flex-shrink:0;}
+
+  /* コンテンツ：左半分 */
+  .content{
+    flex:1;
+    padding:12px 16px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    max-height:calc(100vh - 52px);
+  }
+
+  /* ボタンエリア：右半分（縦に並ぶ）*/
+  .btn-area{
+    width:200px;
+    flex-shrink:0;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    border-top:none;
+    border-left:0.5px solid #f0f0f0;
+    max-height:calc(100vh - 52px);
+    justify-content:center;
+  }
+
+  /* 大ボタンを横画面でも見やすく */
+  .btn-main{padding:14px;font-size:15px;}
+  .btn-sub{padding:10px 0;font-size:12px;}
+
+  /* IDLE：時計を小さく */
+  .idle-time{font-size:36px;}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .stat-value{font-size:18px;}
+
+  /* DRIVING：2カラム */
+  .driving-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .meter-value{font-size:32px;}
+
+  /* FARE：スクロール可能に */
+  #screenFare{overflow-y:auto;}
+  .fare-total-amount{font-size:40px;}
+
+  /* 走行に戻るボタンが切れないように */
+  #screenFare button{margin-top:10px;}
 }
 </style>
 </head>
