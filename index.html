@@ -61,11 +61,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 
 /* ボタンエリア（固定） */
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
-.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:transform 0.1s,filter 0.1s;}
-.btn-main:active{transform:scale(0.97);filter:brightness(0.85);}
+.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
 .btn-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;}
-.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;transition:transform 0.1s,filter 0.1s;}
-.btn-sub:active{transform:scale(0.95);filter:brightness(0.8);}
+.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
 .btn-idle{background:#8E8E93;}
 .btn-menu{background:#8E8E93;}
 .btn-extra{background:#FF9500;}
@@ -100,7 +100,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
 }
 </style>
 </head>
-<body>
+<body ontouchstart="">
 
 <!-- AppBar -->
 <div class="appbar" id="appbar">
