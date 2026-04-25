@@ -226,16 +226,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
         <div class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></div>
       </div>
     </div>
-    <!-- 履歴（スクロールボックス） -->
-    <div id="inlineHistory" style="
-      margin-top:12px;
-      max-height:200px;
-      overflow-y:auto;
-      -webkit-overflow-scrolling:touch;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    "></div>
   </div>
 
   <!-- DRIVING -->
@@ -553,8 +543,7 @@ function onIdle(){
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
   showScreen('idle');
-  renderInlineHistory();
-  document.getElementById('appbarTitle').textContent='空　車';
+    document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
 }
@@ -656,14 +645,6 @@ function addCustomExtra(){
   closeExtraModal();
 }
 
-// ─── 本日の履歴インライン表示 ───
-function renderInlineHistory(){
-  const today = new Date();
-  const key = 'daikou_history_' + today.toDateString();
-  const rides = JSON.parse(localStorage.getItem(key) || '[]');
-  const el = document.getElementById('inlineHistory');
-  if(!el) return;
-  if(rides.length === 0){ el.innerHTML = ''; return; }
   el.innerHTML = rides.map((r,i)=>`
     <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;
       display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
@@ -685,7 +666,6 @@ function showScreen(name){
 
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
-renderInlineHistory();
 </script>
 </body>
 </html>
