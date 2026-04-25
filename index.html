@@ -311,6 +311,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 <script>
 // ─── 状態 ───
 let appState = 'idle'; // idle / driving / fare
+let histSaved = false; // 確定時の履歴保存済みフラグ
 let surchargeOn = false;
 let surchargeRate = 1.2;
 let surchargeEnabled = false;
@@ -369,8 +370,13 @@ function autoResetCheck(){
   // 最後の仕事開始時刻を取得
   const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
 
-  // 今日のリセット時間を過ぎている かつ 最後の仕事開始がリセット時間より前
-  if(now >= resetToday && lastStart < resetToday.getTime()){
+  // リセット条件：
+  // ① 現在時刻がリセット時間を過ぎている
+  // ② 最後の仕事開始がリセット時間より前
+  // ③ 最後の仕事開始が昨日以前（当日仕事中の誤リセット防止）
+  const lastStartDate = new Date(lastStart);
+  const isYesterday = lastStart === 0 || lastStartDate.toDateString() !== now.toDateString();
+  if(now >= resetToday && lastStart < resetToday.getTime() && isYesterday){
     // リセット実行
     todayDist = 0;
     todayCount = 0;
@@ -507,24 +513,26 @@ function renderFare(s, fare, extraTotal, total){
   html += row('経過時間', Math.floor(s.elapsed_sec/60)+'分');
   document.getElementById('breakdown').innerHTML = html;
 
-  // 今日の実績更新
-  todayDist  += s.distance_m;
-  todayCount += 1;
-  localStorage.setItem('daikou_today', JSON.stringify({
-    date:new Date().toDateString(), dist:todayDist, count:todayCount
-  }));
-  // 履歴に保存
-  const now = new Date();
-  const histKey = 'daikou_history_' + now.toDateString();
-  const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
-  hist.push({
-    time: now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0'),
-    distance_m: Math.round(s.distance_m),
-    fare: total,
-    surcharge: surchargeOn,
-    extras: [...extras]
-  });
-  localStorage.setItem(histKey, JSON.stringify(hist));
+  // 今日の実績・履歴は1回だけ保存
+  if(!histSaved){
+    histSaved = true;
+    todayDist  += s.distance_m;
+    todayCount += 1;
+    localStorage.setItem('daikou_today', JSON.stringify({
+      date:new Date().toDateString(), dist:todayDist, count:todayCount
+    }));
+    const now = new Date();
+    const histKey = 'daikou_history_' + now.toDateString();
+    const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+    hist.push({
+      time: now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0'),
+      distance_m: Math.round(s.distance_m),
+      fare: total,
+      surcharge: surchargeOn,
+      extras: [...extras]
+    });
+    localStorage.setItem(histKey, JSON.stringify(hist));
+  }
 }
 
 function row(lbl,val,cls=''){
@@ -571,6 +579,7 @@ function onSend(){
   if(appState==='driving'){
     // Driving中に確定を押したら → 確定画面へ（カウントは継続）
     appState='fare';
+    histSaved = false;
     const s = Meter.getState();
     let fare = s.fare_yen;
     if(surchargeOn) fare = Math.round(fare * surchargeRate);
@@ -601,9 +610,8 @@ function showToast(msg){
 // ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
 function cancelFare(){
   appState='driving';
-  // カウントを再開（時間は確定画面中も継続していたのでそのまま）
-  try { Meter.resume(); } catch(e){ console.error(e); }
-  // Firebaseをdriving状態に戻す
+  histSaved = false; // 再走行するので保存フラグリセット
+  // Meterは止めていないのでresume不要
   try { FB.updateVehicle({status:'driving'}); } catch(e){ console.error(e); }
   showScreen('driving');
   document.getElementById('appbarTitle').textContent='代行中';
