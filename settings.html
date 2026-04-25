@@ -29,11 +29,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 .save-msg{text-align:center;color:#34C759;font-size:13px;min-height:20px;margin-top:4px;}
 
 /* 追加料金リスト */
-.extra-item{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:0.5px solid #f0f0f0;}
+.extra-item{padding:12px 16px;display:flex;flex-direction:column;gap:8px;border-bottom:0.5px solid #f0f0f0;}
 .extra-item:last-child{border-bottom:none;}
-.extra-name{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 10px;font-size:14px;font-family:'Noto Sans JP',sans-serif;}
-.extra-amount{width:90px;border:0.5px solid #ddd;border-radius:8px;padding:8px 10px;font-size:14px;text-align:right;font-family:'Noto Sans JP',sans-serif;}
-.extra-del{background:#FF3B30;border:none;border-radius:8px;padding:8px 10px;color:#fff;font-size:13px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.extra-item-row{display:flex;align-items:center;gap:8px;}
+.extra-name{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;font-family:'Noto Sans JP',sans-serif;}
+.extra-amount{width:110px;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;text-align:right;font-family:'Noto Sans JP',sans-serif;}
+.extra-unit{font-size:13px;color:#8E8E93;white-space:nowrap;}
+.extra-del{background:#FF3B30;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;white-space:nowrap;}
 .btn-add{width:100%;padding:12px;background:#f5f5f5;border:0.5px solid #ddd;border-radius:10px;color:#007AFF;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;margin-top:8px;}
 
 /* 車両選択 */
@@ -221,11 +223,15 @@ function renderExtraItems(){
   const el=document.getElementById('extraItems');
   el.innerHTML=extraItems.map((item,i)=>`
     <div class="extra-item">
-      <input class="extra-name" type="text" value="${item.name}" placeholder="項目名"
+      <input class="extra-name" type="text" value="${item.name}" placeholder="項目名（例：高速料金A）"
         oninput="extraItems[${i}].name=this.value">
-      <input class="extra-amount" type="number" value="${item.amount}" placeholder="金額"
-        oninput="extraItems[${i}].amount=parseInt(this.value)||0">
-      <button class="extra-del" onclick="removeExtra(${i})">削除</button>
+      <div class="extra-item-row">
+        <input class="extra-amount" type="number" value="${item.amount||''}" placeholder="0"
+          inputmode="numeric"
+          oninput="extraItems[${i}].amount=parseInt(this.value)||0">
+        <span class="extra-unit">円</span>
+        <button class="extra-del" onclick="removeExtra(${i})">削除</button>
+      </div>
     </div>
   `).join('');
 }
