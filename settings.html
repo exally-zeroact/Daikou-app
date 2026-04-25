@@ -25,7 +25,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 .toggle.on::after{left:20px;}
 .preview{background:#fff8f0;border-radius:8px;padding:12px;font-size:13px;color:#888;line-height:2.2;}
 .preview span.val{color:#111;font-weight:700;}
-.btn-save{width:100%;padding:16px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.btn-save{width:100%;padding:16px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:transform 0.1s,filter 0.1s;} .btn-save:active{transform:scale(0.97);filter:brightness(0.85);}
 .save-msg{text-align:center;color:#34C759;font-size:13px;min-height:20px;margin-top:4px;}
 
 /* 追加料金リスト */
@@ -51,17 +51,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 
 <div class="wrap">
 
-  <!-- 車両設定 -->
+  <!-- 履歴 -->
   <div class="section">
-    <div class="section-title">車両</div>
-    <div class="row">
-      <div class="row-label">使用車両</div>
-      <select class="vehicle-select" id="vehicleId" style="width:120px;">
-        <option value="v1">1号車</option>
-        <option value="v2">2号車</option>
-        <option value="v3">3号車</option>
-        <option value="v4">4号車</option>
-      </select>
+    <div class="section-title">履歴</div>
+    <div class="row" onclick="location.href='history.html'" style="cursor:pointer;">
+      <div class="row-label">本日の走行履歴</div>
+      <div style="color:#007AFF;font-size:14px;">＞</div>
     </div>
   </div>
 
@@ -257,7 +252,7 @@ function saveAll(){
 
     // localStorage保存を先に実行（Firebaseより優先）
     const settings={
-      vehicleId:        document.getElementById('vehicleId').value,
+      vehicleId:        'v1',
       surchargeEnabled: surchargeEnabled,
       surchargeRate:    parseFloat(document.getElementById('surchargeRate').value)||1.2,
       timeEnabled:      timeEnabled,
