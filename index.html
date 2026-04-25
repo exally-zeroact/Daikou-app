@@ -226,12 +226,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;min-height
         <div class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></div>
       </div>
     </div>
-  </div>
-
-  <!-- 履歴エリア（screenIdleの外・独立） -->
-  <div id="historyArea" style="display:none;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
-    <div style="font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;padding:0 2px;">本日の走行履歴</div>
-    <div id="inlineHistory" style="display:flex;flex-direction:column;gap:6px;"></div>
+    <!-- 履歴（スクロールボックス） -->
+    <div id="inlineHistory" style="
+      margin-top:12px;
+      max-height:200px;
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    "></div>
   </div>
 
   <!-- DRIVING -->
@@ -658,18 +662,11 @@ function renderInlineHistory(){
   const key = 'daikou_history_' + today.toDateString();
   const rides = JSON.parse(localStorage.getItem(key) || '[]');
   const el = document.getElementById('inlineHistory');
-  const ha = document.getElementById('historyArea');
-  if(!el || !ha) return;
-  if(rides.length === 0){
-    el.innerHTML = '';
-    ha.style.display = 'none';
-    return;
-  }
-  // Idle画面表示中のみ表示
-  if(appState === 'idle') ha.style.display = 'block';
+  if(!el) return;
+  if(rides.length === 0){ el.innerHTML = ''; return; }
   el.innerHTML = rides.map((r,i)=>`
     <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;
-      display:flex;justify-content:space-between;align-items:center;">
+      display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
       <div>
         <span style="font-size:11px;color:#aaa;">${i+1}回目　${r.time}</span><br>
         <span style="font-size:13px;color:#555;">${(r.distance_m/1000).toFixed(2)}km</span>
@@ -684,9 +681,6 @@ function showScreen(name){
   document.getElementById('screenIdle').style.display    = name==='idle'    ? 'block' : 'none';
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
-  // 履歴エリアはIdle時のみ表示
-  const ha = document.getElementById('historyArea');
-  if(ha) ha.style.display = name==='idle' ? 'block' : 'none';
 }
 
 loadSettings();
