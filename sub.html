@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>代行料金</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { overflow: hidden; }
+
+    /* 空車画面 */
+    #screen-idle {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+    }
+    #screen-idle .mark { font-size: 64px; }
+    #screen-idle .big  { font-size: 36px; font-weight: 800; color: var(--text2); }
+    #screen-idle .sub  { font-size: 15px; color: var(--text2); }
+
+    /* 走行中画面 */
+    #screen-driving {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      gap: 20px;
+    }
+    #screen-driving .fare-label {
+      font-size: 14px;
+      color: var(--text2);
+      letter-spacing: 3px;
+    }
+    #screen-driving .fare-num {
+      font-size: 80px;
+      font-weight: 800;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    #screen-driving .fare-yen {
+      font-size: 20px;
+      color: var(--text2);
+    }
+    .sub-info-row {
+      display: flex;
+      gap: 32px;
+      font-size: 14px;
+      color: var(--text2);
+    }
+    .sub-info-row span { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .sub-info-row .val { font-size: 20px; font-weight: 700; color: var(--text); }
+
+    /* 更新時刻 */
+    #last-updated {
+      font-size: 11px;
+      color: var(--text2);
+      margin-top: 8px;
+    }
+
+    /* 料金確定画面 */
+    #screen-finished {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+      gap: 16px;
+    }
+    #screen-finished .finish-label {
+      font-size: 14px;
+      color: var(--text2);
+      letter-spacing: 3px;
+    }
+    #screen-finished .finish-fare {
+      font-size: 88px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .breakdown {
+      width: 100%;
+      max-width: 300px;
+      background: var(--bg2);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--bg3);
+      font-size: 14px;
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+    .breakdown-row .bval { font-weight: 700; color: var(--text); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ 代行料金</h1>
+  <span id="vehicle-label" style="font-size:13px;color:var(--text2)">--</span>
+</div>
+
+<!-- 空車画面 -->
+<div id="screen-idle" class="main">
+  <div class="mark">🚗</div>
+  <div class="big">空　車</div>
+  <div class="sub">代行をご利用の場合はお声がけください</div>
+</div>
+
+<!-- 走行中画面（非表示） -->
+<div id="screen-driving" class="main" style="display:none">
+  <div class="fare-label">現在の料金</div>
+  <div class="fare-num" id="sub-fare">¥1,300</div>
+  <div class="fare-yen">円</div>
+  <div class="sub-info-row">
+    <span>
+      <span>走行距離</span>
+      <span class="val" id="sub-distance">0m</span>
+    </span>
+    <span>
+      <span>経過時間</span>
+      <span class="val" id="sub-elapsed">00:00</span>
+    </span>
+  </div>
+  <div id="last-updated">-- 更新中 --</div>
+</div>
+
+<!-- 料金確定画面（非表示） -->
+<div id="screen-finished" class="main" style="display:none">
+  <div class="finish-label">料金確定</div>
+  <div class="finish-fare" id="fin-fare">¥0</div>
+  <div class="breakdown" id="fin-breakdown"></div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<script src="js/gps.js"></script>
+<script src="js/meter.js"></script>
+<script src="js/firebase.js"></script>
+<script src="js/ui.js"></script>
+
+<script>
+  // URLパラメータ ?v=v1 から車両IDを取得
+  const params = new URLSearchParams(location.search);
+  const vehicleId = params.get('v') || 'v1';
+
+  const labels = { v1:'1号車', v2:'2号車', v3:'3号車', v4:'4号車' };
+  document.getElementById('vehicle-label').textContent = labels[vehicleId] || vehicleId;
+
+  let lastUpdatedAt = null;
+
+  function showScreen(name) {
+    ['idle', 'driving', 'finished'].forEach(s => {
+      document.getElementById(`screen-${s}`).style.display = s === name ? 'flex' : 'none';
+    });
+  }
+
+  function formatFare(y) { return y.toLocaleString('ja-JP'); }
+  function formatDist(m) {
+    if (m < 1000) return `${Math.round(m)}m`;
+    return `${(m / 1000).toFixed(2)}km`;
+  }
+  function formatTime(s) {
+    return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+  }
+
+  // 更新時刻を「○秒前」で表示
+  setInterval(() => {
+    if (!lastUpdatedAt) return;
+    const sec = Math.round((Date.now() - lastUpdatedAt) / 1000);
+    const el = document.getElementById('last-updated');
+    if (el) {
+      if (sec >= 5) {
+        el.textContent = `⚠️ ${sec}秒前に更新（通信確認中...）`;
+        el.style.color = 'var(--warn)';
+      } else {
+        el.textContent = `${sec}秒前に更新`;
+        el.style.color = 'var(--text2)';
+      }
+    }
+  }, 1000);
+
+  // Firebase リスナー起動
+  window.addEventListener('DOMContentLoaded', () => {
+    FirebaseManager.listenVehicle(vehicleId, data => {
+      if (!data) return;
+      const status = data.status || 'idle';
+      const session = data.session || {};
+      lastUpdatedAt = Date.now();
+
+      if (status === 'idle') {
+        showScreen('idle');
+        return;
+      }
+
+      if (status === 'driving') {
+        showScreen('driving');
+        document.getElementById('sub-fare').textContent =
+          `¥${formatFare(session.fare_yen || 1300)}`;
+        document.getElementById('sub-distance').textContent =
+          formatDist(session.distance_m || 0);
+        document.getElementById('sub-elapsed').textContent =
+          formatTime(session.elapsed_sec || 0);
+        return;
+      }
+
+      if (status === 'finished') {
+        showScreen('finished');
+        document.getElementById('fin-fare').textContent =
+          `¥${formatFare(session.fare_yen || 0)}`;
+        document.getElementById('fin-breakdown').innerHTML = `
+          <div class="breakdown-row">
+            <span>走行距離</span>
+            <span class="bval">${formatDist(session.distance_m || 0)}</span>
+          </div>
+          <div class="breakdown-row">
+            <span>走行時間</span>
+            <span class="bval">${formatTime(session.elapsed_sec || 0)}</span>
+          </div>
+          <div class="breakdown-row">
+            <span>料金</span>
+            <span class="bval" style="color:var(--accent)">
+              ¥${formatFare(session.fare_yen || 0)}
+            </span>
+          </div>
+        `;
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

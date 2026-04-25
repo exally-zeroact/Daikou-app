@@ -1,0 +1,320 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --bg: #0a0a0f;
+  --bg2: #13131a;
+  --bg3: #1c1c26;
+  --accent: #00d4aa;
+  --accent2: #00b891;
+  --text: #f0f0f5;
+  --text2: #8888aa;
+  --idle: #555577;
+  --driving: #00d4aa;
+  --danger: #ff4466;
+  --warn: #ffaa00;
+  --radius: 16px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ヘッダー */
+.header {
+  background: var(--bg2);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--bg3);
+}
+
+.header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.badge.idle {
+  background: var(--bg3);
+  color: var(--text2);
+}
+
+.badge.driving {
+  background: var(--accent);
+  color: #000;
+}
+
+/* メインコンテンツ */
+.main {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* 料金表示カード */
+.fare-card {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+  border: 1px solid var(--bg3);
+}
+
+.fare-label {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 8px;
+  letter-spacing: 2px;
+}
+
+.fare-amount {
+  font-size: 64px;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.fare-unit {
+  font-size: 18px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+
+/* 情報グリッド */
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.info-card {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+  border: 1px solid var(--bg3);
+}
+
+.info-card .label {
+  font-size: 11px;
+  color: var(--text2);
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.info-card .value {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ステータス行 */
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  border: 1px solid var(--bg3);
+}
+
+/* ボタン */
+.btn {
+  width: 100%;
+  padding: 18px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: opacity 0.2s;
+}
+
+.btn:active { opacity: 0.8; }
+
+.btn-start {
+  background: var(--accent);
+  color: #000;
+}
+
+.btn-stop {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 14px;
+  padding: 14px;
+}
+
+/* セレクト */
+select {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid #333355;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+/* 車両選択 */
+.vehicle-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text2);
+}
+
+/* サブ機専用 */
+.sub-idle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.sub-idle .big-text {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--text2);
+}
+
+.sub-idle .sub-text {
+  font-size: 16px;
+  color: var(--text2);
+}
+
+/* 料金確定画面 */
+.finished-card {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+  border: 2px solid var(--accent);
+}
+
+.finished-title {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 12px;
+  letter-spacing: 2px;
+}
+
+.finished-fare {
+  font-size: 72px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+
+.breakdown {
+  margin-top: 20px;
+  text-align: left;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--bg3);
+}
+
+/* 設定画面 */
+.settings-section {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 20px;
+  border: 1px solid var(--bg3);
+}
+
+.settings-section h2 {
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  font-size: 13px;
+  color: var(--text2);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.field input {
+  width: 100%;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid #333355;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 16px;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: var(--accent);
+}
+
+/* 接続状態・GPS */
+#connection, #gps-accuracy, #stationary {
+  font-size: 12px;
+}
+
+/* nav */
+.nav {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--bg2);
+  border-top: 1px solid var(--bg3);
+}
+
+.nav a {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  background: var(--bg3);
+  color: var(--text2);
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 12px;
+}
