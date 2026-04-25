@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>本日の履歴</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-height:100vh;}
+
+.appbar{
+  background:#007AFF;
+  padding:12px 16px;
+  padding-top:max(12px,env(safe-area-inset-top));
+  display:flex;align-items:center;gap:12px;
+}
+.appbar-back{
+  color:#fff;font-size:20px;cursor:pointer;
+  padding:4px 8px;
+  transition:transform 0.1s,filter 0.1s;
+}
+.appbar-back:active{transform:scale(0.9);filter:brightness(0.8);}
+.appbar-title{font-size:17px;font-weight:700;color:#fff;}
+
+.wrap{padding:16px;display:flex;flex-direction:column;gap:16px;padding-bottom:40px;}
+
+/* 日付ヘッダー */
+.date-header{
+  font-size:13px;font-weight:700;color:#8E8E93;
+  letter-spacing:1px;padding:4px 0;
+}
+
+/* サマリーカード */
+.summary-card{
+  background:#fff;border-radius:12px;
+  padding:16px;display:grid;
+  grid-template-columns:1fr 1fr 1fr;gap:8px;
+}
+.summary-item{text-align:center;}
+.summary-label{font-size:11px;color:#aaa;margin-bottom:4px;}
+.summary-value{font-size:18px;font-weight:900;color:#111;}
+.summary-unit{font-size:11px;color:#aaa;}
+
+/* 走行リスト */
+.ride-list{background:#fff;border-radius:12px;overflow:hidden;}
+.ride-item{
+  padding:14px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:0.5px solid #f0f0f0;
+}
+.ride-item:last-child{border-bottom:none;}
+.ride-left{display:flex;flex-direction:column;gap:4px;}
+.ride-num{font-size:12px;color:#aaa;}
+.ride-time{font-size:15px;font-weight:700;color:#111;}
+.ride-dist{font-size:12px;color:#8E8E93;}
+.ride-right{text-align:right;}
+.ride-fare{font-size:18px;font-weight:900;color:#111;}
+.ride-extras{font-size:11px;color:#FF9500;margin-top:2px;}
+
+/* 空の履歴 */
+.empty{
+  text-align:center;padding:60px 20px;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+}
+.empty-icon{font-size:48px;opacity:0.2;}
+.empty-text{font-size:15px;color:#aaa;}
+</style>
+</head>
+<body>
+
+<div class="appbar">
+  <div class="appbar-back" onclick="location.href='settings.html'">＜</div>
+  <div class="appbar-title">本日の走行履歴</div>
+</div>
+
+<div class="wrap" id="wrap">
+  <div class="empty" id="emptyMsg">
+    <div class="empty-icon">🚗</div>
+    <div class="empty-text">本日の走行履歴はありません</div>
+  </div>
+</div>
+
+<script>
+function load(){
+  const today = new Date();
+  const key = 'daikou_history_' + today.toDateString();
+  const rides = JSON.parse(localStorage.getItem(key) || '[]');
+  const wrap = document.getElementById('wrap');
+
+  if(rides.length === 0) return;
+
+  document.getElementById('emptyMsg').style.display = 'none';
+
+  // 日付ヘッダー
+  const days = ['日','月','火','水','木','金','土'];
+  const dateStr = today.getFullYear() + '年' +
+    (today.getMonth()+1) + '月' + today.getDate() + '日（' +
+    days[today.getDay()] + '）';
+
+  const dateHeader = document.createElement('div');
+  dateHeader.className = 'date-header';
+  dateHeader.textContent = dateStr;
+  wrap.appendChild(dateHeader);
+
+  // サマリー計算
+  const totalDist = rides.reduce((a,b) => a + b.distance_m, 0);
+  const totalFare = rides.reduce((a,b) => a + b.fare, 0);
+
+  const summary = document.createElement('div');
+  summary.className = 'summary-card';
+  summary.innerHTML = `
+    <div class="summary-item">
+      <div class="summary-label">走行回数</div>
+      <div class="summary-value">${rides.length}<span class="summary-unit">回</span></div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">総距離</div>
+      <div class="summary-value">${(totalDist/1000).toFixed(1)}<span class="summary-unit">km</span></div>
+    </div>
+    <div class="summary-item">
+      <div class="summary-label">総売上</div>
+      <div class="summary-value" style="color:#007AFF;">¥${totalFare.toLocaleString()}</div>
+    </div>
+  `;
+  wrap.appendChild(summary);
+
+  // 走行リスト
+  const list = document.createElement('div');
+  list.className = 'ride-list';
+
+  rides.forEach((ride, i) => {
+    const item = document.createElement('div');
+    item.className = 'ride-item';
+
+    // 追加料金テキスト
+    let extrasText = '';
+    if(ride.extras && ride.extras.length > 0){
+      extrasText = ride.extras.map(e => e.name + ' +¥' + e.amount.toLocaleString()).join('　');
+    }
+    if(ride.surcharge) extrasText = (extrasText ? extrasText + '　' : '') + '割増あり';
+
+    item.innerHTML = `
+      <div class="ride-left">
+        <div class="ride-num">${i+1}回目</div>
+        <div class="ride-time">${ride.time}</div>
+        <div class="ride-dist">${(ride.distance_m/1000).toFixed(2)}km</div>
+        ${extrasText ? `<div class="ride-extras">${extrasText}</div>` : ''}
+      </div>
+      <div class="ride-right">
+        <div class="ride-fare">¥${ride.fare.toLocaleString()}</div>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+
+  wrap.appendChild(list);
+}
+
+load();
+</script>
+</body>
+</html>
