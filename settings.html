@@ -25,7 +25,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 .toggle.on::after{left:20px;}
 .preview{background:#fff8f0;border-radius:8px;padding:12px;font-size:13px;color:#888;line-height:2.2;}
 .preview span.val{color:#111;font-weight:700;}
-.btn-save{width:100%;padding:16px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:transform 0.1s,filter 0.1s;} .btn-save:active{transform:scale(0.97);filter:brightness(0.85);}
+.btn-save{width:100%;padding:16px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;} .btn-save:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
 .save-msg{text-align:center;color:#34C759;font-size:13px;min-height:20px;margin-top:4px;}
 
 /* 追加料金リスト */
@@ -42,7 +42,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 .vehicle-select{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;background:#f9f9f9;font-family:'Noto Sans JP',sans-serif;}
 </style>
 </head>
-<body>
+<body ontouchstart="">
 
 <div class="appbar">
   <div class="appbar-back" onclick="location.href='index.html'">＜</div>
