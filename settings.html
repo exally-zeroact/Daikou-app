@@ -60,6 +60,17 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
     </div>
   </div>
 
+  <!-- 自動リセット設定 -->
+  <div class="section">
+    <div class="section-title">自動リセット</div>
+    <div class="row">
+      <div class="row-label">リセット時間</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input class="row-input" type="time" id="resetTime" value="12:00" style="width:110px;">
+      </div>
+    </div>
+  </div>
+
   <!-- 料金設定 -->
   <div class="section">
     <div class="section-title">料金設定</div>
@@ -262,6 +273,7 @@ function saveAll(){
       addDistanceM:     cfg.add_distance_m,
       addFare:          cfg.add_fare,
     };
+    settings.resetTime = document.getElementById('resetTime').value || '12:00';
     localStorage.setItem('daikou_settings', JSON.stringify(settings));
     localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
 
