@@ -312,6 +312,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 // ─── 状態 ───
 let appState = 'idle'; // idle / driving / fare
 let histSaved = false; // 確定時の履歴保存済みフラグ
+let noSleep = null;       // NoSleepインスタンス
+let dimTimer = null;      // 空車時の画面暗転タイマー
+const DIM_MINUTES = 300;  // 空車5時間(300分)で暗転
 let surchargeOn = false;
 let surchargeRate = 1.2;
 let surchargeEnabled = false;
