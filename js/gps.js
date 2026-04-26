@@ -8,8 +8,7 @@ const GPS = (() => {
   // ローパスフィルター用バッファ（直近5点）
   let posBuffer = [];
 
-  // OSRM用座標トレース（走行全体の履歴）
-  let traceBuffer = [];
+  // OSRM削除済（2026/04/26）：traceBuffer 不要
 
   // 渋滞モード判定用
   let trafficJamSince = null;
@@ -29,9 +28,6 @@ const GPS = (() => {
     // ローパスフィルター
     filter_size: 5,
 
-    // OSRM
-    trace_max_points: 5000,
-
     // 渋滞モード
     jam_speed_max_kmh: 10,        // 0〜10km/hで
     jam_duration_sec: 60,         // 1分以上継続したら渋滞
@@ -40,7 +36,6 @@ const GPS = (() => {
   function start(callback) {
     onUpdateCallback = callback;
     posBuffer = [];
-    traceBuffer = [];
     trafficJamSince = null;
     isTrafficJam = false;
     if (!navigator.geolocation) { alert('GPSに対応していません'); return; }
@@ -56,9 +51,7 @@ const GPS = (() => {
     isTrafficJam = false;
   }
 
-  // OSRM用
-  function getTrace() { return traceBuffer.slice(); }
-  function clearTrace() { traceBuffer = []; }
+  // OSRM用 getTrace/clearTrace は削除（2026/04/26）
 
   // 動的accuracy閾値（速度・時間帯で可変）
   function getDynamicAccuracyLimit(speedKmh, now) {
@@ -137,15 +130,7 @@ const GPS = (() => {
     // ⑤ 静止判定（補正後座標・渋滞時は厳しく）
     isStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
 
-    // ⑥ OSRMトレースに追加
-    if (traceBuffer.length < CONFIG.trace_max_points) {
-      traceBuffer.push({
-        lat: filtered.lat,
-        lng: filtered.lng,
-        timestamp: now,
-        accuracy
-      });
-    }
+    // ⑥ OSRMトレース追加処理は削除（2026/04/26）
 
     const result = {
       lat: filtered.lat,
@@ -233,5 +218,5 @@ const GPS = (() => {
 
   function onError(err) { console.error('[GPS]', err.code, err.message); }
 
-  return { start, stop, calcDistance, getTrace, clearTrace };
+  return { start, stop, calcDistance };
 })();
