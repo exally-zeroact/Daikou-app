@@ -274,12 +274,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 </div>
 
-<!-- 復元通知バナー（空車ボタンで非表示） -->
-<div id="restoreNotice" style="display:none;background:#34C759;color:#fff;padding:10px 16px;text-align:center;font-family:'Noto Sans JP',sans-serif;">
-  <div id="restoreNoticeTitle" style="font-size:14px;font-weight:700;line-height:1.4;">✅ アプリが中断されました</div>
-  <div id="restoreNoticeDetail" style="font-size:12px;opacity:0.95;margin-top:2px;">走行データを保存して再開しています</div>
-</div>
-
 <!-- コンテンツ -->
 <div class="content" id="content">
 
@@ -308,6 +302,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
   <!-- DRIVING -->
   <div id="screenDriving" style="display:none;">
+    <!-- 復元通知バナー（控えめ・空車で消去） -->
+    <div id="restoreNotice" style="display:none;margin:8px auto 0;padding:6px 12px;background:#E8F8EE;color:#1F7A3F;border:1px solid #B7E4C7;border-radius:6px;text-align:center;font-family:'Noto Sans JP',sans-serif;max-width:fit-content;">
+      <span id="restoreNoticeTitle" style="font-size:12px;font-weight:600;">✅ 走行データを保存して再開中</span>
+      <span id="restoreNoticeDetail" style="font-size:11px;margin-left:6px;opacity:0.8;"></span>
+    </div>
     <div class="driving-grid">
       <div class="meter-card">
         <div class="meter-label">走行距離</div>
@@ -1021,13 +1020,13 @@ function showRestoreNotice(mode, distanceM, fareDiff){
     title.textContent = '✅ 走行データを自動補正しました';
     const km = (distanceM/1000).toFixed(2);
     if(fareDiff > 0){
-      detail.textContent = `距離 +${km} km ・ 料金 +¥${fareDiff.toLocaleString()}`;
+      detail.textContent = `距離 +${km} km・料金 +¥${fareDiff.toLocaleString()}`;
     } else {
-      detail.textContent = `距離 +${km} km ・ 料金は通常通り`;
+      detail.textContent = `距離 +${km} km・料金は通常通り`;
     }
   } else {
-    title.textContent = '✅ アプリが中断されました';
-    detail.textContent = '走行データを保存して再開しています';
+    title.textContent = '✅ 走行データを保存して再開中';
+    detail.textContent = '';
   }
   banner.style.display = 'block';
 }
