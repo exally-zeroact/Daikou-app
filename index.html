@@ -501,7 +501,10 @@ function startGPS(){
         const dot = document.getElementById('gpsDot');
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
-        if(appState==='driving') Meter.update(g);
+        if(appState==='driving') {
+          Meter.update(g);
+          if(typeof TestMode !== 'undefined') TestMode.recordPosition(g.lat, g.lng); // ★テスト用・リリース時削除
+        }
       } catch(e){ console.error('GPS callback error:', e); }
     });
   } catch(e){ console.error('GPS start error:', e); }
