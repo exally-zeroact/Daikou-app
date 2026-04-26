@@ -69,3 +69,12 @@ const DEBUG = (() => {
 if(DEBUG.enabled){
   console.log('[DEBUG] テスト環境で起動中:', location.hostname + location.search);
 }
+
+// ===========================================
+// dlog: デバッグログヘルパー（2026/04/26追加）
+// テスト環境でのみ出力・本番では完全に無効
+// ===========================================
+window.dlog = function(){
+  if(!DEBUG.enabled) return;
+  console.log.apply(console, arguments);
+};
