@@ -628,6 +628,7 @@ function renderFare(s, fare, extraTotal, total){
       extras: [...extras]
     });
     localStorage.setItem(histKey, JSON.stringify(hist));
+    if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); // ★テスト用・リリース時削除
   }
 }
 
