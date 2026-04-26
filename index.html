@@ -686,9 +686,9 @@ function onIdle(){
   // 空車成立後にOSRM補正をバックグラウンド実行（500m以上の走行のみ）
   if(correctionDistanceM > 0){
     runOsrmCorrection(correctionDistanceM, correctionTotal);
-    // テストモード：走行終了
-    try { if(typeof TestMode !== 'undefined') TestMode.endTrip(correctionDistanceM); } catch(e){ console.error('TestMode end error:', e); }
   }
+  // テストモード：走行終了（距離問わず記録）
+  try { if(typeof TestMode !== 'undefined') TestMode.endTrip(correctionDistanceM || 0); } catch(e){ console.error('TestMode end error:', e); }
 }
 
 // ─── Menuボタン ───
