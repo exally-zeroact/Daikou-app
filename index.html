@@ -375,6 +375,7 @@ class NoSleep {
 <script src="js/gps.js"></script>
 <script src="js/osrm.js"></script>
 <script src="js/region-loader.js"></script>
+<script src="js/test-mode.js"></script>
 <script src="js/meter.js"></script>
 <script src="js/firebase.js"></script>
 <script>
@@ -502,6 +503,10 @@ function startGPS(){
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
         if(appState==='driving') Meter.update(g);
+        // テストモード：座標記録
+        if(typeof TestMode !== 'undefined' && appState==='driving'){
+          TestMode.recordPosition(g.lat, g.lng);
+        }
         // 地方データを先読み（最初のGPS取得時のみ）
         if(typeof RegionLoader !== 'undefined' && !window._regionInited){
           window._regionInited = true;
@@ -588,6 +593,8 @@ function onMainBtn(){
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
     try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
+    // テストモード：走行開始
+    try { if(typeof TestMode !== 'undefined') TestMode.startTrip(); } catch(e){ console.error('TestMode start error:', e); }
     startUiTimer();
   } else if(appState==='driving'){
     // 代行開始ボタンを再押し → 何もしない（Drivingのまま）
@@ -679,6 +686,8 @@ function onIdle(){
   // 空車成立後にOSRM補正をバックグラウンド実行（500m以上の走行のみ）
   if(correctionDistanceM > 0){
     runOsrmCorrection(correctionDistanceM, correctionTotal);
+    // テストモード：走行終了
+    try { if(typeof TestMode !== 'undefined') TestMode.endTrip(correctionDistanceM); } catch(e){ console.error('TestMode end error:', e); }
   }
 }
 
