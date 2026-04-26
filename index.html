@@ -274,6 +274,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 </div>
 
+<!-- 復元通知バナー（appbar直下・空車で消去） -->
+<div id="restoreNotice" style="display:none;margin:6px auto 0;padding:5px 12px;background:#E8F8EE;color:#1F7A3F;border:1px solid #B7E4C7;border-radius:6px;text-align:center;font-family:'Noto Sans JP',sans-serif;max-width:fit-content;flex-shrink:0;">
+  <span id="restoreNoticeTitle" style="font-size:12px;font-weight:600;">✅ 走行データを保存して再開中</span>
+  <span id="restoreNoticeDetail" style="font-size:11px;margin-left:6px;opacity:0.85;"></span>
+</div>
+
 <!-- コンテンツ -->
 <div class="content" id="content">
 
@@ -302,11 +308,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
   <!-- DRIVING -->
   <div id="screenDriving" style="display:none;">
-    <!-- 復元通知バナー（控えめ・空車で消去） -->
-    <div id="restoreNotice" style="display:none;margin:8px auto 0;padding:6px 12px;background:#E8F8EE;color:#1F7A3F;border:1px solid #B7E4C7;border-radius:6px;text-align:center;font-family:'Noto Sans JP',sans-serif;max-width:fit-content;">
-      <span id="restoreNoticeTitle" style="font-size:12px;font-weight:600;">✅ 走行データを保存して再開中</span>
-      <span id="restoreNoticeDetail" style="font-size:11px;margin-left:6px;opacity:0.8;"></span>
-    </div>
     <div class="driving-grid">
       <div class="meter-card">
         <div class="meter-label">走行距離</div>
