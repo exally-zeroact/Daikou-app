@@ -179,6 +179,18 @@ function load(){
   updateTimeUI();
 
   extraItems = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
+  // 初回起動時にデフォルトのクイック追加料金をセット
+  if(localStorage.getItem('daikou_extras') === null){
+    extraItems = [
+      {name:'外車', amount:500},
+      {name:'MT車', amount:500},
+      {name:'左ハンドル', amount:1000},
+      {name:'深夜割増', amount:1000},
+      {name:'迎車料金', amount:1000},
+      {name:'キャンセル料', amount:2000}
+    ];
+    localStorage.setItem('daikou_extras', JSON.stringify(extraItems));
+  }
   renderExtraItems();
   updatePreview();
 }
