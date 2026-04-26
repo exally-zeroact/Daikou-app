@@ -372,10 +372,13 @@ class NoSleep {
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="js/firebase-config.js"></script>
+<script src="js/region-loader.js"></script>
 <script src="js/gps.js"></script>
 <!-- OSRM削除済（2026/04/26）：公開API依存ゼロ化・スケール無制限化のため -->
 <script src="js/meter.js"></script>
 <script src="js/firebase.js"></script>
+<script src="js/test-mode.js"></script>
+<!-- ★テスト用・リリース時削除（2026/04/26追加）-->
 <script>
 // ─── 状態 ───
 let appState = 'idle'; // idle / driving / fare
@@ -501,6 +504,10 @@ function startGPS(){
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
         if(appState==='driving') Meter.update(g);
+        // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
+        if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
+        // TestMode：走行中のみ位置記録（★テスト用・リリース時削除）
+        if(typeof TestMode !== 'undefined' && appState==='driving') TestMode.recordPosition(g.lat, g.lng);
       } catch(e){ console.error('GPS callback error:', e); }
     });
   } catch(e){ console.error('GPS start error:', e); }
@@ -582,6 +589,8 @@ function onMainBtn(){
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
     try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
+    // TestMode：走行開始記録（★テスト用・リリース時削除）
+    try { if(typeof TestMode !== 'undefined') TestMode.startTrip(); } catch(e){ console.error('TestMode start error:', e); }
     startUiTimer();
   } else if(appState==='driving'){
     // 代行開始ボタンを再押し → 何もしない（Drivingのまま）
@@ -646,6 +655,8 @@ function onIdle(){
     let fare = s.fare_yen;
     if(surchargeOn) fare = Math.round(fare * surchargeRate);
     correctionTotal = fare + extras.reduce((a,b)=>a+b.amount,0);
+    // TestMode：走行終了記録（★テスト用・リリース時削除）
+    try { if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); } catch(e){ console.error('TestMode end error:', e); }
     // 確定画面からのみ空車に戻れる
     Meter.stop();
     if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
