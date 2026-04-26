@@ -11,22 +11,38 @@ const GPS = (() => {
   // OSRM用座標トレース（走行全体の履歴）
   let traceBuffer = [];
 
+  // 渋滞モード判定用
+  let trafficJamSince = null;
+  let isTrafficJam = false;
+
   const CONFIG = {
-    accuracy_limit_m: 15,
+    // 静止判定
     speed_limit_kmh: 3,
     stationary_sec: 5,
     stationary_radius_m: 3,
-    jump_limit_m_per_s: 50,
+    stationary_radius_jam_m: 1,   // 渋滞時の半径（厳しく）
     resume_speed_kmh: 5,
+
+    // ジャンプ判定（180km/h相当）
+    jump_limit_m_per_s: 50,
+
+    // ローパスフィルター
     filter_size: 5,
-    trace_max_points: 5000,    // トレースバッファ上限（メモリ保護）
+
+    // OSRM
+    trace_max_points: 5000,
+
+    // 渋滞モード
+    jam_speed_max_kmh: 10,        // 0〜10km/hで
+    jam_duration_sec: 60,         // 1分以上継続したら渋滞
   };
 
   function start(callback) {
     onUpdateCallback = callback;
-    // バッファクリア
     posBuffer = [];
     traceBuffer = [];
+    trafficJamSince = null;
+    isTrafficJam = false;
     if (!navigator.geolocation) { alert('GPSに対応していません'); return; }
     watchId = navigator.geolocation.watchPosition(onPosition, onError,
       { enableHighAccuracy: true, timeout: 1000, maximumAge: 0 });
@@ -36,17 +52,45 @@ const GPS = (() => {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     lastPosition = null; lowSpeedStart = null; isStationary = false;
     posBuffer = [];
-    // traceBufferは確定後にクリアするのでここではクリアしない
+    trafficJamSince = null;
+    isTrafficJam = false;
   }
 
-  // OSRM用: 現在のトレースを取得
-  function getTrace() {
-    return traceBuffer.slice(); // コピーを返す
+  // OSRM用
+  function getTrace() { return traceBuffer.slice(); }
+  function clearTrace() { traceBuffer = []; }
+
+  // 動的accuracy閾値（速度・時間帯で可変）
+  function getDynamicAccuracyLimit(speedKmh, now) {
+    let limit;
+    if (speedKmh < 30)       limit = 10;  // 低速・市街地：厳しい
+    else if (speedKmh < 60)  limit = 15;  // 中速：標準
+    else if (speedKmh < 100) limit = 25;  // 高速：緩め
+    else                     limit = 35;  // 超高速：さらに緩め
+
+    // 深夜（22時〜5時）は1.2倍に緩める
+    const hour = new Date(now).getHours();
+    if (hour >= 22 || hour < 5) limit *= 1.2;
+
+    return limit;
   }
 
-  // OSRM用: トレースをクリア（確定後に呼ぶ）
-  function clearTrace() {
-    traceBuffer = [];
+  // 渋滞モード判定
+  function checkTrafficJam(speedKmh, now) {
+    if (speedKmh > 0 && speedKmh < CONFIG.jam_speed_max_kmh) {
+      if (!trafficJamSince) trafficJamSince = now;
+      const durationSec = (now - trafficJamSince) / 1000;
+      if (durationSec >= CONFIG.jam_duration_sec) {
+        if (!isTrafficJam) console.log('[GPS] 渋滞モード開始');
+        isTrafficJam = true;
+        return true;
+      }
+    } else if (speedKmh >= CONFIG.jam_speed_max_kmh) {
+      if (isTrafficJam) console.log('[GPS] 渋滞モード解除');
+      trafficJamSince = null;
+      isTrafficJam = false;
+    }
+    return isTrafficJam;
   }
 
   // ローパスフィルター（加重移動平均）
@@ -71,22 +115,29 @@ const GPS = (() => {
   function onPosition(pos) {
     const now = Date.now();
     const { latitude: lat, longitude: lng, accuracy, speed } = pos.coords;
-
-    if (accuracy > CONFIG.accuracy_limit_m) return;
-
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
 
+    // ① 動的accuracy閾値で精度チェック
+    const accLimit = getDynamicAccuracyLimit(speedKmh, now);
+    if (accuracy > accLimit) return;
+
+    // ② ジャンプ判定（生座標で判定）
     if (lastPosition) {
       const jump = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
       const timeDiff = (now - lastPosition.timestamp) / 1000;
       if (timeDiff > 0 && jump / timeDiff > CONFIG.jump_limit_m_per_s) return;
     }
 
+    // ③ 渋滞モード判定
+    checkTrafficJam(speedKmh, now);
+
+    // ④ ローパスフィルター適用
     const filtered = applyLowPass(lat, lng);
 
+    // ⑤ 静止判定（補正後座標・渋滞時は厳しく）
     isStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
 
-    // OSRMトレースに追加（補正後座標）
+    // ⑥ OSRMトレースに追加
     if (traceBuffer.length < CONFIG.trace_max_points) {
       traceBuffer.push({
         lat: filtered.lat,
@@ -112,18 +163,72 @@ const GPS = (() => {
       if (!lowSpeedStart) { lowSpeedStart = { time: now, lat, lng }; return isStationary; }
       const elapsedSec = (now - lowSpeedStart.time) / 1000;
       const movedM = calcDistance(lowSpeedStart.lat, lowSpeedStart.lng, lat, lng);
-      if (elapsedSec >= CONFIG.stationary_sec && movedM < CONFIG.stationary_radius_m) return true;
+      // 渋滞中は静止判定半径を厳しく（3m → 1m）
+      const radius = isTrafficJam ? CONFIG.stationary_radius_jam_m : CONFIG.stationary_radius_m;
+      if (elapsedSec >= CONFIG.stationary_sec && movedM < radius) return true;
       return isStationary;
     }
     lowSpeedStart = null; return false;
   }
 
+  // Vincenty公式（WGS84楕円体・高精度3D距離計算）
+  // 失敗時はHaversineにフォールバック
   function calcDistance(lat1, lng1, lat2, lng2) {
+    // 同一点チェック
+    if (lat1 === lat2 && lng1 === lng2) return 0;
+
+    const a = 6378137;              // WGS84長半径
+    const b = 6356752.314245;       // WGS84短半径
+    const f = 1 / 298.257223563;    // WGS84扁平率
+
+    const L = (lng2 - lng1) * Math.PI / 180;
+    const U1 = Math.atan((1 - f) * Math.tan(lat1 * Math.PI / 180));
+    const U2 = Math.atan((1 - f) * Math.tan(lat2 * Math.PI / 180));
+    const sinU1 = Math.sin(U1), cosU1 = Math.cos(U1);
+    const sinU2 = Math.sin(U2), cosU2 = Math.cos(U2);
+
+    let lambda = L, lambdaP, iterLimit = 100;
+    let sinSigma, cosSigma, sigma, sinAlpha, cosSqAlpha, cos2SigmaM;
+
+    do {
+      const sinLambda = Math.sin(lambda), cosLambda = Math.cos(lambda);
+      sinSigma = Math.sqrt(
+        (cosU2 * sinLambda) * (cosU2 * sinLambda) +
+        (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda) * (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda)
+      );
+      if (sinSigma === 0) return 0;
+      cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
+      sigma = Math.atan2(sinSigma, cosSigma);
+      sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
+      cosSqAlpha = 1 - sinAlpha * sinAlpha;
+      cos2SigmaM = cosSqAlpha === 0 ? 0 : cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha;
+      const C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+      lambdaP = lambda;
+      lambda = L + (1 - C) * f * sinAlpha *
+        (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+    } while (Math.abs(lambda - lambdaP) > 1e-12 && --iterLimit > 0);
+
+    if (iterLimit === 0) {
+      // 収束しなかった→Haversineにフォールバック
+      return haversineDistance(lat1, lng1, lat2, lng2);
+    }
+
+    const uSq = cosSqAlpha * (a * a - b * b) / (b * b);
+    const A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+    const B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+    const deltaSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) -
+      B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)));
+
+    return b * A * (sigma - deltaSigma);
+  }
+
+  // フォールバック用Haversine
+  function haversineDistance(lat1, lng1, lat2, lng2) {
     const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const aa = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1-aa));
   }
 
   function onError(err) { console.error('[GPS]', err.code, err.message); }
