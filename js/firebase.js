@@ -51,26 +51,28 @@ const FB = (() => {
   function startSession(fareConfigSnapshot){
     const db = getDb(); if(!db || !vehicleId) return;
     sessionId = generateSessionId();
-    db.ref('sessions_log/' + sessionId).set({
-      vehicle_id: vehicleId,
-      start_time: Date.now(),
-      end_time: null,
-      total_distance_m: 0,
-      total_fare_yen: 0,
-      fare_config_snapshot: fareConfigSnapshot,
-      status: 'driving'
-    });
+    // sessions_log への書き込みは廃止（プライバシー優先・日報で管理）
+    // db.ref('sessions_log/' + sessionId).set({
+    //   vehicle_id: vehicleId,
+    //   start_time: Date.now(),
+    //   end_time: null,
+    //   total_distance_m: 0,
+    //   total_fare_yen: 0,
+    //   fare_config_snapshot: fareConfigSnapshot,
+    //   status: 'driving'
+    // });
     db.ref('vehicles/' + vehicleId).update({ status: 'driving' });
   }
 
   function endSession(finalState){
     const db = getDb(); if(!db || !vehicleId || !sessionId) return;
-    db.ref('sessions_log/' + sessionId).update({
-      end_time: Date.now(),
-      total_distance_m: Math.round(finalState.distance_m),
-      total_fare_yen: finalState.fare_yen,
-      status: 'finished'
-    });
+    // sessions_log への書き込みは廃止（プライバシー優先・日報で管理）
+    // db.ref('sessions_log/' + sessionId).update({
+    //   end_time: Date.now(),
+    //   total_distance_m: Math.round(finalState.distance_m),
+    //   total_fare_yen: finalState.fare_yen,
+    //   status: 'finished'
+    // });
     db.ref('vehicles/' + vehicleId).update({
       status: 'finished',
       'session/distance_m': Math.round(finalState.distance_m),
