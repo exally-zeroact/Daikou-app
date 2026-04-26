@@ -28,6 +28,10 @@ const Meter = (() => {
   const NEAR_INFRA_RADIUS_M = 200;    // 200m以内のトンネル/橋を「該当」と判定
 
   let timer = null;
+  let saveTimer = null;
+  const STORAGE_KEY = 'daikou_running_state';
+  const RESUME_VALID_MS = 3600000; // 1時間以内なら復元有効
+  const SAVE_INTERVAL_MS = 10000;  // 10秒毎セーブ
 
   function setFareConfig(config){ fareConfig = { ...fareConfig, ...config }; }
   function getFareConfig(){ return { ...fareConfig }; }
@@ -45,11 +49,13 @@ const Meter = (() => {
     };
     if(timer) clearInterval(timer);
     timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
+    startAutoSave();
   }
 
   function stop(){
     state.running = false;
     if(timer){ clearInterval(timer); timer = null; }
+    stopAutoSave();
   }
 
   function reset(){
@@ -64,6 +70,7 @@ const Meter = (() => {
       last_timestamp: null,
       last_speed_kmh: 0,
     };
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
   }
 
   // GPS消失時の補完（トンネル・橋データ活用）
@@ -179,7 +186,70 @@ const Meter = (() => {
     state.running = true;
     if(timer) clearInterval(timer);
     timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
+    startAutoSave();
   }
 
-  return { start, stop, reset, resume, update, getState, setFareConfig, getFareConfig, calcFare, setDistance };
+  // ─── 自動セーブ機能（クラッシュ復元用）───
+  function startAutoSave(){
+    if(saveTimer) clearInterval(saveTimer);
+    autoSaveState(); // 即座に1回保存
+    saveTimer = setInterval(autoSaveState, SAVE_INTERVAL_MS);
+  }
+
+  function stopAutoSave(){
+    if(saveTimer){ clearInterval(saveTimer); saveTimer = null; }
+  }
+
+  function autoSaveState(){
+    if(!state.running) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        ...state,
+        saved_at: Date.now()
+      }));
+    } catch(e){
+      console.warn('[Meter] autoSave失敗:', e);
+    }
+  }
+
+  // 起動時に呼ぶ：前回の走行があれば復元情報を返す（呼び出し側で確認ダイアログ表示）
+  // 戻り値: 復元データ | null
+  function checkResume(){
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if(!saved) return null;
+      const data = JSON.parse(saved);
+      // 1時間以内なら有効
+      if(data && data.saved_at && (Date.now() - data.saved_at < RESUME_VALID_MS)){
+        return data;
+      }
+      // 古いデータは削除
+      localStorage.removeItem(STORAGE_KEY);
+    } catch(e){
+      console.warn('[Meter] checkResume失敗:', e);
+      try { localStorage.removeItem(STORAGE_KEY); } catch(ee){}
+    }
+    return null;
+  }
+
+  // 復元実行：保存されたstateを現在のstateに復元してメーター再開
+  function restoreFromSaved(savedData){
+    if(!savedData) return false;
+    state = {
+      running: true,
+      distance_m: savedData.distance_m || 0,
+      fare_yen: savedData.fare_yen || fareConfig.base_fare,
+      elapsed_sec: savedData.elapsed_sec || 0,
+      start_time: savedData.start_time || Date.now(),
+      last_gps: savedData.last_gps || null,
+      last_timestamp: savedData.last_timestamp || null,
+      last_speed_kmh: savedData.last_speed_kmh || 0,
+    };
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
+    startAutoSave();
+    return true;
+  }
+
+  return { start, stop, reset, resume, update, getState, setFareConfig, getFareConfig, calcFare, setDistance, checkResume, restoreFromSaved };
 })();
