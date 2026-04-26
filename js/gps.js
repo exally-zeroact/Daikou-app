@@ -25,6 +25,18 @@ const GPS = (() => {
     // ジャンプ判定（180km/h相当）
     jump_limit_m_per_s: 50,
 
+    // 案Z：加速度異常判定（2026/04/26追加）
+    // 普通の車の急加速・急ブレーキの限界 ≈ 8m/s²（=29km/h増減/秒）
+    // それを超える瞬間変化はGPSノイズと判定して除外
+    max_acceleration_ms2: 8,
+
+    // 案U：進行方向整合性チェック（2026/04/26追加）
+    // GPSのheading（進行方向）と実際の座標移動方向の差を判定
+    // 90度以上ずれていたらノイズと判定
+    heading_diff_threshold_deg: 90,
+    heading_check_min_distance_m: 5,  // 5m以上動いた時だけ判定（ブレ除外）
+    heading_check_min_speed_kmh: 5,   // 5km/h以下は判定しない（停車時のノイズ）
+
     // ローパスフィルター
     filter_size: 5,
 
@@ -105,9 +117,27 @@ const GPS = (() => {
     };
   }
 
+  // 2点間の方位角を計算（北=0度・時計回り）
+  // 案U（進行方向整合性チェック）用
+  function calcBearing(lat1, lng1, lat2, lng2) {
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lng2 - lng1) * Math.PI / 180;
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    const θ = Math.atan2(y, x);
+    return ((θ * 180 / Math.PI) + 360) % 360;
+  }
+
+  // 2つの方位角の差（最短角度・0-180度）
+  function angleDiff(a, b) {
+    let d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+  }
+
   function onPosition(pos) {
     const now = Date.now();
-    const { latitude: lat, longitude: lng, accuracy, speed } = pos.coords;
+    const { latitude: lat, longitude: lng, accuracy, speed, heading, altitude } = pos.coords;
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
 
     // ① 動的accuracy閾値で精度チェック
@@ -119,6 +149,38 @@ const GPS = (() => {
       const jump = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
       const timeDiff = (now - lastPosition.timestamp) / 1000;
       if (timeDiff > 0 && jump / timeDiff > CONFIG.jump_limit_m_per_s) return;
+    }
+
+    // ②-2 加速度異常判定（案Z・2026/04/26追加）
+    // 1秒で40km/h以上の急変はGPSノイズと判定して除外
+    // 但し、停止中(0km/h)からの発進は除外しない
+    if (lastPosition && lastPosition.speedKmh != null && lastPosition.speedKmh > 1 && speedKmh > 1) {
+      const dt = (now - lastPosition.timestamp) / 1000;
+      if (dt > 0 && dt < 5) {
+        const dvMs = (speedKmh - lastPosition.speedKmh) / 3.6;
+        const acceleration = dvMs / dt;
+        if (Math.abs(acceleration) > CONFIG.max_acceleration_ms2) {
+          console.log('[GPS] 加速度異常: ' + acceleration.toFixed(1) + 'm/s² (' +
+            lastPosition.speedKmh.toFixed(0) + '→' + speedKmh.toFixed(0) + 'km/h)・スキップ');
+          return;
+        }
+      }
+    }
+
+    // ②-3 進行方向整合性チェック（案U・2026/04/26追加）
+    // GPSのheading と 実際の座標移動方向 の差が大きい場合はノイズと判定
+    if (lastPosition && heading != null && heading >= 0 &&
+        speedKmh >= CONFIG.heading_check_min_speed_kmh) {
+      const movedDistance = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
+      if (movedDistance >= CONFIG.heading_check_min_distance_m) {
+        const movementBearing = calcBearing(lastPosition.lat, lastPosition.lng, lat, lng);
+        const diff = angleDiff(heading, movementBearing);
+        if (diff > CONFIG.heading_diff_threshold_deg) {
+          console.log('[GPS] 方向不整合: heading=' + heading.toFixed(0) + '° vs 移動=' +
+            movementBearing.toFixed(0) + '° (差=' + diff.toFixed(0) + '°)・スキップ');
+          return;
+        }
+      }
     }
 
     // ③ 渋滞モード判定
@@ -135,10 +197,11 @@ const GPS = (() => {
     const result = {
       lat: filtered.lat,
       lng: filtered.lng,
+      altitude,                          // 案AA：高度を結果に含める（2026/04/26）
       accuracy, speedKmh, isStationary,
       timestamp: now
     };
-    lastPosition = { lat: filtered.lat, lng: filtered.lng, timestamp: now };
+    lastPosition = { lat: filtered.lat, lng: filtered.lng, timestamp: now, speedKmh, altitude };
     if (onUpdateCallback) onUpdateCallback(result);
   }
 
@@ -216,7 +279,19 @@ const GPS = (() => {
     return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1-aa));
   }
 
+  // 案AA：3D距離計算（高度差を加味・2026/04/26追加）
+  // 平面距離 + 高度差 をピタゴラスで合算
+  // 高度がnullなら平面距離をそのまま返す（既存と同じ動作）
+  function calcDistance3D(lat1, lng1, alt1, lat2, lng2, alt2) {
+    const flat = calcDistance(lat1, lng1, lat2, lng2);
+    if (alt1 == null || alt2 == null) return flat;
+    const altDiff = alt2 - alt1;
+    // 高度差が異常値（100m超）の場合はGPSノイズと判定し平面距離のみ採用
+    if (Math.abs(altDiff) > 100) return flat;
+    return Math.sqrt(flat * flat + altDiff * altDiff);
+  }
+
   function onError(err) { console.error('[GPS]', err.code, err.message); }
 
-  return { start, stop, calcDistance };
+  return { start, stop, calcDistance, calcDistance3D };
 })();
