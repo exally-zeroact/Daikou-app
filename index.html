@@ -254,6 +254,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   .fare-total-amount{font-size:40px;}
   .fare-total{max-width:50%;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box;}
   .breakdown{max-width:50%;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box;}
+  .cancel-fare-wrap{max-width:50%;margin-left:auto;margin-right:auto;width:100%;text-align:right;box-sizing:border-box;}
 
   /* 走行に戻るボタンが切れないように */
   #screenFare button{margin-top:10px;}
@@ -331,16 +332,18 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
       <div class="fare-total-amount">¥<span id="fareTotalAmount">0</span></div>
     </div>
     <div class="breakdown" id="breakdown"></div>
-    <button onclick="cancelFare()" style="
-      display:inline-flex;align-items:center;gap:8px;
-      margin-top:14px;padding:8px 14px;
-      background:#fff;border:1.5px solid #FF3B30;
-      border-radius:8px;color:#FF3B30;
-      font-size:13px;font-weight:700;
-      font-family:'Noto Sans JP',sans-serif;cursor:pointer;">
-      ← 走行に戻る
-      <span style="font-size:11px;color:#aaa;font-weight:400;">（まだ到着していない場合）</span>
-    </button>
+    <div class="cancel-fare-wrap">
+      <button onclick="cancelFare()" style="
+        display:inline-flex;align-items:center;gap:8px;
+        margin-top:14px;padding:8px 14px;
+        background:#fff;border:1.5px solid #FF3B30;
+        border-radius:8px;color:#FF3B30;
+        font-size:13px;font-weight:700;
+        font-family:'Noto Sans JP',sans-serif;cursor:pointer;">
+        ← 走行に戻る
+        <span style="font-size:11px;color:#aaa;font-weight:400;">（まだ到着していない場合）</span>
+      </button>
+    </div>
   </div>
 
 </div>
