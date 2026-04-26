@@ -637,7 +637,15 @@ function onIdle(){
     showToast('先に「確定」を押してください');
     return;
   }
+  // 空車成立時の補正用データを取得（reset前に）
+  let correctionDistanceM = 0;
+  let correctionTotal = 0;
   if(appState==='fare'){
+    const s = Meter.getState();
+    correctionDistanceM = s.distance_m;
+    let fare = s.fare_yen;
+    if(surchargeOn) fare = Math.round(fare * surchargeRate);
+    correctionTotal = fare + extras.reduce((a,b)=>a+b.amount,0);
     // 確定画面からのみ空車に戻れる
     Meter.stop();
     if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
@@ -646,7 +654,6 @@ function onIdle(){
   extras=[];
   surchargeOn=false;
   Meter.reset();
-  GPS.clearTrace(); // OSRMトレースもクリア
   try { FB.setIdle(); } catch(e){}
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
@@ -662,6 +669,11 @@ function onIdle(){
   dimTimer = setTimeout(function(){
     document.documentElement.style.filter = 'brightness(0)';
   }, DIM_MINUTES * 60 * 1000);
+
+  // 空車成立後にOSRM補正をバックグラウンド実行（500m以上の走行のみ）
+  if(correctionDistanceM > 0){
+    runOsrmCorrection(correctionDistanceM, correctionTotal);
+  }
 }
 
 // ─── Menuボタン ───
@@ -693,44 +705,52 @@ function onSend(){
     renderFare(s, fare, extraTotal, total);
     showScreen('fare');
     document.getElementById('appbarTitle').textContent='料　金';
-
-    // バックグラウンドでOSRMマップマッチング補正
-    runOsrmCorrection(s.distance_m);
   } else if(appState==='fare'){
     // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
   }
 }
 
-// OSRMマップマッチングで距離を補正（バックグラウンド処理）
-async function runOsrmCorrection(originalDistanceM){
+// OSRMマップマッチングで距離を補正（空車成立時にバックグラウンド実行）
+// 補正成功時は本日の集計と履歴を更新
+async function runOsrmCorrection(originalDistanceM, originalTotal){
   try {
     const trace = GPS.getTrace();
+    GPS.clearTrace(); // 取得後すぐクリア（次の走行に備える）
     if(!trace || trace.length < 2) return;
 
     const correctedM = await OSRM.matchTrace(trace, originalDistanceM);
     if(correctedM == null) return; // 補正失敗 or スキップ
 
-    // この瞬間にユーザーが「走行に戻る」or「空車」を押していたら捨てる
-    if(appState !== 'fare') return;
-
-    // Meterに補正後の距離を反映 → 料金再計算
-    Meter.setDistance(correctedM);
-    const s2 = Meter.getState();
-    let fare2 = s2.fare_yen;
+    // 補正後の料金を計算
+    const correctedFare = Meter.calcFare(correctedM);
+    let fare2 = correctedFare;
     if(surchargeOn) fare2 = Math.round(fare2 * surchargeRate);
     const extraTotal2 = extras.reduce((a,b)=>a+b.amount,0);
     const total2 = fare2 + extraTotal2;
 
-    // Firebase再送信
-    try {
-      FB.endSession({distance_m:s2.distance_m, fare_yen:total2, elapsed_sec:s2.elapsed_sec});
-      FB.updateVehicle({status:'finished',
-        session:{distance_m:Math.round(s2.distance_m), fare_yen:total2, elapsed_sec:s2.elapsed_sec}});
-    } catch(e){ console.error(e); }
+    // 本日の集計を補正値に置き換え（直前の走行分のみ）
+    todayDist = todayDist - originalDistanceM + correctedM;
+    localStorage.setItem('daikou_today', JSON.stringify({
+      date: new Date().toDateString(), dist: todayDist, count: todayCount
+    }));
 
-    // 画面更新
-    renderFare(s2, fare2, extraTotal2, total2);
-    showToast('精度補正しました');
+    // 履歴の最新エントリを補正値で上書き
+    const now = new Date();
+    const histKey = 'daikou_history_' + now.toDateString();
+    const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+    if(hist.length > 0){
+      const last = hist[hist.length - 1];
+      last.distance_m = Math.round(correctedM);
+      last.fare = total2;
+      localStorage.setItem(histKey, JSON.stringify(hist));
+    }
+
+    // 画面の本日の集計を更新（空車画面表示中なら）
+    if(appState === 'idle'){
+      document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
+      renderInlineHistory();
+      showToast('精度補正しました');
+    }
   } catch(e) {
     console.error('[OSRM補正]', e);
   }
