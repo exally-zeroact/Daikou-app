@@ -131,18 +131,23 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   .appbar{
     width:100% !important;
     flex-shrink:0 !important;
-    padding:0 12px !important;
-    padding-top:0 !important;
-    padding-bottom:0 !important;
-    height:32px !important;
-    min-height:32px !important;
-    max-height:32px !important;
+    padding:0 8px !important;
+    height:28px !important;
+    min-height:28px !important;
+    max-height:28px !important;
     box-sizing:border-box !important;
+    overflow:hidden !important;
   }
-  .appbar-title{font-size:12px !important;line-height:32px !important;}
-  .gps-acc{font-size:10px !important;}
-  .menu-btn{padding:2px 8px !important;font-size:14px !important;}
-  .gps-pill{padding:2px 8px !important;}
+  .appbar-title{
+    font-size:11px !important;
+    line-height:28px !important;
+    margin:0 !important;
+    padding:0 !important;
+  }
+  .appbar-right{margin:0 !important;padding:0 !important;}
+  .gps-acc{font-size:9px !important;}
+  .gps-pill{padding:1px 6px !important;font-size:9px !important;}
+  .menu-btn{padding:1px 6px !important;font-size:12px !important;margin:0 !important;line-height:1 !important;}
 
   /* コンテンツ：左半分 */
   .content{
@@ -152,8 +157,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
     display:flex;
     flex-direction:column;
     gap:10px;
-    height:calc(100vh - 32px);
-    max-height:calc(100vh - 32px);
+    height:calc(100vh - 28px);
+    max-height:calc(100vh - 28px);
     min-height:0;
     justify-content:center;
   }
@@ -168,8 +173,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
     gap:8px;
     border-top:none;
     border-left:0.5px solid #f0f0f0;
-    height:calc(100vh - 32px);
-    max-height:calc(100vh - 32px);
+    height:calc(100vh - 28px);
+    max-height:calc(100vh - 28px);
     justify-content:center;
   }
 
