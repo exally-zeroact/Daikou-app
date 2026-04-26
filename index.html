@@ -193,7 +193,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 }
 </style>
 </head>
-<body ontouchstart="">
+<body ontouchstart="" onclick="wakeScreen()">
 
 <!-- AppBar -->
 <div class="appbar" id="appbar">
@@ -487,6 +487,12 @@ function onMainBtn(){
     document.getElementById('appbarTitle').textContent='代行中';
     // 仕事開始時刻を記録（自動リセット判定用）
     localStorage.setItem('daikou_last_start', Date.now().toString());
+    // NoSleep起動（画面消灯防止）
+    if(!noSleep){ noSleep = new NoSleep(); }
+    noSleep.enable();
+    // 暗転タイマーをクリア・画面を戻す
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    document.documentElement.style.filter = '';
     // GPS・計算・Firebase
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
@@ -555,7 +561,7 @@ function onIdle(){
   extras=[];
   surchargeOn=false;
   Meter.reset();
-  FB.setIdle();
+  try { FB.setIdle(); } catch(e){}
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
   showScreen('idle');
@@ -563,6 +569,13 @@ function onIdle(){
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
+  // NoSleep解除
+  if(noSleep){ noSleep.disable(); }
+  // 空車5時間後に画面暗転
+  if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+  dimTimer = setTimeout(function(){
+    document.documentElement.style.filter = 'brightness(0)';
+  }, DIM_MINUTES * 60 * 1000);
 }
 
 // ─── Menuボタン ───
@@ -596,6 +609,18 @@ function onSend(){
     document.getElementById('appbarTitle').textContent='料　金';
   } else if(appState==='fare'){
     // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
+  }
+}
+
+// ─── 画面暗転解除 ───
+function wakeScreen(){
+  if(document.documentElement.style.filter === 'brightness(0)'){
+    document.documentElement.style.filter = '';
+    // タイマーリセット（もう5時間）
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    dimTimer = setTimeout(function(){
+      document.documentElement.style.filter = 'brightness(0)';
+    }, DIM_MINUTES * 60 * 1000);
   }
 }
 
