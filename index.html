@@ -424,6 +424,7 @@ class NoSleep {
 <script src="js/firebase-config.js"></script>
 <script src="js/gps.js"></script>
 <script src="js/osrm.js"></script>
+<script src="js/region-loader.js"></script>
 <script src="js/meter.js"></script>
 <script src="js/firebase.js"></script>
 <script src="js/test-mode.js"></script>
@@ -553,6 +554,7 @@ function startGPS(){
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
         if(appState==='driving') {
           Meter.update(g);
+          if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng); // 地方データ動的読込（トンネル/橋補完用）
           if(typeof TestMode !== 'undefined') TestMode.recordPosition(g.lat, g.lng); // ★テスト用・リリース時削除
         }
       } catch(e){ console.error('GPS callback error:', e); }
