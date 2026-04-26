@@ -86,12 +86,12 @@ const GPS = (() => {
       if (!trafficJamSince) trafficJamSince = now;
       const durationSec = (now - trafficJamSince) / 1000;
       if (durationSec >= CONFIG.jam_duration_sec) {
-        if (!isTrafficJam) console.log('[GPS] 渋滞モード開始');
+        if (!isTrafficJam) dlog('[GPS] 渋滞モード開始');
         isTrafficJam = true;
         return true;
       }
     } else if (speedKmh >= CONFIG.jam_speed_max_kmh) {
-      if (isTrafficJam) console.log('[GPS] 渋滞モード解除');
+      if (isTrafficJam) dlog('[GPS] 渋滞モード解除');
       trafficJamSince = null;
       isTrafficJam = false;
     }
@@ -160,7 +160,7 @@ const GPS = (() => {
         const dvMs = (speedKmh - lastPosition.speedKmh) / 3.6;
         const acceleration = dvMs / dt;
         if (Math.abs(acceleration) > CONFIG.max_acceleration_ms2) {
-          console.log('[GPS] 加速度異常: ' + acceleration.toFixed(1) + 'm/s² (' +
+          dlog('[GPS] 加速度異常: ' + acceleration.toFixed(1) + 'm/s² (' +
             lastPosition.speedKmh.toFixed(0) + '→' + speedKmh.toFixed(0) + 'km/h)・スキップ');
           return;
         }
@@ -176,7 +176,7 @@ const GPS = (() => {
         const movementBearing = calcBearing(lastPosition.lat, lastPosition.lng, lat, lng);
         const diff = angleDiff(heading, movementBearing);
         if (diff > CONFIG.heading_diff_threshold_deg) {
-          console.log('[GPS] 方向不整合: heading=' + heading.toFixed(0) + '° vs 移動=' +
+          dlog('[GPS] 方向不整合: heading=' + heading.toFixed(0) + '° vs 移動=' +
             movementBearing.toFixed(0) + '° (差=' + diff.toFixed(0) + '°)・スキップ');
           return;
         }
