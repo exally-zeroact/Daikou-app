@@ -926,6 +926,96 @@ function showScreen(name){
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 renderInlineHistory();
+
+// ─── 復元チェック（前回走行中にアプリが落ちた場合）───
+(function checkRunningStateRestore(){
+  try {
+    const saved = Meter.checkResume();
+    if(!saved) return;
+    
+    // 走行時間と料金を分かりやすく表示
+    const elapsedMin = Math.floor((saved.elapsed_sec || 0) / 60);
+    const distKm = ((saved.distance_m || 0) / 1000).toFixed(2);
+    const fareYen = (saved.fare_yen || 0).toLocaleString();
+    
+    const yes = confirm(
+      '前回の走行が中断されています。続きから再開しますか？\n\n' +
+      `走行距離: ${distKm} km\n` +
+      `経過時間: ${elapsedMin} 分\n` +
+      `料金: ¥${fareYen}\n\n` +
+      'OK = 続きから再開\nキャンセル = 破棄して新規スタート'
+    );
+    
+    if(yes && Meter.restoreFromSaved(saved)){
+      // 復元成功 → driving画面に切替
+      appState = 'driving';
+      showScreen('driving');
+      document.getElementById('appbarTitle').textContent = '代行中';
+      document.getElementById('driveDist').textContent = distKm;
+      document.getElementById('driveFare').textContent = fareYen;
+      // GPS再起動
+      if(!gpsStarted) startGPS();
+      // NoSleep再起動
+      if(!noSleep){ noSleep = new NoSleep(); }
+      noSleep.enable().catch(e => console.log("NoSleep error:", e));
+      // UIタイマー再開
+      startUiTimer();
+      console.log('[復元] 走行を再開しました');
+
+      // ─── GPS補正：中断中の移動を直線距離×1.3で推定 ───
+      if(saved.last_gps && saved.last_gps.lat && saved.last_gps.lng){
+        setTimeout(function(){
+          if(!navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(function(pos){
+            try {
+              const gapM = GPS.calcDistance(
+                saved.last_gps.lat, saved.last_gps.lng,
+                pos.coords.latitude, pos.coords.longitude
+              );
+              // 50m未満は誤差・10km超は異常値として無視
+              if(gapM < 50 || gapM > 10000){
+                console.log('[GPS補正] 範囲外でスキップ:', Math.round(gapM) + 'm');
+                return;
+              }
+              const estimatedM = gapM * 1.3; // 道路距離の推定（直線×1.3）
+              const currentState = Meter.getState();
+              const newDistanceM = currentState.distance_m + estimatedM;
+              const newFareYen = Meter.calcFare(newDistanceM);
+
+              const yes2 = confirm(
+                '中断中の移動を検出しました。\n\n' +
+                `直線距離: ${(gapM/1000).toFixed(2)} km\n` +
+                `推定走行: ${(estimatedM/1000).toFixed(2)} km (×1.3倍)\n` +
+                `料金更新: ¥${currentState.fare_yen.toLocaleString()} → ¥${newFareYen.toLocaleString()}\n\n` +
+                'OK = 加算する\nキャンセル = 加算しない'
+              );
+
+              if(yes2){
+                Meter.setDistance(newDistanceM);
+                // UI即時更新
+                document.getElementById('driveDist').textContent = (newDistanceM/1000).toFixed(2);
+                document.getElementById('driveFare').textContent = newFareYen.toLocaleString();
+                console.log('[GPS補正] 加算完了: +' + Math.round(estimatedM) + 'm');
+              } else {
+                console.log('[GPS補正] ユーザーがキャンセル');
+              }
+            } catch(e){
+              console.error('[GPS補正] エラー:', e);
+            }
+          }, function(err){
+            console.log('[GPS補正] 現在地取得失敗:', err.message);
+          }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
+        }, 2000); // GPS取得を2秒待つ
+      }
+    } else {
+      // ユーザーがキャンセル or 復元失敗 → 破棄
+      try { localStorage.removeItem('daikou_running_state'); } catch(e){}
+      console.log('[復元] 破棄しました');
+    }
+  } catch(e) {
+    console.error('[復元] エラー:', e);
+  }
+})();
 </script>
 </body>
 </html>
