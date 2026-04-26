@@ -2,7 +2,11 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#007AFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="代行メイン機">
 <title>代行メイン機</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
@@ -369,6 +373,7 @@ class NoSleep {
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/gps.js"></script>
+<script src="js/osrm.js"></script>
 <script src="js/meter.js"></script>
 <script src="js/firebase.js"></script>
 <script>
@@ -641,6 +646,7 @@ function onIdle(){
   extras=[];
   surchargeOn=false;
   Meter.reset();
+  GPS.clearTrace(); // OSRMトレースもクリア
   try { FB.setIdle(); } catch(e){}
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
@@ -687,8 +693,46 @@ function onSend(){
     renderFare(s, fare, extraTotal, total);
     showScreen('fare');
     document.getElementById('appbarTitle').textContent='料　金';
+
+    // バックグラウンドでOSRMマップマッチング補正
+    runOsrmCorrection(s.distance_m);
   } else if(appState==='fare'){
     // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
+  }
+}
+
+// OSRMマップマッチングで距離を補正（バックグラウンド処理）
+async function runOsrmCorrection(originalDistanceM){
+  try {
+    const trace = GPS.getTrace();
+    if(!trace || trace.length < 2) return;
+
+    const correctedM = await OSRM.matchTrace(trace, originalDistanceM);
+    if(correctedM == null) return; // 補正失敗 or スキップ
+
+    // この瞬間にユーザーが「走行に戻る」or「空車」を押していたら捨てる
+    if(appState !== 'fare') return;
+
+    // Meterに補正後の距離を反映 → 料金再計算
+    Meter.setDistance(correctedM);
+    const s2 = Meter.getState();
+    let fare2 = s2.fare_yen;
+    if(surchargeOn) fare2 = Math.round(fare2 * surchargeRate);
+    const extraTotal2 = extras.reduce((a,b)=>a+b.amount,0);
+    const total2 = fare2 + extraTotal2;
+
+    // Firebase再送信
+    try {
+      FB.endSession({distance_m:s2.distance_m, fare_yen:total2, elapsed_sec:s2.elapsed_sec});
+      FB.updateVehicle({status:'finished',
+        session:{distance_m:Math.round(s2.distance_m), fare_yen:total2, elapsed_sec:s2.elapsed_sec}});
+    } catch(e){ console.error(e); }
+
+    // 画面更新
+    renderFare(s2, fare2, extraTotal2, total2);
+    showToast('精度補正しました');
+  } catch(e) {
+    console.error('[OSRM補正]', e);
   }
 }
 
