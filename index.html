@@ -383,6 +383,21 @@ let vehicleId = 'v1';
 // ─── 設定読み込み ───
 function loadSettings(){
   FB.loadFareConfig(cfg => { Meter.setFareConfig(cfg); });
+
+  // 初回起動時にデフォルトのクイック追加料金をセット
+  // (一度も保存されていない=null の場合のみ)
+  if(localStorage.getItem('daikou_extras') === null){
+    const defaultExtras = [
+      {name:'外車', amount:500},
+      {name:'MT車', amount:500},
+      {name:'左ハンドル', amount:1000},
+      {name:'深夜割増', amount:1000},
+      {name:'迎車料金', amount:1000},
+      {name:'キャンセル料', amount:2000}
+    ];
+    localStorage.setItem('daikou_extras', JSON.stringify(defaultExtras));
+  }
+
   const s = localStorage.getItem('daikou_settings');
   if(s){
     const obj = JSON.parse(s);
