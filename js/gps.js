@@ -5,6 +5,9 @@ const GPS = (() => {
   let isStationary = false;
   let onUpdateCallback = null;
 
+  // ローパスフィルター用バッファ（直近5点）
+  let posBuffer = [];
+
   const CONFIG = {
     accuracy_limit_m: 15,
     speed_limit_kmh: 3,
@@ -12,6 +15,7 @@ const GPS = (() => {
     stationary_radius_m: 3,
     jump_limit_m_per_s: 50,
     resume_speed_kmh: 5,
+    filter_size: 5,           // ローパスフィルターのバッファサイズ
   };
 
   function start(callback) {
@@ -24,21 +28,61 @@ const GPS = (() => {
   function stop() {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     lastPosition = null; lowSpeedStart = null; isStationary = false;
+    posBuffer = []; // フィルターバッファもクリア
+  }
+
+  // ローパスフィルター（加重移動平均）
+  // 新しい点ほど重みが大きい：最新=N、最古=1
+  function applyLowPass(lat, lng) {
+    posBuffer.push({ lat, lng });
+    if (posBuffer.length > CONFIG.filter_size) posBuffer.shift();
+
+    let totalWeight = 0;
+    let sumLat = 0, sumLng = 0;
+    for (let i = 0; i < posBuffer.length; i++) {
+      const w = i + 1; // 古い順に1, 2, 3, 4, 5
+      totalWeight += w;
+      sumLat += posBuffer[i].lat * w;
+      sumLng += posBuffer[i].lng * w;
+    }
+    return {
+      lat: sumLat / totalWeight,
+      lng: sumLng / totalWeight
+    };
   }
 
   function onPosition(pos) {
     const now = Date.now();
     const { latitude: lat, longitude: lng, accuracy, speed } = pos.coords;
+
+    // ① 精度チェック（補正前の生座標で判定）
     if (accuracy > CONFIG.accuracy_limit_m) return;
+
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
+
+    // ② ジャンプ判定（補正前の生座標で判定）
+    //    補正してから判定すると瞬間移動が見えなくなるため
     if (lastPosition) {
       const jump = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
       const timeDiff = (now - lastPosition.timestamp) / 1000;
       if (timeDiff > 0 && jump / timeDiff > CONFIG.jump_limit_m_per_s) return;
     }
-    isStationary = checkStationary(speedKmh, lat, lng, now);
-    const result = { lat, lng, accuracy, speedKmh, isStationary, timestamp: now };
-    lastPosition = { lat, lng, timestamp: now };
+
+    // ③ ローパスフィルター適用
+    //    バッファに追加して加重平均で平滑化
+    const filtered = applyLowPass(lat, lng);
+
+    // ④ 静止判定（補正後の座標で判定）
+    isStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
+
+    // ⑤ 結果出力（補正後の座標を使用）
+    const result = {
+      lat: filtered.lat,
+      lng: filtered.lng,
+      accuracy, speedKmh, isStationary,
+      timestamp: now
+    };
+    lastPosition = { lat: filtered.lat, lng: filtered.lng, timestamp: now };
     if (onUpdateCallback) onUpdateCallback(result);
   }
 
