@@ -583,6 +583,7 @@ function onMainBtn(){
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
     try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
+    if(typeof TestMode !== 'undefined') TestMode.startTrip(); // ★テスト用・リリース時削除
     startUiTimer();
   } else if(appState==='driving'){
     // 代行開始ボタンを再押し → 何もしない（Drivingのまま）
