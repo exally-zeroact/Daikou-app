@@ -377,9 +377,8 @@ function autoResetCheck(){
   // ① 現在時刻がリセット時間を過ぎている
   // ② 最後の仕事開始がリセット時間より前
   // ③ 最後の仕事開始が昨日以前（当日仕事中の誤リセット防止）
-  const lastStartDate = new Date(lastStart);
-  const isYesterday = lastStart === 0 || lastStartDate.toDateString() !== now.toDateString();
-  if(now >= resetToday && lastStart < resetToday.getTime() && isYesterday){
+  // lastStartが今日のリセット時間より前ならリセット
+  if(now >= resetToday && (lastStart === 0 || lastStart < resetToday.getTime())){
     // リセット実行
     todayDist = 0;
     todayCount = 0;
