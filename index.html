@@ -274,6 +274,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 </div>
 
+<!-- 復元通知バナー（空車ボタンで非表示） -->
+<div id="restoreNotice" style="display:none;background:#34C759;color:#fff;padding:10px 16px;text-align:center;font-family:'Noto Sans JP',sans-serif;">
+  <div id="restoreNoticeTitle" style="font-size:14px;font-weight:700;line-height:1.4;">✅ アプリが中断されました</div>
+  <div id="restoreNoticeDetail" style="font-size:12px;opacity:0.95;margin-top:2px;">走行データを保存して再開しています</div>
+</div>
+
 <!-- コンテンツ -->
 <div class="content" id="content">
 
@@ -720,6 +726,7 @@ function onIdle(){
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
+  hideRestoreNotice(); // 復元バナー消去
   // NoSleep解除
   if(noSleep){ noSleep.disable(); }
   // 空車5時間後に画面暗転
@@ -927,27 +934,19 @@ loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 renderInlineHistory();
 
-// ─── 復元チェック（前回走行中にアプリが落ちた場合）───
+// ─── 復元チェック（前回走行中にアプリが落ちた場合・自動化）───
 (function checkRunningStateRestore(){
   try {
     const saved = Meter.checkResume();
     if(!saved) return;
-    
-    // 走行時間と料金を分かりやすく表示
-    const elapsedMin = Math.floor((saved.elapsed_sec || 0) / 60);
+
+    // 復元前の状態を覚えておく（料金差分計算用）
+    const beforeFareYen = saved.fare_yen || 0;
     const distKm = ((saved.distance_m || 0) / 1000).toFixed(2);
-    const fareYen = (saved.fare_yen || 0).toLocaleString();
-    
-    const yes = confirm(
-      '前回の走行が中断されています。続きから再開しますか？\n\n' +
-      `走行距離: ${distKm} km\n` +
-      `経過時間: ${elapsedMin} 分\n` +
-      `料金: ¥${fareYen}\n\n` +
-      'OK = 続きから再開\nキャンセル = 破棄して新規スタート'
-    );
-    
-    if(yes && Meter.restoreFromSaved(saved)){
-      // 復元成功 → driving画面に切替
+    const fareYen = beforeFareYen.toLocaleString();
+
+    if(Meter.restoreFromSaved(saved)){
+      // 復元成功 → driving画面に切替（自動・確認なし）
       appState = 'driving';
       showScreen('driving');
       document.getElementById('appbarTitle').textContent = '代行中';
@@ -962,7 +961,10 @@ renderInlineHistory();
       startUiTimer();
       console.log('[復元] 走行を再開しました');
 
-      // ─── GPS補正：中断中の移動を直線距離×1.3で推定 ───
+      // 通知バナー：暫定表示（GPS補正前）
+      showRestoreNotice('default');
+
+      // ─── GPS補正：中断中の移動を直線距離×1.3で推定（自動加算）───
       if(saved.last_gps && saved.last_gps.lat && saved.last_gps.lng){
         setTimeout(function(){
           if(!navigator.geolocation) return;
@@ -978,27 +980,19 @@ renderInlineHistory();
                 return;
               }
               const estimatedM = gapM * 1.3; // 道路距離の推定（直線×1.3）
-              const currentState = Meter.getState();
-              const newDistanceM = currentState.distance_m + estimatedM;
+              const beforeFare = Meter.getState().fare_yen;
+              const newDistanceM = Meter.getState().distance_m + estimatedM;
               const newFareYen = Meter.calcFare(newDistanceM);
+              const fareDiff = newFareYen - beforeFare;
 
-              const yes2 = confirm(
-                '中断中の移動を検出しました。\n\n' +
-                `直線距離: ${(gapM/1000).toFixed(2)} km\n` +
-                `推定走行: ${(estimatedM/1000).toFixed(2)} km (×1.3倍)\n` +
-                `料金更新: ¥${currentState.fare_yen.toLocaleString()} → ¥${newFareYen.toLocaleString()}\n\n` +
-                'OK = 加算する\nキャンセル = 加算しない'
-              );
+              // 自動加算（確認なし）
+              Meter.setDistance(newDistanceM);
+              document.getElementById('driveDist').textContent = (newDistanceM/1000).toFixed(2);
+              document.getElementById('driveFare').textContent = newFareYen.toLocaleString();
+              console.log('[GPS補正] 自動加算: +' + Math.round(estimatedM) + 'm / +¥' + fareDiff);
 
-              if(yes2){
-                Meter.setDistance(newDistanceM);
-                // UI即時更新
-                document.getElementById('driveDist').textContent = (newDistanceM/1000).toFixed(2);
-                document.getElementById('driveFare').textContent = newFareYen.toLocaleString();
-                console.log('[GPS補正] 加算完了: +' + Math.round(estimatedM) + 'm');
-              } else {
-                console.log('[GPS補正] ユーザーがキャンセル');
-              }
+              // バナーを「補正完了」に切り替え
+              showRestoreNotice('corrected', estimatedM, fareDiff);
             } catch(e){
               console.error('[GPS補正] エラー:', e);
             }
@@ -1008,7 +1002,7 @@ renderInlineHistory();
         }, 2000); // GPS取得を2秒待つ
       }
     } else {
-      // ユーザーがキャンセル or 復元失敗 → 破棄
+      // 復元失敗 → 破棄
       try { localStorage.removeItem('daikou_running_state'); } catch(e){}
       console.log('[復元] 破棄しました');
     }
@@ -1016,6 +1010,32 @@ renderInlineHistory();
     console.error('[復元] エラー:', e);
   }
 })();
+
+// ─── 復元通知バナー制御 ───
+function showRestoreNotice(mode, distanceM, fareDiff){
+  const banner = document.getElementById('restoreNotice');
+  if(!banner) return;
+  const title = document.getElementById('restoreNoticeTitle');
+  const detail = document.getElementById('restoreNoticeDetail');
+  if(mode === 'corrected'){
+    title.textContent = '✅ 走行データを自動補正しました';
+    const km = (distanceM/1000).toFixed(2);
+    if(fareDiff > 0){
+      detail.textContent = `距離 +${km} km ・ 料金 +¥${fareDiff.toLocaleString()}`;
+    } else {
+      detail.textContent = `距離 +${km} km ・ 料金は通常通り`;
+    }
+  } else {
+    title.textContent = '✅ アプリが中断されました';
+    detail.textContent = '走行データを保存して再開しています';
+  }
+  banner.style.display = 'block';
+}
+
+function hideRestoreNotice(){
+  const banner = document.getElementById('restoreNotice');
+  if(banner) banner.style.display = 'none';
+}
 </script>
 </body>
 </html>
