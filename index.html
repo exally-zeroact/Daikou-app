@@ -216,7 +216,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
     <div class="surcharge-badge" id="surchargeBadge" style="display:none;" onclick="toggleSurcharge()">
       <span id="surchargeLabel">割増 ON</span>
     </div>
-    <a href="settings.html" class="menu-btn" id="menuBtn" onclick="return onMenuClick()">≡</a>
+    <button class="menu-btn" id="menuBtn" onclick="event.stopPropagation();onMenuClick();return false;">≡</button>
   </div>
 </div>
 
@@ -662,9 +662,9 @@ function onIdle(){
 function onMenuClick(){
   if(appState==='driving'){
     showToast('走行中はMenuを開けません');
-    return false; // リンクをキャンセル
+    return;
   }
-  return true; // リンクを通す
+  location.href = 'settings.html';
 }
 
 // ─── 確定ボタン（旧Send）───
