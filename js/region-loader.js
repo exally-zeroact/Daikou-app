@@ -68,7 +68,7 @@ const RegionLoader = (() => {
         if (data) {
           dataMap[region] = data;
           loadedSet.add(region);
-          console.log(`[Region] ${kind}/${region}: ${data.length}件`);
+          dlog(`[Region] ${kind}/${region}: ${data.length}件`);
           resolve(data);
         } else {
           console.warn(`[Region] ${kind}/${region} 変数なし`);
