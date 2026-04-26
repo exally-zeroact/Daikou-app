@@ -89,12 +89,12 @@ const Meter = (() => {
       const infraLength = infra.item[1]; // distance_m
       // 速度×時間 と 構造物長 の小さい方を採用（暴走防止）
       const filled = Math.min(naiveDistance, infraLength);
-      console.log(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (${infra.item[0]} ${infraLength}m)`);
+      dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (${infra.item[0]} ${infraLength}m)`);
       return filled;
     }
 
     // データなし → 素直な補完
-    console.log(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(naiveDistance)}m (データなし)`);
+    dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(naiveDistance)}m (データなし)`);
     return naiveDistance;
   }
 
@@ -116,9 +116,10 @@ const Meter = (() => {
 
         if(filled !== null){
           // GPS座標差分も計算（瞬間ジャンプ可能性）
-          const gpsDistance = GPS.calcDistance(
-            state.last_gps.lat, state.last_gps.lng,
-            gpsResult.lat, gpsResult.lng
+          // 案AA：3D距離計算（高度差を加味・2026/04/26）
+          const gpsDistance = GPS.calcDistance3D(
+            state.last_gps.lat, state.last_gps.lng, state.last_gps.altitude,
+            gpsResult.lat, gpsResult.lng, gpsResult.altitude
           );
           // 補完値とGPS距離の小さい方を採用（保守的）
           // GPS距離が大きい場合は復帰時の瞬間ジャンプの可能性が高い
@@ -126,16 +127,17 @@ const Meter = (() => {
           state.distance_m += d;
           state.fare_yen = calcFare(state.distance_m);
         }
-        state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng };
+        state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude };
         state.last_timestamp = gpsResult.timestamp;
         state.last_speed_kmh = gpsResult.speedKmh || 0;
         return;
       }
 
       // 通常処理：GPS距離計算
-      const gpsDistance = GPS.calcDistance(
-        state.last_gps.lat, state.last_gps.lng,
-        gpsResult.lat, gpsResult.lng
+      // 案AA：3D距離計算（高度差を加味・2026/04/26）
+      const gpsDistance = GPS.calcDistance3D(
+        state.last_gps.lat, state.last_gps.lng, state.last_gps.altitude,
+        gpsResult.lat, gpsResult.lng, gpsResult.altitude
       );
 
       let d = gpsDistance;
@@ -155,7 +157,7 @@ const Meter = (() => {
       state.distance_m += d;
       state.fare_yen = calcFare(state.distance_m);
     }
-    state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng };
+    state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude };
     state.last_timestamp = gpsResult.timestamp;
     state.last_speed_kmh = gpsResult.speedKmh || 0;
   }
