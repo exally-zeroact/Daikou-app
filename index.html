@@ -239,8 +239,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
   /* IDLE：時計を小さく */
   .idle-time{font-size:36px;}
-  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box;}
   .stat-value{font-size:18px;}
+  #inlineHistoryWrap{max-width:50%;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box;}
 
   /* DRIVING：2カラム */
   .driving-grid{display:flex;flex-direction:column;gap:8px;}
@@ -251,6 +252,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   /* FARE：スクロール可能に */
   #screenFare{overflow-y:auto;}
   .fare-total-amount{font-size:40px;}
+  .fare-total{max-width:50%;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box;}
+  .breakdown{max-width:50%;margin-left:auto;margin-right:auto;width:100%;box-sizing:border-box;}
 
   /* 走行に戻るボタンが切れないように */
   #screenFare button{margin-top:10px;}
