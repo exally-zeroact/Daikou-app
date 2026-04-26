@@ -499,6 +499,8 @@ function loadSettings(){
 
   // 自動リセットチェック
   autoResetCheck();
+  // 前日以前の履歴を削除
+  rotateHistory();
 }
 
 function autoResetCheck(){
@@ -530,6 +532,29 @@ function autoResetCheck(){
     localStorage.removeItem(histKey);
     document.getElementById('todayDist').textContent  = '0.0';
     document.getElementById('todayCount').textContent = '0';
+  }
+}
+
+// ─── 前日以前の履歴を削除（日報で管理する前提・容量節約）───
+function rotateHistory(){
+  try {
+    const todayKey = 'daikou_history_' + new Date().toDateString();
+    const PREFIX = 'daikou_history_';
+    const toDelete = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const key = localStorage.key(i);
+      if(key && key.startsWith(PREFIX) && key !== todayKey){
+        toDelete.push(key);
+      }
+    }
+    for(const key of toDelete){
+      localStorage.removeItem(key);
+    }
+    if(toDelete.length > 0){
+      console.log('[履歴削除] ' + toDelete.length + '件の旧履歴を削除しました');
+    }
+  } catch(e){
+    console.warn('[履歴削除] エラー:', e);
   }
 }
 
