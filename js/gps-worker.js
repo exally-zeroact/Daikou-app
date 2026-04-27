@@ -264,7 +264,8 @@ function processPosition(data) {
     accuracy,
     speedKmh,
     isStationary,
-    timestamp: now
+    timestamp: now,
+    compassHeading: (compassHeading != null) ? compassHeading : null,
   };
 }
 
