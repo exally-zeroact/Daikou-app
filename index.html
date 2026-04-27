@@ -823,9 +823,7 @@ function onIdle(){
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
-  // NoSleep解除
-  if(noSleep){ noSleep.disable(); }
-  // 空車5時間後に画面暗転
+  // 空車5時間後に画面暗転（NoSleepは継続・タイマーのみリセット）
   if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
   dimTimer = setTimeout(function(){
     document.documentElement.style.filter = 'brightness(0)';
