@@ -9,6 +9,22 @@ const GPS = (() => {
   let worker = null;
   let useWorker = false;
 
+  // コンパス（DeviceOrientation・許可不要）
+  let compassHeading = null;
+  function startCompass(){
+    if(!window.DeviceOrientationEvent) return;
+    window.addEventListener('deviceorientation', function(e){
+      if(e.webkitCompassHeading != null){
+        // iOS：webkitCompassHeadingが北=0で信頼性高い
+        compassHeading = e.webkitCompassHeading;
+      } else if(e.alpha != null){
+        // Android：alphaは画面向き依存なので変換
+        compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
+      }
+    }, true);
+    dlog('[GPS] コンパス起動完了');
+  }
+
   // フォールバック用状態変数（Worker非対応時）
   let lastPosition = null;
   let lowSpeedStart = null;
@@ -65,6 +81,7 @@ const GPS = (() => {
 
   function start(callback) {
     onUpdateCallback = callback;
+    startCompass(); // コンパス起動（許可不要）
     if (!worker) initWorker();
     if (!useWorker) {
       kalman = new KalmanGPS();
@@ -98,7 +115,7 @@ const GPS = (() => {
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
     if (useWorker) {
       worker.postMessage({ type: 'position',
-        data: { lat, lng, accuracy, speedKmh, heading, altitude, now }
+        data: { lat, lng, accuracy, speedKmh, heading, altitude, now, compassHeading }
       });
     } else {
       const result = processPositionFallback(lat, lng, accuracy, speedKmh, heading, altitude, now);
