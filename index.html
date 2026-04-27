@@ -87,16 +87,20 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
 /* リロード復元バナー */
 .restore-banner{
-  background:#F0FAF4;
-  border:1.5px solid #34C759;
-  border-radius:10px;
-  padding:10px 14px;
-  font-size:13px;
-  color:#1a7a33;
-  font-weight:700;
   display:none;
-  margin:0 16px 8px;
-  flex-shrink:0;
+  width:fit-content;
+  max-width:calc(100% - 32px);
+  margin:0 auto 10px;
+  padding:6px 12px;
+  background:#E8F8EE;
+  border:1.5px solid #B7E4C7;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:700;
+  color:#1F7A3F;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
 }
 .restore-banner.show{display:block;}
 
@@ -207,10 +211,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   .stats-grid{grid-template-columns:1fr 1fr;gap:8px;}
   .stat-value{font-size:18px;}
 
-  /* DRIVING：2カラム */
+  /* DRIVING：meter-card 50%中央寄せ */
   .driving-grid{display:flex;flex-direction:column;gap:8px;}
   .meter-value{font-size:32px;}
-  .meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;}
+  .meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
   .meter-label{font-size:13px;margin-bottom:0;}
 
   /* FARE：スクロール可能に */
@@ -267,6 +271,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
   <!-- DRIVING -->
   <div id="screenDriving" style="display:none;">
+    <!-- リロード復元バナー（走行距離の真上） -->
+    <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
     <div class="driving-grid">
       <div class="meter-card">
         <div class="meter-label">走行距離</div>
@@ -301,9 +307,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 
 </div>
-
-<!-- リロード復元バナー -->
-<div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
 
 <!-- ボタンエリア（固定・全画面共通） -->
 <div class="btn-area">
