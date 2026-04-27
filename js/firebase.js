@@ -109,8 +109,24 @@ const FB = (() => {
     db.ref('vehicles').on('value', snap => { callback(snap.val()); });
   }
 
+  function saveTestLog(log){
+    const db = getDb(); if(!db) return;
+    db.ref('test_logs/' + log.id).set(log).catch(e => console.error('[FB] testLog保存エラー:', e));
+  }
+
+  function loadAllTestLogs(callback){
+    const db = getDb(); if(!db) return;
+    db.ref('test_logs').once('value').then(snap => {
+      const data = snap.val();
+      if(!data){ callback([]); return; }
+      const logs = Object.values(data).sort((a,b) => a.id - b.id);
+      callback(logs);
+    }).catch(e => { console.error('[FB] testLog取得エラー:', e); callback([]); });
+  }
+
   return {
     setVehicleId, updateVehicle, startSession, endSession,
-    setIdle, loadFareConfig, saveFareConfig, watchVehicle, watchAllVehicles
+    setIdle, loadFareConfig, saveFareConfig, watchVehicle, watchAllVehicles,
+    saveTestLog, loadAllTestLogs
   };
 })();
