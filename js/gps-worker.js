@@ -26,6 +26,7 @@ let CONFIG = {
   kalman_Q: 3,
   jam_speed_max_kmh: 10,
   jam_duration_sec: 60,
+  _kalman_Q_override: null, // コンパス融合で動的に変更
 };
 
 // ─── 状態変数（Worker内で保持） ───
@@ -48,7 +49,7 @@ class KalmanGPS {
     this._lat = null; this._lng = null;
     this._accuracy = 0; this._timestamp = null;
   }
-  update(lat, lng, accuracy, timestamp) {
+  update(lat, lng, accuracy, timestamp, qOverride) {
     if (this._lat === null) {
       this._lat = lat; this._lng = lng;
       this._accuracy = accuracy; this._timestamp = timestamp;
@@ -60,7 +61,7 @@ class KalmanGPS {
       this._accuracy = accuracy; this._timestamp = timestamp;
       return { lat, lng };
     }
-    const Q = CONFIG.kalman_Q;
+    const Q = (qOverride != null) ? qOverride : CONFIG.kalman_Q;
     const decayed = Math.sqrt(
       this._accuracy * this._accuracy + Q * Q * dt * dt
     );
@@ -194,7 +195,7 @@ function calcDistance3D(lat1, lng1, alt1, lat2, lng2, alt2) {
 
 // ─── メイン処理（GPS座標を受け取って計算） ───
 function processPosition(data) {
-  const { lat, lng, accuracy, speedKmh, heading, altitude, now } = data;
+  const { lat, lng, accuracy, speedKmh, heading, altitude, now, compassHeading } = data;
 
   // ① 動的accuracy閾値
   const accLimit = getDynamicAccuracyLimit(speedKmh, now);
@@ -220,16 +221,26 @@ function processPosition(data) {
     }
   }
 
-  // ②-3 進行方向整合性（案U）
-  if (lastPosition && heading != null && heading >= 0 &&
+  // ②-3 進行方向整合性（案U + コンパス融合）
+  // GPS headingより精度の高いコンパスheadingを優先使用
+  const effectiveHeading = (compassHeading != null) ? compassHeading : heading;
+  if (lastPosition && effectiveHeading != null && effectiveHeading >= 0 &&
       speedKmh >= CONFIG.heading_check_min_speed_kmh) {
     const movedDistance = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
     if (movedDistance >= CONFIG.heading_check_min_distance_m) {
       const movementBearing = calcBearing(lastPosition.lat, lastPosition.lng, lat, lng);
-      const diff = angleDiff(heading, movementBearing);
+      const diff = angleDiff(effectiveHeading, movementBearing);
       if (diff > CONFIG.heading_diff_threshold_deg) {
-        wlog('[GPS] 方向不整合: ' + diff.toFixed(0) + '°・スキップ');
+        wlog('[GPS] 方向不整合: ' + diff.toFixed(0) + '°・スキップ' + (compassHeading != null ? '（コンパス）' : '（GPS）'));
         return null;
+      }
+      // コンパスとGPS移動方向の一致度でKalman_Qを動的調整
+      // 一致（diff小）→ Q小さく（より強くフィルター・ノイズ除去）
+      // 不一致（diff大）→ Q大きく（GPS座標をより信頼）
+      if (compassHeading != null) {
+        const matchRatio = 1 - (diff / CONFIG.heading_diff_threshold_deg); // 0〜1
+        CONFIG._kalman_Q_override = CONFIG.kalman_Q * (0.5 + 0.5 * (1 - matchRatio));
+        wlog('[GPS] コンパス融合: 方向差' + diff.toFixed(0) + '° Q=' + CONFIG._kalman_Q_override.toFixed(1));
       }
     }
   }
@@ -237,8 +248,9 @@ function processPosition(data) {
   // ③ 渋滞モード
   checkTrafficJam(speedKmh, now);
 
-  // ④ Kalmanフィルター（案D）
-  const filtered = kalman.update(lat, lng, accuracy, now);
+  // ④ Kalmanフィルター（コンパス融合Q値で更新）
+  const filtered = kalman.update(lat, lng, accuracy, now, CONFIG._kalman_Q_override);
+  CONFIG._kalman_Q_override = null; // 使い捨て
 
   // ⑤ 静止判定
   isStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
