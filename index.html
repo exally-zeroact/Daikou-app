@@ -609,7 +609,7 @@ function startGPS(){
         const dot = document.getElementById('gpsDot');
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
-        if(appState==='driving') Meter.update(g);
+        if(appState==='driving' || appState==='fare') Meter.update(g);
         // 復元後の補完検知：距離・料金が変わったらバナーを更新
         if(window._restoreDistanceM != null){
           const cur = Meter.getState();
@@ -642,6 +642,12 @@ function startUiTimer(){
 
     document.getElementById('driveDist').textContent = (s.distance_m/1000).toFixed(2);
     document.getElementById('driveFare').textContent = total.toLocaleString();
+
+    // 確定画面でもリアルタイム更新
+    if(appState==='fare'){
+      document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
+      renderFare(s, fare, extraTotal, total);
+    }
 
     if(surchargeOn){
       const base = s.fare_yen;
@@ -1026,6 +1032,15 @@ document.addEventListener('visibilitychange', function(){
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 renderInlineHistory();
+
+// ─── ServiceWorker登録（高速キャッシュ・オフライン対応） ───
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    dlog('[SW] 登録完了:', reg.scope);
+  }).catch(err => {
+    console.error('[SW] 登録失敗:', err);
+  });
+}
 </script>
 </body>
 </html>
