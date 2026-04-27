@@ -176,6 +176,13 @@ const Meter = (() => {
     state.fare_yen = calcFare(distanceM);
   }
 
+  // リロード復元用：最終GPS状態をセット（層3・GPS消失補完を復元後に発火させる）
+  function setLastGps(lat, lng, altitude, speedKmh, timestamp){
+    state.last_gps = { lat, lng, altitude };
+    state.last_timestamp = timestamp;
+    state.last_speed_kmh = speedKmh || 0;
+  }
+
   function resume(){
     if(state.running) return;
     state.running = true;
@@ -183,5 +190,5 @@ const Meter = (() => {
     timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
   }
 
-  return { start, stop, reset, resume, update, getState, setFareConfig, getFareConfig, calcFare, setDistance };
+  return { start, stop, reset, resume, update, getState, setFareConfig, getFareConfig, calcFare, setDistance, setLastGps };
 })();
