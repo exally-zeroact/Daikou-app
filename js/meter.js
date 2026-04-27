@@ -74,13 +74,21 @@ const Meter = (() => {
   // returns: 補完すべき距離(m) | null（補完しない）
   // ×1.3倍：直線距離は実際の道路距離より短いため補正係数を掛ける
   const ROAD_FACTOR = 1.3;
+  // トンネル/橋方向とコンパス方向の許容差（度）
+  const TUNNEL_COMPASS_THRESHOLD_DEG = 45;
 
-  function calculateGapFill(prevLat, prevLng, currLat, currLng, gapSec, lastSpeedKmh){
+  function calcBearingMeter(lat1, lng1, lat2, lng2){
+    const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
+    const Δλ=(lng2-lng1)*Math.PI/180;
+    return((Math.atan2(Math.sin(Δλ)*Math.cos(φ2),
+      Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ))*180/Math.PI)+360)%360;
+  }
+  function angleDiffMeter(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
+
+  function calculateGapFill(prevLat, prevLng, currLat, currLng, gapSec, lastSpeedKmh, compassHeading){
     if(gapSec > GAP_MAX_SEC) return null;
 
     // 停車中（速度=0）の場合は座標差分で判断
-    // 20m以上動いていれば走り出したと判断して直線距離×1.3で補完
-    // 20m未満はGPSノイズとして無視
     if(lastSpeedKmh <= 0){
       const coordDiff = GPS.calcDistance(prevLat, prevLng, currLat, currLng);
       if(coordDiff >= 20){
@@ -101,8 +109,31 @@ const Meter = (() => {
     if(!infra) infra = RegionLoader.findNearestBridge(prevLat, prevLng, NEAR_INFRA_RADIUS_M);
 
     if(infra){
-      // トンネル/橋内：構造物長を上限に補完（×1.3不要・実距離が分かる）
       const infraLength = infra.item[1];
+      const infraStart  = infra.item[2]; // [lat, lng]
+      const infraEnd    = infra.item[3]; // [lat, lng]
+
+      // コンパス方向と構造物方向の照合
+      if(compassHeading != null){
+        const infraBearing = calcBearingMeter(infraStart[0], infraStart[1], infraEnd[0], infraEnd[1]);
+        // 双方向（順方向・逆方向）の小さい方で判定
+        const diffFwd = angleDiffMeter(compassHeading, infraBearing);
+        const diffRev = angleDiffMeter(compassHeading, (infraBearing + 180) % 360);
+        const diff = Math.min(diffFwd, diffRev);
+
+        if(diff <= TUNNEL_COMPASS_THRESHOLD_DEG){
+          // コンパスと一致 → 構造物の実距離を採用（精度高い）
+          const filled = Math.min(naiveDistance, infraLength);
+          dlog(`[Meter] ${infra.item[0]} コンパス一致(${diff.toFixed(0)}°) → ${Math.round(filled)}m`);
+          return filled;
+        } else {
+          // コンパスと不一致 → 誤検出の可能性・速度×時間×1.3で補完
+          dlog(`[Meter] ${infra.item[0]} コンパス不一致(${diff.toFixed(0)}°) → 速度補完`);
+          return naiveDistance * ROAD_FACTOR;
+        }
+      }
+
+      // コンパスなし → 従来通り構造物長で補完
       const filled = Math.min(naiveDistance, infraLength);
       dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (${infra.item[0]} ${infraLength}m)`);
       return filled;
@@ -132,7 +163,8 @@ const Meter = (() => {
         const filled = calculateGapFill(
           state.last_gps.lat, state.last_gps.lng,
           gpsResult.lat, gpsResult.lng,
-          dtSec, state.last_speed_kmh
+          dtSec, state.last_speed_kmh,
+          state.last_gps.compassHeading
         );
 
         if(filled !== null){
@@ -145,7 +177,7 @@ const Meter = (() => {
           state.fare_yen = calcFare(state.distance_m);
           _recordGapFill(d); // 補完カウント
         }
-        state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude };
+        state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude, compassHeading: gpsResult.compassHeading || null };
         state.last_timestamp = gpsResult.timestamp;
         state.last_speed_kmh = gpsResult.speedKmh || 0;
         return;
@@ -175,7 +207,7 @@ const Meter = (() => {
       state.distance_m += d;
       state.fare_yen = calcFare(state.distance_m);
     }
-    state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude };
+    state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude, compassHeading: gpsResult.compassHeading || null };
     state.last_timestamp = gpsResult.timestamp;
     state.last_speed_kmh = gpsResult.speedKmh || 0;
   }
