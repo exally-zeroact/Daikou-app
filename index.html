@@ -1033,15 +1033,6 @@ document.addEventListener('visibilitychange', function(){
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 renderInlineHistory();
-
-// ─── ServiceWorker登録（高速キャッシュ・オフライン対応） ───
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').then(reg => {
-    dlog('[SW] 登録完了:', reg.scope);
-  }).catch(err => {
-    console.error('[SW] 登録失敗:', err);
-  });
-}
 </script>
 </body>
 </html>
