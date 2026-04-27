@@ -12,13 +12,18 @@ const GPS = (() => {
   // コンパス（DeviceOrientation・許可不要）
   let compassHeading = null;
   function startCompass(){
-    if(!window.DeviceOrientationEvent) return;
+    if(!window.DeviceOrientationEvent) {
+      dlog('[GPS] コンパス非対応');
+      return;
+    }
     window.addEventListener('deviceorientation', function(e){
       if(e.webkitCompassHeading != null){
         // iOS：webkitCompassHeadingが北=0で信頼性高い
+        if(compassHeading === null) dlog('[GPS] コンパス初回取得: ' + e.webkitCompassHeading.toFixed(0) + '°');
         compassHeading = e.webkitCompassHeading;
       } else if(e.alpha != null){
         // Android：alphaは画面向き依存なので変換
+        if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android): ' + e.alpha.toFixed(0) + '°');
         compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
       }
     }, true);
@@ -63,8 +68,13 @@ const GPS = (() => {
       }});
       worker.onmessage = function(e) {
         if (e.data.type === 'result') {
-          if (e.data.data._debugCompass) dlog('[GPS]', e.data.data._debugCompass);
-          if (onUpdateCallback) onUpdateCallback(e.data.data);
+          const d = e.data.data;
+          if (d._debugCompass) dlog('[GPS]', d._debugCompass);
+          // コンパス値がWorkerに届いているか定期確認（10回に1回）
+          if (d.compassHeading != null && Math.random() < 0.1){
+            dlog('[GPS] compass届いてる:', d.compassHeading.toFixed(0) + '°');
+          }
+          if (onUpdateCallback) onUpdateCallback(d);
         }
       };
       worker.onerror = function(err) {
