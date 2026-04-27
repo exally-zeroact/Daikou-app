@@ -386,7 +386,7 @@ class NoSleep {
         this._audioCtx = new AC();
         const osc = this._audioCtx.createOscillator();
         const gain = this._audioCtx.createGain();
-        gain.gain.value = 0; // 完全無音
+        gain.gain.value = 0.001; // 極小音（完全無音だとiOSがスリープさせる）
         osc.connect(gain);
         gain.connect(this._audioCtx.destination);
         osc.start();
