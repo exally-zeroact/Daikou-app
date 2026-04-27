@@ -206,10 +206,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   .btn-main{padding:14px;font-size:15px;}
   .btn-sub{padding:10px 0;font-size:12px;}
 
-  /* IDLE：時計を小さく */
+  /* IDLE：stats-grid・履歴を50%中央寄せ */
   .idle-time{font-size:36px;}
-  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;}
+  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
   .stat-value{font-size:18px;}
+  #inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
 
   /* DRIVING：meter-card 50%中央寄せ */
   .driving-grid{display:flex;flex-direction:column;gap:8px;}
@@ -217,12 +218,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   .meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
   .meter-label{font-size:13px;margin-bottom:0;}
 
-  /* FARE：スクロール可能に */
+  /* FARE：fare-total・breakdown・走行に戻るボタン 50%中央寄せ */
   #screenFare{overflow-y:auto;}
   .fare-total-amount{font-size:40px;}
-
-  /* 走行に戻るボタンが切れないように */
-  #screenFare button{margin-top:10px;}
+  .fare-total{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+  .breakdown{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+  #screenFare button{margin-top:10px;display:block;margin-left:auto;margin-right:auto;}
 }
 </style>
 </head>
