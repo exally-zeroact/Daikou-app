@@ -85,6 +85,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .breakdown-row .val.extra{color:#FF9500;}
 .breakdown-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
 
+/* リロード復元バナー */
+.restore-banner{
+  background:#F0FAF4;
+  border:1.5px solid #34C759;
+  border-radius:10px;
+  padding:10px 14px;
+  font-size:13px;
+  color:#1a7a33;
+  font-weight:700;
+  display:none;
+  margin:0 16px 8px;
+  flex-shrink:0;
+}
+.restore-banner.show{display:block;}
+
 /* ボタンエリア（固定） */
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
 .btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
@@ -287,6 +302,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
 </div>
 
+<!-- リロード復元バナー -->
+<div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
+
 <!-- ボタンエリア（固定・全画面共通） -->
 <div class="btn-area">
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
@@ -397,6 +415,50 @@ let todayCount = 0;
 let uiTimer = null;
 let vehicleId = 'v1';
 
+// ─── リロード復元 ───
+function checkDrivingRestore(){
+  try {
+    const raw = localStorage.getItem('daikou_driving_state');
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    // 24時間超は無効・削除
+    if(Date.now() - saved.saved_at > 24 * 60 * 60 * 1000){
+      localStorage.removeItem('daikou_driving_state');
+      return;
+    }
+    // 走行状態を復元
+    appState = 'driving';
+    Meter.start();
+    Meter.setDistance(saved.distance_m);
+    // 最終GPS状態をセット（層3・GPS消失補完を復元後に自動発火させる）
+    if(saved.last_lat && saved.last_gps_at){
+      Meter.setLastGps(
+        saved.last_lat, saved.last_lng, saved.last_altitude,
+        saved.last_speed_kmh, saved.last_gps_at
+      );
+    }
+    // 補完検知用：復元時の距離を保持（GPS再取得後にバナーを更新）
+    window._restoreDistanceM = saved.distance_m;
+    window._restoreFareYen   = saved.fare_yen;
+    showScreen('driving');
+    document.getElementById('appbarTitle').textContent = '代行中';
+    // NoSleep起動
+    if(!noSleep){ noSleep = new NoSleep(); }
+    noSleep.enable().catch(e=>{});
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    document.documentElement.style.filter = '';
+    // GPS・UIタイマー再起動
+    startGPS();
+    startUiTimer();
+    // 緑バナー表示
+    document.getElementById('restoreBanner').classList.add('show');
+    console.log('[復元] 走行を再開しました');
+  } catch(e){
+    console.error('[復元] エラー:', e);
+    localStorage.removeItem('daikou_driving_state');
+  }
+}
+
 // ─── 設定読み込み ───
 function loadSettings(){
   FB.loadFareConfig(cfg => { Meter.setFareConfig(cfg); });
@@ -447,6 +509,8 @@ function loadSettings(){
 
   // 自動リセットチェック
   autoResetCheck();
+  // リロード復元チェック
+  checkDrivingRestore();
 }
 
 function autoResetCheck(){
@@ -506,6 +570,18 @@ function startGPS(){
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
         if(appState==='driving') Meter.update(g);
+        // 復元後の補完検知：距離・料金が変わったらバナーを更新
+        if(window._restoreDistanceM != null){
+          const cur = Meter.getState();
+          const addedM  = Math.round(cur.distance_m - window._restoreDistanceM);
+          const addedYen = cur.fare_yen - window._restoreFareYen;
+          if(addedM > 0){
+            const banner = document.getElementById('restoreBanner');
+            banner.textContent = '✅ 走行データを復元しました（+' + addedM + 'm・¥' + addedYen.toLocaleString() + '補完）';
+            window._restoreDistanceM = null;
+            window._restoreFareYen   = null;
+          }
+        }
         // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
         if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
         // TestMode：走行中のみ位置記録（★テスト用・リリース時削除）
@@ -543,6 +619,18 @@ function startUiTimer(){
       FB.updateVehicle({ status:'driving',
         session:{ distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec }});
     }
+    // 走行状態をlocalStorageに保存（リロード復元用）
+    const ms = Meter.getState();
+    localStorage.setItem('daikou_driving_state', JSON.stringify({
+      distance_m:    s.distance_m,
+      fare_yen:      total,
+      saved_at:      Date.now(),
+      last_lat:      ms.last_gps ? ms.last_gps.lat      : null,
+      last_lng:      ms.last_gps ? ms.last_gps.lng      : null,
+      last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
+      last_speed_kmh: ms.last_speed_kmh || 0,
+      last_gps_at:   ms.last_timestamp || null,
+    }));
   },500);
 }
 
@@ -667,6 +755,9 @@ function onIdle(){
   extras=[];
   surchargeOn=false;
   Meter.reset();
+  // リロード復元データ削除・バナー非表示
+  localStorage.removeItem('daikou_driving_state');
+  document.getElementById('restoreBanner').classList.remove('show');
   try { FB.setIdle(); } catch(e){}
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
@@ -832,6 +923,31 @@ function showScreen(name){
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
 }
+
+// ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden && appState === 'driving'){
+    try {
+      const s  = Meter.getState();
+      const ms = Meter.getState();
+      let fare = s.fare_yen;
+      if(surchargeOn) fare = Math.round(fare * surchargeRate);
+      const extraTotal = extras.reduce((a,b)=>a+b.amount, 0);
+      const total = fare + extraTotal;
+      localStorage.setItem('daikou_driving_state', JSON.stringify({
+        distance_m:    s.distance_m,
+        fare_yen:      total,
+        saved_at:      Date.now(),
+        last_lat:      ms.last_gps ? ms.last_gps.lat      : null,
+        last_lng:      ms.last_gps ? ms.last_gps.lng      : null,
+        last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
+        last_speed_kmh: ms.last_speed_kmh || 0,
+        last_gps_at:   ms.last_timestamp || null,
+      }));
+      dlog('[復元] 裏に回った瞬間を保存');
+    } catch(e){ console.error('[復元] visibilitychange保存エラー:', e); }
+  }
+});
 
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
