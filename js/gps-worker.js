@@ -240,7 +240,8 @@ function processPosition(data) {
       if (compassHeading != null) {
         const matchRatio = 1 - (diff / CONFIG.heading_diff_threshold_deg); // 0〜1
         CONFIG._kalman_Q_override = CONFIG.kalman_Q * (0.5 + 0.5 * (1 - matchRatio));
-        wlog('[GPS] コンパス融合: 方向差' + diff.toFixed(0) + '° Q=' + CONFIG._kalman_Q_override.toFixed(1));
+        CONFIG._compassDebug = 'コンパス融合: 方向差' + diff.toFixed(0) + '° Q=' + CONFIG._kalman_Q_override.toFixed(1);
+        wlog('[GPS] ' + CONFIG._compassDebug);
       }
     }
   }
@@ -266,6 +267,7 @@ function processPosition(data) {
     isStationary,
     timestamp: now,
     compassHeading: (compassHeading != null) ? compassHeading : null,
+    _debugCompass: (compassHeading != null && CONFIG._compassDebug) ? CONFIG._compassDebug : null,
   };
 }
 
