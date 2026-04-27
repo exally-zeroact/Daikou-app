@@ -73,10 +73,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
       </div>
     </div>
     <div class="row">
-      <div class="row-label">初乗り距離</div>
+      <div class="row-label">加算開始距離<br><span style="font-size:11px;color:#aaa;">この距離から加算（例：1000mで¥1,400）</span></div>
       <div style="display:flex;align-items:center;">
         <input class="row-input" type="number" id="baseDist" value="1000">
-        <span class="row-unit">m</span>
+        <span class="row-unit">m未満</span>
       </div>
     </div>
     <div class="row">
@@ -136,14 +136,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
     <div id="extraItems"></div>
     <div style="padding:8px 16px 16px;">
       <button class="btn-add" onclick="addExtraItem()">＋ 項目を追加</button>
-    </div>
-  </div>
-
-  <!-- ★テスト用・リリース時削除 -->
-  <div class="section" id="testLinkSection">
-    <div class="row" onclick="location.href='history.html'" style="cursor:pointer;">
-      <div class="row-label">📊 走行履歴・テスト集計</div>
-      <div style="color:#8E8E93;font-size:13px;">›</div>
     </div>
   </div>
 
@@ -214,13 +206,12 @@ function updatePreview(){
   const ad = parseInt(document.getElementById('addDist').value)||420;
   const af = parseInt(document.getElementById('addFare').value)||100;
   let html = '';
-  // 初乗り
-  html += `<span style="color:#aaa;">初乗り</span>　→　<span class="val">¥${bf.toLocaleString()}</span><br>`;
-  // 加算段階を6段階表示
+  html += `<span style="color:#aaa;">0m 〜 ${bd-1}m</span>　→　<span class="val">¥${bf.toLocaleString()}</span><br>`;
   for(let i=0; i<6; i++){
-    const m = bd + ad * i;
+    const from = bd + ad * i;
+    const to   = bd + ad * (i+1) - 1;
     const fare = bf + (i+1) * af;
-    html += `<span style="color:#aaa;">${(m/1000).toFixed(2)}km〜</span>　→　<span class="val">¥${fare.toLocaleString()}</span><br>`;
+    html += `<span style="color:#aaa;">${from}m 〜 ${to}m</span>　→　<span class="val">¥${fare.toLocaleString()}</span><br>`;
   }
   document.getElementById('preview').innerHTML=html;
 }
