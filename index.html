@@ -751,6 +751,22 @@ function onIdle(){
     correctionTotal = fare + extras.reduce((a,b)=>a+b.amount,0);
     // TestMode：走行終了記録（★テスト用・リリース時削除）
     try { if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); } catch(e){ console.error('TestMode end error:', e); }
+
+    // ─── 走行サマリートースト（5秒表示）───
+    try {
+      const logs = (typeof TestMode !== 'undefined') ? TestMode.getLogs() : [];
+      const lastLog = logs[logs.length - 1];
+      const hasPosData = lastLog && lastLog.start_pos && lastLog.end_pos;
+      const gapCount = s.gap_fill_count || 0;
+      const gapM    = Math.round(s.gap_fill_total_m || 0);
+      const lines = [
+        `✅ ${(correctionDistanceM/1000).toFixed(2)}km ¥${correctionTotal.toLocaleString()}`,
+        gapCount > 0 ? `GPS補完: ${gapCount}回（${gapM}m）` : 'GPS補完: なし',
+        hasPosData ? '座標: 取得済 ✅' : '座標: 未取得 ⚠️（GPS圏外？）',
+      ].join('\n');
+      showToastLong(lines);
+    } catch(e){ /* サマリー表示エラーは無視 */ }
+
     // 確定画面からのみ空車に戻れる
     Meter.stop();
     if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
@@ -837,6 +853,24 @@ function showToast(msg){
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(()=>{ t.classList.remove('show'); }, 2000);
+}
+
+// ─── 長めのトースト（走行サマリー用・5秒・改行対応） ───
+function showToastLong(msg){
+  const t = document.getElementById('toast');
+  t.style.whiteSpace = 'pre-line';
+  t.style.textAlign  = 'left';
+  t.style.fontSize   = '13px';
+  t.style.lineHeight = '1.8';
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>{
+    t.classList.remove('show');
+    t.style.whiteSpace = '';
+    t.style.textAlign  = '';
+    t.style.fontSize   = '';
+    t.style.lineHeight = '';
+  }, 5000);
 }
 
 // ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
