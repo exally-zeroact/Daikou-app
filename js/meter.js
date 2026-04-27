@@ -9,6 +9,8 @@ const Meter = (() => {
     last_gps: null,
     last_timestamp: null,
     last_speed_kmh: 0,    // GPS消失時の補完用
+    gap_fill_count: 0,    // GPS消失補完回数（サマリー表示用）
+    gap_fill_total_m: 0,  // GPS消失補完合計距離
   };
 
   let fareConfig = {
@@ -42,6 +44,8 @@ const Meter = (() => {
       last_gps: null,
       last_timestamp: null,
       last_speed_kmh: 0,
+      gap_fill_count: 0,
+      gap_fill_total_m: 0,
     };
     if(timer) clearInterval(timer);
     timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
@@ -98,6 +102,11 @@ const Meter = (() => {
     return naiveDistance;
   }
 
+  function _recordGapFill(filledM){
+    state.gap_fill_count++;
+    state.gap_fill_total_m += filledM;
+  }
+
   function update(gpsResult){
     if(!state.running) return;
     if(gpsResult.isStationary) return;
@@ -115,17 +124,14 @@ const Meter = (() => {
         );
 
         if(filled !== null){
-          // GPS座標差分も計算（瞬間ジャンプ可能性）
-          // 案AA：3D距離計算（高度差を加味・2026/04/26）
           const gpsDistance = GPS.calcDistance3D(
             state.last_gps.lat, state.last_gps.lng, state.last_gps.altitude,
             gpsResult.lat, gpsResult.lng, gpsResult.altitude
           );
-          // 補完値とGPS距離の小さい方を採用（保守的）
-          // GPS距離が大きい場合は復帰時の瞬間ジャンプの可能性が高い
           const d = Math.min(filled, gpsDistance);
           state.distance_m += d;
           state.fare_yen = calcFare(state.distance_m);
+          _recordGapFill(d); // 補完カウント
         }
         state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude };
         state.last_timestamp = gpsResult.timestamp;
