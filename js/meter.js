@@ -72,34 +72,46 @@ const Meter = (() => {
 
   // GPS消失時の補完（トンネル・橋データ活用）
   // returns: 補完すべき距離(m) | null（補完しない）
+  // ×1.3倍：直線距離は実際の道路距離より短いため補正係数を掛ける
+  const ROAD_FACTOR = 1.3;
+
   function calculateGapFill(prevLat, prevLng, currLat, currLng, gapSec, lastSpeedKmh){
-    // 速度がない or 異常な空白時間なら補完しない
-    if(lastSpeedKmh <= 0) return null;
     if(gapSec > GAP_MAX_SEC) return null;
 
-    // 速度×時間で素直な補完値を計算
+    // 停車中（速度=0）の場合は座標差分で判断
+    // 20m以上動いていれば走り出したと判断して直線距離×1.3で補完
+    // 20m未満はGPSノイズとして無視
+    if(lastSpeedKmh <= 0){
+      const coordDiff = GPS.calcDistance(prevLat, prevLng, currLat, currLng);
+      if(coordDiff >= 20){
+        const filled = coordDiff * ROAD_FACTOR;
+        dlog(`[Meter] 停車中補完: 座標差分 ${Math.round(coordDiff)}m × ${ROAD_FACTOR} = ${Math.round(filled)}m`);
+        return filled;
+      }
+      return null;
+    }
+
+    // 走行中の補完（速度×時間）
     const speedMs = lastSpeedKmh / 3.6;
     const naiveDistance = speedMs * gapSec;
 
-    // RegionLoaderが使えない（データ未読込）→素直な補完を返す
-    if(typeof RegionLoader === 'undefined') return naiveDistance;
+    if(typeof RegionLoader === 'undefined') return naiveDistance * ROAD_FACTOR;
 
-    // 直前の位置にトンネルor橋があるか確認
     let infra = RegionLoader.findNearestTunnel(prevLat, prevLng, NEAR_INFRA_RADIUS_M);
     if(!infra) infra = RegionLoader.findNearestBridge(prevLat, prevLng, NEAR_INFRA_RADIUS_M);
 
     if(infra){
-      // トンネル/橋データあり → 構造物の長さを上限に補完
-      const infraLength = infra.item[1]; // distance_m
-      // 速度×時間 と 構造物長 の小さい方を採用（暴走防止）
+      // トンネル/橋内：構造物長を上限に補完（×1.3不要・実距離が分かる）
+      const infraLength = infra.item[1];
       const filled = Math.min(naiveDistance, infraLength);
       dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (${infra.item[0]} ${infraLength}m)`);
       return filled;
     }
 
-    // データなし → 素直な補完
-    dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(naiveDistance)}m (データなし)`);
-    return naiveDistance;
+    // データなし → 速度×時間 × 1.3（道路係数）
+    const filled = naiveDistance * ROAD_FACTOR;
+    dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (×${ROAD_FACTOR}補正)`);
+    return filled;
   }
 
   function _recordGapFill(filledM){
