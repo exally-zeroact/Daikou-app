@@ -12,21 +12,33 @@ const GPS = (() => {
   // コンパス（DeviceOrientation・許可不要）
   let compassHeading = null;
   function startCompass(){
+    // DeviceOrientationEvent対応チェック
     if(!window.DeviceOrientationEvent) {
-      dlog('[GPS] コンパス非対応');
+      dlog('[GPS] コンパス非対応（DeviceOrientationEvent未定義）');
       return;
     }
+    let compassCount = 0;
     window.addEventListener('deviceorientation', function(e){
+      compassCount++;
+      // 最初の1回だけ詳細ログ
+      if(compassCount === 1){
+        dlog('[GPS] DeviceOrientation発火 webkitCompassHeading=' + e.webkitCompassHeading + ' alpha=' + e.alpha);
+      }
       if(e.webkitCompassHeading != null){
-        // iOS：webkitCompassHeadingが北=0で信頼性高い
-        if(compassHeading === null) dlog('[GPS] コンパス初回取得: ' + e.webkitCompassHeading.toFixed(0) + '°');
+        if(compassHeading === null) dlog('[GPS] コンパス初回取得(iOS): ' + e.webkitCompassHeading.toFixed(0) + '°');
         compassHeading = e.webkitCompassHeading;
       } else if(e.alpha != null){
-        // Android：alphaは画面向き依存なので変換
         if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android): ' + e.alpha.toFixed(0) + '°');
         compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
+      } else {
+        if(compassCount === 1) dlog('[GPS] コンパス値null（両方null）');
       }
     }, true);
+    // 3秒後にまだnullなら警告
+    setTimeout(()=>{
+      if(compassHeading === null) dlog('[GPS] コンパス3秒後もnull・イベント未発火の可能性');
+      else dlog('[GPS] コンパス取得済: ' + compassHeading.toFixed(0) + '°');
+    }, 3000);
     dlog('[GPS] コンパス起動完了');
   }
 
