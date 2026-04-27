@@ -879,6 +879,14 @@ function wakeScreen(){
     dimTimer = setTimeout(function(){
       document.documentElement.style.filter = 'brightness(0)';
     }, DIM_MINUTES * 60 * 1000);
+    // 走行中・確定中なら復帰補正を発火
+    if(appState === 'driving' || appState === 'fare'){
+      const s = Meter.getState();
+      window._restoreDistanceM = s.distance_m;
+      window._restoreFareYen   = s.fare_yen;
+      document.getElementById('restoreBanner').classList.add('show');
+      document.getElementById('restoreBanner').textContent = '✅ 走行データを復元しました';
+    }
   }
 }
 
