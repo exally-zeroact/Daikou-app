@@ -515,6 +515,22 @@ function loadSettings(){
   autoResetCheck();
   // リロード復元チェック
   checkDrivingRestore();
+  // 古い日付の履歴キーを削除（今日以外は不要）
+  cleanOldHistoryKeys();
+}
+
+// ─── 古い履歴キー自動削除（今日以外は不要） ───
+function cleanOldHistoryKeys(){
+  const today = 'daikou_history_' + new Date().toDateString();
+  const toDelete = [];
+  for(let i = 0; i < localStorage.length; i++){
+    const key = localStorage.key(i);
+    if(key && key.startsWith('daikou_history_') && key !== today){
+      toDelete.push(key);
+    }
+  }
+  toDelete.forEach(k => localStorage.removeItem(k));
+  if(toDelete.length > 0) dlog('[Cleanup] 古い履歴キー削除:', toDelete.length + '件');
 }
 
 function autoResetCheck(){
