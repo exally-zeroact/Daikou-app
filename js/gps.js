@@ -63,6 +63,7 @@ const GPS = (() => {
       }});
       worker.onmessage = function(e) {
         if (e.data.type === 'result') {
+          if (e.data.data._debugCompass) dlog('[GPS]', e.data.data._debugCompass);
           if (onUpdateCallback) onUpdateCallback(e.data.data);
         }
       };
