@@ -5,8 +5,8 @@ const GPS = (() => {
   let isStationary = false;
   let onUpdateCallback = null;
 
-  // ローパスフィルター用バッファ（直近5点）
-  let posBuffer = [];
+  // Kalmanフィルターインスタンス（案D・2026/04/27追加）
+  let kalman = null;
 
   // OSRM削除済（2026/04/26）：traceBuffer 不要
 
@@ -37,8 +37,10 @@ const GPS = (() => {
     heading_check_min_distance_m: 5,  // 5m以上動いた時だけ判定（ブレ除外）
     heading_check_min_speed_kmh: 5,   // 5km/h以下は判定しない（停車時のノイズ）
 
-    // ローパスフィルター
-    filter_size: 5,
+    // 案D：Kalmanフィルター（2026/04/27追加）
+    // Q = 車が1秒あたり動く不確実性（m）。市街地代行 ≈ 3m/sが適切
+    // テスト後に誤差が大きければ増やす・小さければ減らす
+    kalman_Q: 3,
 
     // 渋滞モード
     jam_speed_max_kmh: 10,        // 0〜10km/hで
@@ -47,18 +49,19 @@ const GPS = (() => {
 
   function start(callback) {
     onUpdateCallback = callback;
-    posBuffer = [];
+    kalman = new KalmanGPS();
     trafficJamSince = null;
     isTrafficJam = false;
     if (!navigator.geolocation) { alert('GPSに対応していません'); return; }
+    // 案G：timeout 3000ms（取得成功率向上・2026/04/27追加）
     watchId = navigator.geolocation.watchPosition(onPosition, onError,
-      { enableHighAccuracy: true, timeout: 1000, maximumAge: 0 });
+      { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 });
   }
 
   function stop() {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     lastPosition = null; lowSpeedStart = null; isStationary = false;
-    posBuffer = [];
+    if (kalman) kalman.reset();
     trafficJamSince = null;
     isTrafficJam = false;
   }
@@ -98,23 +101,76 @@ const GPS = (() => {
     return isTrafficJam;
   }
 
-  // ローパスフィルター（加重移動平均）
-  function applyLowPass(lat, lng) {
-    posBuffer.push({ lat, lng });
-    if (posBuffer.length > CONFIG.filter_size) posBuffer.shift();
-
-    let totalWeight = 0;
-    let sumLat = 0, sumLng = 0;
-    for (let i = 0; i < posBuffer.length; i++) {
-      const w = i + 1;
-      totalWeight += w;
-      sumLat += posBuffer[i].lat * w;
-      sumLng += posBuffer[i].lng * w;
+  // ─── 案D：Kalmanフィルター（2026/04/27追加）───
+  // accuracy-weighted 方式
+  // 仕組み：前回精度が悪いほど新しいGPS値を信頼する
+  //         前回精度が良いほど予測値を信頼する
+  // ローパスフィルターより優れる点：
+  //   ①時間経過を考慮（速く動くほど不確実性が増える）
+  //   ②GPSのaccuracyを動的に活用
+  //   ③過去5点の平均ではなく最適推定
+  class KalmanGPS {
+    constructor() {
+      this._lat      = null;
+      this._lng      = null;
+      this._accuracy = 0;
+      this._timestamp = null;
     }
-    return {
-      lat: sumLat / totalWeight,
-      lng: sumLng / totalWeight
-    };
+
+    reset() {
+      this._lat      = null;
+      this._lng      = null;
+      this._accuracy = 0;
+      this._timestamp = null;
+    }
+
+    update(lat, lng, accuracy, timestamp) {
+      // 初回 → そのまま採用
+      if (this._lat === null) {
+        this._lat      = lat;
+        this._lng      = lng;
+        this._accuracy = accuracy;
+        this._timestamp = timestamp;
+        return { lat, lng };
+      }
+
+      const dt = (timestamp - this._timestamp) / 1000;
+
+      // 時間差が異常（0以下 or 30秒超）→ 再初期化
+      if (dt <= 0 || dt > 30) {
+        this._lat = lat; this._lng = lng;
+        this._accuracy = accuracy;
+        this._timestamp = timestamp;
+        return { lat, lng };
+      }
+
+      // 時間経過で精度を劣化（車が動くほど不確実性増加）
+      const Q = CONFIG.kalman_Q;
+      const decayed = Math.sqrt(
+        this._accuracy * this._accuracy + Q * Q * dt * dt
+      );
+
+      // カルマンゲイン（0〜1）
+      // 前回精度が悪い(decayed大) → K大 → 新しい測定値を信頼
+      // 前回精度が良い(decayed小) → K小 → 前回推定値を信頼
+      const K = decayed * decayed / (decayed * decayed + accuracy * accuracy);
+
+      // 状態更新
+      this._lat      = this._lat + K * (lat - this._lat);
+      this._lng      = this._lng + K * (lng - this._lng);
+      this._accuracy = Math.sqrt((1 - K) * decayed * decayed);
+      this._timestamp = timestamp;
+
+      // 安全弁：NaN/Inf が出たら生GPS座標にフォールバック
+      if (!isFinite(this._lat) || !isFinite(this._lng)) {
+        dlog('[GPS] Kalman異常値 → フォールバック');
+        this._lat = lat; this._lng = lng;
+        this._accuracy = accuracy;
+        return { lat, lng };
+      }
+
+      return { lat: this._lat, lng: this._lng };
+    }
   }
 
   // 2点間の方位角を計算（北=0度・時計回り）
@@ -186,8 +242,8 @@ const GPS = (() => {
     // ③ 渋滞モード判定
     checkTrafficJam(speedKmh, now);
 
-    // ④ ローパスフィルター適用
-    const filtered = applyLowPass(lat, lng);
+    // ④ Kalmanフィルター適用（案D・2026/04/27追加）
+    const filtered = kalman.update(lat, lng, accuracy, now);
 
     // ⑤ 静止判定（補正後座標・渋滞時は厳しく）
     isStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
