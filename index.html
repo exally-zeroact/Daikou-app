@@ -466,11 +466,6 @@ function checkDrivingRestore(){
     window._restoreFareYen   = saved.fare_yen;
     showScreen('driving');
     document.getElementById('appbarTitle').textContent = '代行中';
-    // NoSleep起動
-    if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e=>{});
-    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
-    document.documentElement.style.filter = '';
     // GPS・UIタイマー再起動
     startGPS();
     startUiTimer();
