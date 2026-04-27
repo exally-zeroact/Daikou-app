@@ -55,10 +55,18 @@ const TestMode = (() => {
   }
 
   function saveLog(trip){
+    // localStorageに保存（端末内バックアップ）
     const logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    logs.push(trip);
+    const existing = logs.findIndex(l => l.id === trip.id);
+    if(existing >= 0) logs[existing] = trip;
+    else logs.push(trip);
     if(logs.length > MAX_LOGS) logs.shift();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+
+    // Firebaseにも保存（全端末集約用）
+    try {
+      if(typeof FB !== 'undefined' && FB.saveTestLog) FB.saveTestLog(trip);
+    } catch(e){ console.error('[TestMode] Firebase保存エラー:', e); }
   }
 
   function getLogs(){
@@ -87,8 +95,35 @@ const TestMode = (() => {
 
   // 全ログの真の距離を自動取得＆CSVエクスポート
   async function exportCSV(){
-    const logs = getLogs();
+    showProgress('Firebaseから全端末データ取得中...');
+
+    // Firebase から全端末のデータを集約
+    let logs = [];
+    try {
+      await new Promise((resolve) => {
+        if(typeof FB !== 'undefined' && FB.loadAllTestLogs){
+          FB.loadAllTestLogs(fbLogs => {
+            if(fbLogs.length > 0){
+              logs = fbLogs;
+              dlog('[TestMode] Firebase集約:', logs.length + '件');
+            } else {
+              // Firebaseにデータがなければlocalからフォールバック
+              logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+              dlog('[TestMode] localStorageから:', logs.length + '件');
+            }
+            resolve();
+          });
+        } else {
+          logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+          resolve();
+        }
+      });
+    } catch(e){
+      logs = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    }
+
     if(logs.length === 0){
+      hideProgress();
       alert('テストログがありません');
       return;
     }
