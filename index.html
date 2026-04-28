@@ -1286,15 +1286,15 @@ function requestSensorPermission(){
       if(overlay && overlay.classList.contains('show')) tutorialNext();
 
     } else {
-      // 許可失敗（キャンセル）：ボタンを再度押せる状態に戻す
+      // 許可失敗（キャンセル）：リロードして再挑戦
       if(btn){
-        btn.textContent = '📡 もう一度許可する';
+        btn.textContent = '📡 もう一度許可する（タップでリロード）';
         btn.disabled = false;
+        btn.onclick = function(){ location.reload(); };
       }
-      // バナーが非表示なら表示する
       const banner = document.getElementById('sensorBanner');
       if(banner) banner.style.display = 'block';
-      dlog('[GPS] センサー許可失敗・再試行可能');
+      dlog('[GPS] センサー許可失敗・リロードで再試行');
     }
   });
 }
