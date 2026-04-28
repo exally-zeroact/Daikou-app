@@ -337,6 +337,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 </div>
 
+<!-- センサー未許可バナー（PWA起動時・未許可の場合） -->
+<div class="pwa-banner" id="sensorBanner" style="background:#FFF3E0;border-bottom-color:#FF9800;">
+  <div class="pwa-banner-text" style="color:#E65100;">
+    <strong>📡 センサーを許可してください</strong>
+    精度向上のためコンパス・ジャイロの使用を許可してください
+  </div>
+  <button class="pwa-banner-btn" style="background:#FF9800;" onclick="requestSensorPermission()">許可する</button>
+  <button class="pwa-banner-close" style="color:#FF9800;" onclick="this.parentElement.style.display='none'">✕</button>
+</div>
+
 <div class="pwa-banner" id="pwaBanner">
   <div class="pwa-banner-text">
     <strong>📲 ホーム画面に追加してください</strong>
@@ -1215,8 +1225,9 @@ function requestSensorPermission(){
   }
 
   Promise.allSettled(promises).then(() => {
-    btn.textContent = '✅ 許可しました';
-    setTimeout(() => tutorialNext(), 800);
+    const sensorBanner = document.getElementById('sensorBanner');
+    if(sensorBanner) sensorBanner.style.display = 'none';
+    tutorialNext();
   });
 }
 
@@ -1226,37 +1237,23 @@ function tutorialComplete(){
   dlog('[Tutorial] 完了');
 }
 
-// ─── PWA起動時センサー許可（アイコン起動時・初回のみ） ───
+// ─── センサー未許可バナー（PWA起動時・未許可の場合） ───
 (function(){
   if(window.navigator.standalone !== true) return;
-  if(localStorage.getItem('compass_granted')) {
-    window._compassGranted = true;
+  const needSensor =
+    (typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function') &&
+    (!localStorage.getItem('compass_granted') || !localStorage.getItem('motion_granted'));
+  if(needSensor){
+    document.getElementById('sensorBanner').classList.add('show');
   }
-  if(localStorage.getItem('motion_granted')) {
-    window._motionGranted = true;
-  }
-  // 両方未許可の場合は1秒後に自動要求
-  const needCompass = !localStorage.getItem('compass_granted') &&
-    typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function';
-  const needMotion = !localStorage.getItem('motion_granted') &&
-    typeof DeviceMotionEvent !== 'undefined' &&
-    typeof DeviceMotionEvent.requestPermission === 'function';
-  if(!needCompass && !needMotion) return;
-  setTimeout(function(){
-    if(needCompass){
-      DeviceOrientationEvent.requestPermission().then(function(s){
-        if(s==='granted'){ window._compassGranted=true; localStorage.setItem('compass_granted','1'); }
-        dlog('[GPS] PWAコンパス許可:', s);
-      }).catch(function(e){ dlog('[GPS] PWAコンパスエラー:', e.message); });
-    }
-    if(needMotion){
-      DeviceMotionEvent.requestPermission().then(function(s){
-        if(s==='granted'){ window._motionGranted=true; localStorage.setItem('motion_granted','1'); }
-        dlog('[GPS] PWAジャイロ許可:', s);
-      }).catch(function(e){ dlog('[GPS] PWAジャイロエラー:', e.message); });
-    }
-  }, 1000);
+})();
+
+// ─── PWA起動時センサー状態復元 ───
+(function(){
+  if(window.navigator.standalone !== true) return;
+  if(localStorage.getItem('compass_granted')) window._compassGranted = true;
+  if(localStorage.getItem('motion_granted')) window._motionGranted = true;
 })();
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
