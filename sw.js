@@ -1,32 +1,22 @@
 // ===========================================
 // sw.js（ServiceWorker・ダイコメPWA対応）
-// オフラインキャッシュ・Map Matchingデータ永続化
+// HTML/JS：ネットワーク優先（常に最新・バージョン管理不要）
+// 道路データ：キャッシュ優先（重いファイル・オフライン対応）
 // ===========================================
 
-const CACHE_NAME = 'daikome-v1';
+const CACHE_NAME = 'daikome-v2';
 
-const CACHE_FILES = [
-  '/',
-  '/index.html',
-  '/settings.html',
-  '/history.html',
-  '/js/gps.js',
-  '/js/gps-worker.js',
-  '/js/meter.js',
-  '/js/firebase.js',
-  '/js/firebase-config.js',
-  '/js/debug-config.js',
-  '/js/region-loader.js',
-  '/js/test-mode.js',
-  '/manifest.json',
+// アイコン・manifestだけキャッシュ（変わらないもの）
+const PRECACHE_FILES = [
   '/icon-192.png',
   '/icon-512.png',
+  '/manifest.json',
 ];
 
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(CACHE_FILES);
+      return cache.addAll(PRECACHE_FILES);
     }).then(function(){
       return self.skipWaiting();
     })
@@ -48,37 +38,56 @@ self.addEventListener('activate', function(e){
 self.addEventListener('fetch', function(e){
   const url = new URL(e.request.url);
 
-  // Firebase・外部API・フォントはネット優先（キャッシュしない）
+  // Firebase・外部API・フォント：ネットワークのみ（キャッシュしない）
   if(
     url.hostname.includes('firebase') ||
     url.hostname.includes('googleapis') ||
     url.hostname.includes('gstatic') ||
     url.hostname.includes('fonts.g')
   ){
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    e.respondWith(fetch(e.request));
     return;
   }
 
-  // 道路データ（Map Matching用）はネット優先・キャッシュにも保存
+  // 道路データ（Map Matching用）：キャッシュ優先・ネットでフォールバック
   if(e.request.url.includes('/roads/') || e.request.url.includes('/road-data/')){
     e.respondWith(
-      fetch(e.request).then(function(response){
-        if(response.ok){
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, clone); });
-        }
-        return response;
-      }).catch(function(){
-        return caches.match(e.request);
+      caches.match(e.request).then(function(cached){
+        if(cached) return cached;
+        return fetch(e.request).then(function(response){
+          if(response.ok){
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, clone); });
+          }
+          return response;
+        });
       })
     );
     return;
   }
 
-  // アプリ本体：キャッシュ優先
+  // アイコン・manifest：キャッシュ優先
+  if(e.request.url.includes('/icon-') || e.request.url.includes('/manifest.json')){
+    e.respondWith(
+      caches.match(e.request).then(function(cached){
+        return cached || fetch(e.request);
+      })
+    );
+    return;
+  }
+
+  // HTML・JS・CSS：ネットワーク優先 + キャッシュにも保存
+  // ネットあり → 最新取得してキャッシュ更新
+  // ネットなし → キャッシュから起動（電波なしスマホ対応）
   e.respondWith(
-    caches.match(e.request).then(function(cached){
-      return cached || fetch(e.request);
+    fetch(e.request).then(function(response){
+      if(response.ok && e.request.method === 'GET'){
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(function(cache){ cache.put(e.request, clone); });
+      }
+      return response;
+    }).catch(function(){
+      return caches.match(e.request);
     })
   );
 });
