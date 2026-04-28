@@ -25,6 +25,23 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .pwa-banner{display:none;align-items:center;gap:10px;background:#E8F4FD;border-bottom:2px solid #007AFF;padding:10px 14px;flex-shrink:0;}
 .pwa-banner.show{display:flex;}
 .pwa-banner-text{flex:1;font-size:12px;color:#005BB5;line-height:1.5;}
+
+/* チュートリアル */
+.tutorial-overlay{display:none;position:fixed;inset:0;background:#007AFF;z-index:1000;flex-direction:column;align-items:center;justify-content:space-between;padding:48px 28px 40px;padding-top:max(48px,env(safe-area-inset-top));}
+.tutorial-overlay.show{display:flex;}
+.tutorial-dots{display:flex;gap:8px;margin-bottom:8px;}
+.tutorial-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.4);}
+.tutorial-dot.active{background:#fff;}
+.tutorial-page{display:none;flex-direction:column;align-items:center;text-align:center;flex:1;justify-content:center;gap:20px;width:100%;}
+.tutorial-page.show{display:flex;}
+.tutorial-icon{font-size:72px;line-height:1;}
+.tutorial-title{font-size:24px;font-weight:900;color:#fff;line-height:1.3;}
+.tutorial-desc{font-size:15px;color:rgba(255,255,255,0.85);line-height:1.7;max-width:300px;}
+.tutorial-btn{width:100%;padding:16px;background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.tutorial-btn.secondary{background:rgba(255,255,255,0.2);color:#fff;margin-top:8px;}
+.tutorial-steps{background:rgba(255,255,255,0.15);border-radius:14px;padding:16px 20px;text-align:left;width:100%;}
+.tutorial-step{display:flex;align-items:center;gap:12px;color:#fff;font-size:14px;padding:6px 0;}
+.tutorial-step-num{width:24px;height:24px;border-radius:50%;background:#fff;color:#007AFF;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .pwa-banner-text strong{display:block;font-size:13px;margin-bottom:2px;}
 .pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;}
 .pwa-banner-close{background:none;border:none;color:#007AFF;font-size:18px;cursor:pointer;padding:0 4px;}
@@ -273,6 +290,55 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 </div>
 
 <!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
+<!-- チュートリアル（初回URL訪問時のみ） -->
+<div class="tutorial-overlay" id="tutorialOverlay">
+  <!-- ドット -->
+  <div class="tutorial-dots">
+    <div class="tutorial-dot active" id="tDot0"></div>
+    <div class="tutorial-dot" id="tDot1"></div>
+    <div class="tutorial-dot" id="tDot2"></div>
+  </div>
+
+  <!-- ページ1：ようこそ -->
+  <div class="tutorial-page show" id="tPage0">
+    <div class="tutorial-icon">🚗</div>
+    <div class="tutorial-title">ダイコメへようこそ</div>
+    <div class="tutorial-desc">運転代行専用の料金メーターアプリです。GPS計測で走行距離を自動計算し、正確な料金をリアルタイムで表示します。</div>
+    <div class="tutorial-steps">
+      <div class="tutorial-step"><div class="tutorial-step-num">1</div>代行開始ボタンで計測スタート</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">2</div>目的地到着で確定ボタンを押す</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">3</div>料金が自動計算されます</div>
+    </div>
+  </div>
+
+  <!-- ページ2：センサー許可 -->
+  <div class="tutorial-page" id="tPage1">
+    <div class="tutorial-icon">📡</div>
+    <div class="tutorial-title">精度向上のため<br>センサーを許可してください</div>
+    <div class="tutorial-desc">コンパス・ジャイロを使うことでGPS消失中のトンネルや電波の弱い場所でも正確に計測できます。</div>
+    <button class="tutorial-btn" id="tSensorBtn" onclick="requestSensorPermission()">センサーを許可する</button>
+    <button class="tutorial-btn secondary" onclick="tutorialNext()">スキップ</button>
+  </div>
+
+  <!-- ページ3：ホーム画面追加 -->
+  <div class="tutorial-page" id="tPage2">
+    <div class="tutorial-icon">📲</div>
+    <div class="tutorial-title">ホーム画面に追加して<br>アプリとして使おう</div>
+    <div class="tutorial-desc">ホーム画面に追加すると、次回からアイコンで素早く起動できます。</div>
+    <div class="tutorial-steps">
+      <div class="tutorial-step"><div class="tutorial-step-num">1</div>画面下の共有ボタン（□↑）をタップ</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">2</div>「ホーム画面に追加」を選択</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">3</div>「追加」をタップ</div>
+    </div>
+    <button class="tutorial-btn" onclick="tutorialComplete()">はじめる</button>
+  </div>
+
+  <!-- ボタンエリア（ページ1のみ） -->
+  <div id="tNavArea" style="width:100%;">
+    <button class="tutorial-btn" onclick="tutorialNext()">次へ</button>
+  </div>
+</div>
+
 <div class="pwa-banner" id="pwaBanner">
   <div class="pwa-banner-text">
     <strong>📲 ホーム画面に追加してください</strong>
@@ -719,17 +785,6 @@ function fmt(sec){
 
 // ─── メインボタン ───
 function onMainBtn(){
-  // iOS：コンパス許可をタップ直後に直接要求（ネスト禁止）
-  if(typeof DeviceOrientationEvent !== 'undefined' &&
-     typeof DeviceOrientationEvent.requestPermission === 'function'){
-    DeviceOrientationEvent.requestPermission().then(state => {
-      dlog('[GPS] コンパス許可結果:', state);
-      if(state === 'granted') window._compassGranted = true;
-    }).catch(e => {
-      dlog('[GPS] コンパス許可エラー:', e.message);
-    });
-  }
-
   if(appState==='idle'){
     // 代行開始
     appState='driving';
@@ -1081,6 +1136,81 @@ function closePwaBanner(){
 
 function showPwaInstructions(){
   alert('① 画面下の「共有」ボタン（□↑）をタップ\n② 「ホーム画面に追加」を選択\n③「追加」をタップ\n\nホーム画面のアイコンから起動するとコンパス・ジャイロが使えます！');
+}
+
+// ─── チュートリアル（初回URL訪問時のみ） ───
+(function(){
+  const done = localStorage.getItem('tutorial_done');
+  const isInstalled = window.navigator.standalone === true;
+  // 完了済み or PWAインストール済みならスキップ
+  if(done) return;
+  // Safariで初回訪問時のみ表示
+  document.getElementById('tutorialOverlay').classList.add('show');
+})();
+
+let _tutorialPage = 0;
+
+function tutorialNext(){
+  const pages = document.querySelectorAll('.tutorial-page');
+  const dots = document.querySelectorAll('.tutorial-dot');
+  pages[_tutorialPage].classList.remove('show');
+  dots[_tutorialPage].classList.remove('active');
+  _tutorialPage++;
+  if(_tutorialPage >= pages.length){
+    tutorialComplete();
+    return;
+  }
+  pages[_tutorialPage].classList.add('show');
+  dots[_tutorialPage].classList.add('active');
+  // ページ1（センサー）以外はボタンエリア表示
+  document.getElementById('tNavArea').style.display = (_tutorialPage === 1) ? 'none' : 'block';
+}
+
+function requestSensorPermission(){
+  const btn = document.getElementById('tSensorBtn');
+  btn.textContent = '許可中...';
+  btn.disabled = true;
+
+  const promises = [];
+
+  // コンパス許可
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function'){
+    promises.push(
+      DeviceOrientationEvent.requestPermission().then(state => {
+        dlog('[GPS] コンパス許可:', state);
+        if(state === 'granted'){
+          window._compassGranted = true;
+          localStorage.setItem('compass_granted','1');
+        }
+      }).catch(e => dlog('[GPS] コンパス許可エラー:', e.message))
+    );
+  }
+
+  // ジャイロ・加速度許可
+  if(typeof DeviceMotionEvent !== 'undefined' &&
+     typeof DeviceMotionEvent.requestPermission === 'function'){
+    promises.push(
+      DeviceMotionEvent.requestPermission().then(state => {
+        dlog('[GPS] ジャイロ許可:', state);
+        if(state === 'granted'){
+          window._motionGranted = true;
+          localStorage.setItem('motion_granted','1');
+        }
+      }).catch(e => dlog('[GPS] ジャイロ許可エラー:', e.message))
+    );
+  }
+
+  Promise.allSettled(promises).then(() => {
+    btn.textContent = '✅ 許可しました';
+    setTimeout(() => tutorialNext(), 800);
+  });
+}
+
+function tutorialComplete(){
+  document.getElementById('tutorialOverlay').classList.remove('show');
+  localStorage.setItem('tutorial_done','1');
+  dlog('[Tutorial] 完了');
 }
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
