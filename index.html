@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -37,26 +38,26 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .tutorial-icon{font-size:72px;line-height:1;}
 .tutorial-title{font-size:24px;font-weight:900;color:#fff;line-height:1.3;}
 .tutorial-desc{font-size:15px;color:rgba(255,255,255,0.85);line-height:1.7;max-width:300px;}
-.tutorial-btn{width:100%;padding:16px;background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.tutorial-btn{width:100%;padding:16px;background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
 .tutorial-btn.secondary{background:rgba(255,255,255,0.2);color:#fff;margin-top:8px;}
 .tutorial-steps{background:rgba(255,255,255,0.15);border-radius:14px;padding:16px 20px;text-align:left;width:100%;}
 .tutorial-step{display:flex;align-items:center;gap:12px;color:#fff;font-size:14px;padding:6px 0;}
 .tutorial-step-num{width:24px;height:24px;border-radius:50%;background:#fff;color:#007AFF;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .pwa-banner-text strong{display:block;font-size:13px;margin-bottom:2px;}
-.pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;}
+.pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:‘Noto Sans JP’,sans-serif;}
 .pwa-banner-close{background:none;border:none;color:#007AFF;font-size:18px;cursor:pointer;padding:0 4px;}
 .gps-acc{font-size:11px;color:#fff;opacity:0.8;}
 .surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
 .menu-btn{
-  background:rgba(255,255,255,0.2);border:none;border-radius:8px;
-  padding:4px 12px;cursor:pointer;
-  color:#fff;font-size:20px;font-weight:700;
-  font-family:'Noto Sans JP',sans-serif;
-  -webkit-transition:transform 0.1s,-webkit-filter 0.1s;
-  transition:transform 0.1s,filter 0.1s;
-  -webkit-appearance:none;
-  display:flex;align-items:center;
-  text-decoration:none !important;
+background:rgba(255,255,255,0.2);border:none;border-radius:8px;
+padding:4px 12px;cursor:pointer;
+color:#fff;font-size:20px;font-weight:700;
+font-family:‘Noto Sans JP’,sans-serif;
+-webkit-transition:transform 0.1s,-webkit-filter 0.1s;
+transition:transform 0.1s,filter 0.1s;
+-webkit-appearance:none;
+display:flex;align-items:center;
+text-decoration:none !important;
 }
 .menu-btn:active{-webkit-transform:scale(0.9);transform:scale(0.9);}
 .surcharge-badge span{font-size:11px;color:#fff;font-weight:700;}
@@ -85,13 +86,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .extras-list{display:flex;flex-direction:column;gap:6px;}
 /* 履歴スクロールボックス */
 .history-box{
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  flex:1;
-  min-height:0;
+overflow-y:auto;
+-webkit-overflow-scrolling:touch;
+display:flex;
+flex-direction:column;
+gap:6px;
+flex:1;
+min-height:0;
 }
 .extra-item{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;}
 .extra-item span{font-size:12px;color:#FF9500;font-weight:700;}
@@ -112,29 +113,29 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
 /* リロード復元バナー */
 .restore-banner{
-  display:none;
-  width:fit-content;
-  max-width:calc(100% - 32px);
-  margin:0 auto 10px;
-  padding:6px 12px;
-  background:#E8F8EE;
-  border:1.5px solid #B7E4C7;
-  border-radius:6px;
-  font-size:12px;
-  font-weight:700;
-  color:#1F7A3F;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+display:none;
+width:fit-content;
+max-width:calc(100% - 32px);
+margin:0 auto 10px;
+padding:6px 12px;
+background:#E8F8EE;
+border:1.5px solid #B7E4C7;
+border-radius:6px;
+font-size:12px;
+font-weight:700;
+color:#1F7A3F;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
 }
 .restore-banner.show{display:block;}
 
 /* ボタンエリア（固定） */
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
-.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
 .btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
 .btn-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
-.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
 .btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
 .btn-idle{background:#8E8E93;}
 .btn-menu{background:#8E8E93;}
@@ -144,12 +145,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 
 /* トースト通知 */
 .toast{
-  position:fixed;top:70px;left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,0.75);color:#fff;
-  padding:10px 20px;border-radius:20px;
-  font-size:14px;font-weight:700;
-  z-index:200;opacity:0;transition:opacity 0.2s;
-  pointer-events:none;white-space:nowrap;
+position:fixed;top:70px;left:50%;transform:translateX(-50%);
+background:rgba(0,0,0,0.75);color:#fff;
+padding:10px 20px;border-radius:20px;
+font-size:14px;font-weight:700;
+z-index:200;opacity:0;transition:opacity 0.2s;
+pointer-events:none;white-space:nowrap;
 }
 .toast.show{opacity:1;}
 
@@ -170,89 +171,90 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .modal-item-price{font-size:14px;color:#FF9500;font-weight:900;}
 .modal-custom{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
 .modal-custom span{font-size:14px;color:#FF9500;font-weight:700;white-space:nowrap;}
-.modal-custom input{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:16px;text-align:right;font-family:'Noto Sans JP',sans-serif;}
-.modal-custom-btn{background:#FF9500;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
+.modal-custom input{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:16px;text-align:right;font-family:‘Noto Sans JP’,sans-serif;}
+.modal-custom-btn{background:#FF9500;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
 
 /* 横画面対応 */
 @media (orientation:landscape){
-  /* 全体：左右分割レイアウト */
-  body{flex-direction:row;flex-wrap:wrap;}
-  .appbar{
-    width:100% !important;
-    flex-shrink:0 !important;
-    padding:0 12px !important;
-    height:40px !important;
-    min-height:40px !important;
-    max-height:40px !important;
-    box-sizing:border-box !important;
-    overflow:hidden !important;
-  }
-  .appbar-title{
-    font-size:14px !important;
-    line-height:40px !important;
-    margin:0 !important;
-    padding:0 !important;
-  }
-  .appbar-right{margin:0 !important;padding:0 !important;gap:8px !important;}
-  .gps-acc{font-size:10px !important;}
-  .gps-pill{padding:3px 10px !important;font-size:10px !important;}
-  .menu-btn{padding:6px 12px !important;font-size:16px !important;margin:0 !important;line-height:1 !important;}
+/* 全体：左右分割レイアウト */
+body{flex-direction:row;flex-wrap:wrap;}
+.appbar{
+width:100% !important;
+flex-shrink:0 !important;
+padding:0 12px !important;
+height:40px !important;
+min-height:40px !important;
+max-height:40px !important;
+box-sizing:border-box !important;
+overflow:hidden !important;
+}
+.appbar-title{
+font-size:14px !important;
+line-height:40px !important;
+margin:0 !important;
+padding:0 !important;
+}
+.appbar-right{margin:0 !important;padding:0 !important;gap:8px !important;}
+.gps-acc{font-size:10px !important;}
+.gps-pill{padding:3px 10px !important;font-size:10px !important;}
+.menu-btn{padding:6px 12px !important;font-size:16px !important;margin:0 !important;line-height:1 !important;}
 
-  /* コンテンツ：左半分 */
-  .content{
-    flex:1;
-    padding:12px 16px;
-    overflow:hidden;
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-    height:calc(100vh - 40px);
-    max-height:calc(100vh - 40px);
-    min-height:0;
-    justify-content:center;
-  }
+/* コンテンツ：左半分 */
+.content{
+flex:1;
+padding:12px 16px;
+overflow:hidden;
+display:flex;
+flex-direction:column;
+gap:10px;
+height:calc(100vh - 40px);
+max-height:calc(100vh - 40px);
+min-height:0;
+justify-content:center;
+}
 
-  /* ボタンエリア：右半分（縦に並ぶ）*/
-  .btn-area{
-    width:200px;
-    flex-shrink:0;
-    padding:12px;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    border-top:none;
-    border-left:0.5px solid #f0f0f0;
-    height:calc(100vh - 40px);
-    max-height:calc(100vh - 40px);
-    justify-content:center;
-  }
+/* ボタンエリア：右半分（縦に並ぶ）*/
+.btn-area{
+width:200px;
+flex-shrink:0;
+padding:12px;
+display:flex;
+flex-direction:column;
+gap:8px;
+border-top:none;
+border-left:0.5px solid #f0f0f0;
+height:calc(100vh - 40px);
+max-height:calc(100vh - 40px);
+justify-content:center;
+}
 
-  /* 大ボタンを横画面でも見やすく */
-  .btn-main{padding:14px;font-size:15px;}
-  .btn-sub{padding:10px 0;font-size:12px;}
+/* 大ボタンを横画面でも見やすく */
+.btn-main{padding:14px;font-size:15px;}
+.btn-sub{padding:10px 0;font-size:12px;}
 
-  /* IDLE：stats-grid・履歴を50%中央寄せ */
-  .idle-time{font-size:36px;}
-  .stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-  .stat-value{font-size:18px;}
-  #inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+/* IDLE：stats-grid・履歴を50%中央寄せ */
+.idle-time{font-size:36px;}
+.stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.stat-value{font-size:18px;}
+#inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
 
-  /* DRIVING：meter-card 50%中央寄せ */
-  .driving-grid{display:flex;flex-direction:column;gap:8px;}
-  .meter-value{font-size:32px;}
-  .meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-  .meter-label{font-size:13px;margin-bottom:0;}
+/* DRIVING：meter-card 50%中央寄せ */
+.driving-grid{display:flex;flex-direction:column;gap:8px;}
+.meter-value{font-size:32px;}
+.meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.meter-label{font-size:13px;margin-bottom:0;}
 
-  /* FARE：fare-total・breakdown・走行に戻るボタン 50%中央寄せ */
-  #screenFare{overflow-y:auto;}
-  .fare-total-amount{font-size:40px;}
-  .fare-total{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-  .breakdown{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-  #screenFare button{margin-top:10px;display:block;margin-left:auto;margin-right:auto;}
+/* FARE：fare-total・breakdown・走行に戻るボタン 50%中央寄せ */
+#screenFare{overflow-y:auto;}
+.fare-total-amount{font-size:40px;}
+.fare-total{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.breakdown{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+#screenFare button{margin-top:10px;display:block;margin-left:auto;margin-right:auto;}
 }
 </style>
 
 <!-- ─── SEO・ブランディング（2026/04/26実装・復元）─── -->
+
 <title>ダイコメ｜運転代行向け料金メーターアプリ｜月額980円・初期費用ゼロ</title>
 <meta name="description" content="ダイコメは月額980円・初期費用ゼロの運転代行料金メーターアプリ。GPS自動計算・オフライン対応・古いスマホでも使える。代行開業・副業・既存メーター乗り換えに。スマホ1台で始められる代行業者向け業務支援ツール。">
 <meta name="keywords" content="ダイコメ,代行メーター,運転代行 アプリ,代行 料金計算,代行 開業,代行 始め方,代行 メーター 安い,代行 メーター 月額,代行 メーター 比較,代行 副業,代行 業務支援,代行 ドライバー,スマホ メーター,GPS メーター,タクシーメーター 代行,随伴車,オフライン対応,初期費用ゼロ,月額980円">
@@ -275,6 +277,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 <body ontouchstart="" onclick="wakeScreen()">
 
 <!-- AppBar -->
+
 <div class="appbar" id="appbar">
   <div class="appbar-title" id="appbarTitle">空　車</div>
   <div class="appbar-right">
@@ -290,7 +293,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 </div>
 
 <!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
+
 <!-- チュートリアル（初回URL訪問時のみ） -->
+
 <div class="tutorial-overlay" id="tutorialOverlay">
   <!-- ドット -->
   <div class="tutorial-dots">
@@ -300,6 +305,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 
   <!-- ページ1：ようこそ -->
+
   <div class="tutorial-page show" id="tPage0">
     <div class="tutorial-icon">🚗</div>
     <div class="tutorial-title">ダイコメへようこそ</div>
@@ -314,12 +320,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   <!-- ページ2：センサー許可 -->
   <div class="tutorial-page" id="tPage1">
     <div class="tutorial-icon">📡</div>
-    <div class="tutorial-title">精度向上のため<br>センサーを許可してください</div>
-    <div class="tutorial-desc">コンパス・ジャイロを使うことでGPS消失中のトンネルや電波の弱い場所でも正確に計測できます。</div>
-    <button class="tutorial-btn" id="tSensorBtn" onclick="requestSensorPermission()">センサーを許可する</button>
+    <div class="tutorial-title">精度向上のため<br>センサーを許可します</div>
+    <div class="tutorial-desc">ホーム画面に追加してアプリとして起動すると、コンパス・ジャイロが使えるようになります。次のステップでホーム画面に追加してください。</div>
   </div>
 
   <!-- ページ3：ホーム画面追加 -->
+
   <div class="tutorial-page" id="tPage2">
     <div class="tutorial-icon">📲</div>
     <div class="tutorial-title">ホーム画面に追加して<br>アプリとして使おう</div>
@@ -342,9 +348,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 
   <!-- ボタンエリア -->
+
   <div id="tNavArea" style="width:100%;">
     <button class="tutorial-btn" onclick="tutorialNext()">次へ</button>
   </div>
+</div>
+
+<!-- センサー未許可バナー（PWA起動時・未許可の場合） -->
+
+<div class="pwa-banner" id="sensorBanner" style="background:#FFF3E0;border-bottom-color:#FF9800;">
+  <div class="pwa-banner-text" style="color:#E65100;">
+    <strong>📡 センサーを許可してください</strong>
+    精度向上のためコンパス・ジャイロの使用を許可してください
+  </div>
+  <button class="pwa-banner-btn" style="background:#FF9800;" onclick="requestSensorPermission()">許可する</button>
+  <button class="pwa-banner-close" style="color:#FF9800;" onclick="this.parentElement.style.display='none'">✕</button>
 </div>
 
 <div class="pwa-banner" id="pwaBanner">
@@ -357,9 +375,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 </div>
 
 <!-- コンテンツ -->
+
 <div class="content" id="content">
 
   <!-- IDLE -->
+
   <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;">
     <div class="idle-datetime">
       <div class="idle-time" id="clockTime">00:00</div>
@@ -383,6 +403,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 
   <!-- DRIVING -->
+
   <div id="screenDriving" style="display:none;">
     <!-- リロード復元バナー（走行距離の真上） -->
     <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
@@ -401,6 +422,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
   </div>
 
   <!-- FARE -->
+
   <div id="screenFare" style="display:none;">
     <div class="fare-total">
       <div class="fare-total-label">合計料金</div>
@@ -423,15 +445,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 </div>
 
 <!-- ボタンエリア（固定・全画面共通） -->
+
 <div class="btn-area">
-  <!-- センサー未許可バナー（代行開始ボタンの直上） -->
-  <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;margin-bottom:10px;text-align:center;">
-    <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
-      <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
-      コンパス・ジャイロを許可することで<br>精度が大幅に向上します
-    </div>
-    <button onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
-  </div>
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
   <div class="btn-row">
     <button class="btn-sub btn-idle" onclick="onIdle()">空車</button>
@@ -441,9 +456,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 </div>
 
 <!-- トースト通知 -->
+
 <div class="toast" id="toast"></div>
 
 <!-- 追加料金モーダル -->
+
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <div class="modal-header">
@@ -512,18 +529,31 @@ class NoSleep {
     console.log('[NoSleep] 解除');
   }
 }</script>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
 <script src="js/debug-config.js"></script>
+
 <!-- ★debug-config.js：環境変数制御・本番自動OFF（2026/04/26追加） -->
+
 <script src="js/firebase-config.js"></script>
+
 <script src="js/region-loader.js"></script>
+
 <script src="js/gps.js"></script>
+
 <!-- OSRM削除済（2026/04/26）：公開API依存ゼロ化・スケール無制限化のため -->
+
 <script src="js/meter.js"></script>
+
 <script src="js/firebase.js"></script>
+
 <script src="js/test-mode.js"></script>
+
 <!-- ★テスト用・リリース時削除（2026/04/26追加）-->
+
 <script>
 // ─── 状態 ───
 let appState = 'idle'; // idle / driving / fare
@@ -801,16 +831,6 @@ function fmt(sec){
 
 // ─── メインボタン ───
 function onMainBtn(){
-  // センサーAPIがある端末（iOS）で未許可の場合はブロック
-  const hasSensorAPI =
-    typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function';
-  if(hasSensorAPI && !window._compassGranted){
-    // センサーバナーを表示してブロック
-    const sb = document.getElementById('sensorBanner');
-    if(sb){ sb.style.display = 'block'; sb.scrollIntoView({behavior:'smooth'}); }
-    return;
-  }
   if(appState==='idle'){
     // 代行開始
     appState='driving';
@@ -1168,22 +1188,11 @@ function showPwaInstructions(){
 (function(){
   const done = localStorage.getItem('tutorial_done');
   const isInstalled = window.navigator.standalone === true;
+  // PWAインストール済み（アイコンから起動）→ チュートリアル不要
   if(isInstalled) return;
+  // 完了済みならスキップ
   if(done) return;
-  // センサー許可APIが使えない端末（PC・Android等）はボタンを「次へ」に変更
-  // iOSのみ requestPermission が存在する
-  const hasSensorAPI =
-    (typeof DeviceOrientationEvent !== 'undefined' &&
-     typeof DeviceOrientationEvent.requestPermission === 'function') ||
-    (typeof DeviceMotionEvent !== 'undefined' &&
-     typeof DeviceMotionEvent.requestPermission === 'function');
-  if(!hasSensorAPI){
-    const btn = document.getElementById('tSensorBtn');
-    if(btn){
-      btn.textContent = '次へ';
-      btn.onclick = function(){ tutorialNext(); };
-    }
-  }
+  // Safari初回訪問時のみ表示
   document.getElementById('tutorialOverlay').classList.add('show');
 })();
 
@@ -1205,10 +1214,7 @@ function tutorialNext(){
   const navArea = document.getElementById('tNavArea');
   const navBtn = navArea.querySelector('button');
 
-  if(_tutorialPage === 1){
-    // ページ2（センサー許可）：ボタンエリア非表示
-    navArea.style.display = 'none';
-  } else if(_tutorialPage === 2){
+  if(_tutorialPage === 2){
     // ページ3（ホーム画面）：ボタンなし・自分で追加するだけ
     navArea.style.display = 'none';
   } else {
@@ -1268,12 +1274,12 @@ function tutorialComplete(){
 // ─── センサー未許可バナー（PWA起動時・未許可の場合） ───
 (function(){
   if(window.navigator.standalone !== true) return;
-  const hasSensorAPI =
-    typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function';
-  if(hasSensorAPI && !localStorage.getItem('compass_granted')){
-    const sb = document.getElementById('sensorBanner');
-    if(sb) sb.style.display = 'flex';
+  const needSensor =
+    (typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function') &&
+    (!localStorage.getItem('compass_granted') || !localStorage.getItem('motion_granted'));
+  if(needSensor){
+    document.getElementById('sensorBanner').classList.add('show');
   }
 })();
 
@@ -1293,5 +1299,6 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+
 </body>
 </html>
