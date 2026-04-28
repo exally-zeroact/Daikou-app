@@ -1170,15 +1170,18 @@ function showPwaInstructions(){
   const isInstalled = window.navigator.standalone === true;
   if(isInstalled) return;
   if(done) return;
-  // センサーAPIが使えない端末（PC等）はボタンを「次へ」に変更
+  // センサー許可APIが使えない端末（PC・Android等）はボタンを「次へ」に変更
+  // iOSのみ requestPermission が存在する
   const hasSensorAPI =
-    typeof DeviceOrientationEvent !== 'undefined' &&
-    typeof DeviceOrientationEvent.requestPermission === 'function';
+    (typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function') ||
+    (typeof DeviceMotionEvent !== 'undefined' &&
+     typeof DeviceMotionEvent.requestPermission === 'function');
   if(!hasSensorAPI){
     const btn = document.getElementById('tSensorBtn');
     if(btn){
       btn.textContent = '次へ';
-      btn.onclick = tutorialNext;
+      btn.onclick = function(){ tutorialNext(); };
     }
   }
   document.getElementById('tutorialOverlay').classList.add('show');
