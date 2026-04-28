@@ -1140,9 +1140,11 @@ function showPwaInstructions(){
 (function(){
   const done = localStorage.getItem('tutorial_done');
   const isInstalled = window.navigator.standalone === true;
-  // 完了済み or PWAインストール済みならスキップ
+  // PWAインストール済み（アイコンから起動）→ チュートリアル不要
+  if(isInstalled) return;
+  // 完了済みならスキップ
   if(done) return;
-  // Safariで初回訪問時のみ表示
+  // Safari初回訪問時のみ表示
   document.getElementById('tutorialOverlay').classList.add('show');
 })();
 
@@ -1223,6 +1225,39 @@ function tutorialComplete(){
   localStorage.setItem('tutorial_done','1');
   dlog('[Tutorial] 完了');
 }
+
+// ─── PWA起動時センサー許可（アイコン起動時・初回のみ） ───
+(function(){
+  if(window.navigator.standalone !== true) return;
+  if(localStorage.getItem('compass_granted')) {
+    window._compassGranted = true;
+  }
+  if(localStorage.getItem('motion_granted')) {
+    window._motionGranted = true;
+  }
+  // 両方未許可の場合は1秒後に自動要求
+  const needCompass = !localStorage.getItem('compass_granted') &&
+    typeof DeviceOrientationEvent !== 'undefined' &&
+    typeof DeviceOrientationEvent.requestPermission === 'function';
+  const needMotion = !localStorage.getItem('motion_granted') &&
+    typeof DeviceMotionEvent !== 'undefined' &&
+    typeof DeviceMotionEvent.requestPermission === 'function';
+  if(!needCompass && !needMotion) return;
+  setTimeout(function(){
+    if(needCompass){
+      DeviceOrientationEvent.requestPermission().then(function(s){
+        if(s==='granted'){ window._compassGranted=true; localStorage.setItem('compass_granted','1'); }
+        dlog('[GPS] PWAコンパス許可:', s);
+      }).catch(function(e){ dlog('[GPS] PWAコンパスエラー:', e.message); });
+    }
+    if(needMotion){
+      DeviceMotionEvent.requestPermission().then(function(s){
+        if(s==='granted'){ window._motionGranted=true; localStorage.setItem('motion_granted','1'); }
+        dlog('[GPS] PWAジャイロ許可:', s);
+      }).catch(function(e){ dlog('[GPS] PWAジャイロエラー:', e.message); });
+    }
+  }, 1000);
+})();
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
