@@ -444,6 +444,10 @@ justify-content:center;
       <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
         <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
         コンパス・ジャイロを許可することで<br>精度が大幅に向上します
+        <div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">
+          ⚠️ 次の画面で必ず「許可」を選んでください<br>
+          キャンセルした場合はアプリをタスクキルして再起動してください
+        </div>
       </div>
       <button id="sensorPermBtn" onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
     </div>
@@ -1292,17 +1296,13 @@ function requestSensorPermission(){
     } else {
       // 許可失敗（iOSキャンセル）：設定アプリで許可するよう案内
       if(btn){
-        btn.textContent = '⚙️ 設定から許可する';
-        btn.disabled = false;
-        btn.onclick = function(){
-          alert('タスクキルして再起動してください：\n\n① ホームボタンを2回押す\n   （または下からスワイプしてホールド）\n② ダイコメを上にスワイプして終了\n③ ホーム画面のアイコンから再起動\n④ もう一度「センサーを許可する」をタップ');
-        };
+        btn.style.display = 'none';
       }
       const banner = document.getElementById('sensorBanner');
       if(banner){
         banner.style.display = 'block';
-        const desc = banner.querySelector('div');
-        if(desc) desc.innerHTML = '<strong style="display:block;font-size:15px;margin-bottom:4px;">⚠️ 許可されませんでした</strong>設定アプリから許可してください';
+        const desc = banner.querySelector('#sensorBannerIOS div');
+        if(desc) desc.innerHTML = '<strong style="display:block;font-size:15px;margin-bottom:4px;">⚠️ 許可されませんでした</strong>タスクキルして再起動してください<div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">① ホームボタンを2回押す<br>（または下からスワイプしてホールド）<br>② ダイコメを上にスワイプして終了<br>③ アイコンから再起動して許可する</div>';
       }
       dlog('[GPS] センサー許可失敗・設定案内');
     }
