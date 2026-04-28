@@ -1228,11 +1228,12 @@ function tutorialNext(){
 }
 
 function requestSensorPermission(){
-  // チュートリアル内のボタン or バナーのボタンどちらでも対応
   const btn = document.getElementById('tSensorBtn') || document.getElementById('sensorPermBtn');
   if(btn){ btn.textContent = '許可中...'; btn.disabled = true; }
 
   const promises = [];
+  let compassGranted = false;
+  let motionGranted = false;
 
   // iOS：requestPermissionが必要
   if(typeof DeviceOrientationEvent !== 'undefined' &&
@@ -1240,16 +1241,12 @@ function requestSensorPermission(){
     promises.push(
       DeviceOrientationEvent.requestPermission().then(state => {
         dlog('[GPS] コンパス許可:', state);
-        if(state === 'granted'){
-          window._compassGranted = true;
-          localStorage.setItem('compass_granted','1');
-        }
+        if(state === 'granted') compassGranted = true;
       }).catch(e => dlog('[GPS] コンパス許可エラー:', e.message))
     );
   } else {
-    // Android・PC：requestPermission不要・自動で許可済み扱い
-    window._compassGranted = true;
-    localStorage.setItem('compass_granted','1');
+    // Android・PC：requestPermission不要・自動許可
+    compassGranted = true;
     dlog('[GPS] コンパス自動許可(Android)');
   }
 
@@ -1258,30 +1255,47 @@ function requestSensorPermission(){
     promises.push(
       DeviceMotionEvent.requestPermission().then(state => {
         dlog('[GPS] ジャイロ許可:', state);
-        if(state === 'granted'){
-          window._motionGranted = true;
-          localStorage.setItem('motion_granted','1');
-        }
+        if(state === 'granted') motionGranted = true;
       }).catch(e => dlog('[GPS] ジャイロ許可エラー:', e.message))
     );
   } else {
-    // Android・PC：自動許可済み扱い
-    window._motionGranted = true;
-    localStorage.setItem('motion_granted','1');
+    // Android・PC：自動許可
+    motionGranted = true;
     dlog('[GPS] ジャイロ自動許可(Android)');
   }
 
   Promise.allSettled(promises).then(() => {
-    // バナー表示中の場合：「✅ 許可されました」表示後に非表示
-    const banner = document.getElementById('sensorBanner');
-    if(banner && banner.style.display !== 'none'){
-      const permBtn = document.getElementById('sensorPermBtn');
-      if(permBtn){ permBtn.textContent = '✅ 許可されました'; }
-      setTimeout(() => { banner.style.display = 'none'; }, 1200);
+    const allGranted = compassGranted && motionGranted;
+
+    if(allGranted){
+      // 許可成功：フラグ・localStorage保存
+      window._compassGranted = true;
+      window._motionGranted = true;
+      localStorage.setItem('compass_granted','1');
+      localStorage.setItem('motion_granted','1');
+
+      // バナー表示中：「✅ 許可されました」→ 非表示
+      const banner = document.getElementById('sensorBanner');
+      if(banner && banner.style.display !== 'none'){
+        const permBtn = document.getElementById('sensorPermBtn');
+        if(permBtn){ permBtn.textContent = '✅ 許可されました'; permBtn.disabled = true; }
+        setTimeout(() => { banner.style.display = 'none'; }, 1200);
+      }
+      // チュートリアル内：次ページへ
+      const overlay = document.getElementById('tutorialOverlay');
+      if(overlay && overlay.classList.contains('show')) tutorialNext();
+
+    } else {
+      // 許可失敗（キャンセル）：ボタンを再度押せる状態に戻す
+      if(btn){
+        btn.textContent = '📡 もう一度許可する';
+        btn.disabled = false;
+      }
+      // バナーが非表示なら表示する
+      const banner = document.getElementById('sensorBanner');
+      if(banner) banner.style.display = 'block';
+      dlog('[GPS] センサー許可失敗・再試行可能');
     }
-    // チュートリアル内の場合：次ページへ
-    const overlay = document.getElementById('tutorialOverlay');
-    if(overlay && overlay.classList.contains('show')) tutorialNext();
   });
 }
 
