@@ -719,6 +719,17 @@ function fmt(sec){
 
 // ─── メインボタン ───
 function onMainBtn(){
+  // iOS：コンパス許可をタップ直後に直接要求（ネスト禁止）
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function'){
+    DeviceOrientationEvent.requestPermission().then(state => {
+      dlog('[GPS] コンパス許可結果:', state);
+      if(state === 'granted') window._compassGranted = true;
+    }).catch(e => {
+      dlog('[GPS] コンパス許可エラー:', e.message);
+    });
+  }
+
   if(appState==='idle'){
     // 代行開始
     appState='driving';
