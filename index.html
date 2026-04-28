@@ -306,8 +306,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
     <div class="tutorial-desc">運転代行専用の料金メーターアプリです。GPS計測で走行距離を自動計算し、正確な料金をリアルタイムで表示します。</div>
     <div class="tutorial-steps">
       <div class="tutorial-step"><div class="tutorial-step-num">1</div>代行開始ボタンで計測スタート</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">2</div>目的地到着で確定ボタンを押す</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">3</div>料金が自動計算されます</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">2</div>目的地到着で確定ボタンを押す（確定後もメーターは動き続けます）</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">3</div>空車ボタンで計測終了・料金が確定します</div>
     </div>
   </div>
 
@@ -317,7 +317,6 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
     <div class="tutorial-title">精度向上のため<br>センサーを許可してください</div>
     <div class="tutorial-desc">コンパス・ジャイロを使うことでGPS消失中のトンネルや電波の弱い場所でも正確に計測できます。</div>
     <button class="tutorial-btn" id="tSensorBtn" onclick="requestSensorPermission()">センサーを許可する</button>
-    <button class="tutorial-btn secondary" onclick="tutorialNext()">スキップ</button>
   </div>
 
   <!-- ページ3：ホーム画面追加 -->
@@ -330,10 +329,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
       <div class="tutorial-step"><div class="tutorial-step-num">2</div>「ホーム画面に追加」を選択</div>
       <div class="tutorial-step"><div class="tutorial-step-num">3</div>「追加」をタップ</div>
     </div>
-    <button class="tutorial-btn" onclick="tutorialComplete()">はじめる</button>
   </div>
 
-  <!-- ボタンエリア（ページ1のみ） -->
+  <!-- ボタンエリア -->
   <div id="tNavArea" style="width:100%;">
     <button class="tutorial-btn" onclick="tutorialNext()">次へ</button>
   </div>
@@ -1162,8 +1160,21 @@ function tutorialNext(){
   }
   pages[_tutorialPage].classList.add('show');
   dots[_tutorialPage].classList.add('active');
-  // ページ1（センサー）以外はボタンエリア表示
-  document.getElementById('tNavArea').style.display = (_tutorialPage === 1) ? 'none' : 'block';
+
+  const navArea = document.getElementById('tNavArea');
+  const navBtn = navArea.querySelector('button');
+
+  if(_tutorialPage === 1){
+    // ページ2（センサー許可）：ボタンエリア非表示・センサーボタンが主役
+    navArea.style.display = 'none';
+  } else if(_tutorialPage === 2){
+    // ページ3（ホーム画面）：「はじめる」に変更
+    navArea.style.display = 'block';
+    navBtn.textContent = 'はじめる';
+  } else {
+    navArea.style.display = 'block';
+    navBtn.textContent = '次へ';
+  }
 }
 
 function requestSensorPermission(){
