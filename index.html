@@ -439,11 +439,22 @@ justify-content:center;
 <div class="btn-area">
   <!-- センサー未許可バナー（代行開始直上・全スマホ対応） -->
   <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:center;">
-    <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
-      <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
-      コンパス・ジャイロを許可することで<br>精度が大幅に向上します
+    <!-- iOS用（デフォルト） -->
+    <div id="sensorBannerIOS">
+      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
+        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
+        コンパス・ジャイロを許可することで<br>精度が大幅に向上します
+      </div>
+      <button id="sensorPermBtn" onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
     </div>
-    <button id="sensorPermBtn" onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
+    <!-- Android用 -->
+    <div id="sensorBannerAndroid" style="display:none;">
+      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
+        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーについて</strong>
+        Androidはコンパス・ジャイロが<br>標準で使えます。タップして確認してください
+      </div>
+      <button onclick="confirmAndroidSensor()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">✅ センサーを確認する</button>
+    </div>
   </div>
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
   <div class="btn-row">
@@ -1284,7 +1295,7 @@ function requestSensorPermission(){
         btn.textContent = '⚙️ 設定から許可する';
         btn.disabled = false;
         btn.onclick = function(){
-          alert('設定アプリから許可してください：\n\n設定 → プライバシーとセキュリティ\n→ モーションとフィットネス\n→ ダイコメ をON\n\n設定後、アプリを再起動してください。');
+          alert('タスクキルして再起動してください：\n\n① ホームボタンを2回押す\n   （または下からスワイプしてホールド）\n② ダイコメを上にスワイプして終了\n③ ホーム画面のアイコンから再起動\n④ もう一度「センサーを許可する」をタップ');
         };
       }
       const banner = document.getElementById('sensorBanner');
@@ -1308,17 +1319,37 @@ function tutorialComplete(){
 const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 const _isAndroid = /Android/.test(navigator.userAgent);
 
+// Android用センサー確認
+function confirmAndroidSensor(){
+  window._compassGranted = true;
+  window._motionGranted = true;
+  localStorage.setItem('compass_granted','1');
+  localStorage.setItem('motion_granted','1');
+  localStorage.setItem('android_sensor_confirmed','1');
+  const banner = document.getElementById('sensorBanner');
+  if(banner) banner.style.display = 'none';
+  dlog('[GPS] Androidセンサー確認完了');
+}
+
 // ─── センサー未許可バナー（PWA起動時） ───
 (function(){
   if(window.navigator.standalone !== true) return;
 
   if(_isAndroid){
-    // Android：requestPermission不要・自動許可済み扱い
+    // Android：自動許可済みだがバナーで説明表示
     window._compassGranted = true;
     window._motionGranted = true;
     localStorage.setItem('compass_granted','1');
     localStorage.setItem('motion_granted','1');
-    dlog('[GPS] Android：センサー自動許可済み');
+    // 初回のみバナーで「標準で使えます」を表示
+    if(!localStorage.getItem('android_sensor_confirmed')){
+      const banner = document.getElementById('sensorBanner');
+      const iosBanner = document.getElementById('sensorBannerIOS');
+      const androidBanner = document.getElementById('sensorBannerAndroid');
+      if(banner) banner.style.display = 'block';
+      if(iosBanner) iosBanner.style.display = 'none';
+      if(androidBanner) androidBanner.style.display = 'block';
+    }
     return;
   }
 
