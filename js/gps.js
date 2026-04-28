@@ -12,33 +12,45 @@ const GPS = (() => {
   // コンパス（DeviceOrientation・許可不要）
   let compassHeading = null;
   function startCompass(){
-    // DeviceOrientationEvent対応チェック
     if(!window.DeviceOrientationEvent) {
-      dlog('[GPS] コンパス非対応（DeviceOrientationEvent未定義）');
+      dlog('[GPS] コンパス非対応');
       return;
     }
-    let compassCount = 0;
-    window.addEventListener('deviceorientation', function(e){
-      compassCount++;
-      // 最初の1回だけ詳細ログ
-      if(compassCount === 1){
-        dlog('[GPS] DeviceOrientation発火 webkitCompassHeading=' + e.webkitCompassHeading + ' alpha=' + e.alpha);
-      }
-      if(e.webkitCompassHeading != null){
-        if(compassHeading === null) dlog('[GPS] コンパス初回取得(iOS): ' + e.webkitCompassHeading.toFixed(0) + '°');
-        compassHeading = e.webkitCompassHeading;
-      } else if(e.alpha != null){
-        if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android): ' + e.alpha.toFixed(0) + '°');
-        compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
+
+    function addCompassListener(){
+      let compassCount = 0;
+      window.addEventListener('deviceorientation', function(e){
+        compassCount++;
+        if(compassCount === 1){
+          dlog('[GPS] DeviceOrientation発火 webkitCompassHeading=' + e.webkitCompassHeading + ' alpha=' + e.alpha);
+        }
+        if(e.webkitCompassHeading != null){
+          if(compassHeading === null) dlog('[GPS] コンパス初回取得(iOS): ' + e.webkitCompassHeading.toFixed(0) + '°');
+          compassHeading = e.webkitCompassHeading;
+        } else if(e.alpha != null){
+          if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android): ' + e.alpha.toFixed(0) + '°');
+          compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
+        }
+      }, true);
+      setTimeout(()=>{
+        if(compassHeading === null) dlog('[GPS] コンパス3秒後もnull');
+        else dlog('[GPS] コンパス取得済: ' + compassHeading.toFixed(0) + '°');
+      }, 3000);
+    }
+
+    // iOS 13+：requestPermissionはonMainBtn()で直接呼び済み
+    // _compassGrantedフラグを確認してリスナー追加
+    if(typeof DeviceOrientationEvent.requestPermission === 'function'){
+      if(window._compassGranted){
+        dlog('[GPS] コンパス許可済・リスナー追加');
+        addCompassListener();
       } else {
-        if(compassCount === 1) dlog('[GPS] コンパス値null（両方null）');
+        dlog('[GPS] コンパス未許可・リスナーなし');
       }
-    }, true);
-    // 3秒後にまだnullなら警告
-    setTimeout(()=>{
-      if(compassHeading === null) dlog('[GPS] コンパス3秒後もnull・イベント未発火の可能性');
-      else dlog('[GPS] コンパス取得済: ' + compassHeading.toFixed(0) + '°');
-    }, 3000);
+    } else {
+      // Android・iOS 12以前：許可不要
+      addCompassListener();
+    }
     dlog('[GPS] コンパス起動完了');
   }
 
