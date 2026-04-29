@@ -27,6 +27,10 @@ let CONFIG = {
   jam_speed_max_kmh: 10,
   jam_duration_sec: 60,
   _kalman_Q_override: null, // コンパス融合で動的に変更
+  // C-1：加速度variance静止判定（2026/04/30追加）
+  accel_variance_threshold: 0.1,    // m²/s⁴・経験的・実機テストで調整
+  accel_variance_window_ms: 5000,   // 直近5秒のサンプルで計算
+  accel_variance_min_samples: 5,    // この件数未満なら判定不能（null返す）
 };
 
 // ─── 状態変数（Worker内で保持） ───
@@ -126,6 +130,37 @@ function angleDiff(a, b) {
 }
 
 // ─── 静止判定 ───
+// ─── C-1：加速度variance計算（2026/04/30追加） ───
+// 直近のサンプルから加速度合算ベクトル|a|=√(x²+y²+z²)の分散を計算
+// 静止時：variance ほぼ0（重力のみ）
+// 走行中：variance > 0.5（振動・加速・減速）
+// 戻り値：variance (m²/s⁴) | null（サンプル不足／加速度なし端末）
+function calcAccelVariance(accelSamples, now) {
+  if (!accelSamples || !Array.isArray(accelSamples)) return null;
+  if (accelSamples.length < CONFIG.accel_variance_min_samples) return null;
+
+  // 時間ウィンドウ内のサンプルのみ抽出（学術論文5秒推奨）
+  const windowMs = CONFIG.accel_variance_window_ms;
+  const recent = accelSamples.filter(s => s && typeof s.t === 'number' && (now - s.t) < windowMs);
+  if (recent.length < CONFIG.accel_variance_min_samples) return null;
+
+  // 合算ベクトルの大きさ |a| = √(x² + y² + z²)
+  // この方法はスマホの向きに依存しない（重力含むが大きさは同じ）
+  const magnitudes = recent.map(s =>
+    Math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z)
+  );
+
+  // 平均
+  const mean = magnitudes.reduce((a, b) => a + b, 0) / magnitudes.length;
+
+  // 分散
+  const variance = magnitudes.reduce((sum, m) =>
+    sum + (m - mean) * (m - mean), 0
+  ) / magnitudes.length;
+
+  return variance;
+}
+
 function checkStationary(speedKmh, lat, lng, now) {
   if (isStationary && speedKmh >= CONFIG.resume_speed_kmh) {
     lowSpeedStart = null; return false;
@@ -254,8 +289,29 @@ function processPosition(data) {
   const filtered = kalman.update(lat, lng, accuracy, now, CONFIG._kalman_Q_override);
   CONFIG._kalman_Q_override = null; // 使い捨て
 
-  // ⑤ 静止判定
-  isStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
+  // ⑤ 静止判定（C-1：加速度variance強化・2026/04/30）
+  // 既存GPS判定 AND 加速度variance判定 で「確実に静止」判定
+  // 加速度なし時は GPS判定のみ（後方互換）
+  const gpsStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
+  const accelVariance = calcAccelVariance(accelSamples, now);
+
+  let finalStationary;
+  if (accelVariance === null) {
+    // 加速度判定不能（センサーなし／サンプル不足）→ GPS判定のみ（後方互換）
+    finalStationary = gpsStationary;
+  } else {
+    const accelStationary = (accelVariance < CONFIG.accel_variance_threshold);
+    // チューニング用ログ：判定不一致時のみ出力
+    if (gpsStationary !== accelStationary) {
+      wlog('[C-1] 判定不一致 GPS=' + gpsStationary +
+           ' Accel=' + accelStationary +
+           ' variance=' + accelVariance.toFixed(3) +
+           ' speed=' + speedKmh.toFixed(1) + 'km/h');
+    }
+    // AND判定：両方静止のみ「確実に静止」（学術論文の方針・代行業務向き保守判定）
+    finalStationary = gpsStationary && accelStationary;
+  }
+  isStationary = finalStationary;
 
   lastPosition = { lat: filtered.lat, lng: filtered.lng, timestamp: now, speedKmh, altitude };
 
