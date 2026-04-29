@@ -31,6 +31,10 @@ let CONFIG = {
   accel_variance_threshold: 0.1,    // m²/s⁴・経験的・実機テストで調整
   accel_variance_window_ms: 5000,   // 直近5秒のサンプルで計算
   accel_variance_min_samples: 5,    // この件数未満なら判定不能（null返す）
+  // C-2：加速度合算ベクトル動き判定（2026/04/30追加）
+  accel_motion_threshold: 0.5,      // m/s²・|平均|a|-9.8| の閾値・実機調整
+  accel_motion_window_ms: 5000,     // 直近5秒のサンプルで計算
+  accel_motion_min_samples: 5,      // この件数未満なら判定不能（null返す）
 };
 
 // ─── 状態変数（Worker内で保持） ───
@@ -161,6 +165,33 @@ function calcAccelVariance(accelSamples, now) {
   return variance;
 }
 
+// ─── C-2：加速度合算ベクトル動き判定（2026/04/30追加） ───
+// 直近のサンプルから |a|=√(x²+y²+z²) の平均を計算し、9.8（重力）からの偏差を返す
+// 静止時：|平均|a|| ≈ 9.8 → 偏差 ≈ 0
+// 動いてる時：加減速・振動で平均|a| が 9.8 から離れる → 偏差大
+// 平均値を使うのは体勢変化（一瞬の値）に対する頑健性のため
+// 戻り値：偏差 (m/s²) | null（サンプル不足／加速度なし端末）
+function calcAccelMagnitudeDeviation(accelSamples, now) {
+  if (!accelSamples || !Array.isArray(accelSamples)) return null;
+  if (accelSamples.length < CONFIG.accel_motion_min_samples) return null;
+
+  // 時間ウィンドウ内のサンプルのみ抽出
+  const windowMs = CONFIG.accel_motion_window_ms;
+  const recent = accelSamples.filter(s => s && typeof s.t === 'number' && (now - s.t) < windowMs);
+  if (recent.length < CONFIG.accel_motion_min_samples) return null;
+
+  // 合算ベクトルの大きさ |a| = √(x² + y² + z²)
+  const magnitudes = recent.map(s =>
+    Math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z)
+  );
+
+  // 平均（瞬間値ではなく平均で体勢変化に頑健化）
+  const meanMag = magnitudes.reduce((a, b) => a + b, 0) / magnitudes.length;
+
+  // 9.8（地球の重力加速度）からの絶対偏差
+  return Math.abs(meanMag - 9.8);
+}
+
 function checkStationary(speedKmh, lat, lng, now) {
   if (isStationary && speedKmh >= CONFIG.resume_speed_kmh) {
     lowSpeedStart = null; return false;
@@ -289,27 +320,37 @@ function processPosition(data) {
   const filtered = kalman.update(lat, lng, accuracy, now, CONFIG._kalman_Q_override);
   CONFIG._kalman_Q_override = null; // 使い捨て
 
-  // ⑤ 静止判定（C-1：加速度variance強化・2026/04/30）
-  // 既存GPS判定 AND 加速度variance判定 で「確実に静止」判定
+  // ⑤ 静止判定（C-1+C-2：加速度variance + 動き判定強化・2026/04/30）
+  // 既存GPS判定 AND C-1（分散小） AND NOT C-2（|a|-9.8 大） で「確実に静止」
   // 加速度なし時は GPS判定のみ（後方互換）
   const gpsStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
   const accelVariance = calcAccelVariance(accelSamples, now);
+  const accelDeviation = calcAccelMagnitudeDeviation(accelSamples, now);
 
   let finalStationary;
-  if (accelVariance === null) {
+  if (accelVariance === null && accelDeviation === null) {
     // 加速度判定不能（センサーなし／サンプル不足）→ GPS判定のみ（後方互換）
     finalStationary = gpsStationary;
   } else {
-    const accelStationary = (accelVariance < CONFIG.accel_variance_threshold);
-    // チューニング用ログ：判定不一致時のみ出力
-    if (gpsStationary !== accelStationary) {
-      wlog('[C-1] 判定不一致 GPS=' + gpsStationary +
-           ' Accel=' + accelStationary +
-           ' variance=' + accelVariance.toFixed(3) +
+    // C-1：分散による静止判定（小さいほど静止）
+    const c1Stationary = (accelVariance === null) || (accelVariance < CONFIG.accel_variance_threshold);
+    // C-2：合算ベクトルによる動き判定（大きいほど動き）
+    const c2Moving = (accelDeviation !== null) && (accelDeviation > CONFIG.accel_motion_threshold);
+
+    // チューニング用ログ：3つの判定が一致しない時のみ出力
+    const allAgree = (gpsStationary === c1Stationary) && (gpsStationary === !c2Moving);
+    if (!allAgree) {
+      wlog('[C-1+C-2] 判定不一致 GPS=' + gpsStationary +
+           ' C1=' + c1Stationary +
+           ' C2_moving=' + c2Moving +
+           ' var=' + (accelVariance != null ? accelVariance.toFixed(3) : 'null') +
+           ' dev=' + (accelDeviation != null ? accelDeviation.toFixed(3) : 'null') +
            ' speed=' + speedKmh.toFixed(1) + 'km/h');
     }
-    // AND判定：両方静止のみ「確実に静止」（学術論文の方針・代行業務向き保守判定）
-    finalStationary = gpsStationary && accelStationary;
+
+    // 3点AND：GPS静止 AND C-1静止 AND C-2動きなし → 確実に静止
+    // 1つでも動きを示す → 距離計測続行（保守的・代行業務向き）
+    finalStationary = gpsStationary && c1Stationary && !c2Moving;
   }
   isStationary = finalStationary;
 
