@@ -1,0 +1,59 @@
+name: Auto Update sw.js CACHE_NAME
+
+# トリガー：sw.js とワークフロー以外の変更が main に push された時
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'sw.js'
+      - '.github/workflows/**'
+      - 'README.md'
+
+# git push に必要な権限
+permissions:
+  contents: write
+
+jobs:
+  update-cache-name:
+    runs-on: ubuntu-latest
+    steps:
+      # ─── 1. リポジトリをチェックアウト ───
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 自動コミットを正常に push できるように fetch-depth: 0
+          fetch-depth: 0
+          # GITHUB_TOKEN を使う（自動付与）
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ─── 2. short SHA を取得 ───
+      - name: Get short SHA
+        id: sha
+        run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
+
+      # ─── 3. sw.js の CACHE_NAME を書き換え ───
+      - name: Update CACHE_NAME in sw.js
+        run: |
+          NEW_NAME="daikome-${{ steps.sha.outputs.short_sha }}"
+          # CACHE_NAME = 'XXX' の XXX 部分を置換（シングル/ダブルクォート両対応）
+          sed -i -E "s/(const CACHE_NAME = )['\"][^'\"]*['\"]/\1'$NEW_NAME'/" sw.js
+          echo "Updated CACHE_NAME to: $NEW_NAME"
+          echo "--- sw.js head ---"
+          head -20 sw.js
+
+      # ─── 4. 変更があれば自動コミット + push ───
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          if git diff --quiet sw.js; then
+            echo "No changes to sw.js (CACHE_NAME already up-to-date)"
+            exit 0
+          fi
+          
+          git add sw.js
+          # [skip ci] でこのワークフロー自身の連鎖実行を防止
+          git commit -m "chore: auto-update CACHE_NAME to daikome-${{ steps.sha.outputs.short_sha }} [skip ci]"
+          git push
+          echo "Pushed updated sw.js"
