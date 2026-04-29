@@ -91,5 +91,5 @@ window.Compat = (() => {
 
 // 起動ログ（テスト環境のみ）
 if (typeof dlog === 'function') {
-  dlog('[Compat] ' + Compat.summary());
+  dlog('[Compat] ' + window.Compat.summary());
 }
