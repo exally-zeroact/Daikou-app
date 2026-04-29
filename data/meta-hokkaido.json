@@ -1,0 +1,16 @@
+{
+  "region": "hokkaido",
+  "generated": "2026-04-29T04:19:13.345Z",
+  "prefectures": {
+    "hokkaido": {
+      "numRoads": 306090,
+      "sizeBytes": 9552799,
+      "bbox": [
+        4139781,
+        13940729,
+        4552228,
+        14581561
+      ]
+    }
+  }
+}
