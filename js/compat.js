@@ -62,9 +62,11 @@ window.Compat = (() => {
              : isAndroid ? ('Android ' + (androidVersion || '?'))
              : 'PC';
     const sensors = [];
-    if (Compat.hasAccel)   sensors.push('accel');
-    if (Compat.hasGyro)    sensors.push('gyro');
-    if (Compat.hasCompass) sensors.push('compass');
+    // window.Compat 経由で参照（このオブジェクト自体を読み出すため）
+    const c = window.Compat || {};
+    if (c.hasAccel)   sensors.push('accel');
+    if (c.hasGyro)    sensors.push('gyro');
+    if (c.hasCompass) sensors.push('compass');
     return os + ', ' + cpuCores + ' cores, sensors=[' + (sensors.join(',') || 'none') + '], supported=' + isSupported();
   }
 
