@@ -408,5 +408,22 @@ const GPS = (() => {
 
   function onError(err){console.error('[GPS]',err.code,err.message);}
 
-  return { start, stop, calcDistance, calcDistance3D };
+  // ─── デバッグ関数（B段階・2026/04/30追加） ───
+  // Eruda コンソールから GPS._debug() で呼び出して、
+  // 各センサーの現在値・バッファ蓄積数・リスナー登録状態を確認できる
+  function _debug(){
+    return {
+      compassHeading: compassHeading,
+      accelData: accelData,
+      gyroData: gyroData,
+      accelBufferLen: accelBuffer.length,
+      gyroBufferLen: gyroBuffer.length,
+      compassListenerAdded: _compassListenerAdded,
+      motionListenerAdded: _motionListenerAdded,
+      watchId: watchId,
+      useWorker: useWorker,
+    };
+  }
+
+  return { start, stop, calcDistance, calcDistance3D, _debug };
 })();
