@@ -15,10 +15,6 @@ const GPS = (() => {
   // 加速度センサー（DeviceMotion・案A・2026/04/29）
   let accelData = null;       // 直近値: {x,y,z,t}
   let accelBuffer = [];       // GPS更新までのサンプル蓄積（C段階で詳細解析に使う）
-
-  // ジャイロセンサー（DeviceMotion・案A・2026/04/29）
-  let gyroData = null;        // 直近値: {alpha,beta,gamma,t}
-  let gyroBuffer = [];        // GPS更新までのサンプル蓄積
   function startCompass(){
     if(!window.DeviceOrientationEvent) {
       dlog('[GPS] コンパス非対応');
@@ -35,13 +31,9 @@ const GPS = (() => {
         if(e.webkitCompassHeading != null){
           if(compassHeading === null) dlog('[GPS] コンパス初回取得(iOS): ' + e.webkitCompassHeading.toFixed(0) + '°');
           compassHeading = e.webkitCompassHeading;
-          // Compat連携：コンパス取れたフラグ（B段階・2026/04/29）
-          if(typeof window.Compat !== 'undefined') window.Compat.hasCompass = true;
         } else if(e.alpha != null){
           if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android): ' + e.alpha.toFixed(0) + '°');
           compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
-          // Compat連携：コンパス取れたフラグ
-          if(typeof window.Compat !== 'undefined') window.Compat.hasCompass = true;
         }
       }, true);
       setTimeout(()=>{
@@ -77,58 +69,30 @@ const GPS = (() => {
       let motionCount = 0;
       window.addEventListener('devicemotion', function(e){
         const acc = e.accelerationIncludingGravity;
-        const rot = e.rotationRate;
         if(!acc) return;
         motionCount++;
 
-        const t = Date.now();
-
-        // 加速度（A段階・既存）
-        const accSample = {
+        const sample = {
           x: acc.x || 0,
           y: acc.y || 0,
           z: acc.z || 0,
-          t: t,
+          t: Date.now(),
         };
-        accelData = accSample;       // 直近値
-        accelBuffer.push(accSample); // バッファ蓄積（GPS更新時にWorkerへ）
+        accelData = sample;       // 直近値
+        accelBuffer.push(sample); // バッファ蓄積（GPS更新時にWorkerへ）
+
+        // バッファ上限（メモリ保護・約2秒分）
         if(accelBuffer.length > 200) accelBuffer.shift();
-        // Compat連携：加速度取れたフラグ
-        if(typeof window.Compat !== 'undefined') window.Compat.hasAccel = true;
 
-        // ジャイロ（B段階・新規）
-        // null安全：rot自体null/プロパティ全てnull/非オブジェクトを完全防御
-        if(rot && typeof rot === 'object' &&
-           (rot.alpha != null || rot.beta != null || rot.gamma != null)){
-          const gyroSample = {
-            alpha: rot.alpha || 0,  // ヨー（左右回転・ハンドル操作）
-            beta:  rot.beta  || 0,  // ピッチ（前後傾き・坂道）
-            gamma: rot.gamma || 0,  // ロール（左右傾き・カーブ）
-            t: t,
-          };
-          gyroData = gyroSample;
-          gyroBuffer.push(gyroSample);
-          if(gyroBuffer.length > 200) gyroBuffer.shift();
-          // Compat連携：ジャイロ取れたフラグ
-          if(typeof window.Compat !== 'undefined') window.Compat.hasGyro = true;
-        }
-
-        // 初回ログ（加速度＋ジャイロ状態を一括表示）
+        // 初回ログ
         if(motionCount === 1){
-          let gyroStatus;
-          if(!rot) gyroStatus = 'rot自体null';
-          else if(typeof rot !== 'object') gyroStatus = '非object';
-          else if(rot.alpha == null && rot.beta == null && rot.gamma == null) gyroStatus = '全プロパティnull';
-          else gyroStatus = 'α=' + (rot.alpha || 0).toFixed(2) + ' β=' + (rot.beta || 0).toFixed(2) + ' γ=' + (rot.gamma || 0).toFixed(2);
-          dlog('[GPS] DeviceMotion発火 加速度x=' + accSample.x.toFixed(2) + ' ジャイロ=' + gyroStatus);
+          dlog('[GPS] DeviceMotion発火 x=' + sample.x.toFixed(2) + ' y=' + sample.y.toFixed(2) + ' z=' + sample.z.toFixed(2));
         }
       }, true);
 
       setTimeout(()=>{
         if(accelData === null) dlog('[GPS] 加速度3秒後もnull');
         else dlog('[GPS] 加速度取得済 サンプル数=' + accelBuffer.length);
-        if(gyroData === null) dlog('[GPS] ジャイロ3秒後もnull');
-        else dlog('[GPS] ジャイロ取得済 サンプル数=' + gyroBuffer.length);
       }, 3000);
     }
 
@@ -233,9 +197,6 @@ const GPS = (() => {
     // 加速度バッファクリア（案A・2026/04/29）
     accelBuffer = [];
     accelData = null;
-    // ジャイロバッファクリア（B段階・2026/04/29）
-    gyroBuffer = [];
-    gyroData = null;
     if (useWorker && worker) {
       worker.postMessage({ type: 'reset', data: {} });
     } else {
@@ -252,13 +213,10 @@ const GPS = (() => {
     // 加速度サンプル取り出し（案A・2026/04/29）
     const accelSamples = accelBuffer.slice();
     accelBuffer = [];
-    // ジャイロサンプル取り出し（B段階・2026/04/29）
-    const gyroSamples = gyroBuffer.slice();
-    gyroBuffer = [];
     if (useWorker) {
       worker.postMessage({ type: 'position',
         data: { lat, lng, accuracy, speedKmh, heading, altitude, now, compassHeading,
-                accelData, accelSamples, gyroData, gyroSamples }
+                accelData, accelSamples }
       });
     } else {
       const result = processPositionFallback(lat, lng, accuracy, speedKmh, heading, altitude, now);
