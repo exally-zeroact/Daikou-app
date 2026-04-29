@@ -123,8 +123,11 @@ const Meter = (() => {
 
         if(diff <= TUNNEL_COMPASS_THRESHOLD_DEG){
           // コンパスと一致 → 構造物の実距離を採用（精度高い）
-          const filled = Math.min(naiveDistance, infraLength);
-          dlog(`[Meter] ${infra.item[0]} コンパス一致(${diff.toFixed(0)}°) → ${Math.round(filled)}m`);
+          // 修正（2026/04/30）：Math.min → Math.max
+          // 旧：トンネル長と速度×時間の短い方 → カーブ多いトンネルで短く出てた
+          // 新：長い方 → 直線でも妥当・カーブで実道路距離に近づく
+          const filled = Math.max(naiveDistance, infraLength);
+          dlog(`[Meter] ${infra.item[0]} コンパス一致(${diff.toFixed(0)}°) → ${Math.round(filled)}m (infra=${infraLength}m, naive=${Math.round(naiveDistance)}m)`);
           return filled;
         } else {
           // コンパスと不一致 → 誤検出の可能性・速度×時間×1.3で補完
@@ -133,9 +136,10 @@ const Meter = (() => {
         }
       }
 
-      // コンパスなし → 従来通り構造物長で補完
-      const filled = Math.min(naiveDistance, infraLength);
-      dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (${infra.item[0]} ${infraLength}m)`);
+      // コンパスなし → 構造物長と速度×時間の長い方を採用
+      // 修正（2026/04/30）：Math.min → Math.max（同上の理由）
+      const filled = Math.max(naiveDistance, infraLength);
+      dlog(`[Meter] GPS消失補完: ${gapSec.toFixed(1)}秒 → ${Math.round(filled)}m (${infra.item[0]} ${infraLength}m, naive=${Math.round(naiveDistance)}m)`);
       return filled;
     }
 
