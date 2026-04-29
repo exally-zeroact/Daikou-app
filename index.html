@@ -844,8 +844,8 @@ function fmt(sec){
 
 // ─── メインボタン ───
 function onMainBtn(){
-  // iOSでセンサー未許可の場合はブロック（Androidは自動許可済みなのでブロックなし）
-  if(_isIOS && window.navigator.standalone === true && !window._compassGranted){
+  // iOSでセンサー未許可の場合はブロック（コンパス＋動きセンサー両方必須・Androidは自動許可済み）
+  if(_isIOS && window.navigator.standalone === true && (!window._compassGranted || !window._motionGranted)){
     const sb = document.getElementById('sensorBanner');
     if(sb){ sb.style.display = 'block'; sb.scrollIntoView({behavior:'smooth'}); }
     return;
