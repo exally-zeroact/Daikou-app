@@ -4,7 +4,7 @@
 // 道路データ：キャッシュ優先（重いファイル・オフライン対応）
 // ===========================================
 
-const CACHE_NAME = 'daikome-6667fa8';
+const CACHE_NAME = 'daikome-2d52518';
 
 // アイコン・manifestだけキャッシュ（変わらないもの）
 const PRECACHE_FILES = [
