@@ -11,6 +11,10 @@ const GPS = (() => {
 
   // コンパス（DeviceOrientation・許可不要）
   let compassHeading = null;
+
+  // 加速度センサー（DeviceMotion・案A・2026/04/29）
+  let accelData = null;       // 直近値: {x,y,z,t}
+  let accelBuffer = [];       // GPS更新までのサンプル蓄積（C段階で詳細解析に使う）
   function startCompass(){
     if(!window.DeviceOrientationEvent) {
       dlog('[GPS] コンパス非対応');
@@ -52,6 +56,60 @@ const GPS = (() => {
       addCompassListener();
     }
     dlog('[GPS] コンパス起動完了');
+  }
+
+  // 加速度センサー（DeviceMotion・案A・2026/04/29）
+  function startMotion(){
+    if(!window.DeviceMotionEvent){
+      dlog('[GPS] 加速度センサー非対応');
+      return;
+    }
+
+    function addMotionListener(){
+      let motionCount = 0;
+      window.addEventListener('devicemotion', function(e){
+        const acc = e.accelerationIncludingGravity;
+        if(!acc) return;
+        motionCount++;
+
+        const sample = {
+          x: acc.x || 0,
+          y: acc.y || 0,
+          z: acc.z || 0,
+          t: Date.now(),
+        };
+        accelData = sample;       // 直近値
+        accelBuffer.push(sample); // バッファ蓄積（GPS更新時にWorkerへ）
+
+        // バッファ上限（メモリ保護・約2秒分）
+        if(accelBuffer.length > 200) accelBuffer.shift();
+
+        // 初回ログ
+        if(motionCount === 1){
+          dlog('[GPS] DeviceMotion発火 x=' + sample.x.toFixed(2) + ' y=' + sample.y.toFixed(2) + ' z=' + sample.z.toFixed(2));
+        }
+      }, true);
+
+      setTimeout(()=>{
+        if(accelData === null) dlog('[GPS] 加速度3秒後もnull');
+        else dlog('[GPS] 加速度取得済 サンプル数=' + accelBuffer.length);
+      }, 3000);
+    }
+
+    // iOS 13+: requestPermissionは index.html の requestSensorPermission() で済み
+    // _motionGrantedフラグを確認してリスナー追加
+    if(typeof DeviceMotionEvent.requestPermission === 'function'){
+      if(window._motionGranted){
+        dlog('[GPS] 加速度許可済・リスナー追加');
+        addMotionListener();
+      } else {
+        dlog('[GPS] 加速度未許可・リスナーなし');
+      }
+    } else {
+      // Android・iOS 12以前：許可不要
+      addMotionListener();
+    }
+    dlog('[GPS] 加速度センサー起動完了');
   }
 
   // フォールバック用状態変数（Worker非対応時）
@@ -117,6 +175,7 @@ const GPS = (() => {
   function start(callback) {
     onUpdateCallback = callback;
     startCompass(); // コンパス起動（許可不要）
+    startMotion();  // 加速度センサー起動（案A・2026/04/29）
     if (!worker) initWorker();
     if (!useWorker) {
       kalman = new KalmanGPS();
@@ -135,6 +194,9 @@ const GPS = (() => {
 
   function stop() {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    // 加速度バッファクリア（案A・2026/04/29）
+    accelBuffer = [];
+    accelData = null;
     if (useWorker && worker) {
       worker.postMessage({ type: 'reset', data: {} });
     } else {
@@ -148,9 +210,13 @@ const GPS = (() => {
     const now = Date.now();
     const { latitude: lat, longitude: lng, accuracy, speed, heading, altitude } = pos.coords;
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
+    // 加速度サンプル取り出し（案A・2026/04/29）
+    const accelSamples = accelBuffer.slice();
+    accelBuffer = [];
     if (useWorker) {
       worker.postMessage({ type: 'position',
-        data: { lat, lng, accuracy, speedKmh, heading, altitude, now, compassHeading }
+        data: { lat, lng, accuracy, speedKmh, heading, altitude, now, compassHeading,
+                accelData, accelSamples }
       });
     } else {
       const result = processPositionFallback(lat, lng, accuracy, speedKmh, heading, altitude, now);
