@@ -89,7 +89,9 @@ window.Compat = (() => {
   };
 })();
 
-// 起動ログ（テスト環境のみ）
-if (typeof dlog === 'function') {
-  dlog('[Compat] ' + window.Compat.summary());
-}
+// 起動ログ（テスト環境のみ・Eruda起動を待つため1秒遅延）
+setTimeout(function(){
+  if (typeof dlog === 'function') {
+    dlog('[Compat] ' + window.Compat.summary());
+  }
+}, 1000);
