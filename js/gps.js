@@ -19,9 +19,20 @@ const GPS = (() => {
   // ジャイロセンサー（DeviceMotion・案A・2026/04/29）
   let gyroData = null;        // 直近値: {alpha,beta,gamma,t}
   let gyroBuffer = [];        // GPS更新までのサンプル蓄積
+
+  // リスナー重複登録防止フラグ（B段階修正・2026/04/30追加）
+  // iOS PWAで2回目以降の代行開始時にセンサーが動かなくなる現象の対策
+  // 1度登録したリスナーは PWA 起動中ずっと生かす
+  let _compassListenerAdded = false;
+  let _motionListenerAdded = false;
   function startCompass(){
     if(!window.DeviceOrientationEvent) {
       dlog('[GPS] コンパス非対応');
+      return;
+    }
+    // リスナー重複登録防止（B段階修正・2026/04/30）
+    if(_compassListenerAdded){
+      dlog('[GPS] コンパスリスナー登録済・スキップ');
       return;
     }
 
@@ -44,6 +55,7 @@ const GPS = (() => {
           if(typeof window.Compat !== 'undefined') window.Compat.hasCompass = true;
         }
       }, true);
+      _compassListenerAdded = true;  // 登録完了フラグ（B段階修正・2026/04/30）
       setTimeout(()=>{
         if(compassHeading === null) dlog('[GPS] コンパス3秒後もnull');
         else dlog('[GPS] コンパス取得済: ' + compassHeading.toFixed(0) + '°');
@@ -70,6 +82,11 @@ const GPS = (() => {
   function startMotion(){
     if(!window.DeviceMotionEvent){
       dlog('[GPS] 加速度センサー非対応');
+      return;
+    }
+    // リスナー重複登録防止（B段階修正・2026/04/30）
+    if(_motionListenerAdded){
+      dlog('[GPS] 加速度・ジャイロリスナー登録済・スキップ');
       return;
     }
 
@@ -123,6 +140,7 @@ const GPS = (() => {
           dlog('[GPS] DeviceMotion発火 加速度x=' + accSample.x.toFixed(2) + ' ジャイロ=' + gyroStatus);
         }
       }, true);
+      _motionListenerAdded = true;  // 登録完了フラグ（B段階修正・2026/04/30）
 
       setTimeout(()=>{
         if(accelData === null) dlog('[GPS] 加速度3秒後もnull');
