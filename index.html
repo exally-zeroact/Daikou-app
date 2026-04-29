@@ -854,6 +854,12 @@ function onMainBtn(){
     if(sb){ sb.style.display = 'block'; sb.scrollIntoView({behavior:'smooth'}); }
     return;
   }
+  // 第1層：iOS PWA で許可済みフラグありの場合、念のため permission 再確認（2026/04/30追加）
+  // → granted なら何も起きない（ダイアログ出ない・体験変わらず）
+  // → permission期限切れなら自動でダイアログ → ユーザー許可で復活
+  if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
+    refreshSensorPermission();
+  }
   if(appState==='idle'){
     // 代行開始
     appState='driving';
@@ -1317,6 +1323,40 @@ function tutorialComplete(){
   document.getElementById('tutorialOverlay').classList.remove('show');
   localStorage.setItem('tutorial_done','1');
   dlog('[Tutorial] 完了');
+}
+
+// ─── 第1層：センサー permission 再確認（2026/04/30追加） ───
+// iOSのPWAでpermissionが切れる現象をカバー
+// 既に許可済みなら即grantedが返る（ダイアログ出ない・ユーザー体験変わらず）
+// 期限切れの場合は自動でダイアログ → ユーザー許可でセンサー復活
+function refreshSensorPermission(){
+  // コンパス permission 再確認
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function'){
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if(state === 'granted'){
+        dlog('[GPS] コンパス permission 再確認OK:', state);
+      } else {
+        // permission切れ → フラグもクリア
+        window._compassGranted = false;
+        localStorage.removeItem('compass_granted');
+        dlog('[GPS] コンパス permission 期限切れ検知:', state);
+      }
+    }).catch(e => dlog('[GPS] コンパス permission 再確認エラー:', e.message));
+  }
+  // 加速度 permission 再確認
+  if(typeof DeviceMotionEvent !== 'undefined' &&
+     typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().then(state => {
+      if(state === 'granted'){
+        dlog('[GPS] 加速度 permission 再確認OK:', state);
+      } else {
+        window._motionGranted = false;
+        localStorage.removeItem('motion_granted');
+        dlog('[GPS] 加速度 permission 期限切れ検知:', state);
+      }
+    }).catch(e => dlog('[GPS] 加速度 permission 再確認エラー:', e.message));
+  }
 }
 
 // ─── デバイス判定 ───
