@@ -1510,6 +1510,16 @@ if('serviceWorker' in navigator){
     dlog('[SW] 登録失敗（開発環境では正常）:', err.message);
   });
 }
+
+// ─── ストレージ永続化（2026/04/30追加：オフライン業務でデータ消失防止） ───
+// iOS のキャッシュ自動削除を防ぐ・道路データ等を永続的に保持
+if(navigator.storage && navigator.storage.persist){
+  navigator.storage.persist().then(function(persisted){
+    dlog('[Storage] 永続化:', persisted ? '成功（キャッシュ保護）' : '不可（PWA未追加など）');
+  }).catch(function(err){
+    dlog('[Storage] 永続化エラー:', err.message);
+  });
+}
 </script>
 
 </body>
