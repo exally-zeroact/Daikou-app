@@ -1259,21 +1259,8 @@ document.addEventListener('visibilitychange', function(){
   }
 });
 
-// 起動最速：走行中状態が localStorage にあれば、即座にセンサーバナー表示（2026/04/30追加）
-// loadSettings() より前に実行することで、可能な限り早く表示する
-(function(){
-  try {
-    const drivingState = localStorage.getItem('daikou_driving_state');
-    if(!drivingState) return;
-    // iOS で requestPermission が必要な場合のみ
-    if(typeof DeviceMotionEvent === 'undefined' ||
-       typeof DeviceMotionEvent.requestPermission !== 'function') return;
-    const banner = document.getElementById('sensorBanner');
-    if(banner) banner.style.display = 'block';
-  } catch(e){
-    console.error('起動時センサーバナー表示エラー:', e);
-  }
-})();
+// 起動時センサーバナー表示は「センサー未許可バナー（PWA起動時）」ロジックに統合（2026/04/30）
+// drivingState の有無に関係なく、未許可なら起動のたびにバナー表示
 
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
@@ -1460,9 +1447,12 @@ function confirmAndroidSensor(){
   dlog('[GPS] Androidセンサー確認完了');
 }
 
-// ─── センサー未許可バナー（PWA起動時） ───
+// ─── センサー未許可バナー（起動時・未許可なら毎回表示） ───
+// 2026/04/30 修正：standalone チェック削除（PWA・Safari どちらでも動作）
+//                 drivingState ロジックを統合（重複削除）
 (function(){
-  if(window.navigator.standalone !== true) return;
+  // PC（iOS でも Android でもない）はスキップ
+  if(!_isIOS && !_isAndroid) return;
 
   if(_isAndroid){
     // Android：自動許可済みだがバナーで説明表示
