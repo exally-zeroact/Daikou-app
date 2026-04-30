@@ -1,643 +1,263 @@
 <!DOCTYPE html>
-
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#007AFF">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="ダイコメ">
-<link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>設定</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-height:100vh;}
+.appbar{background:#007AFF;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:12px;}
+.appbar-back{color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;}
+.appbar-title{font-size:17px;font-weight:700;color:#fff;}
+.wrap{padding:16px;padding-bottom:80px;display:flex;flex-direction:column;gap:16px;}
+.section{background:#fff;border-radius:12px;overflow:hidden;}
+.section-title{font-size:12px;color:#8E8E93;padding:12px 16px 4px;letter-spacing:1px;}
+.row{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #f0f0f0;}
+.row:last-child{border-bottom:none;}
+.row-label{font-size:15px;color:#111;}
+.row-input{width:120px;border:0.5px solid #ddd;border-radius:8px;padding:8px 10px;font-size:15px;text-align:right;font-family:'Noto Sans JP',sans-serif;background:#f9f9f9;}
+.row-unit{font-size:13px;color:#8E8E93;margin-left:4px;}
+.toggle{width:44px;height:26px;background:#ddd;border-radius:13px;position:relative;cursor:pointer;transition:background 0.2s;}
+.toggle.on{background:#007AFF;}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:22px;height:22px;background:#fff;border-radius:50%;transition:left 0.2s;}
+.toggle.on::after{left:20px;}
+.preview{background:#fff8f0;border-radius:8px;padding:12px;font-size:13px;color:#888;line-height:2.2;}
+.preview span.val{color:#111;font-weight:700;}
+.btn-save{width:100%;padding:16px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;} .btn-save:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
+.save-msg{text-align:center;color:#34C759;font-size:13px;min-height:20px;margin-top:4px;}
 
-/* AppBar */
-.appbar{background:#007AFF;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
-.appbar-title{font-size:18px;font-weight:700;color:#fff;letter-spacing:2px;}
-.appbar-right{display:flex;align-items:center;gap:8px;}
-.gps-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.2);border-radius:20px;padding:4px 10px;}
-.gps-dot{width:7px;height:7px;border-radius:50%;background:#fff;opacity:0.4;}
-.gps-dot.ok{opacity:1;background:#4ade80;}
-/* PWAインストール促進バナー */
-.pwa-banner{display:none;align-items:center;gap:10px;background:#E8F4FD;border-bottom:2px solid #007AFF;padding:10px 14px;flex-shrink:0;}
-.pwa-banner.show{display:flex;}
-.pwa-banner-text{flex:1;font-size:12px;color:#005BB5;line-height:1.5;}
+/* 追加料金リスト */
+.extra-item{padding:12px 16px;display:flex;flex-direction:column;gap:8px;border-bottom:0.5px solid #f0f0f0;}
+.extra-item:last-child{border-bottom:none;}
+.extra-item-row{display:flex;align-items:center;gap:8px;}
+.extra-name{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;font-family:'Noto Sans JP',sans-serif;}
+.extra-amount{width:110px;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;text-align:right;font-family:'Noto Sans JP',sans-serif;}
+.extra-unit{font-size:13px;color:#8E8E93;white-space:nowrap;}
+.extra-del{background:#FF3B30;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;white-space:nowrap;}
+.btn-add{width:100%;padding:12px;background:#f5f5f5;border:0.5px solid #ddd;border-radius:10px;color:#007AFF;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;margin-top:8px;}
 
-/* チュートリアル */
-.tutorial-overlay{display:none;position:fixed;inset:0;background:#007AFF;z-index:1000;flex-direction:column;align-items:center;justify-content:flex-start;padding:clamp(20px,5vh,48px) 28px clamp(20px,4vh,40px);padding-top:max(env(safe-area-inset-top),clamp(20px,5vh,48px));overflow-y:auto;-webkit-overflow-scrolling:touch;}
-.tutorial-overlay.show{display:flex;}
-.tutorial-dots{display:flex;gap:8px;margin-bottom:8px;flex-shrink:0;}
-.tutorial-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.4);}
-.tutorial-dot.active{background:#fff;}
-.tutorial-page{display:none;flex-direction:column;align-items:center;text-align:center;gap:clamp(10px,2vh,20px);width:100%;margin:auto 0;flex-shrink:0;}
-.tutorial-page.show{display:flex;}
-.tutorial-icon{font-size:clamp(40px,8vh,72px);line-height:1;}
-.tutorial-title{font-size:clamp(18px,3vh,24px);font-weight:900;color:#fff;line-height:1.3;}
-.tutorial-desc{font-size:clamp(12px,2vh,15px);color:rgba(255,255,255,0.85);line-height:1.6;max-width:300px;}
-.tutorial-btn{width:100%;padding:clamp(12px,2.2vh,16px);background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:clamp(15px,2.4vh,17px);font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
-.tutorial-btn.secondary{background:rgba(255,255,255,0.2);color:#fff;margin-top:8px;}
-.tutorial-steps{background:rgba(255,255,255,0.15);border-radius:14px;padding:clamp(10px,1.8vh,16px) clamp(14px,2vh,20px);text-align:left;width:100%;}
-.tutorial-step{display:flex;align-items:center;gap:clamp(8px,1.4vh,12px);color:#fff;font-size:clamp(12px,1.8vh,14px);padding:clamp(3px,0.7vh,6px) 0;}
-.tutorial-step-num{width:clamp(20px,3.2vh,24px);height:clamp(20px,3.2vh,24px);border-radius:50%;background:#fff;color:#007AFF;font-weight:700;font-size:clamp(11px,1.7vh,13px);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.pwa-banner-text strong{display:block;font-size:13px;margin-bottom:2px;}
-.pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:‘Noto Sans JP’,sans-serif;}
-.pwa-banner-close{background:none;border:none;color:#007AFF;font-size:18px;cursor:pointer;padding:0 4px;}
-.gps-acc{font-size:11px;color:#fff;opacity:0.8;}
-.surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
-.menu-btn{
-background:rgba(255,255,255,0.2);border:none;border-radius:8px;
-padding:4px 12px;cursor:pointer;
-color:#fff;font-size:20px;font-weight:700;
-font-family:‘Noto Sans JP’,sans-serif;
--webkit-transition:transform 0.1s,-webkit-filter 0.1s;
-transition:transform 0.1s,filter 0.1s;
--webkit-appearance:none;
-display:flex;align-items:center;
-text-decoration:none !important;
-}
-.menu-btn:active{-webkit-transform:scale(0.9);transform:scale(0.9);}
-.surcharge-badge span{font-size:11px;color:#fff;font-weight:700;}
+/* 車両選択 */
+.vehicle-select{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;background:#f9f9f9;font-family:'Noto Sans JP',sans-serif;}
 
-/* コンテンツエリア */
-.content{flex:1;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:12px;min-height:0;}
-
-/* IDLE */
-.idle-datetime{text-align:center;padding:12px 0;}
-.idle-time{font-size:48px;font-weight:900;color:#111;line-height:1;}
-.idle-date{font-size:13px;color:#aaa;margin-top:4px;}
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.stat-card{background:#f5f5f5;border-radius:12px;padding:14px;text-align:center;}
-.stat-label{font-size:11px;color:#aaa;margin-bottom:4px;}
-.stat-value{font-size:22px;font-weight:900;color:#111;}
-.stat-unit{font-size:12px;color:#aaa;}
-
-/* DRIVING */
-.driving-grid{display:flex;flex-direction:column;gap:12px;}
-.meter-card{background:#f5f5f5;border-radius:12px;padding:16px;text-align:center;}
-.meter-label{font-size:12px;color:#aaa;margin-bottom:4px;letter-spacing:1px;}
-.meter-value{font-size:42px;font-weight:900;color:#111;line-height:1;}
-.meter-value.fare{color:#FF3B30;}
-.meter-unit{font-size:14px;color:#aaa;}
-.meter-sub{font-size:12px;color:#FF3B30;margin-top:4px;}
-.extras-list{display:flex;flex-direction:column;gap:6px;}
-/* 履歴スクロールボックス */
-.history-box{
-overflow-y:auto;
--webkit-overflow-scrolling:touch;
-display:flex;
-flex-direction:column;
-gap:6px;
-flex:1;
-min-height:0;
-}
-.extra-item{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;}
-.extra-item span{font-size:12px;color:#FF9500;font-weight:700;}
-.extra-del-btn{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
-.extra-del-btn:active{color:#FF3B30;}
-
-/* FARE */
-.fare-total{text-align:center;padding:12px 0;}
-.fare-total-label{font-size:12px;color:#aaa;margin-bottom:4px;}
-.fare-total-amount{font-size:52px;font-weight:900;color:#111;line-height:1;}
-.breakdown{background:#f5f5f5;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;}
-.breakdown-row{display:flex;justify-content:space-between;align-items:center;}
-.breakdown-row .lbl{font-size:13px;color:#aaa;}
-.breakdown-row .val{font-size:13px;color:#555;font-weight:700;}
-.breakdown-row .val.surcharge{color:#FF3B30;}
-.breakdown-row .val.extra{color:#FF9500;}
-.breakdown-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
-
-/* リロード復元バナー */
-.restore-banner{
-display:none;
-width:fit-content;
-max-width:calc(100% - 32px);
-margin:0 auto 10px;
-padding:6px 12px;
-background:#E8F8EE;
-border:1.5px solid #B7E4C7;
-border-radius:6px;
-font-size:12px;
-font-weight:700;
-color:#1F7A3F;
-white-space:nowrap;
-overflow:hidden;
-text-overflow:ellipsis;
-}
-.restore-banner.show{display:block;}
-
-/* ボタンエリア（固定） */
-.btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
-.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
-.btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
-.btn-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
-.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
-.btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
-.btn-idle{background:#8E8E93;}
-.btn-menu{background:#8E8E93;}
-
-.btn-extra{background:#FF9500;}
-.btn-confirm{background:#34C759;}
-
-/* トースト通知 */
-.toast{
-position:fixed;top:70px;left:50%;transform:translateX(-50%);
-background:rgba(0,0,0,0.75);color:#fff;
-padding:10px 20px;border-radius:20px;
-font-size:14px;font-weight:700;
-z-index:200;opacity:0;transition:opacity 0.2s;
-pointer-events:none;white-space:nowrap;
-}
-.toast.show{opacity:1;}
-
-/* 走行中の空車・Menuボタンをグレーアウト */
-.btn-sub.disabled{opacity:0.35;pointer-events:none;}
-
-/* 追加料金モーダル */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:none;align-items:flex-end;justify-content:center;}
-.modal-overlay.show{display:flex;}
-.modal{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:480px;padding:20px 16px;max-height:80vh;overflow-y:auto;}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
-.modal-title{font-size:16px;font-weight:700;color:#111;}
-.modal-cancel{font-size:14px;color:#007AFF;cursor:pointer;}
-.modal-items{display:flex;flex-direction:column;gap:8px;}
-.modal-item{background:#f5f5f5;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
-.modal-item:active{background:#e5e5e5;}
-.modal-item-name{font-size:14px;color:#111;font-weight:700;}
-.modal-item-price{font-size:14px;color:#FF9500;font-weight:900;}
-.modal-custom{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
-.modal-custom span{font-size:14px;color:#FF9500;font-weight:700;white-space:nowrap;}
-.modal-custom input{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:16px;text-align:right;font-family:‘Noto Sans JP’,sans-serif;}
-.modal-custom-btn{background:#FF9500;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
-
-/* 横画面対応 */
-@media (orientation:landscape){
-/* 全体：左右分割レイアウト */
-body{flex-direction:row;flex-wrap:wrap;}
-.appbar{
-width:100% !important;
-flex-shrink:0 !important;
-padding:0 12px !important;
-height:40px !important;
-min-height:40px !important;
-max-height:40px !important;
-box-sizing:border-box !important;
-overflow:hidden !important;
-}
-.appbar-title{
-font-size:14px !important;
-line-height:40px !important;
-margin:0 !important;
-padding:0 !important;
-}
-.appbar-right{margin:0 !important;padding:0 !important;gap:8px !important;}
-.gps-acc{font-size:10px !important;}
-.gps-pill{padding:3px 10px !important;font-size:10px !important;}
-.menu-btn{padding:6px 12px !important;font-size:16px !important;margin:0 !important;line-height:1 !important;}
-
-/* コンテンツ：左半分 */
-.content{
-flex:1;
-padding:12px 16px;
-overflow:hidden;
-display:flex;
-flex-direction:column;
-gap:10px;
-height:calc(100vh - 40px);
-max-height:calc(100vh - 40px);
-min-height:0;
-justify-content:center;
-}
-
-/* ボタンエリア：右半分（縦に並ぶ）*/
-.btn-area{
-width:200px;
-flex-shrink:0;
-padding:12px;
-display:flex;
-flex-direction:column;
-gap:8px;
-border-top:none;
-border-left:0.5px solid #f0f0f0;
-height:calc(100vh - 40px);
-max-height:calc(100vh - 40px);
-justify-content:center;
-}
-
-/* 大ボタンを横画面でも見やすく */
-.btn-main{padding:14px;font-size:15px;}
-.btn-sub{padding:10px 0;font-size:12px;}
-
-/* IDLE：stats-grid・履歴を50%中央寄せ */
-.idle-time{font-size:36px;}
-.stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-.stat-value{font-size:18px;}
-#inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-
-/* DRIVING：meter-card 50%中央寄せ */
-.driving-grid{display:flex;flex-direction:column;gap:8px;}
-.meter-value{font-size:32px;}
-.meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-.meter-label{font-size:13px;margin-bottom:0;}
-
-/* FARE：fare-total・breakdown・走行に戻るボタン 50%中央寄せ */
-#screenFare{overflow-y:auto;}
-.fare-total-amount{font-size:40px;}
-.fare-total{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-.breakdown{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
-#screenFare button{margin-top:10px;display:block;margin-left:auto;margin-right:auto;}
-}
+/* 活動エリア（Map Matching）2026/04/30追加 */
+.region-buttons{display:flex;gap:8px;padding:12px 16px 8px;flex-wrap:wrap;}
+.region-btn{flex:1;min-width:90px;padding:10px 8px;background:#f0f7ff;border:0.5px solid #007AFF;border-radius:8px;color:#007AFF;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;}
+.region-btn:active{background:#dbeaff;}
+.region-summary{padding:8px 16px;font-size:13px;color:#8E8E93;border-bottom:0.5px solid #f0f0f0;}
+.region-summary .count{color:#007AFF;font-weight:700;}
+.region-group{padding:0;}
+.region-group-header{padding:10px 16px 6px;font-size:12px;color:#8E8E93;font-weight:700;background:#fafafa;border-bottom:0.5px solid #f0f0f0;letter-spacing:1px;}
+.region-pref{display:flex;align-items:center;padding:11px 16px;border-bottom:0.5px solid #f5f5f5;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.region-pref:active{background:#f5f5f5;}
+.region-pref input[type=checkbox]{margin-right:12px;width:20px;height:20px;accent-color:#007AFF;}
+.region-pref-name{flex:1;font-size:15px;color:#111;}
+.region-pref.checked .region-pref-name{font-weight:700;}
 </style>
-
-<!-- ─── SEO・ブランディング（2026/04/26実装・復元）─── -->
-
-<title>ダイコメ｜運転代行向け料金メーターアプリ｜月額980円・初期費用ゼロ</title>
-<meta name="description" content="ダイコメは月額980円・初期費用ゼロの運転代行料金メーターアプリ。GPS自動計算・オフライン対応・古いスマホでも使える。代行開業・副業・既存メーター乗り換えに。スマホ1台で始められる代行業者向け業務支援ツール。">
-<meta name="keywords" content="ダイコメ,代行メーター,運転代行 アプリ,代行 料金計算,代行 開業,代行 始め方,代行 メーター 安い,代行 メーター 月額,代行 メーター 比較,代行 副業,代行 業務支援,代行 ドライバー,スマホ メーター,GPS メーター,タクシーメーター 代行,随伴車,オフライン対応,初期費用ゼロ,月額980円">
-<meta name="author" content="ZEROact">
-<meta name="robots" content="index,follow">
-<link rel="canonical" href="https://daikou-app.vercel.app/">
-<meta property="og:title" content="ダイコメ｜運転代行向け料金メーターアプリ">
-<meta property="og:description" content="月額980円・初期費用ゼロ。GPS自動計算でスマホ1台が代行メーターに。オフライン対応・古いスマホでもOK。">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://daikou-app.vercel.app/">
-<meta property="og:site_name" content="ダイコメ">
-<meta property="og:locale" content="ja_JP">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="ダイコメ｜運転代行向け料金メーターアプリ">
-<meta name="twitter:description" content="月額980円・初期費用ゼロ。スマホ1台が代行メーターに。">
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ダイコメ","alternateName":"運転代行料金メーターアプリ","description":"運転代行向けの料金メーターアプリ。月額980円・初期費用ゼロでスマホ1台から代行業を始められる。GPS自動計算・オフライン対応。","applicationCategory":"BusinessApplication","operatingSystem":"iOS, Android, Web","offers":{"@type":"Offer","price":"980","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"ZEROact","url":"https://zeroact.jp"}}
-</script>
 </head>
-<body ontouchstart="" onclick="wakeScreen()">
+<body ontouchstart="">
 
-<!-- AppBar -->
-
-<div class="appbar" id="appbar">
-  <div class="appbar-title" id="appbarTitle">空　車</div>
-  <div class="appbar-right">
-    <div class="gps-pill">
-      <div class="gps-dot" id="gpsDot"></div>
-      <span class="gps-acc" id="gpsAcc">GPS待機</span>
-    </div>
-    <div class="surcharge-badge" id="surchargeBadge" style="display:none;" onclick="toggleSurcharge()">
-      <span id="surchargeLabel">割増 ON</span>
-    </div>
-    <button class="menu-btn" id="menuBtn" onclick="event.stopPropagation();onMenuClick();return false;">≡</button>
-  </div>
+<div class="appbar">
+  <div class="appbar-back" onclick="location.href='index.html'">＜</div>
+  <div class="appbar-title">設定</div>
 </div>
 
-<!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
+<div class="wrap">
 
-<!-- チュートリアル（初回URL訪問時のみ） -->
-
-<div class="tutorial-overlay" id="tutorialOverlay">
-  <!-- ドット -->
-  <div class="tutorial-dots">
-    <div class="tutorial-dot active" id="tDot0"></div>
-    <div class="tutorial-dot" id="tDot1"></div>
-    <div class="tutorial-dot" id="tDot2"></div>
-  </div>
-
-  <!-- ページ1：ようこそ -->
-
-  <div class="tutorial-page show" id="tPage0">
-    <div class="tutorial-icon">🚗</div>
-    <div class="tutorial-title">ダイコメへようこそ</div>
-    <div class="tutorial-desc">運転代行専用の料金メーターアプリです。GPS計測で走行距離を自動計算し、正確な料金をリアルタイムで表示します。</div>
-    <div class="tutorial-steps">
-      <div class="tutorial-step"><div class="tutorial-step-num">1</div>代行開始ボタンで計測スタート</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">2</div>目的地到着で確定ボタンを押す（確定後もメーターは動き続けます）</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">3</div>空車ボタンで計測終了・料金が確定します</div>
-    </div>
-  </div>
-
-  <!-- ページ2：センサー許可 -->
-  <div class="tutorial-page" id="tPage1">
-    <div class="tutorial-icon">📡</div>
-    <div class="tutorial-title">精度向上のため<br>センサーを許可します</div>
-    <div class="tutorial-desc">ホーム画面に追加してアプリとして起動すると、コンパス・ジャイロが使えるようになります。次のステップでホーム画面に追加してください。</div>
-  </div>
-
-  <!-- ページ3：ホーム画面追加 -->
-
-  <div class="tutorial-page" id="tPage2">
-    <div class="tutorial-icon">📲</div>
-    <div class="tutorial-title">ホーム画面に追加して<br>アプリとして使おう</div>
-    <div class="tutorial-desc">ホーム画面に追加すると、次回からアイコンで素早く起動できます。</div>
-    <div class="tutorial-steps">
-      <div class="tutorial-step" style="font-weight:700;opacity:0.7;font-size:12px;padding-bottom:2px;">🍎 iPhoneの場合</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">1</div>Safariの「共有」ボタンをタップ</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">2</div>「ホーム画面に追加」をタップ</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">3</div>「追加」をタップ</div>
-    </div>
-    <div class="tutorial-steps" style="margin-top:10px;">
-      <div class="tutorial-step" style="font-weight:700;opacity:0.7;font-size:12px;padding-bottom:2px;">🤖 Androidの場合</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">1</div>Chromeの「⋮」をタップ</div>
-      <div class="tutorial-step"><div class="tutorial-step-num">2</div>「インストール」をタップ</div>
-    </div>
-    <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;width:100%;">
-      <a href="https://support.apple.com/ja-jp/guide/iphone/iph42ab2f3a7/ios" target="_blank" style="color:rgba(255,255,255,0.8);font-size:12px;text-align:center;text-decoration:underline;">▶ iPhone 詳しい手順（Apple公式）</a>
-      <a href="https://support.google.com/chrome/answer/9658361?hl=ja&co=GENIE.Platform%3DAndroid" target="_blank" style="color:rgba(255,255,255,0.8);font-size:12px;text-align:center;text-decoration:underline;">▶ Android 詳しい手順（Google公式）</a>
-    </div>
-  </div>
-
-  <!-- ボタンエリア -->
-
-  <div id="tNavArea" style="width:100%;">
-    <button class="tutorial-btn" onclick="tutorialNext()">次へ</button>
-  </div>
-</div>
-
-
-<div class="pwa-banner" id="pwaBanner">
-  <div class="pwa-banner-text">
-    <strong>📲 ホーム画面に追加してください</strong>
-    コンパス・ジャイロ・画面消灯防止が使えるようになります
-  </div>
-  <button class="pwa-banner-btn" onclick="showPwaInstructions()">追加方法</button>
-  <button class="pwa-banner-close" onclick="closePwaBanner()">✕</button>
-</div>
-
-<!-- コンテンツ -->
-
-<div class="content" id="content">
-
-  <!-- IDLE -->
-
-  <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;">
-    <div class="idle-datetime">
-      <div class="idle-time" id="clockTime">00:00</div>
-      <div class="idle-date" id="clockDate"></div>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">本日の距離</div>
-        <div class="stat-value"><span id="todayDist">0.0</span><span class="stat-unit">km</span></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">走行回数</div>
-        <div class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></div>
+  <!-- 自動リセット設定 -->
+  <div class="section">
+    <div class="section-title">自動リセット</div>
+    <div class="row">
+      <div class="row-label">リセット時間</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input class="row-input" type="time" id="resetTime" value="12:00" style="width:110px;">
       </div>
     </div>
-    <!-- 本日の履歴インライン表示 -->
-    <div id="inlineHistoryWrap" style="display:none;margin-top:12px;flex:1;min-height:0;flex-direction:column;overflow:hidden;">
-      <div style="font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;">本日の走行履歴</div>
-      <div id="inlineHistory" class="history-box"></div>
-    </div>
   </div>
 
-  <!-- DRIVING -->
-
-  <div id="screenDriving" style="display:none;">
-    <!-- リロード復元バナー（走行距離の真上） -->
-    <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
-    <div class="driving-grid">
-      <div class="meter-card">
-        <div class="meter-label">走行距離</div>
-        <div class="meter-value"><span id="driveDist">0.00</span><span class="meter-unit">km</span></div>
+  <!-- 料金設定 -->
+  <div class="section">
+    <div class="section-title">料金設定</div>
+    <div class="row">
+      <div class="row-label">初乗り料金</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="baseFare" value="1300">
+        <span class="row-unit">円</span>
       </div>
-      <div class="meter-card">
-        <div class="meter-label">現在料金</div>
-        <div class="meter-value fare">¥<span id="driveFare">0</span></div>
-        <div class="meter-sub" id="surchargeInfo" style="display:none;"></div>
+    </div>
+    <div class="row">
+      <div class="row-label">加算開始距離<br><span style="font-size:11px;color:#aaa;">この距離から加算（例：1000mで¥1,400）</span></div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="baseDist" value="1000">
+        <span class="row-unit">m未満</span>
       </div>
-      <div class="extras-list" id="extrasList"></div>
+    </div>
+    <div class="row">
+      <div class="row-label">加算距離</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="addDist" value="420">
+        <span class="row-unit">mごと</span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row-label">加算金額</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="addFare" value="100">
+        <span class="row-unit">円</span>
+      </div>
+    </div>
+    <div style="padding:12px 16px;">
+      <div class="preview" id="preview"></div>
     </div>
   </div>
 
-  <!-- FARE -->
-
-  <div id="screenFare" style="display:none;">
-    <div class="fare-total">
-      <div class="fare-total-label">合計料金</div>
-      <div class="fare-total-amount">¥<span id="fareTotalAmount">0</span></div>
+  <!-- 割増設定 -->
+  <div class="section">
+    <div class="section-title">割増設定</div>
+    <div class="row">
+      <div class="row-label">割増ボタンを表示</div>
+      <div class="toggle" id="surchargeToggle" onclick="toggleSurcharge()"></div>
     </div>
-    <div class="breakdown" id="breakdown"></div>
-    <button onclick="cancelFare()" style="
-      display:flex;align-items:center;gap:8px;
-      margin-top:14px;padding:8px 14px;
-      background:#fff;border:1.5px solid #FF3B30;
-      border-radius:8px;color:#FF3B30;
-      font-size:13px;font-weight:700;
-      font-family:'Noto Sans JP',sans-serif;cursor:pointer;
-      margin-left:auto;margin-right:auto;">
-      ← 走行に戻る
-      <span style="font-size:11px;color:#aaa;font-weight:400;">（まだ到着していない場合）</span>
-    </button>
+    <div class="row" id="surchargeRateRow" style="display:none;">
+      <div class="row-label">割増率</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="surchargeRate" value="1.2" step="0.1" min="1.0">
+        <span class="row-unit">倍</span>
+      </div>
+    </div>
   </div>
+
+  <!-- 時間料金設定 -->
+  <div class="section">
+    <div class="section-title">時間料金（オプション）</div>
+    <div class="row">
+      <div class="row-label">時間料金を使用</div>
+      <div class="toggle" id="timeToggle" onclick="toggleTime()"></div>
+    </div>
+    <div class="row" id="timeRateRow" style="display:none;">
+      <div class="row-label">時間単価</div>
+      <div style="display:flex;align-items:center;">
+        <input class="row-input" type="number" id="timeRate" value="30">
+        <span class="row-unit">円/分</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 追加料金項目 -->
+  <div class="section">
+    <div class="section-title">追加料金項目</div>
+    <div id="extraItems"></div>
+    <div style="padding:8px 16px 16px;">
+      <button class="btn-add" onclick="addExtraItem()">＋ 項目を追加</button>
+    </div>
+  </div>
+
+  <!-- 活動エリア（Map Matching・2026/04/30追加） -->
+  <div class="section">
+    <div class="section-title">活動エリア（Map Matching）</div>
+    <div class="region-buttons">
+      <button class="region-btn" onclick="regionAuto()">📍 現在地</button>
+      <button class="region-btn" onclick="regionClear()">クリア</button>
+    </div>
+    <div class="region-summary">
+      <span class="count" id="regionCount">0</span> 県選択中
+      <span id="regionSize" style="margin-left:6px;color:#aaa;"></span>
+    </div>
+    <div id="regionList"></div>
+    <div class="row" style="border-top:0.5px solid #f0f0f0;">
+      <div class="row-label">自動判定も併用<br><span style="font-size:11px;color:#aaa;">県境を超えた時に現在地の県を自動追加</span></div>
+      <div class="toggle" id="autoRegionToggle" onclick="toggleAutoRegion()"></div>
+    </div>
+  </div>
+
+  <!-- ★テスト用・リリース時削除 -->
+  <div class="section" id="testLinkSection">
+    <div class="row" onclick="location.href='history.html'" style="cursor:pointer;">
+      <div class="row-label">📊 走行履歴・テスト集計</div>
+      <div style="color:#8E8E93;font-size:13px;">›</div>
+    </div>
+  </div>
+
+  <button class="btn-save" onclick="saveAll()">保　存</button>
+  <div class="save-msg" id="saveMsg"></div>
+
+  <!-- 端末警告文 -->
+  <p style="text-align:center;font-size:11px;color:#aaa;margin-top:16px;line-height:1.8;padding:0 8px;">
+    古い機種や低価格端末ではGPS精度が<br>低下する場合があります
+  </p>
 
 </div>
-
-<!-- ボタンエリア（固定・全画面共通） -->
-
-<div class="btn-area">
-  <!-- センサー未許可バナー（代行開始直上・全スマホ対応） -->
-  <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:center;">
-    <!-- iOS用（デフォルト） -->
-    <div id="sensorBannerIOS">
-      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
-        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
-        コンパス・ジャイロを許可することで<br>精度が大幅に向上します
-        <div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">
-          ⚠️ 次の画面で必ず「許可」を選んでください<br>
-          キャンセルした場合はアプリをタスクキルして再起動してください
-        </div>
-      </div>
-      <button id="sensorPermBtn" onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
-    </div>
-    <!-- Android用 -->
-    <div id="sensorBannerAndroid" style="display:none;">
-      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
-        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーについて</strong>
-        Androidはコンパス・ジャイロが<br>標準で使えます。タップして確認してください
-      </div>
-      <button onclick="confirmAndroidSensor()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">✅ センサーを確認する</button>
-    </div>
-  </div>
-  <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
-  <div class="btn-row">
-    <button class="btn-sub btn-idle" onclick="onIdle()">空車</button>
-    <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
-    <button class="btn-sub btn-confirm" onclick="onSend()">確定</button>
-  </div>
-</div>
-
-<!-- トースト通知 -->
-
-<div class="toast" id="toast"></div>
-
-<!-- 追加料金モーダル -->
-
-<div class="modal-overlay" id="modalOverlay">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">追加料金を選択</div>
-      <div class="modal-cancel" onclick="closeExtraModal()">キャンセル</div>
-    </div>
-    <div class="modal-items" id="modalItems"></div>
-    <div class="modal-custom" style="margin-top:8px;">
-      <span>任意入力</span>
-      <input type="number" id="customAmount" placeholder="0" inputmode="numeric">
-      <button class="modal-custom-btn" onclick="addCustomExtra()">追加料金</button>
-    </div>
-  </div>
-</div>
-
-<script>
-// NoSleep自前実装（WakeLock API優先・AudioContextフォールバック）
-class NoSleep {
-  constructor(){
-    this._wakeLock = null;
-    this._audioCtx = null;
-    this._enabled = false;
-  }
-  async enable(){
-    if(this._enabled) return;
-    // ① WakeLock API（iOS 16.4+ / Chrome 84+）
-    if('wakeLock' in navigator){
-      try{
-        this._wakeLock = await navigator.wakeLock.request('screen');
-        this._enabled = true;
-        console.log('[NoSleep] WakeLock有効');
-        // 画面表示時に再取得
-        document.addEventListener('visibilitychange', this._relock.bind(this));
-        return;
-      }catch(e){ console.log('[NoSleep] WakeLock失敗:', e.message); }
-    }
-    // ② AudioContextフォールバック（iOS 15以前）
-    try{
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if(AC){
-        this._audioCtx = new AC();
-        const osc = this._audioCtx.createOscillator();
-        const gain = this._audioCtx.createGain();
-        gain.gain.value = 0.001; // 極小音（完全無音だとiOSがスリープさせる）
-        osc.connect(gain);
-        gain.connect(this._audioCtx.destination);
-        osc.start();
-        this._enabled = true;
-        console.log('[NoSleep] AudioContext有効');
-        return;
-      }
-    }catch(e){ console.log('[NoSleep] AudioContext失敗:', e.message); }
-    console.log('[NoSleep] 全フォールバック失敗');
-  }
-  async _relock(){
-    if(document.visibilityState === 'visible' && this._wakeLock){
-      try{ this._wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
-    }
-  }
-  disable(){
-    if(!this._enabled) return;
-    document.removeEventListener('visibilitychange', this._relock.bind(this));
-    if(this._wakeLock){ try{ this._wakeLock.release(); }catch(e){} this._wakeLock = null; }
-    if(this._audioCtx){ try{ this._audioCtx.close(); }catch(e){} this._audioCtx = null; }
-    this._enabled = false;
-    console.log('[NoSleep] 解除');
-  }
-}</script>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
-<script src="js/debug-config.js"></script>
-
-<!-- ★debug-config.js：環境変数制御・本番自動OFF（2026/04/26追加） -->
-
-<script src="js/compat.js"></script>
-
-<!-- ★compat.js：端末互換性判定レイヤー・古いスマホ対応基盤（2026/04/29追加） -->
-
 <script src="js/firebase-config.js"></script>
-
-<script src="js/roads-decoder.js"></script>
-
-<!-- ★roads-decoder.js：道路データデコーダー・Map Matching用（2026/04/30追加） -->
-
-<script src="js/region-loader.js"></script>
-
-<script src="js/gps.js"></script>
-
-<!-- OSRM削除済（2026/04/26）：公開API依存ゼロ化・スケール無制限化のため -->
-
-<script src="js/meter.js"></script>
-
 <script src="js/firebase.js"></script>
-
-<script src="js/test-mode.js"></script>
-
-<!-- ★テスト用・リリース時削除（2026/04/26追加）-->
-
 <script>
-// ─── 状態 ───
-let appState = 'idle'; // idle / driving / fare
-let histSaved = false; // 確定時の履歴保存済みフラグ
-let noSleep = null;       // NoSleepインスタンス
-let dimTimer = null;      // 空車時の画面暗転タイマー
-const DIM_MINUTES = 300;  // 空車5時間(300分)で暗転
-let surchargeOn = false;
-let surchargeRate = 1.2;
 let surchargeEnabled = false;
-let extras = [];
-let todayDist = 0;
-let todayCount = 0;
-let uiTimer = null;
-let vehicleId = 'v1';
+let timeEnabled = false;
+let extraItems = [];
 
-// ─── リロード復元 ───
-function checkDrivingRestore(){
-  try {
-    const raw = localStorage.getItem('daikou_driving_state');
-    if(!raw) return;
-    const saved = JSON.parse(raw);
-    // 24時間超は無効・削除
-    if(Date.now() - saved.saved_at > 24 * 60 * 60 * 1000){
-      localStorage.removeItem('daikou_driving_state');
-      return;
-    }
-    // 走行状態を復元
-    appState = 'driving';
-    Meter.start();
-    Meter.setDistance(saved.distance_m);
-    // 最終GPS状態をセット（層3・GPS消失補完を復元後に自動発火させる）
-    if(saved.last_lat && saved.last_gps_at){
-      Meter.setLastGps(
-        saved.last_lat, saved.last_lng, saved.last_altitude,
-        saved.last_speed_kmh, saved.last_gps_at
-      );
-    }
-    // 補完検知用：復元時の距離を保持（GPS再取得後にバナーを更新）
-    window._restoreDistanceM = saved.distance_m;
-    window._restoreFareYen   = saved.fare_yen;
-    showScreen('driving');
-    document.getElementById('appbarTitle').textContent = '代行中';
-    // GPS・UIタイマー再起動
-    startGPS();
-    startUiTimer();
-    // 緑バナー表示
-    document.getElementById('restoreBanner').classList.add('show');
-    console.log('[復元] 走行を再開しました');
-  } catch(e){
-    console.error('[復元] エラー:', e);
-    localStorage.removeItem('daikou_driving_state');
+// 活動エリア（Map Matching・2026/04/30追加）
+const REGION_GROUPS = [
+  { name: '北海道', prefs: [['hokkaido','北海道']] },
+  { name: '東北', prefs: [
+    ['aomori','青森県'],['iwate','岩手県'],['miyagi','宮城県'],
+    ['akita','秋田県'],['yamagata','山形県'],['fukushima','福島県']
+  ]},
+  { name: '関東', prefs: [
+    ['ibaraki','茨城県'],['tochigi','栃木県'],['gunma','群馬県'],
+    ['saitama','埼玉県'],['chiba','千葉県'],['tokyo','東京都'],['kanagawa','神奈川県']
+  ]},
+  { name: '中部', prefs: [
+    ['niigata','新潟県'],['toyama','富山県'],['ishikawa','石川県'],
+    ['fukui','福井県'],['yamanashi','山梨県'],['nagano','長野県'],
+    ['gifu','岐阜県'],['shizuoka','静岡県'],['aichi','愛知県']
+  ]},
+  { name: '近畿', prefs: [
+    ['mie','三重県'],['shiga','滋賀県'],['kyoto','京都府'],
+    ['osaka','大阪府'],['hyogo','兵庫県'],['nara','奈良県'],['wakayama','和歌山県']
+  ]},
+  { name: '中国', prefs: [
+    ['tottori','鳥取県'],['shimane','島根県'],['okayama','岡山県'],
+    ['hiroshima','広島県'],['yamaguchi','山口県']
+  ]},
+  { name: '四国', prefs: [
+    ['tokushima','徳島県'],['kagawa','香川県'],['ehime','愛媛県'],['kochi','高知県']
+  ]},
+  { name: '九州・沖縄', prefs: [
+    ['fukuoka','福岡県'],['saga','佐賀県'],['nagasaki','長崎県'],
+    ['kumamoto','熊本県'],['oita','大分県'],['miyazaki','宮崎県'],
+    ['kagoshima','鹿児島県'],['okinawa','沖縄県']
+  ]}
+];
+let selectedRegions = new Set();
+let autoRegionEnabled = false;
+
+function load(){
+  FB.loadFareConfig(cfg=>{
+    if(cfg.base_fare)       document.getElementById('baseFare').value = cfg.base_fare;
+    if(cfg.base_distance_m) document.getElementById('baseDist').value  = cfg.base_distance_m;
+    if(cfg.add_distance_m)  document.getElementById('addDist').value   = cfg.add_distance_m;
+    if(cfg.add_fare)        document.getElementById('addFare').value    = cfg.add_fare;
+    updatePreview();
+  });
+  const s = localStorage.getItem('daikou_settings');
+  if(s){
+    const obj = JSON.parse(s);
+    surchargeEnabled = obj.surchargeEnabled || false;
+    timeEnabled      = obj.timeEnabled      || false;
+    if(obj.surchargeRate) document.getElementById('surchargeRate').value = obj.surchargeRate;
+    if(obj.timeRate)      document.getElementById('timeRate').value      = obj.timeRate;
+    if(obj.resetTime)     document.getElementById('resetTime').value      = obj.resetTime;
   }
-}
+  updateSurchargeUI();
+  updateTimeUI();
 
-// ─── 設定読み込み ───
-function loadSettings(){
-  FB.loadFareConfig(cfg => { Meter.setFareConfig(cfg); });
-
+  extraItems = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
   // 初回起動時にデフォルトのクイック追加料金をセット
-  // (一度も保存されていない=null の場合のみ)
   if(localStorage.getItem('daikou_extras') === null){
-    const defaultExtras = [
+    extraItems = [
       {name:'外車', amount:500},
       {name:'MT車', amount:500},
       {name:'左ハンドル', amount:1000},
@@ -645,791 +265,245 @@ function loadSettings(){
       {name:'迎車料金', amount:1000},
       {name:'キャンセル料', amount:2000}
     ];
-    localStorage.setItem('daikou_extras', JSON.stringify(defaultExtras));
+    localStorage.setItem('daikou_extras', JSON.stringify(extraItems));
   }
+  renderExtraItems();
+  updatePreview();
 
-  const s = localStorage.getItem('daikou_settings');
-  if(s){
-    const obj = JSON.parse(s);
-    surchargeEnabled = obj.surchargeEnabled || false;
-    surchargeRate    = obj.surchargeRate    || 1.2;
-    vehicleId        = obj.vehicleId        || 'v1';
-    // localStorageから料金設定も読み込む（Firebase未接続時の保険）
-    if(obj.baseFare){
-      Meter.setFareConfig({
-        base_fare:       obj.baseFare       || 1300,
-        base_distance_m: obj.baseDistanceM  || 1000,
-        add_distance_m:  obj.addDistanceM   || 420,
-        add_fare:        obj.addFare        || 100,
-      });
-    }
-  }
-  const td = localStorage.getItem('daikou_today');
-  if(td){
-    const obj = JSON.parse(td);
-    const today = new Date().toDateString();
-    if(obj.date === today){
-      todayDist  = obj.dist  || 0;
-      todayCount = obj.count || 0;
-    }
-  }
-  FB.setVehicleId(vehicleId);
-  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
-  document.getElementById('todayCount').textContent = todayCount;
-  if(surchargeEnabled) document.getElementById('surchargeBadge').style.display='flex';
-
-  // 自動リセットチェック
-  autoResetCheck();
-  // リロード復元チェック
-  checkDrivingRestore();
-  // 古い日付の履歴キーを削除（今日以外は不要）
-  cleanOldHistoryKeys();
+  // 活動エリア読み込み（2026/04/30追加）
+  loadRegions();
+  renderRegions();
 }
 
-// ─── 古い履歴キー自動削除（今日以外は不要） ───
-function cleanOldHistoryKeys(){
-  const today = 'daikou_history_' + new Date().toDateString();
-  const toDelete = [];
-  for(let i = 0; i < localStorage.length; i++){
-    const key = localStorage.key(i);
-    if(key && key.startsWith('daikou_history_') && key !== today){
-      toDelete.push(key);
-    }
-  }
-  toDelete.forEach(k => localStorage.removeItem(k));
-  if(toDelete.length > 0) dlog('[Cleanup] 古い履歴キー削除:', toDelete.length + '件');
-}
-
-function autoResetCheck(){
-  const s = localStorage.getItem('daikou_settings');
-  const resetTime = s ? (JSON.parse(s).resetTime || '12:00') : '12:00';
-  const [resetH, resetM] = resetTime.split(':').map(Number);
-
-  const now = new Date();
-  const resetToday = new Date(now);
-  resetToday.setHours(resetH, resetM, 0, 0);
-
-  // 最後の仕事開始時刻を取得
-  const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
-
-  // リセット条件：
-  // ① 現在時刻がリセット時間を過ぎている
-  // ② 最後の仕事開始がリセット時間より前
-  // ③ 最後の仕事開始が昨日以前（当日仕事中の誤リセット防止）
-  // lastStartが今日のリセット時間より前ならリセット
-  if(now >= resetToday && (lastStart === 0 || lastStart < resetToday.getTime())){
-    // リセット実行
-    todayDist = 0;
-    todayCount = 0;
-    localStorage.setItem('daikou_today', JSON.stringify({
-      date: now.toDateString(), dist: 0, count: 0
-    }));
-    // 当日の履歴もクリア
-    const histKey = 'daikou_history_' + now.toDateString();
-    localStorage.removeItem(histKey);
-    document.getElementById('todayDist').textContent  = '0.0';
-    document.getElementById('todayCount').textContent = '0';
-  }
-}
-
-// ─── 時計 ───
-function updateClock(){
-  const now = new Date();
-  const h = now.getHours().toString().padStart(2,'0');
-  const m = now.getMinutes().toString().padStart(2,'0');
-  const days=['日','月','火','水','木','金','土'];
-  document.getElementById('clockTime').textContent = h+':'+m;
-  document.getElementById('clockDate').textContent =
-    now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日（'+days[now.getDay()]+'）';
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-// ─── GPS（代行開始時に初めて起動） ───
-let gpsStarted = false;
-function startGPS(){
-  if(gpsStarted) return;
-  gpsStarted = true;
+// ─── 活動エリア（Map Matching）2026/04/30追加 ───
+function loadRegions(){
   try {
-    GPS.start(function(g){
-      try {
-        const dot = document.getElementById('gpsDot');
-        dot.className = 'gps-dot ok';
-        document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
-        if(appState==='driving' || appState==='fare') Meter.update(g);
-        // 復元後の補完検知：距離・料金が変わったらバナーを更新
-        if(window._restoreDistanceM != null){
-          const cur = Meter.getState();
-          const addedM  = Math.round(cur.distance_m - window._restoreDistanceM);
-          const addedYen = cur.fare_yen - window._restoreFareYen;
-          if(addedM > 0){
-            const banner = document.getElementById('restoreBanner');
-            banner.textContent = '✅ 走行データを復元しました（+' + addedM + 'm・¥' + addedYen.toLocaleString() + '補完）';
-            window._restoreDistanceM = null;
-            window._restoreFareYen   = null;
-          }
-        }
-        // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
-        if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
-        // TestMode：走行中のみ位置記録（★テスト用・リリース時削除）
-        if(typeof TestMode !== 'undefined' && appState==='driving') TestMode.recordPosition(g.lat, g.lng);
-      } catch(e){ console.error('GPS callback error:', e); }
-    });
-  } catch(e){ console.error('GPS start error:', e); }
-}
-
-// ─── UIタイマー ───
-function startUiTimer(){
-  uiTimer = setInterval(()=>{
-    const s = Meter.getState();
-    let fare = s.fare_yen;
-    if(surchargeOn) fare = Math.round(fare * surchargeRate);
-    let extraTotal = extras.reduce((a,b)=>a+b.amount,0);
-    let total = fare + extraTotal;
-
-    document.getElementById('driveDist').textContent = (s.distance_m/1000).toFixed(2);
-    document.getElementById('driveFare').textContent = total.toLocaleString();
-
-    // 確定画面でもリアルタイム更新
-    if(appState==='fare'){
-      document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
-      renderFare(s, fare, extraTotal, total);
+    const saved = localStorage.getItem('daikou_user_regions');
+    if(saved){
+      const arr = JSON.parse(saved);
+      if(Array.isArray(arr)) selectedRegions = new Set(arr);
     }
-
-    if(surchargeOn){
-      const base = s.fare_yen;
-      const diff = fare - base;
-      document.getElementById('surchargeInfo').style.display='block';
-      document.getElementById('surchargeInfo').textContent = '+'+diff.toLocaleString()+'円（割増）';
-    } else {
-      document.getElementById('surchargeInfo').style.display='none';
-    }
-
-    renderExtras();
-
-    // Firebase送信（2秒ごと）
-    if(s.elapsed_sec%2===0){
-      FB.updateVehicle({ status:'driving',
-        session:{ distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec }});
-    }
-    // 走行状態をlocalStorageに保存（リロード復元用）
-    const ms = Meter.getState();
-    localStorage.setItem('daikou_driving_state', JSON.stringify({
-      distance_m:    s.distance_m,
-      fare_yen:      total,
-      saved_at:      Date.now(),
-      last_lat:      ms.last_gps ? ms.last_gps.lat      : null,
-      last_lng:      ms.last_gps ? ms.last_gps.lng      : null,
-      last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
-      last_speed_kmh: ms.last_speed_kmh || 0,
-      last_gps_at:   ms.last_timestamp || null,
-    }));
-  },500);
-}
-
-function renderExtras(){
-  const el = document.getElementById('extrasList');
-  el.innerHTML = extras.map((e,i)=>
-    `<div class="extra-item" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>${e.name}</span>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <span>+¥${e.amount.toLocaleString()}</span>
-        <button class="extra-del-btn" onclick="removeExtra(${i})">✕</button>
-      </div>
-    </div>`
-  ).join('');
-}
-
-function removeExtra(i){
-  extras.splice(i, 1);
-  renderExtras();
-}
-
-function fmt(sec){
-  return Math.floor(sec/60).toString().padStart(2,'0')+':'+
-         (sec%60).toString().padStart(2,'0');
-}
-
-// ─── メインボタン ───
-function onMainBtn(){
-  // iOSでセンサー未許可の場合はブロック（コンパス＋動きセンサー両方必須・Androidは自動許可済み）
-  if(_isIOS && window.navigator.standalone === true && (!window._compassGranted || !window._motionGranted)){
-    const sb = document.getElementById('sensorBanner');
-    if(sb){ sb.style.display = 'block'; sb.scrollIntoView({behavior:'smooth'}); }
-    return;
+    autoRegionEnabled = localStorage.getItem('daikou_user_auto_region') === 'true';
+  } catch(e){
+    console.error('loadRegions error:', e);
   }
-  // 第1層：iOS PWA で許可済みフラグありの場合、念のため permission 再確認（2026/04/30追加）
-  // → granted なら何も起きない（ダイアログ出ない・体験変わらず）
-  // → permission期限切れなら自動でダイアログ → ユーザー許可で復活
-  if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
-    refreshSensorPermission();
-  }
-  if(appState==='idle'){
-    // 代行開始
-    appState='driving';
-    extras=[];
-    surchargeOn=false;
-    // UI更新を先に行う
-    showScreen('driving');
-    document.getElementById('appbarTitle').textContent='代行中';
-    // 仕事開始時刻を記録（自動リセット判定用）
-    localStorage.setItem('daikou_last_start', Date.now().toString());
-    // NoSleep起動（画面消灯防止）
-    if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e=>console.log("NoSleep error:",e));
-    // 暗転タイマーをクリア・画面を戻す
-    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
-    document.documentElement.style.filter = '';
-    // GPS・計算・Firebase
-    startGPS();
-    try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
-    try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
-    // TestMode：走行開始記録（★テスト用・リリース時削除）
-    try { if(typeof TestMode !== 'undefined') TestMode.startTrip(); } catch(e){ console.error('TestMode start error:', e); }
-    startUiTimer();
-  } else if(appState==='driving'){
-    // 代行開始ボタンを再押し → 何もしない（Drivingのまま）
-  }
+  updateAutoRegionUI();
 }
 
-function renderFare(s, fare, extraTotal, total){
-  document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
-  const cfg = Meter.getFareConfig();
+function renderRegions(){
+  const el = document.getElementById('regionList');
   let html = '';
-  html += row('基本料金', '¥'+cfg.base_fare.toLocaleString());
-  html += row('距離料金', '¥'+(s.fare_yen - cfg.base_fare).toLocaleString());
-  if(surchargeOn){
-    const diff = fare - s.fare_yen;
-    html += row('割増', '+¥'+diff.toLocaleString(), 'surcharge');
-  }
-  extras.forEach(e=>{ html += row(e.name, '+¥'+e.amount.toLocaleString(), 'extra'); });
-  html += '<hr class="breakdown-divider">';
-  html += row('走行距離', (s.distance_m/1000).toFixed(2)+'km');
-  html += row('経過時間', Math.floor(s.elapsed_sec/60)+'分');
-  document.getElementById('breakdown').innerHTML = html;
-
-  // 今日の実績・履歴は1回だけ保存
-  if(!histSaved){
-    histSaved = true;
-    todayDist  += s.distance_m;
-    todayCount += 1;
-    localStorage.setItem('daikou_today', JSON.stringify({
-      date:new Date().toDateString(), dist:todayDist, count:todayCount
-    }));
-    const now = new Date();
-    const histKey = 'daikou_history_' + now.toDateString();
-    const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
-    hist.push({
-      time: now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0'),
-      distance_m: Math.round(s.distance_m),
-      fare: total,
-      surcharge: surchargeOn,
-      extras: [...extras]
-    });
-    localStorage.setItem(histKey, JSON.stringify(hist));
-  }
-}
-
-function row(lbl,val,cls=''){
-  return `<div class="breakdown-row"><span class="lbl">${lbl}</span><span class="val ${cls}">${val}</span></div>`;
-}
-
-// ─── 空車ボタン ───
-function onIdle(){
-  if(appState==='driving'){
-    // 走行中は空車に戻れない
-    showToast('先に「確定」を押してください');
-    return;
-  }
-  // 空車成立時の補正用データを取得（reset前に）
-  let correctionDistanceM = 0;
-  let correctionTotal = 0;
-  if(appState==='fare'){
-    const s = Meter.getState();
-    correctionDistanceM = s.distance_m;
-    let fare = s.fare_yen;
-    if(surchargeOn) fare = Math.round(fare * surchargeRate);
-    correctionTotal = fare + extras.reduce((a,b)=>a+b.amount,0);
-    // TestMode：走行終了記録（★テスト用・リリース時削除）
-    try { if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); } catch(e){ console.error('TestMode end error:', e); }
-
-    // ─── 走行サマリートースト（5秒表示）───
-    try {
-      const logs = (typeof TestMode !== 'undefined') ? TestMode.getLogs() : [];
-      const lastLog = logs[logs.length - 1];
-      const hasPosData = lastLog && lastLog.start_pos && lastLog.end_pos;
-      const gapCount = s.gap_fill_count || 0;
-      const gapM    = Math.round(s.gap_fill_total_m || 0);
-      const lines = [
-        `✅ ${(correctionDistanceM/1000).toFixed(2)}km ¥${correctionTotal.toLocaleString()}`,
-        gapCount > 0 ? `GPS補完: ${gapCount}回（${gapM}m）` : 'GPS補完: なし',
-        hasPosData ? '座標: 取得済 ✅' : '座標: 未取得 ⚠️（GPS圏外？）',
-      ].join('\n');
-      showToastLong(lines);
-    } catch(e){ /* サマリー表示エラーは無視 */ }
-
-    // 確定画面からのみ空車に戻れる
-    Meter.stop();
-    if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
-  }
-  appState='idle';
-  extras=[];
-  surchargeOn=false;
-  Meter.reset();
-  // リロード復元データ削除・バナー非表示
-  localStorage.removeItem('daikou_driving_state');
-  document.getElementById('restoreBanner').classList.remove('show');
-  try { FB.setIdle(); } catch(e){}
-  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
-  document.getElementById('todayCount').textContent = todayCount;
-  showScreen('idle');
-  renderInlineHistory();
-  document.getElementById('appbarTitle').textContent='空　車';
-  document.getElementById('surchargeInfo').style.display='none';
-  updateSurchargeBadge();
-  // 空車5時間後に画面暗転（NoSleepは継続・タイマーのみリセット）
-  if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
-  dimTimer = setTimeout(function(){
-    document.documentElement.style.filter = 'brightness(0)';
-  }, DIM_MINUTES * 60 * 1000);
-
-  // OSRM削除済（2026/04/26）：GPS+IMU融合エンジンへ移行
-}
-
-// ─── Menuボタン ───
-function onMenuClick(){
-  if(appState==='driving'){
-    showToast('走行中はMenuを開けません');
-    return;
-  }
-  location.href = 'settings.html';
-}
-
-// ─── 確定ボタン（旧Send）───
-function onSend(){
-  if(appState==='driving'){
-    // Driving中に確定を押したら → 確定画面へ（カウントは継続）
-    appState='fare';
-    histSaved = false;
-    const s = Meter.getState();
-    let fare = s.fare_yen;
-    if(surchargeOn) fare = Math.round(fare * surchargeRate);
-    let extraTotal = extras.reduce((a,b)=>a+b.amount,0);
-    let total = fare + extraTotal;
-    // Firebaseにfinished送信（サブ機に料金表示）
-    try {
-      FB.endSession({distance_m:s.distance_m, fare_yen:total, elapsed_sec:s.elapsed_sec});
-      FB.updateVehicle({status:'finished',
-        session:{distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec}});
-    } catch(e){ console.error(e); }
-    renderFare(s, fare, extraTotal, total);
-    showScreen('fare');
-    document.getElementById('appbarTitle').textContent='料　金';
-  } else if(appState==='fare'){
-    // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
-  }
-}
-
-// OSRM補正関数は削除（2026/04/26）
-// 理由：公開API依存ゼロ化・スケール無制限化・将来1000社規模でも安定
-// 代替：GPS + IMU融合エンジン（imu.js）で精度を保つ
-
-// ─── 画面暗転解除 ───
-function wakeScreen(){
-  if(document.documentElement.style.filter === 'brightness(0)'){
-    document.documentElement.style.filter = '';
-    // タイマーリセット（もう5時間）
-    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
-    dimTimer = setTimeout(function(){
-      document.documentElement.style.filter = 'brightness(0)';
-    }, DIM_MINUTES * 60 * 1000);
-    // 走行中・確定中なら復帰補正を発火
-    if(appState === 'driving' || appState === 'fare'){
-      const s = Meter.getState();
-      window._restoreDistanceM = s.distance_m;
-      window._restoreFareYen   = s.fare_yen;
-      document.getElementById('restoreBanner').classList.add('show');
-      document.getElementById('restoreBanner').textContent = '✅ 走行データを復元しました';
+  for(const group of REGION_GROUPS){
+    html += '<div class="region-group">';
+    html += '<div class="region-group-header">' + group.name + '</div>';
+    for(const [key, name] of group.prefs){
+      const checked = selectedRegions.has(key);
+      html += '<label class="region-pref' + (checked ? ' checked' : '') + '" data-key="' + key + '">';
+      html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="toggleRegion(\'' + key + '\', this.checked)">';
+      html += '<span class="region-pref-name">' + name + '</span>';
+      html += '</label>';
     }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+  updateRegionSummary();
+}
+
+function toggleRegion(key, checked){
+  if(checked) selectedRegions.add(key);
+  else selectedRegions.delete(key);
+  // クラスも更新（太字表示）
+  const label = document.querySelector('.region-pref[data-key="' + key + '"]');
+  if(label) label.className = 'region-pref' + (checked ? ' checked' : '');
+  updateRegionSummary();
+}
+
+function updateRegionSummary(){
+  const count = selectedRegions.size;
+  document.getElementById('regionCount').textContent = count;
+  // データサイズ概算（県平均2MB）
+  const sizeMB = count * 2;
+  const sizeEl = document.getElementById('regionSize');
+  if(count === 0){
+    sizeEl.textContent = '';
+  } else {
+    sizeEl.textContent = '（約' + sizeMB + 'MB）';
   }
 }
 
-// ─── トースト通知 ───
-function showToast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(()=>{ t.classList.remove('show'); }, 2000);
-}
-
-// ─── 長めのトースト（走行サマリー用・5秒・改行対応） ───
-function showToastLong(msg){
-  const t = document.getElementById('toast');
-  t.style.whiteSpace = 'pre-line';
-  t.style.textAlign  = 'left';
-  t.style.fontSize   = '13px';
-  t.style.lineHeight = '1.8';
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(()=>{
-    t.classList.remove('show');
-    t.style.whiteSpace = '';
-    t.style.textAlign  = '';
-    t.style.fontSize   = '';
-    t.style.lineHeight = '';
-  }, 5000);
-}
-
-// ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
-function cancelFare(){
-  appState='driving';
-  histSaved = false; // 再走行するので保存フラグリセット
-  // Meterは止めていないのでresume不要
-  try { FB.updateVehicle({status:'driving'}); } catch(e){ console.error(e); }
-  showScreen('driving');
-  document.getElementById('appbarTitle').textContent='代行中';
-}
-
-// ─── 割増トグル ───
-function toggleSurcharge(){
-  surchargeOn = !surchargeOn;
-  updateSurchargeBadge();
-}
-function updateSurchargeBadge(){
-  const badge = document.getElementById('surchargeBadge');
-  if(!surchargeEnabled){ badge.style.display='none'; return; }
-  badge.style.display='flex';
-  // デフォルトOFF：グレー、押してON：赤
-  badge.style.background = surchargeOn ? '#FF3B30' : '#8E8E93';
-  document.getElementById('surchargeLabel').textContent = surchargeOn ? '割増 ON' : '割増 OFF';
-}
-
-// ─── 追加料金モーダル ───
-function openExtraModal(){
-  const items = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
-  const el = document.getElementById('modalItems');
-  el.innerHTML = items.map((item,i)=>
-    `<div class="modal-item" onclick="addExtra(${i})">
-      <span class="modal-item-name">${item.name}</span>
-      <span class="modal-item-price">+¥${item.amount.toLocaleString()}</span>
-    </div>`
-  ).join('');
-  document.getElementById('customAmount').value='';
-  document.getElementById('modalOverlay').classList.add('show');
-}
-
-function closeExtraModal(){
-  document.getElementById('modalOverlay').classList.remove('show');
-}
-
-function addExtra(i){
-  const items = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
-  extras.push({name:items[i].name, amount:items[i].amount});
-  closeExtraModal();
-}
-
-function addCustomExtra(){
-  const v = parseInt(document.getElementById('customAmount').value);
-  if(!v||v<=0) return;
-  extras.push({name:'任意追加', amount:v});
-  closeExtraModal();
-}
-
-// ─── 本日の履歴インライン表示 ───
-function renderInlineHistory(){
-  const today = new Date();
-  const key = 'daikou_history_' + today.toDateString();
-  const rides = JSON.parse(localStorage.getItem(key) || '[]');
-  const el = document.getElementById('inlineHistory');
-  const wrap = document.getElementById('inlineHistoryWrap');
-  if(!el || !wrap) return;
-  if(rides.length === 0){
-    el.innerHTML = '';
-    wrap.style.display = 'none';
+function regionAuto(){
+  if(!navigator.geolocation){
+    alert('位置情報が使えません');
     return;
   }
-  wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
-  el.innerHTML = rides.map((r,i)=>`
-    <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;
-      display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-      <div>
-        <span style="font-size:11px;color:#aaa;">${i+1}回目　${r.time}</span><br>
-        <span style="font-size:13px;color:#555;">${(r.distance_m/1000).toFixed(2)}km</span>
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const pref = nearestPrefecture(pos.coords.latitude, pos.coords.longitude);
+      if(pref){
+        selectedRegions.add(pref);
+        renderRegions();
+      } else {
+        alert('現在地の都道府県を判定できませんでした');
+      }
+    },
+    (err)=>{
+      alert('位置情報取得失敗: ' + err.message);
+    },
+    { timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+function regionClear(){
+  if(selectedRegions.size === 0) return;
+  if(!confirm('全ての選択を解除しますか？')) return;
+  selectedRegions.clear();
+  renderRegions();
+}
+
+function toggleAutoRegion(){
+  autoRegionEnabled = !autoRegionEnabled;
+  updateAutoRegionUI();
+}
+function updateAutoRegionUI(){
+  document.getElementById('autoRegionToggle').className = 'toggle' + (autoRegionEnabled ? ' on' : '');
+}
+
+// 都道府県判定（重心からの近傍・region-loader.js と同じロジック）
+const PREFECTURES_CENTER = {
+  hokkaido:[43.3,142.8],
+  aomori:[40.8,140.7],iwate:[39.7,141.2],miyagi:[38.3,140.9],
+  akita:[39.7,140.4],yamagata:[38.2,140.0],fukushima:[37.4,140.2],
+  ibaraki:[36.4,140.4],tochigi:[36.7,139.9],gunma:[36.4,139.0],
+  saitama:[35.9,139.4],chiba:[35.5,140.2],tokyo:[35.7,139.7],kanagawa:[35.4,139.4],
+  niigata:[37.5,138.9],toyama:[36.6,137.2],ishikawa:[36.6,136.7],
+  fukui:[35.8,136.2],yamanashi:[35.6,138.6],nagano:[36.2,138.0],
+  gifu:[35.6,137.0],shizuoka:[34.9,138.4],aichi:[35.1,137.0],
+  mie:[34.6,136.5],shiga:[35.1,136.1],kyoto:[35.2,135.7],
+  osaka:[34.6,135.5],hyogo:[35.0,134.9],nara:[34.4,135.8],wakayama:[33.8,135.5],
+  tottori:[35.4,134.0],shimane:[35.0,132.8],okayama:[34.9,133.8],
+  hiroshima:[34.5,132.7],yamaguchi:[34.2,131.6],
+  tokushima:[33.9,134.4],kagawa:[34.3,134.0],ehime:[33.7,132.9],kochi:[33.5,133.5],
+  fukuoka:[33.6,130.7],saga:[33.3,130.1],nagasaki:[32.9,129.9],
+  kumamoto:[32.7,130.7],oita:[33.2,131.4],miyazaki:[32.0,131.4],
+  kagoshima:[31.4,130.6],okinawa:[26.5,128.0]
+};
+function nearestPrefecture(lat, lng){
+  let best = null, bestDist = Infinity;
+  for(const pref in PREFECTURES_CENTER){
+    const c = PREFECTURES_CENTER[pref];
+    const dLat = lat - c[0], dLng = lng - c[1];
+    const d = dLat*dLat + dLng*dLng;
+    if(d < bestDist){ bestDist = d; best = pref; }
+  }
+  return best;
+}
+
+// 料金プレビュー
+['baseFare','baseDist','addDist','addFare'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', updatePreview);
+});
+
+function updatePreview(){
+  const bf = parseInt(document.getElementById('baseFare').value)||1300;
+  const bd = parseInt(document.getElementById('baseDist').value)||1000;
+  const ad = parseInt(document.getElementById('addDist').value)||420;
+  const af = parseInt(document.getElementById('addFare').value)||100;
+  let html = '';
+  html += `<span style="color:#aaa;">0m 〜 ${bd-1}m</span>　→　<span class="val">¥${bf.toLocaleString()}</span><br>`;
+  for(let i=0; i<6; i++){
+    const from = bd + ad * i;
+    const to   = bd + ad * (i+1) - 1;
+    const fare = bf + (i+1) * af;
+    html += `<span style="color:#aaa;">${from}m 〜 ${to}m</span>　→　<span class="val">¥${fare.toLocaleString()}</span><br>`;
+  }
+  document.getElementById('preview').innerHTML=html;
+}
+
+function toggleSurcharge(){
+  surchargeEnabled=!surchargeEnabled;
+  updateSurchargeUI();
+}
+function updateSurchargeUI(){
+  document.getElementById('surchargeToggle').className='toggle'+(surchargeEnabled?' on':'');
+  document.getElementById('surchargeRateRow').style.display=surchargeEnabled?'flex':'none';
+}
+
+function toggleTime(){
+  timeEnabled=!timeEnabled;
+  updateTimeUI();
+}
+function updateTimeUI(){
+  document.getElementById('timeToggle').className='toggle'+(timeEnabled?' on':'');
+  document.getElementById('timeRateRow').style.display=timeEnabled?'flex':'none';
+}
+
+function renderExtraItems(){
+  const el=document.getElementById('extraItems');
+  el.innerHTML=extraItems.map((item,i)=>`
+    <div class="extra-item">
+      <input class="extra-name" type="text" value="${item.name}" placeholder="項目名（例：高速料金A）"
+        oninput="extraItems[${i}].name=this.value">
+      <div class="extra-item-row">
+        <input class="extra-amount" type="number" value="${item.amount||''}" placeholder="0"
+          inputmode="numeric"
+          oninput="extraItems[${i}].amount=parseInt(this.value)||0">
+        <span class="extra-unit">円</span>
+        <button class="extra-del" onclick="removeExtra(${i})">削除</button>
       </div>
-      <span style="font-size:16px;font-weight:900;color:#111;">¥${r.fare.toLocaleString()}</span>
     </div>
   `).join('');
 }
 
-// ─── 画面切替 ───
-function showScreen(name){
-  // screenIdleはflexレイアウトなのでflexで表示
-  document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
-  document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
-  document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
+function addExtraItem(){
+  extraItems.push({name:'',amount:0});
+  renderExtraItems();
 }
 
-// ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
-document.addEventListener('visibilitychange', function(){
-  if(document.hidden && appState === 'driving'){
-    try {
-      const s  = Meter.getState();
-      const ms = Meter.getState();
-      let fare = s.fare_yen;
-      if(surchargeOn) fare = Math.round(fare * surchargeRate);
-      const extraTotal = extras.reduce((a,b)=>a+b.amount, 0);
-      const total = fare + extraTotal;
-      localStorage.setItem('daikou_driving_state', JSON.stringify({
-        distance_m:    s.distance_m,
-        fare_yen:      total,
-        saved_at:      Date.now(),
-        last_lat:      ms.last_gps ? ms.last_gps.lat      : null,
-        last_lng:      ms.last_gps ? ms.last_gps.lng      : null,
-        last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
-        last_speed_kmh: ms.last_speed_kmh || 0,
-        last_gps_at:   ms.last_timestamp || null,
-      }));
-      dlog('[復元] 裏に回った瞬間を保存');
-    } catch(e){ console.error('[復元] visibilitychange保存エラー:', e); }
-  }
-});
-
-loadSettings();
-try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
-renderInlineHistory();
-
-// ─── PWAバナー（ホーム画面追加促進） ───
-(function(){
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isInstalled = window.navigator.standalone === true;
-  const isDismissed = localStorage.getItem('pwa_banner_dismissed');
-  if(isIOS && !isInstalled && !isDismissed){
-    document.getElementById('pwaBanner').classList.add('show');
-  }
-})();
-
-function closePwaBanner(){
-  document.getElementById('pwaBanner').classList.remove('show');
-  localStorage.setItem('pwa_banner_dismissed', '1');
+function removeExtra(i){
+  extraItems.splice(i,1);
+  renderExtraItems();
 }
 
-function showPwaInstructions(){
-  alert('① 画面下の「共有」ボタン（□↑）をタップ\n② 「ホーム画面に追加」を選択\n③「追加」をタップ\n\nホーム画面のアイコンから起動するとコンパス・ジャイロが使えます！');
-}
+function saveAll(){
+  try {
+    const cfg={
+      base_fare:      parseInt(document.getElementById('baseFare').value)||1300,
+      base_distance_m:parseInt(document.getElementById('baseDist').value)||1000,
+      add_distance_m: parseInt(document.getElementById('addDist').value)||420,
+      add_fare:       parseInt(document.getElementById('addFare').value)||100,
+    };
 
-// ─── チュートリアル（初回URL訪問時のみ） ───
-(function(){
-  const done = localStorage.getItem('tutorial_done');
-  const isInstalled = window.navigator.standalone === true;
-  // PWAインストール済み（アイコンから起動）→ チュートリアル不要
-  if(isInstalled) return;
-  // 完了済みならスキップ
-  if(done) return;
-  // Safari初回訪問時のみ表示
-  document.getElementById('tutorialOverlay').classList.add('show');
-})();
+    // localStorage保存を先に実行（Firebaseより優先）
+    const settings={
+      vehicleId:        'v1',
+      surchargeEnabled: surchargeEnabled,
+      surchargeRate:    parseFloat(document.getElementById('surchargeRate').value)||1.2,
+      timeEnabled:      timeEnabled,
+      timeRate:         parseInt(document.getElementById('timeRate').value)||30,
+      baseFare:         cfg.base_fare,
+      baseDistanceM:    cfg.base_distance_m,
+      addDistanceM:     cfg.add_distance_m,
+      addFare:          cfg.add_fare,
+    };
+    settings.resetTime = document.getElementById('resetTime').value || '12:00';
+    localStorage.setItem('daikou_settings', JSON.stringify(settings));
+    localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
 
-let _tutorialPage = 0;
+    // 活動エリア保存（2026/04/30追加）
+    localStorage.setItem('daikou_user_regions', JSON.stringify(Array.from(selectedRegions)));
+    localStorage.setItem('daikou_user_auto_region', autoRegionEnabled ? 'true' : 'false');
 
-function tutorialNext(){
-  const pages = document.querySelectorAll('.tutorial-page');
-  const dots = document.querySelectorAll('.tutorial-dot');
-  pages[_tutorialPage].classList.remove('show');
-  dots[_tutorialPage].classList.remove('active');
-  _tutorialPage++;
-  if(_tutorialPage >= pages.length){
-    tutorialComplete();
-    return;
-  }
-  pages[_tutorialPage].classList.add('show');
-  dots[_tutorialPage].classList.add('active');
+    // Firebase保存（失敗しても続行）
+    try { FB.saveFareConfig(cfg); } catch(e){ console.error('Firebase save error:', e); }
 
-  const navArea = document.getElementById('tNavArea');
-  const navBtn = navArea.querySelector('button');
-
-  if(_tutorialPage === 2){
-    // ページ3（ホーム画面）：ボタンなし・自分で追加するだけ
-    navArea.style.display = 'none';
-  } else {
-    navArea.style.display = 'block';
-    navBtn.textContent = '次へ';
+    setTimeout(()=>{ location.href='index.html'; }, 500);
+  } catch(e){
+    console.error('saveAll error:', e);
+    alert('保存に失敗しました: ' + e.message);
   }
 }
 
-function requestSensorPermission(){
-  const btn = document.getElementById('tSensorBtn') || document.getElementById('sensorPermBtn');
-  if(btn){ btn.textContent = '許可中...'; btn.disabled = true; }
-
-  const promises = [];
-  let compassGranted = false;
-  let motionGranted = false;
-
-  // iOS：requestPermissionが必要
-  if(typeof DeviceOrientationEvent !== 'undefined' &&
-     typeof DeviceOrientationEvent.requestPermission === 'function'){
-    promises.push(
-      DeviceOrientationEvent.requestPermission().then(state => {
-        dlog('[GPS] コンパス許可:', state);
-        if(state === 'granted') compassGranted = true;
-      }).catch(e => dlog('[GPS] コンパス許可エラー:', e.message))
-    );
-  } else {
-    compassGranted = true;
-  }
-
-  if(typeof DeviceMotionEvent !== 'undefined' &&
-     typeof DeviceMotionEvent.requestPermission === 'function'){
-    promises.push(
-      DeviceMotionEvent.requestPermission().then(state => {
-        dlog('[GPS] ジャイロ許可:', state);
-        if(state === 'granted') motionGranted = true;
-      }).catch(e => dlog('[GPS] ジャイロ許可エラー:', e.message))
-    );
-  } else {
-    motionGranted = true;
-  }
-
-  Promise.allSettled(promises).then(() => {
-    const allGranted = compassGranted && motionGranted;
-
-    if(allGranted){
-      window._compassGranted = true;
-      window._motionGranted = true;
-      localStorage.setItem('compass_granted','1');
-      localStorage.setItem('motion_granted','1');
-
-      const banner = document.getElementById('sensorBanner');
-      if(banner && banner.style.display !== 'none'){
-        const permBtn = document.getElementById('sensorPermBtn');
-        if(permBtn){ permBtn.textContent = '✅ 許可されました'; permBtn.disabled = true; }
-        setTimeout(() => { banner.style.display = 'none'; }, 1200);
-      }
-      const overlay = document.getElementById('tutorialOverlay');
-      if(overlay && overlay.classList.contains('show')) tutorialNext();
-
-    } else {
-      // 許可失敗（iOSキャンセル）：設定アプリで許可するよう案内
-      if(btn){
-        btn.style.display = 'none';
-      }
-      const banner = document.getElementById('sensorBanner');
-      if(banner){
-        banner.style.display = 'block';
-        const desc = banner.querySelector('#sensorBannerIOS div');
-        if(desc) desc.innerHTML = '<strong style="display:block;font-size:15px;margin-bottom:4px;">⚠️ 許可されませんでした</strong>タスクキルして再起動してください<div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">① ホームボタンを2回押す<br>（または下からスワイプしてホールド）<br>② ダイコメを上にスワイプして終了<br>③ アイコンから再起動して許可する</div>';
-      }
-      dlog('[GPS] センサー許可失敗・設定案内');
-    }
-  });
-}
-
-function tutorialComplete(){
-  document.getElementById('tutorialOverlay').classList.remove('show');
-  localStorage.setItem('tutorial_done','1');
-  dlog('[Tutorial] 完了');
-}
-
-// ─── 第1層：センサー permission 再確認（2026/04/30追加） ───
-// iOSのPWAでpermissionが切れる現象をカバー
-// 既に許可済みなら即grantedが返る（ダイアログ出ない・ユーザー体験変わらず）
-// 期限切れの場合は自動でダイアログ → ユーザー許可でセンサー復活
-function refreshSensorPermission(){
-  // コンパス permission 再確認
-  if(typeof DeviceOrientationEvent !== 'undefined' &&
-     typeof DeviceOrientationEvent.requestPermission === 'function'){
-    DeviceOrientationEvent.requestPermission().then(state => {
-      if(state === 'granted'){
-        dlog('[GPS] コンパス permission 再確認OK:', state);
-      } else {
-        // permission切れ → フラグもクリア
-        window._compassGranted = false;
-        localStorage.removeItem('compass_granted');
-        dlog('[GPS] コンパス permission 期限切れ検知:', state);
-      }
-    }).catch(e => dlog('[GPS] コンパス permission 再確認エラー:', e.message));
-  }
-  // 加速度 permission 再確認
-  if(typeof DeviceMotionEvent !== 'undefined' &&
-     typeof DeviceMotionEvent.requestPermission === 'function'){
-    DeviceMotionEvent.requestPermission().then(state => {
-      if(state === 'granted'){
-        dlog('[GPS] 加速度 permission 再確認OK:', state);
-      } else {
-        window._motionGranted = false;
-        localStorage.removeItem('motion_granted');
-        dlog('[GPS] 加速度 permission 期限切れ検知:', state);
-      }
-    }).catch(e => dlog('[GPS] 加速度 permission 再確認エラー:', e.message));
-  }
-}
-
-// ─── デバイス判定 ───
-const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const _isAndroid = /Android/.test(navigator.userAgent);
-
-// Android用センサー確認
-function confirmAndroidSensor(){
-  window._compassGranted = true;
-  window._motionGranted = true;
-  localStorage.setItem('compass_granted','1');
-  localStorage.setItem('motion_granted','1');
-  localStorage.setItem('android_sensor_confirmed','1');
-  const banner = document.getElementById('sensorBanner');
-  if(banner) banner.style.display = 'none';
-  dlog('[GPS] Androidセンサー確認完了');
-}
-
-// ─── センサー未許可バナー（PWA起動時） ───
-(function(){
-  if(window.navigator.standalone !== true) return;
-
-  if(_isAndroid){
-    // Android：自動許可済みだがバナーで説明表示
-    window._compassGranted = true;
-    window._motionGranted = true;
-    localStorage.setItem('compass_granted','1');
-    localStorage.setItem('motion_granted','1');
-    // 初回のみバナーで「標準で使えます」を表示
-    if(!localStorage.getItem('android_sensor_confirmed')){
-      const banner = document.getElementById('sensorBanner');
-      const iosBanner = document.getElementById('sensorBannerIOS');
-      const androidBanner = document.getElementById('sensorBannerAndroid');
-      if(banner) banner.style.display = 'block';
-      if(iosBanner) iosBanner.style.display = 'none';
-      if(androidBanner) androidBanner.style.display = 'block';
-    }
-    return;
-  }
-
-  if(_isIOS){
-    // iOS：未許可ならバナー表示
-    const needSensor = !localStorage.getItem('compass_granted') || !localStorage.getItem('motion_granted');
-    if(needSensor){
-      document.getElementById('sensorBanner').style.display = 'block';
-    }
-    return;
-  }
-
-  // PC：バナー非表示・ブロックなし
-  dlog('[GPS] PC：センサースキップ');
-})();
-
-// ─── PWA起動時センサー状態復元 ───
-(function(){
-  if(window.navigator.standalone !== true) return;
-  if(localStorage.getItem('compass_granted')) window._compassGranted = true;
-  if(localStorage.getItem('motion_granted')) window._motionGranted = true;
-})();
-
-// ─── ServiceWorker登録（PWA化・オフライン対応） ───
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').then(function(reg){
-    dlog('[SW] 登録完了:', reg.scope);
-  }).catch(function(err){
-    dlog('[SW] 登録失敗（開発環境では正常）:', err.message);
-  });
-}
+load();
 </script>
-
 </body>
 </html>
