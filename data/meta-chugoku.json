@@ -1,10 +1,10 @@
 {
   "region": "chugoku",
-  "generated": "2026-04-29T04:22:37.278Z",
+  "generated": "2026-04-30T15:55:21.116Z",
   "prefectures": {
     "tottori": {
       "numRoads": 57768,
-      "sizeBytes": 1746865,
+      "sizeBytes": 1846755,
       "bbox": [
         3499381,
         13309346,
@@ -14,7 +14,7 @@
     },
     "shimane": {
       "numRoads": 87199,
-      "sizeBytes": 2708933,
+      "sizeBytes": 2855711,
       "bbox": [
         3464674,
         13205784,
@@ -23,8 +23,8 @@
       ]
     },
     "okayama": {
-      "numRoads": 169222,
-      "sizeBytes": 4884557,
+      "numRoads": 169227,
+      "sizeBytes": 5108865,
       "bbox": [
         3430767,
         13326155,
@@ -33,8 +33,8 @@
       ]
     },
     "hiroshima": {
-      "numRoads": 115360,
-      "sizeBytes": 3477401,
+      "numRoads": 115361,
+      "sizeBytes": 3654767,
       "bbox": [
         3385089,
         13201151,
@@ -44,7 +44,7 @@
     },
     "yamaguchi": {
       "numRoads": 115839,
-      "sizeBytes": 3452322,
+      "sizeBytes": 3624395,
       "bbox": [
         3371540,
         13078430,

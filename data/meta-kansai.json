@@ -1,10 +1,10 @@
 {
   "region": "kansai",
-  "generated": "2026-04-29T04:22:11.819Z",
+  "generated": "2026-04-30T15:54:48.906Z",
   "prefectures": {
     "mie": {
-      "numRoads": 121249,
-      "sizeBytes": 3217064,
+      "numRoads": 121247,
+      "sizeBytes": 3353871,
       "bbox": [
         3410088,
         13609826,
@@ -13,8 +13,8 @@
       ]
     },
     "shiga": {
-      "numRoads": 105754,
-      "sizeBytes": 2837204,
+      "numRoads": 105742,
+      "sizeBytes": 2969868,
       "bbox": [
         3469030,
         13581110,
@@ -23,8 +23,8 @@
       ]
     },
     "kyoto": {
-      "numRoads": 69262,
-      "sizeBytes": 1879148,
+      "numRoads": 69264,
+      "sizeBytes": 1964250,
       "bbox": [
         3482823,
         13513347,
@@ -33,8 +33,8 @@
       ]
     },
     "osaka": {
-      "numRoads": 276277,
-      "sizeBytes": 7213636,
+      "numRoads": 276269,
+      "sizeBytes": 7503708,
       "bbox": [
         3419367,
         13479984,
@@ -43,8 +43,8 @@
       ]
     },
     "hyogo": {
-      "numRoads": 184928,
-      "sizeBytes": 5225023,
+      "numRoads": 184934,
+      "sizeBytes": 5488337,
       "bbox": [
         3419221,
         13425205,
@@ -53,8 +53,8 @@
       ]
     },
     "nara": {
-      "numRoads": 69971,
-      "sizeBytes": 1984735,
+      "numRoads": 69990,
+      "sizeBytes": 2071292,
       "bbox": [
         3387027,
         13543502,
@@ -64,7 +64,7 @@
     },
     "wakayama": {
       "numRoads": 38502,
-      "sizeBytes": 1260420,
+      "sizeBytes": 1328381,
       "bbox": [
         3343731,
         13481466,

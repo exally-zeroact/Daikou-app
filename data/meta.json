@@ -1,19 +1,19 @@
 {
-  "generated": "2026-04-29T04:23:29.880Z",
+  "generated": "2026-04-30T15:56:16.370Z",
   "regions": {
-    "chubu": "2026-04-29T04:21:34.731Z",
-    "chugoku": "2026-04-29T04:22:37.278Z",
-    "hokkaido": "2026-04-29T04:19:13.345Z",
-    "kansai": "2026-04-29T04:22:11.819Z",
-    "kanto": "2026-04-29T04:20:39.753Z",
-    "kyushu": "2026-04-29T04:23:28.592Z",
-    "shikoku": "2026-04-29T04:22:51.362Z",
-    "tohoku": "2026-04-29T04:19:50.955Z"
+    "chubu": "2026-04-30T15:53:56.642Z",
+    "chugoku": "2026-04-30T15:55:21.116Z",
+    "hokkaido": "2026-04-30T15:51:25.689Z",
+    "kansai": "2026-04-30T15:54:48.906Z",
+    "kanto": "2026-04-30T15:52:59.366Z",
+    "kyushu": "2026-04-30T15:56:14.834Z",
+    "shikoku": "2026-04-30T15:55:35.884Z",
+    "tohoku": "2026-04-30T15:52:08.585Z"
   },
   "prefectures": {
     "niigata": {
-      "numRoads": 171613,
-      "sizeBytes": 4878451,
+      "numRoads": 171612,
+      "sizeBytes": 5142505,
       "bbox": [
         3671574,
         13804814,
@@ -22,8 +22,8 @@
       ]
     },
     "toyama": {
-      "numRoads": 111242,
-      "sizeBytes": 3103250,
+      "numRoads": 111244,
+      "sizeBytes": 3260370,
       "bbox": [
         3603888,
         13692538,
@@ -33,7 +33,7 @@
     },
     "ishikawa": {
       "numRoads": 88000,
-      "sizeBytes": 2442959,
+      "sizeBytes": 2564654,
       "bbox": [
         3605987,
         13627995,
@@ -42,8 +42,8 @@
       ]
     },
     "fukui": {
-      "numRoads": 70218,
-      "sizeBytes": 1956102,
+      "numRoads": 70229,
+      "sizeBytes": 2055565,
       "bbox": [
         3522686,
         13541330,
@@ -52,8 +52,8 @@
       ]
     },
     "yamanashi": {
-      "numRoads": 82709,
-      "sizeBytes": 2458150,
+      "numRoads": 82724,
+      "sizeBytes": 2586791,
       "bbox": [
         3508500,
         13784012,
@@ -62,8 +62,8 @@
       ]
     },
     "nagano": {
-      "numRoads": 181352,
-      "sizeBytes": 5250026,
+      "numRoads": 181348,
+      "sizeBytes": 5510959,
       "bbox": [
         3542617,
         13742225,
@@ -72,8 +72,8 @@
       ]
     },
     "gifu": {
-      "numRoads": 140061,
-      "sizeBytes": 3856486,
+      "numRoads": 140125,
+      "sizeBytes": 4030827,
       "bbox": [
         3533010,
         13650711,
@@ -82,8 +82,8 @@
       ]
     },
     "shizuoka": {
-      "numRoads": 173899,
-      "sizeBytes": 4939369,
+      "numRoads": 173905,
+      "sizeBytes": 5182698,
       "bbox": [
         3459521,
         13764793,
@@ -92,8 +92,8 @@
       ]
     },
     "aichi": {
-      "numRoads": 375376,
-      "sizeBytes": 9947968,
+      "numRoads": 375394,
+      "sizeBytes": 10414826,
       "bbox": [
         3457892,
         13640639,
@@ -103,7 +103,7 @@
     },
     "tottori": {
       "numRoads": 57768,
-      "sizeBytes": 1746865,
+      "sizeBytes": 1846755,
       "bbox": [
         3499381,
         13309346,
@@ -113,7 +113,7 @@
     },
     "shimane": {
       "numRoads": 87199,
-      "sizeBytes": 2708933,
+      "sizeBytes": 2855711,
       "bbox": [
         3464674,
         13205784,
@@ -122,8 +122,8 @@
       ]
     },
     "okayama": {
-      "numRoads": 169222,
-      "sizeBytes": 4884557,
+      "numRoads": 169227,
+      "sizeBytes": 5108865,
       "bbox": [
         3430767,
         13326155,
@@ -132,8 +132,8 @@
       ]
     },
     "hiroshima": {
-      "numRoads": 115360,
-      "sizeBytes": 3477401,
+      "numRoads": 115361,
+      "sizeBytes": 3654767,
       "bbox": [
         3385089,
         13201151,
@@ -143,7 +143,7 @@
     },
     "yamaguchi": {
       "numRoads": 115839,
-      "sizeBytes": 3452322,
+      "sizeBytes": 3624395,
       "bbox": [
         3371540,
         13078430,
@@ -152,8 +152,8 @@
       ]
     },
     "hokkaido": {
-      "numRoads": 306090,
-      "sizeBytes": 9552799,
+      "numRoads": 306100,
+      "sizeBytes": 10536278,
       "bbox": [
         4139781,
         13940729,
@@ -162,8 +162,8 @@
       ]
     },
     "mie": {
-      "numRoads": 121249,
-      "sizeBytes": 3217064,
+      "numRoads": 121247,
+      "sizeBytes": 3353871,
       "bbox": [
         3410088,
         13609826,
@@ -172,8 +172,8 @@
       ]
     },
     "shiga": {
-      "numRoads": 105754,
-      "sizeBytes": 2837204,
+      "numRoads": 105742,
+      "sizeBytes": 2969868,
       "bbox": [
         3469030,
         13581110,
@@ -182,8 +182,8 @@
       ]
     },
     "kyoto": {
-      "numRoads": 69262,
-      "sizeBytes": 1879148,
+      "numRoads": 69264,
+      "sizeBytes": 1964250,
       "bbox": [
         3482823,
         13513347,
@@ -192,8 +192,8 @@
       ]
     },
     "osaka": {
-      "numRoads": 276277,
-      "sizeBytes": 7213636,
+      "numRoads": 276269,
+      "sizeBytes": 7503708,
       "bbox": [
         3419367,
         13479984,
@@ -202,8 +202,8 @@
       ]
     },
     "hyogo": {
-      "numRoads": 184928,
-      "sizeBytes": 5225023,
+      "numRoads": 184934,
+      "sizeBytes": 5488337,
       "bbox": [
         3419221,
         13425205,
@@ -212,8 +212,8 @@
       ]
     },
     "nara": {
-      "numRoads": 69971,
-      "sizeBytes": 1984735,
+      "numRoads": 69990,
+      "sizeBytes": 2071292,
       "bbox": [
         3387027,
         13543502,
@@ -223,7 +223,7 @@
     },
     "wakayama": {
       "numRoads": 38502,
-      "sizeBytes": 1260420,
+      "sizeBytes": 1328381,
       "bbox": [
         3343731,
         13481466,
@@ -232,8 +232,8 @@
       ]
     },
     "ibaraki": {
-      "numRoads": 118332,
-      "sizeBytes": 3373690,
+      "numRoads": 118350,
+      "sizeBytes": 3562096,
       "bbox": [
         3584021,
         13992266,
@@ -242,8 +242,8 @@
       ]
     },
     "tochigi": {
-      "numRoads": 115962,
-      "sizeBytes": 3237992,
+      "numRoads": 116041,
+      "sizeBytes": 3426866,
       "bbox": [
         3617467,
         13938861,
@@ -253,7 +253,7 @@
     },
     "gunma": {
       "numRoads": 125943,
-      "sizeBytes": 3577481,
+      "sizeBytes": 3766536,
       "bbox": [
         3586452,
         13838858,
@@ -262,8 +262,8 @@
       ]
     },
     "saitama": {
-      "numRoads": 203880,
-      "sizeBytes": 5366918,
+      "numRoads": 203879,
+      "sizeBytes": 5620267,
       "bbox": [
         3564689,
         13891732,
@@ -272,8 +272,8 @@
       ]
     },
     "chiba": {
-      "numRoads": 163119,
-      "sizeBytes": 4546718,
+      "numRoads": 163117,
+      "sizeBytes": 4791733,
       "bbox": [
         2475007,
         13982559,
@@ -282,8 +282,8 @@
       ]
     },
     "tokyo": {
-      "numRoads": 258086,
-      "sizeBytes": 6703605,
+      "numRoads": 258113,
+      "sizeBytes": 7021957,
       "bbox": [
         3530038,
         13944936,
@@ -292,8 +292,8 @@
       ]
     },
     "kanagawa": {
-      "numRoads": 158412,
-      "sizeBytes": 4243224,
+      "numRoads": 158415,
+      "sizeBytes": 4423771,
       "bbox": [
         3244660,
         13890939,
@@ -303,7 +303,7 @@
     },
     "fukuoka": {
       "numRoads": 194225,
-      "sizeBytes": 5321380,
+      "sizeBytes": 5556715,
       "bbox": [
         3314617,
         13028841,
@@ -312,8 +312,8 @@
       ]
     },
     "saga": {
-      "numRoads": 131241,
-      "sizeBytes": 3721491,
+      "numRoads": 131249,
+      "sizeBytes": 3889546,
       "bbox": [
         3300045,
         12916936,
@@ -323,7 +323,7 @@
     },
     "nagasaki": {
       "numRoads": 91369,
-      "sizeBytes": 2774777,
+      "sizeBytes": 2898238,
       "bbox": [
         3211753,
         12859138,
@@ -333,7 +333,7 @@
     },
     "kumamoto": {
       "numRoads": 144748,
-      "sizeBytes": 4336838,
+      "sizeBytes": 4552530,
       "bbox": [
         3204414,
         13012515,
@@ -343,7 +343,7 @@
     },
     "oita": {
       "numRoads": 101836,
-      "sizeBytes": 3326529,
+      "sizeBytes": 3515580,
       "bbox": [
         3259767,
         13091158,
@@ -352,8 +352,8 @@
       ]
     },
     "miyazaki": {
-      "numRoads": 91857,
-      "sizeBytes": 2831437,
+      "numRoads": 91856,
+      "sizeBytes": 2983542,
       "bbox": [
         3136204,
         13074350,
@@ -362,8 +362,8 @@
       ]
     },
     "kagoshima": {
-      "numRoads": 144635,
-      "sizeBytes": 4363986,
+      "numRoads": 144636,
+      "sizeBytes": 4587380,
       "bbox": [
         2913576,
         12919463,
@@ -372,8 +372,8 @@
       ]
     },
     "okinawa": {
-      "numRoads": 95465,
-      "sizeBytes": 2640274,
+      "numRoads": 95468,
+      "sizeBytes": 2762015,
       "bbox": [
         2404661,
         12293533,
@@ -383,7 +383,7 @@
     },
     "tokushima": {
       "numRoads": 56412,
-      "sizeBytes": 1683744,
+      "sizeBytes": 1763741,
       "bbox": [
         3324565,
         13392012,
@@ -393,7 +393,7 @@
     },
     "kagawa": {
       "numRoads": 77248,
-      "sizeBytes": 2235894,
+      "sizeBytes": 2340348,
       "bbox": [
         3381258,
         13352821,
@@ -402,8 +402,8 @@
       ]
     },
     "ehime": {
-      "numRoads": 117497,
-      "sizeBytes": 3783502,
+      "numRoads": 117496,
+      "sizeBytes": 3967841,
       "bbox": [
         3270859,
         13201828,
@@ -413,7 +413,7 @@
     },
     "kochi": {
       "numRoads": 56511,
-      "sizeBytes": 1772598,
+      "sizeBytes": 1858972,
       "bbox": [
         3272272,
         13292826,
@@ -422,8 +422,8 @@
       ]
     },
     "aomori": {
-      "numRoads": 90250,
-      "sizeBytes": 2577375,
+      "numRoads": 90248,
+      "sizeBytes": 2730049,
       "bbox": [
         4017418,
         13986171,
@@ -432,8 +432,8 @@
       ]
     },
     "iwate": {
-      "numRoads": 117807,
-      "sizeBytes": 3741975,
+      "numRoads": 117803,
+      "sizeBytes": 3986210,
       "bbox": [
         3886169,
         14079535,
@@ -442,8 +442,8 @@
       ]
     },
     "miyagi": {
-      "numRoads": 140193,
-      "sizeBytes": 4196825,
+      "numRoads": 140239,
+      "sizeBytes": 4462093,
       "bbox": [
         3747128,
         14037159,
@@ -452,8 +452,8 @@
       ]
     },
     "akita": {
-      "numRoads": 109580,
-      "sizeBytes": 3067585,
+      "numRoads": 109579,
+      "sizeBytes": 3228790,
       "bbox": [
         3890262,
         13954342,
@@ -463,7 +463,7 @@
     },
     "yamagata": {
       "numRoads": 84563,
-      "sizeBytes": 2422376,
+      "sizeBytes": 2560772,
       "bbox": [
         3768523,
         13954219,
@@ -472,8 +472,8 @@
       ]
     },
     "fukushima": {
-      "numRoads": 151561,
-      "sizeBytes": 4622730,
+      "numRoads": 151563,
+      "sizeBytes": 4903818,
       "bbox": [
         3678976,
         13921121,

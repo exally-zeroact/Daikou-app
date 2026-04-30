@@ -1,10 +1,10 @@
 {
   "region": "kyushu",
-  "generated": "2026-04-29T04:23:28.592Z",
+  "generated": "2026-04-30T15:56:14.834Z",
   "prefectures": {
     "fukuoka": {
       "numRoads": 194225,
-      "sizeBytes": 5321380,
+      "sizeBytes": 5556715,
       "bbox": [
         3314617,
         13028841,
@@ -13,8 +13,8 @@
       ]
     },
     "saga": {
-      "numRoads": 131241,
-      "sizeBytes": 3721491,
+      "numRoads": 131249,
+      "sizeBytes": 3889546,
       "bbox": [
         3300045,
         12916936,
@@ -24,7 +24,7 @@
     },
     "nagasaki": {
       "numRoads": 91369,
-      "sizeBytes": 2774777,
+      "sizeBytes": 2898238,
       "bbox": [
         3211753,
         12859138,
@@ -34,7 +34,7 @@
     },
     "kumamoto": {
       "numRoads": 144748,
-      "sizeBytes": 4336838,
+      "sizeBytes": 4552530,
       "bbox": [
         3204414,
         13012515,
@@ -44,7 +44,7 @@
     },
     "oita": {
       "numRoads": 101836,
-      "sizeBytes": 3326529,
+      "sizeBytes": 3515580,
       "bbox": [
         3259767,
         13091158,
@@ -53,8 +53,8 @@
       ]
     },
     "miyazaki": {
-      "numRoads": 91857,
-      "sizeBytes": 2831437,
+      "numRoads": 91856,
+      "sizeBytes": 2983542,
       "bbox": [
         3136204,
         13074350,
@@ -63,8 +63,8 @@
       ]
     },
     "kagoshima": {
-      "numRoads": 144635,
-      "sizeBytes": 4363986,
+      "numRoads": 144636,
+      "sizeBytes": 4587380,
       "bbox": [
         2913576,
         12919463,
@@ -73,8 +73,8 @@
       ]
     },
     "okinawa": {
-      "numRoads": 95465,
-      "sizeBytes": 2640274,
+      "numRoads": 95468,
+      "sizeBytes": 2762015,
       "bbox": [
         2404661,
         12293533,
