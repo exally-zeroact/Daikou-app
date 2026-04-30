@@ -21,6 +21,11 @@ const Meter = (() => {
   // Map Matching の内部状態（state とは別・stateはユーザー向け値のみ）
   let prevSnap = null;
 
+  // 起動時warm up：代行開始前から GPS を保持しておく（2026/04/30追加）
+  // 「代行開始」押した瞬間にすぐメーターが動くようにするため
+  // ボタン追加せず、内部で常に GPS を受け取って lastWarmupGps に保存
+  let lastWarmupGps = null;
+
   let fareConfig = {
     base_fare: 1300,
     base_distance_m: 1000,
@@ -49,15 +54,23 @@ const Meter = (() => {
   function getFareConfig(){ return { ...fareConfig }; }
 
   function start(){
+    const now = Date.now();
     state = {
       running: true,
       distance_m: 0,
       fare_yen: fareConfig.base_fare,
       elapsed_sec: 0,
-      start_time: Date.now(),
-      last_gps: null,
-      last_timestamp: null,
-      last_speed_kmh: 0,
+      start_time: now,
+      // 起動時warm upでGPS取得済みなら初期値として使う（即時計測開始のため）
+      // 過去の動きは加算しないよう last_timestamp は now を使用
+      last_gps: lastWarmupGps ? {
+        lat: lastWarmupGps.lat,
+        lng: lastWarmupGps.lng,
+        altitude: lastWarmupGps.altitude,
+        compassHeading: lastWarmupGps.compassHeading
+      } : null,
+      last_timestamp: lastWarmupGps ? now : null,
+      last_speed_kmh: lastWarmupGps ? lastWarmupGps.speedKmh : 0,
       gap_fill_count: 0,
       gap_fill_total_m: 0,
       // Map Matching 関連リセット
@@ -331,5 +344,22 @@ const Meter = (() => {
     timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
   }
 
-  return { start, stop, reset, resume, update, getState, setFareConfig, getFareConfig, calcFare, setDistance, setLastGps };
+  // 起動時warm up（2026/04/30追加）
+  // 代行開始前でも常に呼ばれて、GPSを内部に保存しておく
+  // 「代行開始」押した瞬間に start() が lastWarmupGps を初期値として使う
+  // これにより「100m走って動き出す」遅延が解消される
+  // state には触らない（距離・料金は変えない）
+  function updateGpsOnly(gpsResult){
+    if(!gpsResult || typeof gpsResult.lat !== 'number' || typeof gpsResult.lng !== 'number') return;
+    lastWarmupGps = {
+      lat: gpsResult.lat,
+      lng: gpsResult.lng,
+      altitude: gpsResult.altitude || 0,
+      compassHeading: gpsResult.compassHeading || null,
+      timestamp: gpsResult.timestamp || Date.now(),
+      speedKmh: gpsResult.speedKmh || 0
+    };
+  }
+
+  return { start, stop, reset, resume, update, updateGpsOnly, getState, setFareConfig, getFareConfig, calcFare, setDistance, setLastGps };
 })();
