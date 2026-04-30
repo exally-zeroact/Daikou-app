@@ -40,6 +40,20 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 
 /* 車両選択 */
 .vehicle-select{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;background:#f9f9f9;font-family:'Noto Sans JP',sans-serif;}
+
+/* 活動エリア（Map Matching）2026/04/30追加 */
+.region-buttons{display:flex;gap:8px;padding:12px 16px 8px;flex-wrap:wrap;}
+.region-btn{flex:1;min-width:90px;padding:10px 8px;background:#f0f7ff;border:0.5px solid #007AFF;border-radius:8px;color:#007AFF;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;}
+.region-btn:active{background:#dbeaff;}
+.region-summary{padding:8px 16px;font-size:13px;color:#8E8E93;border-bottom:0.5px solid #f0f0f0;}
+.region-summary .count{color:#007AFF;font-weight:700;}
+.region-group{padding:0;}
+.region-group-header{padding:10px 16px 6px;font-size:12px;color:#8E8E93;font-weight:700;background:#fafafa;border-bottom:0.5px solid #f0f0f0;letter-spacing:1px;}
+.region-pref{display:flex;align-items:center;padding:11px 16px;border-bottom:0.5px solid #f5f5f5;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.region-pref:active{background:#f5f5f5;}
+.region-pref input[type=checkbox]{margin-right:12px;width:20px;height:20px;accent-color:#007AFF;}
+.region-pref-name{flex:1;font-size:15px;color:#111;}
+.region-pref.checked .region-pref-name{font-weight:700;}
 </style>
 </head>
 <body ontouchstart="">
@@ -139,6 +153,24 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
     </div>
   </div>
 
+  <!-- 活動エリア（Map Matching・2026/04/30追加） -->
+  <div class="section">
+    <div class="section-title">活動エリア（Map Matching）</div>
+    <div class="region-buttons">
+      <button class="region-btn" onclick="regionAuto()">📍 現在地</button>
+      <button class="region-btn" onclick="regionClear()">クリア</button>
+    </div>
+    <div class="region-summary">
+      <span class="count" id="regionCount">0</span> 県選択中
+      <span id="regionSize" style="margin-left:6px;color:#aaa;"></span>
+    </div>
+    <div id="regionList"></div>
+    <div class="row" style="border-top:0.5px solid #f0f0f0;">
+      <div class="row-label">自動判定も併用<br><span style="font-size:11px;color:#aaa;">県境を超えた時に現在地の県を自動追加</span></div>
+      <div class="toggle" id="autoRegionToggle" onclick="toggleAutoRegion()"></div>
+    </div>
+  </div>
+
   <!-- ★テスト用・リリース時削除 -->
   <div class="section" id="testLinkSection">
     <div class="row" onclick="location.href='history.html'" style="cursor:pointer;">
@@ -165,6 +197,42 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 let surchargeEnabled = false;
 let timeEnabled = false;
 let extraItems = [];
+
+// 活動エリア（Map Matching・2026/04/30追加）
+const REGION_GROUPS = [
+  { name: '北海道', prefs: [['hokkaido','北海道']] },
+  { name: '東北', prefs: [
+    ['aomori','青森県'],['iwate','岩手県'],['miyagi','宮城県'],
+    ['akita','秋田県'],['yamagata','山形県'],['fukushima','福島県']
+  ]},
+  { name: '関東', prefs: [
+    ['ibaraki','茨城県'],['tochigi','栃木県'],['gunma','群馬県'],
+    ['saitama','埼玉県'],['chiba','千葉県'],['tokyo','東京都'],['kanagawa','神奈川県']
+  ]},
+  { name: '中部', prefs: [
+    ['niigata','新潟県'],['toyama','富山県'],['ishikawa','石川県'],
+    ['fukui','福井県'],['yamanashi','山梨県'],['nagano','長野県'],
+    ['gifu','岐阜県'],['shizuoka','静岡県'],['aichi','愛知県']
+  ]},
+  { name: '近畿', prefs: [
+    ['mie','三重県'],['shiga','滋賀県'],['kyoto','京都府'],
+    ['osaka','大阪府'],['hyogo','兵庫県'],['nara','奈良県'],['wakayama','和歌山県']
+  ]},
+  { name: '中国', prefs: [
+    ['tottori','鳥取県'],['shimane','島根県'],['okayama','岡山県'],
+    ['hiroshima','広島県'],['yamaguchi','山口県']
+  ]},
+  { name: '四国', prefs: [
+    ['tokushima','徳島県'],['kagawa','香川県'],['ehime','愛媛県'],['kochi','高知県']
+  ]},
+  { name: '九州・沖縄', prefs: [
+    ['fukuoka','福岡県'],['saga','佐賀県'],['nagasaki','長崎県'],
+    ['kumamoto','熊本県'],['oita','大分県'],['miyazaki','宮崎県'],
+    ['kagoshima','鹿児島県'],['okinawa','沖縄県']
+  ]}
+];
+let selectedRegions = new Set();
+let autoRegionEnabled = false;
 
 function load(){
   FB.loadFareConfig(cfg=>{
@@ -201,6 +269,133 @@ function load(){
   }
   renderExtraItems();
   updatePreview();
+
+  // 活動エリア読み込み（2026/04/30追加）
+  loadRegions();
+  renderRegions();
+}
+
+// ─── 活動エリア（Map Matching）2026/04/30追加 ───
+function loadRegions(){
+  try {
+    const saved = localStorage.getItem('daikou_user_regions');
+    if(saved){
+      const arr = JSON.parse(saved);
+      if(Array.isArray(arr)) selectedRegions = new Set(arr);
+    }
+    autoRegionEnabled = localStorage.getItem('daikou_user_auto_region') === 'true';
+  } catch(e){
+    console.error('loadRegions error:', e);
+  }
+  updateAutoRegionUI();
+}
+
+function renderRegions(){
+  const el = document.getElementById('regionList');
+  let html = '';
+  for(const group of REGION_GROUPS){
+    html += '<div class="region-group">';
+    html += '<div class="region-group-header">' + group.name + '</div>';
+    for(const [key, name] of group.prefs){
+      const checked = selectedRegions.has(key);
+      html += '<label class="region-pref' + (checked ? ' checked' : '') + '" data-key="' + key + '">';
+      html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="toggleRegion(\'' + key + '\', this.checked)">';
+      html += '<span class="region-pref-name">' + name + '</span>';
+      html += '</label>';
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+  updateRegionSummary();
+}
+
+function toggleRegion(key, checked){
+  if(checked) selectedRegions.add(key);
+  else selectedRegions.delete(key);
+  // クラスも更新（太字表示）
+  const label = document.querySelector('.region-pref[data-key="' + key + '"]');
+  if(label) label.className = 'region-pref' + (checked ? ' checked' : '');
+  updateRegionSummary();
+}
+
+function updateRegionSummary(){
+  const count = selectedRegions.size;
+  document.getElementById('regionCount').textContent = count;
+  // データサイズ概算（県平均2MB）
+  const sizeMB = count * 2;
+  const sizeEl = document.getElementById('regionSize');
+  if(count === 0){
+    sizeEl.textContent = '';
+  } else {
+    sizeEl.textContent = '（約' + sizeMB + 'MB）';
+  }
+}
+
+function regionAuto(){
+  if(!navigator.geolocation){
+    alert('位置情報が使えません');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const pref = nearestPrefecture(pos.coords.latitude, pos.coords.longitude);
+      if(pref){
+        selectedRegions.add(pref);
+        renderRegions();
+      } else {
+        alert('現在地の都道府県を判定できませんでした');
+      }
+    },
+    (err)=>{
+      alert('位置情報取得失敗: ' + err.message);
+    },
+    { timeout: 10000, maximumAge: 60000 }
+  );
+}
+
+function regionClear(){
+  if(selectedRegions.size === 0) return;
+  if(!confirm('全ての選択を解除しますか？')) return;
+  selectedRegions.clear();
+  renderRegions();
+}
+
+function toggleAutoRegion(){
+  autoRegionEnabled = !autoRegionEnabled;
+  updateAutoRegionUI();
+}
+function updateAutoRegionUI(){
+  document.getElementById('autoRegionToggle').className = 'toggle' + (autoRegionEnabled ? ' on' : '');
+}
+
+// 都道府県判定（重心からの近傍・region-loader.js と同じロジック）
+const PREFECTURES_CENTER = {
+  hokkaido:[43.3,142.8],
+  aomori:[40.8,140.7],iwate:[39.7,141.2],miyagi:[38.3,140.9],
+  akita:[39.7,140.4],yamagata:[38.2,140.0],fukushima:[37.4,140.2],
+  ibaraki:[36.4,140.4],tochigi:[36.7,139.9],gunma:[36.4,139.0],
+  saitama:[35.9,139.4],chiba:[35.5,140.2],tokyo:[35.7,139.7],kanagawa:[35.4,139.4],
+  niigata:[37.5,138.9],toyama:[36.6,137.2],ishikawa:[36.6,136.7],
+  fukui:[35.8,136.2],yamanashi:[35.6,138.6],nagano:[36.2,138.0],
+  gifu:[35.6,137.0],shizuoka:[34.9,138.4],aichi:[35.1,137.0],
+  mie:[34.6,136.5],shiga:[35.1,136.1],kyoto:[35.2,135.7],
+  osaka:[34.6,135.5],hyogo:[35.0,134.9],nara:[34.4,135.8],wakayama:[33.8,135.5],
+  tottori:[35.4,134.0],shimane:[35.0,132.8],okayama:[34.9,133.8],
+  hiroshima:[34.5,132.7],yamaguchi:[34.2,131.6],
+  tokushima:[33.9,134.4],kagawa:[34.3,134.0],ehime:[33.7,132.9],kochi:[33.5,133.5],
+  fukuoka:[33.6,130.7],saga:[33.3,130.1],nagasaki:[32.9,129.9],
+  kumamoto:[32.7,130.7],oita:[33.2,131.4],miyazaki:[32.0,131.4],
+  kagoshima:[31.4,130.6],okinawa:[26.5,128.0]
+};
+function nearestPrefecture(lat, lng){
+  let best = null, bestDist = Infinity;
+  for(const pref in PREFECTURES_CENTER){
+    const c = PREFECTURES_CENTER[pref];
+    const dLat = lat - c[0], dLng = lng - c[1];
+    const d = dLat*dLat + dLng*dLng;
+    if(d < bestDist){ bestDist = d; best = pref; }
+  }
+  return best;
 }
 
 // 料金プレビュー
@@ -293,6 +488,10 @@ function saveAll(){
     settings.resetTime = document.getElementById('resetTime').value || '12:00';
     localStorage.setItem('daikou_settings', JSON.stringify(settings));
     localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
+
+    // 活動エリア保存（2026/04/30追加）
+    localStorage.setItem('daikou_user_regions', JSON.stringify(Array.from(selectedRegions)));
+    localStorage.setItem('daikou_user_auto_region', autoRegionEnabled ? 'true' : 'false');
 
     // Firebase保存（失敗しても続行）
     try { FB.saveFareConfig(cfg); } catch(e){ console.error('Firebase save error:', e); }
