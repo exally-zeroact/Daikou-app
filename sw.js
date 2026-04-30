@@ -4,7 +4,7 @@
 // 道路データ：キャッシュ優先（重いファイル・オフライン対応）
 // ===========================================
 
-const CACHE_NAME = 'daikome-9c3010c';
+const CACHE_NAME = 'daikome-2d47104';
 
 // アイコン・manifest・start_url（"/"）をキャッシュ
 // "/"のキャッシュは Chrome の installability 要件で必須
