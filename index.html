@@ -819,6 +819,9 @@ function startGPS(){
         // 起動時warm up（2026/04/30追加）：常にGPSをMeterに渡す
         // 代行開始前でもlastWarmupGpsを保持・押した瞬間に即時計測開始
         if(typeof Meter.updateGpsOnly === 'function') Meter.updateGpsOnly(g);
+        // RegionLoader：周辺データを動的読込（Map Matching・GPS消失補完で使用）
+        // ★Meter.updateより先に呼ぶ：snap 時に最新の roads が利用可能になる
+        if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
         if(appState==='driving' || appState==='fare') Meter.update(g);
         // 復元後の補完検知：距離・料金が変わったらバナーを更新
         if(window._restoreDistanceM != null){
@@ -832,8 +835,7 @@ function startGPS(){
             window._restoreFareYen   = null;
           }
         }
-        // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
-        if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
+        // RegionLoader.ensureLoaded は Meter.update の前に移動済み（2026/04/30）
         // TestMode：走行中のみ位置記録（★テスト用・リリース時削除）
         if(typeof TestMode !== 'undefined' && appState==='driving') TestMode.recordPosition(g.lat, g.lng);
       } catch(e){ console.error('GPS callback error:', e); }
