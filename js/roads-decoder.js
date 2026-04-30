@@ -101,7 +101,7 @@
   
   // ─── RoadDecoder クラス ────────────────────────────────────────
   function RoadDecoder(roadsData) {
-    if (!roadsData || roadsData.v !== 4) {
+    if (!roadsData || (roadsData.v !== 4 && roadsData.v !== 5)) {
       throw new Error('[RoadDecoder] 未対応フォーマット v=' + (roadsData && roadsData.v));
     }
     this.data = roadsData;
