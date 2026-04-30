@@ -20,114 +20,114 @@
 //   ✅ 業務中に急にバージョン変わらない（安全）
 // ===========================================
 
-const CACHE_NAME = ‘daikome-2026-04-30-swr-v2’;
+const CACHE_NAME = 'daikome-2026-04-30-swr-v2';
 
-// アイコン・manifest・start_url（”/”）をキャッシュ
-// “/“のキャッシュは Chrome の installability 要件で必須
+// アイコン・manifest・start_url（"/"）をキャッシュ
+// "/"のキャッシュは Chrome の installability 要件で必須
 // （オフラインでも start_url が 200 を返せる必要がある）
 const PRECACHE_FILES = [
-‘/’,
-‘/icon-192.png’,
-‘/icon-512.png’,
-‘/manifest.json’,
+  '/',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/manifest.json',
 ];
 
-self.addEventListener(‘install’, function(e){
-e.waitUntil(
-caches.open(CACHE_NAME).then(function(cache){
-// “/“は明示的に reload で取得（古いキャッシュを使わない）
-return Promise.all([
-cache.add(new Request(’/’, { cache: ‘reload’ })),
-cache.addAll(PRECACHE_FILES.filter(function(p){ return p !== ‘/’; }))
-]);
-}).then(function(){
-return self.skipWaiting();
-})
-);
+self.addEventListener('install', function(e){
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(function(cache){
+      // "/"は明示的に reload で取得（古いキャッシュを使わない）
+      return Promise.all([
+        cache.add(new Request('/', { cache: 'reload' })),
+        cache.addAll(PRECACHE_FILES.filter(function(p){ return p !== '/'; }))
+      ]);
+    }).then(function(){
+      return self.skipWaiting();
+    })
+  );
 });
 
-self.addEventListener(‘activate’, function(e){
-e.waitUntil(
-caches.keys().then(function(keys){
-// 古いキャッシュ（旧 CACHE_NAME のもの）を全削除
-return Promise.all(
-keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-);
-}).then(function(){
-return self.clients.claim();
-})
-);
+self.addEventListener('activate', function(e){
+  e.waitUntil(
+    caches.keys().then(function(keys){
+      // 古いキャッシュ（旧 CACHE_NAME のもの）を全削除
+      return Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      );
+    }).then(function(){
+      return self.clients.claim();
+    })
+  );
 });
 
 // SWR（Stale-While-Revalidate）共通関数
 // キャッシュから即時返しつつ、裏でネット取得＆キャッシュ更新
 function staleWhileRevalidate(request){
-return caches.open(CACHE_NAME).then(function(cache){
-return cache.match(request).then(function(cached){
-const fetchPromise = fetch(request).then(function(response){
-// 正常なレスポンスのみキャッシュ更新（GET のみ）
-if(response && response.ok && request.method === ‘GET’){
-cache.put(request, response.clone());
-}
-return response;
-}).catch(function(){
-// ネット失敗時もキャッシュがあればそれを返す
-return cached;
-});
-// キャッシュあればそれを即返す（裏で fetchPromise 動く）
-// なければ fetchPromise を待つ
-return cached || fetchPromise;
-});
-});
-}
-
-self.addEventListener(‘fetch’, function(e){
-const url = new URL(e.request.url);
-
-// 外部API：ネットワークのみ（キャッシュしない・SWR対象外）
-if(
-url.hostname.includes(‘firebase’) ||
-url.hostname.includes(‘googleapis’) ||
-url.hostname.includes(‘gstatic’) ||
-url.hostname.includes(‘fonts.g’)
-){
-e.respondWith(fetch(e.request));
-return;
+  return caches.open(CACHE_NAME).then(function(cache){
+    return cache.match(request).then(function(cached){
+      const fetchPromise = fetch(request).then(function(response){
+        // 正常なレスポンスのみキャッシュ更新（GET のみ）
+        if(response && response.ok && request.method === 'GET'){
+          cache.put(request, response.clone());
+        }
+        return response;
+      }).catch(function(){
+        // ネット失敗時もキャッシュがあればそれを返す
+        return cached;
+      });
+      // キャッシュあればそれを即返す（裏で fetchPromise 動く）
+      // なければ fetchPromise を待つ
+      return cached || fetchPromise;
+    });
+  });
 }
 
-// 道路データ・地図関連：SWR（最重要・オフライン必須）
-// 2026/04/30 修正：パス条件に /data/roads- を追加（バグ修正）
-if(
-e.request.url.includes(’/roads/’) ||
-e.request.url.includes(’/road-data/’) ||
-e.request.url.includes(’/data/roads-’) ||
-e.request.url.includes(’/data/bridges’) ||
-e.request.url.includes(’/data/tunnels’) ||
-e.request.url.includes(’/data/meta.json’)
-){
-e.respondWith(staleWhileRevalidate(e.request));
-return;
-}
+self.addEventListener('fetch', function(e){
+  const url = new URL(e.request.url);
 
-// 静的アセット（icon・manifest）：キャッシュ優先（変わらないから）
-if(e.request.url.includes(’/icon-’) || e.request.url.includes(’/manifest.json’)){
-e.respondWith(
-caches.match(e.request).then(function(cached){
-return cached || fetch(e.request);
-})
-);
-return;
-}
+  // 外部API：ネットワークのみ（キャッシュしない・SWR対象外）
+  if(
+    url.hostname.includes('firebase') ||
+    url.hostname.includes('googleapis') ||
+    url.hostname.includes('gstatic') ||
+    url.hostname.includes('fonts.g')
+  ){
+    e.respondWith(fetch(e.request));
+    return;
+  }
 
-// HTML・JS・CSS：SWR（速い起動＋自動更新）
-// ネットあり → キャッシュ即返し＋裏で最新取得
-// ネットなし → キャッシュから（オフライン対応）
-e.respondWith(staleWhileRevalidate(e.request));
+  // 道路データ・地図関連：SWR（最重要・オフライン必須）
+  // 2026/04/30 修正：パス条件に /data/roads- を追加（バグ修正）
+  if(
+    e.request.url.includes('/roads/') ||
+    e.request.url.includes('/road-data/') ||
+    e.request.url.includes('/data/roads-') ||
+    e.request.url.includes('/data/bridges') ||
+    e.request.url.includes('/data/tunnels') ||
+    e.request.url.includes('/data/meta.json')
+  ){
+    e.respondWith(staleWhileRevalidate(e.request));
+    return;
+  }
+
+  // 静的アセット（icon・manifest）：キャッシュ優先（変わらないから）
+  if(e.request.url.includes('/icon-') || e.request.url.includes('/manifest.json')){
+    e.respondWith(
+      caches.match(e.request).then(function(cached){
+        return cached || fetch(e.request);
+      })
+    );
+    return;
+  }
+
+  // HTML・JS・CSS：SWR（速い起動＋自動更新）
+  // ネットあり → キャッシュ即返し＋裏で最新取得
+  // ネットなし → キャッシュから（オフライン対応）
+  e.respondWith(staleWhileRevalidate(e.request));
 });
 
 // Background Sync（Firebase送信）
-self.addEventListener(‘sync’, function(e){
-if(e.tag === ‘firebase-sync’){
-console.log(’[SW] Background Sync: Firebase送信’);
-}
+self.addEventListener('sync', function(e){
+  if(e.tag === 'firebase-sync'){
+    console.log('[SW] Background Sync: Firebase送信');
+  }
 });
