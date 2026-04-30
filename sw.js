@@ -6,8 +6,11 @@
 
 const CACHE_NAME = 'daikome-f90ff0f';
 
-// アイコン・manifestだけキャッシュ（変わらないもの）
+// アイコン・manifest・start_url（"/"）をキャッシュ
+// "/"のキャッシュは Chrome の installability 要件で必須
+// （オフラインでも start_url が 200 を返せる必要がある）
 const PRECACHE_FILES = [
+  '/',
   '/icon-192.png',
   '/icon-512.png',
   '/manifest.json',
@@ -16,7 +19,11 @@ const PRECACHE_FILES = [
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(PRECACHE_FILES);
+      // "/"は明示的に reload で取得（古いキャッシュを使わない）
+      return Promise.all([
+        cache.add(new Request('/', { cache: 'reload' })),
+        cache.addAll(PRECACHE_FILES.filter(function(p){ return p !== '/'; }))
+      ]);
     }).then(function(){
       return self.skipWaiting();
     })
