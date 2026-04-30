@@ -1254,6 +1254,22 @@ document.addEventListener('visibilitychange', function(){
   }
 });
 
+// 起動最速：走行中状態が localStorage にあれば、即座にセンサーバナー表示（2026/04/30追加）
+// loadSettings() より前に実行することで、可能な限り早く表示する
+(function(){
+  try {
+    const drivingState = localStorage.getItem('daikou_driving_state');
+    if(!drivingState) return;
+    // iOS で requestPermission が必要な場合のみ
+    if(typeof DeviceMotionEvent === 'undefined' ||
+       typeof DeviceMotionEvent.requestPermission !== 'function') return;
+    const banner = document.getElementById('sensorBanner');
+    if(banner) banner.style.display = 'block';
+  } catch(e){
+    console.error('起動時センサーバナー表示エラー:', e);
+  }
+})();
+
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 renderInlineHistory();
