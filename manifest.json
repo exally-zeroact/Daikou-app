@@ -2,6 +2,7 @@
   "name": "ダイコメ",
   "short_name": "ダイコメ",
   "description": "運転代行向け料金メーターアプリ",
+  "id": "/?source=pwa",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +10,7 @@
   "theme_color": "#007AFF",
   "orientation": "portrait",
   "lang": "ja",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -33,6 +35,26 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/screenshot-1.png",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ホーム画面"
+    },
+    {
+      "src": "/screenshots/screenshot-2.png",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "走行中メーター"
+    },
+    {
+      "src": "/screenshots/screenshot-3.png",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "設定画面"
     }
   ]
 }
