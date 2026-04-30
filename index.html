@@ -816,6 +816,9 @@ function startGPS(){
         const dot = document.getElementById('gpsDot');
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
+        // 起動時warm up（2026/04/30追加）：常にGPSをMeterに渡す
+        // 代行開始前でもlastWarmupGpsを保持・押した瞬間に即時計測開始
+        if(typeof Meter.updateGpsOnly === 'function') Meter.updateGpsOnly(g);
         if(appState==='driving' || appState==='fare') Meter.update(g);
         // 復元後の補完検知：距離・料金が変わったらバナーを更新
         if(window._restoreDistanceM != null){
