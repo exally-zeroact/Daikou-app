@@ -624,9 +624,41 @@ function checkDrivingRestore(){
     // 緑バナー表示
     document.getElementById('restoreBanner').classList.add('show');
     console.log('[復元] 走行を再開しました');
+
+    // タスクキル後復元時：センサー許可バナーを表示（2026/04/30追加）
+    // iOS では requestPermission がユーザーアクション必須のため、
+    // バナーを表示してユーザーにタップを促す
+    showSensorBannerForRestore();
   } catch(e){
     console.error('[復元] エラー:', e);
     localStorage.removeItem('daikou_driving_state');
+  }
+}
+
+// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加）
+function showSensorBannerForRestore(){
+  try {
+    // iOS 以外（Androidや非対応端末）では requestPermission が存在しない
+    // → 何もしない（既存の挙動を保持）
+    if(typeof DeviceMotionEvent === 'undefined' ||
+       typeof DeviceMotionEvent.requestPermission !== 'function'){
+      return;
+    }
+
+    // sensorBanner が見つからなければスキップ
+    const banner = document.getElementById('sensorBanner');
+    if(!banner) return;
+
+    // バナー表示・スクロール上部へ
+    banner.style.display = 'block';
+    setTimeout(()=>{
+      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    if(typeof dlog === 'function'){
+      dlog('[復元] センサー許可バナー表示');
+    }
+  } catch(e){
+    console.error('showSensorBannerForRestore error:', e);
   }
 }
 
