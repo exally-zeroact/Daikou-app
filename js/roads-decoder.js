@@ -216,17 +216,34 @@
   // options:
   //   maxDistM: 最大許容距離（デフォルト50m・これを超えると null）
   //   typeFilter: 道路タイプの配列（例:[0,1] = motorway/trunk のみ）
-  //   radiusGrids: 周辺グリッド検索範囲（デフォルト3 = 7x7=49グリッド）
+  //   radiusGrids: 周辺グリッド検索範囲（明示指定なしならフォールバック検索）
   //     ※ build-roads.js v4 は道路を「始点グリッド」にしか登録しないため、
-  //        長い道路を捕捉するには 3 程度必要。
+  //        長い道路を捕捉するには広い範囲が必要。
+  //        2026/04/30: フォールバック検索追加
+  //        - options.radiusGrids 未指定: まず 5 で検索、失敗なら 9 で再試行
+  //        - options.radiusGrids 指定: その値のみで検索（既存挙動）
   //        将来的に build-roads.js を改修して全通過グリッドに登録するなら 1 で良い。
   // 戻り値：{ roadIndex, segmentIndex, t, snapLat, snapLng, distanceM, typeCode }
   //         または null（道路が遠すぎる）
   RoadDecoder.prototype.snapToNearestRoad = function(lat, lng, options) {
     options = options || {};
+    // radiusGrids 明示指定がある場合は1回だけ検索（既存挙動）
+    if (options.radiusGrids != null) {
+      return this._searchSnap(lat, lng, options, options.radiusGrids);
+    }
+    // 未指定の場合はフォールバック検索（軽い→重いの順）
+    // 1回目: radiusGrids=5（121グリッド）通常時はこれで成功
+    let result = this._searchSnap(lat, lng, options, 5);
+    if (result) return result;
+    // 2回目: radiusGrids=9（361グリッド）長い道路の始点が遠い場合のフォールバック
+    return this._searchSnap(lat, lng, options, 9);
+  };
+
+  // 内部関数：実際の snap 検索（radiusGrids 固定で1回だけ実行）
+  // 公開 API は snapToNearestRoad を使うこと（フォールバック付き）
+  RoadDecoder.prototype._searchSnap = function(lat, lng, options, radiusGrids) {
     const maxDistM = options.maxDistM != null ? options.maxDistM : 50;
     const typeFilter = options.typeFilter || null;
-    const radiusGrids = options.radiusGrids != null ? options.radiusGrids : 3;
     
     // 平面化用係数
     const mpd = metersPerDegree(lat);
