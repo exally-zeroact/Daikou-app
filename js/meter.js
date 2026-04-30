@@ -11,7 +11,15 @@ const Meter = (() => {
     last_speed_kmh: 0,    // GPS消失時の補完用
     gap_fill_count: 0,    // GPS消失補完回数（サマリー表示用）
     gap_fill_total_m: 0,  // GPS消失補完合計距離
+    // ─── Map Matching（2026/04/30追加・既存distance_mとは独立） ───
+    mm_distance_m: 0,         // Map Matching距離（道路にsnapした実距離）
+    mm_snap_count: 0,         // snap成功回数（精度評価用）
+    mm_total_count: 0,        // update呼び出し回数（snap成功率算出用）
+    mm_skip_count: 0,         // 異常値でスキップした回数
   };
+
+  // Map Matching の内部状態（state とは別・stateはユーザー向け値のみ）
+  let prevSnap = null;
 
   let fareConfig = {
     base_fare: 1300,
@@ -28,6 +36,12 @@ const Meter = (() => {
   const GAP_THRESHOLD_SEC = 5;        // 5秒以上の空白＝GPS消失
   const GAP_MAX_SEC = 600;            // 最大10分（それ以上は異常）
   const NEAR_INFRA_RADIUS_M = 200;    // 200m以内のトンネル/橋を「該当」と判定
+
+  // Map Matching 設定（2026/04/30追加）
+  const MM_ENABLED = true;            // Map Matching ON/OFF
+  const MM_MAX_SNAP_DIST_M = 50;      // snap 許容距離（道路から離れすぎたら snap しない）
+  const MM_MAX_SEGMENT_DIST_M = 1000; // 1更新で 1km 超えは異常値（GPSジャンプ等）
+  const MM_GAP_RESET_SEC = 5;         // 5秒以上空白で prevSnap リセット（連続性失う）
 
   let timer = null;
 
@@ -46,7 +60,13 @@ const Meter = (() => {
       last_speed_kmh: 0,
       gap_fill_count: 0,
       gap_fill_total_m: 0,
+      // Map Matching 関連リセット
+      mm_distance_m: 0,
+      mm_snap_count: 0,
+      mm_total_count: 0,
+      mm_skip_count: 0,
     };
+    prevSnap = null;  // Map Matching 連続性リセット
     if(timer) clearInterval(timer);
     timer = setInterval(() => { if(state.running) state.elapsed_sec++; }, 1000);
   }
@@ -67,7 +87,15 @@ const Meter = (() => {
       last_gps: null,
       last_timestamp: null,
       last_speed_kmh: 0,
+      gap_fill_count: 0,
+      gap_fill_total_m: 0,
+      // Map Matching 関連リセット
+      mm_distance_m: 0,
+      mm_snap_count: 0,
+      mm_total_count: 0,
+      mm_skip_count: 0,
     };
+    prevSnap = null;
   }
 
   // GPS消失時の補完（トンネル・橋データ活用）
@@ -214,6 +242,65 @@ const Meter = (() => {
     state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, altitude: gpsResult.altitude, compassHeading: gpsResult.compassHeading || null };
     state.last_timestamp = gpsResult.timestamp;
     state.last_speed_kmh = gpsResult.speedKmh || 0;
+
+    // ━━━━━ Map Matching（2026/04/30追加・既存処理に影響なし） ━━━━━
+    // 既存の state.distance_m とは別に state.mm_distance_m に道路上距離を累積
+    // 失敗しても既存処理は継続（フォールバック設計）
+    _updateMapMatching(gpsResult);
+  }
+
+  // Map Matching 処理（update から呼ばれる・分離して既存ロジック保護）
+  function _updateMapMatching(gpsResult){
+    if(!MM_ENABLED) return;
+    if(typeof RegionLoader === 'undefined' || !RegionLoader.snapToNearestRoad) return;
+    if(gpsResult.isStationary) return;
+    if(typeof gpsResult.lat !== 'number' || typeof gpsResult.lng !== 'number') return;
+
+    state.mm_total_count++;
+
+    try {
+      const snap = RegionLoader.snapToNearestRoad(
+        gpsResult.lat, gpsResult.lng,
+        { maxDistM: MM_MAX_SNAP_DIST_M }
+      );
+      if(!snap){
+        // 道路から遠い → snap せず（駐車場・畑など）
+        // prevSnap は維持（道路に戻ったら再開）
+        return;
+      }
+
+      state.mm_snap_count++;
+
+      // 前回の snap がある場合のみ距離計算
+      if(prevSnap){
+        // 前回 GPS から時間経過しすぎなら連続性なし → リセット
+        const dtSec = state.last_timestamp 
+          ? (gpsResult.timestamp - state.last_timestamp) / 1000 
+          : 0;
+        if(dtSec > MM_GAP_RESET_SEC){
+          prevSnap = snap;
+          return;
+        }
+
+        const r = RegionLoader.calcRoadDistance(prevSnap, snap);
+        if(r && typeof r.distanceM === 'number'){
+          // サニティチェック：1更新で MM_MAX_SEGMENT_DIST_M 超えは異常
+          if(r.distanceM >= 0 && r.distanceM <= MM_MAX_SEGMENT_DIST_M){
+            state.mm_distance_m += r.distanceM;
+          } else {
+            state.mm_skip_count++;
+            if(typeof dlog === 'function'){
+              dlog('[MM] skip 異常距離: ' + r.distanceM.toFixed(0) + 'm');
+            }
+          }
+        }
+      }
+      prevSnap = snap;
+    } catch(e) {
+      // Map Matching が失敗しても既存処理は止めない
+      state.mm_skip_count++;
+      if(typeof dlog === 'function') dlog('[MM] error: ' + e.message);
+    }
   }
 
   function calcFare(distanceM){
