@@ -69,6 +69,8 @@ text-decoration:none !important;
 .idle-datetime{text-align:center;padding:12px 0;}
 .idle-time{font-size:48px;font-weight:900;color:#111;line-height:1;}
 .idle-date{font-size:13px;color:#aaa;margin-top:4px;}
+/* 日時1行表示（2026/05/01仕様変更） */
+.idle-datetime-line{text-align:center;font-size:18px;font-weight:700;color:#111;padding:14px 0 10px;letter-spacing:1px;}
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .stat-card{background:#f5f5f5;border-radius:12px;padding:14px;text-align:center;}
 .stat-label{font-size:11px;color:#aaa;margin-bottom:4px;}
@@ -76,10 +78,35 @@ text-decoration:none !important;
 .stat-unit{font-size:12px;color:#aaa;}
 /* 業務管理ダッシュボード用・縦積み大カード（2026/05/01追加） */
 .stat-card-large{background:#f5f5f5;border-radius:12px;padding:16px 14px;text-align:center;margin-bottom:10px;}
-.stat-card-large .stat-label{font-size:11px;color:#aaa;margin-bottom:6px;letter-spacing:1px;display:block;}
-.stat-card-large .stat-value{font-size:32px;font-weight:900;color:#111;line-height:1;}
+.stat-card-large .stat-label{font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;display:block;}
+.stat-card-large .stat-value{font-size:32px;font-weight:900;color:#111;line-height:1;display:block;}
 .stat-card-large .stat-unit{font-size:14px;color:#aaa;margin-left:4px;}
 .stats-dashboard{display:flex;flex-direction:column;}
+/* 履歴ボタン（2026/05/01追加） */
+.btn-history{
+  width:100%;padding:14px;margin-top:6px;
+  background:#fff;border:1.5px solid #007AFF;
+  border-radius:12px;color:#007AFF;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'Noto Sans JP',sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-history:active{background:#E8F4FD;transform:scale(0.98);}
+
+/* 横画面対応（2026/05/01追加） */
+@media (orientation: landscape) and (max-height: 600px){
+  .idle-datetime-line{font-size:14px;padding:6px 0 4px;}
+  .stats-dashboard{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+  }
+  .stat-card-large{padding:8px 10px;margin-bottom:0;}
+  .stat-card-large .stat-label{font-size:10px;margin-bottom:2px;}
+  .stat-card-large .stat-value{font-size:22px;}
+  .stat-card-large .stat-unit{font-size:11px;}
+  .btn-history{padding:8px;font-size:13px;margin-top:4px;}
+}
 
 /* DRIVING */
 .driving-grid{display:flex;flex-direction:column;gap:12px;}
@@ -376,12 +403,10 @@ justify-content:center;
 
   <!-- IDLE -->
 
-  <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;">
-    <div class="idle-datetime">
-      <div class="idle-time" id="clockTime">00:00</div>
-      <div class="idle-date" id="clockDate"></div>
-    </div>
-    <!-- 業務管理ダッシュボード（2026/05/01・5項目に変更） -->
+  <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <!-- 日時（1行表示・2026/05/01仕様） -->
+    <div class="idle-datetime-line" id="idleDateTime">📅 2026年5月1日（金） 15:43</div>
+    <!-- 業務管理ダッシュボード（5項目縦積み） -->
     <div class="stats-dashboard">
       <div class="stat-card-large">
         <span class="stat-label">📍 総走行距離</span>
@@ -391,22 +416,17 @@ justify-content:center;
         <span class="stat-label">🚗 実車総距離</span>
         <span class="stat-value"><span id="todayDist">0.0</span><span class="stat-unit">km</span></span>
       </div>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-label">💼 営業回数</div>
-          <div class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">💰 本日売上</div>
-          <div class="stat-value">¥<span id="fareTotalYen">0</span></div>
-        </div>
+      <div class="stat-card-large">
+        <span class="stat-label">💼 営業回数</span>
+        <span class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></span>
+      </div>
+      <div class="stat-card-large">
+        <span class="stat-label">💰 本日売上</span>
+        <span class="stat-value">¥<span id="fareTotalYen">0</span></span>
       </div>
     </div>
-    <!-- 本日の履歴インライン表示 -->
-    <div id="inlineHistoryWrap" style="display:none;margin-top:12px;flex:1;min-height:0;flex-direction:column;overflow:hidden;">
-      <div style="font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;">本日の走行履歴</div>
-      <div id="inlineHistory" class="history-box"></div>
-    </div>
+    <!-- 履歴ボタン（2026/05/01追加） -->
+    <button class="btn-history" onclick="location.href='history.html'">履歴</button>
   </div>
 
   <!-- DRIVING -->
@@ -813,15 +833,21 @@ function autoResetCheck(){
   }
 }
 
-// ─── 時計 ───
+// ─── 時計（2026/05/01仕様変更：日時1行表示） ───
 function updateClock(){
   const now = new Date();
   const h = now.getHours().toString().padStart(2,'0');
   const m = now.getMinutes().toString().padStart(2,'0');
   const days=['日','月','火','水','木','金','土'];
-  document.getElementById('clockTime').textContent = h+':'+m;
-  document.getElementById('clockDate').textContent =
-    now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日（'+days[now.getDay()]+'）';
+  // 新仕様：1行表示「📅 2026年5月1日（金） 15:43」
+  const text = '📅 ' + now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '） ' + h + ':' + m;
+  const elNew = document.getElementById('idleDateTime');
+  if(elNew) elNew.textContent = text;
+  // 旧仕様 ID も保険で更新（他箇所参照対応）
+  const elTime = document.getElementById('clockTime');
+  if(elTime) elTime.textContent = h + ':' + m;
+  const elDate = document.getElementById('clockDate');
+  if(elDate) elDate.textContent = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '）';
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -1273,7 +1299,15 @@ function showScreen(name){
   document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
+  // 3ボタン（[空車][追加料金][確定]）は実車中のみ表示（2026/05/01仕様変更）
+  const btnRow = document.querySelector('.btn-row');
+  if(btnRow) btnRow.style.display = name==='driving' ? 'grid' : 'none';
 }
+// 起動直後（idle初期状態）にも3ボタン非表示を即適用
+(function _initBtnRowVisibility(){
+  const btnRow = document.querySelector('.btn-row');
+  if(btnRow) btnRow.style.display = 'none';
+})();
 
 // ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
 document.addEventListener('visibilitychange', function(){
