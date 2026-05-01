@@ -11,6 +11,10 @@ const Business = (() => {
     start_time: null,           // 業務開始時刻（unix ms）
     end_time: null,             // 業務終了時刻（end()押下時）
     
+    // 終了後の3時間再開機能（2026/05/01）
+    ended: false,               // [終了]ボタン押下フラグ（abandon前の中間状態）
+    ended_at: null,             // [終了]押下時刻（3時間判定用）
+    
     // 距離（メートル）
     total_distance_m: 0,        // 総走行距離（業務開始からのGPS移動全部）
     actual_total_m: 0,          // 実車総距離（各実車の合算）
@@ -32,6 +36,9 @@ const Business = (() => {
   // GPS空白検出（5秒以上空いたら連続性リセット）
   const GAP_RESET_SEC = 5;
 
+  // 終了後の再開猶予期間（3時間）
+  const RESUME_GRACE_MS = 3 * 60 * 60 * 1000;
+
   // localStorage キー
   const STORAGE_KEY = 'dakome_business_state';
   const HISTORY_KEY = 'dakome_business_history';
@@ -50,11 +57,17 @@ const Business = (() => {
       if(typeof dlog === 'function') dlog('[Business] already active');
       return false;
     }
+    // 既に終了済み（再開可能状態）の業務があれば自動 abandon
+    if(state.ended){
+      checkAutoAbandon(true);  // force=true で即 abandon
+    }
     const now = Date.now();
     state = {
       active: true,
       start_time: now,
       end_time: null,
+      ended: false,
+      ended_at: null,
       total_distance_m: 0,
       actual_total_m: 0,
       fare_total_yen: 0,
@@ -67,23 +80,37 @@ const Business = (() => {
     return true;
   }
 
-  // 業務終了（日報生成・state は保持して追加業務に備える）
-  // → end() 後でも resume() で同じ業務に追加可能
-  // → abandon() で完全確定（履歴保存→state リセット）
+  // 業務終了（[終了]ボタン押下時）
+  // 3時間以内なら resume() で再開可能
+  // 3時間経過後は次回 start() or checkAutoAbandon() で自動 abandon
   function end(){
-    if(!state.active) return null;
+    if(!state.active && !state.start_time) return null;
+    const now = Date.now();
     state.active = false;
-    state.end_time = Date.now();
+    state.ended = true;
+    state.ended_at = now;
+    state.end_time = now;
     save();
-    if(typeof dlog === 'function') dlog('[Business] end (resumable)');
+    if(typeof dlog === 'function') dlog('[Business] end (resumable for 3h)');
     return getReport();
   }
 
-  // 業務再開（end 後に追加業務が入った場合）
+  // 業務再開（end 後・3時間以内なら可能）
   function resume(){
     if(state.active) return false;
     if(!state.start_time) return false;  // start していない
+    // 3時間以内かチェック
+    if(state.ended && state.ended_at){
+      const elapsed = Date.now() - state.ended_at;
+      if(elapsed >= RESUME_GRACE_MS){
+        // 3時間経過 → 再開不可
+        if(typeof dlog === 'function') dlog('[Business] resume denied (3h elapsed)');
+        return false;
+      }
+    }
     state.active = true;
+    state.ended = false;
+    state.ended_at = null;
     state.end_time = null;
     state.last_gps = null;  // GPS連続性リセット（再開時にジャンプ防止）
     save();
@@ -91,7 +118,47 @@ const Business = (() => {
     return true;
   }
 
+  // 再開可能か（ボタン表示判定用）
+  function canResume(){
+    if(!state.ended || !state.ended_at) return false;
+    const elapsed = Date.now() - state.ended_at;
+    return elapsed < RESUME_GRACE_MS;
+  }
+
+  // 自動 abandon チェック（起動時・start時に呼ぶ）
+  // force=true なら時間チェックせず強制 abandon
+  function checkAutoAbandon(force){
+    if(!state.ended) return false;
+    if(!force){
+      const elapsed = state.ended_at ? (Date.now() - state.ended_at) : Infinity;
+      if(elapsed < RESUME_GRACE_MS) return false;  // まだ猶予内
+    }
+    // 3時間経過 → 履歴に確定保存して state リセット
+    if(state.start_time){
+      const report = getReport();
+      _appendHistory(report);
+    }
+    state = {
+      active: false,
+      start_time: null,
+      end_time: null,
+      ended: false,
+      ended_at: null,
+      total_distance_m: 0,
+      actual_total_m: 0,
+      fare_total_yen: 0,
+      trip_count: 0,
+      trips: [],
+      last_gps: null,
+    };
+    save();
+    if(typeof dlog === 'function') dlog('[Business] auto-abandon (3h elapsed)');
+    return true;
+  }
+
   // 業務完全終了（履歴に保存→state リセット）
+  // 通常は3時間経過後に checkAutoAbandon() から呼ばれる
+  // 手動で確定したい場合の公開API（明示的な abandon）
   function abandon(){
     if(state.start_time){
       const report = getReport();
@@ -101,6 +168,8 @@ const Business = (() => {
       active: false,
       start_time: null,
       end_time: null,
+      ended: false,
+      ended_at: null,
       total_distance_m: 0,
       actual_total_m: 0,
       fare_total_yen: 0,
@@ -289,6 +358,8 @@ const Business = (() => {
         active: !!parsed.active,
         start_time: parsed.start_time || null,
         end_time: parsed.end_time || null,
+        ended: !!parsed.ended,
+        ended_at: parsed.ended_at || null,
         total_distance_m: parsed.total_distance_m || 0,
         actual_total_m: parsed.actual_total_m || 0,
         fare_total_yen: parsed.fare_total_yen || 0,
@@ -296,6 +367,8 @@ const Business = (() => {
         trips: Array.isArray(parsed.trips) ? parsed.trips : [],
         last_gps: parsed.last_gps || null,
       };
+      // ロード後に3時間経過チェック（自動 abandon）
+      checkAutoAbandon();
       if(typeof dlog === 'function') dlog('[Business] loaded state');
       return true;
     } catch(e) {
@@ -347,6 +420,7 @@ const Business = (() => {
   // ─────────────────────────────────────────
   return {
     start, end, resume, abandon,
+    canResume, checkAutoAbandon,
     onGps, onTripEnd,
     getState, getReport, exportCSV,
     save, load,
