@@ -105,17 +105,17 @@ text-decoration:none !important;
 }
 .btn-business-end:active{background:#FFF0F0;transform:scale(0.98);}
 
-/* 業務開始ボタン（業務未開始画面・中央大ボタン） */
+/* 業務開始ボタン（業務未開始画面・中央配置） */
+/* 2026/05/01：[続きから再開]と同サイズに統一（司さん指示） */
 .btn-business-start{
-  width:80%;max-width:300px;padding:24px;
+  width:80%;max-width:300px;padding:14px;
   background:#007AFF;border:none;
-  border-radius:16px;color:#fff;
-  font-size:22px;font-weight:900;letter-spacing:4px;
+  border-radius:12px;color:#fff;
+  font-size:15px;font-weight:700;letter-spacing:2px;
   font-family:'Noto Sans JP',sans-serif;cursor:pointer;
   -webkit-tap-highlight-color:transparent;
-  box-shadow:0 4px 12px rgba(0,122,255,0.3);
 }
-.btn-business-start:active{transform:scale(0.97);filter:brightness(0.9);}
+.btn-business-start:active{transform:scale(0.98);filter:brightness(0.9);}
 
 /* 続きから再開ボタン（業務開始画面・[業務開始]の下） */
 .btn-business-resume-start{
@@ -173,7 +173,7 @@ text-decoration:none !important;
 .meter-card{background:#f5f5f5;border-radius:12px;padding:16px;text-align:center;}
 .meter-label{font-size:12px;color:#aaa;margin-bottom:4px;letter-spacing:1px;}
 .meter-value{font-size:42px;font-weight:900;color:#111;line-height:1;}
-.meter-value.fare{color:#FF3B30;}
+.meter-value.fare{color:#111;}
 .meter-unit{font-size:14px;color:#aaa;}
 .meter-sub{font-size:12px;color:#FF3B30;margin-top:4px;}
 .extras-list{display:flex;flex-direction:column;gap:6px;}
@@ -404,7 +404,7 @@ justify-content:center;
 .btn-back-landscape.show ~ .btn-main.show{margin-top:32px !important;}
 
 /* 2026/05/01 横画面：業務管理ボタンも中央寄せ・サイズ統一 */
-.btn-business-start{max-width:60% !important;width:60% !important;padding:18px !important;font-size:18px !important;letter-spacing:3px !important;}
+.btn-business-start{max-width:60% !important;width:60% !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
 .btn-business-resume{max-width:60% !important;width:60% !important;margin-left:auto !important;margin-right:auto !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
 .btn-business-confirm{max-width:60% !important;width:60% !important;margin-left:auto !important;margin-right:auto !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
 /* 業務終了画面の日報カードも中央寄せ */
@@ -624,14 +624,15 @@ justify-content:center;
     <!-- リロード復元バナー（走行距離の真上） -->
     <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
     <div class="driving-grid">
-      <div class="meter-card">
-        <div class="meter-label">走行距離</div>
-        <div class="meter-value"><span id="driveDist">0.00</span><span class="meter-unit">km</span></div>
-      </div>
+      <!-- 2026/05/01 仕様変更：料金を上・走行距離を下に入れ替え -->
       <div class="meter-card">
         <div class="meter-label">現在料金</div>
         <div class="meter-value fare">¥<span id="driveFare">0</span></div>
         <div class="meter-sub" id="surchargeInfo" style="display:none;"></div>
+      </div>
+      <div class="meter-card">
+        <div class="meter-label">走行距離</div>
+        <div class="meter-value"><span id="driveDist">0.00</span><span class="meter-unit">km</span></div>
       </div>
       <div class="extras-list" id="extrasList"></div>
     </div>
