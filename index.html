@@ -1072,6 +1072,10 @@ function renderFare(s, fare, extraTotal, total){
   document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
   const cfg = Meter.getFareConfig();
   let html = '';
+  // 2026/05/01 仕様変更：走行情報を内訳の上に表示（分かりやすさ向上）
+  html += row('走行距離', (s.distance_m/1000).toFixed(2)+'km');
+  html += row('経過時間', Math.floor(s.elapsed_sec/60)+'分');
+  html += '<hr class="breakdown-divider">';
   html += row('基本料金', '¥'+cfg.base_fare.toLocaleString());
   html += row('距離料金', '¥'+(s.fare_yen - cfg.base_fare).toLocaleString());
   if(surchargeOn){
@@ -1079,9 +1083,6 @@ function renderFare(s, fare, extraTotal, total){
     html += row('割増', '+¥'+diff.toLocaleString(), 'surcharge');
   }
   extras.forEach(e=>{ html += row(e.name, '+¥'+e.amount.toLocaleString(), 'extra'); });
-  html += '<hr class="breakdown-divider">';
-  html += row('走行距離', (s.distance_m/1000).toFixed(2)+'km');
-  html += row('経過時間', Math.floor(s.elapsed_sec/60)+'分');
   document.getElementById('breakdown').innerHTML = html;
 
   // 今日の実績・履歴は1回だけ保存
