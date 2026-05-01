@@ -877,13 +877,18 @@ function checkDrivingRestore(){
   }
 }
 
-// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加）
+// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加・2026/05/01修正）
 function showSensorBannerForRestore(){
   try {
     // iOS 以外（Androidや非対応端末）では requestPermission が存在しない
     // → 何もしない（既存の挙動を保持）
     if(typeof DeviceMotionEvent === 'undefined' ||
        typeof DeviceMotionEvent.requestPermission !== 'function'){
+      return;
+    }
+    // 2026/05/01 修正：許可済みならバナー出さない（誤表示防止）
+    if(window._compassGranted && window._motionGranted){
+      if(typeof dlog === 'function') dlog('[復元] 許可済みなのでバナー非表示');
       return;
     }
 
@@ -2198,6 +2203,57 @@ function confirmAndroidSensor(){
   if(localStorage.getItem('compass_granted')) window._compassGranted = true;
   if(localStorage.getItem('motion_granted')) window._motionGranted = true;
 })();
+
+// ─── センサー失効検知（2026/05/01追加） ───
+// 業界標準（センサー値受信検知）+ ダイコメ独自（継続監視）
+//
+// 動作：
+//   1. devicemotion / deviceorientation の値受信時に lastSensorAt を更新
+//   2. 5秒ごとにチェック：
+//      - localStorage で過去に許可してた、かつ最後の受信から15秒経過
+//      - → 失効と判定 → バナー表示 + フラグ false
+//   3. 許可ダイアログでの再許可は司さんの画面タップで発火
+//
+// 誤検知対策：
+//   - 画面暗転：NoSleep（WakeLock）で対処済 → センサー値来続ける
+//   - トンネル：DeviceMotion は端末内部 → トンネル無関係
+//   - 通常運転：センサー値毎秒受信 → lastSensorAt 常に最新
+let lastSensorAt = null;
+(function(){
+  // 受信時刻を記録するリスナー（軽量・空処理）
+  try {
+    window.addEventListener('devicemotion', function(){
+      lastSensorAt = Date.now();
+    });
+    window.addEventListener('deviceorientation', function(){
+      lastSensorAt = Date.now();
+    });
+  } catch(e){
+    console.error('[Sensor] listener setup error:', e);
+  }
+})();
+
+// 5秒ごとの失効検知（iOS PWA のみ対象）
+setInterval(function(){
+  try {
+    if(!_isIOS) return;
+    if(window.navigator.standalone !== true) return;
+    // 過去に許可した記録がある場合のみチェック
+    const grantedBefore = localStorage.getItem('compass_granted')
+                       && localStorage.getItem('motion_granted');
+    if(!grantedBefore) return;
+    // 最後の受信から15秒以上経過 → 失効と判定
+    if(!lastSensorAt || (Date.now() - lastSensorAt) > 15000){
+      // フラグを false に戻してバナー表示
+      window._compassGranted = false;
+      window._motionGranted = false;
+      showSensorBannerIfNeeded();
+      if(typeof dlog === 'function') dlog('[Sensor] 失効検知: バナー表示');
+    }
+  } catch(e){
+    console.error('[Sensor] watcher error:', e);
+  }
+}, 5000);
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
