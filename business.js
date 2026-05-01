@@ -36,6 +36,10 @@ const Business = (() => {
   const STORAGE_KEY = 'dakome_business_state';
   const HISTORY_KEY = 'dakome_business_history';
 
+  // 履歴保持期間（日数）
+  const RETENTION_DAYS = 30;
+  const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
   // ─────────────────────────────────────────
   // ライフサイクル
   // ─────────────────────────────────────────
@@ -306,9 +310,18 @@ const Business = (() => {
       const raw = localStorage.getItem(HISTORY_KEY);
       const list = raw ? JSON.parse(raw) : [];
       list.unshift(report);  // 新しい順
-      // 直近100件まで保持
-      const trimmed = list.slice(0, 100);
+      // 直近 RETENTION_DAYS 日分のみ保持
+      // 判定は end_time 優先（無ければ start_time、それも無ければ残す）
+      const cutoff = Date.now() - RETENTION_MS;
+      const trimmed = list.filter(item => {
+        const t = item.end_time || item.start_time || null;
+        if(t === null) return true;  // 時刻不明は残す（保険）
+        return t >= cutoff;
+      });
       localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+      if(typeof dlog === 'function') {
+        dlog('[Business] history saved (' + trimmed.length + ' items, ' + RETENTION_DAYS + 'days retention)');
+      }
     } catch(e) {
       if(typeof dlog === 'function') dlog('[Business] history save error: ' + e.message);
     }
