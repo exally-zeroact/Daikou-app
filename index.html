@@ -132,20 +132,21 @@ text-decoration:none !important;
 .report-row .val{font-size:14px;color:#111;font-weight:700;}
 .report-row.large .val{font-size:18px;font-weight:900;color:#111;}
 .report-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
+/* [続ける]/[終了] ボタン：他画面のボタンとサイズ統一（btn-main / btn-business-start と同等） */
 .btn-business-resume{
-  width:calc(100% - 32px);margin:8px 16px 4px;padding:14px;
+  width:calc(100% - 32px);margin:8px 16px 4px;padding:18px;
   background:#007AFF;border:none;border-radius:12px;
-  color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;
+  color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;
   font-family:'Noto Sans JP',sans-serif;cursor:pointer;
 }
-.btn-business-resume:active{transform:scale(0.98);filter:brightness(0.9);}
+.btn-business-resume:active{transform:scale(0.97);filter:brightness(0.85);}
 .btn-business-confirm{
-  width:calc(100% - 32px);margin:4px 16px 8px;padding:14px;
+  width:calc(100% - 32px);margin:4px 16px 8px;padding:18px;
   background:#fff;border:1.5px solid #FF3B30;border-radius:12px;
-  color:#FF3B30;font-size:16px;font-weight:700;letter-spacing:2px;
+  color:#FF3B30;font-size:18px;font-weight:700;letter-spacing:3px;
   font-family:'Noto Sans JP',sans-serif;cursor:pointer;
 }
-.btn-business-confirm:active{background:#FFF0F0;transform:scale(0.98);}
+.btn-business-confirm:active{background:#FFF0F0;transform:scale(0.97);}
 .report-note{
   text-align:center;font-size:11px;color:#999;
   padding:4px 16px 16px;
@@ -356,6 +357,15 @@ justify-content:center;
 .btn-back-landscape.show{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:1px !important;}
 /* 走行に戻ると精算終了は誤タップ防止で離す */
 .btn-back-landscape.show ~ .btn-main.show{margin-top:32px !important;}
+
+/* 2026/05/01 横画面：業務管理ボタンも中央寄せ・サイズ統一 */
+.btn-business-start{max-width:60% !important;width:60% !important;padding:18px !important;font-size:18px !important;letter-spacing:3px !important;}
+.btn-business-resume{max-width:60% !important;width:60% !important;margin-left:auto !important;margin-right:auto !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
+.btn-business-confirm{max-width:60% !important;width:60% !important;margin-left:auto !important;margin-right:auto !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
+/* 業務終了画面の日報カードも中央寄せ */
+.report-card{max-width:60% !important;margin-left:auto !important;margin-right:auto !important;}
+.report-title{font-size:16px !important;padding:8px 0 4px !important;}
+.report-note{font-size:10px !important;padding:2px 16px 8px !important;}
 
 /* IDLE：stats-grid・履歴を50%中央寄せ */
 .idle-time{font-size:36px;}
@@ -1338,12 +1348,22 @@ function onIdle(){
   // 空車成立時の補正用データを取得（reset前に）
   let correctionDistanceM = 0;
   let correctionTotal = 0;
+  // 業務管理連携用（Step 5・2026/05/01追加）
+  let tripDistanceM = 0;
+  let tripFareYen = 0;
+  let tripStartTime = null;
   if(appState==='fare'){
     const s = Meter.getState();
     correctionDistanceM = s.distance_m;
     let fare = s.fare_yen;
     if(surchargeOn) fare = Math.round(fare * surchargeRate);
     correctionTotal = fare + extras.reduce((a,b)=>a+b.amount,0);
+    // 業務管理連携用に保持（reset前に）
+    tripDistanceM = s.distance_m;
+    tripFareYen = correctionTotal;
+    // 仕事開始時刻を取得
+    const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
+    tripStartTime = lastStart > 0 ? lastStart : null;
     // TestMode：走行終了記録（★テスト用・リリース時削除）
     try { if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); } catch(e){ console.error('TestMode end error:', e); }
 
@@ -1374,9 +1394,22 @@ function onIdle(){
   localStorage.removeItem('daikou_driving_state');
   document.getElementById('restoreBanner').classList.remove('show');
   try { FB.setIdle(); } catch(e){}
+
+  // ─── 業務管理連携（Step 5・2026/05/01追加）───
+  // 実車終了を Business に通知して累計加算（実車距離・売上・営業回数）
+  try {
+    if(typeof Business !== 'undefined' && tripDistanceM > 0){
+      Business.onTripEnd(tripDistanceM, tripFareYen, tripStartTime);
+      if(typeof dlog === 'function') dlog('[Business] onTripEnd: ' + tripDistanceM + 'm ¥' + tripFareYen);
+    }
+  } catch(e){ console.error('[Business] onTripEnd error:', e); }
+
+  // 旧仕様の today 表示はBusiness連携後にダッシュボード更新で上書きされる
   document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
   document.getElementById('todayCount').textContent = todayCount;
   showScreen('idle');
+  // 業務管理ダッシュボード即時更新（Step 5・2026/05/01追加）
+  try { updateBusinessDashboard(); } catch(e){ console.error('[Dashboard] update error:', e); }
   renderInlineHistory();
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
