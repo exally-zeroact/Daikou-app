@@ -592,7 +592,8 @@ justify-content:center;
 
   <!-- BUSINESS START（業務未開始時の専用画面・2026/05/01追加） -->
 
-  <div id="screenBusinessStart" style="display:none;flex-direction:column;flex:1;min-height:0;justify-content:center;align-items:center;gap:24px;">
+  <!-- 2026/05/01：画面のどこタップしても許可ダイアログ発火（未許可時）・onClick で blockIfSensorNotGranted を呼ぶ -->
+  <div id="screenBusinessStart" onclick="blockIfSensorNotGranted()" style="display:none;flex-direction:column;flex:1;min-height:0;justify-content:center;align-items:center;gap:24px;">
     <!-- 日時（全画面共通） -->
     <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
     <!-- 業務開始ボタン（中央配置・大ボタン） -->
@@ -659,28 +660,35 @@ justify-content:center;
 
 <div class="btn-area">
   <!-- センサー未許可バナー（全画面共通・許可されるまで表示・2026/05/01文言変更） -->
-  <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:center;">
-    <!-- iOS用（デフォルト） -->
-    <div id="sensorBannerIOS">
-      <div style="font-size:13px;color:#fff;line-height:1.6;">
-        <strong style="display:block;font-size:15px;margin-bottom:6px;">📡 センサー許可が必要です</strong>
+  <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:left;">
+    <div style="font-size:13px;color:#fff;line-height:1.6;">
+      <strong style="display:block;font-size:15px;margin-bottom:8px;text-align:center;">📡 位置情報・センサー許可が必要です</strong>
+      <div style="margin-bottom:8px;">
         ダイコメは GPS の精度を確保するため<br>
-        コンパス・ジャイロのセンサー許可が必須です
-        <div style="margin-top:10px;font-size:11px;opacity:0.95;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">
-          ⚠️ アプリを完全終了（タスクキル）して<br>
-          再起動 → 必ず「許可」を選んでください<br><br>
-          ※ センサーが許可されないと<br>
-          全ての操作ができません
-        </div>
+        位置情報・コンパス・ジャイロの許可が必須です
       </div>
-    </div>
-    <!-- Android用 -->
-    <div id="sensorBannerAndroid" style="display:none;">
-      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
-        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーについて</strong>
-        Androidはコンパス・ジャイロが<br>標準で使えます。タップして確認してください
+      <div style="margin-bottom:8px;font-weight:700;">
+        許可ダイアログで「キャンセル」を押してしまった場合は<br>
+        以下の手順で復活してください
       </div>
-      <button onclick="confirmAndroidSensor()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">✅ センサーを確認する</button>
+      <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;line-height:1.7;">
+        <strong style="display:block;margin-bottom:4px;">【iPhone の場合】</strong>
+        ① アプリを完全終了（タスクキル）<br>
+        ② iPhone「設定」→「Safari」<br>
+        ③ 「履歴とWebサイトデータを消去」<br>
+        ④ 「ダイコメ」を再起動<br>
+        ⑤ 「許可」を選ぶ<br>
+        <span style="display:block;margin-top:6px;font-size:11px;opacity:0.9;">※ ジャイロ・コンパスは許可できても<br>　 GPS だけ動作しない場合があります</span>
+      </div>
+      <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;font-size:12px;line-height:1.7;">
+        <strong style="display:block;margin-bottom:4px;">【Android の場合】</strong>
+        センサーは自動的にオンになります<br>
+        位置情報の許可ダイアログが出たら<br>
+        「許可」してください
+      </div>
+      <div style="margin-top:8px;font-size:11px;text-align:center;opacity:0.95;">
+        ※ 許可されないと全ての操作ができません
+      </div>
     </div>
   </div>
   <!-- 横画面用 走行に戻るボタン（fare時のみ表示・縦画面では非表示） -->
@@ -1186,8 +1194,11 @@ function fmt(sec){
          (sec%60).toString().padStart(2,'0');
 }
 
-// ─── センサー許可チェック共通関数（2026/05/01追加） ───
-// iOS PWA でセンサー未許可ならバナー表示してブロック
+// ─── センサー許可チェック共通関数（2026/05/01追加・更新） ───
+// iOS PWA でセンサー未許可なら：
+//   1. requestSensorPermission() 発火（ダイアログ表示・重複防止フラグあり）
+//   2. バナー表示
+//   3. return true でブロック
 // 全ボタン関数の冒頭で「if(blockIfSensorNotGranted()) return;」と呼ぶ
 // 戻り値：true=ブロックした（呼出元は処理中止）/ false=通過OK
 function blockIfSensorNotGranted(){
@@ -1196,14 +1207,39 @@ function blockIfSensorNotGranted(){
   if(window.navigator.standalone !== true) return false;
   // 許可済みなら通過
   if(window._compassGranted && window._motionGranted) return false;
-  // 未許可：バナー表示してブロック
+
+  // 未許可：バナー表示 + ダイアログ発火（重複防止）+ ブロック
+  showSensorBannerIfNeeded();
+  // ダイアログ発火（重複防止フラグ管理）
+  if(!window._sensorRequestInFlight){
+    window._sensorRequestInFlight = true;
+    try {
+      requestSensorPermission();
+    } catch(e){
+      console.error('requestSensorPermission error:', e);
+    } finally {
+      // 連打防止：500ms 後にフラグ解除（ダイアログ処理中の再呼出防止）
+      setTimeout(() => { window._sensorRequestInFlight = false; }, 500);
+    }
+  }
+  if(typeof dlog === 'function') dlog('[Sensor] blocked + dialog fired');
+  return true;
+}
+
+// バナー表示のみ（ダイアログは発火しない・起動時/画面遷移時用）
+function showSensorBannerIfNeeded(){
+  // iOS PWA 以外は表示しない（他環境ではバナー出ない）
+  if(!_isIOS) return;
+  if(window.navigator.standalone !== true) return;
+  // 許可済みは何もしない
+  if(window._compassGranted && window._motionGranted) return;
+  // バナー表示
   const banner = document.getElementById('sensorBanner');
   if(banner){
     banner.style.display = 'block';
-    setTimeout(() => banner.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+    setTimeout(() => banner.scrollIntoView({behavior:'smooth', block:'end'}), 100);
   }
-  if(typeof dlog === 'function') dlog('[Sensor] blocked (not granted)');
-  return true;
+  if(typeof dlog === 'function') dlog('[Sensor] banner shown');
 }
 
 // ─── メインボタン ───
@@ -1925,11 +1961,17 @@ try {
       document.getElementById('appbarTitle').textContent = 'ダイコメ';
       // 直前の業務履歴が3時間以内なら「続きから再開」ボタン表示（共通関数）
       updateResumeFromStartVisibility();
+      // 2026/05/01：未許可ならバナー表示（許可済みなら何もしない）
+      showSensorBannerIfNeeded();
     }
   }
 } catch(e){
   console.error('[Business] init error:', e);
 }
+
+// 起動時の業務管理初期化外でも、許可済みかチェックしてバナー表示
+// （Business 未定義の場合や、active 業務中でも未許可ならバナー出す）
+try { showSensorBannerIfNeeded(); } catch(e){ console.error('[Sensor] init banner error:', e); }
 
 // ─── PWAバナー（ホーム画面追加促進） ───
 (function(){
