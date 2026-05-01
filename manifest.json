@@ -39,20 +39,23 @@
   ],
   "screenshots": [
     {
-      "src": "/screenshots/screenshot-1.png",
-      "type": "image/png",
+      "src": "/screenshot-1.jpg",
+      "sizes": "870x1882",
+      "type": "image/jpeg",
       "form_factor": "narrow",
       "label": "ホーム画面"
     },
     {
-      "src": "/screenshots/screenshot-2.png",
-      "type": "image/png",
+      "src": "/screenshot-2.jpg",
+      "sizes": "870x1882",
+      "type": "image/jpeg",
       "form_factor": "narrow",
       "label": "走行中メーター"
     },
     {
-      "src": "/screenshots/screenshot-3.png",
-      "type": "image/png",
+      "src": "/screenshot-3.jpg",
+      "sizes": "870x1882",
+      "type": "image/jpeg",
       "form_factor": "narrow",
       "label": "設定画面"
     }
