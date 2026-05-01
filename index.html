@@ -93,6 +93,64 @@ text-decoration:none !important;
 }
 .btn-history:active{background:#E8F4FD;transform:scale(0.98);}
 
+/* 業務管理ボタン群（2026/05/01追加） */
+/* 業務終了ボタン（待機画面の履歴の下） */
+.btn-business-end{
+  width:100%;padding:14px;margin-top:6px;
+  background:#fff;border:1.5px solid #FF3B30;
+  border-radius:12px;color:#FF3B30;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'Noto Sans JP',sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-business-end:active{background:#FFF0F0;transform:scale(0.98);}
+
+/* 業務開始ボタン（業務未開始画面・中央大ボタン） */
+.btn-business-start{
+  width:80%;max-width:300px;padding:24px;
+  background:#007AFF;border:none;
+  border-radius:16px;color:#fff;
+  font-size:22px;font-weight:900;letter-spacing:4px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  box-shadow:0 4px 12px rgba(0,122,255,0.3);
+}
+.btn-business-start:active{transform:scale(0.97);filter:brightness(0.9);}
+
+/* 業務終了画面（日報） */
+.report-title{
+  text-align:center;font-size:20px;font-weight:900;
+  color:#111;padding:14px 0 8px;
+}
+.report-card{
+  background:#f5f5f5;border-radius:12px;padding:16px;
+  margin:0 16px 12px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.report-row{display:flex;justify-content:space-between;align-items:center;}
+.report-row .lbl{font-size:13px;color:#aaa;}
+.report-row .val{font-size:14px;color:#111;font-weight:700;}
+.report-row.large .val{font-size:18px;font-weight:900;color:#111;}
+.report-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
+.btn-business-resume{
+  width:calc(100% - 32px);margin:8px 16px 4px;padding:14px;
+  background:#007AFF;border:none;border-radius:12px;
+  color:#fff;font-size:16px;font-weight:900;letter-spacing:2px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+}
+.btn-business-resume:active{transform:scale(0.98);filter:brightness(0.9);}
+.btn-business-confirm{
+  width:calc(100% - 32px);margin:4px 16px 8px;padding:14px;
+  background:#fff;border:1.5px solid #FF3B30;border-radius:12px;
+  color:#FF3B30;font-size:16px;font-weight:700;letter-spacing:2px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+}
+.btn-business-confirm:active{background:#FFF0F0;transform:scale(0.98);}
+.report-note{
+  text-align:center;font-size:11px;color:#999;
+  padding:4px 16px 16px;
+}
+
 /* DRIVING */
 .driving-grid{display:flex;flex-direction:column;gap:12px;}
 .meter-card{background:#f5f5f5;border-radius:12px;padding:16px;text-align:center;}
@@ -468,8 +526,34 @@ justify-content:center;
         <span class="stat-value">¥<span id="fareTotalYen">0</span></span>
       </div>
     </div>
-    <!-- 履歴ボタン（2026/05/01追加） -->
+    <!-- 履歴ボタン -->
     <button class="btn-history" onclick="location.href='history.html'">履歴</button>
+    <!-- 業務終了ボタン（履歴の下・2026/05/01追加） -->
+    <button class="btn-business-end" onclick="onBusinessEnd()">業務終了</button>
+  </div>
+
+  <!-- BUSINESS START（業務未開始時の専用画面・2026/05/01追加） -->
+
+  <div id="screenBusinessStart" style="display:none;flex-direction:column;flex:1;min-height:0;justify-content:center;align-items:center;gap:24px;">
+    <!-- 日時（全画面共通） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <!-- 業務開始ボタン（中央配置・大ボタン） -->
+    <button class="btn-business-start" onclick="onBusinessStart()">業務開始</button>
+  </div>
+
+  <!-- BUSINESS REPORT（業務終了画面・日報・2026/05/01追加） -->
+
+  <div id="screenBusinessReport" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <!-- 日時（全画面共通） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <div class="report-title">本日の業務報告</div>
+    <div class="report-card" id="reportCard">
+      <!-- JS で動的生成 -->
+    </div>
+    <!-- 続ける／終了 ボタン -->
+    <button class="btn-business-resume" onclick="onBusinessResume()">続ける</button>
+    <button class="btn-business-confirm" onclick="onBusinessConfirm()">終了</button>
+    <div class="report-note">※ 終了から3時間以内なら「続ける」で再開できます</div>
   </div>
 
   <!-- DRIVING -->
@@ -843,6 +927,17 @@ function cleanOldHistoryKeys(){
 }
 
 function autoResetCheck(){
+  // 2026/05/01：業務中（Business.active）ならリセットしない（手動操作優先）
+  try {
+    if(typeof Business !== 'undefined'){
+      const bs = Business.getState();
+      if(bs.active){
+        if(typeof dlog === 'function') dlog('[autoReset] 業務中のためリセットをスキップ');
+        return;
+      }
+    }
+  } catch(e){ console.error('[autoReset] Business check error:', e); }
+
   const s = localStorage.getItem('daikou_settings');
   const resetTime = s ? (JSON.parse(s).resetTime || '12:00') : '12:00';
   const [resetH, resetM] = resetTime.split(':').map(Number);
@@ -1068,6 +1163,128 @@ function onMainBtn(){
   }
 }
 
+// ─── 業務管理ボタン処理（2026/05/01追加） ───
+
+// [業務開始] 押下：Business.start() 発火 → 待機画面へ
+function onBusinessStart(){
+  if(typeof Business === 'undefined'){
+    console.error('[Business] not loaded');
+    return;
+  }
+  try {
+    Business.start();
+    appState = 'idle';
+    showScreen('idle');
+    document.getElementById('appbarTitle').textContent = '空　車';
+    updateBusinessDashboard();
+    if(typeof dlog === 'function') dlog('[Business] start');
+  } catch(e){
+    console.error('[Business] start error:', e);
+    showToast('業務開始に失敗しました');
+  }
+}
+
+// [業務終了] 押下：Business.end() 発火 → 日報画面へ
+function onBusinessEnd(){
+  if(typeof Business === 'undefined') return;
+  // 実車中・支払中は業務終了不可（保険・本来 screenIdle のみ表示なのでここに来ない）
+  if(appState === 'driving' || appState === 'fare'){
+    showToast('実車中・支払中は業務終了できません');
+    return;
+  }
+  try {
+    Business.end();
+    appState = 'businessReport';
+    renderBusinessReport();
+    showScreen('businessReport');
+    document.getElementById('appbarTitle').textContent = '業務報告';
+    if(typeof dlog === 'function') dlog('[Business] end');
+  } catch(e){
+    console.error('[Business] end error:', e);
+    showToast('業務終了に失敗しました');
+  }
+}
+
+// [続ける] 押下：Business.resume() 発火 → 待機画面へ
+function onBusinessResume(){
+  if(typeof Business === 'undefined') return;
+  if(!Business.canResume()){
+    showToast('終了から3時間を超えたため再開できません');
+    onBusinessConfirm();  // 自動で abandon に進める
+    return;
+  }
+  try {
+    Business.resume();
+    appState = 'idle';
+    showScreen('idle');
+    document.getElementById('appbarTitle').textContent = '空　車';
+    updateBusinessDashboard();
+    if(typeof dlog === 'function') dlog('[Business] resume');
+  } catch(e){
+    console.error('[Business] resume error:', e);
+    showToast('再開に失敗しました');
+  }
+}
+
+// [終了] 押下：Business.abandon() 発火 → 業務開始画面へ
+function onBusinessConfirm(){
+  if(typeof Business === 'undefined') return;
+  try {
+    Business.abandon();
+    appState = 'businessStart';
+    showScreen('businessStart');
+    document.getElementById('appbarTitle').textContent = 'ダイコメ';
+    if(typeof dlog === 'function') dlog('[Business] abandon');
+  } catch(e){
+    console.error('[Business] abandon error:', e);
+    showToast('終了処理に失敗しました');
+  }
+}
+
+// 業務終了画面の日報描画（report-card 内に動的生成）
+function renderBusinessReport(){
+  if(typeof Business === 'undefined') return;
+  const r = Business.getReport();
+  if(!r){
+    document.getElementById('reportCard').innerHTML = '<div class="report-row"><span class="lbl">業務データがありません</span></div>';
+    return;
+  }
+  // 業務時間（開始〜終了）
+  const fmt = (ts)=>{
+    if(!ts) return '--:--';
+    const d = new Date(ts);
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  };
+  const startTime = fmt(r.start_time);
+  const endTime   = fmt(r.end_time);
+  const durMin    = r.start_time && r.end_time ? Math.floor((r.end_time - r.start_time)/60000) : 0;
+  const durH      = Math.floor(durMin / 60);
+  const durM      = durMin % 60;
+  const durStr    = durH > 0 ? (durH + '時間' + durM + '分') : (durM + '分');
+  // 距離
+  const totalKm   = (r.total_distance_m / 1000).toFixed(2);
+  const actualKm  = (r.actual_total_m / 1000).toFixed(2);
+  const emptyKm   = ((r.total_distance_m - r.actual_total_m) / 1000).toFixed(2);
+  const occupancy = r.total_distance_m > 0 ? Math.round((r.actual_total_m / r.total_distance_m) * 100) : 0;
+  // 売上
+  const fareYen   = r.fare_total_yen.toLocaleString();
+  const tripCount = r.trip_count;
+  // HTML 生成
+  let html = '';
+  html += '<div class="report-row large"><span class="lbl">本日売上</span><span class="val">¥' + fareYen + '</span></div>';
+  html += '<hr class="report-divider">';
+  html += '<div class="report-row"><span class="lbl">業務時間</span><span class="val">' + startTime + ' - ' + endTime + '（' + durStr + '）</span></div>';
+  html += '<div class="report-row"><span class="lbl">営業回数</span><span class="val">' + tripCount + ' 回</span></div>';
+  html += '<hr class="report-divider">';
+  html += '<div class="report-row"><span class="lbl">総走行距離</span><span class="val">' + totalKm + ' km</span></div>';
+  html += '<div class="report-row"><span class="lbl">実車距離</span><span class="val">' + actualKm + ' km</span></div>';
+  html += '<div class="report-row"><span class="lbl">空車距離</span><span class="val">' + emptyKm + ' km</span></div>';
+  html += '<div class="report-row"><span class="lbl">実車率</span><span class="val">' + occupancy + ' %</span></div>';
+  document.getElementById('reportCard').innerHTML = html;
+}
+
+// 待機画面の5項目ダッシュボード更新は updateBusinessDashboard()（上で定義済）が担当
+// 1秒ごとに自動更新中
 function renderFare(s, fare, extraTotal, total){
   document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
   const cfg = Meter.getFareConfig();
@@ -1340,6 +1557,8 @@ function renderInlineHistory(){
 
 // ─── 画面切替 ───
 // 2026/05/01 仕様：画面ごとに表示するボタンを show クラスで制御
+//   業務未開始(businessStart) : 専用画面・[業務開始] のみ
+//   業務終了画面(businessReport) : 日報 + [続ける]/[終了]
 //   待機(idle)   : btn-main [代行開始]
 //   実車(driving): btn-row [追加料金][確定]
 //   支払(fare)   : btn-back-portrait（縦画面）+ btn-back-landscape（横画面）+ btn-main [精算終了]
@@ -1347,6 +1566,11 @@ function showScreen(name){
   document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
+  // 2026/05/01追加：業務管理画面
+  const elBStart = document.getElementById('screenBusinessStart');
+  const elBReport = document.getElementById('screenBusinessReport');
+  if(elBStart)  elBStart.style.display  = name==='businessStart'  ? 'flex' : 'none';
+  if(elBReport) elBReport.style.display = name==='businessReport' ? 'flex' : 'none';
 
   // 全ボタンのリセット
   const btnMain      = document.getElementById('btnMain');
@@ -1365,9 +1589,10 @@ function showScreen(name){
     if(btnRow) btnRow.classList.add('show');
   } else if(name==='fare'){
     if(btnMain){ btnMain.textContent = '精算終了'; btnMain.classList.add('show'); }
-    if(btnBackP) btnBackP.classList.add('show');  // 縦画面のみCSSで表示
-    if(btnBackL) btnBackL.classList.add('show');  // 横画面のみCSSで表示
+    if(btnBackP) btnBackP.classList.add('show');
+    if(btnBackL) btnBackL.classList.add('show');
   }
+  // businessStart / businessReport は btn-area のボタン全部非表示（リセットだけ）
 }
 // 起動直後の初期状態（idle）にも上記表示制御を即適用
 (function _initBtnVisibility(){
@@ -1423,6 +1648,26 @@ try {
     if(typeof dlog === 'function'){
       const s = Business.getState();
       dlog('[Business] init state: active=' + s.active + ' ended=' + s.ended + ' trips=' + s.trip_count);
+    }
+    // 起動時の画面分岐：
+    //   active=true  → 業務中の待機画面（screenIdle）
+    //   ended=true   → 業務終了済み・3時間以内なら日報画面（screenBusinessReport）で再開可
+    //   active=false かつ ended=false → 業務未開始（screenBusinessStart）
+    const bs = Business.getState();
+    if(bs.active){
+      // 既に業務中・既存の appState ロジックに委ねる（idle / driving / fare の復元処理が後続にある）
+      updateBusinessDashboard();
+    } else if(bs.ended && Business.canResume()){
+      // 業務終了済みかつ3時間以内 → 日報画面表示
+      appState = 'businessReport';
+      renderBusinessReport();
+      showScreen('businessReport');
+      document.getElementById('appbarTitle').textContent = '業務報告';
+    } else {
+      // 業務未開始 → 業務開始画面
+      appState = 'businessStart';
+      showScreen('businessStart');
+      document.getElementById('appbarTitle').textContent = 'ダイコメ';
     }
   }
 } catch(e){
