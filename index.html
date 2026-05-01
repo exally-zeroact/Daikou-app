@@ -165,16 +165,35 @@ text-overflow:ellipsis;
 
 /* ボタンエリア（固定） */
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
-.btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
-.btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
-.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
-.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
-.btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
-.btn-idle{background:#8E8E93;}
-.btn-menu{background:#8E8E93;}
 
+/* メインボタン（idle:代行開始 / fare:精算終了） */
+.btn-main{display:none;width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-main.show{display:block;}
+.btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
+
+/* 2列ボタン（driving のみ表示） */
+.btn-row{display:none;grid-template-columns:1fr 1fr;gap:16px;}
+.btn-row.show{display:grid;}
+.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
 .btn-extra{background:#FF9500;}
 .btn-confirm{background:#34C759;}
+
+/* 縦画面用 走行に戻るボタン（fare時のみ表示） */
+.btn-back-portrait{
+  display:none;
+  align-items:center;justify-content:center;gap:8px;
+  margin:14px auto 0;padding:8px 14px;
+  background:#fff;border:1.5px solid #FF3B30;border-radius:8px;
+  color:#FF3B30;font-size:13px;font-weight:700;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-back-portrait.show{display:flex;}
+.btn-back-portrait:active{background:#FFF0F0;transform:scale(0.97);}
+
+/* 横画面用 走行に戻るボタン（fare時のみ表示・横画面メディアクエリ内で詳細制御） */
+.btn-back-landscape{display:none;}
 
 /* トースト通知 */
 .toast{
@@ -216,25 +235,25 @@ body{flex-direction:row;flex-wrap:wrap;}
 /* 1. 待機画面のバランス調整：btn-area を狭く */
 .btn-area{width:180px !important;}
 
-/* 2. fare 画面の[走行に戻る]を btn-area 内・大ボタンとして表示 */
-/*    縦画面用の screenFare 内ボタンは横画面では非表示 */
-#screenFare > button{display:none !important;}
-.btn-back-driving{
-  display:none;  /* デフォルト非表示・JS の showScreen で .show 追加 */
-  width:100%;padding:18px;
-  background:#fff;border:2px solid #FF3B30;
-  border-radius:12px;color:#FF3B30;
-  font-size:18px;font-weight:900;letter-spacing:2px;
+/* 2. 縦画面用 走行に戻るボタンを完全非表示 */
+.btn-back-portrait{display:none !important;}
+
+/* 3. 横画面用 走行に戻るボタン（fare 時のみ・改行禁止・コンパクト） */
+.btn-back-landscape.show{
+  display:block;
+  width:100%;padding:14px 8px;
+  background:#fff;border:2px solid #FF3B30;border-radius:12px;
+  color:#FF3B30;font-size:14px;font-weight:900;letter-spacing:1px;
   font-family:'Noto Sans JP',sans-serif;cursor:pointer;
   -webkit-tap-highlight-color:transparent;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.btn-back-driving:active{background:#FFF0F0;transform:scale(0.97);}
-.btn-back-driving.show{display:block;}
+.btn-back-landscape:active{background:#FFF0F0;transform:scale(0.97);}
 
-/* 3. 精算終了は走行に戻るから離す（誤タップ防止） */
-.btn-back-driving.show + .btn-main{margin-top:32px;padding:10px;font-size:13px;letter-spacing:2px;}
+/* 4. fare 時の精算終了は[走行に戻る]から離す（誤タップ防止） */
+.btn-back-landscape.show ~ .btn-main.show{margin-top:32px;padding:10px;font-size:13px;letter-spacing:2px;}
 
-/* 4. 追加料金バナー（実車中の左ハンドル/深夜割増等）の幅を狭く */
+/* 5. 追加料金バナー（実車中の左ハンドル/深夜割増等）の幅を狭く */
 .extras-list{max-width:50%;width:100%;margin-left:auto;margin-right:auto;}
 
 .appbar{
@@ -482,17 +501,8 @@ justify-content:center;
       <div class="fare-total-amount">¥<span id="fareTotalAmount">0</span></div>
     </div>
     <div class="breakdown" id="breakdown"></div>
-    <button onclick="cancelFare()" style="
-      display:flex;align-items:center;gap:8px;
-      margin-top:14px;padding:8px 14px;
-      background:#fff;border:1.5px solid #FF3B30;
-      border-radius:8px;color:#FF3B30;
-      font-size:13px;font-weight:700;
-      font-family:'Noto Sans JP',sans-serif;cursor:pointer;
-      margin-left:auto;margin-right:auto;">
-      ← 走行に戻る
-      <span style="font-size:11px;color:#aaa;font-weight:400;">（まだ到着していない場合）</span>
-    </button>
+    <!-- 縦画面用 走行に戻るボタン（fare時のみ表示） -->
+    <button class="btn-back-portrait" id="btnBackPortrait" onclick="cancelFare()">← 走行に戻る<span style="font-size:11px;color:#aaa;font-weight:400;margin-left:6px;">（まだ到着していない場合）</span></button>
   </div>
 
 </div>
@@ -523,10 +533,12 @@ justify-content:center;
       <button onclick="confirmAndroidSensor()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">✅ センサーを確認する</button>
     </div>
   </div>
-  <!-- 横画面の fare 時のみ表示される「走行に戻る」大ボタン（縦画面では非表示） -->
-  <button class="btn-back-driving" id="btnBackDriving" onclick="cancelFare()">← 走行に戻る</button>
+  <!-- 横画面用 走行に戻るボタン（fare時のみ表示・縦画面では非表示） -->
+  <button class="btn-back-landscape" id="btnBackLandscape" onclick="cancelFare()">← 走行に戻る</button>
+  <!-- メインボタン（idle: 代行開始 / driving: 非表示 / fare: 精算終了） -->
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
-  <div class="btn-row">
+  <!-- 2列ボタン（driving のみ表示） -->
+  <div class="btn-row" id="btnRow">
     <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
     <button class="btn-sub btn-confirm" onclick="onSend()">確定</button>
   </div>
@@ -1324,47 +1336,46 @@ function renderInlineHistory(){
 }
 
 // ─── 画面切替 ───
+// 2026/05/01 仕様：画面ごとに表示するボタンを show クラスで制御
+//   待機(idle)   : btn-main [代行開始]
+//   実車(driving): btn-row [追加料金][確定]
+//   支払(fare)   : btn-back-portrait（縦画面）+ btn-back-landscape（横画面）+ btn-main [精算終了]
 function showScreen(name){
-  // screenIdleはflexレイアウトなのでflexで表示
   document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
 
-  // 2026/05/01 仕様：画面ごとにボタン表示・文言を制御
-  // 待機(idle)   : btn-main [代行開始]・btn-row 非表示
-  // 実車(driving): btn-main 非表示・btn-row [追加料金][確定]
-  // 支払(fare)   : btn-main [精算終了]・btn-row 非表示・横画面のみ btn-back-driving 表示
-  const btnMain = document.getElementById('btnMain');
-  const btnRow  = document.querySelector('.btn-row');
-  const btnBack = document.getElementById('btnBackDriving');
-  if(btnMain){
-    if(name==='idle'){
-      btnMain.style.display = 'block';
-      btnMain.textContent = '代行開始';
-    } else if(name==='driving'){
-      btnMain.style.display = 'none';
-    } else if(name==='fare'){
-      btnMain.style.display = 'block';
-      btnMain.textContent = '精算終了';
-    }
-  }
-  if(btnRow){
-    btnRow.style.display = name==='driving' ? 'grid' : 'none';
-  }
-  // 横画面 fare 時のみ表示（CSS で landscape 限定）
-  if(btnBack){
-    if(name==='fare') btnBack.classList.add('show');
-    else btnBack.classList.remove('show');
+  // 全ボタンのリセット
+  const btnMain      = document.getElementById('btnMain');
+  const btnRow       = document.getElementById('btnRow');
+  const btnBackP     = document.getElementById('btnBackPortrait');
+  const btnBackL     = document.getElementById('btnBackLandscape');
+  if(btnMain)  btnMain.classList.remove('show');
+  if(btnRow)   btnRow.classList.remove('show');
+  if(btnBackP) btnBackP.classList.remove('show');
+  if(btnBackL) btnBackL.classList.remove('show');
+
+  // 画面ごとの表示
+  if(name==='idle'){
+    if(btnMain){ btnMain.textContent = '代行開始'; btnMain.classList.add('show'); }
+  } else if(name==='driving'){
+    if(btnRow) btnRow.classList.add('show');
+  } else if(name==='fare'){
+    if(btnMain){ btnMain.textContent = '精算終了'; btnMain.classList.add('show'); }
+    if(btnBackP) btnBackP.classList.add('show');  // 縦画面のみCSSで表示
+    if(btnBackL) btnBackL.classList.add('show');  // 横画面のみCSSで表示
   }
 }
 // 起動直後の初期状態（idle）にも上記表示制御を即適用
 (function _initBtnVisibility(){
-  const btnMain = document.getElementById('btnMain');
-  const btnRow  = document.querySelector('.btn-row');
-  const btnBack = document.getElementById('btnBackDriving');
-  if(btnMain){ btnMain.style.display = 'block'; btnMain.textContent = '代行開始'; }
-  if(btnRow){ btnRow.style.display = 'none'; }
-  if(btnBack){ btnBack.classList.remove('show'); }
+  const btnMain      = document.getElementById('btnMain');
+  const btnRow       = document.getElementById('btnRow');
+  const btnBackP     = document.getElementById('btnBackPortrait');
+  const btnBackL     = document.getElementById('btnBackLandscape');
+  if(btnRow)   btnRow.classList.remove('show');
+  if(btnBackP) btnBackP.classList.remove('show');
+  if(btnBackL) btnBackL.classList.remove('show');
+  if(btnMain){ btnMain.textContent = '代行開始'; btnMain.classList.add('show'); }
 })();
 
 // ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
