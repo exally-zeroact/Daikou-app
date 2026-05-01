@@ -93,21 +93,6 @@ text-decoration:none !important;
 }
 .btn-history:active{background:#E8F4FD;transform:scale(0.98);}
 
-/* 横画面対応（2026/05/01追加） */
-@media (orientation: landscape) and (max-height: 600px){
-  .idle-datetime-line{font-size:14px;padding:6px 0 4px;}
-  .stats-dashboard{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:6px;
-  }
-  .stat-card-large{padding:8px 10px;margin-bottom:0;}
-  .stat-card-large .stat-label{font-size:10px;margin-bottom:2px;}
-  .stat-card-large .stat-value{font-size:22px;}
-  .stat-card-large .stat-unit{font-size:11px;}
-  .btn-history{padding:8px;font-size:13px;margin-top:4px;}
-}
-
 /* DRIVING */
 .driving-grid{display:flex;flex-direction:column;gap:12px;}
 .meter-card{background:#f5f5f5;border-radius:12px;padding:16px;text-align:center;}
@@ -306,15 +291,28 @@ max-height:calc(100vh - 40px);
 justify-content:center;
 }
 
-/* 大ボタンを横画面でも見やすく */
-.btn-main{padding:14px;font-size:15px;}
-.btn-sub{padding:10px 0;font-size:12px;}
+/* 2026/05/01 横画面ボタン仕様統一：全ボタン縦並び・同サイズ */
+.btn-main{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:2px !important;}
+.btn-sub{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:2px !important;}
+.btn-row{grid-template-columns:1fr !important;gap:8px !important;}
+.btn-back-landscape.show{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:1px !important;}
+/* 走行に戻ると精算終了は誤タップ防止で離す */
+.btn-back-landscape.show ~ .btn-main.show{margin-top:32px !important;}
 
 /* IDLE：stats-grid・履歴を50%中央寄せ */
 .idle-time{font-size:36px;}
 .stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
 .stat-value{font-size:18px;}
 #inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+
+/* 2026/05/01：全画面共通の日時・stats-dashboard・履歴ボタンを中央寄せ */
+.dateTimeLine{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.stats-dashboard{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;display:grid !important;grid-template-columns:1fr 1fr;gap:6px;}
+.stat-card-large{margin-bottom:0 !important;padding:8px 10px !important;}
+.stat-card-large .stat-label{font-size:10px !important;margin-bottom:2px !important;}
+.stat-card-large .stat-value{font-size:22px !important;}
+.stat-card-large .stat-unit{font-size:11px !important;}
+.btn-history{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;padding:8px !important;font-size:13px !important;margin-top:4px !important;}
 
 /* DRIVING：meter-card 50%中央寄せ */
 .driving-grid{display:flex;flex-direction:column;gap:8px;}
@@ -449,24 +447,24 @@ justify-content:center;
   <!-- IDLE -->
 
   <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
-    <!-- 日時（1行表示・2026/05/01仕様） -->
-    <div class="idle-datetime-line" id="idleDateTime">📅 2026年5月1日（金） 15:43</div>
-    <!-- 業務管理ダッシュボード（5項目縦積み） -->
+    <!-- 日時（1行表示・絵文字なし・2026/05/01仕様） -->
+    <div class="idle-datetime-line dateTimeLine" id="idleDateTime">2026年5月1日（金） 15:43</div>
+    <!-- 業務管理ダッシュボード（5項目縦積み・絵文字なし） -->
     <div class="stats-dashboard">
       <div class="stat-card-large">
-        <span class="stat-label">📍 総走行距離</span>
+        <span class="stat-label">総走行距離</span>
         <span class="stat-value"><span id="totalDist">0.0</span><span class="stat-unit">km</span></span>
       </div>
       <div class="stat-card-large">
-        <span class="stat-label">🚗 実車総距離</span>
+        <span class="stat-label">実車総距離</span>
         <span class="stat-value"><span id="todayDist">0.0</span><span class="stat-unit">km</span></span>
       </div>
       <div class="stat-card-large">
-        <span class="stat-label">💼 営業回数</span>
+        <span class="stat-label">営業回数</span>
         <span class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></span>
       </div>
       <div class="stat-card-large">
-        <span class="stat-label">💰 本日売上</span>
+        <span class="stat-label">本日売上</span>
         <span class="stat-value">¥<span id="fareTotalYen">0</span></span>
       </div>
     </div>
@@ -477,6 +475,8 @@ justify-content:center;
   <!-- DRIVING -->
 
   <div id="screenDriving" style="display:none;">
+    <!-- 日時（全画面共通・dateTimeLine クラス） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
     <!-- リロード復元バナー（走行距離の真上） -->
     <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
     <div class="driving-grid">
@@ -496,6 +496,8 @@ justify-content:center;
   <!-- FARE -->
 
   <div id="screenFare" style="display:none;">
+    <!-- 日時（全画面共通・dateTimeLine クラス） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
     <div class="fare-total">
       <div class="fare-total-label">合計料金</div>
       <div class="fare-total-amount">¥<span id="fareTotalAmount">0</span></div>
@@ -872,16 +874,16 @@ function autoResetCheck(){
   }
 }
 
-// ─── 時計（2026/05/01仕様変更：日時1行表示） ───
+// ─── 時計（2026/05/01仕様変更：全画面共通の日時表示） ───
 function updateClock(){
   const now = new Date();
   const h = now.getHours().toString().padStart(2,'0');
   const m = now.getMinutes().toString().padStart(2,'0');
   const days=['日','月','火','水','木','金','土'];
-  // 新仕様：1行表示「📅 2026年5月1日（金） 15:43」
-  const text = '📅 ' + now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '） ' + h + ':' + m;
-  const elNew = document.getElementById('idleDateTime');
-  if(elNew) elNew.textContent = text;
+  // 全画面共通：絵文字なし「2026年5月1日（金） 15:43」
+  const text = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '） ' + h + ':' + m;
+  // 全画面の dateTimeLine クラスを一括更新（screenIdle/screenDriving/screenFare）
+  document.querySelectorAll('.dateTimeLine').forEach(el => { el.textContent = text; });
   // 旧仕様 ID も保険で更新（他箇所参照対応）
   const elTime = document.getElementById('clockTime');
   if(elTime) elTime.textContent = h + ':' + m;
