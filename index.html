@@ -1268,6 +1268,22 @@ loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 renderInlineHistory();
 
+// ─── 業務管理スーパー機能の初期化（2026/05/01追加） ───
+// 永続化された業務状態を復元 + 3時間経過チェック（自動 abandon）
+// Business.load() 内で checkAutoAbandon() も呼ばれるが、保険で明示呼出
+try {
+  if(typeof Business !== 'undefined'){
+    Business.load();
+    Business.checkAutoAbandon();
+    if(typeof dlog === 'function'){
+      const s = Business.getState();
+      dlog('[Business] init state: active=' + s.active + ' ended=' + s.ended + ' trips=' + s.trip_count);
+    }
+  }
+} catch(e){
+  console.error('[Business] init error:', e);
+}
+
 // ─── PWAバナー（ホーム画面追加促進） ───
 (function(){
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
