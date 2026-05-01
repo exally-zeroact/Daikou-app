@@ -1236,8 +1236,15 @@ function showSensorBannerIfNeeded(){
   // iOS PWA 以外は表示しない（他環境ではバナー出ない）
   if(!_isIOS) return;
   if(window.navigator.standalone !== true) return;
-  // 許可済みは何もしない
-  if(window._compassGranted && window._motionGranted) return;
+  // 許可済みなら：既にバナー出てたら消す（2026/05/02追加・許可後の残留バナー対策）
+  if(window._compassGranted && window._motionGranted){
+    const banner = document.getElementById('sensorBanner');
+    if(banner && banner.style.display !== 'none'){
+      banner.style.display = 'none';
+      if(typeof dlog === 'function') dlog('[Sensor] 許可済み: バナー強制非表示');
+    }
+    return;
+  }
   // バナー表示
   const banner = document.getElementById('sensorBanner');
   if(banner){
@@ -2249,6 +2256,20 @@ setInterval(function(){
       window._motionGranted = false;
       showSensorBannerIfNeeded();
       if(typeof dlog === 'function') dlog('[Sensor] 失効検知: バナー表示');
+    } else {
+      // 2026/05/02追加：センサー値が来てるのに失効フラグ立ってる場合は復活させる
+      // → 起動直後はフラグ true だがバナー残留してる場合の対策
+      if(!window._compassGranted || !window._motionGranted){
+        window._compassGranted = true;
+        window._motionGranted = true;
+        if(typeof dlog === 'function') dlog('[Sensor] 復活検知: フラグ true');
+      }
+      // バナーが出てたら消す（許可済み・センサー値受信中なら表示する必要なし）
+      const banner = document.getElementById('sensorBanner');
+      if(banner && banner.style.display !== 'none'){
+        banner.style.display = 'none';
+        if(typeof dlog === 'function') dlog('[Sensor] センサー受信中: バナー非表示');
+      }
     }
   } catch(e){
     console.error('[Sensor] watcher error:', e);
