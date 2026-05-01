@@ -1,429 +1,2084 @@
-// 業務管理スーパー機能（2026/05/01新規）
-// 1業務単位で総走行距離・実車総距離・売上・営業回数を集計
-// meter.js には触らず、Meter.getState() を読むだけ
-const Business = (() => {
+<!DOCTYPE html>
 
-  // ─────────────────────────────────────────
-  // 状態
-  // ─────────────────────────────────────────
-  let state = {
-    active: false,
-    start_time: null,           // 業務開始時刻（unix ms）
-    end_time: null,             // 業務終了時刻（end()押下時）
-    
-    // 終了後の3時間再開機能（2026/05/01）
-    ended: false,               // [終了]ボタン押下フラグ（abandon前の中間状態）
-    ended_at: null,             // [終了]押下時刻（3時間判定用）
-    
-    // 距離（メートル）
-    total_distance_m: 0,        // 総走行距離（業務開始からのGPS移動全部）
-    actual_total_m: 0,          // 実車総距離（各実車の合算）
-    // 空車距離 = total_distance_m - actual_total_m（getReport で計算）
-    
-    // 売上
-    fare_total_yen: 0,          // 売上累計（円）
-    trip_count: 0,              // 営業回数（実車回数）
-    
-    // 履歴
-    trips: [],                  // [{distance_m, fare_yen, start_time, end_time}]
-    
-    // GPS連続性
-    last_gps: null,             // {lat, lng, timestamp}
-  };
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#007AFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ダイコメ">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
 
-  // GPS差分の異常値しきい値（meter.js MM_MAX_SEGMENT_DIST_M と揃える）
-  const MAX_SEGMENT_DIST_M = 1000;
-  // GPS空白検出（5秒以上空いたら連続性リセット）
-  const GAP_RESET_SEC = 5;
+/* AppBar */
+.appbar{background:#007AFF;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
+.appbar-title{font-size:18px;font-weight:700;color:#fff;letter-spacing:2px;}
+.appbar-right{display:flex;align-items:center;gap:8px;}
+.gps-pill{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.2);border-radius:20px;padding:4px 10px;}
+.gps-dot{width:7px;height:7px;border-radius:50%;background:#fff;opacity:0.4;}
+.gps-dot.ok{opacity:1;background:#4ade80;}
+/* PWAインストール促進バナー */
+.pwa-banner{display:none;align-items:center;gap:10px;background:#E8F4FD;border-bottom:2px solid #007AFF;padding:10px 14px;flex-shrink:0;}
+.pwa-banner.show{display:flex;}
+.pwa-banner-text{flex:1;font-size:12px;color:#005BB5;line-height:1.5;}
 
-  // 終了後の再開猶予期間（3時間）
-  const RESUME_GRACE_MS = 3 * 60 * 60 * 1000;
+/* チュートリアル */
+.tutorial-overlay{display:none;position:fixed;inset:0;background:#007AFF;z-index:1000;flex-direction:column;align-items:center;justify-content:flex-start;padding:clamp(20px,5vh,48px) 28px clamp(20px,4vh,40px);padding-top:max(env(safe-area-inset-top),clamp(20px,5vh,48px));overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.tutorial-overlay.show{display:flex;}
+.tutorial-dots{display:flex;gap:8px;margin-bottom:8px;flex-shrink:0;}
+.tutorial-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.4);}
+.tutorial-dot.active{background:#fff;}
+.tutorial-page{display:none;flex-direction:column;align-items:center;text-align:center;gap:clamp(10px,2vh,20px);width:100%;margin:auto 0;flex-shrink:0;}
+.tutorial-page.show{display:flex;}
+.tutorial-icon{font-size:clamp(40px,8vh,72px);line-height:1;}
+.tutorial-title{font-size:clamp(18px,3vh,24px);font-weight:900;color:#fff;line-height:1.3;}
+.tutorial-desc{font-size:clamp(12px,2vh,15px);color:rgba(255,255,255,0.85);line-height:1.6;max-width:300px;}
+.tutorial-btn{width:100%;padding:clamp(12px,2.2vh,16px);background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:clamp(15px,2.4vh,17px);font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
+.tutorial-btn.secondary{background:rgba(255,255,255,0.2);color:#fff;margin-top:8px;}
+.tutorial-steps{background:rgba(255,255,255,0.15);border-radius:14px;padding:clamp(10px,1.8vh,16px) clamp(14px,2vh,20px);text-align:left;width:100%;}
+.tutorial-step{display:flex;align-items:center;gap:clamp(8px,1.4vh,12px);color:#fff;font-size:clamp(12px,1.8vh,14px);padding:clamp(3px,0.7vh,6px) 0;}
+.tutorial-step-num{width:clamp(20px,3.2vh,24px);height:clamp(20px,3.2vh,24px);border-radius:50%;background:#fff;color:#007AFF;font-weight:700;font-size:clamp(11px,1.7vh,13px);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pwa-banner-text strong{display:block;font-size:13px;margin-bottom:2px;}
+.pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:‘Noto Sans JP’,sans-serif;}
+.pwa-banner-close{background:none;border:none;color:#007AFF;font-size:18px;cursor:pointer;padding:0 4px;}
+.gps-acc{font-size:11px;color:#fff;opacity:0.8;}
+.surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
+.menu-btn{
+background:rgba(255,255,255,0.2);border:none;border-radius:8px;
+padding:4px 12px;cursor:pointer;
+color:#fff;font-size:20px;font-weight:700;
+font-family:‘Noto Sans JP’,sans-serif;
+-webkit-transition:transform 0.1s,-webkit-filter 0.1s;
+transition:transform 0.1s,filter 0.1s;
+-webkit-appearance:none;
+display:flex;align-items:center;
+text-decoration:none !important;
+}
+.menu-btn:active{-webkit-transform:scale(0.9);transform:scale(0.9);}
+.surcharge-badge span{font-size:11px;color:#fff;font-weight:700;}
 
-  // localStorage キー
-  const STORAGE_KEY = 'dakome_business_state';
-  const HISTORY_KEY = 'dakome_business_history';
+/* コンテンツエリア */
+.content{flex:1;padding:16px;overflow:hidden;display:flex;flex-direction:column;gap:12px;min-height:0;}
 
-  // 履歴保持期間（日数）
-  const RETENTION_DAYS = 30;
-  const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+/* IDLE */
+.idle-datetime{text-align:center;padding:12px 0;}
+.idle-time{font-size:48px;font-weight:900;color:#111;line-height:1;}
+.idle-date{font-size:13px;color:#aaa;margin-top:4px;}
+/* 日時1行表示（2026/05/01仕様変更） */
+.idle-datetime-line{text-align:center;font-size:18px;font-weight:700;color:#111;padding:14px 0 10px;letter-spacing:1px;}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat-card{background:#f5f5f5;border-radius:12px;padding:14px;text-align:center;}
+.stat-label{font-size:11px;color:#aaa;margin-bottom:4px;}
+.stat-value{font-size:22px;font-weight:900;color:#111;}
+.stat-unit{font-size:12px;color:#aaa;}
+/* 業務管理ダッシュボード用・縦積み大カード（2026/05/01追加） */
+.stat-card-large{background:#f5f5f5;border-radius:12px;padding:16px 14px;text-align:center;margin-bottom:10px;}
+.stat-card-large .stat-label{font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;display:block;}
+.stat-card-large .stat-value{font-size:32px;font-weight:900;color:#111;line-height:1;display:block;}
+.stat-card-large .stat-unit{font-size:14px;color:#aaa;margin-left:4px;}
+.stats-dashboard{display:flex;flex-direction:column;}
+/* 履歴ボタン（2026/05/01追加） */
+.btn-history{
+  width:100%;padding:14px;margin-top:6px;
+  background:#fff;border:1.5px solid #007AFF;
+  border-radius:12px;color:#007AFF;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'Noto Sans JP',sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-history:active{background:#E8F4FD;transform:scale(0.98);}
 
-  // ─────────────────────────────────────────
-  // ライフサイクル
-  // ─────────────────────────────────────────
+/* 業務管理ボタン群（2026/05/01追加） */
+/* 業務終了ボタン（待機画面の履歴の下） */
+.btn-business-end{
+  width:100%;padding:14px;margin-top:6px;
+  background:#fff;border:1.5px solid #FF3B30;
+  border-radius:12px;color:#FF3B30;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'Noto Sans JP',sans-serif;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-business-end:active{background:#FFF0F0;transform:scale(0.98);}
 
-  // 業務開始
-  function start(){
-    if(state.active){
-      if(typeof dlog === 'function') dlog('[Business] already active');
-      return false;
-    }
-    // 既に終了済み（再開可能状態）の業務があれば自動 abandon
-    if(state.ended){
-      checkAutoAbandon(true);  // force=true で即 abandon
-    }
-    const now = Date.now();
-    state = {
-      active: true,
-      start_time: now,
-      end_time: null,
-      ended: false,
-      ended_at: null,
-      total_distance_m: 0,
-      actual_total_m: 0,
-      fare_total_yen: 0,
-      trip_count: 0,
-      trips: [],
-      last_gps: null,
-    };
-    save();
-    if(typeof dlog === 'function') dlog('[Business] start at ' + new Date(now).toISOString());
-    return true;
+/* 業務開始ボタン（業務未開始画面・中央大ボタン） */
+.btn-business-start{
+  width:80%;max-width:300px;padding:24px;
+  background:#007AFF;border:none;
+  border-radius:16px;color:#fff;
+  font-size:22px;font-weight:900;letter-spacing:4px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  box-shadow:0 4px 12px rgba(0,122,255,0.3);
+}
+.btn-business-start:active{transform:scale(0.97);filter:brightness(0.9);}
+
+/* 続きから再開ボタン（業務開始画面・[業務開始]の下） */
+.btn-business-resume-start{
+  width:80%;max-width:300px;padding:14px;
+  background:#fff;border:1.5px solid #007AFF;
+  border-radius:12px;color:#007AFF;
+  font-size:15px;font-weight:700;letter-spacing:2px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-business-resume-start:active{background:#E8F4FD;transform:scale(0.98);}
+.resume-note{
+  text-align:center;font-size:11px;color:#999;
+  padding:0 16px;
+  max-width:80%;
+}
+
+/* 業務終了画面（日報） */
+.report-title{
+  text-align:center;font-size:20px;font-weight:900;
+  color:#111;padding:14px 0 8px;
+}
+.report-card{
+  background:#f5f5f5;border-radius:12px;padding:16px;
+  margin:0 16px 12px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.report-row{display:flex;justify-content:space-between;align-items:center;}
+.report-row .lbl{font-size:13px;color:#aaa;}
+.report-row .val{font-size:14px;color:#111;font-weight:700;}
+.report-row.large .val{font-size:18px;font-weight:900;color:#111;}
+.report-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
+/* [続ける]/[終了] ボタン：他画面のボタンとサイズ統一（btn-main / btn-business-start と同等） */
+.btn-business-resume{
+  width:calc(100% - 32px);margin:8px 16px 4px;padding:18px;
+  background:#007AFF;border:none;border-radius:12px;
+  color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+}
+.btn-business-resume:active{transform:scale(0.97);filter:brightness(0.85);}
+.btn-business-confirm{
+  width:calc(100% - 32px);margin:4px 16px 8px;padding:18px;
+  background:#fff;border:1.5px solid #FF3B30;border-radius:12px;
+  color:#FF3B30;font-size:18px;font-weight:700;letter-spacing:3px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+}
+.btn-business-confirm:active{background:#FFF0F0;transform:scale(0.97);}
+.report-note{
+  text-align:center;font-size:11px;color:#999;
+  padding:4px 16px 16px;
+}
+
+/* DRIVING */
+.driving-grid{display:flex;flex-direction:column;gap:12px;}
+.meter-card{background:#f5f5f5;border-radius:12px;padding:16px;text-align:center;}
+.meter-label{font-size:12px;color:#aaa;margin-bottom:4px;letter-spacing:1px;}
+.meter-value{font-size:42px;font-weight:900;color:#111;line-height:1;}
+.meter-value.fare{color:#FF3B30;}
+.meter-unit{font-size:14px;color:#aaa;}
+.meter-sub{font-size:12px;color:#FF3B30;margin-top:4px;}
+.extras-list{display:flex;flex-direction:column;gap:6px;}
+/* 履歴スクロールボックス */
+.history-box{
+overflow-y:auto;
+-webkit-overflow-scrolling:touch;
+display:flex;
+flex-direction:column;
+gap:6px;
+flex:1;
+min-height:0;
+}
+.extra-item{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;}
+.extra-item span{font-size:12px;color:#FF9500;font-weight:700;}
+.extra-del-btn{background:none;border:none;color:#ccc;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
+.extra-del-btn:active{color:#FF3B30;}
+
+/* FARE */
+.fare-total{text-align:center;padding:12px 0;}
+.fare-total-label{font-size:12px;color:#aaa;margin-bottom:4px;}
+.fare-total-amount{font-size:52px;font-weight:900;color:#111;line-height:1;}
+.breakdown{background:#f5f5f5;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;}
+.breakdown-row{display:flex;justify-content:space-between;align-items:center;}
+.breakdown-row .lbl{font-size:13px;color:#aaa;}
+.breakdown-row .val{font-size:13px;color:#555;font-weight:700;}
+.breakdown-row .val.surcharge{color:#FF3B30;}
+.breakdown-row .val.extra{color:#FF9500;}
+.breakdown-divider{border:none;border-top:0.5px solid #e5e5e5;margin:4px 0;}
+
+/* リロード復元バナー */
+.restore-banner{
+display:none;
+width:fit-content;
+max-width:calc(100% - 32px);
+margin:0 auto 10px;
+padding:6px 12px;
+background:#E8F8EE;
+border:1.5px solid #B7E4C7;
+border-radius:6px;
+font-size:12px;
+font-weight:700;
+color:#1F7A3F;
+white-space:nowrap;
+overflow:hidden;
+text-overflow:ellipsis;
+}
+.restore-banner.show{display:block;}
+
+/* ボタンエリア（固定） */
+.btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
+
+/* メインボタン（idle:代行開始 / fare:精算終了） */
+.btn-main{display:none;width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-main.show{display:block;}
+.btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
+
+/* 2列ボタン（driving のみ表示） */
+.btn-row{display:none;grid-template-columns:1fr 1fr;gap:16px;}
+.btn-row.show{display:grid;}
+.btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
+.btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
+.btn-extra{background:#FF9500;}
+.btn-confirm{background:#34C759;}
+
+/* 縦画面用 走行に戻るボタン（fare時のみ表示） */
+.btn-back-portrait{
+  display:none;
+  align-items:center;justify-content:center;gap:8px;
+  margin:14px auto 0;padding:8px 14px;
+  background:#fff;border:1.5px solid #FF3B30;border-radius:8px;
+  color:#FF3B30;font-size:13px;font-weight:700;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-back-portrait.show{display:flex;}
+.btn-back-portrait:active{background:#FFF0F0;transform:scale(0.97);}
+
+/* 横画面用 走行に戻るボタン（fare時のみ表示・横画面メディアクエリ内で詳細制御） */
+.btn-back-landscape{display:none;}
+
+/* トースト通知 */
+.toast{
+position:fixed;top:70px;left:50%;transform:translateX(-50%);
+background:rgba(0,0,0,0.75);color:#fff;
+padding:10px 20px;border-radius:20px;
+font-size:14px;font-weight:700;
+z-index:200;opacity:0;transition:opacity 0.2s;
+pointer-events:none;white-space:nowrap;
+}
+.toast.show{opacity:1;}
+
+/* 走行中の空車・Menuボタンをグレーアウト */
+.btn-sub.disabled{opacity:0.35;pointer-events:none;}
+
+/* 追加料金モーダル */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:none;align-items:flex-end;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal{background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:480px;padding:20px 16px;max-height:80vh;overflow-y:auto;}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.modal-title{font-size:16px;font-weight:700;color:#111;}
+.modal-cancel{font-size:14px;color:#007AFF;cursor:pointer;}
+.modal-items{display:flex;flex-direction:column;gap:8px;}
+.modal-item{background:#f5f5f5;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;}
+.modal-item:active{background:#e5e5e5;}
+.modal-item-name{font-size:14px;color:#111;font-weight:700;}
+.modal-item-price{font-size:14px;color:#FF9500;font-weight:900;}
+.modal-custom{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.modal-custom span{font-size:14px;color:#FF9500;font-weight:700;white-space:nowrap;}
+.modal-custom input{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:16px;text-align:right;font-family:‘Noto Sans JP’,sans-serif;}
+.modal-custom-btn{background:#FF9500;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
+
+/* 横画面対応 */
+@media (orientation:landscape){
+/* 全体：左右分割レイアウト */
+body{flex-direction:row;flex-wrap:wrap;}
+
+/* 2026/05/01 横画面UI修正 */
+/* 1. 待機画面のバランス調整：btn-area を狭く */
+.btn-area{width:180px !important;}
+
+/* 2. 縦画面用 走行に戻るボタンを完全非表示 */
+.btn-back-portrait{display:none !important;}
+
+/* 3. 横画面用 走行に戻るボタン（fare 時のみ・改行禁止・コンパクト） */
+.btn-back-landscape.show{
+  display:block;
+  width:100%;padding:14px 8px;
+  background:#fff;border:2px solid #FF3B30;border-radius:12px;
+  color:#FF3B30;font-size:14px;font-weight:900;letter-spacing:1px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.btn-back-landscape:active{background:#FFF0F0;transform:scale(0.97);}
+
+/* 4. fare 時の精算終了は[走行に戻る]から離す（誤タップ防止） */
+.btn-back-landscape.show ~ .btn-main.show{margin-top:32px;padding:10px;font-size:13px;letter-spacing:2px;}
+
+/* 5. 追加料金バナー（実車中の左ハンドル/深夜割増等）の幅を狭く */
+.extras-list{max-width:50%;width:100%;margin-left:auto;margin-right:auto;}
+
+.appbar{
+width:100% !important;
+flex-shrink:0 !important;
+padding:0 12px !important;
+height:40px !important;
+min-height:40px !important;
+max-height:40px !important;
+box-sizing:border-box !important;
+overflow:hidden !important;
+}
+.appbar-title{
+font-size:14px !important;
+line-height:40px !important;
+margin:0 !important;
+padding:0 !important;
+}
+.appbar-right{margin:0 !important;padding:0 !important;gap:8px !important;}
+.gps-acc{font-size:10px !important;}
+.gps-pill{padding:3px 10px !important;font-size:10px !important;}
+.menu-btn{padding:6px 12px !important;font-size:16px !important;margin:0 !important;line-height:1 !important;}
+
+/* コンテンツ：左半分 */
+.content{
+flex:1;
+padding:12px 16px;
+overflow:hidden;
+display:flex;
+flex-direction:column;
+gap:10px;
+height:calc(100vh - 40px);
+max-height:calc(100vh - 40px);
+min-height:0;
+justify-content:center;
+}
+
+/* ボタンエリア：右半分（縦に並ぶ）*/
+.btn-area{
+width:200px;
+flex-shrink:0;
+padding:12px;
+display:flex;
+flex-direction:column;
+gap:8px;
+border-top:none;
+border-left:0.5px solid #f0f0f0;
+height:calc(100vh - 40px);
+max-height:calc(100vh - 40px);
+justify-content:center;
+}
+
+/* 2026/05/01 横画面ボタン仕様統一：全ボタン縦並び・同サイズ */
+.btn-main{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:2px !important;}
+.btn-sub{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:2px !important;}
+.btn-row{grid-template-columns:1fr !important;gap:8px !important;}
+.btn-back-landscape.show{padding:14px !important;font-size:15px !important;border-radius:12px !important;letter-spacing:1px !important;}
+/* 走行に戻ると精算終了は誤タップ防止で離す */
+.btn-back-landscape.show ~ .btn-main.show{margin-top:32px !important;}
+
+/* 2026/05/01 横画面：業務管理ボタンも中央寄せ・サイズ統一 */
+.btn-business-start{max-width:60% !important;width:60% !important;padding:18px !important;font-size:18px !important;letter-spacing:3px !important;}
+.btn-business-resume{max-width:60% !important;width:60% !important;margin-left:auto !important;margin-right:auto !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
+.btn-business-confirm{max-width:60% !important;width:60% !important;margin-left:auto !important;margin-right:auto !important;padding:14px !important;font-size:15px !important;letter-spacing:2px !important;}
+/* 業務終了画面の日報カードも中央寄せ */
+.report-card{max-width:60% !important;margin-left:auto !important;margin-right:auto !important;}
+.report-title{font-size:16px !important;padding:8px 0 4px !important;}
+.report-note{font-size:10px !important;padding:2px 16px 8px !important;}
+
+/* IDLE：stats-grid・履歴を50%中央寄せ */
+.idle-time{font-size:36px;}
+.stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.stat-value{font-size:18px;}
+#inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+
+/* 2026/05/01：全画面共通の日時・stats-dashboard・履歴ボタンを中央寄せ */
+.dateTimeLine{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.stats-dashboard{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;display:grid !important;grid-template-columns:1fr 1fr;gap:6px;}
+.stat-card-large{margin-bottom:0 !important;padding:8px 10px !important;}
+.stat-card-large .stat-label{font-size:10px !important;margin-bottom:2px !important;}
+.stat-card-large .stat-value{font-size:22px !important;}
+.stat-card-large .stat-unit{font-size:11px !important;}
+.btn-history{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;padding:8px !important;font-size:13px !important;margin-top:4px !important;}
+/* 2026/05/01：[業務終了] ボタンも [履歴] と完全に同一サイズ・配置 */
+.btn-business-end{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;padding:8px !important;font-size:13px !important;margin-top:4px !important;}
+
+/* DRIVING：meter-card 50%中央寄せ */
+.driving-grid{display:flex;flex-direction:column;gap:8px;}
+.meter-value{font-size:32px;}
+.meter-card{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.meter-label{font-size:13px;margin-bottom:0;}
+
+/* FARE：fare-total・breakdown・走行に戻るボタン 50%中央寄せ */
+#screenFare{overflow-y:auto;}
+.fare-total-amount{font-size:40px;}
+.fare-total{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+.breakdown{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
+#screenFare button{margin-top:10px;display:block;margin-left:auto;margin-right:auto;}
+}
+</style>
+
+<!-- ─── SEO・ブランディング（2026/04/26実装・復元）─── -->
+
+<title>ダイコメ｜運転代行向け料金メーターアプリ｜月額980円・初期費用ゼロ</title>
+<meta name="description" content="ダイコメは月額980円・初期費用ゼロの運転代行料金メーターアプリ。GPS自動計算・オフライン対応・古いスマホでも使える。代行開業・副業・既存メーター乗り換えに。スマホ1台で始められる代行業者向け業務支援ツール。">
+<meta name="keywords" content="ダイコメ,代行メーター,運転代行 アプリ,代行 料金計算,代行 開業,代行 始め方,代行 メーター 安い,代行 メーター 月額,代行 メーター 比較,代行 副業,代行 業務支援,代行 ドライバー,スマホ メーター,GPS メーター,タクシーメーター 代行,随伴車,オフライン対応,初期費用ゼロ,月額980円">
+<meta name="author" content="ZEROact">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://daikou-app.vercel.app/">
+<meta property="og:title" content="ダイコメ｜運転代行向け料金メーターアプリ">
+<meta property="og:description" content="月額980円・初期費用ゼロ。GPS自動計算でスマホ1台が代行メーターに。オフライン対応・古いスマホでもOK。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://daikou-app.vercel.app/">
+<meta property="og:site_name" content="ダイコメ">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ダイコメ｜運転代行向け料金メーターアプリ">
+<meta name="twitter:description" content="月額980円・初期費用ゼロ。スマホ1台が代行メーターに。">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ダイコメ","alternateName":"運転代行料金メーターアプリ","description":"運転代行向けの料金メーターアプリ。月額980円・初期費用ゼロでスマホ1台から代行業を始められる。GPS自動計算・オフライン対応。","applicationCategory":"BusinessApplication","operatingSystem":"iOS, Android, Web","offers":{"@type":"Offer","price":"980","priceCurrency":"JPY"},"publisher":{"@type":"Organization","name":"ZEROact","url":"https://zeroact.jp"}}
+</script>
+</head>
+<body ontouchstart="" onclick="wakeScreen()">
+
+<!-- AppBar -->
+
+<div class="appbar" id="appbar">
+  <div class="appbar-title" id="appbarTitle">空　車</div>
+  <div class="appbar-right">
+    <div class="gps-pill">
+      <div class="gps-dot" id="gpsDot"></div>
+      <span class="gps-acc" id="gpsAcc">GPS待機</span>
+    </div>
+    <div class="surcharge-badge" id="surchargeBadge" style="display:none;" onclick="toggleSurcharge()">
+      <span id="surchargeLabel">割増 ON</span>
+    </div>
+    <button class="menu-btn" id="menuBtn" onclick="event.stopPropagation();onMenuClick();return false;">≡</button>
+  </div>
+</div>
+
+<!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
+
+<!-- チュートリアル（初回URL訪問時のみ） -->
+
+<div class="tutorial-overlay" id="tutorialOverlay">
+  <!-- ドット -->
+  <div class="tutorial-dots">
+    <div class="tutorial-dot active" id="tDot0"></div>
+    <div class="tutorial-dot" id="tDot1"></div>
+    <div class="tutorial-dot" id="tDot2"></div>
+  </div>
+
+  <!-- ページ1：ようこそ -->
+
+  <div class="tutorial-page show" id="tPage0">
+    <div class="tutorial-icon">🚗</div>
+    <div class="tutorial-title">ダイコメへようこそ</div>
+    <div class="tutorial-desc">運転代行専用の料金メーターアプリです。GPS計測で走行距離を自動計算し、正確な料金をリアルタイムで表示します。</div>
+    <div class="tutorial-steps">
+      <div class="tutorial-step"><div class="tutorial-step-num">1</div>代行開始ボタンで計測スタート</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">2</div>目的地到着で確定ボタンを押す（確定後もメーターは動き続けます）</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">3</div>空車ボタンで計測終了・料金が確定します</div>
+    </div>
+  </div>
+
+  <!-- ページ2：センサー許可 -->
+  <div class="tutorial-page" id="tPage1">
+    <div class="tutorial-icon">📡</div>
+    <div class="tutorial-title">精度向上のため<br>センサーを許可します</div>
+    <div class="tutorial-desc">ホーム画面に追加してアプリとして起動すると、コンパス・ジャイロが使えるようになります。次のステップでホーム画面に追加してください。</div>
+  </div>
+
+  <!-- ページ3：ホーム画面追加 -->
+
+  <div class="tutorial-page" id="tPage2">
+    <div class="tutorial-icon">📲</div>
+    <div class="tutorial-title">ホーム画面に追加して<br>アプリとして使おう</div>
+    <div class="tutorial-desc">ホーム画面に追加すると、次回からアイコンで素早く起動できます。</div>
+    <div class="tutorial-steps">
+      <div class="tutorial-step" style="font-weight:700;opacity:0.7;font-size:12px;padding-bottom:2px;">🍎 iPhoneの場合</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">1</div>Safariの「共有」ボタンをタップ</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">2</div>「ホーム画面に追加」をタップ</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">3</div>「追加」をタップ</div>
+    </div>
+    <div class="tutorial-steps" style="margin-top:10px;">
+      <div class="tutorial-step" style="font-weight:700;opacity:0.7;font-size:12px;padding-bottom:2px;">🤖 Androidの場合</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">1</div>Chromeの「⋮」をタップ</div>
+      <div class="tutorial-step"><div class="tutorial-step-num">2</div>「インストール」をタップ</div>
+    </div>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;width:100%;">
+      <a href="https://support.apple.com/ja-jp/guide/iphone/iph42ab2f3a7/ios" target="_blank" style="color:rgba(255,255,255,0.8);font-size:12px;text-align:center;text-decoration:underline;">▶ iPhone 詳しい手順（Apple公式）</a>
+      <a href="https://support.google.com/chrome/answer/9658361?hl=ja&co=GENIE.Platform%3DAndroid" target="_blank" style="color:rgba(255,255,255,0.8);font-size:12px;text-align:center;text-decoration:underline;">▶ Android 詳しい手順（Google公式）</a>
+    </div>
+  </div>
+
+  <!-- ボタンエリア -->
+
+  <div id="tNavArea" style="width:100%;">
+    <button class="tutorial-btn" onclick="tutorialNext()">次へ</button>
+  </div>
+</div>
+
+
+<div class="pwa-banner" id="pwaBanner">
+  <div class="pwa-banner-text">
+    <strong>📲 ホーム画面に追加してください</strong>
+    コンパス・ジャイロ・画面消灯防止が使えるようになります
+  </div>
+  <button class="pwa-banner-btn" onclick="showPwaInstructions()">追加方法</button>
+  <button class="pwa-banner-close" onclick="closePwaBanner()">✕</button>
+</div>
+
+<!-- コンテンツ -->
+
+<div class="content" id="content">
+
+  <!-- IDLE -->
+
+  <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <!-- 日時（1行表示・絵文字なし・2026/05/01仕様） -->
+    <div class="idle-datetime-line dateTimeLine" id="idleDateTime">2026年5月1日（金） 15:43</div>
+    <!-- 業務管理ダッシュボード（5項目縦積み・絵文字なし） -->
+    <div class="stats-dashboard">
+      <div class="stat-card-large">
+        <span class="stat-label">総走行距離</span>
+        <span class="stat-value"><span id="totalDist">0.0</span><span class="stat-unit">km</span></span>
+      </div>
+      <div class="stat-card-large">
+        <span class="stat-label">実車総距離</span>
+        <span class="stat-value"><span id="todayDist">0.0</span><span class="stat-unit">km</span></span>
+      </div>
+      <div class="stat-card-large">
+        <span class="stat-label">営業回数</span>
+        <span class="stat-value"><span id="todayCount">0</span><span class="stat-unit">回</span></span>
+      </div>
+      <div class="stat-card-large">
+        <span class="stat-label">本日売上</span>
+        <span class="stat-value">¥<span id="fareTotalYen">0</span></span>
+      </div>
+    </div>
+    <!-- 履歴ボタン -->
+    <button class="btn-history" onclick="location.href='history.html'">履歴</button>
+    <!-- 業務終了ボタン（履歴の下・2026/05/01追加） -->
+    <button class="btn-business-end" onclick="onBusinessEnd()">業務終了</button>
+  </div>
+
+  <!-- BUSINESS START（業務未開始時の専用画面・2026/05/01追加） -->
+
+  <div id="screenBusinessStart" style="display:none;flex-direction:column;flex:1;min-height:0;justify-content:center;align-items:center;gap:24px;">
+    <!-- 日時（全画面共通） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <!-- 業務開始ボタン（中央配置・大ボタン） -->
+    <button class="btn-business-start" onclick="onBusinessStart()">業務開始</button>
+    <!-- 続きから再開ボタン（直前の業務が3時間以内に終了してる場合のみ表示） -->
+    <button class="btn-business-resume-start" id="btnResumeFromStart" onclick="onResumeFromStart()" style="display:none;">続きから再開</button>
+    <div class="resume-note" id="resumeNote" style="display:none;">直前の業務（<span id="resumeNoteTime">--:--</span>終了）から3時間以内なら再開できます</div>
+  </div>
+
+  <!-- BUSINESS REPORT（業務終了画面・日報・2026/05/01追加） -->
+
+  <div id="screenBusinessReport" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <!-- 日時（全画面共通） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <div class="report-title">本日の業務報告</div>
+    <div class="report-card" id="reportCard">
+      <!-- JS で動的生成 -->
+    </div>
+    <!-- 続ける／終了 ボタン -->
+    <button class="btn-business-resume" onclick="onBusinessResume()">続ける</button>
+    <button class="btn-business-confirm" onclick="onBusinessConfirm()">終了</button>
+    <div class="report-note">※ 終了から3時間以内なら「続ける」で再開できます</div>
+  </div>
+
+  <!-- DRIVING -->
+
+  <div id="screenDriving" style="display:none;">
+    <!-- 日時（全画面共通・dateTimeLine クラス） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <!-- リロード復元バナー（走行距離の真上） -->
+    <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
+    <div class="driving-grid">
+      <div class="meter-card">
+        <div class="meter-label">走行距離</div>
+        <div class="meter-value"><span id="driveDist">0.00</span><span class="meter-unit">km</span></div>
+      </div>
+      <div class="meter-card">
+        <div class="meter-label">現在料金</div>
+        <div class="meter-value fare">¥<span id="driveFare">0</span></div>
+        <div class="meter-sub" id="surchargeInfo" style="display:none;"></div>
+      </div>
+      <div class="extras-list" id="extrasList"></div>
+    </div>
+  </div>
+
+  <!-- FARE -->
+
+  <div id="screenFare" style="display:none;">
+    <!-- 日時（全画面共通・dateTimeLine クラス） -->
+    <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <div class="fare-total">
+      <div class="fare-total-label">合計料金</div>
+      <div class="fare-total-amount">¥<span id="fareTotalAmount">0</span></div>
+    </div>
+    <div class="breakdown" id="breakdown"></div>
+    <!-- 縦画面用 走行に戻るボタン（fare時のみ表示） -->
+    <button class="btn-back-portrait" id="btnBackPortrait" onclick="cancelFare()">← 走行に戻る<span style="font-size:11px;color:#aaa;font-weight:400;margin-left:6px;">（まだ到着していない場合）</span></button>
+  </div>
+
+</div>
+
+<!-- ボタンエリア（固定・全画面共通） -->
+
+<div class="btn-area">
+  <!-- センサー未許可バナー（代行開始直上・全スマホ対応） -->
+  <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:center;">
+    <!-- iOS用（デフォルト） -->
+    <div id="sensorBannerIOS">
+      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
+        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
+        コンパス・ジャイロを許可することで<br>精度が大幅に向上します
+        <div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">
+          ⚠️ 次の画面で必ず「許可」を選んでください<br>
+          キャンセルした場合はアプリをタスクキルして再起動してください
+        </div>
+      </div>
+      <button id="sensorPermBtn" onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
+    </div>
+    <!-- Android用 -->
+    <div id="sensorBannerAndroid" style="display:none;">
+      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
+        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーについて</strong>
+        Androidはコンパス・ジャイロが<br>標準で使えます。タップして確認してください
+      </div>
+      <button onclick="confirmAndroidSensor()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">✅ センサーを確認する</button>
+    </div>
+  </div>
+  <!-- 横画面用 走行に戻るボタン（fare時のみ表示・縦画面では非表示） -->
+  <button class="btn-back-landscape" id="btnBackLandscape" onclick="cancelFare()">← 走行に戻る</button>
+  <!-- メインボタン（idle: 代行開始 / driving: 非表示 / fare: 精算終了） -->
+  <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
+  <!-- 2列ボタン（driving のみ表示） -->
+  <div class="btn-row" id="btnRow">
+    <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
+    <button class="btn-sub btn-confirm" onclick="onSend()">確定</button>
+  </div>
+</div>
+
+<!-- トースト通知 -->
+
+<div class="toast" id="toast"></div>
+
+<!-- 追加料金モーダル -->
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">追加料金を選択</div>
+      <div class="modal-cancel" onclick="closeExtraModal()">キャンセル</div>
+    </div>
+    <div class="modal-items" id="modalItems"></div>
+    <div class="modal-custom" style="margin-top:8px;">
+      <span>任意入力</span>
+      <input type="number" id="customAmount" placeholder="0" inputmode="numeric">
+      <button class="modal-custom-btn" onclick="addCustomExtra()">追加料金</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// NoSleep自前実装（WakeLock API優先・AudioContextフォールバック）
+class NoSleep {
+  constructor(){
+    this._wakeLock = null;
+    this._audioCtx = null;
+    this._enabled = false;
   }
-
-  // 業務終了（[終了]ボタン押下時）
-  // 3時間以内なら resume() で再開可能
-  // 3時間経過後は次回 start() or checkAutoAbandon() で自動 abandon
-  function end(){
-    if(!state.active && !state.start_time) return null;
-    const now = Date.now();
-    state.active = false;
-    state.ended = true;
-    state.ended_at = now;
-    state.end_time = now;
-    save();
-    if(typeof dlog === 'function') dlog('[Business] end (resumable for 3h)');
-    return getReport();
-  }
-
-  // 業務再開（end 後・3時間以内なら可能）
-  function resume(){
-    if(state.active) return false;
-    if(!state.start_time) return false;  // start していない
-    // 3時間以内かチェック
-    if(state.ended && state.ended_at){
-      const elapsed = Date.now() - state.ended_at;
-      if(elapsed >= RESUME_GRACE_MS){
-        // 3時間経過 → 再開不可
-        if(typeof dlog === 'function') dlog('[Business] resume denied (3h elapsed)');
-        return false;
-      }
+  async enable(){
+    if(this._enabled) return;
+    // ① WakeLock API（iOS 16.4+ / Chrome 84+）
+    if('wakeLock' in navigator){
+      try{
+        this._wakeLock = await navigator.wakeLock.request('screen');
+        this._enabled = true;
+        console.log('[NoSleep] WakeLock有効');
+        // 画面表示時に再取得
+        document.addEventListener('visibilitychange', this._relock.bind(this));
+        return;
+      }catch(e){ console.log('[NoSleep] WakeLock失敗:', e.message); }
     }
-    state.active = true;
-    state.ended = false;
-    state.ended_at = null;
-    state.end_time = null;
-    state.last_gps = null;  // GPS連続性リセット（再開時にジャンプ防止）
-    save();
-    if(typeof dlog === 'function') dlog('[Business] resume');
-    return true;
-  }
-
-  // 再開可能か（ボタン表示判定用）
-  function canResume(){
-    if(!state.ended || !state.ended_at) return false;
-    const elapsed = Date.now() - state.ended_at;
-    return elapsed < RESUME_GRACE_MS;
-  }
-
-  // 自動 abandon チェック（起動時・start時に呼ぶ）
-  // force=true なら時間チェックせず強制 abandon
-  function checkAutoAbandon(force){
-    if(!state.ended) return false;
-    if(!force){
-      const elapsed = state.ended_at ? (Date.now() - state.ended_at) : Infinity;
-      if(elapsed < RESUME_GRACE_MS) return false;  // まだ猶予内
-    }
-    // 3時間経過 → 履歴に確定保存して state リセット
-    if(state.start_time){
-      const report = getReport();
-      _appendHistory(report);
-    }
-    state = {
-      active: false,
-      start_time: null,
-      end_time: null,
-      ended: false,
-      ended_at: null,
-      total_distance_m: 0,
-      actual_total_m: 0,
-      fare_total_yen: 0,
-      trip_count: 0,
-      trips: [],
-      last_gps: null,
-    };
-    save();
-    if(typeof dlog === 'function') dlog('[Business] auto-abandon (3h elapsed)');
-    return true;
-  }
-
-  // 業務完全終了（履歴に保存→state リセット）
-  // 通常は3時間経過後に checkAutoAbandon() から呼ばれる
-  // 手動で確定したい場合の公開API（明示的な abandon）
-  function abandon(){
-    if(state.start_time){
-      const report = getReport();
-      _appendHistory(report);
-    }
-    state = {
-      active: false,
-      start_time: null,
-      end_time: null,
-      ended: false,
-      ended_at: null,
-      total_distance_m: 0,
-      actual_total_m: 0,
-      fare_total_yen: 0,
-      trip_count: 0,
-      trips: [],
-      last_gps: null,
-    };
-    save();
-    if(typeof dlog === 'function') dlog('[Business] abandon (history saved)');
-    return true;
-  }
-
-  // ─────────────────────────────────────────
-  // GPS受信（業務中なら総走行距離に加算）
-  // ─────────────────────────────────────────
-  // 注：meter.js の Meter.update() と並行で呼ばれる想定
-  //     実車中も呼ばれて total_distance_m に加算される（実車中も走ってる事実）
-  //     実車距離は Meter.getState().distance_m で別管理
-  function onGps(gpsResult){
-    if(!state.active) return;
-    if(!gpsResult) return;
-    if(gpsResult.isStationary) return;
-    if(typeof gpsResult.lat !== 'number' || typeof gpsResult.lng !== 'number') return;
-
-    const now = gpsResult.timestamp || Date.now();
-
-    if(state.last_gps){
-      const dtSec = (now - state.last_gps.timestamp) / 1000;
-
-      // GPS空白検出：5秒以上空いたら連続性リセット（距離加算しない）
-      if(dtSec >= GAP_RESET_SEC){
-        state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, timestamp: now };
+    // ② AudioContextフォールバック（iOS 15以前）
+    try{
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC){
+        this._audioCtx = new AC();
+        const osc = this._audioCtx.createOscillator();
+        const gain = this._audioCtx.createGain();
+        gain.gain.value = 0.001; // 極小音（完全無音だとiOSがスリープさせる）
+        osc.connect(gain);
+        gain.connect(this._audioCtx.destination);
+        osc.start();
+        this._enabled = true;
+        console.log('[NoSleep] AudioContext有効');
         return;
       }
+    }catch(e){ console.log('[NoSleep] AudioContext失敗:', e.message); }
+    console.log('[NoSleep] 全フォールバック失敗');
+  }
+  async _relock(){
+    if(document.visibilityState === 'visible' && this._wakeLock){
+      try{ this._wakeLock = await navigator.wakeLock.request('screen'); }catch(e){}
+    }
+  }
+  disable(){
+    if(!this._enabled) return;
+    document.removeEventListener('visibilitychange', this._relock.bind(this));
+    if(this._wakeLock){ try{ this._wakeLock.release(); }catch(e){} this._wakeLock = null; }
+    if(this._audioCtx){ try{ this._audioCtx.close(); }catch(e){} this._audioCtx = null; }
+    this._enabled = false;
+    console.log('[NoSleep] 解除');
+  }
+}</script>
 
-      // GPS差分計算（GPS グローバル関数を流用）
-      let d = 0;
-      if(typeof GPS !== 'undefined' && typeof GPS.calcDistance === 'function'){
-        d = GPS.calcDistance(
-          state.last_gps.lat, state.last_gps.lng,
-          gpsResult.lat, gpsResult.lng
-        );
-      }
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 
-      // 異常値スキップ（1更新で1km超えはGPSジャンプ）
-      if(d >= 0 && d <= MAX_SEGMENT_DIST_M){
-        state.total_distance_m += d;
-      } else {
-        if(typeof dlog === 'function') dlog('[Business] skip 異常距離: ' + d.toFixed(0) + 'm');
-      }
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script src="js/debug-config.js"></script>
+
+<!-- ★debug-config.js：環境変数制御・本番自動OFF（2026/04/26追加） -->
+
+<script src="js/compat.js"></script>
+
+<!-- ★compat.js：端末互換性判定レイヤー・古いスマホ対応基盤（2026/04/29追加） -->
+
+<script src="js/firebase-config.js"></script>
+
+<script src="js/roads-decoder.js"></script>
+
+<!-- ★roads-decoder.js：道路データデコーダー・Map Matching用（2026/04/30追加） -->
+
+<script src="js/region-loader.js"></script>
+
+<script src="js/gps.js"></script>
+
+<!-- OSRM削除済（2026/04/26）：公開API依存ゼロ化・スケール無制限化のため -->
+
+<script src="js/meter.js"></script>
+
+<script src="js/firebase.js"></script>
+
+<script src="js/test-mode.js"></script>
+
+<!-- ★テスト用・リリース時削除（2026/04/26追加）-->
+
+<script src="js/business.js"></script>
+
+<!-- ★business.js：業務管理スーパー機能（2026/05/01追加）-->
+
+<script>
+// ─── 状態 ───
+let appState = 'idle'; // idle / driving / fare
+let histSaved = false; // 確定時の履歴保存済みフラグ
+let noSleep = null;       // NoSleepインスタンス
+let dimTimer = null;      // 空車時の画面暗転タイマー
+const DIM_MINUTES = 300;  // 空車5時間(300分)で暗転
+let surchargeOn = false;
+let surchargeRate = 1.2;
+let surchargeEnabled = false;
+let extras = [];
+let todayDist = 0;
+let todayCount = 0;
+let uiTimer = null;
+let vehicleId = 'v1';
+
+// ─── リロード復元 ───
+function checkDrivingRestore(){
+  try {
+    const raw = localStorage.getItem('daikou_driving_state');
+    if(!raw) return;
+    const saved = JSON.parse(raw);
+    // 24時間超は無効・削除
+    if(Date.now() - saved.saved_at > 24 * 60 * 60 * 1000){
+      localStorage.removeItem('daikou_driving_state');
+      return;
+    }
+    // 走行状態を復元
+    appState = 'driving';
+    Meter.start();
+    Meter.setDistance(saved.distance_m);
+    // 最終GPS状態をセット（層3・GPS消失補完を復元後に自動発火させる）
+    if(saved.last_lat && saved.last_gps_at){
+      Meter.setLastGps(
+        saved.last_lat, saved.last_lng, saved.last_altitude,
+        saved.last_speed_kmh, saved.last_gps_at
+      );
+    }
+    // 補完検知用：復元時の距離を保持（GPS再取得後にバナーを更新）
+    window._restoreDistanceM = saved.distance_m;
+    window._restoreFareYen   = saved.fare_yen;
+    showScreen('driving');
+    document.getElementById('appbarTitle').textContent = '代行中';
+    // GPS・UIタイマー再起動
+    startGPS();
+    startUiTimer();
+    // 緑バナー表示
+    document.getElementById('restoreBanner').classList.add('show');
+    console.log('[復元] 走行を再開しました');
+
+    // タスクキル後復元時：センサー許可バナーを表示（2026/04/30追加）
+    // iOS では requestPermission がユーザーアクション必須のため、
+    // バナーを表示してユーザーにタップを促す
+    showSensorBannerForRestore();
+  } catch(e){
+    console.error('[復元] エラー:', e);
+    localStorage.removeItem('daikou_driving_state');
+  }
+}
+
+// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加）
+function showSensorBannerForRestore(){
+  try {
+    // iOS 以外（Androidや非対応端末）では requestPermission が存在しない
+    // → 何もしない（既存の挙動を保持）
+    if(typeof DeviceMotionEvent === 'undefined' ||
+       typeof DeviceMotionEvent.requestPermission !== 'function'){
+      return;
     }
 
-    state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, timestamp: now };
-  }
+    // sensorBanner が見つからなければスキップ
+    const banner = document.getElementById('sensorBanner');
+    if(!banner) return;
 
-  // ─────────────────────────────────────────
-  // 実車終了通知（実車総距離・売上・回数加算）
-  // ─────────────────────────────────────────
-  // 呼び出し側（index.html の支払ボタン処理）が
-  // Meter.getState().distance_m と fare_yen を渡してくる
-  function onTripEnd(distanceM, fareYen, tripStartTime){
-    if(!state.active){
-      if(typeof dlog === 'function') dlog('[Business] onTripEnd ignored (not active)');
-      return false;
+    // バナー表示・スクロール上部へ
+    banner.style.display = 'block';
+    setTimeout(()=>{
+      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+    if(typeof dlog === 'function'){
+      dlog('[復元] センサー許可バナー表示');
     }
-    if(typeof distanceM !== 'number' || distanceM < 0) return false;
-    if(typeof fareYen !== 'number' || fareYen < 0) return false;
-
-    state.actual_total_m += distanceM;
-    state.fare_total_yen += fareYen;
-    state.trip_count += 1;
-    state.trips.push({
-      distance_m: distanceM,
-      fare_yen: fareYen,
-      start_time: tripStartTime || null,
-      end_time: Date.now(),
-    });
-    save();
-    if(typeof dlog === 'function') {
-      dlog('[Business] trip end: ' + Math.round(distanceM) + 'm, ¥' + fareYen + ' (trip #' + state.trip_count + ')');
-    }
-    return true;
+  } catch(e){
+    console.error('showSensorBannerForRestore error:', e);
   }
+}
 
-  // ─────────────────────────────────────────
-  // 取得・集計
-  // ─────────────────────────────────────────
-  function getState(){ return { ...state, trips: [...state.trips] }; }
+// ─── 設定読み込み ───
+function loadSettings(){
+  FB.loadFareConfig(cfg => { Meter.setFareConfig(cfg); });
 
-  // 日報集計
-  function getReport(){
-    const totalM = state.total_distance_m;
-    const actualM = state.actual_total_m;
-    const emptyM = Math.max(0, totalM - actualM);  // 整合性保証
-    const elapsedMs = state.end_time
-      ? (state.end_time - (state.start_time || state.end_time))
-      : (state.start_time ? (Date.now() - state.start_time) : 0);
-    const elapsedH = elapsedMs / 3600000;
-
-    return {
-      start_time: state.start_time,
-      end_time: state.end_time,
-      elapsed_sec: Math.floor(elapsedMs / 1000),
-
-      total_distance_m: totalM,
-      actual_total_m: actualM,
-      empty_distance_m: emptyM,
-
-      fare_total_yen: state.fare_total_yen,
-      trip_count: state.trip_count,
-
-      // 集計値（ゼロ割回避）
-      actual_ratio: totalM > 0 ? (actualM / totalM) : 0,
-      avg_fare_yen: state.trip_count > 0 ? Math.round(state.fare_total_yen / state.trip_count) : 0,
-      avg_speed_kmh: elapsedH > 0 ? ((totalM / 1000) / elapsedH) : 0,
-
-      trips: [...state.trips],
-    };
-  }
-
-  // ─────────────────────────────────────────
-  // CSV 出力
-  // ─────────────────────────────────────────
-  function exportCSV(){
-    const r = getReport();
-    const fmtTime = t => t ? new Date(t).toLocaleString('ja-JP') : '';
-    const fmtDur = sec => {
-      const h = Math.floor(sec / 3600);
-      const m = Math.floor((sec % 3600) / 60);
-      return h + '時間' + m + '分';
-    };
-
-    const lines = [
-      'ダイコメ業務日報',
-      '',
-      '業務開始,' + fmtTime(r.start_time),
-      '業務終了,' + fmtTime(r.end_time),
-      '業務時間,' + fmtDur(r.elapsed_sec),
-      '',
-      '総走行距離(km),' + (r.total_distance_m / 1000).toFixed(2),
-      '実車総距離(km),' + (r.actual_total_m / 1000).toFixed(2),
-      '空車距離(km),' + (r.empty_distance_m / 1000).toFixed(2),
-      '実車率(%),' + (r.actual_ratio * 100).toFixed(1),
-      '',
-      '売上合計(円),' + r.fare_total_yen,
-      '営業回数,' + r.trip_count,
-      '平均単価(円),' + r.avg_fare_yen,
-      '平均速度(km/h),' + r.avg_speed_kmh.toFixed(1),
-      '',
-      '【実車明細】',
-      '回,開始,終了,距離(km),料金(円)',
+  // 初回起動時にデフォルトのクイック追加料金をセット
+  // (一度も保存されていない=null の場合のみ)
+  if(localStorage.getItem('daikou_extras') === null){
+    const defaultExtras = [
+      {name:'外車', amount:500},
+      {name:'MT車', amount:500},
+      {name:'左ハンドル', amount:1000},
+      {name:'深夜割増', amount:1000},
+      {name:'迎車料金', amount:1000},
+      {name:'キャンセル料', amount:2000}
     ];
-
-    r.trips.forEach((t, i) => {
-      lines.push([
-        i + 1,
-        fmtTime(t.start_time),
-        fmtTime(t.end_time),
-        (t.distance_m / 1000).toFixed(2),
-        t.fare_yen,
-      ].join(','));
-    });
-
-    return lines.join('\n');
+    localStorage.setItem('daikou_extras', JSON.stringify(defaultExtras));
   }
 
-  // ─────────────────────────────────────────
-  // 永続化
-  // ─────────────────────────────────────────
-  function save(){
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch(e) {
-      if(typeof dlog === 'function') dlog('[Business] save error: ' + e.message);
-    }
-  }
-
-  function load(){
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw) return false;
-      const parsed = JSON.parse(raw);
-      if(!parsed || typeof parsed !== 'object') return false;
-      // 必須プロパティ補完（バージョン差分対策）
-      state = {
-        active: !!parsed.active,
-        start_time: parsed.start_time || null,
-        end_time: parsed.end_time || null,
-        ended: !!parsed.ended,
-        ended_at: parsed.ended_at || null,
-        total_distance_m: parsed.total_distance_m || 0,
-        actual_total_m: parsed.actual_total_m || 0,
-        fare_total_yen: parsed.fare_total_yen || 0,
-        trip_count: parsed.trip_count || 0,
-        trips: Array.isArray(parsed.trips) ? parsed.trips : [],
-        last_gps: parsed.last_gps || null,
-      };
-      // ロード後に3時間経過チェック（自動 abandon）
-      checkAutoAbandon();
-      if(typeof dlog === 'function') dlog('[Business] loaded state');
-      return true;
-    } catch(e) {
-      if(typeof dlog === 'function') dlog('[Business] load error: ' + e.message);
-      return false;
-    }
-  }
-
-  // 履歴に追加（abandon 時に呼ばれる）
-  function _appendHistory(report){
-    try {
-      const raw = localStorage.getItem(HISTORY_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      list.unshift(report);  // 新しい順
-      // 直近 RETENTION_DAYS 日分のみ保持
-      // 判定は end_time 優先（無ければ start_time、それも無ければ残す）
-      const cutoff = Date.now() - RETENTION_MS;
-      const trimmed = list.filter(item => {
-        const t = item.end_time || item.start_time || null;
-        if(t === null) return true;  // 時刻不明は残す（保険）
-        return t >= cutoff;
+  const s = localStorage.getItem('daikou_settings');
+  if(s){
+    const obj = JSON.parse(s);
+    surchargeEnabled = obj.surchargeEnabled || false;
+    surchargeRate    = obj.surchargeRate    || 1.2;
+    vehicleId        = obj.vehicleId        || 'v1';
+    // localStorageから料金設定も読み込む（Firebase未接続時の保険）
+    if(obj.baseFare){
+      Meter.setFareConfig({
+        base_fare:       obj.baseFare       || 1300,
+        base_distance_m: obj.baseDistanceM  || 1000,
+        add_distance_m:  obj.addDistanceM   || 420,
+        add_fare:        obj.addFare        || 100,
       });
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
-      if(typeof dlog === 'function') {
-        dlog('[Business] history saved (' + trimmed.length + ' items, ' + RETENTION_DAYS + 'days retention)');
+    }
+  }
+  const td = localStorage.getItem('daikou_today');
+  if(td){
+    const obj = JSON.parse(td);
+    const today = new Date().toDateString();
+    if(obj.date === today){
+      todayDist  = obj.dist  || 0;
+      todayCount = obj.count || 0;
+    }
+  }
+  FB.setVehicleId(vehicleId);
+  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
+  document.getElementById('todayCount').textContent = todayCount;
+  if(surchargeEnabled) document.getElementById('surchargeBadge').style.display='flex';
+
+  // 自動リセットチェック
+  autoResetCheck();
+  // リロード復元チェック
+  checkDrivingRestore();
+  // 古い日付の履歴キーを削除（今日以外は不要）
+  cleanOldHistoryKeys();
+
+  // 活動エリア（Map Matching・2026/04/30追加）
+  // 設定画面で選択された都道府県の roads データを起動時に自動ロード
+  loadUserRegions();
+}
+
+// 活動エリア自動ロード（2026/04/30追加・Map Matching用）
+function loadUserRegions(){
+  try {
+    const saved = localStorage.getItem('daikou_user_regions');
+    if(!saved) return;
+    const regions = JSON.parse(saved);
+    if(!Array.isArray(regions) || regions.length === 0) return;
+    if(typeof RegionLoader === 'undefined' || !RegionLoader.ensureRoadsLoaded){
+      // 旧版 region-loader.js（roads 機能なし）→ スキップ
+      return;
+    }
+    RegionLoader.ensureRoadsLoaded(regions).then((decoders)=>{
+      const loaded = decoders.filter(d=>d!==null).length;
+      if(typeof dlog === 'function'){
+        dlog('[Region] 活動エリア自動ロード完了: ' + loaded + '/' + regions.length + '県');
       }
-    } catch(e) {
-      if(typeof dlog === 'function') dlog('[Business] history save error: ' + e.message);
+    }).catch(e=>{
+      console.error('活動エリアロードエラー:', e);
+    });
+  } catch(e){
+    console.error('loadUserRegions error:', e);
+  }
+}
+
+// ─── 古い履歴キー自動削除（今日以外は不要） ───
+function cleanOldHistoryKeys(){
+  const today = 'daikou_history_' + new Date().toDateString();
+  const toDelete = [];
+  for(let i = 0; i < localStorage.length; i++){
+    const key = localStorage.key(i);
+    if(key && key.startsWith('daikou_history_') && key !== today){
+      toDelete.push(key);
     }
   }
+  toDelete.forEach(k => localStorage.removeItem(k));
+  if(toDelete.length > 0) dlog('[Cleanup] 古い履歴キー削除:', toDelete.length + '件');
+}
 
-  // 履歴取得
-  function getHistory(){
-    try {
-      const raw = localStorage.getItem(HISTORY_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch(e) {
-      return [];
+function autoResetCheck(){
+  // 2026/05/01：業務中（Business.active）ならリセットしない（手動操作優先）
+  try {
+    if(typeof Business !== 'undefined'){
+      const bs = Business.getState();
+      if(bs.active){
+        if(typeof dlog === 'function') dlog('[autoReset] 業務中のためリセットをスキップ');
+        return;
+      }
     }
-  }
+  } catch(e){ console.error('[autoReset] Business check error:', e); }
 
-  // 履歴クリア（デバッグ用）
-  function clearHistory(){
-    try { localStorage.removeItem(HISTORY_KEY); } catch(e){}
-  }
+  const s = localStorage.getItem('daikou_settings');
+  const resetTime = s ? (JSON.parse(s).resetTime || '12:00') : '12:00';
+  const [resetH, resetM] = resetTime.split(':').map(Number);
 
-  // ─────────────────────────────────────────
-  // 公開API
-  // ─────────────────────────────────────────
-  return {
-    start, end, resume, abandon,
-    canResume, checkAutoAbandon,
-    onGps, onTripEnd,
-    getState, getReport, exportCSV,
-    save, load,
-    getHistory, clearHistory,
+  const now = new Date();
+  const resetToday = new Date(now);
+  resetToday.setHours(resetH, resetM, 0, 0);
+
+  // 最後の仕事開始時刻を取得
+  const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
+
+  // リセット条件：
+  // ① 現在時刻がリセット時間を過ぎている
+  // ② 最後の仕事開始がリセット時間より前
+  // ③ 最後の仕事開始が昨日以前（当日仕事中の誤リセット防止）
+  // lastStartが今日のリセット時間より前ならリセット
+  if(now >= resetToday && (lastStart === 0 || lastStart < resetToday.getTime())){
+    // リセット実行
+    todayDist = 0;
+    todayCount = 0;
+    localStorage.setItem('daikou_today', JSON.stringify({
+      date: now.toDateString(), dist: 0, count: 0
+    }));
+    // 当日の履歴もクリア
+    const histKey = 'daikou_history_' + now.toDateString();
+    localStorage.removeItem(histKey);
+    document.getElementById('todayDist').textContent  = '0.0';
+    document.getElementById('todayCount').textContent = '0';
+  }
+}
+
+// ─── 時計（2026/05/01仕様変更：全画面共通の日時表示） ───
+function updateClock(){
+  const now = new Date();
+  const h = now.getHours().toString().padStart(2,'0');
+  const m = now.getMinutes().toString().padStart(2,'0');
+  const days=['日','月','火','水','木','金','土'];
+  // 全画面共通：絵文字なし「2026年5月1日（金） 15:43」
+  const text = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '） ' + h + ':' + m;
+  // 全画面の dateTimeLine クラスを一括更新（screenIdle/screenDriving/screenFare）
+  document.querySelectorAll('.dateTimeLine').forEach(el => { el.textContent = text; });
+  // 旧仕様 ID も保険で更新（他箇所参照対応）
+  const elTime = document.getElementById('clockTime');
+  if(elTime) elTime.textContent = h + ':' + m;
+  const elDate = document.getElementById('clockDate');
+  if(elDate) elDate.textContent = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '）';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── 業務管理ダッシュボード更新（2026/05/01追加） ───
+// screenIdle の5項目（総走行距離・実車総距離・営業回数・売上）を Business から表示
+// 業務未開始時はゼロ表示・業務中はリアルタイム集計値を表示
+function updateBusinessDashboard(){
+  if(typeof Business === 'undefined') return;
+  try {
+    const r = Business.getReport();
+    const elTotal = document.getElementById('totalDist');
+    const elActual = document.getElementById('todayDist');
+    const elCount = document.getElementById('todayCount');
+    const elFare = document.getElementById('fareTotalYen');
+    if(elTotal)  elTotal.textContent  = (r.total_distance_m / 1000).toFixed(1);
+    if(elActual) elActual.textContent = (r.actual_total_m / 1000).toFixed(1);
+    if(elCount)  elCount.textContent  = r.trip_count;
+    if(elFare)   elFare.textContent   = r.fare_total_yen.toLocaleString();
+  } catch(e){
+    console.error('[Dashboard] update error:', e);
+  }
+}
+setInterval(updateBusinessDashboard, 1000);
+updateBusinessDashboard();
+
+// ─── GPS（代行開始時に初めて起動） ───
+let gpsStarted = false;
+function startGPS(){
+  if(gpsStarted) return;
+  gpsStarted = true;
+  try {
+    GPS.start(function(g){
+      try {
+        const dot = document.getElementById('gpsDot');
+        dot.className = 'gps-dot ok';
+        document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
+        // 起動時warm up（2026/04/30追加）：常にGPSをMeterに渡す
+        // 代行開始前でもlastWarmupGpsを保持・押した瞬間に即時計測開始
+        if(typeof Meter.updateGpsOnly === 'function') Meter.updateGpsOnly(g);
+        if(appState==='driving' || appState==='fare') Meter.update(g);
+        // 復元後の補完検知：距離・料金が変わったらバナーを更新
+        if(window._restoreDistanceM != null){
+          const cur = Meter.getState();
+          const addedM  = Math.round(cur.distance_m - window._restoreDistanceM);
+          const addedYen = cur.fare_yen - window._restoreFareYen;
+          if(addedM > 0){
+            const banner = document.getElementById('restoreBanner');
+            banner.textContent = '✅ 走行データを復元しました（+' + addedM + 'm・¥' + addedYen.toLocaleString() + '補完）';
+            window._restoreDistanceM = null;
+            window._restoreFareYen   = null;
+          }
+        }
+        // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
+        if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
+        // TestMode：走行中のみ位置記録（★テスト用・リリース時削除）
+        if(typeof TestMode !== 'undefined' && appState==='driving') TestMode.recordPosition(g.lat, g.lng);
+      } catch(e){ console.error('GPS callback error:', e); }
+    });
+  } catch(e){ console.error('GPS start error:', e); }
+}
+
+// ─── UIタイマー ───
+function startUiTimer(){
+  uiTimer = setInterval(()=>{
+    const s = Meter.getState();
+    let fare = s.fare_yen;
+    if(surchargeOn) fare = Math.round(fare * surchargeRate);
+    let extraTotal = extras.reduce((a,b)=>a+b.amount,0);
+    let total = fare + extraTotal;
+
+    document.getElementById('driveDist').textContent = (s.distance_m/1000).toFixed(2);
+    document.getElementById('driveFare').textContent = total.toLocaleString();
+
+    // 確定画面でもリアルタイム更新
+    if(appState==='fare'){
+      document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
+      renderFare(s, fare, extraTotal, total);
+    }
+
+    if(surchargeOn){
+      const base = s.fare_yen;
+      const diff = fare - base;
+      document.getElementById('surchargeInfo').style.display='block';
+      document.getElementById('surchargeInfo').textContent = '+'+diff.toLocaleString()+'円（割増）';
+    } else {
+      document.getElementById('surchargeInfo').style.display='none';
+    }
+
+    renderExtras();
+
+    // Firebase送信（2秒ごと）
+    if(s.elapsed_sec%2===0){
+      FB.updateVehicle({ status:'driving',
+        session:{ distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec }});
+    }
+    // 走行状態をlocalStorageに保存（リロード復元用）
+    const ms = Meter.getState();
+    localStorage.setItem('daikou_driving_state', JSON.stringify({
+      distance_m:    s.distance_m,
+      fare_yen:      total,
+      saved_at:      Date.now(),
+      last_lat:      ms.last_gps ? ms.last_gps.lat      : null,
+      last_lng:      ms.last_gps ? ms.last_gps.lng      : null,
+      last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
+      last_speed_kmh: ms.last_speed_kmh || 0,
+      last_gps_at:   ms.last_timestamp || null,
+    }));
+  },500);
+}
+
+function renderExtras(){
+  const el = document.getElementById('extrasList');
+  el.innerHTML = extras.map((e,i)=>
+    `<div class="extra-item" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>${e.name}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span>+¥${e.amount.toLocaleString()}</span>
+        <button class="extra-del-btn" onclick="removeExtra(${i})">✕</button>
+      </div>
+    </div>`
+  ).join('');
+}
+
+function removeExtra(i){
+  extras.splice(i, 1);
+  renderExtras();
+}
+
+function fmt(sec){
+  return Math.floor(sec/60).toString().padStart(2,'0')+':'+
+         (sec%60).toString().padStart(2,'0');
+}
+
+// ─── メインボタン ───
+function onMainBtn(){
+  // iOSでセンサー未許可の場合はブロック（コンパス＋動きセンサー両方必須・Androidは自動許可済み）
+  if(_isIOS && window.navigator.standalone === true && (!window._compassGranted || !window._motionGranted)){
+    const sb = document.getElementById('sensorBanner');
+    if(sb){ sb.style.display = 'block'; sb.scrollIntoView({behavior:'smooth'}); }
+    return;
+  }
+  // 第1層：iOS PWA で許可済みフラグありの場合、念のため permission 再確認（2026/04/30追加）
+  // → granted なら何も起きない（ダイアログ出ない・体験変わらず）
+  // → permission期限切れなら自動でダイアログ → ユーザー許可で復活
+  if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
+    refreshSensorPermission();
+  }
+  if(appState==='idle'){
+    // 代行開始
+    appState='driving';
+    extras=[];
+    surchargeOn=false;
+    // UI更新を先に行う
+    showScreen('driving');
+    document.getElementById('appbarTitle').textContent='代行中';
+    // 仕事開始時刻を記録（自動リセット判定用）
+    localStorage.setItem('daikou_last_start', Date.now().toString());
+    // NoSleep起動（画面消灯防止）
+    if(!noSleep){ noSleep = new NoSleep(); }
+    noSleep.enable().catch(e=>console.log("NoSleep error:",e));
+    // 暗転タイマーをクリア・画面を戻す
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    document.documentElement.style.filter = '';
+    // GPS・計算・Firebase
+    startGPS();
+    try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
+    try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
+    // TestMode：走行開始記録（★テスト用・リリース時削除）
+    try { if(typeof TestMode !== 'undefined') TestMode.startTrip(); } catch(e){ console.error('TestMode start error:', e); }
+    startUiTimer();
+  } else if(appState==='driving'){
+    // 実車中はメインボタン非表示（仕様2026/05/01）→ ここに来ない想定だが保険
+  } else if(appState==='fare'){
+    // 支払画面 → 精算終了（onIdle に委譲・既存ロジック流用）
+    onIdle();
+  }
+}
+
+// ─── 業務管理ボタン処理（2026/05/01追加） ───
+
+// [業務開始] 押下：Business.start() 発火 → 待機画面へ
+// 2026/05/01 仕様変更：[業務開始] で GPS・センサー許可・NoSleep を発火
+//   司さん仕様「業務開始から1日の総距離もほしい」に合致
+//   業務開始 = 1日の業務スタート = 全GPS情報を取り始める
+function onBusinessStart(){
+  if(typeof Business === 'undefined'){
+    console.error('[Business] not loaded');
+    return;
+  }
+  try {
+    // ① iOS センサー許可ダイアログ発火（許可済みなら何も起きない）
+    if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
+      refreshSensorPermission();
+    }
+    // ② iOS で初回未許可の場合は許可リクエスト（ユーザー操作起点で発火必須）
+    if(_isIOS && (!window._compassGranted || !window._motionGranted)){
+      try { requestSensorPermission(); } catch(e){ console.error('sensor permission error:', e); }
+    }
+    // ③ Business 状態を active に
+    Business.start();
+    // ④ NoSleep 起動（画面消灯防止）
+    if(!noSleep){ noSleep = new NoSleep(); }
+    noSleep.enable().catch(e=>console.log('NoSleep error:', e));
+    // ⑤ 暗転タイマーリセット
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    document.documentElement.style.filter = '';
+    // ⑥ GPS 起動（業務全体で総走行距離を計測するため）
+    startGPS();
+    // ⑦ 画面遷移
+    appState = 'idle';
+    showScreen('idle');
+    document.getElementById('appbarTitle').textContent = '空　車';
+    updateBusinessDashboard();
+    if(typeof dlog === 'function') dlog('[Business] start (GPS/sensor/NoSleep activated)');
+  } catch(e){
+    console.error('[Business] start error:', e);
+    showToast('業務開始に失敗しました');
+  }
+}
+
+// [業務終了] 押下：Business.end() 発火 → 日報画面へ
+function onBusinessEnd(){
+  if(typeof Business === 'undefined') return;
+  // 実車中・支払中は業務終了不可（保険・本来 screenIdle のみ表示なのでここに来ない）
+  if(appState === 'driving' || appState === 'fare'){
+    showToast('実車中・支払中は業務終了できません');
+    return;
+  }
+  try {
+    Business.end();
+    appState = 'businessReport';
+    renderBusinessReport();
+    showScreen('businessReport');
+    document.getElementById('appbarTitle').textContent = '業務報告';
+    if(typeof dlog === 'function') dlog('[Business] end');
+  } catch(e){
+    console.error('[Business] end error:', e);
+    showToast('業務終了に失敗しました');
+  }
+}
+
+// [続ける] 押下：Business.resume() 発火 → 待機画面へ
+function onBusinessResume(){
+  if(typeof Business === 'undefined') return;
+  if(!Business.canResume()){
+    showToast('終了から3時間を超えたため再開できません');
+    onBusinessConfirm();  // 自動で abandon に進める
+    return;
+  }
+  try {
+    Business.resume();
+    appState = 'idle';
+    showScreen('idle');
+    document.getElementById('appbarTitle').textContent = '空　車';
+    updateBusinessDashboard();
+    if(typeof dlog === 'function') dlog('[Business] resume');
+  } catch(e){
+    console.error('[Business] resume error:', e);
+    showToast('再開に失敗しました');
+  }
+}
+
+// 業務開始画面の「続きから再開」ボタン押下
+// 直前の業務履歴が3時間以内なら、その業務を復元して resume する
+function onResumeFromStart(){
+  if(typeof Business === 'undefined') return;
+  try {
+    const lastBusiness = getLastEndedBusiness();
+    if(!lastBusiness){
+      showToast('再開できる直前の業務が見つかりません');
+      return;
+    }
+    if((Date.now() - lastBusiness.ended_at) >= 3 * 3600 * 1000){
+      showToast('終了から3時間を超えたため再開できません');
+      return;
+    }
+    // 履歴から state を復元して active 状態に戻す
+    const restored = Business.restoreFromHistory(lastBusiness);
+    if(!restored){
+      showToast('業務の復元に失敗しました');
+      return;
+    }
+    // GPS・センサー・NoSleep を発火（業務開始と同じ処理）
+    if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
+      refreshSensorPermission();
+    }
+    if(_isIOS && (!window._compassGranted || !window._motionGranted)){
+      try { requestSensorPermission(); } catch(e){ console.error('sensor permission error:', e); }
+    }
+    if(!noSleep){ noSleep = new NoSleep(); }
+    noSleep.enable().catch(e=>console.log('NoSleep error:', e));
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    document.documentElement.style.filter = '';
+    startGPS();
+    appState = 'idle';
+    showScreen('idle');
+    document.getElementById('appbarTitle').textContent = '空　車';
+    updateBusinessDashboard();
+    if(typeof dlog === 'function') dlog('[Business] resume from start screen');
+  } catch(e){
+    console.error('[Business] resumeFromStart error:', e);
+    showToast('再開に失敗しました');
+  }
+}
+
+// 直前に終了した業務（履歴の最新）を取得
+function getLastEndedBusiness(){
+  try {
+    const histRaw = localStorage.getItem('dakome_business_history');
+    if(!histRaw) return null;
+    const hist = JSON.parse(histRaw);
+    if(!Array.isArray(hist) || hist.length === 0) return null;
+    // end_time が最新のものを取得（履歴は unshift で新しい順なので [0] でもOK）
+    const latest = hist[0];
+    if(!latest || !latest.end_time) return null;
+    // 互換のため ended_at も付与
+    return { ...latest, ended_at: latest.end_time };
+  } catch(e){
+    console.error('[Business] getLastEndedBusiness error:', e);
+    return null;
+  }
+}
+
+// [終了] 押下：Business.abandon() 発火 → 業務開始画面へ
+function onBusinessConfirm(){
+  if(typeof Business === 'undefined') return;
+  try {
+    Business.abandon();
+    appState = 'businessStart';
+    showScreen('businessStart');
+    document.getElementById('appbarTitle').textContent = 'ダイコメ';
+    if(typeof dlog === 'function') dlog('[Business] abandon');
+  } catch(e){
+    console.error('[Business] abandon error:', e);
+    showToast('終了処理に失敗しました');
+  }
+}
+
+// 業務終了画面の日報描画（report-card 内に動的生成）
+function renderBusinessReport(){
+  if(typeof Business === 'undefined') return;
+  const r = Business.getReport();
+  if(!r){
+    document.getElementById('reportCard').innerHTML = '<div class="report-row"><span class="lbl">業務データがありません</span></div>';
+    return;
+  }
+  // 業務時間（開始〜終了）
+  const fmt = (ts)=>{
+    if(!ts) return '--:--';
+    const d = new Date(ts);
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
   };
+  const startTime = fmt(r.start_time);
+  const endTime   = fmt(r.end_time);
+  const durMin    = r.start_time && r.end_time ? Math.floor((r.end_time - r.start_time)/60000) : 0;
+  const durH      = Math.floor(durMin / 60);
+  const durM      = durMin % 60;
+  const durStr    = durH > 0 ? (durH + '時間' + durM + '分') : (durM + '分');
+  // 距離
+  const totalKm   = (r.total_distance_m / 1000).toFixed(2);
+  const actualKm  = (r.actual_total_m / 1000).toFixed(2);
+  const emptyKm   = ((r.total_distance_m - r.actual_total_m) / 1000).toFixed(2);
+  const occupancy = r.total_distance_m > 0 ? Math.round((r.actual_total_m / r.total_distance_m) * 100) : 0;
+  // 売上
+  const fareYen   = r.fare_total_yen.toLocaleString();
+  const tripCount = r.trip_count;
+  // HTML 生成
+  let html = '';
+  html += '<div class="report-row large"><span class="lbl">本日売上</span><span class="val">¥' + fareYen + '</span></div>';
+  html += '<hr class="report-divider">';
+  html += '<div class="report-row"><span class="lbl">業務時間</span><span class="val">' + startTime + ' - ' + endTime + '（' + durStr + '）</span></div>';
+  html += '<div class="report-row"><span class="lbl">営業回数</span><span class="val">' + tripCount + ' 回</span></div>';
+  html += '<hr class="report-divider">';
+  html += '<div class="report-row"><span class="lbl">総走行距離</span><span class="val">' + totalKm + ' km</span></div>';
+  html += '<div class="report-row"><span class="lbl">実車距離</span><span class="val">' + actualKm + ' km</span></div>';
+  html += '<div class="report-row"><span class="lbl">空車距離</span><span class="val">' + emptyKm + ' km</span></div>';
+  html += '<div class="report-row"><span class="lbl">実車率</span><span class="val">' + occupancy + ' %</span></div>';
+  document.getElementById('reportCard').innerHTML = html;
+}
+
+// 待機画面の5項目ダッシュボード更新は updateBusinessDashboard()（上で定義済）が担当
+// 1秒ごとに自動更新中
+function renderFare(s, fare, extraTotal, total){
+  document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
+  const cfg = Meter.getFareConfig();
+  let html = '';
+  // 2026/05/01 仕様変更：走行情報を内訳の上に表示（分かりやすさ向上）
+  html += row('走行距離', (s.distance_m/1000).toFixed(2)+'km');
+  html += row('経過時間', Math.floor(s.elapsed_sec/60)+'分');
+  html += '<hr class="breakdown-divider">';
+  html += row('基本料金', '¥'+cfg.base_fare.toLocaleString());
+  html += row('距離料金', '¥'+(s.fare_yen - cfg.base_fare).toLocaleString());
+  if(surchargeOn){
+    const diff = fare - s.fare_yen;
+    html += row('割増', '+¥'+diff.toLocaleString(), 'surcharge');
+  }
+  extras.forEach(e=>{ html += row(e.name, '+¥'+e.amount.toLocaleString(), 'extra'); });
+  document.getElementById('breakdown').innerHTML = html;
+
+  // 今日の実績・履歴は1回だけ保存
+  if(!histSaved){
+    histSaved = true;
+    todayDist  += s.distance_m;
+    todayCount += 1;
+    localStorage.setItem('daikou_today', JSON.stringify({
+      date:new Date().toDateString(), dist:todayDist, count:todayCount
+    }));
+    const now = new Date();
+    const histKey = 'daikou_history_' + now.toDateString();
+    const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+    hist.push({
+      time: now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0'),
+      distance_m: Math.round(s.distance_m),
+      fare: total,
+      surcharge: surchargeOn,
+      extras: [...extras]
+    });
+    localStorage.setItem(histKey, JSON.stringify(hist));
+  }
+}
+
+function row(lbl,val,cls=''){
+  return `<div class="breakdown-row"><span class="lbl">${lbl}</span><span class="val ${cls}">${val}</span></div>`;
+}
+
+// ─── 空車ボタン ───
+function onIdle(){
+  if(appState==='driving'){
+    // 走行中は空車に戻れない
+    showToast('先に「確定」を押してください');
+    return;
+  }
+  // 空車成立時の補正用データを取得（reset前に）
+  let correctionDistanceM = 0;
+  let correctionTotal = 0;
+  // 業務管理連携用（Step 5・2026/05/01追加）
+  let tripDistanceM = 0;
+  let tripFareYen = 0;
+  let tripStartTime = null;
+  if(appState==='fare'){
+    const s = Meter.getState();
+    correctionDistanceM = s.distance_m;
+    let fare = s.fare_yen;
+    if(surchargeOn) fare = Math.round(fare * surchargeRate);
+    correctionTotal = fare + extras.reduce((a,b)=>a+b.amount,0);
+    // 業務管理連携用に保持（reset前に）
+    tripDistanceM = s.distance_m;
+    tripFareYen = correctionTotal;
+    // 仕事開始時刻を取得
+    const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
+    tripStartTime = lastStart > 0 ? lastStart : null;
+    // TestMode：走行終了記録（★テスト用・リリース時削除）
+    try { if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); } catch(e){ console.error('TestMode end error:', e); }
+
+    // ─── 走行サマリートースト（5秒表示）───
+    try {
+      const logs = (typeof TestMode !== 'undefined') ? TestMode.getLogs() : [];
+      const lastLog = logs[logs.length - 1];
+      const hasPosData = lastLog && lastLog.start_pos && lastLog.end_pos;
+      const gapCount = s.gap_fill_count || 0;
+      const gapM    = Math.round(s.gap_fill_total_m || 0);
+      const lines = [
+        `✅ ${(correctionDistanceM/1000).toFixed(2)}km ¥${correctionTotal.toLocaleString()}`,
+        gapCount > 0 ? `GPS補完: ${gapCount}回（${gapM}m）` : 'GPS補完: なし',
+        hasPosData ? '座標: 取得済 ✅' : '座標: 未取得 ⚠️（GPS圏外？）',
+      ].join('\n');
+      showToastLong(lines);
+    } catch(e){ /* サマリー表示エラーは無視 */ }
+
+    // 確定画面からのみ空車に戻れる
+    Meter.stop();
+    if(uiTimer){clearInterval(uiTimer);uiTimer=null;}
+  }
+  appState='idle';
+  extras=[];
+  surchargeOn=false;
+  Meter.reset();
+  // リロード復元データ削除・バナー非表示
+  localStorage.removeItem('daikou_driving_state');
+  document.getElementById('restoreBanner').classList.remove('show');
+  try { FB.setIdle(); } catch(e){}
+
+  // ─── 業務管理連携（Step 5・2026/05/01追加）───
+  // 実車終了を Business に通知して累計加算（実車距離・売上・営業回数）
+  // ⚠️ TODO（リリース前に必須対応）：
+  //   現在は屋内テストで距離0でも動作確認したいので tripDistanceM >= 0 で受け付ける
+  //   リリース前に tripDistanceM > 0 に変更すること（距離0は誤タップ扱い）
+  //   司さん指示 2026/05/01「今は屋内での確認のときもあるから０でもカウントして後に０距離はカウントしない」
+  try {
+    if(typeof Business !== 'undefined' && tripDistanceM >= 0 && appState === 'idle' /* fareから来た時のみ */){
+      // appState は既に 'idle' に書き換わってるので、tripStartTime を使って fare から来たか判定
+      // tripStartTime は fare 経由の時のみセットされる
+      if(tripStartTime !== null){
+        Business.onTripEnd(tripDistanceM, tripFareYen, tripStartTime);
+        if(typeof dlog === 'function') dlog('[Business] onTripEnd: ' + Math.round(tripDistanceM) + 'm ¥' + tripFareYen);
+      }
+    }
+  } catch(e){ console.error('[Business] onTripEnd error:', e); }
+
+  // 旧仕様の today 表示はBusiness連携後にダッシュボード更新で上書きされる
+  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
+  document.getElementById('todayCount').textContent = todayCount;
+  showScreen('idle');
+  // 業務管理ダッシュボード即時更新（Step 5・2026/05/01追加）
+  try { updateBusinessDashboard(); } catch(e){ console.error('[Dashboard] update error:', e); }
+  renderInlineHistory();
+  document.getElementById('appbarTitle').textContent='空　車';
+  document.getElementById('surchargeInfo').style.display='none';
+  updateSurchargeBadge();
+  // 空車5時間後に画面暗転（NoSleepは継続・タイマーのみリセット）
+  if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+  dimTimer = setTimeout(function(){
+    document.documentElement.style.filter = 'brightness(0)';
+  }, DIM_MINUTES * 60 * 1000);
+
+  // OSRM削除済（2026/04/26）：GPS+IMU融合エンジンへ移行
+}
+
+// ─── Menuボタン ───
+function onMenuClick(){
+  if(appState==='driving'){
+    showToast('走行中はMenuを開けません');
+    return;
+  }
+  location.href = 'settings.html';
+}
+
+// ─── 確定ボタン（旧Send）───
+function onSend(){
+  if(appState==='driving'){
+    // Driving中に確定を押したら → 確定画面へ（カウントは継続）
+    appState='fare';
+    histSaved = false;
+    const s = Meter.getState();
+    let fare = s.fare_yen;
+    if(surchargeOn) fare = Math.round(fare * surchargeRate);
+    let extraTotal = extras.reduce((a,b)=>a+b.amount,0);
+    let total = fare + extraTotal;
+    // Firebaseにfinished送信（サブ機に料金表示）
+    try {
+      FB.endSession({distance_m:s.distance_m, fare_yen:total, elapsed_sec:s.elapsed_sec});
+      FB.updateVehicle({status:'finished',
+        session:{distance_m:Math.round(s.distance_m), fare_yen:total, elapsed_sec:s.elapsed_sec}});
+    } catch(e){ console.error(e); }
+    renderFare(s, fare, extraTotal, total);
+    showScreen('fare');
+    document.getElementById('appbarTitle').textContent='料　金';
+  } else if(appState==='fare'){
+    // 確定画面で再押し → 何もしない（キャンセルで戻るだけ）
+  }
+}
+
+// OSRM補正関数は削除（2026/04/26）
+// 理由：公開API依存ゼロ化・スケール無制限化・将来1000社規模でも安定
+// 代替：GPS + IMU融合エンジン（imu.js）で精度を保つ
+
+// ─── 画面暗転解除 ───
+function wakeScreen(){
+  if(document.documentElement.style.filter === 'brightness(0)'){
+    document.documentElement.style.filter = '';
+    // タイマーリセット（もう5時間）
+    if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
+    dimTimer = setTimeout(function(){
+      document.documentElement.style.filter = 'brightness(0)';
+    }, DIM_MINUTES * 60 * 1000);
+    // 走行中・確定中なら復帰補正を発火
+    if(appState === 'driving' || appState === 'fare'){
+      const s = Meter.getState();
+      window._restoreDistanceM = s.distance_m;
+      window._restoreFareYen   = s.fare_yen;
+      document.getElementById('restoreBanner').classList.add('show');
+      document.getElementById('restoreBanner').textContent = '✅ 走行データを復元しました';
+    }
+  }
+}
+
+// ─── トースト通知 ───
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>{ t.classList.remove('show'); }, 2000);
+}
+
+// ─── 長めのトースト（走行サマリー用・5秒・改行対応） ───
+function showToastLong(msg){
+  const t = document.getElementById('toast');
+  t.style.whiteSpace = 'pre-line';
+  t.style.textAlign  = 'left';
+  t.style.fontSize   = '13px';
+  t.style.lineHeight = '1.8';
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>{
+    t.classList.remove('show');
+    t.style.whiteSpace = '';
+    t.style.textAlign  = '';
+    t.style.fontSize   = '';
+    t.style.lineHeight = '';
+  }, 5000);
+}
+
+// ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
+function cancelFare(){
+  appState='driving';
+  histSaved = false; // 再走行するので保存フラグリセット
+  // Meterは止めていないのでresume不要
+  try { FB.updateVehicle({status:'driving'}); } catch(e){ console.error(e); }
+  showScreen('driving');
+  document.getElementById('appbarTitle').textContent='代行中';
+}
+
+// ─── 割増トグル ───
+function toggleSurcharge(){
+  surchargeOn = !surchargeOn;
+  updateSurchargeBadge();
+}
+function updateSurchargeBadge(){
+  const badge = document.getElementById('surchargeBadge');
+  if(!surchargeEnabled){ badge.style.display='none'; return; }
+  badge.style.display='flex';
+  // デフォルトOFF：グレー、押してON：赤
+  badge.style.background = surchargeOn ? '#FF3B30' : '#8E8E93';
+  document.getElementById('surchargeLabel').textContent = surchargeOn ? '割増 ON' : '割増 OFF';
+}
+
+// ─── 追加料金モーダル ───
+function openExtraModal(){
+  const items = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
+  const el = document.getElementById('modalItems');
+  el.innerHTML = items.map((item,i)=>
+    `<div class="modal-item" onclick="addExtra(${i})">
+      <span class="modal-item-name">${item.name}</span>
+      <span class="modal-item-price">+¥${item.amount.toLocaleString()}</span>
+    </div>`
+  ).join('');
+  document.getElementById('customAmount').value='';
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeExtraModal(){
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function addExtra(i){
+  const items = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
+  extras.push({name:items[i].name, amount:items[i].amount});
+  closeExtraModal();
+}
+
+function addCustomExtra(){
+  const v = parseInt(document.getElementById('customAmount').value);
+  if(!v||v<=0) return;
+  extras.push({name:'任意追加', amount:v});
+  closeExtraModal();
+}
+
+// ─── 本日の履歴インライン表示 ───
+function renderInlineHistory(){
+  const today = new Date();
+  const key = 'daikou_history_' + today.toDateString();
+  const rides = JSON.parse(localStorage.getItem(key) || '[]');
+  const el = document.getElementById('inlineHistory');
+  const wrap = document.getElementById('inlineHistoryWrap');
+  if(!el || !wrap) return;
+  if(rides.length === 0){
+    el.innerHTML = '';
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
+  el.innerHTML = rides.map((r,i)=>`
+    <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;
+      display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div>
+        <span style="font-size:11px;color:#aaa;">${i+1}回目　${r.time}</span><br>
+        <span style="font-size:13px;color:#555;">${(r.distance_m/1000).toFixed(2)}km</span>
+      </div>
+      <span style="font-size:16px;font-weight:900;color:#111;">¥${r.fare.toLocaleString()}</span>
+    </div>
+  `).join('');
+}
+
+// ─── 画面切替 ───
+// 2026/05/01 仕様：画面ごとに表示するボタンを show クラスで制御
+//   業務未開始(businessStart) : 専用画面・[業務開始] のみ
+//   業務終了画面(businessReport) : 日報 + [続ける]/[終了]
+//   待機(idle)   : btn-main [代行開始]
+//   実車(driving): btn-row [追加料金][確定]
+//   支払(fare)   : btn-back-portrait（縦画面）+ btn-back-landscape（横画面）+ btn-main [精算終了]
+function showScreen(name){
+  document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
+  document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
+  document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
+  // 2026/05/01追加：業務管理画面
+  const elBStart = document.getElementById('screenBusinessStart');
+  const elBReport = document.getElementById('screenBusinessReport');
+  if(elBStart)  elBStart.style.display  = name==='businessStart'  ? 'flex' : 'none';
+  if(elBReport) elBReport.style.display = name==='businessReport' ? 'flex' : 'none';
+
+  // 全ボタンのリセット
+  const btnMain      = document.getElementById('btnMain');
+  const btnRow       = document.getElementById('btnRow');
+  const btnBackP     = document.getElementById('btnBackPortrait');
+  const btnBackL     = document.getElementById('btnBackLandscape');
+  if(btnMain)  btnMain.classList.remove('show');
+  if(btnRow)   btnRow.classList.remove('show');
+  if(btnBackP) btnBackP.classList.remove('show');
+  if(btnBackL) btnBackL.classList.remove('show');
+
+  // 画面ごとの表示
+  if(name==='idle'){
+    if(btnMain){ btnMain.textContent = '代行開始'; btnMain.classList.add('show'); }
+  } else if(name==='driving'){
+    if(btnRow) btnRow.classList.add('show');
+  } else if(name==='fare'){
+    if(btnMain){ btnMain.textContent = '精算終了'; btnMain.classList.add('show'); }
+    if(btnBackP) btnBackP.classList.add('show');
+    if(btnBackL) btnBackL.classList.add('show');
+  }
+  // businessStart / businessReport は btn-area のボタン全部非表示（リセットだけ）
+}
+// 起動直後の初期状態（idle）にも上記表示制御を即適用
+(function _initBtnVisibility(){
+  const btnMain      = document.getElementById('btnMain');
+  const btnRow       = document.getElementById('btnRow');
+  const btnBackP     = document.getElementById('btnBackPortrait');
+  const btnBackL     = document.getElementById('btnBackLandscape');
+  if(btnRow)   btnRow.classList.remove('show');
+  if(btnBackP) btnBackP.classList.remove('show');
+  if(btnBackL) btnBackL.classList.remove('show');
+  if(btnMain){ btnMain.textContent = '代行開始'; btnMain.classList.add('show'); }
 })();
+
+// ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden && appState === 'driving'){
+    try {
+      const s  = Meter.getState();
+      const ms = Meter.getState();
+      let fare = s.fare_yen;
+      if(surchargeOn) fare = Math.round(fare * surchargeRate);
+      const extraTotal = extras.reduce((a,b)=>a+b.amount, 0);
+      const total = fare + extraTotal;
+      localStorage.setItem('daikou_driving_state', JSON.stringify({
+        distance_m:    s.distance_m,
+        fare_yen:      total,
+        saved_at:      Date.now(),
+        last_lat:      ms.last_gps ? ms.last_gps.lat      : null,
+        last_lng:      ms.last_gps ? ms.last_gps.lng      : null,
+        last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
+        last_speed_kmh: ms.last_speed_kmh || 0,
+        last_gps_at:   ms.last_timestamp || null,
+      }));
+      dlog('[復元] 裏に回った瞬間を保存');
+    } catch(e){ console.error('[復元] visibilitychange保存エラー:', e); }
+  }
+});
+
+// 起動時センサーバナー表示は「センサー未許可バナー（PWA起動時）」ロジックに統合（2026/04/30）
+// drivingState の有無に関係なく、未許可なら起動のたびにバナー表示
+
+loadSettings();
+try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
+renderInlineHistory();
+
+// ─── 業務管理スーパー機能の初期化（2026/05/01追加） ───
+// 永続化された業務状態を復元 + 3時間経過チェック（自動 abandon）
+// Business.load() 内で checkAutoAbandon() も呼ばれるが、保険で明示呼出
+try {
+  if(typeof Business !== 'undefined'){
+    Business.load();
+    Business.checkAutoAbandon();
+    if(typeof dlog === 'function'){
+      const s = Business.getState();
+      dlog('[Business] init state: active=' + s.active + ' ended=' + s.ended + ' trips=' + s.trip_count);
+    }
+    // 起動時の画面分岐：
+    //   active=true  → 業務中の待機画面（screenIdle）
+    //   ended=true   → 業務終了済み・3時間以内なら日報画面（screenBusinessReport）で再開可
+    //   active=false かつ ended=false → 業務未開始（screenBusinessStart）
+    //     ※ 直前の履歴が3時間以内なら「続きから再開」ボタン表示
+    const bs = Business.getState();
+    if(bs.active){
+      // 既に業務中・既存の appState ロジックに委ねる（idle / driving / fare の復元処理が後続にある）
+      updateBusinessDashboard();
+    } else if(bs.ended && Business.canResume()){
+      // 業務終了済みかつ3時間以内 → 日報画面表示
+      appState = 'businessReport';
+      renderBusinessReport();
+      showScreen('businessReport');
+      document.getElementById('appbarTitle').textContent = '業務報告';
+    } else {
+      // 業務未開始 → 業務開始画面
+      appState = 'businessStart';
+      showScreen('businessStart');
+      document.getElementById('appbarTitle').textContent = 'ダイコメ';
+      // 直前の業務履歴が3時間以内なら「続きから再開」ボタン表示
+      try {
+        const lastBusiness = getLastEndedBusiness();
+        if(lastBusiness && (Date.now() - lastBusiness.ended_at) < 3 * 3600 * 1000){
+          const btn = document.getElementById('btnResumeFromStart');
+          const note = document.getElementById('resumeNote');
+          const timeSpan = document.getElementById('resumeNoteTime');
+          if(btn) btn.style.display = 'block';
+          if(note) note.style.display = 'block';
+          if(timeSpan){
+            const d = new Date(lastBusiness.ended_at);
+            timeSpan.textContent = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+          }
+        }
+      } catch(e){ console.error('[Business] resume check error:', e); }
+    }
+  }
+} catch(e){
+  console.error('[Business] init error:', e);
+}
+
+// ─── PWAバナー（ホーム画面追加促進） ───
+(function(){
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isInstalled = window.navigator.standalone === true;
+  const isDismissed = localStorage.getItem('pwa_banner_dismissed');
+  if(isIOS && !isInstalled && !isDismissed){
+    document.getElementById('pwaBanner').classList.add('show');
+  }
+})();
+
+function closePwaBanner(){
+  document.getElementById('pwaBanner').classList.remove('show');
+  localStorage.setItem('pwa_banner_dismissed', '1');
+}
+
+function showPwaInstructions(){
+  alert('① 画面下の「共有」ボタン（□↑）をタップ\n② 「ホーム画面に追加」を選択\n③「追加」をタップ\n\nホーム画面のアイコンから起動するとコンパス・ジャイロが使えます！');
+}
+
+// ─── チュートリアル（初回URL訪問時のみ） ───
+(function(){
+  const done = localStorage.getItem('tutorial_done');
+  const isInstalled = window.navigator.standalone === true;
+  // PWAインストール済み（アイコンから起動）→ チュートリアル不要
+  if(isInstalled) return;
+  // 完了済みならスキップ
+  if(done) return;
+  // Safari初回訪問時のみ表示
+  document.getElementById('tutorialOverlay').classList.add('show');
+})();
+
+let _tutorialPage = 0;
+
+function tutorialNext(){
+  const pages = document.querySelectorAll('.tutorial-page');
+  const dots = document.querySelectorAll('.tutorial-dot');
+  pages[_tutorialPage].classList.remove('show');
+  dots[_tutorialPage].classList.remove('active');
+  _tutorialPage++;
+  if(_tutorialPage >= pages.length){
+    tutorialComplete();
+    return;
+  }
+  pages[_tutorialPage].classList.add('show');
+  dots[_tutorialPage].classList.add('active');
+
+  const navArea = document.getElementById('tNavArea');
+  const navBtn = navArea.querySelector('button');
+
+  if(_tutorialPage === 2){
+    // ページ3（ホーム画面）：ボタンなし・自分で追加するだけ
+    navArea.style.display = 'none';
+  } else {
+    navArea.style.display = 'block';
+    navBtn.textContent = '次へ';
+  }
+}
+
+function requestSensorPermission(){
+  const btn = document.getElementById('tSensorBtn') || document.getElementById('sensorPermBtn');
+  if(btn){ btn.textContent = '許可中...'; btn.disabled = true; }
+
+  const promises = [];
+  let compassGranted = false;
+  let motionGranted = false;
+
+  // iOS：requestPermissionが必要
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function'){
+    promises.push(
+      DeviceOrientationEvent.requestPermission().then(state => {
+        dlog('[GPS] コンパス許可:', state);
+        if(state === 'granted') compassGranted = true;
+      }).catch(e => dlog('[GPS] コンパス許可エラー:', e.message))
+    );
+  } else {
+    compassGranted = true;
+  }
+
+  if(typeof DeviceMotionEvent !== 'undefined' &&
+     typeof DeviceMotionEvent.requestPermission === 'function'){
+    promises.push(
+      DeviceMotionEvent.requestPermission().then(state => {
+        dlog('[GPS] ジャイロ許可:', state);
+        if(state === 'granted') motionGranted = true;
+      }).catch(e => dlog('[GPS] ジャイロ許可エラー:', e.message))
+    );
+  } else {
+    motionGranted = true;
+  }
+
+  Promise.allSettled(promises).then(() => {
+    const allGranted = compassGranted && motionGranted;
+
+    if(allGranted){
+      window._compassGranted = true;
+      window._motionGranted = true;
+      localStorage.setItem('compass_granted','1');
+      localStorage.setItem('motion_granted','1');
+
+      const banner = document.getElementById('sensorBanner');
+      if(banner && banner.style.display !== 'none'){
+        const permBtn = document.getElementById('sensorPermBtn');
+        if(permBtn){ permBtn.textContent = '✅ 許可されました'; permBtn.disabled = true; }
+        setTimeout(() => { banner.style.display = 'none'; }, 1200);
+      }
+      const overlay = document.getElementById('tutorialOverlay');
+      if(overlay && overlay.classList.contains('show')) tutorialNext();
+
+    } else {
+      // 許可失敗（iOSキャンセル）：設定アプリで許可するよう案内
+      if(btn){
+        btn.style.display = 'none';
+      }
+      const banner = document.getElementById('sensorBanner');
+      if(banner){
+        banner.style.display = 'block';
+        const desc = banner.querySelector('#sensorBannerIOS div');
+        if(desc) desc.innerHTML = '<strong style="display:block;font-size:15px;margin-bottom:4px;">⚠️ 許可されませんでした</strong>タスクキルして再起動してください<div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">① ホームボタンを2回押す<br>（または下からスワイプしてホールド）<br>② ダイコメを上にスワイプして終了<br>③ アイコンから再起動して許可する</div>';
+      }
+      dlog('[GPS] センサー許可失敗・設定案内');
+    }
+  });
+}
+
+function tutorialComplete(){
+  document.getElementById('tutorialOverlay').classList.remove('show');
+  localStorage.setItem('tutorial_done','1');
+  dlog('[Tutorial] 完了');
+}
+
+// ─── 第1層：センサー permission 再確認（2026/04/30追加） ───
+// iOSのPWAでpermissionが切れる現象をカバー
+// 既に許可済みなら即grantedが返る（ダイアログ出ない・ユーザー体験変わらず）
+// 期限切れの場合は自動でダイアログ → ユーザー許可でセンサー復活
+function refreshSensorPermission(){
+  // コンパス permission 再確認
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function'){
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if(state === 'granted'){
+        dlog('[GPS] コンパス permission 再確認OK:', state);
+      } else {
+        // permission切れ → フラグもクリア
+        window._compassGranted = false;
+        localStorage.removeItem('compass_granted');
+        dlog('[GPS] コンパス permission 期限切れ検知:', state);
+      }
+    }).catch(e => dlog('[GPS] コンパス permission 再確認エラー:', e.message));
+  }
+  // 加速度 permission 再確認
+  if(typeof DeviceMotionEvent !== 'undefined' &&
+     typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().then(state => {
+      if(state === 'granted'){
+        dlog('[GPS] 加速度 permission 再確認OK:', state);
+      } else {
+        window._motionGranted = false;
+        localStorage.removeItem('motion_granted');
+        dlog('[GPS] 加速度 permission 期限切れ検知:', state);
+      }
+    }).catch(e => dlog('[GPS] 加速度 permission 再確認エラー:', e.message));
+  }
+}
+
+// ─── デバイス判定 ───
+const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const _isAndroid = /Android/.test(navigator.userAgent);
+
+// Android用センサー確認
+function confirmAndroidSensor(){
+  window._compassGranted = true;
+  window._motionGranted = true;
+  localStorage.setItem('compass_granted','1');
+  localStorage.setItem('motion_granted','1');
+  localStorage.setItem('android_sensor_confirmed','1');
+  const banner = document.getElementById('sensorBanner');
+  if(banner) banner.style.display = 'none';
+  dlog('[GPS] Androidセンサー確認完了');
+}
+
+// ─── センサー未許可バナー（起動時・未許可なら毎回表示） ───
+// 2026/04/30 修正：standalone チェック削除（PWA・Safari どちらでも動作）
+//                 drivingState ロジックを統合（重複削除）
+(function(){
+  // PC（iOS でも Android でもない）はスキップ
+  if(!_isIOS && !_isAndroid) return;
+
+  if(_isAndroid){
+    // Android：自動許可済みだがバナーで説明表示
+    window._compassGranted = true;
+    window._motionGranted = true;
+    localStorage.setItem('compass_granted','1');
+    localStorage.setItem('motion_granted','1');
+    // 初回のみバナーで「標準で使えます」を表示
+    if(!localStorage.getItem('android_sensor_confirmed')){
+      const banner = document.getElementById('sensorBanner');
+      const iosBanner = document.getElementById('sensorBannerIOS');
+      const androidBanner = document.getElementById('sensorBannerAndroid');
+      if(banner) banner.style.display = 'block';
+      if(iosBanner) iosBanner.style.display = 'none';
+      if(androidBanner) androidBanner.style.display = 'block';
+    }
+    return;
+  }
+
+  if(_isIOS){
+    // iOS：未許可ならバナー表示
+    const needSensor = !localStorage.getItem('compass_granted') || !localStorage.getItem('motion_granted');
+    if(needSensor){
+      document.getElementById('sensorBanner').style.display = 'block';
+    }
+    return;
+  }
+
+  // PC：バナー非表示・ブロックなし
+  dlog('[GPS] PC：センサースキップ');
+})();
+
+// ─── PWA起動時センサー状態復元 ───
+(function(){
+  if(window.navigator.standalone !== true) return;
+  if(localStorage.getItem('compass_granted')) window._compassGranted = true;
+  if(localStorage.getItem('motion_granted')) window._motionGranted = true;
+})();
+
+// ─── ServiceWorker登録（PWA化・オフライン対応） ───
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').then(function(reg){
+    dlog('[SW] 登録完了:', reg.scope);
+  }).catch(function(err){
+    dlog('[SW] 登録失敗（開発環境では正常）:', err.message);
+  });
+}
+
+// ─── ストレージ永続化（2026/04/30追加：オフライン業務でデータ消失防止） ───
+// iOS のキャッシュ自動削除を防ぐ・道路データ等を永続的に保持
+if(navigator.storage && navigator.storage.persist){
+  navigator.storage.persist().then(function(persisted){
+    dlog('[Storage] 永続化:', persisted ? '成功（キャッシュ保護）' : '不可（PWA未追加など）');
+  }).catch(function(err){
+    dlog('[Storage] 永続化エラー:', err.message);
+  });
+}
+</script>
+
+</body>
+</html>
