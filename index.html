@@ -167,7 +167,7 @@ text-overflow:ellipsis;
 .btn-area{padding:10px 16px 40px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;border-top:0.5px solid #f0f0f0;}
 .btn-main{width:100%;padding:18px;background:#007AFF;border:none;border-radius:12px;color:#fff;font-size:18px;font-weight:900;letter-spacing:3px;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
 .btn-main:active{-webkit-transform:scale(0.97);transform:scale(0.97);-webkit-filter:brightness(0.85);filter:brightness(0.85);}
-.btn-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
 .btn-sub{padding:12px 0;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:700;font-family:‘Noto Sans JP’,sans-serif;cursor:pointer;letter-spacing:1px;-webkit-transition:transform 0.1s,-webkit-filter 0.1s;transition:transform 0.1s,filter 0.1s;}
 .btn-sub:active{-webkit-transform:scale(0.95);transform:scale(0.95);-webkit-filter:brightness(0.8);filter:brightness(0.8);}
 .btn-idle{background:#8E8E93;}
@@ -499,7 +499,6 @@ justify-content:center;
   </div>
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
   <div class="btn-row">
-    <button class="btn-sub btn-idle" onclick="onIdle()">空車</button>
     <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
     <button class="btn-sub btn-confirm" onclick="onSend()">確定</button>
   </div>
@@ -1020,7 +1019,10 @@ function onMainBtn(){
     try { if(typeof TestMode !== 'undefined') TestMode.startTrip(); } catch(e){ console.error('TestMode start error:', e); }
     startUiTimer();
   } else if(appState==='driving'){
-    // 代行開始ボタンを再押し → 何もしない（Drivingのまま）
+    // 実車中はメインボタン非表示（仕様2026/05/01）→ ここに来ない想定だが保険
+  } else if(appState==='fare'){
+    // 支払画面 → 精算終了（onIdle に委譲・既存ロジック流用）
+    onIdle();
   }
 }
 
@@ -1299,14 +1301,34 @@ function showScreen(name){
   document.getElementById('screenIdle').style.display    = name==='idle'    ? 'flex' : 'none';
   document.getElementById('screenDriving').style.display = name==='driving' ? 'block' : 'none';
   document.getElementById('screenFare').style.display    = name==='fare'    ? 'block' : 'none';
-  // 3ボタン（[空車][追加料金][確定]）は実車中のみ表示（2026/05/01仕様変更）
-  const btnRow = document.querySelector('.btn-row');
-  if(btnRow) btnRow.style.display = name==='driving' ? 'grid' : 'none';
+
+  // 2026/05/01 仕様：画面ごとにボタン表示・文言を制御
+  // 待機(idle)   : btn-main [代行開始]・btn-row 非表示
+  // 実車(driving): btn-main 非表示・btn-row [追加料金][確定]
+  // 支払(fare)   : btn-main [精算終了]・btn-row 非表示
+  const btnMain = document.getElementById('btnMain');
+  const btnRow  = document.querySelector('.btn-row');
+  if(btnMain){
+    if(name==='idle'){
+      btnMain.style.display = 'block';
+      btnMain.textContent = '代行開始';
+    } else if(name==='driving'){
+      btnMain.style.display = 'none';
+    } else if(name==='fare'){
+      btnMain.style.display = 'block';
+      btnMain.textContent = '精算終了';
+    }
+  }
+  if(btnRow){
+    btnRow.style.display = name==='driving' ? 'grid' : 'none';
+  }
 }
-// 起動直後（idle初期状態）にも3ボタン非表示を即適用
-(function _initBtnRowVisibility(){
-  const btnRow = document.querySelector('.btn-row');
-  if(btnRow) btnRow.style.display = 'none';
+// 起動直後の初期状態（idle）にも上記表示制御を即適用
+(function _initBtnVisibility(){
+  const btnMain = document.getElementById('btnMain');
+  const btnRow  = document.querySelector('.btn-row');
+  if(btnMain){ btnMain.style.display = 'block'; btnMain.textContent = '代行開始'; }
+  if(btnRow){ btnRow.style.display = 'none'; }
 })();
 
 // ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
