@@ -211,6 +211,32 @@ pointer-events:none;white-space:nowrap;
 @media (orientation:landscape){
 /* 全体：左右分割レイアウト */
 body{flex-direction:row;flex-wrap:wrap;}
+
+/* 2026/05/01 横画面UI修正 */
+/* 1. 待機画面のバランス調整：btn-area を狭く */
+.btn-area{width:180px !important;}
+
+/* 2. fare 画面の[走行に戻る]を btn-area 内・大ボタンとして表示 */
+/*    縦画面用の screenFare 内ボタンは横画面では非表示 */
+#screenFare > button{display:none !important;}
+.btn-back-driving{
+  display:none;  /* デフォルト非表示・JS の showScreen で .show 追加 */
+  width:100%;padding:18px;
+  background:#fff;border:2px solid #FF3B30;
+  border-radius:12px;color:#FF3B30;
+  font-size:18px;font-weight:900;letter-spacing:2px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-back-driving:active{background:#FFF0F0;transform:scale(0.97);}
+.btn-back-driving.show{display:block;}
+
+/* 3. 精算終了は走行に戻るから離す（誤タップ防止） */
+.btn-back-driving.show + .btn-main{margin-top:32px;padding:10px;font-size:13px;letter-spacing:2px;}
+
+/* 4. 追加料金バナー（実車中の左ハンドル/深夜割増等）の幅を狭く */
+.extras-list{max-width:50%;width:100%;margin-left:auto;margin-right:auto;}
+
 .appbar{
 width:100% !important;
 flex-shrink:0 !important;
@@ -497,6 +523,8 @@ justify-content:center;
       <button onclick="confirmAndroidSensor()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">✅ センサーを確認する</button>
     </div>
   </div>
+  <!-- 横画面の fare 時のみ表示される「走行に戻る」大ボタン（縦画面では非表示） -->
+  <button class="btn-back-driving" id="btnBackDriving" onclick="cancelFare()">← 走行に戻る</button>
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
   <div class="btn-row">
     <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
@@ -1305,9 +1333,10 @@ function showScreen(name){
   // 2026/05/01 仕様：画面ごとにボタン表示・文言を制御
   // 待機(idle)   : btn-main [代行開始]・btn-row 非表示
   // 実車(driving): btn-main 非表示・btn-row [追加料金][確定]
-  // 支払(fare)   : btn-main [精算終了]・btn-row 非表示
+  // 支払(fare)   : btn-main [精算終了]・btn-row 非表示・横画面のみ btn-back-driving 表示
   const btnMain = document.getElementById('btnMain');
   const btnRow  = document.querySelector('.btn-row');
+  const btnBack = document.getElementById('btnBackDriving');
   if(btnMain){
     if(name==='idle'){
       btnMain.style.display = 'block';
@@ -1322,13 +1351,20 @@ function showScreen(name){
   if(btnRow){
     btnRow.style.display = name==='driving' ? 'grid' : 'none';
   }
+  // 横画面 fare 時のみ表示（CSS で landscape 限定）
+  if(btnBack){
+    if(name==='fare') btnBack.classList.add('show');
+    else btnBack.classList.remove('show');
+  }
 }
 // 起動直後の初期状態（idle）にも上記表示制御を即適用
 (function _initBtnVisibility(){
   const btnMain = document.getElementById('btnMain');
   const btnRow  = document.querySelector('.btn-row');
+  const btnBack = document.getElementById('btnBackDriving');
   if(btnMain){ btnMain.style.display = 'block'; btnMain.textContent = '代行開始'; }
   if(btnRow){ btnRow.style.display = 'none'; }
+  if(btnBack){ btnBack.classList.remove('show'); }
 })();
 
 // ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
