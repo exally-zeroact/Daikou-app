@@ -9,6 +9,76 @@ const GPS = (() => {
   let worker = null;
   let useWorker = false;
 
+  // ─── GPS 状態管理（BUG-6・2026/05/01追加） ───
+  // PERMISSION_DENIED 等で onError が呼ばれた時、状態を公式に保持し
+  // meter.js / business.js / navigation.js / UI 等が参照できるようにする
+  // 「許可押したのに動かない」現象（onError が console.error だけで放置）対策
+  const _status = {
+    state: 'unknown',     // unknown / granted / denied / unavailable / timeout
+    lastError: null,
+    lastErrorAt: null,
+    retryCount: 0,
+    listeners: [],
+  };
+  const _MAX_RETRY = 3;
+  const _RETRY_INTERVAL_MS = 10000;
+  let _retryTimer = null;
+
+  // watchPosition の共通オプション（リトライ時も同じ条件で要求）
+  const _WATCH_OPTIONS = { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 };
+
+  function _setStatus(newState, err){
+    const changed = (_status.state !== newState);
+    _status.state = newState;
+    if(err){
+      _status.lastError = { code: err.code, message: err.message };
+      _status.lastErrorAt = Date.now();
+    }
+    if(newState === 'granted') _status.retryCount = 0;
+    if(changed){
+      _status.listeners.forEach(fn => {
+        try { fn(getStatus()); } catch(e){ console.error('[GPS] listener error:', e); }
+      });
+      if(typeof dlog === 'function') dlog('[GPS] status: ' + newState);
+    }
+  }
+
+  function getStatus(){
+    return {
+      state: _status.state,
+      lastError: _status.lastError ? { ..._status.lastError } : null,
+      lastErrorAt: _status.lastErrorAt,
+      retryCount: _status.retryCount,
+    };
+  }
+
+  // 状態変化リスナー登録（外部公開）
+  // 使用例：GPS.onStatusChange(s => { if(s.state==='denied') ... });
+  function onStatusChange(fn){
+    if(typeof fn !== 'function') return;
+    _status.listeners.push(fn);
+    // 登録直後に現在状態を通知
+    try { fn(getStatus()); } catch(e){}
+  }
+
+  // 手動再試行（UIの[再試行]ボタンから呼ぶ）
+  function retryWatch(){
+    if(_retryTimer){ clearTimeout(_retryTimer); _retryTimer = null; }
+    if(watchId === null) return false;  // stop()済 → 再試行しない
+    if(!navigator.geolocation) return false;
+    try {
+      navigator.geolocation.clearWatch(watchId);
+    } catch(e){}
+    try {
+      watchId = navigator.geolocation.watchPosition(onPosition, onError, _WATCH_OPTIONS);
+      if(typeof dlog === 'function') dlog('[GPS] retry watchPosition (count=' + _status.retryCount + ')');
+      return true;
+    } catch(e){
+      if(typeof dlog === 'function') dlog('[GPS] retry error: ' + e.message);
+      return false;
+    }
+  }
+
   // コンパス（DeviceOrientation・許可不要）
   let compassHeading = null;
 
@@ -242,11 +312,13 @@ const GPS = (() => {
       }});
     }
     if (!navigator.geolocation) { alert('GPSに対応していません'); return; }
-    watchId = navigator.geolocation.watchPosition(onPosition, onError,
-      { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 });
+    // BUG-6（2026/05/01）：リトライ可能なように共通オプション使用
+    watchId = navigator.geolocation.watchPosition(onPosition, onError, _WATCH_OPTIONS);
   }
 
   function stop() {
+    // リトライタイマーをクリア（stop後のゾンビリトライ防止）
+    if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null; }
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     // 加速度バッファクリア（案A・2026/04/29）
     accelBuffer = [];
@@ -264,6 +336,8 @@ const GPS = (() => {
   }
 
   function onPosition(pos) {
+    // BUG-6（2026/05/01）：GPS 取得成功 → 状態を granted に更新
+    if (_status.state !== 'granted') _setStatus('granted', null);
     const now = Date.now();
     const { latitude: lat, longitude: lng, accuracy, speed, heading, altitude } = pos.coords;
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
@@ -406,7 +480,39 @@ const GPS = (() => {
     return Math.sqrt(flat*flat+altDiff*altDiff);
   }
 
-  function onError(err){console.error('[GPS]',err.code,err.message);}
+  // BUG-6（2026/05/01）：onError を拡張
+  // 旧：console.error するだけで放置 → 「許可押したのに動かない」現象の原因
+  // 新：状態管理・リトライ・リスナー通知の3点セット
+  function onError(err){
+    console.error('[GPS]', err.code, err.message);
+    if(typeof dlog === 'function') dlog('[GPS] error code=' + err.code + ' msg=' + err.message);
+
+    if(err.code === 1){
+      // PERMISSION_DENIED：拒否（許可ダイアログでキャンセル or システム拒否）
+      _setStatus('denied', err);
+      // リトライ（最大3回・10秒間隔）
+      // 司さんが iOS 設定で「許可」に変更した場合、自動で復活する
+      if(_status.retryCount < _MAX_RETRY && watchId !== null){
+        _status.retryCount++;
+        if(_retryTimer) clearTimeout(_retryTimer);
+        _retryTimer = setTimeout(retryWatch, _RETRY_INTERVAL_MS);
+      }
+    } else if(err.code === 2){
+      // POSITION_UNAVAILABLE：位置情報サービス不利用 or 信号取得不能
+      _setStatus('unavailable', err);
+      // 信号取得不能は時間で復活する可能性あり → 同じくリトライ
+      if(_status.retryCount < _MAX_RETRY && watchId !== null){
+        _status.retryCount++;
+        if(_retryTimer) clearTimeout(_retryTimer);
+        _retryTimer = setTimeout(retryWatch, _RETRY_INTERVAL_MS);
+      }
+    } else if(err.code === 3){
+      // TIMEOUT：タイムアウト（次の position を待てば良い）
+      // watchPosition は内部で継続するのでリトライ不要
+      // 状態は「timeout」として記録するが granted の方が新しければ反映しない
+      if(_status.state !== 'granted') _setStatus('timeout', err);
+    }
+  }
 
   // ─── デバッグ関数（B段階・2026/04/30追加） ───
   // Eruda コンソールから GPS._debug() で呼び出して、
@@ -425,5 +531,11 @@ const GPS = (() => {
     };
   }
 
-  return { start, stop, calcDistance, calcDistance3D, _debug };
+  return {
+    start, stop,
+    calcDistance, calcDistance3D,
+    _debug,
+    // BUG-6（2026/05/01）：GPS 状態管理 API
+    onStatusChange, getStatus, retryWatch,
+  };
 })();
