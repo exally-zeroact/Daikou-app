@@ -254,6 +254,9 @@ text-overflow:ellipsis;
 
 /* 横画面用 走行に戻るボタン（fare時のみ表示・横画面メディアクエリ内で詳細制御） */
 .btn-back-landscape{display:none;}
+/* 横画面用 業務報告ボタン（businessReport時のみ表示・横画面メディアクエリ内で詳細制御） */
+.btn-resume-landscape{display:none;}
+.btn-confirm-landscape{display:none;}
 
 /* トースト通知 */
 .toast{
@@ -312,6 +315,32 @@ body{flex-direction:row;flex-wrap:wrap;}
 
 /* 4. fare 時の精算終了は[走行に戻る]から離す（誤タップ防止） */
 .btn-back-landscape.show ~ .btn-main.show{margin-top:32px;padding:10px;font-size:13px;letter-spacing:2px;}
+
+/* 2026/05/01 追加：業務報告画面の[続ける]/[終了]を横画面では右側 btn-area に表示 */
+/*    縦画面では screenBusinessReport 内のボタンが見える・横画面ではそれを非表示 */
+#screenBusinessReport .btn-business-resume{display:none !important;}
+#screenBusinessReport .btn-business-confirm{display:none !important;}
+#screenBusinessReport .report-note{display:none !important;}
+.btn-resume-landscape.show{
+  display:block;
+  width:100%;padding:14px 8px;
+  background:#007AFF;border:none;border-radius:12px;
+  color:#fff;font-size:15px;font-weight:900;letter-spacing:2px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-resume-landscape:active{transform:scale(0.97);filter:brightness(0.85);}
+.btn-confirm-landscape.show{
+  display:block;
+  width:100%;padding:14px 8px;
+  background:#fff;border:1.5px solid #FF3B30;border-radius:12px;
+  color:#FF3B30;font-size:15px;font-weight:700;letter-spacing:2px;
+  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-confirm-landscape:active{background:#FFF0F0;transform:scale(0.97);}
+/* [続ける]と[終了]を離す（誤タップ防止・走行に戻ると同様） */
+.btn-resume-landscape.show ~ .btn-confirm-landscape.show{margin-top:24px;}
 
 /* 5. 追加料金バナー（実車中の左ハンドル/深夜割増等）の幅を狭く */
 .extras-list{max-width:50%;width:100%;margin-left:auto;margin-right:auto;}
@@ -652,6 +681,10 @@ justify-content:center;
   </div>
   <!-- 横画面用 走行に戻るボタン（fare時のみ表示・縦画面では非表示） -->
   <button class="btn-back-landscape" id="btnBackLandscape" onclick="cancelFare()">← 走行に戻る</button>
+  <!-- 横画面用 業務報告 続けるボタン（businessReport時のみ表示・縦画面では非表示） -->
+  <button class="btn-resume-landscape" id="btnResumeLandscape" onclick="onBusinessResume()">続ける</button>
+  <!-- 横画面用 業務報告 終了ボタン（businessReport時のみ表示・縦画面では非表示） -->
+  <button class="btn-confirm-landscape" id="btnConfirmLandscape" onclick="onBusinessConfirm()">終了</button>
   <!-- メインボタン（idle: 代行開始 / driving: 非表示 / fare: 精算終了） -->
   <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
   <!-- 2列ボタン（driving のみ表示） -->
@@ -1721,10 +1754,14 @@ function showScreen(name){
   const btnRow       = document.getElementById('btnRow');
   const btnBackP     = document.getElementById('btnBackPortrait');
   const btnBackL     = document.getElementById('btnBackLandscape');
-  if(btnMain)  btnMain.classList.remove('show');
-  if(btnRow)   btnRow.classList.remove('show');
-  if(btnBackP) btnBackP.classList.remove('show');
-  if(btnBackL) btnBackL.classList.remove('show');
+  const btnResumeL   = document.getElementById('btnResumeLandscape');
+  const btnConfirmL  = document.getElementById('btnConfirmLandscape');
+  if(btnMain)     btnMain.classList.remove('show');
+  if(btnRow)      btnRow.classList.remove('show');
+  if(btnBackP)    btnBackP.classList.remove('show');
+  if(btnBackL)    btnBackL.classList.remove('show');
+  if(btnResumeL)  btnResumeL.classList.remove('show');
+  if(btnConfirmL) btnConfirmL.classList.remove('show');
 
   // 画面ごとの表示
   if(name==='idle'){
@@ -1735,8 +1772,13 @@ function showScreen(name){
     if(btnMain){ btnMain.textContent = '精算終了'; btnMain.classList.add('show'); }
     if(btnBackP) btnBackP.classList.add('show');
     if(btnBackL) btnBackL.classList.add('show');
+  } else if(name==='businessReport'){
+    // 2026/05/01：横画面では右側 btn-area に[続ける]/[終了]を表示
+    //    縦画面では screenBusinessReport 内のボタンが既に表示される
+    if(btnResumeL)  btnResumeL.classList.add('show');
+    if(btnConfirmL) btnConfirmL.classList.add('show');
   }
-  // businessStart / businessReport は btn-area のボタン全部非表示（リセットだけ）
+  // businessStart は btn-area のボタン全部非表示（リセットだけ）
 }
 // 起動直後の初期状態（idle）にも上記表示制御を即適用
 (function _initBtnVisibility(){
