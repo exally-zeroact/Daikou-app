@@ -55,6 +55,12 @@ const Meter = (() => {
 
   function start(){
     const now = Date.now();
+    // 起動時warm up：5秒以上前のlastWarmupGpsは使わない（過剰課金リスク回避・2026/05/01）
+    // GPS止まった状態で移動→起動時に古い座標と現在地で距離爆発するのを防ぐ
+    const WARMUP_MAX_AGE_MS = 5000;
+    const warmupValid = lastWarmupGps &&
+      lastWarmupGps.timestamp &&
+      (now - lastWarmupGps.timestamp) < WARMUP_MAX_AGE_MS;
     state = {
       running: true,
       distance_m: 0,
@@ -63,14 +69,14 @@ const Meter = (() => {
       start_time: now,
       // 起動時warm upでGPS取得済みなら初期値として使う（即時計測開始のため）
       // 過去の動きは加算しないよう last_timestamp は now を使用
-      last_gps: lastWarmupGps ? {
+      last_gps: warmupValid ? {
         lat: lastWarmupGps.lat,
         lng: lastWarmupGps.lng,
         altitude: lastWarmupGps.altitude,
         compassHeading: lastWarmupGps.compassHeading
       } : null,
-      last_timestamp: lastWarmupGps ? now : null,
-      last_speed_kmh: lastWarmupGps ? lastWarmupGps.speedKmh : 0,
+      last_timestamp: warmupValid ? now : null,
+      last_speed_kmh: warmupValid ? lastWarmupGps.speedKmh : 0,
       gap_fill_count: 0,
       gap_fill_total_m: 0,
       // Map Matching 関連リセット
@@ -109,6 +115,9 @@ const Meter = (() => {
       mm_skip_count: 0,
     };
     prevSnap = null;
+    // 起動時warm up GPSもクリア（過剰課金リスク回避・2026/05/01）
+    // GPS止まった状態で移動→次回代行開始時に古い座標と現在地で距離爆発するのを防ぐ
+    lastWarmupGps = null;
   }
 
   // GPS消失時の補完（トンネル・橋データ活用）
