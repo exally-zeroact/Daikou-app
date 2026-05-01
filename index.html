@@ -585,7 +585,7 @@ justify-content:center;
       </div>
     </div>
     <!-- 履歴ボタン -->
-    <button class="btn-history" onclick="location.href='history.html'">履歴</button>
+    <button class="btn-history" onclick="onHistory()">履歴</button>
     <!-- 業務終了ボタン（履歴の下・2026/05/01追加） -->
     <button class="btn-business-end" onclick="onBusinessEnd()">業務終了</button>
   </div>
@@ -658,19 +658,21 @@ justify-content:center;
 <!-- ボタンエリア（固定・全画面共通） -->
 
 <div class="btn-area">
-  <!-- センサー未許可バナー（代行開始直上・全スマホ対応） -->
+  <!-- センサー未許可バナー（全画面共通・許可されるまで表示・2026/05/01文言変更） -->
   <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:center;">
     <!-- iOS用（デフォルト） -->
     <div id="sensorBannerIOS">
-      <div style="font-size:13px;color:#fff;line-height:1.6;margin-bottom:10px;">
-        <strong style="display:block;font-size:15px;margin-bottom:4px;">📡 センサーを許可してください</strong>
-        コンパス・ジャイロを許可することで<br>精度が大幅に向上します
-        <div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">
-          ⚠️ 次の画面で必ず「許可」を選んでください<br>
-          キャンセルした場合はアプリをタスクキルして再起動してください
+      <div style="font-size:13px;color:#fff;line-height:1.6;">
+        <strong style="display:block;font-size:15px;margin-bottom:6px;">📡 センサー許可が必要です</strong>
+        ダイコメは GPS の精度を確保するため<br>
+        コンパス・ジャイロのセンサー許可が必須です
+        <div style="margin-top:10px;font-size:11px;opacity:0.95;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">
+          ⚠️ アプリを完全終了（タスクキル）して<br>
+          再起動 → 必ず「許可」を選んでください<br><br>
+          ※ センサーが許可されないと<br>
+          全ての操作ができません
         </div>
       </div>
-      <button id="sensorPermBtn" onclick="requestSensorPermission()" style="background:#fff;color:#FF9800;border:none;border-radius:10px;padding:12px 0;font-size:15px;font-weight:700;cursor:pointer;width:100%;font-family:'Noto Sans JP',sans-serif;">📡 センサーを許可する</button>
     </div>
     <!-- Android用 -->
     <div id="sensorBannerAndroid" style="display:none;">
@@ -1184,14 +1186,30 @@ function fmt(sec){
          (sec%60).toString().padStart(2,'0');
 }
 
+// ─── センサー許可チェック共通関数（2026/05/01追加） ───
+// iOS PWA でセンサー未許可ならバナー表示してブロック
+// 全ボタン関数の冒頭で「if(blockIfSensorNotGranted()) return;」と呼ぶ
+// 戻り値：true=ブロックした（呼出元は処理中止）/ false=通過OK
+function blockIfSensorNotGranted(){
+  // iOS PWA 以外は常に通過（Android・PC・Safari通常モードは未許可ブロックしない）
+  if(!_isIOS) return false;
+  if(window.navigator.standalone !== true) return false;
+  // 許可済みなら通過
+  if(window._compassGranted && window._motionGranted) return false;
+  // 未許可：バナー表示してブロック
+  const banner = document.getElementById('sensorBanner');
+  if(banner){
+    banner.style.display = 'block';
+    setTimeout(() => banner.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+  }
+  if(typeof dlog === 'function') dlog('[Sensor] blocked (not granted)');
+  return true;
+}
+
 // ─── メインボタン ───
 function onMainBtn(){
-  // iOSでセンサー未許可の場合はブロック（コンパス＋動きセンサー両方必須・Androidは自動許可済み）
-  if(_isIOS && window.navigator.standalone === true && (!window._compassGranted || !window._motionGranted)){
-    const sb = document.getElementById('sensorBanner');
-    if(sb){ sb.style.display = 'block'; sb.scrollIntoView({behavior:'smooth'}); }
-    return;
-  }
+  // 全ボタン共通：iOS PWA でセンサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   // 第1層：iOS PWA で許可済みフラグありの場合、念のため permission 再確認（2026/04/30追加）
   // → granted なら何も起きない（ダイアログ出ない・体験変わらず）
   // → permission期限切れなら自動でダイアログ → ユーザー許可で復活
@@ -1236,35 +1254,34 @@ function onMainBtn(){
 //   司さん仕様「業務開始から1日の総距離もほしい」に合致
 //   業務開始 = 1日の業務スタート = 全GPS情報を取り始める
 function onBusinessStart(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック（2026/05/01）
+  if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined'){
     console.error('[Business] not loaded');
     return;
   }
   try {
-    // ① iOS センサー許可ダイアログ発火（許可済みなら何も起きない）
+    // 業務開始時は許可済み前提（blockIfSensorNotGranted で未許可は弾いてる）
+    // 念のため iOS PWA で permission 期限切れチェック
     if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
       refreshSensorPermission();
     }
-    // ② iOS で初回未許可の場合は許可リクエスト（ユーザー操作起点で発火必須）
-    if(_isIOS && (!window._compassGranted || !window._motionGranted)){
-      try { requestSensorPermission(); } catch(e){ console.error('sensor permission error:', e); }
-    }
-    // ③ Business 状態を active に
+    // Business 状態を active に
     Business.start();
-    // ④ NoSleep 起動（画面消灯防止）
+    // NoSleep 起動（画面消灯防止）
     if(!noSleep){ noSleep = new NoSleep(); }
     noSleep.enable().catch(e=>console.log('NoSleep error:', e));
-    // ⑤ 暗転タイマーリセット
+    // 暗転タイマーリセット
     if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
     document.documentElement.style.filter = '';
-    // ⑥ GPS 起動（業務全体で総走行距離を計測するため）
+    // GPS 起動（業務全体で総走行距離を計測するため）
     startGPS();
-    // ⑦ 画面遷移
+    // 画面遷移
     appState = 'idle';
     showScreen('idle');
     document.getElementById('appbarTitle').textContent = '空　車';
     updateBusinessDashboard();
-    if(typeof dlog === 'function') dlog('[Business] start (GPS/sensor/NoSleep activated)');
+    if(typeof dlog === 'function') dlog('[Business] start (GPS/NoSleep activated)');
   } catch(e){
     console.error('[Business] start error:', e);
     showToast('業務開始に失敗しました');
@@ -1273,6 +1290,8 @@ function onBusinessStart(){
 
 // [業務終了] 押下：Business.end() 発火 → 日報画面へ
 function onBusinessEnd(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined') return;
   // 実車中・支払中は業務終了不可（保険・本来 screenIdle のみ表示なのでここに来ない）
   if(appState === 'driving' || appState === 'fare'){
@@ -1294,6 +1313,8 @@ function onBusinessEnd(){
 
 // [続ける] 押下：Business.resume() 発火 → 待機画面へ
 function onBusinessResume(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined') return;
   if(!Business.canResume()){
     showToast('終了から3時間を超えたため再開できません');
@@ -1316,6 +1337,8 @@ function onBusinessResume(){
 // 業務開始画面の「続きから再開」ボタン押下
 // 直前の業務履歴が3時間以内なら、その業務を復元して resume する
 function onResumeFromStart(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined') return;
   try {
     const lastBusiness = getLastEndedBusiness();
@@ -1333,12 +1356,10 @@ function onResumeFromStart(){
       showToast('業務の復元に失敗しました');
       return;
     }
-    // GPS・センサー・NoSleep を発火（業務開始と同じ処理）
+    // 許可済み前提（blockIfSensorNotGranted で未許可は弾いてる）
+    // 念のため iOS PWA で permission 期限切れチェック
     if(_isIOS && window.navigator.standalone === true && window._compassGranted && window._motionGranted){
       refreshSensorPermission();
-    }
-    if(_isIOS && (!window._compassGranted || !window._motionGranted)){
-      try { requestSensorPermission(); } catch(e){ console.error('sensor permission error:', e); }
     }
     if(!noSleep){ noSleep = new NoSleep(); }
     noSleep.enable().catch(e=>console.log('NoSleep error:', e));
@@ -1374,6 +1395,12 @@ function getLastEndedBusiness(){
   }
 }
 
+// [履歴]ボタン押下：history.html へ遷移（センサー未許可ならブロック）
+function onHistory(){
+  if(blockIfSensorNotGranted()) return;
+  location.href = 'history.html';
+}
+
 // 業務開始画面の「続きから再開」ボタンの表示制御
 // 起動時 + onBusinessConfirm（[終了]押下後）の両方で呼ばれる
 function updateResumeFromStartVisibility(){
@@ -1402,6 +1429,8 @@ function updateResumeFromStartVisibility(){
 
 // [終了] 押下：Business.abandon() 発火 → 業務開始画面へ
 function onBusinessConfirm(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined') return;
   try {
     Business.abandon();
@@ -1507,6 +1536,8 @@ function row(lbl,val,cls=''){
 
 // ─── 空車ボタン ───
 function onIdle(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック（保険）
+  if(blockIfSensorNotGranted()) return;
   if(appState==='driving'){
     // 走行中は空車に戻れない
     showToast('先に「確定」を押してください');
@@ -1609,6 +1640,8 @@ function onMenuClick(){
 
 // ─── 確定ボタン（旧Send）───
 function onSend(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   if(appState==='driving'){
     // Driving中に確定を押したら → 確定画面へ（カウントは継続）
     appState='fare';
@@ -1684,6 +1717,8 @@ function showToastLong(msg){
 
 // ─── 確定キャンセル：Drivingに戻る（カウント継続） ───
 function cancelFare(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   appState='driving';
   histSaved = false; // 再走行するので保存フラグリセット
   // Meterは止めていないのでresume不要
@@ -1708,6 +1743,8 @@ function updateSurchargeBadge(){
 
 // ─── 追加料金モーダル ───
 function openExtraModal(){
+  // 全ボタン共通：センサー未許可ならバナー表示してブロック
+  if(blockIfSensorNotGranted()) return;
   const items = JSON.parse(localStorage.getItem('daikou_extras')||'[]');
   const el = document.getElementById('modalItems');
   el.innerHTML = items.map((item,i)=>
