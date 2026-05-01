@@ -1373,6 +1373,32 @@ function getLastEndedBusiness(){
   }
 }
 
+// 業務開始画面の「続きから再開」ボタンの表示制御
+// 起動時 + onBusinessConfirm（[終了]押下後）の両方で呼ばれる
+function updateResumeFromStartVisibility(){
+  try {
+    if(typeof Business === 'undefined') return;
+    const btn = document.getElementById('btnResumeFromStart');
+    const note = document.getElementById('resumeNote');
+    const timeSpan = document.getElementById('resumeNoteTime');
+    if(!btn || !note) return;
+    const lastBusiness = getLastEndedBusiness();
+    if(lastBusiness && lastBusiness.ended_at && (Date.now() - lastBusiness.ended_at) < 3 * 3600 * 1000){
+      btn.style.display = 'block';
+      note.style.display = 'block';
+      if(timeSpan){
+        const d = new Date(lastBusiness.ended_at);
+        timeSpan.textContent = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+      }
+      if(typeof dlog === 'function') dlog('[Business] resume from start: visible (3h以内)');
+    } else {
+      btn.style.display = 'none';
+      note.style.display = 'none';
+      if(typeof dlog === 'function') dlog('[Business] resume from start: hidden');
+    }
+  } catch(e){ console.error('[Business] updateResumeFromStartVisibility error:', e); }
+}
+
 // [終了] 押下：Business.abandon() 発火 → 業務開始画面へ
 function onBusinessConfirm(){
   if(typeof Business === 'undefined') return;
@@ -1381,6 +1407,9 @@ function onBusinessConfirm(){
     appState = 'businessStart';
     showScreen('businessStart');
     document.getElementById('appbarTitle').textContent = 'ダイコメ';
+    // 2026/05/01：[終了]押下直後に「続きから再開」ボタンの表示制御を実行
+    //   → abandon で履歴に保存された業務が3時間以内なら[続きから再開]を表示
+    updateResumeFromStartVisibility();
     if(typeof dlog === 'function') dlog('[Business] abandon');
   } catch(e){
     console.error('[Business] abandon error:', e);
@@ -1856,21 +1885,8 @@ try {
       appState = 'businessStart';
       showScreen('businessStart');
       document.getElementById('appbarTitle').textContent = 'ダイコメ';
-      // 直前の業務履歴が3時間以内なら「続きから再開」ボタン表示
-      try {
-        const lastBusiness = getLastEndedBusiness();
-        if(lastBusiness && (Date.now() - lastBusiness.ended_at) < 3 * 3600 * 1000){
-          const btn = document.getElementById('btnResumeFromStart');
-          const note = document.getElementById('resumeNote');
-          const timeSpan = document.getElementById('resumeNoteTime');
-          if(btn) btn.style.display = 'block';
-          if(note) note.style.display = 'block';
-          if(timeSpan){
-            const d = new Date(lastBusiness.ended_at);
-            timeSpan.textContent = d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
-          }
-        }
-      } catch(e){ console.error('[Business] resume check error:', e); }
+      // 直前の業務履歴が3時間以内なら「続きから再開」ボタン表示（共通関数）
+      updateResumeFromStartVisibility();
     }
   }
 } catch(e){
