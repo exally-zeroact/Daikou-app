@@ -2215,11 +2215,15 @@ const _isAndroid = /Android/.test(navigator.userAgent);
   }
 
   if(_isIOS){
-    // iOS：未許可ならバナー表示
-    const needSensor = !localStorage.getItem('compass_granted') || !localStorage.getItem('motion_granted');
-    if(needSensor){
-      document.getElementById('sensorRestoreBanner').style.display = 'block';
-    }
+    // 2026/05/03 修正：iOS PWA は起動時必ずバナー表示
+    //   旧コード：localStorage の compass_granted/motion_granted があれば非表示
+    //   問題：iOS PWA の DeviceMotion/Orientation は session 毎失効するのに
+    //         localStorage は永続化される → 実態と乖離 → タスクキル後でも非表示
+    //   修正：localStorage は信用せず、起動時は必ずバナー表示
+    //         ユーザーが「センサーを再起動する」ボタンで実 permission を再取得
+    //         実際に許可済み（session 内）なら requestSensorPermission の
+    //         Promise.allSettled で granted 判定 → フラグ true → バナー消える
+    document.getElementById('sensorRestoreBanner').style.display = 'block';
     return;
   }
 
@@ -2228,8 +2232,23 @@ const _isAndroid = /Android/.test(navigator.userAgent);
 })();
 
 // ─── PWA起動時センサー状態復元 ───
+// 2026/05/03 修正：iOS PWA では DeviceMotion/Orientation の permission は
+//   session 毎に失効するため、localStorage の値は実態と乖離する。
+//   旧コード：localStorage に '1' があれば window._compassGranted = true 等
+//             → タスクキル後でも「許可済み」扱いでバナー出ず → 司さん「出てこんやないか」
+//   新コード：iOS PWA は起動時必ず未許可扱いから始めて、user gesture
+//             （バナーの「センサーを再起動する」ボタン）で実 permission を再取得する
+//             Android は自動許可なので localStorage 復元のままでOK
 (function(){
   if(window.navigator.standalone !== true) return;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(isIOS){
+    // iOS PWA：起動時は必ず未許可扱い（実 permission は session 毎失効）
+    window._compassGranted = false;
+    window._motionGranted = false;
+    return;
+  }
+  // Android：自動許可なので localStorage から復元してOK
   if(localStorage.getItem('compass_granted')) window._compassGranted = true;
   if(localStorage.getItem('motion_granted')) window._motionGranted = true;
 })();
