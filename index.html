@@ -659,7 +659,7 @@ justify-content:center;
 <!-- ボタンエリア（固定・全画面共通） -->
 
 <div class="btn-area">
-  <!-- センサー未許可バナー（全画面共通・許可されるまで表示・2026/05/01文言変更） -->
+  <!-- センサー未許可バナー（全画面共通・許可されるまで表示・2026/05/02文言修正） -->
   <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:left;">
     <div style="font-size:13px;color:#fff;line-height:1.6;">
       <strong style="display:block;font-size:15px;margin-bottom:8px;text-align:center;">📡 位置情報・センサー許可が必要です</strong>
@@ -672,13 +672,18 @@ justify-content:center;
         以下の手順で復活してください
       </div>
       <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;line-height:1.7;">
-        <strong style="display:block;margin-bottom:4px;">【iPhone の場合】</strong>
+        <strong style="display:block;margin-bottom:4px;">【手順1：まず試す】</strong>
+        ① アプリを完全終了（タスクキル）<br>
+        ② ダイコメを再起動<br>
+        ③ 「許可」を選ぶ
+      </div>
+      <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;line-height:1.7;">
+        <strong style="display:block;margin-bottom:4px;">【手順2：手順1でバナーが消えない場合】</strong>
         ① アプリを完全終了（タスクキル）<br>
         ② iPhone「設定」→「Safari」<br>
         ③ 「履歴とWebサイトデータを消去」<br>
-        ④ 「ダイコメ」を再起動<br>
-        ⑤ 「許可」を選ぶ<br>
-        <span style="display:block;margin-top:6px;font-size:11px;opacity:0.9;">※ ジャイロ・コンパスは許可できても<br>　 GPS だけ動作しない場合があります</span>
+        ④ ダイコメを再起動<br>
+        ⑤ 「許可」を選ぶ
       </div>
       <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;font-size:12px;line-height:1.7;">
         <strong style="display:block;margin-bottom:4px;">【Android の場合】</strong>
@@ -2044,9 +2049,8 @@ function tutorialNext(){
 }
 
 function requestSensorPermission(){
-  const btn = document.getElementById('tSensorBtn') || document.getElementById('sensorPermBtn');
-  if(btn){ btn.textContent = '許可中...'; btn.disabled = true; }
-
+  // 2026/05/02：tSensorBtn / sensorPermBtn 削除済み
+  // 旧バージョンでチュートリアル/バナーにあったボタンの処理を削除
   const promises = [];
   let compassGranted = false;
   let motionGranted = false;
@@ -2085,27 +2089,22 @@ function requestSensorPermission(){
       localStorage.setItem('compass_granted','1');
       localStorage.setItem('motion_granted','1');
 
+      // 2026/05/02：バナーから許可ボタン削除済み・即座に非表示
       const banner = document.getElementById('sensorBanner');
       if(banner && banner.style.display !== 'none'){
-        const permBtn = document.getElementById('sensorPermBtn');
-        if(permBtn){ permBtn.textContent = '✅ 許可されました'; permBtn.disabled = true; }
-        setTimeout(() => { banner.style.display = 'none'; }, 1200);
+        banner.style.display = 'none';
       }
       const overlay = document.getElementById('tutorialOverlay');
       if(overlay && overlay.classList.contains('show')) tutorialNext();
 
     } else {
-      // 許可失敗（iOSキャンセル）：設定アプリで許可するよう案内
-      if(btn){
-        btn.style.display = 'none';
-      }
+      // 許可失敗（iOSキャンセル）：バナーをそのまま表示（手順1+手順2の案内）
+      // 2026/05/02：バナー文言を上書きしない（新文言を維持）
       const banner = document.getElementById('sensorBanner');
       if(banner){
         banner.style.display = 'block';
-        const desc = banner.querySelector('#sensorBannerIOS div');
-        if(desc) desc.innerHTML = '<strong style="display:block;font-size:15px;margin-bottom:4px;">⚠️ 許可されませんでした</strong>タスクキルして再起動してください<div style="margin-top:8px;font-size:11px;opacity:0.85;background:rgba(0,0,0,0.15);border-radius:8px;padding:8px;text-align:left;line-height:1.7;">① ホームボタンを2回押す<br>（または下からスワイプしてホールド）<br>② ダイコメを上にスワイプして終了<br>③ アイコンから再起動して許可する</div>';
       }
-      dlog('[GPS] センサー許可失敗・設定案内');
+      dlog('[GPS] センサー許可失敗・バナー表示');
     }
   });
 }
@@ -2154,17 +2153,7 @@ function refreshSensorPermission(){
 const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 const _isAndroid = /Android/.test(navigator.userAgent);
 
-// Android用センサー確認
-function confirmAndroidSensor(){
-  window._compassGranted = true;
-  window._motionGranted = true;
-  localStorage.setItem('compass_granted','1');
-  localStorage.setItem('motion_granted','1');
-  localStorage.setItem('android_sensor_confirmed','1');
-  const banner = document.getElementById('sensorBanner');
-  if(banner) banner.style.display = 'none';
-  dlog('[GPS] Androidセンサー確認完了');
-}
+// 2026/05/02：confirmAndroidSensor 削除（バナーから呼出ボタン削除済み・未使用関数）
 
 // ─── センサー未許可バナー（起動時・未許可なら毎回表示） ───
 // 2026/04/30 修正：standalone チェック削除（PWA・Safari どちらでも動作）
@@ -2174,19 +2163,20 @@ function confirmAndroidSensor(){
   if(!_isIOS && !_isAndroid) return;
 
   if(_isAndroid){
-    // Android：自動許可済みだがバナーで説明表示
+    // Android：自動許可済み
     window._compassGranted = true;
     window._motionGranted = true;
     localStorage.setItem('compass_granted','1');
     localStorage.setItem('motion_granted','1');
-    // 初回のみバナーで「標準で使えます」を表示
+    // 2026/05/02：confirmAndroidSensor 関数削除に伴い・初回バナー表示時に自動フラグセット
     if(!localStorage.getItem('android_sensor_confirmed')){
+      localStorage.setItem('android_sensor_confirmed','1');
+      // 初回のみバナー表示（一度きり・10秒で自動非表示）
       const banner = document.getElementById('sensorBanner');
-      const iosBanner = document.getElementById('sensorBannerIOS');
-      const androidBanner = document.getElementById('sensorBannerAndroid');
-      if(banner) banner.style.display = 'block';
-      if(iosBanner) iosBanner.style.display = 'none';
-      if(androidBanner) androidBanner.style.display = 'block';
+      if(banner){
+        banner.style.display = 'block';
+        setTimeout(() => { banner.style.display = 'none'; }, 10000);
+      }
     }
     return;
   }
@@ -2300,17 +2290,23 @@ function playSensorRecover(){
             if(typeof dlog === 'function') dlog('[Sensor] GPS denied: バナー + 音');
           }
         } else if(status.state === 'granted'){
-          // 復活
-          if(window._sensorLapsed){
-            window._sensorLapsed = false;
-            window._compassGranted = true;
-            window._motionGranted = true;
-            // バナー消す
-            const banner = document.getElementById('sensorBanner');
-            if(banner) banner.style.display = 'none';
-            // 復活音（ポーン♪）
+          // GPS 動作中：バナー絶対消す（フラグ無関係・既存ロジックで残ったバナーも消す）
+          // 2026/05/02：司さん指摘「許可してもバナー消えない」対応
+          //   - GPS.onStatusChange は GPS 動作確認時に granted を発火
+          //   - GPS 動いてる = permission 許可されてる = バナー出す必要なし
+          window._sensorLapsed = false;
+          window._compassGranted = true;
+          window._motionGranted = true;
+          // バナーを必ず消す（既存ロジックで出されたバナーも対象）
+          const banner = document.getElementById('sensorBanner');
+          if(banner && banner.style.display !== 'none'){
+            banner.style.display = 'none';
+            if(typeof dlog === 'function') dlog('[Sensor] GPS granted: バナー強制非表示');
+          }
+          // 失効状態から復活した場合のみ音を鳴らす（通常起動時は鳴らさない）
+          if(status.lastState === 'denied'){
             playSensorRecover();
-            if(typeof dlog === 'function') dlog('[Sensor] GPS granted: 復活');
+            if(typeof dlog === 'function') dlog('[Sensor] GPS granted: 復活音');
           }
         }
         // unavailable / timeout は無視（トンネル等の一時的な失敗）
@@ -2323,6 +2319,35 @@ function playSensorRecover(){
     console.error('[Sensor] listener setup error:', e);
   }
 })();
+
+// ─── 起動時の安全装置：GPS 動作中ならバナー強制非表示（2026/05/02） ───
+// 既存の複数箇所がバナー表示してる（線引き難しい）ので
+// 「GPS が位置取得できれば許可済み確定 → バナー消す」で統一
+// 500ms・1.5秒の2回チェック（GPS が値を取得し始める時間を考慮・速度優先）
+[500, 1500].forEach(function(ms){
+  setTimeout(function(){
+    try {
+      if(typeof GPS === 'undefined' || typeof GPS.getStatus !== 'function') return;
+      const status = GPS.getStatus();
+      // 'granted'：許可済み確定 → バナー消す
+      // 'pending'/'unknown'：まだ判定中 → スキップ
+      // 'denied'/'unavailable'：失効 → バナー残す（既存ロジック通り）
+      if(status && status.state === 'granted'){
+        const banner = document.getElementById('sensorBanner');
+        if(banner && banner.style.display !== 'none'){
+          banner.style.display = 'none';
+          if(typeof dlog === 'function') dlog('[Sensor] 起動時GPS=granted: バナー強制非表示 (' + ms + 'ms)');
+        }
+        // フラグも整合性合わせる
+        window._compassGranted = true;
+        window._motionGranted = true;
+        window._sensorLapsed = false;
+      }
+    } catch(e){
+      console.error('[Sensor] 起動時チェックエラー:', e);
+    }
+  }, ms);
+});
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
