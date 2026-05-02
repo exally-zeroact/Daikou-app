@@ -2211,70 +2211,118 @@ function confirmAndroidSensor(){
   if(localStorage.getItem('motion_granted')) window._motionGranted = true;
 })();
 
-// ─── センサー失効検知（2026/05/01追加） ───
-// 業界標準（センサー値受信検知）+ ダイコメ独自（継続監視）
+// ─── GPS error 駆動の失効検知（2026/05/02・Phase 1） ───
+// 業界標準の確実な検知方法：navigator.geolocation のエラーコードで判定
 //
-// 動作：
-//   1. devicemotion / deviceorientation の値受信時に lastSensorAt を更新
-//   2. 5秒ごとにチェック：
-//      - localStorage で過去に許可してた、かつ最後の受信から15秒経過
-//      - → 失効と判定 → バナー表示 + フラグ false
-//   3. 許可ダイアログでの再許可は司さんの画面タップで発火
+// 仕組み：
+//   gps.js の GPSStatus（既存・前回 BUG-6 で実装）と連携
+//   - error.code === 1 (PERMISSION_DENIED) → status = 'denied' → バナー + 音
+//   - error.code === 2 (POSITION_UNAVAILABLE) → トンネル等・無視
+//   - error.code === 3 (TIMEOUT) → 一時的・無視
 //
-// 誤検知対策：
-//   - 画面暗転：NoSleep（WakeLock）で対処済 → センサー値来続ける
-//   - トンネル：DeviceMotion は端末内部 → トンネル無関係
-//   - 通常運転：センサー値毎秒受信 → lastSensorAt 常に最新
-let lastSensorAt = null;
-(function(){
-  // 受信時刻を記録するリスナー（軽量・空処理）
+// 復活時：
+//   - status = 'granted' → バナー非表示 + 復活音
+//
+// 誤検知ゼロ：
+//   - PERMISSION_DENIED は確実な失効シグナル
+//   - トンネル/橋は code 2 なので発火しない
+//   - 既存のメーター動作・1.28% 精度に影響なし
+window._sensorLapsed = false;  // 失効中フラグ（外部参照用）
+
+// ─── 音通知（2026/05/02 Phase 1） ───
+// 既存の AudioContext を活用（NoSleep で動作確認済）
+// 失効時：ピッピッピッ（800Hz × 3回）
+function playSensorAlert(){
   try {
-    window.addEventListener('devicemotion', function(){
-      lastSensorAt = Date.now();
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    const ctx = new AC();
+    for(let i = 0; i < 3; i++){
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 800;
+      gain.gain.value = 0.3;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const startAt = ctx.currentTime + i * 0.3;
+      osc.start(startAt);
+      osc.stop(startAt + 0.2);
+    }
+    // コンテキストは1.5秒後に閉じる（リソース解放）
+    setTimeout(() => { try { ctx.close(); } catch(e){} }, 1500);
+    if(typeof dlog === 'function') dlog('[Sensor] alert sound played');
+  } catch(e){
+    console.error('[Sensor] alert sound error:', e);
+  }
+}
+// 復活時：ポーン♪（1200Hz × 1回）
+function playSensorRecover(){
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    const ctx = new AC();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.frequency.value = 1200;
+    gain.gain.value = 0.3;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+    setTimeout(() => { try { ctx.close(); } catch(e){} }, 1000);
+    if(typeof dlog === 'function') dlog('[Sensor] recover sound played');
+  } catch(e){
+    console.error('[Sensor] recover sound error:', e);
+  }
+}
+
+// ─── GPSStatus と連携（2026/05/02 Phase 1） ───
+// 既存の GPS.onStatusChange リスナー登録
+// gps.js が既に実装してるエラー検知を利用
+(function(){
+  try {
+    if(typeof GPS === 'undefined' || typeof GPS.onStatusChange !== 'function'){
+      console.error('[Sensor] GPS module not available');
+      return;
+    }
+    GPS.onStatusChange(function(status){
+      try {
+        if(status.state === 'denied'){
+          // PERMISSION_DENIED：本当の失効
+          if(!window._sensorLapsed){
+            window._sensorLapsed = true;
+            window._compassGranted = false;
+            window._motionGranted = false;
+            // バナー表示
+            showSensorBannerIfNeeded();
+            // 音通知（ピッピッピッ）
+            playSensorAlert();
+            if(typeof dlog === 'function') dlog('[Sensor] GPS denied: バナー + 音');
+          }
+        } else if(status.state === 'granted'){
+          // 復活
+          if(window._sensorLapsed){
+            window._sensorLapsed = false;
+            window._compassGranted = true;
+            window._motionGranted = true;
+            // バナー消す
+            const banner = document.getElementById('sensorBanner');
+            if(banner) banner.style.display = 'none';
+            // 復活音（ポーン♪）
+            playSensorRecover();
+            if(typeof dlog === 'function') dlog('[Sensor] GPS granted: 復活');
+          }
+        }
+        // unavailable / timeout は無視（トンネル等の一時的な失敗）
+      } catch(e){
+        console.error('[Sensor] status change handler error:', e);
+      }
     });
-    window.addEventListener('deviceorientation', function(){
-      lastSensorAt = Date.now();
-    });
+    if(typeof dlog === 'function') dlog('[Sensor] GPS.onStatusChange listener registered');
   } catch(e){
     console.error('[Sensor] listener setup error:', e);
   }
 })();
-
-// 5秒ごとの失効検知（iOS PWA のみ対象）
-setInterval(function(){
-  try {
-    if(!_isIOS) return;
-    if(window.navigator.standalone !== true) return;
-    // 過去に許可した記録がある場合のみチェック
-    const grantedBefore = localStorage.getItem('compass_granted')
-                       && localStorage.getItem('motion_granted');
-    if(!grantedBefore) return;
-    // 最後の受信から15秒以上経過 → 失効と判定
-    if(!lastSensorAt || (Date.now() - lastSensorAt) > 15000){
-      // フラグを false に戻してバナー表示
-      window._compassGranted = false;
-      window._motionGranted = false;
-      showSensorBannerIfNeeded();
-      if(typeof dlog === 'function') dlog('[Sensor] 失効検知: バナー表示');
-    } else {
-      // 2026/05/02追加：センサー値が来てるのに失効フラグ立ってる場合は復活させる
-      // → 起動直後はフラグ true だがバナー残留してる場合の対策
-      if(!window._compassGranted || !window._motionGranted){
-        window._compassGranted = true;
-        window._motionGranted = true;
-        if(typeof dlog === 'function') dlog('[Sensor] 復活検知: フラグ true');
-      }
-      // バナーが出てたら消す（許可済み・センサー値受信中なら表示する必要なし）
-      const banner = document.getElementById('sensorBanner');
-      if(banner && banner.style.display !== 'none'){
-        banner.style.display = 'none';
-        if(typeof dlog === 'function') dlog('[Sensor] センサー受信中: バナー非表示');
-      }
-    }
-  } catch(e){
-    console.error('[Sensor] watcher error:', e);
-  }
-}, 5000);
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
