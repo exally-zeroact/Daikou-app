@@ -1,10 +1,10 @@
 {
   "region": "kanto",
-  "generated": "2026-04-30T15:52:59.366Z",
+  "generated": "2026-05-02T19:03:52.964Z",
   "prefectures": {
     "ibaraki": {
-      "numRoads": 118350,
-      "sizeBytes": 3562096,
+      "numRoads": 118367,
+      "sizeBytes": 3562426,
       "bbox": [
         3584021,
         13992266,
@@ -13,8 +13,8 @@
       ]
     },
     "tochigi": {
-      "numRoads": 116041,
-      "sizeBytes": 3426866,
+      "numRoads": 116045,
+      "sizeBytes": 3426973,
       "bbox": [
         3617467,
         13938861,
@@ -23,8 +23,8 @@
       ]
     },
     "gunma": {
-      "numRoads": 125943,
-      "sizeBytes": 3766536,
+      "numRoads": 125967,
+      "sizeBytes": 3767268,
       "bbox": [
         3586452,
         13838858,
@@ -33,8 +33,8 @@
       ]
     },
     "saitama": {
-      "numRoads": 203879,
-      "sizeBytes": 5620267,
+      "numRoads": 203885,
+      "sizeBytes": 5620439,
       "bbox": [
         3564689,
         13891732,
@@ -43,8 +43,8 @@
       ]
     },
     "chiba": {
-      "numRoads": 163117,
-      "sizeBytes": 4791733,
+      "numRoads": 163121,
+      "sizeBytes": 4791833,
       "bbox": [
         2475007,
         13982559,
@@ -53,8 +53,8 @@
       ]
     },
     "tokyo": {
-      "numRoads": 258113,
-      "sizeBytes": 7021957,
+      "numRoads": 258089,
+      "sizeBytes": 7021131,
       "bbox": [
         3530038,
         13944936,
@@ -63,8 +63,8 @@
       ]
     },
     "kanagawa": {
-      "numRoads": 158415,
-      "sizeBytes": 4423771,
+      "numRoads": 158422,
+      "sizeBytes": 4423928,
       "bbox": [
         3244660,
         13890939,

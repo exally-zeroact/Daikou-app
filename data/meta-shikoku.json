@@ -1,6 +1,6 @@
 {
   "region": "shikoku",
-  "generated": "2026-04-30T15:55:35.884Z",
+  "generated": "2026-05-02T19:06:16.178Z",
   "prefectures": {
     "tokushima": {
       "numRoads": 56412,
@@ -13,8 +13,8 @@
       ]
     },
     "kagawa": {
-      "numRoads": 77248,
-      "sizeBytes": 2340348,
+      "numRoads": 77296,
+      "sizeBytes": 2341576,
       "bbox": [
         3381258,
         13352821,

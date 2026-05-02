@@ -1,10 +1,10 @@
 {
   "region": "kyushu",
-  "generated": "2026-04-30T15:56:14.834Z",
+  "generated": "2026-05-02T19:06:55.500Z",
   "prefectures": {
     "fukuoka": {
-      "numRoads": 194225,
-      "sizeBytes": 5556715,
+      "numRoads": 194232,
+      "sizeBytes": 5556903,
       "bbox": [
         3314617,
         13028841,
@@ -13,8 +13,8 @@
       ]
     },
     "saga": {
-      "numRoads": 131249,
-      "sizeBytes": 3889546,
+      "numRoads": 131250,
+      "sizeBytes": 3889588,
       "bbox": [
         3300045,
         12916936,
@@ -33,8 +33,8 @@
       ]
     },
     "kumamoto": {
-      "numRoads": 144748,
-      "sizeBytes": 4552530,
+      "numRoads": 144747,
+      "sizeBytes": 4552521,
       "bbox": [
         3204414,
         13012515,
@@ -63,8 +63,8 @@
       ]
     },
     "kagoshima": {
-      "numRoads": 144636,
-      "sizeBytes": 4587380,
+      "numRoads": 144651,
+      "sizeBytes": 4587770,
       "bbox": [
         2913576,
         12919463,
@@ -73,8 +73,8 @@
       ]
     },
     "okinawa": {
-      "numRoads": 95468,
-      "sizeBytes": 2762015,
+      "numRoads": 95490,
+      "sizeBytes": 2762461,
       "bbox": [
         2404661,
         12293533,
