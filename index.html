@@ -2323,19 +2323,16 @@ function playSensorRecover(){
             if(typeof dlog === 'function') dlog('[Sensor] GPS denied: バナー + 音');
           }
         } else if(status.state === 'granted'){
-          // GPS 動作中：バナー絶対消す（フラグ無関係・既存ロジックで残ったバナーも消す）
-          // 2026/05/02：司さん指摘「許可してもバナー消えない」対応
-          //   - GPS.onStatusChange は GPS 動作確認時に granted を発火
-          //   - GPS 動いてる = permission 許可されてる = バナー出す必要なし
+          // GPS 動作中：GPS 自体の失効状態だけ解除
+          // 2026/05/03 修正：_compassGranted/_motionGranted は GPS と別の permission のため触らない
+          //   旧コード：GPS granted で全部 true にしてバナー強制非表示
+          //   問題：iOS PWA では DeviceMotion/Orientation は session 毎に失効するので
+          //         GPS が永続化で granted のままでも、これらは未許可状態のことがある
+          //         → タスクキル後など、バナー出るべきなのに出ない
+          //   修正：GPS の状態と DeviceMotion/Orientation の状態を独立管理
           window._sensorLapsed = false;
-          window._compassGranted = true;
-          window._motionGranted = true;
-          // バナーを必ず消す（既存ロジックで出されたバナーも対象）
-          const banner = document.getElementById('sensorRestoreBanner');
-          if(banner && banner.style.display !== 'none'){
-            banner.style.display = 'none';
-            if(typeof dlog === 'function') dlog('[Sensor] GPS granted: バナー強制非表示');
-          }
+          // バナー判定は showSensorBannerIfNeeded に委ねる（_compass/_motion の実状態で判断）
+          showSensorBannerIfNeeded();
           // 失効状態から復活した場合のみ音を鳴らす（通常起動時は鳴らさない）
           if(status.lastState === 'denied'){
             playSensorRecover();
