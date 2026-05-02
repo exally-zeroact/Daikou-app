@@ -625,6 +625,16 @@ justify-content:center;
     <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
     <!-- リロード復元バナー（走行距離の真上） -->
     <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
+    <!-- センサー再起動バナー（タスクキル後復元時のみ表示・2026/05/02追加） -->
+    <!-- 業務中タスクキルされると DeviceMotion/Orientation リスナーが消える -->
+    <!-- このボタン押下で許可ダイアログ表示→リスナー再登録→NoSleep起動を一気に発火 -->
+    <div id="sensorRestoreBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;margin:8px 12px;text-align:center;">
+      <div style="color:#fff;font-size:14px;line-height:1.5;margin-bottom:10px;">
+        <strong style="font-size:15px;">📡 センサー再起動が必要です</strong><br>
+        <span style="font-size:12px;">下のボタンを押すと許可ダイアログが出ます<br>運転中なら停車時に押してください</span>
+      </div>
+      <button id="sensorRestoreBtn" onclick="onSensorRestoreTap()" style="background:#fff;color:#FF9800;border:none;border-radius:8px;padding:12px 24px;font-size:16px;font-weight:700;width:100%;cursor:pointer;">センサーを再起動する</button>
+    </div>
     <div class="driving-grid">
       <!-- 2026/05/01 仕様変更：料金を上・走行距離を下に入れ替え -->
       <div class="meter-card">
@@ -868,100 +878,78 @@ function checkDrivingRestore(){
     // GPS・UIタイマー再起動
     startGPS();
     startUiTimer();
-    // 2026/05/02：NoSleep 復活 + DeviceMotion/Orientation 再許可（タスクキル後対応）
-    //   業界事実：GPS と コンパス permission は永続化される
-    //            DeviceMotion / DeviceOrientation だけタスクキルで失効する（Apple仕様）
-    //   方針：初回画面タップで NoSleep + センサー再許可を一括発火
-    //         司さんが料金確定まで待たずに、画面どこか触れば即座に許可ダイアログ
-    if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().then(() => {
-      if(typeof dlog === 'function') dlog('[NoSleep] 復元時 自動enable 成功');
-    }).catch(e => {
-      if(typeof dlog === 'function') dlog('[NoSleep] 復元時 自動enable 失敗・初回タップ待ち');
-    });
-    // 初回タップで NoSleep + DeviceMotion/Orientation 許可を一括発火
-    const restoreTapHandler = function(){
-      // NoSleep 再試行（自動失敗してた場合）
-      if(!noSleep){ noSleep = new NoSleep(); }
-      noSleep.enable().then(() => {
-        if(typeof dlog === 'function') dlog('[NoSleep] 初回タップで enable 成功');
-      }).catch(e2 => {
-        if(typeof dlog === 'function') dlog('[NoSleep] 初回タップでも enable 失敗: ' + e2.message);
-      });
-      // DeviceMotion / DeviceOrientation 許可を再要求
-      // iOS Safari ではタスクキル後にこれだけ失効するため、画面タップで即座に再許可
-      if(typeof requestSensorPermission === 'function'){
-        if(typeof dlog === 'function') dlog('[復元] 動作と方向 許可ダイアログ発火');
-        requestSensorPermission();
-      }
-      // 2026/05/02：センサーリスナー再登録（許可成功後・タスクキル復活）
-      //   許可されてもリスナー実体がないと動かないため明示的に再登録
-      //   重複防止フラグで既に登録済みなら何もしない
-      setTimeout(() => {
-        if(typeof GPS !== 'undefined'){
-          if(typeof GPS.startCompass === 'function') GPS.startCompass();
-          if(typeof GPS.startMotion === 'function') GPS.startMotion();
-        }
-      }, 500); // requestPermission の Promise 解決後に呼ぶ
-      // ワンショット解除
-      document.removeEventListener('touchstart', restoreTapHandler);
-      document.removeEventListener('click', restoreTapHandler);
-    };
-    document.addEventListener('touchstart', restoreTapHandler, { once: true, passive: true });
-    document.addEventListener('click', restoreTapHandler, { once: true });
-    // 緑バナー表示
+    // 緑バナー表示（復元できたことを通知するだけ）
     document.getElementById('restoreBanner').classList.add('show');
     console.log('[復元] 走行を再開しました');
-
-    // タスクキル後復元時：センサー許可バナーを表示（2026/04/30追加）
-    // iOS では requestPermission がユーザーアクション必須のため、
-    // バナーを表示してユーザーにタップを促す
-    showSensorBannerForRestore();
+    // 2026/05/02：iOS PWA なら「センサー再起動」バナー表示
+    //   タスクキルで DeviceMotion/Orientation リスナーが消失してるため
+    //   司さんがボタン押下時に user gesture で全部復活させる
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if(isIOS && window.navigator.standalone === true){
+      const sensorBanner = document.getElementById('sensorRestoreBanner');
+      if(sensorBanner) sensorBanner.style.display = 'block';
+      if(typeof dlog === 'function') dlog('[復元] センサー再起動バナー表示');
+    }
   } catch(e){
     console.error('[復元] エラー:', e);
     localStorage.removeItem('daikou_driving_state');
   }
 }
 
-// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加・2026/05/02修正）
-function showSensorBannerForRestore(){
-  try {
-    // iOS 以外（Androidや非対応端末）では requestPermission が存在しない
-    // → 何もしない（既存の挙動を保持）
-    if(typeof DeviceMotionEvent === 'undefined' ||
-       typeof DeviceMotionEvent.requestPermission !== 'function'){
-      return;
-    }
-    // 2026/05/02 修正：localStorage を直接参照（IIFE 実行タイミング依存を解消）
-    // 旧バグ：window._compassGranted は line 2204 の IIFE でセットされる
-    //   でも checkDrivingRestore は line 968 で実行（IIFE より早い）
-    //   → window._compassGranted が undefined のまま判定 → 誤バナー表示
-    const compassGranted = !!localStorage.getItem('compass_granted');
-    const motionGranted  = !!localStorage.getItem('motion_granted');
-    if(compassGranted && motionGranted){
-      // 過去に許可済み → バナー出さない
-      // window フラグも整合性合わせる
-      window._compassGranted = true;
-      window._motionGranted = true;
-      if(typeof dlog === 'function') dlog('[復元] 許可済みなのでバナー非表示');
-      return;
-    }
+// ─── 復元時のセンサー再起動（2026/05/02・最適化版） ───
+// 業務中タスクキル → 起動 → 復元 → このボタンを司さんが押す
+// onclick イベント内で同期的に requestPermission を呼ぶことで user gesture が確実に伝わる
+// 押した瞬間に全部復活：許可ダイアログ → リスナー再登録 → NoSleep起動
+function onSensorRestoreTap(){
+  if(typeof dlog === 'function') dlog('[復元] センサー再起動ボタン押下');
 
-    // sensorBanner が見つからなければスキップ
-    const banner = document.getElementById('sensorBanner');
-    if(!banner) return;
+  // NoSleep 起動（user gesture 内で確実に発火）
+  if(!noSleep){ noSleep = new NoSleep(); }
+  noSleep.enable().then(() => {
+    if(typeof dlog === 'function') dlog('[復元] NoSleep 復活');
+  }).catch(e => {
+    if(typeof dlog === 'function') dlog('[復元] NoSleep エラー: ' + e.message);
+  });
 
-    // バナー表示・スクロール上部へ
-    banner.style.display = 'block';
-    setTimeout(()=>{
-      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-    if(typeof dlog === 'function'){
-      dlog('[復元] センサー許可バナー表示');
-    }
-  } catch(e){
-    console.error('showSensorBannerForRestore error:', e);
+  // DeviceOrientation 許可（同期的に呼ぶ・user gesture 必須）
+  if(typeof DeviceOrientationEvent !== 'undefined' &&
+     typeof DeviceOrientationEvent.requestPermission === 'function'){
+    DeviceOrientationEvent.requestPermission().then(state => {
+      if(typeof dlog === 'function') dlog('[復元] コンパス許可: ' + state);
+      if(state === 'granted'){
+        window._compassGranted = true;
+        localStorage.setItem('compass_granted','1');
+        // リスナー再登録
+        if(typeof GPS !== 'undefined' && typeof GPS.startCompass === 'function'){
+          GPS.startCompass();
+        }
+      }
+    }).catch(e => {
+      if(typeof dlog === 'function') dlog('[復元] コンパス許可エラー: ' + e.message);
+    });
   }
+
+  // DeviceMotion 許可（同期的に呼ぶ・user gesture 必須）
+  if(typeof DeviceMotionEvent !== 'undefined' &&
+     typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().then(state => {
+      if(typeof dlog === 'function') dlog('[復元] 加速度許可: ' + state);
+      if(state === 'granted'){
+        window._motionGranted = true;
+        localStorage.setItem('motion_granted','1');
+        // リスナー再登録
+        if(typeof GPS !== 'undefined' && typeof GPS.startMotion === 'function'){
+          GPS.startMotion();
+        }
+      }
+    }).catch(e => {
+      if(typeof dlog === 'function') dlog('[復元] 加速度許可エラー: ' + e.message);
+    });
+  }
+
+  // バナー非表示
+  const banner = document.getElementById('sensorRestoreBanner');
+  if(banner) banner.style.display = 'none';
 }
 
 // ─── 設定読み込み ───
@@ -2400,67 +2388,6 @@ function playSensorRecover(){
     console.error('[Sensor] listener setup error:', e);
   }
 })();
-
-// ─── 起動時の安全装置：GPS 動作中ならバナー強制非表示（2026/05/02） ───
-// 既存の複数箇所がバナー表示してる（線引き難しい）ので
-// 「GPS が位置取得できれば許可済み確定 → バナー消す」で統一
-// 500ms・1.5秒の2回チェック（GPS が値を取得し始める時間を考慮・速度優先）
-[500, 1500].forEach(function(ms){
-  setTimeout(function(){
-    try {
-      if(typeof GPS === 'undefined' || typeof GPS.getStatus !== 'function') return;
-      const status = GPS.getStatus();
-      // 'granted'：許可済み確定 → バナー消す
-      // 'pending'/'unknown'：まだ判定中 → スキップ
-      // 'denied'/'unavailable'：失効 → バナー表示
-      if(status && status.state === 'granted'){
-        // 許可確定：バナー消す
-        const banner = document.getElementById('sensorBanner');
-        if(banner && banner.style.display !== 'none'){
-          banner.style.display = 'none';
-          if(typeof dlog === 'function') dlog('[Sensor] 起動時GPS=granted: バナー強制非表示 (' + ms + 'ms)');
-        }
-        // フラグも整合性合わせる
-        window._compassGranted = true;
-        window._motionGranted = true;
-        window._sensorLapsed = false;
-      } else if(status && (status.state === 'denied' || status.state === 'unavailable')){
-        // 失効確定：バナー表示（タスクキル後の再起動で失効してた場合）
-        const banner = document.getElementById('sensorBanner');
-        if(banner && banner.style.display === 'none'){
-          banner.style.display = 'block';
-          if(typeof dlog === 'function') dlog('[Sensor] 起動時GPS=' + status.state + ': バナー表示 (' + ms + 'ms)');
-        }
-        // フラグも整合性合わせる
-        window._compassGranted = false;
-        window._motionGranted = false;
-        window._sensorLapsed = true;
-      }
-      // unknown / pending は判定保留（次のチェックに任せる）
-    } catch(e){
-      console.error('[Sensor] 起動時チェックエラー:', e);
-    }
-  }, ms);
-});
-
-// 3秒経っても GPS が動かない場合は失効疑い → バナー表示（タイムアウト判定）
-setTimeout(function(){
-  try {
-    if(typeof GPS === 'undefined' || typeof GPS.getStatus !== 'function') return;
-    const status = GPS.getStatus();
-    // 'granted' / 'denied' / 'unavailable' は判定済み
-    // 'unknown' / 'pending' のまま = GPS が動いてない疑い
-    if(status && (status.state === 'unknown' || status.state === 'pending')){
-      const banner = document.getElementById('sensorBanner');
-      if(banner && banner.style.display === 'none'){
-        banner.style.display = 'block';
-        if(typeof dlog === 'function') dlog('[Sensor] 3秒タイムアウト: GPS待機継続 → バナー表示');
-      }
-    }
-  } catch(e){
-    console.error('[Sensor] タイムアウトチェックエラー:', e);
-  }
-}, 3000);
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
