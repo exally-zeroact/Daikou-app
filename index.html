@@ -868,6 +868,12 @@ function checkDrivingRestore(){
     // GPS・UIタイマー再起動
     startGPS();
     startUiTimer();
+    // 2026/05/02：NoSleep 復活（業務継続のため画面消灯防止）
+    //   既存のセンサー復元（showSensorBannerForRestore）と同じパターン
+    //   WakeLock API は user gesture 不要・自動で復活する
+    //   AudioContext fallback の場合は、ユーザーが画面タップした瞬間に発火
+    if(!noSleep){ noSleep = new NoSleep(); }
+    noSleep.enable().catch(e => console.log('[NoSleep] 復元時 enable エラー:', e));
     // 緑バナー表示
     document.getElementById('restoreBanner').classList.add('show');
     console.log('[復元] 走行を再開しました');
@@ -1506,6 +1512,12 @@ function onBusinessConfirm(){
     // 2026/05/01：[終了]押下直後に「続きから再開」ボタンの表示制御を実行
     //   → abandon で履歴に保存された業務が3時間以内なら[続きから再開]を表示
     updateResumeFromStartVisibility();
+    // 2026/05/02：NoSleep 解除（業務終了確定でバッテリー節約）
+    //   業務開始 → enable / 業務終了確定 → disable の自然なライフサイクル
+    if(noSleep && typeof noSleep.disable === 'function'){
+      noSleep.disable();
+      if(typeof dlog === 'function') dlog('[NoSleep] 業務終了で解除');
+    }
     if(typeof dlog === 'function') dlog('[Business] abandon');
   } catch(e){
     console.error('[Business] abandon error:', e);
