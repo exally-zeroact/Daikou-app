@@ -870,10 +870,29 @@ function checkDrivingRestore(){
     startUiTimer();
     // 2026/05/02：NoSleep 復活（業務継続のため画面消灯防止）
     //   既存のセンサー復元（showSensorBannerForRestore）と同じパターン
-    //   WakeLock API は user gesture 不要・自動で復活する
-    //   AudioContext fallback の場合は、ユーザーが画面タップした瞬間に発火
+    //   1. まず自動 enable() 試行（WakeLock API は user gesture 不要のケースもある）
+    //   2. 失敗した場合、初回画面タップで再試行（user gesture 取得）
+    //   3. 司さんルール「画面タップで発火」と整合
     if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e => console.log('[NoSleep] 復元時 enable エラー:', e));
+    noSleep.enable().then(() => {
+      if(typeof dlog === 'function') dlog('[NoSleep] 復元時 自動enable 成功');
+    }).catch(e => {
+      // user gesture 必須エラー等：初回タップで再試行
+      if(typeof dlog === 'function') dlog('[NoSleep] 復元時 自動enable 失敗・初回タップ待ち');
+      const retryOnTap = function(){
+        if(!noSleep){ noSleep = new NoSleep(); }
+        noSleep.enable().then(() => {
+          if(typeof dlog === 'function') dlog('[NoSleep] 初回タップで enable 成功');
+        }).catch(e2 => {
+          console.log('[NoSleep] 初回タップでも enable 失敗:', e2);
+        });
+        // ワンショット解除
+        document.removeEventListener('touchstart', retryOnTap);
+        document.removeEventListener('click', retryOnTap);
+      };
+      document.addEventListener('touchstart', retryOnTap, { once: true, passive: true });
+      document.addEventListener('click', retryOnTap, { once: true });
+    });
     // 緑バナー表示
     document.getElementById('restoreBanner').classList.add('show');
     console.log('[復元] 走行を再開しました');
@@ -1113,12 +1132,33 @@ updateBusinessDashboard();
 
 // ─── GPS（代行開始時に初めて起動） ───
 let gpsStarted = false;
+// 2026/05/02：GPS動作確認用ログ（5秒間隔・スパム防止）
+let _lastGpsLogAt = 0;
+let _gpsCallbackCount = 0;
 function startGPS(){
-  if(gpsStarted) return;
+  if(gpsStarted){
+    if(typeof dlog === 'function') dlog('[GPS] startGPS: 既に起動済（スキップ）');
+    return;
+  }
   gpsStarted = true;
+  if(typeof dlog === 'function') dlog('[GPS] startGPS: watchPosition 開始');
   try {
     GPS.start(function(g){
       try {
+        _gpsCallbackCount++;
+        // 5秒に1回のペースで動作確認ログ（スパム防止）
+        const now = Date.now();
+        if(now - _lastGpsLogAt > 5000){
+          _lastGpsLogAt = now;
+          if(typeof dlog === 'function'){
+            dlog('[GPS] 位置取得 #' + _gpsCallbackCount +
+                 ' lat=' + g.lat.toFixed(5) +
+                 ' lng=' + g.lng.toFixed(5) +
+                 ' 精度=' + parseFloat(g.accuracy).toFixed(0) + 'm' +
+                 ' 速度=' + (g.speed_kmh != null ? g.speed_kmh.toFixed(1) + 'km/h' : 'N/A') +
+                 ' state=' + appState);
+          }
+        }
         const dot = document.getElementById('gpsDot');
         dot.className = 'gps-dot ok';
         document.getElementById('gpsAcc').textContent = '精度'+parseFloat(g.accuracy).toFixed(0)+'m';
