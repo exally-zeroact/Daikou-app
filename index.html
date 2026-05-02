@@ -484,6 +484,17 @@ justify-content:center;
   </div>
 </div>
 
+<!-- センサー再起動バナー（全画面共通・appbar直下・2026/05/03 統一） -->
+<!-- iOS PWA で permission 失効・タスクキル復元・初回未許可など全ケースで表示 -->
+<!-- ボタン押下で user gesture 内で同期発火：許可ダイアログ → リスナー再登録 → NoSleep起動 -->
+<div id="sensorRestoreBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;margin:8px 12px;text-align:center;">
+  <div style="color:#fff;font-size:14px;line-height:1.5;margin-bottom:10px;">
+    <strong style="font-size:15px;">📡 センサー再起動が必要です</strong><br>
+    <span style="font-size:12px;">下のボタンを押すと許可ダイアログが出ます</span>
+  </div>
+  <button id="sensorRestoreBtn" onclick="onSensorRestoreTap()" style="background:#fff;color:#FF9800;border:none;border-radius:8px;padding:12px 24px;font-size:16px;font-weight:700;width:100%;cursor:pointer;">センサーを再起動する</button>
+</div>
+
 <!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
 
 <!-- チュートリアル（初回URL訪問時のみ） -->
@@ -625,16 +636,6 @@ justify-content:center;
     <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
     <!-- リロード復元バナー（走行距離の真上） -->
     <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
-    <!-- センサー再起動バナー（タスクキル後復元時のみ表示・2026/05/02追加） -->
-    <!-- 業務中タスクキルされると DeviceMotion/Orientation リスナーが消える -->
-    <!-- このボタン押下で許可ダイアログ表示→リスナー再登録→NoSleep起動を一気に発火 -->
-    <div id="sensorRestoreBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;margin:8px 12px;text-align:center;">
-      <div style="color:#fff;font-size:14px;line-height:1.5;margin-bottom:10px;">
-        <strong style="font-size:15px;">📡 センサー再起動が必要です</strong><br>
-        <span style="font-size:12px;">下のボタンを押すと許可ダイアログが出ます<br>運転中なら停車時に押してください</span>
-      </div>
-      <button id="sensorRestoreBtn" onclick="onSensorRestoreTap()" style="background:#fff;color:#FF9800;border:none;border-radius:8px;padding:12px 24px;font-size:16px;font-weight:700;width:100%;cursor:pointer;">センサーを再起動する</button>
-    </div>
     <div class="driving-grid">
       <!-- 2026/05/01 仕様変更：料金を上・走行距離を下に入れ替え -->
       <div class="meter-card">
@@ -669,43 +670,6 @@ justify-content:center;
 <!-- ボタンエリア（固定・全画面共通） -->
 
 <div class="btn-area">
-  <!-- センサー未許可バナー（全画面共通・許可されるまで表示・2026/05/02文言修正） -->
-  <div id="sensorBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;text-align:left;">
-    <div style="font-size:13px;color:#fff;line-height:1.6;">
-      <strong style="display:block;font-size:15px;margin-bottom:8px;text-align:center;">📡 位置情報・センサー許可が必要です</strong>
-      <div style="margin-bottom:8px;">
-        ダイコメは GPS の精度を確保するため<br>
-        位置情報・コンパス・ジャイロの許可が必須です
-      </div>
-      <div style="margin-bottom:8px;font-weight:700;">
-        許可ダイアログで「キャンセル」を押してしまった場合は<br>
-        以下の手順で復活してください
-      </div>
-      <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;line-height:1.7;">
-        <strong style="display:block;margin-bottom:4px;">【手順1：まず試す】</strong>
-        ① アプリを完全終了（タスクキル）<br>
-        ② ダイコメを再起動<br>
-        ③ 「許可」を選ぶ
-      </div>
-      <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;margin-bottom:8px;font-size:12px;line-height:1.7;">
-        <strong style="display:block;margin-bottom:4px;">【手順2：手順1でバナーが消えない場合】</strong>
-        ① アプリを完全終了（タスクキル）<br>
-        ② iPhone「設定」→「Safari」<br>
-        ③ 「履歴とWebサイトデータを消去」<br>
-        ④ ダイコメを再起動<br>
-        ⑤ 「許可」を選ぶ
-      </div>
-      <div style="background:rgba(0,0,0,0.15);border-radius:8px;padding:10px;font-size:12px;line-height:1.7;">
-        <strong style="display:block;margin-bottom:4px;">【Android の場合】</strong>
-        センサーは自動的にオンになります<br>
-        位置情報の許可ダイアログが出たら<br>
-        「許可」してください
-      </div>
-      <div style="margin-top:8px;font-size:11px;text-align:center;opacity:0.95;">
-        ※ 許可されないと全ての操作ができません
-      </div>
-    </div>
-  </div>
   <!-- 横画面用 走行に戻るボタン（fare時のみ表示・縦画面では非表示） -->
   <button class="btn-back-landscape" id="btnBackLandscape" onclick="cancelFare()">← 走行に戻る</button>
   <!-- 横画面用 業務報告 続けるボタン（businessReport時のみ表示・縦画面では非表示） -->
@@ -1306,7 +1270,7 @@ function showSensorBannerIfNeeded(){
   if(window.navigator.standalone !== true) return;
   // 許可済みなら：既にバナー出てたら消す（2026/05/02追加・許可後の残留バナー対策）
   if(window._compassGranted && window._motionGranted){
-    const banner = document.getElementById('sensorBanner');
+    const banner = document.getElementById('sensorRestoreBanner');
     if(banner && banner.style.display !== 'none'){
       banner.style.display = 'none';
       if(typeof dlog === 'function') dlog('[Sensor] 許可済み: バナー強制非表示');
@@ -1314,7 +1278,7 @@ function showSensorBannerIfNeeded(){
     return;
   }
   // バナー表示
-  const banner = document.getElementById('sensorBanner');
+  const banner = document.getElementById('sensorRestoreBanner');
   if(banner){
     banner.style.display = 'block';
     setTimeout(() => banner.scrollIntoView({behavior:'smooth', block:'end'}), 100);
@@ -2159,7 +2123,7 @@ function requestSensorPermission(){
       localStorage.setItem('motion_granted','1');
 
       // 2026/05/02：バナーから許可ボタン削除済み・即座に非表示
-      const banner = document.getElementById('sensorBanner');
+      const banner = document.getElementById('sensorRestoreBanner');
       if(banner && banner.style.display !== 'none'){
         banner.style.display = 'none';
       }
@@ -2169,7 +2133,7 @@ function requestSensorPermission(){
     } else {
       // 許可失敗（iOSキャンセル）：バナーをそのまま表示（手順1+手順2の案内）
       // 2026/05/02：バナー文言を上書きしない（新文言を維持）
-      const banner = document.getElementById('sensorBanner');
+      const banner = document.getElementById('sensorRestoreBanner');
       if(banner){
         banner.style.display = 'block';
       }
@@ -2241,7 +2205,7 @@ const _isAndroid = /Android/.test(navigator.userAgent);
     if(!localStorage.getItem('android_sensor_confirmed')){
       localStorage.setItem('android_sensor_confirmed','1');
       // 初回のみバナー表示（一度きり・10秒で自動非表示）
-      const banner = document.getElementById('sensorBanner');
+      const banner = document.getElementById('sensorRestoreBanner');
       if(banner){
         banner.style.display = 'block';
         setTimeout(() => { banner.style.display = 'none'; }, 10000);
@@ -2254,7 +2218,7 @@ const _isAndroid = /Android/.test(navigator.userAgent);
     // iOS：未許可ならバナー表示
     const needSensor = !localStorage.getItem('compass_granted') || !localStorage.getItem('motion_granted');
     if(needSensor){
-      document.getElementById('sensorBanner').style.display = 'block';
+      document.getElementById('sensorRestoreBanner').style.display = 'block';
     }
     return;
   }
@@ -2367,7 +2331,7 @@ function playSensorRecover(){
           window._compassGranted = true;
           window._motionGranted = true;
           // バナーを必ず消す（既存ロジックで出されたバナーも対象）
-          const banner = document.getElementById('sensorBanner');
+          const banner = document.getElementById('sensorRestoreBanner');
           if(banner && banner.style.display !== 'none'){
             banner.style.display = 'none';
             if(typeof dlog === 'function') dlog('[Sensor] GPS granted: バナー強制非表示');
