@@ -537,5 +537,10 @@ const GPS = (() => {
     _debug,
     // BUG-6（2026/05/01）：GPS 状態管理 API
     onStatusChange, getStatus, retryWatch,
+    // 2026/05/02：タスクキル復元時のセンサーリスナー再登録用
+    //   業務開始 / 復元時に明示的に呼ぶ
+    //   重複防止フラグ（_compassListenerAdded/_motionListenerAdded）で
+    //   既に登録済みなら何もしない
+    startCompass, startMotion,
   };
 })();
