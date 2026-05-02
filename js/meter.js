@@ -272,6 +272,12 @@ const Meter = (() => {
   }
 
   // Map Matching 処理（update から呼ばれる・分離して既存ロジック保護）
+  // 2026/05/03 NAV-1 修正：prevSnap に timestamp を保持して連続性判定する
+  //   旧コードは state.last_timestamp を参照していたが、update() 末尾で
+  //   gpsResult.timestamp に先に更新されるため dtSec が常に 0 になっていた。
+  //   結果：MM_GAP_RESET_SEC（5秒）超過判定が永遠に発火せず、
+  //         GPS 長時間空白後でも古い prevSnap で距離加算され誤差混入リスク。
+  //   修正：prevSnap 自身が時刻を持つ自己完結型に変更（snap オブジェクトは汚染しない）。
   function _updateMapMatching(gpsResult){
     if(!MM_ENABLED) return;
     if(typeof RegionLoader === 'undefined' || !RegionLoader.snapToNearestRoad) return;
@@ -295,12 +301,13 @@ const Meter = (() => {
 
       // 前回の snap がある場合のみ距離計算
       if(prevSnap){
-        // 前回 GPS から時間経過しすぎなら連続性なし → リセット
-        const dtSec = state.last_timestamp 
-          ? (gpsResult.timestamp - state.last_timestamp) / 1000 
+        // NAV-1 修正：prevSnap.timestamp を参照（state.last_timestamp は不可・更新済み）
+        const dtSec = prevSnap.timestamp != null
+          ? (gpsResult.timestamp - prevSnap.timestamp) / 1000
           : 0;
         if(dtSec > MM_GAP_RESET_SEC){
-          prevSnap = snap;
+          // GPS 空白で連続性失う → prevSnap 更新だけして次回から再開
+          prevSnap = Object.assign({}, snap, { timestamp: gpsResult.timestamp });
           return;
         }
 
@@ -317,7 +324,8 @@ const Meter = (() => {
           }
         }
       }
-      prevSnap = snap;
+      // prevSnap に必ず timestamp を持たせる（次回の dtSec 判定用）
+      prevSnap = Object.assign({}, snap, { timestamp: gpsResult.timestamp });
     } catch(e) {
       // Map Matching が失敗しても既存処理は止めない
       state.mm_skip_count++;
