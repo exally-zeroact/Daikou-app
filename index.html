@@ -882,7 +882,7 @@ function checkDrivingRestore(){
   }
 }
 
-// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加・2026/05/01修正）
+// タスクキル後復元時のセンサー許可バナー表示（2026/04/30追加・2026/05/02修正）
 function showSensorBannerForRestore(){
   try {
     // iOS 以外（Androidや非対応端末）では requestPermission が存在しない
@@ -891,8 +891,17 @@ function showSensorBannerForRestore(){
        typeof DeviceMotionEvent.requestPermission !== 'function'){
       return;
     }
-    // 2026/05/01 修正：許可済みならバナー出さない（誤表示防止）
-    if(window._compassGranted && window._motionGranted){
+    // 2026/05/02 修正：localStorage を直接参照（IIFE 実行タイミング依存を解消）
+    // 旧バグ：window._compassGranted は line 2204 の IIFE でセットされる
+    //   でも checkDrivingRestore は line 968 で実行（IIFE より早い）
+    //   → window._compassGranted が undefined のまま判定 → 誤バナー表示
+    const compassGranted = !!localStorage.getItem('compass_granted');
+    const motionGranted  = !!localStorage.getItem('motion_granted');
+    if(compassGranted && motionGranted){
+      // 過去に許可済み → バナー出さない
+      // window フラグも整合性合わせる
+      window._compassGranted = true;
+      window._motionGranted = true;
       if(typeof dlog === 'function') dlog('[復元] 許可済みなのでバナー非表示');
       return;
     }
@@ -1213,7 +1222,9 @@ function fmt(sec){
 // 戻り値：true=ブロックした（呼出元は処理中止）/ false=通過OK
 function blockIfSensorNotGranted(){
   // iOS PWA 以外は常に通過（Android・PC・Safari通常モードは未許可ブロックしない）
-  if(!_isIOS) return false;
+  // 2026/05/02：_isIOS 未定義リスク対策で直接判定
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(!isIOS) return false;
   if(window.navigator.standalone !== true) return false;
   // 許可済みなら通過
   if(window._compassGranted && window._motionGranted) return false;
@@ -1239,7 +1250,9 @@ function blockIfSensorNotGranted(){
 // バナー表示のみ（ダイアログは発火しない・起動時/画面遷移時用）
 function showSensorBannerIfNeeded(){
   // iOS PWA 以外は表示しない（他環境ではバナー出ない）
-  if(!_isIOS) return;
+  // 2026/05/02：_isIOS が未定義の可能性（呼出順序問題）対策で直接判定
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if(!isIOS) return;
   if(window.navigator.standalone !== true) return;
   // 許可済みなら：既にバナー出てたら消す（2026/05/02追加・許可後の残留バナー対策）
   if(window._compassGranted && window._motionGranted){
@@ -2331,8 +2344,9 @@ function playSensorRecover(){
       const status = GPS.getStatus();
       // 'granted'：許可済み確定 → バナー消す
       // 'pending'/'unknown'：まだ判定中 → スキップ
-      // 'denied'/'unavailable'：失効 → バナー残す（既存ロジック通り）
+      // 'denied'/'unavailable'：失効 → バナー表示
       if(status && status.state === 'granted'){
+        // 許可確定：バナー消す
         const banner = document.getElementById('sensorBanner');
         if(banner && banner.style.display !== 'none'){
           banner.style.display = 'none';
@@ -2342,12 +2356,43 @@ function playSensorRecover(){
         window._compassGranted = true;
         window._motionGranted = true;
         window._sensorLapsed = false;
+      } else if(status && (status.state === 'denied' || status.state === 'unavailable')){
+        // 失効確定：バナー表示（タスクキル後の再起動で失効してた場合）
+        const banner = document.getElementById('sensorBanner');
+        if(banner && banner.style.display === 'none'){
+          banner.style.display = 'block';
+          if(typeof dlog === 'function') dlog('[Sensor] 起動時GPS=' + status.state + ': バナー表示 (' + ms + 'ms)');
+        }
+        // フラグも整合性合わせる
+        window._compassGranted = false;
+        window._motionGranted = false;
+        window._sensorLapsed = true;
       }
+      // unknown / pending は判定保留（次のチェックに任せる）
     } catch(e){
       console.error('[Sensor] 起動時チェックエラー:', e);
     }
   }, ms);
 });
+
+// 3秒経っても GPS が動かない場合は失効疑い → バナー表示（タイムアウト判定）
+setTimeout(function(){
+  try {
+    if(typeof GPS === 'undefined' || typeof GPS.getStatus !== 'function') return;
+    const status = GPS.getStatus();
+    // 'granted' / 'denied' / 'unavailable' は判定済み
+    // 'unknown' / 'pending' のまま = GPS が動いてない疑い
+    if(status && (status.state === 'unknown' || status.state === 'pending')){
+      const banner = document.getElementById('sensorBanner');
+      if(banner && banner.style.display === 'none'){
+        banner.style.display = 'block';
+        if(typeof dlog === 'function') dlog('[Sensor] 3秒タイムアウト: GPS待機継続 → バナー表示');
+      }
+    }
+  } catch(e){
+    console.error('[Sensor] タイムアウトチェックエラー:', e);
+  }
+}, 3000);
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
