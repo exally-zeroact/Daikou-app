@@ -868,31 +868,47 @@ function checkDrivingRestore(){
     // GPS・UIタイマー再起動
     startGPS();
     startUiTimer();
-    // 2026/05/02：NoSleep 復活（業務継続のため画面消灯防止）
-    //   既存のセンサー復元（showSensorBannerForRestore）と同じパターン
-    //   1. まず自動 enable() 試行（WakeLock API は user gesture 不要のケースもある）
-    //   2. 失敗した場合、初回画面タップで再試行（user gesture 取得）
-    //   3. 司さんルール「画面タップで発火」と整合
+    // 2026/05/02：NoSleep 復活 + DeviceMotion/Orientation 再許可（タスクキル後対応）
+    //   業界事実：GPS と コンパス permission は永続化される
+    //            DeviceMotion / DeviceOrientation だけタスクキルで失効する（Apple仕様）
+    //   方針：初回画面タップで NoSleep + センサー再許可を一括発火
+    //         司さんが料金確定まで待たずに、画面どこか触れば即座に許可ダイアログ
     if(!noSleep){ noSleep = new NoSleep(); }
     noSleep.enable().then(() => {
       if(typeof dlog === 'function') dlog('[NoSleep] 復元時 自動enable 成功');
     }).catch(e => {
-      // user gesture 必須エラー等：初回タップで再試行
       if(typeof dlog === 'function') dlog('[NoSleep] 復元時 自動enable 失敗・初回タップ待ち');
-      const retryOnTap = function(){
-        if(!noSleep){ noSleep = new NoSleep(); }
-        noSleep.enable().then(() => {
-          if(typeof dlog === 'function') dlog('[NoSleep] 初回タップで enable 成功');
-        }).catch(e2 => {
-          console.log('[NoSleep] 初回タップでも enable 失敗:', e2);
-        });
-        // ワンショット解除
-        document.removeEventListener('touchstart', retryOnTap);
-        document.removeEventListener('click', retryOnTap);
-      };
-      document.addEventListener('touchstart', retryOnTap, { once: true, passive: true });
-      document.addEventListener('click', retryOnTap, { once: true });
     });
+    // 初回タップで NoSleep + DeviceMotion/Orientation 許可を一括発火
+    const restoreTapHandler = function(){
+      // NoSleep 再試行（自動失敗してた場合）
+      if(!noSleep){ noSleep = new NoSleep(); }
+      noSleep.enable().then(() => {
+        if(typeof dlog === 'function') dlog('[NoSleep] 初回タップで enable 成功');
+      }).catch(e2 => {
+        if(typeof dlog === 'function') dlog('[NoSleep] 初回タップでも enable 失敗: ' + e2.message);
+      });
+      // DeviceMotion / DeviceOrientation 許可を再要求
+      // iOS Safari ではタスクキル後にこれだけ失効するため、画面タップで即座に再許可
+      if(typeof requestSensorPermission === 'function'){
+        if(typeof dlog === 'function') dlog('[復元] 動作と方向 許可ダイアログ発火');
+        requestSensorPermission();
+      }
+      // 2026/05/02：センサーリスナー再登録（許可成功後・タスクキル復活）
+      //   許可されてもリスナー実体がないと動かないため明示的に再登録
+      //   重複防止フラグで既に登録済みなら何もしない
+      setTimeout(() => {
+        if(typeof GPS !== 'undefined'){
+          if(typeof GPS.startCompass === 'function') GPS.startCompass();
+          if(typeof GPS.startMotion === 'function') GPS.startMotion();
+        }
+      }, 500); // requestPermission の Promise 解決後に呼ぶ
+      // ワンショット解除
+      document.removeEventListener('touchstart', restoreTapHandler);
+      document.removeEventListener('click', restoreTapHandler);
+    };
+    document.addEventListener('touchstart', restoreTapHandler, { once: true, passive: true });
+    document.addEventListener('click', restoreTapHandler, { once: true });
     // 緑バナー表示
     document.getElementById('restoreBanner').classList.add('show');
     console.log('[復元] 走行を再開しました');
