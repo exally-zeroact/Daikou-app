@@ -485,7 +485,7 @@ justify-content:center;
 </div>
 
 <!-- センサー再起動バナー（全画面共通・appbar直下・2026/05/03 統一） -->
-<!-- iOS PWA で permission 失効・タスクキル復元・初回未許可など全ケースで表示 -->
+<!-- iOS PWA で DeviceMotion/Orientation が session 毎に失効するため -->
 <!-- ボタン押下で user gesture 内で同期発火：許可ダイアログ → リスナー再登録 → NoSleep起動 -->
 <div id="sensorRestoreBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;margin:8px 12px;text-align:center;">
   <div style="color:#fff;font-size:14px;line-height:1.5;margin-bottom:10px;">
