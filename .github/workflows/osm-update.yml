@@ -105,7 +105,15 @@ jobs:
             node scripts/build-roads.js "$GEOJSON" "data/" "$REGION"
 
             # 旧形式（地方単位のroads-<region>.js）を削除
-            rm -f "data/roads-${REGION}.js"
+            # 2026/05/04 バグ修正：hokkaido は「地方名 = 県名」のため、
+            # この削除コマンドが build-roads.js で生成直後の正しい
+            # roads-hokkaido.js まで消してしまうバグがあった。
+            # hokkaido のみ削除をスキップし、新形式の県ファイルを保護する。
+            if [ "$REGION" = "hokkaido" ]; then
+              echo "  ℹ️ hokkaido は地方名=県名のため旧形式削除スキップ"
+            else
+              rm -f "data/roads-${REGION}.js"
+            fi
 
             echo "  生成された県ファイル:"
             ls -lh data/roads-*.js 2>/dev/null | head -20 || true
