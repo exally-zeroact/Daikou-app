@@ -1,10 +1,10 @@
 {
   "region": "chubu",
-  "generated": "2026-05-02T19:04:49.912Z",
+  "generated": "2026-05-04T11:43:23.406Z",
   "prefectures": {
     "niigata": {
       "numRoads": 171611,
-      "sizeBytes": 5142482,
+      "sizeBytes": 5142478,
       "bbox": [
         3671574,
         13804814,
@@ -13,8 +13,8 @@
       ]
     },
     "toyama": {
-      "numRoads": 110935,
-      "sizeBytes": 3238355,
+      "numRoads": 110936,
+      "sizeBytes": 3238348,
       "bbox": [
         3603888,
         13692538,
@@ -23,8 +23,8 @@
       ]
     },
     "ishikawa": {
-      "numRoads": 87994,
-      "sizeBytes": 2564478,
+      "numRoads": 87991,
+      "sizeBytes": 2564418,
       "bbox": [
         3605987,
         13627995,
@@ -33,8 +33,8 @@
       ]
     },
     "fukui": {
-      "numRoads": 70399,
-      "sizeBytes": 2059677,
+      "numRoads": 70377,
+      "sizeBytes": 2059125,
       "bbox": [
         3522686,
         13541330,
@@ -43,8 +43,8 @@
       ]
     },
     "yamanashi": {
-      "numRoads": 82721,
-      "sizeBytes": 2586723,
+      "numRoads": 82728,
+      "sizeBytes": 2586945,
       "bbox": [
         3508500,
         13784012,
@@ -54,7 +54,7 @@
     },
     "nagano": {
       "numRoads": 181348,
-      "sizeBytes": 5510959,
+      "sizeBytes": 5510957,
       "bbox": [
         3542617,
         13742225,
@@ -73,8 +73,8 @@
       ]
     },
     "shizuoka": {
-      "numRoads": 173916,
-      "sizeBytes": 5182999,
+      "numRoads": 173928,
+      "sizeBytes": 5183285,
       "bbox": [
         3459521,
         13764793,
@@ -83,8 +83,8 @@
       ]
     },
     "aichi": {
-      "numRoads": 375422,
-      "sizeBytes": 10415530,
+      "numRoads": 375455,
+      "sizeBytes": 10416464,
       "bbox": [
         3457892,
         13640639,

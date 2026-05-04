@@ -1,10 +1,10 @@
 {
   "region": "shikoku",
-  "generated": "2026-05-02T19:06:16.178Z",
+  "generated": "2026-05-04T11:44:55.246Z",
   "prefectures": {
     "tokushima": {
-      "numRoads": 56412,
-      "sizeBytes": 1763741,
+      "numRoads": 56437,
+      "sizeBytes": 1764397,
       "bbox": [
         3324565,
         13392012,
@@ -23,8 +23,8 @@
       ]
     },
     "ehime": {
-      "numRoads": 117496,
-      "sizeBytes": 3967841,
+      "numRoads": 117497,
+      "sizeBytes": 3967864,
       "bbox": [
         3270859,
         13201828,
