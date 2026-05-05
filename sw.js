@@ -20,13 +20,15 @@
 //   ✅ 業務中に急にバージョン変わらない（安全）
 // ===========================================
 
-const CACHE_NAME = 'daikome-3790db7';
+const CACHE_NAME = 'daikome-ddc1802';
 
 // アイコン・manifest・start_url（"/"）をキャッシュ
 // "/"のキャッシュは Chrome の installability 要件で必須
 // （オフラインでも start_url が 200 を返せる必要がある）
 const PRECACHE_FILES = [
   '/',
+  '/history.html',
+  '/settings.html',
   '/icon-192.png',
   '/icon-512.png',
   '/manifest.json',
@@ -71,8 +73,9 @@ function staleWhileRevalidate(request){
         }
         return response;
       }).catch(function(){
-        // ネット失敗時もキャッシュがあればそれを返す
-        return cached;
+        // ネット失敗時もキャッシュがあればそれを返す。
+        // ない場合は最終手段として "/" のキャッシュ（SPA 起動点）にフォールバック。
+        return cached || caches.match('/');
       });
       // キャッシュあればそれを即返す（裏で fetchPromise 動く）
       // なければ fetchPromise を待つ

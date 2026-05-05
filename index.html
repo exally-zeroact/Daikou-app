@@ -12,8 +12,12 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
+/* iOS Safari rubber-band 抑制（メーター画面の無限スクロール防止） */
+html{height:100%;overscroll-behavior:none;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100vh;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;}
+/* 画面内 scroll コンテナはバウンスを内側で完結させる（親への伝播禁止） */
+#screenIdle,#screenBusinessReport,#screenFare,.tutorial-overlay{overscroll-behavior-y:contain;}
 
 /* AppBar */
 .appbar{background:#007AFF;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
@@ -27,6 +31,32 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .pwa-banner.show{display:flex;}
 .pwa-banner-text{flex:1;font-size:12px;color:#005BB5;line-height:1.5;}
 
+/* ─── 初回DL UI（Phase 0a-1） ─── */
+/* tutorial-overlay より上層（z-index:1100）・初回DL完了まで全画面固定 */
+.dl-overlay{display:none;position:fixed;inset:0;background:#007AFF;z-index:1100;flex-direction:column;align-items:center;justify-content:center;padding:clamp(20px,5vh,48px) 28px clamp(20px,4vh,40px);padding-top:max(env(safe-area-inset-top),clamp(20px,5vh,48px));opacity:1;transition:opacity 0.5s ease-out;}
+.dl-overlay.show{display:flex;}
+.dl-overlay.fade-out{opacity:0;pointer-events:none;}
+.dl-icon{font-size:48px;margin-bottom:18px;}
+.dl-title{color:#fff;font-size:22px;font-weight:700;margin-bottom:10px;text-align:center;line-height:1.4;}
+.dl-desc{color:rgba(255,255,255,0.9);font-size:14px;line-height:1.6;text-align:center;margin-bottom:24px;max-width:400px;}
+.dl-progress-wrap{width:100%;max-width:360px;margin-bottom:14px;}
+.dl-progress-bar{width:100%;height:10px;background:rgba(255,255,255,0.2);border-radius:5px;overflow:hidden;}
+.dl-progress-fill{height:100%;background:#fff;border-radius:5px;transition:width 0.3s ease;}
+.dl-progress-text{color:#fff;font-size:13px;font-weight:600;margin-top:8px;text-align:center;}
+.dl-hint{color:rgba(255,255,255,0.75);font-size:12px;margin-top:14px;text-align:center;}
+.dl-btn{width:100%;max-width:360px;padding:16px;background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;margin-top:20px;}
+.dl-btn:active{opacity:0.85;}
+.dl-state-loading{display:none;}
+.dl-state-loading.show{display:block;}
+.dl-state-complete{display:none;}
+.dl-state-complete.show{display:block;}
+/* ─── 月次更新トースト ─── */
+.dl-update-toast{position:fixed;left:50%;top:max(60px,calc(env(safe-area-inset-top) + 56px));transform:translateX(-50%);background:#F0FAF4;border:1.5px solid #52B788;border-radius:10px;padding:10px 16px;font-size:13px;color:#1A4A2E;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:1050;width:85%;max-width:360px;text-align:center;font-weight:600;display:none;cursor:pointer;}
+.dl-update-toast.show{display:block;animation:dl-toast-in 0.3s ease-out;}
+.dl-update-toast.fade-out{animation:dl-toast-out 0.3s ease-in forwards;}
+@keyframes dl-toast-in{from{opacity:0;transform:translate(-50%,-10px);}to{opacity:1;transform:translate(-50%,0);}}
+@keyframes dl-toast-out{from{opacity:1;transform:translate(-50%,0);}to{opacity:0;transform:translate(-50%,-10px);}}
+
 /* チュートリアル */
 .tutorial-overlay{display:none;position:fixed;inset:0;background:#007AFF;z-index:1000;flex-direction:column;align-items:center;justify-content:flex-start;padding:clamp(20px,5vh,48px) 28px clamp(20px,4vh,40px);padding-top:max(env(safe-area-inset-top),clamp(20px,5vh,48px));overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .tutorial-overlay.show{display:flex;}
@@ -38,13 +68,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .tutorial-icon{font-size:clamp(40px,8vh,72px);line-height:1;}
 .tutorial-title{font-size:clamp(18px,3vh,24px);font-weight:900;color:#fff;line-height:1.3;}
 .tutorial-desc{font-size:clamp(12px,2vh,15px);color:rgba(255,255,255,0.85);line-height:1.6;max-width:300px;}
-.tutorial-btn{width:100%;padding:clamp(12px,2.2vh,16px);background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:clamp(15px,2.4vh,17px);font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
+.tutorial-btn{width:100%;padding:clamp(12px,2.2vh,16px);background:#fff;color:#007AFF;border:none;border-radius:14px;font-size:clamp(15px,2.4vh,17px);font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
 .tutorial-btn.secondary{background:rgba(255,255,255,0.2);color:#fff;margin-top:8px;}
 .tutorial-steps{background:rgba(255,255,255,0.15);border-radius:14px;padding:clamp(10px,1.8vh,16px) clamp(14px,2vh,20px);text-align:left;width:100%;}
 .tutorial-step{display:flex;align-items:center;gap:clamp(8px,1.4vh,12px);color:#fff;font-size:clamp(12px,1.8vh,14px);padding:clamp(3px,0.7vh,6px) 0;}
 .tutorial-step-num{width:clamp(20px,3.2vh,24px);height:clamp(20px,3.2vh,24px);border-radius:50%;background:#fff;color:#007AFF;font-weight:700;font-size:clamp(11px,1.7vh,13px);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .pwa-banner-text strong{display:block;font-size:13px;margin-bottom:2px;}
-.pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:‘Noto Sans JP’,sans-serif;}
+.pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;}
 .pwa-banner-close{background:none;border:none;color:#007AFF;font-size:18px;cursor:pointer;padding:0 4px;}
 .gps-acc{font-size:11px;color:#fff;opacity:0.8;}
 .surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
@@ -52,7 +82,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 background:rgba(255,255,255,0.2);border:none;border-radius:8px;
 padding:4px 12px;cursor:pointer;
 color:#fff;font-size:20px;font-weight:700;
-font-family:‘Noto Sans JP’,sans-serif;
+font-family:'Noto Sans JP',sans-serif;
 -webkit-transition:transform 0.1s,-webkit-filter 0.1s;
 transition:transform 0.1s,filter 0.1s;
 -webkit-appearance:none;
@@ -286,8 +316,8 @@ pointer-events:none;white-space:nowrap;
 .modal-item-price{font-size:14px;color:#FF9500;font-weight:900;}
 .modal-custom{background:#fff8f0;border:0.5px solid #FFD6A5;border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;}
 .modal-custom span{font-size:14px;color:#FF9500;font-weight:700;white-space:nowrap;}
-.modal-custom input{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:16px;text-align:right;font-family:‘Noto Sans JP’,sans-serif;}
-.modal-custom-btn{background:#FF9500;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:‘Noto Sans JP’,sans-serif;}
+.modal-custom input{flex:1;border:0.5px solid #ddd;border-radius:8px;padding:8px 12px;font-size:16px;text-align:right;font-family:'Noto Sans JP',sans-serif;}
+.modal-custom-btn{background:#FF9500;border:none;border-radius:8px;padding:8px 14px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
 
 /* 横画面対応 */
 @media (orientation:landscape){
@@ -417,7 +447,6 @@ justify-content:center;
 .idle-time{font-size:36px;}
 .stats-grid{grid-template-columns:1fr 1fr;gap:8px;max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
 .stat-value{font-size:18px;}
-#inlineHistoryWrap{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
 
 /* 2026/05/01：全画面共通の日時・stats-dashboard・履歴ボタンを中央寄せ */
 .dateTimeLine{max-width:80%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
@@ -496,6 +525,36 @@ justify-content:center;
 </div>
 
 <!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
+
+<!-- 月次更新トースト（バックグラウンドDL完了時に表示） -->
+<div class="dl-update-toast" id="dlUpdateToast" onclick="onDlToastTap()">✅ 最新の地図データに更新しました</div>
+
+<!-- 初回DL UI（IndexedDBの dl_completed=true で2回目以降は表示しない） -->
+<div class="dl-overlay" id="dlOverlay">
+  <!-- 状態1：DL中 -->
+  <div class="dl-state-loading show" id="dlStateLoading">
+    <div style="text-align:center;width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="dl-icon">⚡</div>
+      <div class="dl-title">ダイコメへようこそ</div>
+      <div class="dl-desc">全国地図データをダウンロード中<br>圏外でも使えるように準備しています</div>
+      <div class="dl-progress-wrap">
+        <div class="dl-progress-bar">
+          <div class="dl-progress-fill" id="dlProgressFill" style="width:10%;"></div>
+        </div>
+        <div class="dl-progress-text" id="dlProgressText">準備中...</div>
+      </div>
+      <div class="dl-hint">📶 Wi-Fi推奨（4G可）</div>
+    </div>
+  </div>
+  <!-- 状態2：完了（バナー表示後 自動でメーター画面へ遷移） -->
+  <div class="dl-state-complete" id="dlStateComplete">
+    <div style="text-align:center;width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="dl-icon">✅</div>
+      <div class="dl-title">ダウンロード完了</div>
+      <div class="dl-desc">全国どこでもオフラインで使えます</div>
+    </div>
+  </div>
+</div>
 
 <!-- チュートリアル（初回URL訪問時のみ） -->
 
@@ -580,11 +639,11 @@ justify-content:center;
     <div class="stats-dashboard">
       <div class="stat-card-large">
         <span class="stat-label">総走行距離</span>
-        <span class="stat-value"><span id="totalDist">0.0</span><span class="stat-unit">km</span></span>
+        <span class="stat-value"><span id="totalDist">0.00</span><span class="stat-unit">km</span></span>
       </div>
       <div class="stat-card-large">
         <span class="stat-label">実車総距離</span>
-        <span class="stat-value"><span id="todayDist">0.0</span><span class="stat-unit">km</span></span>
+        <span class="stat-value"><span id="todayDist">0.00</span><span class="stat-unit">km</span></span>
       </div>
       <div class="stat-card-large">
         <span class="stat-label">営業回数</span>
@@ -721,11 +780,11 @@ class NoSleep {
       try{
         this._wakeLock = await navigator.wakeLock.request('screen');
         this._enabled = true;
-        console.log('[NoSleep] WakeLock有効');
+        dlog('[NoSleep] WakeLock有効');
         // 画面表示時に再取得
         document.addEventListener('visibilitychange', this._relock.bind(this));
         return;
-      }catch(e){ console.log('[NoSleep] WakeLock失敗:', e.message); }
+      }catch(e){ dlog('[NoSleep] WakeLock失敗:', e.message); }
     }
     // ② AudioContextフォールバック（iOS 15以前）
     try{
@@ -739,11 +798,11 @@ class NoSleep {
         gain.connect(this._audioCtx.destination);
         osc.start();
         this._enabled = true;
-        console.log('[NoSleep] AudioContext有効');
+        dlog('[NoSleep] AudioContext有効');
         return;
       }
-    }catch(e){ console.log('[NoSleep] AudioContext失敗:', e.message); }
-    console.log('[NoSleep] 全フォールバック失敗');
+    }catch(e){ dlog('[NoSleep] AudioContext失敗:', e.message); }
+    dlog('[NoSleep] 全フォールバック失敗');
   }
   async _relock(){
     if(document.visibilityState === 'visible' && this._wakeLock){
@@ -756,7 +815,7 @@ class NoSleep {
     if(this._wakeLock){ try{ this._wakeLock.release(); }catch(e){} this._wakeLock = null; }
     if(this._audioCtx){ try{ this._audioCtx.close(); }catch(e){} this._audioCtx = null; }
     this._enabled = false;
-    console.log('[NoSleep] 解除');
+    dlog('[NoSleep] 解除');
   }
 }</script>
 
@@ -767,6 +826,32 @@ class NoSleep {
 <script src="js/debug-config.js"></script>
 
 <!-- ★debug-config.js：環境変数制御・本番自動OFF（2026/04/26追加） -->
+
+<!-- localStorage キー migration: dakome_* -> daikou_* (2026-05-05) -->
+<script>
+(function migrateDakomeKeys(){
+  try {
+    var keys = Object.keys(localStorage);
+    var migrated = 0;
+    for (var i = 0; i < keys.length; i++) {
+      var oldKey = keys[i];
+      if (oldKey.indexOf('dakome_') === 0) {
+        var newKey = 'daikou_' + oldKey.substring(7);
+        if (localStorage.getItem(newKey) === null) {
+          localStorage.setItem(newKey, localStorage.getItem(oldKey));
+        }
+        localStorage.removeItem(oldKey);
+        migrated++;
+      }
+    }
+    if (migrated > 0 && typeof dlog === 'function') {
+      dlog('[migrate] dakome to daikou: ' + migrated + ' keys');
+    }
+  } catch (e) {
+    if (typeof dlog === 'function') dlog('[migrate] error', e);
+  }
+})();
+</script>
 
 <script src="js/compat.js"></script>
 
@@ -844,7 +929,7 @@ function checkDrivingRestore(){
     startUiTimer();
     // 緑バナー表示（復元できたことを通知するだけ）
     document.getElementById('restoreBanner').classList.add('show');
-    console.log('[復元] 走行を再開しました');
+    dlog('[復元] 走行を再開しました');
     // 2026/05/02：iOS PWA なら「センサー再起動」バナー表示
     //   タスクキルで DeviceMotion/Orientation リスナーが消失してるため
     //   司さんがボタン押下時に user gesture で全部復活させる
@@ -883,10 +968,15 @@ function onSensorRestoreTap(){
       if(state === 'granted'){
         window._compassGranted = true;
         localStorage.setItem('compass_granted','1');
+        // 2026/05/04 夜・追加：同 session 内のページ遷移で permission 維持を判定するため
+        if(window._motionGranted) sessionStorage.setItem('sensor_permission_active','1');
         // リスナー再登録
         if(typeof GPS !== 'undefined' && typeof GPS.startCompass === 'function'){
           GPS.startCompass();
         }
+        // 2026/05/04 夜・追加：許可完了後にバナー強制非表示（ダイアログ中の再表示対策）
+        const banner = document.getElementById('sensorRestoreBanner');
+        if(banner) banner.style.display = 'none';
       }
     }).catch(e => {
       if(typeof dlog === 'function') dlog('[復元] コンパス許可エラー: ' + e.message);
@@ -901,10 +991,15 @@ function onSensorRestoreTap(){
       if(state === 'granted'){
         window._motionGranted = true;
         localStorage.setItem('motion_granted','1');
+        // 2026/05/04 夜・追加：同 session 内のページ遷移で permission 維持を判定するため
+        if(window._compassGranted) sessionStorage.setItem('sensor_permission_active','1');
         // リスナー再登録
         if(typeof GPS !== 'undefined' && typeof GPS.startMotion === 'function'){
           GPS.startMotion();
         }
+        // 2026/05/04 夜・追加：許可完了後にバナー強制非表示（ダイアログ中の再表示対策）
+        const banner = document.getElementById('sensorRestoreBanner');
+        if(banner) banner.style.display = 'none';
       }
     }).catch(e => {
       if(typeof dlog === 'function') dlog('[復元] 加速度許可エラー: ' + e.message);
@@ -914,6 +1009,14 @@ function onSensorRestoreTap(){
   // バナー非表示
   const banner = document.getElementById('sensorRestoreBanner');
   if(banner) banner.style.display = 'none';
+
+  // GPS も同時に起動（2026/05/04 夜・追加）
+  // 司さん指示：「GPSは許可はずれんって分かったんやけんコードで常に作動するようにしろや」
+  // センサー許可した瞬間から GPS も動く（業務全体で総走行距離計測のため）
+  try {
+    startGPS();
+    if(typeof dlog === 'function') dlog('[復元] GPS 起動');
+  } catch(e){ console.error('[復元] GPS起動エラー:', e); }
 }
 
 // ─── 設定読み込み ───
@@ -960,7 +1063,7 @@ function loadSettings(){
     }
   }
   FB.setVehicleId(vehicleId);
-  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
+  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(2);
   document.getElementById('todayCount').textContent = todayCount;
   if(surchargeEnabled) document.getElementById('surchargeBadge').style.display='flex';
 
@@ -1067,11 +1170,6 @@ function updateClock(){
   const text = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '） ' + h + ':' + m;
   // 全画面の dateTimeLine クラスを一括更新（screenIdle/screenDriving/screenFare）
   document.querySelectorAll('.dateTimeLine').forEach(el => { el.textContent = text; });
-  // 旧仕様 ID も保険で更新（他箇所参照対応）
-  const elTime = document.getElementById('clockTime');
-  if(elTime) elTime.textContent = h + ':' + m;
-  const elDate = document.getElementById('clockDate');
-  if(elDate) elDate.textContent = now.getFullYear() + '年' + (now.getMonth()+1) + '月' + now.getDate() + '日（' + days[now.getDay()] + '）';
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -1087,8 +1185,8 @@ function updateBusinessDashboard(){
     const elActual = document.getElementById('todayDist');
     const elCount = document.getElementById('todayCount');
     const elFare = document.getElementById('fareTotalYen');
-    if(elTotal)  elTotal.textContent  = (r.total_distance_m / 1000).toFixed(1);
-    if(elActual) elActual.textContent = (r.actual_total_m / 1000).toFixed(1);
+    if(elTotal)  elTotal.textContent  = (r.total_distance_m / 1000).toFixed(2);
+    if(elActual) elActual.textContent = (r.actual_total_m / 1000).toFixed(2);
     if(elCount)  elCount.textContent  = r.trip_count;
     if(elFare)   elFare.textContent   = r.fare_total_yen.toLocaleString();
   } catch(e){
@@ -1134,6 +1232,12 @@ function startGPS(){
         // 代行開始前でもlastWarmupGpsを保持・押した瞬間に即時計測開始
         if(typeof Meter.updateGpsOnly === 'function') Meter.updateGpsOnly(g);
         if(appState==='driving' || appState==='fare') Meter.update(g);
+        // 業務中の総走行距離計測（2026/05/04 夜・修正）
+        // business.js は onGps を公開しており state.active 中なら total_distance_m に加算する
+        // 実車中・空車中問わず業務全体の距離を計測する設計
+        if(typeof Business !== 'undefined' && typeof Business.onGps === 'function'){
+          Business.onGps(g);
+        }
         // 復元後の補完検知：距離・料金が変わったらバナーを更新
         if(window._restoreDistanceM != null){
           const cur = Meter.getState();
@@ -1240,6 +1344,13 @@ function blockIfSensorNotGranted(){
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if(!isIOS) return false;
   if(window.navigator.standalone !== true) return false;
+  // 2026/05/04 夜・修正：sessionStorage で同 session 内の permission 維持を判定
+  //   sensor_permission_active='1' があれば同 session 内 → permission 維持
+  if(sessionStorage.getItem('sensor_permission_active') === '1'){
+    window._compassGranted = true;
+    window._motionGranted = true;
+    return false;
+  }
   // 許可済みなら通過
   if(window._compassGranted && window._motionGranted) return false;
 
@@ -1268,6 +1379,18 @@ function showSensorBannerIfNeeded(){
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if(!isIOS) return;
   if(window.navigator.standalone !== true) return;
+  // 2026/05/04 夜・修正：sessionStorage で同 session 内の permission 維持を判定
+  //   sensor_permission_active='1' があれば同 session 内 → permission 維持されてる
+  if(sessionStorage.getItem('sensor_permission_active') === '1'){
+    window._compassGranted = true;
+    window._motionGranted = true;
+    const banner = document.getElementById('sensorRestoreBanner');
+    if(banner && banner.style.display !== 'none'){
+      banner.style.display = 'none';
+      if(typeof dlog === 'function') dlog('[Sensor] 同session内: バナー非表示');
+    }
+    return;
+  }
   // 許可済みなら：既にバナー出てたら消す（2026/05/02追加・許可後の残留バナー対策）
   if(window._compassGranted && window._motionGranted){
     const banner = document.getElementById('sensorRestoreBanner');
@@ -1308,7 +1431,7 @@ function onMainBtn(){
     localStorage.setItem('daikou_last_start', Date.now().toString());
     // NoSleep起動（画面消灯防止）
     if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e=>console.log("NoSleep error:",e));
+    noSleep.enable().catch(e=>dlog("NoSleep error:",e));
     // 暗転タイマーをクリア・画面を戻す
     if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
     document.documentElement.style.filter = '';
@@ -1350,7 +1473,7 @@ function onBusinessStart(){
     Business.start();
     // NoSleep 起動（画面消灯防止）
     if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e=>console.log('NoSleep error:', e));
+    noSleep.enable().catch(e=>dlog('NoSleep error:', e));
     // 暗転タイマーリセット
     if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
     document.documentElement.style.filter = '';
@@ -1442,7 +1565,7 @@ function onResumeFromStart(){
       refreshSensorPermission();
     }
     if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e=>console.log('NoSleep error:', e));
+    noSleep.enable().catch(e=>dlog('NoSleep error:', e));
     if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
     document.documentElement.style.filter = '';
     startGPS();
@@ -1460,7 +1583,7 @@ function onResumeFromStart(){
 // 直前に終了した業務（履歴の最新）を取得
 function getLastEndedBusiness(){
   try {
-    const histRaw = localStorage.getItem('dakome_business_history');
+    const histRaw = localStorage.getItem('daikou_business_history');
     if(!histRaw) return null;
     const hist = JSON.parse(histRaw);
     if(!Array.isArray(hist) || hist.length === 0) return null;
@@ -1681,12 +1804,9 @@ function onIdle(){
 
   // ─── 業務管理連携（Step 5・2026/05/01追加）───
   // 実車終了を Business に通知して累計加算（実車距離・売上・営業回数）
-  // ⚠️ TODO（リリース前に必須対応）：
-  //   現在は屋内テストで距離0でも動作確認したいので tripDistanceM >= 0 で受け付ける
-  //   リリース前に tripDistanceM > 0 に変更すること（距離0は誤タップ扱い）
-  //   司さん指示 2026/05/01「今は屋内での確認のときもあるから０でもカウントして後に０距離はカウントしない」
+  // ✅ 修正済み 2026-05-05：tripDistanceM > 0（距離0は誤タップ扱い）
   try {
-    if(typeof Business !== 'undefined' && tripDistanceM >= 0 && appState === 'idle' /* fareから来た時のみ */){
+    if(typeof Business !== 'undefined' && tripDistanceM > 0 && appState === 'idle' /* fareから来た時のみ */){
       // appState は既に 'idle' に書き換わってるので、tripStartTime を使って fare から来たか判定
       // tripStartTime は fare 経由の時のみセットされる
       if(tripStartTime !== null){
@@ -1697,12 +1817,11 @@ function onIdle(){
   } catch(e){ console.error('[Business] onTripEnd error:', e); }
 
   // 旧仕様の today 表示はBusiness連携後にダッシュボード更新で上書きされる
-  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(1);
+  document.getElementById('todayDist').textContent  = (todayDist/1000).toFixed(2);
   document.getElementById('todayCount').textContent = todayCount;
   showScreen('idle');
   // 業務管理ダッシュボード即時更新（Step 5・2026/05/01追加）
   try { updateBusinessDashboard(); } catch(e){ console.error('[Dashboard] update error:', e); }
-  renderInlineHistory();
   document.getElementById('appbarTitle').textContent='空　車';
   document.getElementById('surchargeInfo').style.display='none';
   updateSurchargeBadge();
@@ -1720,6 +1839,15 @@ function onMenuClick(){
   if(appState==='driving'){
     showToast('走行中はMenuを開けません');
     return;
+  }
+  // 2026/05/04 夜・追加：設定画面遷移前に Business 状態を強制保存
+  // 司さん指摘「設定行ったら総走行距離0に戻る」
+  // 1秒throttle で save が間に合わない場合の対策
+  if(typeof Business !== 'undefined' && typeof Business.save === 'function'){
+    try {
+      Business.save();
+      if(typeof dlog === 'function') dlog('[Business] menu遷移前save');
+    } catch(e){ console.error('[Business] menu遷移前save エラー:', e); }
   }
   location.href = 'settings.html';
 }
@@ -1860,32 +1988,6 @@ function addCustomExtra(){
   closeExtraModal();
 }
 
-// ─── 本日の履歴インライン表示 ───
-function renderInlineHistory(){
-  const today = new Date();
-  const key = 'daikou_history_' + today.toDateString();
-  const rides = JSON.parse(localStorage.getItem(key) || '[]');
-  const el = document.getElementById('inlineHistory');
-  const wrap = document.getElementById('inlineHistoryWrap');
-  if(!el || !wrap) return;
-  if(rides.length === 0){
-    el.innerHTML = '';
-    wrap.style.display = 'none';
-    return;
-  }
-  wrap.style.display = 'flex'; wrap.style.flexDirection = 'column';
-  el.innerHTML = rides.map((r,i)=>`
-    <div style="background:#f5f5f5;border-radius:10px;padding:10px 14px;
-      display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-      <div>
-        <span style="font-size:11px;color:#aaa;">${i+1}回目　${r.time}</span><br>
-        <span style="font-size:13px;color:#555;">${(r.distance_m/1000).toFixed(2)}km</span>
-      </div>
-      <span style="font-size:16px;font-weight:900;color:#111;">¥${r.fare.toLocaleString()}</span>
-    </div>
-  `).join('');
-}
-
 // ─── 画面切替 ───
 // 2026/05/01 仕様：画面ごとに表示するボタンを show クラスで制御
 //   業務未開始(businessStart) : 専用画面・[業務開始] のみ
@@ -1969,6 +2071,15 @@ document.addEventListener('visibilitychange', function(){
       dlog('[復元] 裏に回った瞬間を保存');
     } catch(e){ console.error('[復元] visibilitychange保存エラー:', e); }
   }
+  // 業務状態を保存（裏回し時・タスクキル前の最後のチャンス）
+  // 2026/05/04 夜・追加：司さん指摘「タスクキルしたら総走行距離が0に戻る」
+  // 1秒throttle save（onGps内）の取りこぼし対策・確実に永続化する
+  if(document.hidden && typeof Business !== 'undefined' && typeof Business.save === 'function'){
+    try {
+      Business.save();
+      if(typeof dlog === 'function') dlog('[Business] visibilitychange save');
+    } catch(e){ console.error('[Business] visibilitychange save エラー:', e); }
+  }
 });
 
 // 起動時センサーバナー表示は「センサー未許可バナー（PWA起動時）」ロジックに統合（2026/04/30）
@@ -1976,7 +2087,6 @@ document.addEventListener('visibilitychange', function(){
 
 loadSettings();
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
-renderInlineHistory();
 
 // ─── 業務管理スーパー機能の初期化（2026/05/01追加） ───
 // 永続化された業務状態を復元 + 3時間経過チェック（自動 abandon）
@@ -1998,6 +2108,7 @@ try {
     if(bs.active){
       // 既に業務中・既存の appState ロジックに委ねる（idle / driving / fare の復元処理が後続にある）
       updateBusinessDashboard();
+      startGPS(); // タスクキル後GPS再起動（許可は切れないがwatchPositionは再起動必要）
     } else if(bs.ended && Business.canResume()){
       // 業務終了済みかつ3時間以内 → 日報画面表示
       appState = 'businessReport';
@@ -2023,6 +2134,17 @@ try {
 // （Business 未定義の場合や、active 業務中でも未許可ならバナー出す）
 try { showSensorBannerIfNeeded(); } catch(e){ console.error('[Sensor] init banner error:', e); }
 
+// ─── 起動時 GPS 自動起動（2026/05/04 夜・追加） ───
+// 司さん指示：「GPSは許可はずれんって分かったんやけんコードで常に作動するようにしろや」
+// sessionStorage='1' があれば（同session内・許可済み）起動時に即 startGPS()
+// → タスクキル後の再起動でも、設定画面遷移後でも、自動で GPS 動く
+try {
+  if(sessionStorage.getItem('sensor_permission_active') === '1'){
+    startGPS();
+    if(typeof dlog === 'function') dlog('[GPS] 起動時自動起動（許可済み）');
+  }
+} catch(e){ console.error('[GPS] 起動時自動起動エラー:', e); }
+
 // ─── PWAバナー（ホーム画面追加促進） ───
 (function(){
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -2041,6 +2163,373 @@ function closePwaBanner(){
 function showPwaInstructions(){
   alert('① 画面下の「共有」ボタン（□↑）をタップ\n② 「ホーム画面に追加」を選択\n③「追加」をタップ\n\nホーム画面のアイコンから起動するとコンパス・ジャイロが使えます！');
 }
+
+// ─── 初回DL UI 制御（Phase 0a-2） ───
+// 47県データの初回DL：fetch + Cache Storage + IndexedDB県別進捗
+// 並列4・タイムアウト30秒・失敗時3回リトライ
+// 部分DL保持・続きから再開
+const DakomeDL = (function(){
+  const DB_NAME = 'daikome';
+  const DB_VERSION = 3;  // settings.html と同じ。v2 で keyPath:'pref' で作られていたら作り直す
+  const STORE_APP = 'app_state';
+  const STORE_PREF = 'prefectures';
+  const KEY_DL_COMPLETED = 'dl_completed';
+
+  // 47都道府県（build-roads.js v5 と同じ順序）
+  const PREFECTURES = [
+    'hokkaido',
+    'aomori','iwate','miyagi','akita','yamagata','fukushima',
+    'ibaraki','tochigi','gunma','saitama','chiba','tokyo','kanagawa',
+    'niigata','toyama','ishikawa','fukui','yamanashi','nagano','gifu','shizuoka','aichi',
+    'mie','shiga','kyoto','osaka','hyogo','nara','wakayama',
+    'tottori','shimane','okayama','hiroshima','yamaguchi',
+    'tokushima','kagawa','ehime','kochi',
+    'fukuoka','saga','nagasaki','kumamoto','oita','miyazaki','kagoshima','okinawa',
+  ];
+
+  const PARALLEL = 4;
+  const TIMEOUT_MS = 30000;
+  const MAX_RETRY = 3;
+
+  // ── IndexedDB ──
+  function openDb(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        const tx = e.target.transaction;
+        if(!db.objectStoreNames.contains(STORE_APP)){
+          db.createObjectStore(STORE_APP);
+        }
+        if(!db.objectStoreNames.contains(STORE_PREF)){
+          db.createObjectStore(STORE_PREF);
+        } else {
+          // 壊れた v2 schema 救済：keyPath が設定されてたら作り直す
+          const existing = tx.objectStore(STORE_PREF);
+          if(existing.keyPath !== null){
+            db.deleteObjectStore(STORE_PREF);
+            db.createObjectStore(STORE_PREF);
+          }
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function getDlCompleted(){
+    return openDb().then(db => new Promise((resolve) => {
+      const tx = db.transaction(STORE_APP, 'readonly');
+      const req = tx.objectStore(STORE_APP).get(KEY_DL_COMPLETED);
+      req.onsuccess = () => resolve(req.result === true);
+      req.onerror = () => resolve(false);
+    })).catch(() => false);
+  }
+
+  function setDlCompleted(){
+    return openDb().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_APP, 'readwrite');
+      const req = tx.objectStore(STORE_APP).put(true, KEY_DL_COMPLETED);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    }));
+  }
+
+  // 県別の完了状態を取得（Set<pref>）
+  function getPrefStatus(){
+    return openDb().then(db => new Promise((resolve) => {
+      const tx = db.transaction(STORE_PREF, 'readonly');
+      const store = tx.objectStore(STORE_PREF);
+      const req = store.getAllKeys();
+      req.onsuccess = () => resolve(new Set(req.result || []));
+      req.onerror = () => resolve(new Set());
+    })).catch(() => new Set());
+  }
+
+  // 県の完了をマーク（out-of-line key）
+  function markPrefDone(pref, sizeBytes){
+    return openDb().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_PREF, 'readwrite');
+      const req = tx.objectStore(STORE_PREF).put({
+        downloaded: true,
+        size: sizeBytes,
+        timestamp: Date.now(),
+      }, pref);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    }));
+  }
+
+  // ── UI制御 ──
+  function showOverlay(){
+    const o = document.getElementById('dlOverlay');
+    if(o) o.classList.add('show');
+  }
+  function hideOverlay(){
+    const o = document.getElementById('dlOverlay');
+    if(o) o.classList.remove('show');
+  }
+  // 完了バナー表示 → 1.8秒後に dl_completed=true を保存しフェードアウト → メーター画面へ
+  // ユーザー操作ゼロで業務可能な状態へ（過去確定 G案：業務開始押下後はメーター直行 の真意を反映）
+  function showCompleteBanner(){
+    const loading = document.getElementById('dlStateLoading');
+    const complete = document.getElementById('dlStateComplete');
+    const overlay = document.getElementById('dlOverlay');
+    if(loading) loading.classList.remove('show');
+    if(complete) complete.classList.add('show');
+    // バナー表示の余韻 → IDB に完了マーク → 0.5秒フェード → 非表示
+    setTimeout(() => {
+      setDlCompleted().then(() => {
+        if(typeof dlog === 'function') dlog('[DL] 完了・dl_completed=true 保存');
+      }).catch(e => {
+        console.warn('[DL] dl_completed 保存失敗:', e.message);
+      });
+      if(overlay) overlay.classList.add('fade-out');
+      setTimeout(() => {
+        if(overlay){
+          overlay.classList.remove('show');
+          overlay.classList.remove('fade-out');
+        }
+      }, 500);
+    }, 1800);
+  }
+  function updateProgress(done, total){
+    const fill = document.getElementById('dlProgressFill');
+    const text = document.getElementById('dlProgressText');
+    const pct = Math.round((done / total) * 100);
+    if(fill) fill.style.width = Math.max(5, pct) + '%';
+    if(text) text.textContent = done + '/' + total + '県 完了';
+  }
+  function showRetryHint(failedCount){
+    const text = document.getElementById('dlProgressText');
+    if(text){
+      text.textContent = (PREFECTURES.length - failedCount) + '/' + PREFECTURES.length
+        + '県 完了（' + failedCount + '県失敗・自動リトライ中...）';
+    }
+  }
+
+  // ── 1県をfetch（タイムアウト付き） ──
+  function fetchPrefecture(pref){
+    const url = 'data/roads-' + pref + '.js';
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    return fetch(url, { signal: ctrl.signal, cache: 'reload' })
+      .then(res => {
+        clearTimeout(timer);
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        return res.blob().then(blob => ({ size: blob.size }));
+      })
+      .catch(e => {
+        clearTimeout(timer);
+        throw e;
+      });
+  }
+
+  // ── 1県をリトライ込みでDL（指数バックオフ 1/2/4 秒） ──
+  function downloadWithRetry(pref){
+    let attempt = 0;
+    function tryOnce(){
+      attempt++;
+      return fetchPrefecture(pref).catch(e => {
+        if(attempt < MAX_RETRY){
+          const wait = 1000 * Math.pow(2, attempt - 1);
+          return new Promise(r => setTimeout(r, wait)).then(tryOnce);
+        }
+        throw e;
+      });
+    }
+    return tryOnce();
+  }
+
+  // ── 47県を並列4で順次DL ──
+  function downloadAll(targetPrefs){
+    let done = 0;
+    let failed = [];
+    const total = targetPrefs.length;
+    updateProgress(done, PREFECTURES.length);
+
+    return new Promise((resolveAll) => {
+      let queue = targetPrefs.slice();
+
+      function worker(){
+        if(queue.length === 0) return Promise.resolve();
+        const pref = queue.shift();
+        return downloadWithRetry(pref)
+          .then(result => {
+            return markPrefDone(pref, result.size).then(() => {
+              done++;
+              updateProgress(done + (PREFECTURES.length - total), PREFECTURES.length);
+              if(typeof dlog === 'function') dlog('[DL] ' + pref + ' OK (' + result.size + 'B)');
+            });
+          })
+          .catch(e => {
+            failed.push(pref);
+            console.warn('[DL] ' + pref + ' 失敗:', e.message);
+          })
+          .then(worker);
+      }
+
+      const workers = [];
+      for(let i = 0; i < PARALLEL; i++) workers.push(worker());
+      Promise.all(workers).then(() => resolveAll({ done, failed, total }));
+    });
+  }
+
+  function startDownload(){
+    return getPrefStatus().then(doneSet => {
+      const todo = PREFECTURES.filter(p => !doneSet.has(p));
+      const alreadyDone = PREFECTURES.length - todo.length;
+
+      if(todo.length === 0){
+        if(typeof dlog === 'function') dlog('[DL] 既に47県完了済');
+        updateProgress(PREFECTURES.length, PREFECTURES.length);
+        return Promise.resolve({ done: 0, failed: [], total: 0 });
+      }
+
+      if(typeof dlog === 'function'){
+        dlog('[DL] 開始：' + todo.length + '県（既存:' + alreadyDone + '/' + PREFECTURES.length + '）');
+      }
+      updateProgress(alreadyDone, PREFECTURES.length);
+      return downloadAll(todo);
+    });
+  }
+
+  // ── 起動時実行 ──
+  function init(){
+    getDlCompleted().then(completed => {
+      if(completed){
+        // 既存ユーザー：未DL県があればバックグラウンドで差分DL
+        if(typeof dlog === 'function') dlog('[DL] 初回DL済み・差分DLチェック');
+        checkAndUpdateExisting();
+        return;
+      }
+      if(typeof dlog === 'function') dlog('[DL] 初回起動・47県DL開始');
+      showOverlay();
+      startDownload().then(result => {
+        if(result.failed.length === 0){
+          updateProgress(PREFECTURES.length, PREFECTURES.length);
+          setTimeout(showCompleteBanner, 400);
+        } else {
+          showRetryHint(result.failed.length);
+          if(typeof dlog === 'function') dlog('[DL] ' + result.failed.length + '県失敗・3秒後再試行');
+          setTimeout(() => {
+            startDownload().then(r2 => {
+              if(r2.failed.length === 0){
+                updateProgress(PREFECTURES.length, PREFECTURES.length);
+                setTimeout(showCompleteBanner, 400);
+              } else {
+                showRetryHint(r2.failed.length);
+                if(typeof dlog === 'function') dlog('[DL] 再試行も失敗・次回起動で再開');
+                // 業務継続可能にするためバナーは出す
+                setTimeout(showCompleteBanner, 1000);
+              }
+            });
+          }, 3000);
+        }
+      });
+    });
+  }
+
+  // 既存ユーザー向け差分DL（バックグラウンド・トーストのみ）
+  function checkAndUpdateExisting(){
+    getPrefStatus().then(doneSet => {
+      const todo = PREFECTURES.filter(p => !doneSet.has(p));
+      if(todo.length === 0){
+        if(typeof dlog === 'function') dlog('[DL] 差分DL：未DL県なし');
+        return;
+      }
+      if(typeof dlog === 'function') dlog('[DL] 差分DL：' + todo.length + '県を追加DL');
+      let done = 0;
+      let failed = [];
+      const queue = todo.slice();
+      const PARALLEL_BG = 2;
+
+      function worker(){
+        if(queue.length === 0) return Promise.resolve();
+        const pref = queue.shift();
+        return downloadWithRetry(pref)
+          .then(result => {
+            return markPrefDone(pref, result.size).then(() => {
+              done++;
+              if(typeof dlog === 'function') dlog('[DL] 差分:' + pref + ' OK (' + result.size + 'B)');
+            });
+          })
+          .catch(e => {
+            failed.push(pref);
+            console.warn('[DL] 差分:' + pref + ' 失敗:', e.message);
+          })
+          .then(worker);
+      }
+
+      const workers = [];
+      for(let i = 0; i < PARALLEL_BG; i++) workers.push(worker());
+      Promise.all(workers).then(() => {
+        if(done > 0){
+          if(typeof DakomeUpdateToast !== 'undefined' && DakomeUpdateToast.show){
+            DakomeUpdateToast.show();
+          }
+          if(typeof dlog === 'function'){
+            dlog('[DL] 差分DL完了：' + done + '県成功・' + failed.length + '県失敗');
+          }
+        } else {
+          if(typeof dlog === 'function') dlog('[DL] 差分DL全失敗・次回再試行');
+        }
+      });
+    });
+  }
+
+  return { init, setDlCompleted, hideOverlay, getPrefStatus, checkAndUpdateExisting };
+})();
+
+// ─── 月次更新トースト UI 制御 ───
+const DakomeUpdateToast = (function(){
+  const TOAST_DURATION_MS = 2500;
+  let hideTimer = null;
+
+  function show(){
+    const t = document.getElementById('dlUpdateToast');
+    if(!t) return;
+    if(!t.classList.contains('show')){
+      t.classList.remove('fade-out');
+      t.classList.add('show');
+    }
+    if(hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(hide, TOAST_DURATION_MS);
+  }
+
+  function hide(){
+    const t = document.getElementById('dlUpdateToast');
+    if(!t) return;
+    t.classList.add('fade-out');
+    setTimeout(() => {
+      t.classList.remove('show');
+      t.classList.remove('fade-out');
+    }, 300);
+    if(hideTimer){ clearTimeout(hideTimer); hideTimer = null; }
+  }
+
+  return { show, hide };
+})();
+
+function onDlToastTap(){
+  DakomeUpdateToast.hide();
+}
+
+// 起動時実行：standalone（PWA）起動時のみDL実行
+// 理由：iOS Safari と PWA は IndexedDB が分離されているため
+//       Safari でDLしても PWA で再DLが必要になり二度DL
+//       Safari は Cache Storage 制限のため47県データ保持不可
+(function(){
+  const isStandalone =
+    window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  if(isStandalone){
+    DakomeDL.init();
+    if(typeof dlog === 'function') dlog('[DL] standalone起動・DL判定実行');
+  } else {
+    if(typeof dlog === 'function') dlog('[DL] ブラウザ起動・DLスキップ（ホーム画面追加待ち）');
+  }
+})();
 
 // ─── チュートリアル（初回URL訪問時のみ） ───
 (function(){
@@ -2121,6 +2610,8 @@ function requestSensorPermission(){
       window._motionGranted = true;
       localStorage.setItem('compass_granted','1');
       localStorage.setItem('motion_granted','1');
+      // 2026/05/04 夜・追加：同 session 内のページ遷移で permission 維持を判定するため
+      sessionStorage.setItem('sensor_permission_active','1');
 
       // 2026/05/02：バナーから許可ボタン削除済み・即座に非表示
       const banner = document.getElementById('sensorRestoreBanner');
@@ -2129,6 +2620,13 @@ function requestSensorPermission(){
       }
       const overlay = document.getElementById('tutorialOverlay');
       if(overlay && overlay.classList.contains('show')) tutorialNext();
+
+      // GPS も同時起動（2026/05/04 夜・追加）
+      // 司さん指示「GPSは許可はずれんって分かったんやけんコードで常に作動するようにしろや」
+      try {
+        startGPS();
+        if(typeof dlog === 'function') dlog('[GPS] requestSensorPermission後に起動');
+      } catch(e){ console.error('[GPS] 起動エラー:', e); }
 
     } else {
       // 許可失敗（iOSキャンセル）：バナーをそのまま表示（手順1+手順2の案内）
@@ -2223,6 +2721,14 @@ const _isAndroid = /Android/.test(navigator.userAgent);
     //         ユーザーが「センサーを再起動する」ボタンで実 permission を再取得
     //         実際に許可済み（session 内）なら requestSensorPermission の
     //         Promise.allSettled で granted 判定 → フラグ true → バナー消える
+    // 2026/05/04 夜・追加修正：sessionStorage で同 session 内のページ遷移を判定
+    //   - sessionStorage は タスクキルで消える・ページ遷移で残る性質
+    //   - sensor_permission_active='1' があれば同 session 内 → permission 維持
+    //   - なければ新 session（タスクキル後）→ バナー表示
+    if(sessionStorage.getItem('sensor_permission_active') === '1'){
+      // 同 session 内（設定画面遷移後など）：バナー出さない
+      return;
+    }
     document.getElementById('sensorRestoreBanner').style.display = 'block';
     return;
   }
@@ -2239,13 +2745,30 @@ const _isAndroid = /Android/.test(navigator.userAgent);
 //   新コード：iOS PWA は起動時必ず未許可扱いから始めて、user gesture
 //             （バナーの「センサーを再起動する」ボタン）で実 permission を再取得する
 //             Android は自動許可なので localStorage 復元のままでOK
+// ─── 起動時の許可フラグ初期化（2026/05/04 夜・修正） ───
+// 5/3 修正：「iOS PWA は起動時必ず未許可扱い」（タスクキル後の問題対策）
+// 5/4 夜の問題：設定画面 → 戻るたびにバナー表示
+//   - settings.html → save → location.href='index.html' は同 session 内のページ遷移
+//   - DeviceMotion permission は同 session 内では維持されている
+//   - なのに無条件 false にしてバナー出てた（過剰反応）
+// 修正方針：sessionStorage を活用
+//   - sessionStorage はタスクキルで消える・ページ遷移で残る性質
+//   - 同 session 内で一度許可済みなら維持
+//   - タスクキル後の新規 session なら未許可扱い（5/3 の意図維持）
 (function(){
   if(window.navigator.standalone !== true) return;
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   if(isIOS){
-    // iOS PWA：起動時は必ず未許可扱い（実 permission は session 毎失効）
-    window._compassGranted = false;
-    window._motionGranted = false;
+    // 同 session 内なら sessionStorage に許可マークが残ってる
+    if(sessionStorage.getItem('sensor_permission_active') === '1'){
+      // ページ遷移後の復帰：permission は維持されてる
+      window._compassGranted = true;
+      window._motionGranted = true;
+    } else {
+      // 新規 session（タスクキル後・初回起動）：未許可扱い
+      window._compassGranted = false;
+      window._motionGranted = false;
+    }
     return;
   }
   // Android：自動許可なので localStorage から復元してOK

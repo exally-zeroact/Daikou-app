@@ -42,18 +42,23 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 .vehicle-select{width:100%;border:0.5px solid #ddd;border-radius:8px;padding:10px 12px;font-size:15px;background:#f9f9f9;font-family:'Noto Sans JP',sans-serif;}
 
 /* 活動エリア（Map Matching）2026/04/30追加 */
-.region-buttons{display:flex;gap:8px;padding:12px 16px 8px;flex-wrap:wrap;}
-.region-btn{flex:1;min-width:90px;padding:10px 8px;background:#f0f7ff;border:0.5px solid #007AFF;border-radius:8px;color:#007AFF;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;-webkit-tap-highlight-color:transparent;}
-.region-btn:active{background:#dbeaff;}
-.region-summary{padding:8px 16px;font-size:13px;color:#8E8E93;border-bottom:0.5px solid #f0f0f0;}
-.region-summary .count{color:#007AFF;font-weight:700;}
-.region-group{padding:0;}
-.region-group-header{padding:10px 16px 6px;font-size:12px;color:#8E8E93;font-weight:700;background:#fafafa;border-bottom:0.5px solid #f0f0f0;letter-spacing:1px;}
-.region-pref{display:flex;align-items:center;padding:11px 16px;border-bottom:0.5px solid #f5f5f5;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-.region-pref:active{background:#f5f5f5;}
-.region-pref input[type=checkbox]{margin-right:12px;width:20px;height:20px;accent-color:#007AFF;}
-.region-pref-name{flex:1;font-size:15px;color:#111;}
-.region-pref.checked .region-pref-name{font-weight:700;}
+.region-buttons,.region-btn,.region-btn:active,.region-summary,.region-summary .count,.region-group,.region-group-header,.region-pref,.region-pref:active,.region-pref input[type=checkbox],.region-pref-name,.region-pref.checked .region-pref-name{display:none !important;}
+/* ─── ダウンロード状態（Phase 0a-3 設定画面拡張・2026/05/04追加） ─────────── */
+/* 5/3 final仕様の mint カラー使用 */
+.dl-info{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #f0f0f0;}
+.dl-info-label{font-size:15px;color:#111;}
+.dl-info-value{font-size:14px;color:#52B788;font-weight:700;font-family:'DM Mono',monospace;}
+.dl-update-btn-wrap{padding:12px 16px;}
+.dl-update-btn{width:100%;padding:14px;background:#52B788;border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;letter-spacing:1px;transition:transform 0.1s,filter 0.1s;-webkit-tap-highlight-color:transparent;}
+.dl-update-btn:active{transform:scale(0.97);filter:brightness(0.9);}
+.dl-update-btn:disabled{background:#aaa;cursor:not-allowed;}
+.dl-update-btn:disabled:active{transform:none;filter:none;}
+/* 設定画面用トースト */
+.settings-toast{position:fixed;left:50%;top:max(60px,calc(env(safe-area-inset-top) + 56px));transform:translateX(-50%);background:#F0FAF4;border:1.5px solid #52B788;border-radius:10px;padding:10px 16px;font-size:13px;color:#1A4A2E;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:1050;width:85%;max-width:360px;text-align:center;font-weight:600;display:none;}
+.settings-toast.show{display:block;animation:settings-toast-in 0.3s ease-out;}
+.settings-toast.fade-out{animation:settings-toast-out 0.3s ease-in forwards;}
+@keyframes settings-toast-in{from{opacity:0;transform:translate(-50%,-10px);}to{opacity:1;transform:translate(-50%,0);}}
+@keyframes settings-toast-out{from{opacity:1;transform:translate(-50%,0);}to{opacity:0;transform:translate(-50%,-10px);}}
 </style>
 </head>
 <body ontouchstart="">
@@ -154,20 +159,20 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
   </div>
 
   <!-- 活動エリア（Map Matching・2026/04/30追加） -->
+  <!-- ─── ダウンロード状態（Phase 0a-3 設定画面拡張・2026/05/04追加） ─────────── -->
+  <!-- 5/1 大方針転換で活動エリア（地域選択UI）廃止・全国一括DL方式に変更 -->
   <div class="section">
-    <div class="section-title">活動エリア（Map Matching）</div>
-    <div class="region-buttons">
-      <button class="region-btn" onclick="regionAuto()">📍 現在地</button>
-      <button class="region-btn" onclick="regionClear()">クリア</button>
+    <div class="section-title">ダウンロード状態</div>
+    <div class="dl-info">
+      <div class="dl-info-label">最終更新</div>
+      <div class="dl-info-value" id="dlLastUpdate">読込中...</div>
     </div>
-    <div class="region-summary">
-      <span class="count" id="regionCount">0</span> 県選択中
-      <span id="regionSize" style="margin-left:6px;color:#aaa;"></span>
+    <div class="dl-info">
+      <div class="dl-info-label">ダウンロード済</div>
+      <div class="dl-info-value" id="dlPrefStatus">読込中...</div>
     </div>
-    <div id="regionList"></div>
-    <div class="row" style="border-top:0.5px solid #f0f0f0;">
-      <div class="row-label">自動判定も併用<br><span style="font-size:11px;color:#aaa;">県境を超えた時に現在地の県を自動追加</span></div>
-      <div class="toggle" id="autoRegionToggle" onclick="toggleAutoRegion()"></div>
+    <div class="dl-update-btn-wrap">
+      <button class="dl-update-btn" id="dlUpdateBtn" onclick="onCheckUpdate()">🔄 最新データを確認する</button>
     </div>
   </div>
 
@@ -181,6 +186,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 
   <button class="btn-save" onclick="saveAll()">保　存</button>
   <div class="save-msg" id="saveMsg"></div>
+
+<!-- 設定画面用トースト（Phase 0a-3） -->
+<div class="settings-toast" id="settingsToast"></div>
 
   <!-- 端末警告文 -->
   <p style="text-align:center;font-size:11px;color:#aaa;margin-top:16px;line-height:1.8;padding:0 8px;">
@@ -198,41 +206,26 @@ let surchargeEnabled = false;
 let timeEnabled = false;
 let extraItems = [];
 
-// 活動エリア（Map Matching・2026/04/30追加）
-const REGION_GROUPS = [
-  { name: '北海道', prefs: [['hokkaido','北海道']] },
-  { name: '東北', prefs: [
-    ['aomori','青森県'],['iwate','岩手県'],['miyagi','宮城県'],
-    ['akita','秋田県'],['yamagata','山形県'],['fukushima','福島県']
-  ]},
-  { name: '関東', prefs: [
-    ['ibaraki','茨城県'],['tochigi','栃木県'],['gunma','群馬県'],
-    ['saitama','埼玉県'],['chiba','千葉県'],['tokyo','東京都'],['kanagawa','神奈川県']
-  ]},
-  { name: '中部', prefs: [
-    ['niigata','新潟県'],['toyama','富山県'],['ishikawa','石川県'],
-    ['fukui','福井県'],['yamanashi','山梨県'],['nagano','長野県'],
-    ['gifu','岐阜県'],['shizuoka','静岡県'],['aichi','愛知県']
-  ]},
-  { name: '近畿', prefs: [
-    ['mie','三重県'],['shiga','滋賀県'],['kyoto','京都府'],
-    ['osaka','大阪府'],['hyogo','兵庫県'],['nara','奈良県'],['wakayama','和歌山県']
-  ]},
-  { name: '中国', prefs: [
-    ['tottori','鳥取県'],['shimane','島根県'],['okayama','岡山県'],
-    ['hiroshima','広島県'],['yamaguchi','山口県']
-  ]},
-  { name: '四国', prefs: [
-    ['tokushima','徳島県'],['kagawa','香川県'],['ehime','愛媛県'],['kochi','高知県']
-  ]},
-  { name: '九州・沖縄', prefs: [
-    ['fukuoka','福岡県'],['saga','佐賀県'],['nagasaki','長崎県'],
-    ['kumamoto','熊本県'],['oita','大分県'],['miyazaki','宮崎県'],
-    ['kagoshima','鹿児島県'],['okinawa','沖縄県']
-  ]}
+// ─── ダウンロード状態（Phase 0a-3 設定画面拡張・2026/05/04追加） ───
+// 5/1 大方針転換で活動エリア（地域選択UI）廃止・全国一括DL方式に変更
+// 旧 REGION_GROUPS / selectedRegions / autoRegionEnabled / nearestPrefecture / PREFECTURES_CENTER は削除
+// 全国47都道府県（DakomeDL モジュールと同じ順序・hokkaido から okinawa まで）
+const PREFECTURES_DL = [
+  'hokkaido',
+  'aomori','iwate','miyagi','akita','yamagata','fukushima',
+  'ibaraki','tochigi','gunma','saitama','chiba','tokyo','kanagawa',
+  'niigata','toyama','ishikawa','fukui','yamanashi','nagano','gifu','shizuoka','aichi',
+  'mie','shiga','kyoto','osaka','hyogo','nara','wakayama',
+  'tottori','shimane','okayama','hiroshima','yamaguchi',
+  'tokushima','kagawa','ehime','kochi',
+  'fukuoka','saga','nagasaki','kumamoto','oita','miyazaki','kagoshima','okinawa'
 ];
-let selectedRegions = new Set();
-let autoRegionEnabled = false;
+// IndexedDB 定数（index.html の旧 DakomeDL と同じ daikome DB）
+// v3 (2026-05-05)：v2 の prefectures ストアが keyPath: 'pref' で作られて
+// store.put(value, key) が DataError を投げる問題を修正するため migration
+const DL_DB_NAME = 'daikome';
+const DL_DB_VERSION = 3;
+const DL_STORE_PREF = 'prefectures';
 
 function load(){
   FB.loadFareConfig(cfg=>{
@@ -270,132 +263,230 @@ function load(){
   renderExtraItems();
   updatePreview();
 
-  // 活動エリア読み込み（2026/04/30追加）
-  loadRegions();
-  renderRegions();
+  // ダウンロード状態を読み込み（Phase 0a-3・2026/05/04 追加）
+  loadDlStatus();
 }
 
-// ─── 活動エリア（Map Matching）2026/04/30追加 ───
-function loadRegions(){
-  try {
-    const saved = localStorage.getItem('daikou_user_regions');
-    if(saved){
-      const arr = JSON.parse(saved);
-      if(Array.isArray(arr)) selectedRegions = new Set(arr);
-    }
-    autoRegionEnabled = localStorage.getItem('daikou_user_auto_region') === 'true';
-  } catch(e){
-    console.error('loadRegions error:', e);
-  }
-  updateAutoRegionUI();
-}
+// ─── ダウンロード状態（Phase 0a-3 設定画面拡張・2026/05/04追加） ───
+// 5/1 大方針転換で活動エリア（地域選択UI）廃止・全国一括DL方式に変更
+// 旧 loadRegions / renderRegions / toggleRegion / updateRegionSummary /
+//    regionAuto / regionClear / toggleAutoRegion / updateAutoRegionUI /
+//    nearestPrefecture / PREFECTURES_CENTER は全て削除済み
 
-function renderRegions(){
-  const el = document.getElementById('regionList');
-  let html = '';
-  for(const group of REGION_GROUPS){
-    html += '<div class="region-group">';
-    html += '<div class="region-group-header">' + group.name + '</div>';
-    for(const [key, name] of group.prefs){
-      const checked = selectedRegions.has(key);
-      html += '<label class="region-pref' + (checked ? ' checked' : '') + '" data-key="' + key + '">';
-      html += '<input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="toggleRegion(\'' + key + '\', this.checked)">';
-      html += '<span class="region-pref-name">' + name + '</span>';
-      html += '</label>';
-    }
-    html += '</div>';
-  }
-  el.innerHTML = html;
-  updateRegionSummary();
-}
-
-function toggleRegion(key, checked){
-  if(checked) selectedRegions.add(key);
-  else selectedRegions.delete(key);
-  // クラスも更新（太字表示）
-  const label = document.querySelector('.region-pref[data-key="' + key + '"]');
-  if(label) label.className = 'region-pref' + (checked ? ' checked' : '');
-  updateRegionSummary();
-}
-
-function updateRegionSummary(){
-  const count = selectedRegions.size;
-  document.getElementById('regionCount').textContent = count;
-  // データサイズ概算（県平均2MB）
-  const sizeMB = count * 2;
-  const sizeEl = document.getElementById('regionSize');
-  if(count === 0){
-    sizeEl.textContent = '';
-  } else {
-    sizeEl.textContent = '（約' + sizeMB + 'MB）';
-  }
-}
-
-function regionAuto(){
-  if(!navigator.geolocation){
-    alert('位置情報が使えません');
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos)=>{
-      const pref = nearestPrefecture(pos.coords.latitude, pos.coords.longitude);
-      if(pref){
-        selectedRegions.add(pref);
-        renderRegions();
-      } else {
-        alert('現在地の都道府県を判定できませんでした');
+// IndexedDB を開く（index.html の旧 DakomeDL と同じ daikome DB）
+// onupgradeneeded：
+//   - prefectures ストアが無ければ out-of-line key で作成
+//     （store.put({downloaded,size,timestamp}, pref) と整合）
+//   - v2 で誤って keyPath: 'pref' で作られていたら作り直す
+//     （keyPath が設定されている in-line ストアに out-of-line put すると DataError）
+//     keyPath 違反の旧ストアにレコードは保存できなかったため削除しても損失ゼロ
+function openDakomeDL_DB(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DL_DB_NAME, DL_DB_VERSION);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      const tx = e.target.transaction;
+      if(!db.objectStoreNames.contains('app_state')){
+        db.createObjectStore('app_state', { keyPath: 'key' });
       }
-    },
-    (err)=>{
-      alert('位置情報取得失敗: ' + err.message);
-    },
-    { timeout: 10000, maximumAge: 60000 }
-  );
+      if(!db.objectStoreNames.contains(DL_STORE_PREF)){
+        db.createObjectStore(DL_STORE_PREF);
+      } else {
+        // 壊れた v2 schema 救済：keyPath が設定されてたら作り直す
+        const existing = tx.objectStore(DL_STORE_PREF);
+        if(existing.keyPath !== null){
+          db.deleteObjectStore(DL_STORE_PREF);
+          db.createObjectStore(DL_STORE_PREF);
+        }
+      }
+    };
+  });
 }
 
-function regionClear(){
-  if(selectedRegions.size === 0) return;
-  if(!confirm('全ての選択を解除しますか？')) return;
-  selectedRegions.clear();
-  renderRegions();
+// prefectures ストアの全レコード取得（out-of-line key・index.html の DakomeDL に合わせる）
+// store.put({downloaded,size,timestamp}, pref) の形式で保存されている
+// 戻り値：[{pref, downloaded, size, timestamp}, ...]
+function getAllPrefectures(){
+  return openDakomeDL_DB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DL_STORE_PREF, 'readonly');
+      const store = tx.objectStore(DL_STORE_PREF);
+      const valuesReq = store.getAll();
+      const keysReq = store.getAllKeys();
+      let values = null, keys = null;
+      valuesReq.onsuccess = () => { values = valuesReq.result || []; checkDone(); };
+      keysReq.onsuccess = () => { keys = keysReq.result || []; checkDone(); };
+      valuesReq.onerror = () => { db.close(); reject(valuesReq.error); };
+      keysReq.onerror = () => { db.close(); reject(keysReq.error); };
+      function checkDone(){
+        if(values === null || keys === null) return;
+        // value と key を結合（同じインデックス）
+        const merged = values.map((v, i) => Object.assign({pref: keys[i]}, v));
+        db.close();
+        resolve(merged);
+      }
+    });
+  });
 }
 
-function toggleAutoRegion(){
-  autoRegionEnabled = !autoRegionEnabled;
-  updateAutoRegionUI();
-}
-function updateAutoRegionUI(){
-  document.getElementById('autoRegionToggle').className = 'toggle' + (autoRegionEnabled ? ' on' : '');
+// prefectures ストアに完了記録を追加（out-of-line key・index.html の DakomeDL と同じ形式）
+function markPrefDoneInStore(pref, size){
+  return openDakomeDL_DB().then(db => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(DL_STORE_PREF, 'readwrite');
+      const store = tx.objectStore(DL_STORE_PREF);
+      const req = store.put({
+        downloaded: true,
+        size: size,
+        timestamp: Date.now()
+      }, pref);
+      req.onsuccess = () => { db.close(); resolve(); };
+      req.onerror = () => { db.close(); reject(req.error); };
+    });
+  });
 }
 
-// 都道府県判定（重心からの近傍・region-loader.js と同じロジック）
-const PREFECTURES_CENTER = {
-  hokkaido:[43.3,142.8],
-  aomori:[40.8,140.7],iwate:[39.7,141.2],miyagi:[38.3,140.9],
-  akita:[39.7,140.4],yamagata:[38.2,140.0],fukushima:[37.4,140.2],
-  ibaraki:[36.4,140.4],tochigi:[36.7,139.9],gunma:[36.4,139.0],
-  saitama:[35.9,139.4],chiba:[35.5,140.2],tokyo:[35.7,139.7],kanagawa:[35.4,139.4],
-  niigata:[37.5,138.9],toyama:[36.6,137.2],ishikawa:[36.6,136.7],
-  fukui:[35.8,136.2],yamanashi:[35.6,138.6],nagano:[36.2,138.0],
-  gifu:[35.6,137.0],shizuoka:[34.9,138.4],aichi:[35.1,137.0],
-  mie:[34.6,136.5],shiga:[35.1,136.1],kyoto:[35.2,135.7],
-  osaka:[34.6,135.5],hyogo:[35.0,134.9],nara:[34.4,135.8],wakayama:[33.8,135.5],
-  tottori:[35.4,134.0],shimane:[35.0,132.8],okayama:[34.9,133.8],
-  hiroshima:[34.5,132.7],yamaguchi:[34.2,131.6],
-  tokushima:[33.9,134.4],kagawa:[34.3,134.0],ehime:[33.7,132.9],kochi:[33.5,133.5],
-  fukuoka:[33.6,130.7],saga:[33.3,130.1],nagasaki:[32.9,129.9],
-  kumamoto:[32.7,130.7],oita:[33.2,131.4],miyazaki:[32.0,131.4],
-  kagoshima:[31.4,130.6],okinawa:[26.5,128.0]
-};
-function nearestPrefecture(lat, lng){
-  let best = null, bestDist = Infinity;
-  for(const pref in PREFECTURES_CENTER){
-    const c = PREFECTURES_CENTER[pref];
-    const dLat = lat - c[0], dLng = lng - c[1];
-    const d = dLat*dLat + dLng*dLng;
-    if(d < bestDist){ bestDist = d; best = pref; }
+// DL状態を読み込んで設定画面に表示
+async function loadDlStatus(){
+  const updateEl = document.getElementById('dlLastUpdate');
+  const statusEl = document.getElementById('dlPrefStatus');
+  if(!updateEl || !statusEl) return;
+  try {
+    const all = await getAllPrefectures();
+    if(all.length === 0){
+      updateEl.textContent = '未取得';
+      statusEl.textContent = '0県';
+      return;
+    }
+    // 最新更新日（max timestamp・index.html の DakomeDL と同じ field 名）
+    const maxTs = Math.max.apply(null, all.map(r => r.timestamp || 0));
+    if(maxTs > 0){
+      const d = new Date(maxTs);
+      const dateStr = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
+      updateEl.textContent = dateStr;
+    } else {
+      updateEl.textContent = '不明';
+    }
+    // 県数とサイズ
+    const totalSize = all.reduce((sum, r) => sum + (r.size || 0), 0);
+    const sizeMB = (totalSize / (1024*1024)).toFixed(0);
+    statusEl.textContent = all.length + '県 / 約' + sizeMB + 'MB';
+  } catch(e){
+    console.error('DL状態読込失敗:', e);
+    updateEl.textContent = '取得失敗';
+    statusEl.textContent = '-';
   }
-  return best;
+}
+
+// 手動更新ボタン処理：未DL県があればDL実行
+async function onCheckUpdate(){
+  const btn = document.getElementById('dlUpdateBtn');
+  if(!btn) return;
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = '⏳ 確認中...';
+
+  try {
+    const all = await getAllPrefectures();
+    const doneSet = new Set(all.map(r => r.pref));
+    const todo = PREFECTURES_DL.filter(p => !doneSet.has(p));
+
+    if(todo.length === 0){
+      // 全完了
+      showSettingsToast('✅ すべて最新です');
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+
+    // 不足あり → 順次DL（並列2でメモリ負荷抑える）
+    btn.textContent = '⏳ ' + todo.length + '県をダウンロード中...';
+    let ok = 0;
+    let failed = 0;
+    let processed = 0;
+    const queue = todo.slice();
+    const PARALLEL = 2;
+
+    // 1県あたり最大3回リトライ（指数バックオフ 1s / 2s）
+    // 初回起動直後の IndexedDB v3 migration や SW 起動初期の race を救済
+    const MAX_RETRY = 3;
+    async function worker(){
+      while(queue.length > 0){
+        const pref = queue.shift();
+        let success = false;
+        let lastErr = null;
+        for(let attempt = 1; attempt <= MAX_RETRY && !success; attempt++){
+          try {
+            const url = '/data/roads-' + pref + '.js';
+            const res = await fetch(url, { cache: 'reload' });
+            if(!res.ok) throw new Error('HTTP ' + res.status);
+            const blob = await res.blob();
+            await markPrefDoneInStore(pref, blob.size);
+            success = true;
+          } catch(e){
+            lastErr = e;
+            if(attempt < MAX_RETRY){
+              await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+          }
+        }
+        if(success){
+          ok++;
+        } else {
+          failed++;
+          console.warn('DL失敗:', pref, lastErr);
+        }
+        processed++;
+        btn.textContent = '⏳ ' + processed + '/' + todo.length + '県処理中...';
+      }
+    }
+
+    const workers = [];
+    for(let i = 0; i < PARALLEL; i++) workers.push(worker());
+    await Promise.all(workers);
+
+    // 結果トースト
+    if(ok > 0 && failed === 0){
+      showSettingsToast('✅ 最新の地図データに更新しました');
+    } else if(ok > 0 && failed > 0){
+      showSettingsToast('⚠️ ' + ok + '県成功・' + failed + '県失敗');
+    } else {
+      showSettingsToast('❌ 更新に失敗しました');
+    }
+
+    // 表示更新
+    await loadDlStatus();
+
+  } catch(e){
+    console.error('更新チェック失敗:', e);
+    showSettingsToast('❌ エラーが発生しました');
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalText;
+}
+
+// 設定画面用トースト表示（2.5秒で自動消滅）
+let _settingsToastTimer = null;
+function showSettingsToast(msg){
+  const t = document.getElementById('settingsToast');
+  if(!t) return;
+  t.textContent = msg;
+  if(!t.classList.contains('show')){
+    t.classList.remove('fade-out');
+    t.classList.add('show');
+  }
+  if(_settingsToastTimer) clearTimeout(_settingsToastTimer);
+  _settingsToastTimer = setTimeout(() => {
+    t.classList.add('fade-out');
+    setTimeout(() => {
+      t.classList.remove('show');
+      t.classList.remove('fade-out');
+    }, 300);
+    _settingsToastTimer = null;
+  }, 2500);
 }
 
 // 料金プレビュー
@@ -489,9 +580,9 @@ function saveAll(){
     localStorage.setItem('daikou_settings', JSON.stringify(settings));
     localStorage.setItem('daikou_extras',   JSON.stringify(extraItems));
 
-    // 活動エリア保存（2026/04/30追加）
-    localStorage.setItem('daikou_user_regions', JSON.stringify(Array.from(selectedRegions)));
-    localStorage.setItem('daikou_user_auto_region', autoRegionEnabled ? 'true' : 'false');
+    // 活動エリア保存は廃止（2026/05/04・5/1大方針転換で全国一括DLに変更）
+    // 旧 daikou_user_regions / daikou_user_auto_region キーは残ってるが
+    // 読み取らないので無害（後日localStorageクリーンアップで除去予定）
 
     // Firebase保存（失敗しても続行）
     try { FB.saveFareConfig(cfg); } catch(e){ console.error('Firebase save error:', e); }
