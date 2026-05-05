@@ -55,7 +55,7 @@ const FB = (() => {
       vehicle_id: vehicleId,
       start_time: Date.now(),
       end_time: null,
-      total_distance_m: 0,
+      trip_distance_m: 0,
       total_fare_yen: 0,
       fare_config_snapshot: fareConfigSnapshot,
       status: 'driving'
@@ -67,7 +67,7 @@ const FB = (() => {
     const db = getDb(); if(!db || !vehicleId || !sessionId) return;
     db.ref('sessions_log/' + sessionId).update({
       end_time: Date.now(),
-      total_distance_m: Math.round(finalState.distance_m),
+      trip_distance_m: Math.round(finalState.distance_m),
       total_fare_yen: finalState.fare_yen,
       status: 'finished'
     });
