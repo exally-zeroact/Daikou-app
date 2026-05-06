@@ -1259,6 +1259,24 @@ function startGPS(){
   } catch(e){ console.error('GPS start error:', e); }
 }
 
+// 業務終了時の GPS 停止（D案・2026/05/06）
+//   - watchPosition を解除（バッテリー節約）
+//   - DeviceMotion / DeviceOrientation のリスナー自体は残したまま、
+//     gps.js 側の _isBizActive=false でデータ蓄積をスキップする
+//     （iOS PWA で remove → re-add すると2回目以降センサーが動かないため）
+//   - gpsStarted を false に戻すことで、resume 時の startGPS() が再実行できる
+function stopGPS(){
+  if(!gpsStarted){
+    if(typeof dlog === 'function') dlog('[GPS] stopGPS: 既に停止済（スキップ）');
+    return;
+  }
+  gpsStarted = false;
+  if(typeof dlog === 'function') dlog('[GPS] stopGPS: watchPosition 解除');
+  try {
+    GPS.stop();
+  } catch(e){ console.error('GPS stop error:', e); }
+}
+
 // ─── UIタイマー ───
 function startUiTimer(){
   uiTimer = setInterval(()=>{
@@ -1503,6 +1521,10 @@ function onBusinessEnd(){
   }
   try {
     Business.end();
+    // GPS / センサー蓄積を停止（D案・2026/05/06）
+    //   日報画面では位置・加速度・ジャイロを使わないので即停止
+    //   [続ける]で再開された時は onBusinessResume 側で startGPS() し直す
+    stopGPS();
     appState = 'businessReport';
     renderBusinessReport();
     showScreen('businessReport');
@@ -1526,6 +1548,10 @@ function onBusinessResume(){
   }
   try {
     Business.resume();
+    // GPS / センサー蓄積を再開（D案・2026/05/06）
+    //   onBusinessEnd で stopGPS() している分を起こし直す。
+    //   リスナーは生きているので _isBizActive を true に戻すだけで蓄積復活。
+    startGPS();
     appState = 'idle';
     showScreen('idle');
     document.getElementById('appbarTitle').textContent = '空　車';

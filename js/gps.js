@@ -95,6 +95,12 @@ const GPS = (() => {
   // 1度登録したリスナーは PWA 起動中ずっと生かす
   let _compassListenerAdded = false;
   let _motionListenerAdded = false;
+
+  // 業務中フラグ（D案・2026/05/06追加）
+  // リスナーは PWA 起動中ずっと生かしたまま（iOS PWA 対策・上記）、
+  // 業務終了中はリスナー内でデータ蓄積・コンパス更新をスキップする。
+  // start() で true、stop() で false。
+  let _isBizActive = false;
   function startCompass(){
     if(!window.DeviceOrientationEvent) {
       dlog('[GPS] コンパス非対応');
@@ -109,6 +115,9 @@ const GPS = (() => {
     function addCompassListener(){
       let compassCount = 0;
       window.addEventListener('deviceorientation', function(e){
+        // 業務中のみコンパス更新（D案・2026/05/06）
+        // リスナーは生かしたまま、業務終了中は値を更新しない
+        if(!_isBizActive) return;
         compassCount++;
         if(compassCount === 1){
           dlog('[GPS] DeviceOrientation発火 webkitCompassHeading=' + e.webkitCompassHeading + ' alpha=' + e.alpha);
@@ -163,6 +172,9 @@ const GPS = (() => {
     function addMotionListener(){
       let motionCount = 0;
       window.addEventListener('devicemotion', function(e){
+        // 業務中のみデータ蓄積（D案・2026/05/06）
+        // リスナーは生かしたまま、業務終了中は加速度・ジャイロを蓄積しない
+        if(!_isBizActive) return;
         const acc = e.accelerationIncludingGravity;
         const rot = e.rotationRate;
         if(!acc) return;
@@ -298,6 +310,9 @@ const GPS = (() => {
 
   function start(callback) {
     onUpdateCallback = callback;
+    // 業務中フラグON（D案・2026/05/06）
+    // 既に登録済みのリスナー内で蓄積を再開させるため、startCompass/startMotion より先に立てる
+    _isBizActive = true;
     startCompass(); // コンパス起動（許可不要）
     startMotion();  // 加速度センサー起動（案A・2026/04/29）
     if (!worker) initWorker();
@@ -317,6 +332,10 @@ const GPS = (() => {
   }
 
   function stop() {
+    // 業務中フラグOFF（D案・2026/05/06）
+    // 以降 devicemotion / deviceorientation 発火してもリスナー内で early return する。
+    // リスナー登録自体は維持（iOS PWAでremoveすると2回目以降動かないため）。
+    _isBizActive = false;
     // リトライタイマーをクリア（stop後のゾンビリトライ防止）
     if (_retryTimer) { clearTimeout(_retryTimer); _retryTimer = null; }
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
@@ -526,6 +545,7 @@ const GPS = (() => {
       gyroBufferLen: gyroBuffer.length,
       compassListenerAdded: _compassListenerAdded,
       motionListenerAdded: _motionListenerAdded,
+      isBizActive: _isBizActive,
       watchId: watchId,
       useWorker: useWorker,
     };
