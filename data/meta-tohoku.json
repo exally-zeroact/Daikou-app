@@ -1,10 +1,10 @@
 {
   "region": "tohoku",
-  "generated": "2026-05-04T11:41:17.801Z",
+  "generated": "2026-05-09T19:06:06.165Z",
   "prefectures": {
     "aomori": {
-      "numRoads": 90245,
-      "sizeBytes": 2730061,
+      "numRoads": 90251,
+      "sizeBytes": 2730247,
       "bbox": [
         4017418,
         13986171,
@@ -13,8 +13,8 @@
       ]
     },
     "iwate": {
-      "numRoads": 117814,
-      "sizeBytes": 3986446,
+      "numRoads": 117838,
+      "sizeBytes": 3986769,
       "bbox": [
         3886169,
         14079535,
@@ -23,8 +23,8 @@
       ]
     },
     "miyagi": {
-      "numRoads": 140236,
-      "sizeBytes": 4462001,
+      "numRoads": 140304,
+      "sizeBytes": 4463596,
       "bbox": [
         3747128,
         14037159,
@@ -33,8 +33,8 @@
       ]
     },
     "akita": {
-      "numRoads": 109592,
-      "sizeBytes": 3229155,
+      "numRoads": 109599,
+      "sizeBytes": 3229376,
       "bbox": [
         3890262,
         13954342,
@@ -43,8 +43,8 @@
       ]
     },
     "yamagata": {
-      "numRoads": 84563,
-      "sizeBytes": 2560772,
+      "numRoads": 84488,
+      "sizeBytes": 2558772,
       "bbox": [
         3768523,
         13954219,
@@ -53,8 +53,8 @@
       ]
     },
     "fukushima": {
-      "numRoads": 151553,
-      "sizeBytes": 4903481,
+      "numRoads": 151558,
+      "sizeBytes": 4903598,
       "bbox": [
         3678976,
         13921121,
