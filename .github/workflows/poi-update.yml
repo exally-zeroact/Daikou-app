@@ -1,0 +1,174 @@
+name: OSM POI Auto Update
+
+# ===============================================================
+# 47都道府県分の POI 自動生成（C案: Geofabrik PBF + osmium）
+#
+# 月次（毎月1日 03:00 JST）に Geofabrik から地方PBFを取得して
+# POI タグでフィルタ → 都道府県別 .poly で切出し → input/{pref}/poi.geojson
+# 続いて build-poi.js を回して data/poi-{pref}.js を生成
+#
+# osm-update.yml（道路）の後段にあたるイメージ。週次の道路更新の翌週末に走る。
+# ===============================================================
+
+on:
+  schedule:
+    - cron: '0 18 1 * *'   # 毎月1日 18:00 UTC = 翌2日 03:00 JST
+  workflow_dispatch:
+    inputs:
+      region:
+        description: '対象地方（テスト用に1地方ずつ実行可能）'
+        required: true
+        default: 'shikoku'
+        type: choice
+        options:
+          - shikoku
+          - hokkaido
+          - tohoku
+          - kanto
+          - chubu
+          - kansai
+          - chugoku
+          - kyushu
+          - all
+
+concurrency:
+  group: poi-update
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-poi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: リポジトリ取得
+        uses: actions/checkout@v5
+        with:
+          # 自動コミット時の rebase に十分な履歴が必要
+          fetch-depth: 0
+
+      - name: osmium-tool インストール
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          osmium --version
+
+      - name: Node.js セットアップ
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: 都道府県 .poly 生成（最新の meta.json から）
+        run: node scripts/build-poly-files.js
+
+      - name: 対象地方
+        id: target
+        run: |
+          INPUT="${{ github.event.inputs.region || 'all' }}"
+          echo "region=$INPUT" >> $GITHUB_OUTPUT
+          echo "対象: $INPUT"
+
+      - name: POI 一括取得 → input/{pref}/poi.geojson
+        env:
+          REGION: ${{ steps.target.outputs.region }}
+        run: |
+          set -e
+          chmod +x scripts/fetch-poi-bulk.sh
+          bash scripts/fetch-poi-bulk.sh "$REGION"
+
+      - name: build-poi.js で data/poi-{pref}.js を生成
+        run: |
+          set -e
+          for f in input/*/poi.geojson; do
+            PREF=$(basename "$(dirname "$f")")
+            echo "▶ build-poi: $PREF"
+            node scripts/build-poi.js "$f" "$PREF"
+          done
+
+      - name: 中間 POI GeoJSON を Actions Artifact に保管（デバッグ用・14日リテンション）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: input-poi-geojson-${{ github.run_id }}
+          path: input/*/poi.geojson
+          retention-days: 14
+          if-no-files-found: warn
+          compression-level: 9
+
+      - name: サイズ・件数レポート
+        run: |
+          echo "=== 生成された data/poi-{pref}.js ==="
+          ls -la data/poi-*.js 2>/dev/null | head -50 || true
+          echo
+          echo "=== 県別件数 ==="
+          for f in data/poi-*.js; do
+            PREF=$(basename "$f" .js | sed 's/^poi-//')
+            CNT=$(node -e "
+              const t = require('fs').readFileSync('$f','utf8');
+              const m = t.match(/window\.[A-Z_]+ = (\{[\s\S]*\});/);
+              if (!m) { console.log('?'); process.exit(0); }
+              const o = JSON.parse(m[1]);
+              console.log((o.pois || []).length);
+            ")
+            printf "  %-12s %s\n" "$PREF" "$CNT"
+          done
+
+      - name: 変更検出
+        id: diff
+        run: |
+          # input/ は .gitignore で除外済 → data/ のみ追跡
+          git add -A data/
+          if [ -n "$(git diff --cached --name-only)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "✅ 変更あり"
+            git diff --cached --stat | head -30
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ 変更なし（コミットスキップ）"
+          fi
+
+      - name: 自動コミット & プッシュ
+        if: steps.diff.outputs.changed == 'true'
+        # bash の -e を無効化（リトライループで git の非ゼロ終了をハンドリングするため）
+        shell: bash {0}
+        run: |
+          set +e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(poi): OSM自動更新 $(date -u +'%Y-%m') C案PBF [skip ci]"
+
+          # 並行ワークフロー（auto-version 等）と衝突したときは
+          # 「rebase ではなく cherry-pick で main 先端の上に積み直す」方式を採用。
+          # （rebase は working tree が dirty だと失敗するため・cherry-pick の方が状態管理が単純）
+          MY_COMMIT=$(git rev-parse HEAD)
+          push_ok=0
+          for i in 1 2 3 4 5; do
+            git push 2>&1 && { push_ok=1; echo "✅ push 成功 (試行 $i)"; break; }
+            echo "⚠️ push 拒否 (試行 $i) → main 先端にリベース"
+            # working tree を完全にクリーンにしてから fetch + 再構築
+            git reset --hard "$MY_COMMIT"
+            git fetch origin main
+            # main 先端を取り込み、その上に自分のコミットを cherry-pick で乗せる
+            git reset --hard origin/main
+            if git cherry-pick "$MY_COMMIT" 2>&1; then
+              MY_COMMIT=$(git rev-parse HEAD)
+              echo "  ✓ cherry-pick 成功 → $MY_COMMIT"
+            else
+              echo "  ⚠️ cherry-pick 衝突 → 中断"
+              git cherry-pick --abort 2>/dev/null || true
+              break
+            fi
+            sleep $((i * 2))
+          done
+          if [ "$push_ok" != "1" ]; then
+            echo "::error::auto-commit push が 5 回試行しても成功しませんでした"
+            exit 1
+          fi
+
+      - name: 失敗時のサマリ
+        if: failure()
+        run: |
+          echo "::error::POI更新失敗。前月の data/poi-*.js は残っているのでアプリ継続。"

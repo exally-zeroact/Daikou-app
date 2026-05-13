@@ -2,6 +2,8 @@
 
 <html lang="ja">
 <head>
+<!-- M1 (2026-05-10): app version 設定・training-collector が deviceId と共に記録 -->
+<script>window.DAIKOME_APP_VERSION = '1.0.0';</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#007AFF">
@@ -13,11 +15,39 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
 /* iOS Safari rubber-band 抑制（メーター画面の無限スクロール防止） */
+/* ★設計変更宣言 (2026-05-10 再修正): html/body の背景色変更を撤回
+   旧前修正: html/body=#007AFF → 全画面が青になってしまった
+   新: html/body=#fff (元に戻す)・白画面対策は dl-overlay の初期 display:flex で対応 */
 html{height:100%;overscroll-behavior:none;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+/* ★設計変更宣言 (2026-05-11): 走行検知バナーを UI 上は完全非表示
+   検知ロジック (S2 _checkBusinessForgot 等) は無変更のまま動作継続。
+   JS が banner.style.display='block' をセットしても CSS !important で
+   常に display:none が勝つ。ロジック側のログ・state 更新は引き続き行う。 */
+#businessForgotBanner{display:none !important;}
 body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100vh;display:flex;flex-direction:column;overflow:hidden;overscroll-behavior:none;}
 /* 画面内 scroll コンテナはバウンスを内側で完結させる（親への伝播禁止） */
-#screenIdle,#screenBusinessReport,#screenFare,.tutorial-overlay{overscroll-behavior-y:contain;}
+/* 2026-05-08: #screenDriving を追加。メーター画面で起きる Android rubber-band/iOS momentum 由来の
+   「スクロールが無限に続く」バグの根本対策（業務中の誤タップ事故防止） */
+#screenIdle,#screenBusinessReport,#screenFare,#screenDriving,.tutorial-overlay{overscroll-behavior-y:contain;}
+
+/* メーター画面（screenDriving）のスクロール制御。
+   旧コードは display:block のみで overflow 未定義 → Android Chrome で
+   .content (overflow:hidden) を貫通したスクロールが発生し止まらなくなることがあった。
+   flex:1 + overflow-y:auto + overscroll-behavior:contain で内側完結スクロールに固定。
+   touch-action:pan-y で縦スワイプ以外（ピンチ・横）を抑制し誤操作を防ぐ。 */
+#screenDriving{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-y:contain;
+  touch-action:pan-y;
+}
+/* 履歴スクロールボックス（screenIdle 内ネスト）にも同等の対策。
+   親 screenIdle が contain 済みでも、内側の history-box から overscroll が
+   親に bubble して二重スクロール状態になるのを防ぐ。 */
+.history-box{overscroll-behavior-y:contain;touch-action:pan-y;}
 
 /* AppBar */
 .appbar{background:#007AFF;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:50;}
@@ -51,7 +81,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .dl-state-complete{display:none;}
 .dl-state-complete.show{display:block;}
 /* ─── 月次更新トースト ─── */
-.dl-update-toast{position:fixed;left:50%;top:max(60px,calc(env(safe-area-inset-top) + 56px));transform:translateX(-50%);background:#F0FAF4;border:1.5px solid #52B788;border-radius:10px;padding:10px 16px;font-size:13px;color:#1A4A2E;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:1050;width:85%;max-width:360px;text-align:center;font-weight:600;display:none;cursor:pointer;}
+.dl-update-toast{position:fixed;left:50%;top:max(60px,calc(env(safe-area-inset-top) + 56px));transform:translateX(-50%);background:#E8F4FD;border:1.5px solid #007AFF;border-radius:10px;padding:10px 16px;font-size:13px;color:#1c1c1e;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:1050;width:85%;max-width:360px;text-align:center;font-weight:600;display:none;cursor:pointer;}
 .dl-update-toast.show{display:block;animation:dl-toast-in 0.3s ease-out;}
 .dl-update-toast.fade-out{animation:dl-toast-out 0.3s ease-in forwards;}
 @keyframes dl-toast-in{from{opacity:0;transform:translate(-50%,-10px);}to{opacity:1;transform:translate(-50%,0);}}
@@ -76,8 +106,52 @@ body{font-family:'Noto Sans JP',sans-serif;background:#fff;color:#111;height:100
 .pwa-banner-text strong{display:block;font-size:13px;margin-bottom:2px;}
 .pwa-banner-btn{background:#007AFF;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;}
 .pwa-banner-close{background:none;border:none;color:#007AFF;font-size:18px;cursor:pointer;padding:0 4px;}
+/* Android APK 配布バナー (Chrome WebAPK 不可端末向け) */
+.apk-banner{display:none;align-items:center;gap:10px;background:#FFF8E1;border-bottom:2px solid #F59E0B;padding:10px 14px;flex-shrink:0;}
+.apk-banner.show{display:flex;}
+.apk-banner-text{flex:1;font-size:12px;color:#7A4A00;line-height:1.5;}
+.apk-banner-text strong{display:block;font-size:13px;margin-bottom:2px;color:#7A4A00;}
+.apk-banner-btn{background:#F59E0B;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:'Noto Sans JP',sans-serif;text-decoration:none;display:inline-block;}
+.apk-banner-close{background:none;border:none;color:#7A4A00;font-size:18px;cursor:pointer;padding:0 4px;}
+/* APK インストール手順モーダル */
+.apk-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1200;align-items:center;justify-content:center;padding:20px;}
+.apk-modal.show{display:flex;}
+.apk-modal-box{background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 22px;}
+.apk-modal-title{font-size:17px;font-weight:700;color:#111;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.apk-modal-step{display:flex;gap:10px;margin-bottom:12px;font-size:13px;color:#333;line-height:1.6;}
+.apk-modal-step-num{width:22px;height:22px;border-radius:50%;background:#F59E0B;color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.apk-modal-step b{color:#111;}
+.apk-modal-warn{background:#FFF8E1;border:1px solid #F59E0B;border-radius:8px;padding:10px 12px;font-size:12px;color:#7A4A00;line-height:1.5;margin:14px 0;}
+.apk-modal-actions{display:flex;gap:8px;margin-top:16px;}
+.apk-modal-dl{flex:1;background:#F59E0B;color:#fff;border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;text-align:center;text-decoration:none;font-family:'Noto Sans JP',sans-serif;}
+.apk-modal-close{background:#eee;color:#555;border:none;border-radius:10px;padding:13px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
 .gps-acc{font-size:11px;color:#fff;opacity:0.8;}
 .surcharge-badge{background:#FF3B30;border-radius:8px;padding:4px 10px;cursor:pointer;}
+/* fareConfig v2 (2026-05-10): 動的 surcharge ボタン群 */
+.surcharge-group{display:none;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 12px;background:#E8F4FD;border-bottom:1px solid #B8D9FF;}
+.surcharge-group.show{display:flex;}
+.surcharge-btn{padding:6px 10px;border-radius:18px;border:1.5px solid;font-size:12px;font-weight:700;font-family:'DM Mono',monospace;cursor:pointer;background:#fff;color:#999;border-color:#ccc;-webkit-tap-highlight-color:transparent;}
+.surcharge-btn.on{color:#fff;}
+.surcharge-mult{margin-left:auto;font-size:13px;color:#1c1c1e;font-weight:700;font-family:'DM Mono',monospace;}
+@media (orientation: landscape){
+  .surcharge-group{flex-wrap:nowrap;overflow-x:auto;}
+  .surcharge-group::-webkit-scrollbar{display:none;}
+}
+/* ★設計変更宣言 (2026-05-10): ボトムナビ (4 タブ・iOS 標準スタイル) */
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #C6C6C8;display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:100;}
+.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;cursor:pointer;background:none;border:none;font-family:'Noto Sans JP',sans-serif;color:#8E8E93;-webkit-tap-highlight-color:transparent;}
+.bottom-nav .nav-item:active{background:#F2F2F7;}
+.bottom-nav .nav-item.active{color:#007AFF;}
+.bottom-nav .nav-icon{font-size:20px;line-height:1;margin-bottom:3px;font-weight:700;}
+.bottom-nav .nav-label{font-size:11px;font-weight:700;letter-spacing:0.5px;}
+/* 縦画面：下端固定 + body padding */
+body{padding-bottom:calc(60px + env(safe-area-inset-bottom));}
+/* 横画面：左サイドナビに切替 */
+@media (orientation: landscape) and (min-width: 700px){
+  body{padding-bottom:0;padding-left:80px;}
+  .bottom-nav{position:fixed;top:0;left:0;right:auto;bottom:0;width:80px;flex-direction:column;border-top:none;border-right:1px solid #C6C6C8;padding-bottom:0;padding-top:env(safe-area-inset-top);}
+  .bottom-nav .nav-item{flex:0 0 auto;padding:14px 4px;}
+}
 .menu-btn{
 background:rgba(255,255,255,0.2);border:none;border-radius:8px;
 padding:4px 12px;cursor:pointer;
@@ -106,32 +180,35 @@ text-decoration:none !important;
 .stat-label{font-size:11px;color:#aaa;margin-bottom:4px;}
 .stat-value{font-size:22px;font-weight:900;color:#111;}
 .stat-unit{font-size:12px;color:#aaa;}
-/* 業務管理ダッシュボード用・縦積み大カード（2026/05/01追加） */
-.stat-card-large{background:#f5f5f5;border-radius:12px;padding:16px 14px;text-align:center;margin-bottom:10px;}
-.stat-card-large .stat-label{font-size:12px;color:#aaa;margin-bottom:6px;letter-spacing:1px;display:block;}
-.stat-card-large .stat-value{font-size:32px;font-weight:900;color:#111;line-height:1;display:block;}
-.stat-card-large .stat-unit{font-size:14px;color:#aaa;margin-left:4px;}
-.stats-dashboard{display:flex;flex-direction:column;}
-/* 履歴ボタン（2026/05/01追加） */
+/* 業務管理ダッシュボード用カード（2026/05/01追加・2026-05-10 縦画面 2x2 グリッド化） */
+/* ★設計変更宣言 (2026-05-10): 縦画面で 4 カード縦積み → 2x2 grid 化
+   旧: flex-direction:column で 1 列縦積み・スクロール必須
+   新: grid 2x2 + 各カード 2 行 (label/value) で全 4 カードが 1 画面に収まる */
+.stat-card-large{background:#f5f5f5;border-radius:12px;padding:10px 10px;text-align:center;}
+.stat-card-large .stat-label{font-size:11px;color:#888;margin-bottom:4px;letter-spacing:0.5px;display:block;}
+.stat-card-large .stat-value{font-size:22px;font-weight:900;color:#111;line-height:1.05;display:block;}
+.stat-card-large .stat-unit{font-size:12px;color:#888;margin-left:3px;font-weight:600;}
+.stats-dashboard{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px;}
+/* 履歴ボタン（2026/05/01追加・2026-05-10 縦画面 1 画面化のため padding 縮小） */
 .btn-history{
-  width:100%;padding:14px;margin-top:6px;
+  width:calc(100% - 24px);padding:11px;margin:8px 12px 0;
   background:#fff;border:1.5px solid #007AFF;
   border-radius:12px;color:#007AFF;
-  font-size:15px;font-weight:700;cursor:pointer;
+  font-size:14px;font-weight:700;cursor:pointer;
   font-family:'Noto Sans JP',sans-serif;
-  -webkit-tap-highlight-color:transparent;
+  -webkit-tap-highlight-color:transparent;box-sizing:border-box;
 }
 .btn-history:active{background:#E8F4FD;transform:scale(0.98);}
 
 /* 業務管理ボタン群（2026/05/01追加） */
-/* 業務終了ボタン（待機画面の履歴の下） */
+/* 業務終了ボタン（待機画面の履歴の下・2026-05-10 padding 縮小） */
 .btn-business-end{
-  width:100%;padding:14px;margin-top:6px;
+  width:calc(100% - 24px);padding:11px;margin:6px 12px 0;
   background:#fff;border:1.5px solid #FF3B30;
   border-radius:12px;color:#FF3B30;
-  font-size:15px;font-weight:700;cursor:pointer;
+  font-size:14px;font-weight:700;cursor:pointer;
   font-family:'Noto Sans JP',sans-serif;
-  -webkit-tap-highlight-color:transparent;
+  -webkit-tap-highlight-color:transparent;box-sizing:border-box;
 }
 .btn-business-end:active{background:#FFF0F0;transform:scale(0.98);}
 
@@ -472,6 +549,25 @@ justify-content:center;
 .breakdown{max-width:50%;width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;}
 #screenFare button{margin-top:10px;display:block;margin-left:auto;margin-right:auto;}
 }
+
+/* ★設計変更宣言 (2026-05-11): Eruda DevTools floating ボタン保険的非表示
+   debug-config.js で load 自体スキップしているが、過去 cache から残った場合も非表示にする
+   ?debug=eruda 付き時のみ debug-config.js が load する */
+.eruda-dev-tools,[class*="eruda-entry"],[class*="eruda-container"]{display:none !important;}
+
+/* ★設計変更宣言 (2026-05-11): データ更新バナー (businessStart 7 日経過時のみ flow 表示) */
+.data-update-banner-wrap{flex-shrink:0;max-height:0;overflow:hidden;transition:max-height 0.35s ease-out;}
+.data-update-banner-wrap.show{max-height:120px;}
+.data-update-banner{margin:8px 12px;background:#E8F4FD;border:1px solid #B8D9FF;border-left:4px solid #007AFF;border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.5;color:#1c1c1e;box-shadow:0 1px 4px rgba(0,122,255,0.08);}
+.data-update-banner .icon{font-size:18px;flex-shrink:0;color:#007AFF;line-height:1;}
+.data-update-banner .text{flex:1;font-weight:500;color:#1c1c1e;}
+.data-update-banner .text strong{color:#0056B3;font-weight:700;}
+.data-update-banner .close-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:#0056B3;font-size:18px;font-weight:700;cursor:pointer;border-radius:50%;flex-shrink:0;}
+.data-update-banner .close-btn:active{background:rgba(0,122,255,0.08);}
+.data-update-banner.downloading .icon{animation:spin 1.2s linear infinite;display:inline-block;}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+.data-update-banner.downloading .close-btn{display:none;}
+.data-update-banner .progress-text{font-family:'DM Mono',monospace;font-size:11px;color:#0056B3;font-weight:600;}
 </style>
 
 <!-- ─── SEO・ブランディング（2026/04/26実装・復元）─── -->
@@ -497,6 +593,247 @@ justify-content:center;
 </head>
 <body ontouchstart="" onclick="wakeScreen()">
 
+<!-- S1 (2026-05-10): 複数タブ guard・閲覧専用モードバナー -->
+<!-- 他タブが既に開いている時のみ表示・このタブは GPS/距離計算/課金を停止 -->
+<div id="multiTabGuardBanner" style="display:none;position:fixed;left:0;right:0;top:0;z-index:10000;background:#FF3B30;color:#fff;padding:14px 20px;padding-top:max(14px,env(safe-area-inset-top));text-align:center;font-family:'Noto Sans JP',sans-serif;font-size:14px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+  ⚠️ 別のタブで業務中です。このタブでは操作できません。
+</div>
+
+<!-- S2 (2026-05-10): 業務開始忘れ警告バナー -->
+<!-- GPS 速度 5km/h+ × 10 秒+ × accuracy<=50m × 業務外 で表示 -->
+<div id="businessForgotBanner" style="display:none;position:fixed;left:12px;right:12px;top:max(12px,env(safe-area-inset-top));z-index:9998;background:#FF9500;color:#fff;padding:14px 16px;border-radius:10px;font-family:'Noto Sans JP',sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+  <div style="font-size:14px;font-weight:700;margin-bottom:8px;">🚗 走行を検知しました</div>
+  <div style="font-size:12px;line-height:1.5;margin-bottom:10px;">業務開始していますか?</div>
+  <div style="display:flex;gap:8px;">
+    <button onclick="dismissBusinessForgotBanner()" style="flex:1;padding:9px;background:transparent;border:1px solid #fff;border-radius:8px;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;">閉じる</button>
+    <button onclick="startBusinessFromForgotBanner()" style="flex:2;padding:9px;background:#fff;border:none;border-radius:8px;color:#FF9500;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">業務開始する</button>
+  </div>
+</div>
+
+<!-- S3 (2026-05-10): 1 trip 上限警告バナー (500km 超) -->
+<div id="tripLimitWarningBanner" style="display:none;position:fixed;left:12px;right:12px;top:max(64px,calc(env(safe-area-inset-top) + 56px));z-index:9997;background:#FF3B30;color:#fff;padding:12px 16px;border-radius:10px;font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,0.3);text-align:center;">
+  ⚠️ 走行距離が異常です。確認してください。
+</div>
+
+<script>
+// ━━ S1 (2026-05-10): 複数タブ guard ━━
+//   BroadcastChannel で他タブを検知・閲覧専用モード切替
+//   先発タブは継続稼働・後発タブが閲覧専用化
+//   絶対ルール「過剰課金 = クレーム」防止: 同 trip の二重課金を防ぐ
+(function(){
+  if(typeof BroadcastChannel === 'undefined') return; // 古いブラウザは guard なし
+  const TAB_ID = (function(){
+    if(typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'tab-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  })();
+  const ch = new BroadcastChannel('daikome-tab-guard');
+  let _readOnly = false;
+
+  function _enterReadOnly(){
+    if(_readOnly) return;
+    _readOnly = true;
+    window._tabReadOnly = true;
+    const banner = document.getElementById('multiTabGuardBanner');
+    if(banner) banner.style.display = 'block';
+    // 業務開始ボタンを無効化
+    const startBtn = document.querySelector('.btn-business-start');
+    if(startBtn){ startBtn.disabled = true; startBtn.style.opacity = '0.4'; startBtn.style.pointerEvents = 'none'; }
+    const resumeBtn = document.getElementById('btnResumeFromStart');
+    if(resumeBtn){ resumeBtn.disabled = true; resumeBtn.style.opacity = '0.4'; resumeBtn.style.pointerEvents = 'none'; }
+    if(typeof dlog === 'function') dlog('[TabGuard] 閲覧専用モード起動');
+  }
+  function _exitReadOnly(){
+    if(!_readOnly) return;
+    _readOnly = false;
+    window._tabReadOnly = false;
+    const banner = document.getElementById('multiTabGuardBanner');
+    if(banner) banner.style.display = 'none';
+    const startBtn = document.querySelector('.btn-business-start');
+    if(startBtn){ startBtn.disabled = false; startBtn.style.opacity = ''; startBtn.style.pointerEvents = ''; }
+    const resumeBtn = document.getElementById('btnResumeFromStart');
+    if(resumeBtn){ resumeBtn.disabled = false; resumeBtn.style.opacity = ''; resumeBtn.style.pointerEvents = ''; }
+    if(typeof dlog === 'function') dlog('[TabGuard] 閲覧専用モード解除');
+  }
+
+  ch.addEventListener('message', function(e){
+    const m = e && e.data;
+    if(!m || !m.type) return;
+    if(m.tabId === TAB_ID) return;       // 自タブの message は無視
+    if(m.type === 'tab-open'){
+      // 他タブが起動した・自タブが先発なら ack を返して相手を read-only に
+      // 自タブが既に read-only なら何もしない (= 先発がさらに優位)
+      if(!_readOnly){
+        ch.postMessage({ type: 'tab-ack', tabId: TAB_ID });
+      }
+    } else if(m.type === 'tab-ack'){
+      // 自タブの tab-open に他タブが ack を返した = 先発がいる → 閲覧専用化
+      _enterReadOnly();
+    } else if(m.type === 'tab-close'){
+      // 他タブが閉じた・read-only なら解除
+      if(_readOnly) _exitReadOnly();
+    }
+  });
+
+  // 起動時に他タブの存在をチェック
+  ch.postMessage({ type: 'tab-open', tabId: TAB_ID });
+
+  // タブ閉じる時に通知
+  window.addEventListener('beforeunload', function(){
+    try { ch.postMessage({ type: 'tab-close', tabId: TAB_ID }); } catch(_){}
+  });
+
+  window._daikomeTabId = TAB_ID;
+})();
+
+// ━━ S2 (2026-05-10): 業務開始忘れ警告 ━━
+//   GPS 5km/h+ が 10 秒以上継続 + 業務外 + accuracy<=50m で警告表示
+//   1 回閉じたら 5 分間抑制
+let _gpsHighSpeedStart = null;
+let _businessForgotSnoozeUntil = 0;
+let _businessForgotShown = false;
+
+function _checkBusinessForgot(gpsResult){
+  if(window._tabReadOnly) return;       // S1 連携: 閲覧専用は警告も表示しない
+  if(!gpsResult || gpsResult.accuracy == null) return;
+  if(gpsResult.accuracy > 50) return;
+  if(typeof Meter === 'undefined') return;
+  const state = Meter.getState();
+  if(state.running) {
+    // 業務中 → 警告非表示・state リセット
+    if(_businessForgotShown){
+      const banner = document.getElementById('businessForgotBanner');
+      if(banner) banner.style.display = 'none';
+      _businessForgotShown = false;
+    }
+    _gpsHighSpeedStart = null;
+    return;
+  }
+  if(Date.now() < _businessForgotSnoozeUntil) return;
+  if(_businessForgotShown) return;       // 既に表示中
+  const speedKmh = gpsResult.speedKmh || 0;
+  if(speedKmh < 5){
+    _gpsHighSpeedStart = null;
+    return;
+  }
+  // 5km/h 以上
+  if(_gpsHighSpeedStart === null){
+    _gpsHighSpeedStart = Date.now();
+  } else if(Date.now() - _gpsHighSpeedStart >= 10000){
+    // 10 秒継続 → 警告表示
+    const banner = document.getElementById('businessForgotBanner');
+    if(banner) banner.style.display = 'block';
+    _businessForgotShown = true;
+    if(typeof dlog === 'function') dlog('[BusinessForgot] 警告表示 (走行 10 秒継続)');
+  }
+}
+
+function dismissBusinessForgotBanner(){
+  const banner = document.getElementById('businessForgotBanner');
+  if(banner) banner.style.display = 'none';
+  _businessForgotShown = false;
+  _gpsHighSpeedStart = null;
+  _businessForgotSnoozeUntil = Date.now() + 5 * 60 * 1000;   // 5 分抑制
+  if(typeof dlog === 'function') dlog('[BusinessForgot] 5 分間抑制');
+}
+
+function startBusinessFromForgotBanner(){
+  const banner = document.getElementById('businessForgotBanner');
+  if(banner) banner.style.display = 'none';
+  _businessForgotShown = false;
+  _gpsHighSpeedStart = null;
+  if(typeof onBusinessStart === 'function') onBusinessStart();
+}
+
+// ━━ S3 (2026-05-10): 1 trip 上限警告 (500km 超) ━━
+let _tripLimitWarningShown = false;
+function _checkTripLimit(){
+  if(typeof Meter === 'undefined') return;
+  const state = Meter.getState();
+  if(!state.running) {
+    if(_tripLimitWarningShown){
+      const b = document.getElementById('tripLimitWarningBanner');
+      if(b) b.style.display = 'none';
+      _tripLimitWarningShown = false;
+    }
+    return;
+  }
+  if(state.distance_m > 500000 && !_tripLimitWarningShown){
+    const b = document.getElementById('tripLimitWarningBanner');
+    if(b) b.style.display = 'block';
+    _tripLimitWarningShown = true;
+    if(typeof dlog === 'function') dlog('[TripLimit] 500km 超過警告表示');
+  }
+}
+// 30 秒ごとにチェック
+setInterval(_checkTripLimit, 30000);
+</script>
+
+<!-- Phase 3 (2026-05-10): 初回起動時バナー (データ収集についての注意) -->
+<!-- 表示条件: localStorage 'daikome_training_consent' が null (= 初回 or 未consent) -->
+<!-- OK / 閉じる いずれもデフォルト ON で開始・閉じるは「dismissed」記録のみ -->
+<div id="trainingConsentBanner" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#1c1c1e;color:#fff;padding:16px 20px;padding-bottom:max(16px,env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(0,0,0,0.3);font-family:'Noto Sans JP',sans-serif;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px;">
+    <div style="font-size:14px;font-weight:700;">📊 データ収集について</div>
+    <div onclick="dismissTrainingBanner()" style="cursor:pointer;font-size:18px;line-height:1;color:#B8D9FF;padding:0 4px;" aria-label="閉じる">✕</div>
+  </div>
+  <div style="font-size:12px;line-height:1.6;color:#B8D9FF;margin-bottom:12px;">
+    Map Matching の精度向上のため、加速度センサー値と速度を匿名で送信します。<br>
+    <strong style="color:#fff;">送信される</strong>: 加速度・速度・匿名識別子<br>
+    <strong style="color:#fff;">送信されない</strong>: 位置情報・出発地/目的地・お名前・連絡先<br>
+    設定画面でいつでも無効化できます。
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button onclick="location.href='settings.html#training'" style="flex:1;padding:10px;background:transparent;border:1px solid #007AFF;border-radius:8px;color:#B8D9FF;font-size:13px;cursor:pointer;font-family:inherit;">詳しく見る</button>
+    <button onclick="agreeTrainingBanner()" style="flex:1;padding:10px;background:#007AFF;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">OK</button>
+  </div>
+</div>
+<script>
+// Phase 3 バナー表示制御
+(function(){
+  function _hasConsent(){
+    try { return localStorage.getItem('daikome_training_consent') !== null; }
+    catch(_) { return true; }
+  }
+  function _showBanner(){
+    const el = document.getElementById('trainingConsentBanner');
+    if(el) el.style.display = 'block';
+  }
+  function _hideBanner(){
+    const el = document.getElementById('trainingConsentBanner');
+    if(el) el.style.display = 'none';
+  }
+  function _saveConsent(value){
+    try {
+      localStorage.setItem('daikome_training_consent', value);
+      // OK/閉じる いずれも default ON
+      localStorage.setItem('daikome_training_enabled', 'true');
+    } catch(_){}
+    if(typeof TrainingCollector !== 'undefined' && TrainingCollector.refreshEnabledFromStorage){
+      try { TrainingCollector.refreshEnabledFromStorage(); } catch(_){}
+    }
+    if(typeof TrainingUploader !== 'undefined' && TrainingUploader.refreshEnabledFromStorage){
+      try { TrainingUploader.refreshEnabledFromStorage(); } catch(_){}
+    }
+  }
+  window.agreeTrainingBanner = function(){
+    _saveConsent('agreed');
+    _hideBanner();
+  };
+  window.dismissTrainingBanner = function(){
+    _saveConsent('dismissed');
+    _hideBanner();
+  };
+  // 初回起動時のみ表示
+  if(!_hasConsent()){
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', _showBanner);
+    } else {
+      _showBanner();
+    }
+  }
+})();
+</script>
+
 <!-- AppBar -->
 
 <div class="appbar" id="appbar">
@@ -513,10 +850,34 @@ justify-content:center;
   </div>
 </div>
 
+<!-- fareConfig v2 (2026-05-10): 手動 surcharge ボタン群 + 倍率表示 -->
+<!-- ★設計変更宣言 (2026-05-10): 「割増」と「追加料金」を視覚的に分離 -->
+<div class="surcharge-group" id="surchargeGroup">
+  <span class="surcharge-section-label" style="font-size:11px;font-weight:700;color:#8E8E93;letter-spacing:1px;margin-right:8px;align-self:center;">割増</span>
+  <span class="surcharge-mult" id="surchargeMult">×1.00</span>
+</div>
+
+<!-- ★設計変更宣言 (2026-05-11): データ更新バナー (businessStart 画面で 7 日経過時のみ表示) -->
+<!-- position:fixed ではなく flow 要素・appbar 直下に flex item として配置・コンテンツが自然に下ずれ -->
+<div class="data-update-banner-wrap" id="dataUpdateBannerWrap">
+  <div class="data-update-banner" id="dataUpdateBanner" role="alert">
+    <span class="icon">📡</span>
+    <div class="text">道路データが古くなっています。<strong>WiFiに繋いで</strong>更新してください。</div>
+    <button class="close-btn" onclick="hideDataUpdateBanner()" aria-label="閉じる">×</button>
+  </div>
+</div>
+
 <!-- センサー再起動バナー（全画面共通・appbar直下・2026/05/03 統一） -->
 <!-- iOS PWA で DeviceMotion/Orientation が session 毎に失効するため -->
 <!-- ボタン押下で user gesture 内で同期発火：許可ダイアログ → リスナー再登録 → NoSleep起動 -->
-<div id="sensorRestoreBanner" style="display:none;background:#FF9800;border-radius:12px;padding:14px;margin:8px 12px;text-align:center;">
+<!-- ★設計変更宣言 (2026-05-10 再修正): position:fixed + 高 z-index に変更
+     旧: 通常フロー (margin:8px 12px) のみ → body の flex layout で content 内
+         に紛れて視認できない位置に描画される問題
+     新: 他のバナー (multiTabGuard / businessForgot / tripLimit / trainingConsent)
+         と同じ position:fixed + z-index 9996 で必ず viewport 上に overlay
+         (z-index は trainingConsent 9999 / tripLimit 9997 より低く設定して優先順位を担保)
+     位置: appbar 下 (top: max(60px, safe-area-inset-top + 56px)) -->
+<div id="sensorRestoreBanner" style="display:none;position:fixed;left:8px;right:8px;top:max(60px,calc(env(safe-area-inset-top) + 56px));z-index:9996;background:#FF9800;border-radius:12px;padding:14px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
   <div style="color:#fff;font-size:14px;line-height:1.5;margin-bottom:10px;">
     <strong style="font-size:15px;">📡 センサー再起動が必要です</strong><br>
     <span style="font-size:12px;">下のボタンを押すと許可ダイアログが出ます</span>
@@ -530,7 +891,12 @@ justify-content:center;
 <div class="dl-update-toast" id="dlUpdateToast" onclick="onDlToastTap()">✅ 最新の地図データに更新しました</div>
 
 <!-- 初回DL UI（IndexedDBの dl_completed=true で2回目以降は表示しない） -->
-<div class="dl-overlay" id="dlOverlay">
+<!-- ★設計変更宣言 (2026-05-10): inline style="display:none" を追加
+     CSS .dl-overlay { display:none } と二重で hide。FOUC や stale cache で
+     .show class が残留しても inline style がより優先 (同 specificity だが
+     後勝ち) で hide 状態を維持。showOverlay/hideOverlay は inline style を
+     明示的に書き換える方式に変更。 -->
+<div class="dl-overlay" id="dlOverlay" style="display:none;">
   <!-- 状態1：DL中 -->
   <div class="dl-state-loading show" id="dlStateLoading">
     <div style="text-align:center;width:100%;display:flex;flex-direction:column;align-items:center;">
@@ -626,13 +992,42 @@ justify-content:center;
   <button class="pwa-banner-close" onclick="closePwaBanner()">✕</button>
 </div>
 
+<!-- Android APK 配布バナー (WebAPK 生成不可端末向け・JS で Android Chrome のみ表示) -->
+<div class="apk-banner" id="apkBanner">
+  <div class="apk-banner-text">
+    <strong>📦 Androidアプリ版があります</strong>
+    APK ダウンロード → スタンドアロン起動・センサー利用可
+  </div>
+  <button class="apk-banner-btn" onclick="showApkInstall()">インストール</button>
+  <button class="apk-banner-close" onclick="closeApkBanner()">✕</button>
+</div>
+
+<!-- APK インストール手順モーダル -->
+<div class="apk-modal" id="apkModal" onclick="if(event.target.id==='apkModal')closeApkModal()">
+  <div class="apk-modal-box">
+    <div class="apk-modal-title">📦 Androidアプリ (APK) をインストール</div>
+    <div class="apk-modal-step"><div class="apk-modal-step-num">1</div><div>下の <b>「APK をダウンロード」</b> ボタンを押すと <code>daikome.apk</code> が端末に保存されます (約 数 MB)。</div></div>
+    <div class="apk-modal-step"><div class="apk-modal-step-num">2</div><div>ダウンロード完了通知をタップ → 「<b>このソースのアプリを許可</b>」のダイアログが出るので <b>許可</b> をタップ (端末によっては <b>設定 → アプリ → 提供元不明のアプリ → Chrome を許可</b>)。</div></div>
+    <div class="apk-modal-step"><div class="apk-modal-step-num">3</div><div>続けて <b>「インストール」</b> をタップ。完了後 <b>「開く」</b> でアプリ起動。</div></div>
+    <div class="apk-modal-step"><div class="apk-modal-step-num">4</div><div>初回起動時に <b>位置情報・センサー</b> の許可ダイアログが出るので全て許可。</div></div>
+    <div class="apk-modal-warn">
+      ⚠️ 「Play プロテクトでブロックされました」と表示された場合は <b>詳細 → このまま使用</b> または <b>気にせずインストール</b> をタップ。<br>
+      Google Play 公式配布ではないため警告が出ますが, 配布元は司さん本人なので安全です。
+    </div>
+    <div class="apk-modal-actions">
+      <a class="apk-modal-dl" href="/download/daikome.apk" download>APK をダウンロード</a>
+      <button class="apk-modal-close" onclick="closeApkModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- コンテンツ -->
 
 <div class="content" id="content">
 
   <!-- IDLE -->
 
-  <div id="screenIdle" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div id="screenIdle" style="display:none;flex-direction:column;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;">
     <!-- 日時（1行表示・絵文字なし・2026/05/01仕様） -->
     <div class="idle-datetime-line dateTimeLine" id="idleDateTime">2026年5月1日（金） 15:43</div>
     <!-- 業務管理ダッシュボード（5項目縦積み・絵文字なし） -->
@@ -663,11 +1058,21 @@ justify-content:center;
   <!-- BUSINESS START（業務未開始時の専用画面・2026/05/01追加） -->
 
   <!-- 2026/05/01：画面のどこタップしても許可ダイアログ発火（未許可時）・onClick で blockIfSensorNotGranted を呼ぶ -->
-  <div id="screenBusinessStart" onclick="blockIfSensorNotGranted()" style="display:none;flex-direction:column;flex:1;min-height:0;justify-content:center;align-items:center;gap:24px;">
+  <div id="screenBusinessStart" onclick="blockIfSensorNotGranted()" style="display:flex;flex-direction:column;flex:1;min-height:0;justify-content:center;align-items:center;gap:24px;">
     <!-- 日時（全画面共通） -->
     <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+    <!-- ★設計変更宣言 (2026-05-10): センサー許可明示ボタン -->
+    <!-- iOS PWA 未許可時のみ表示・押下で DeviceMotionEvent.requestPermission() を user gesture 経由で発火 -->
+    <button id="btnSensorPermission" onclick="event.stopPropagation();requestSensorPermission();" style="display:none;background:#007AFF;color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;">センサーを許可する</button>
+    <div id="sensorPermissionNote" style="display:none;font-size:12px;color:#8E8E93;text-align:center;padding:0 24px;line-height:1.5;">業務開始前に位置・方位・加速度センサーの許可が必要です</div>
     <!-- 業務開始ボタン（中央配置・大ボタン） -->
     <button class="btn-business-start" onclick="onBusinessStart()">業務開始</button>
+    <!-- P6 (2026-05-09): MM 準備状況インジケータ -->
+    <!-- ★設計変更宣言 (2026-05-10): 初期 display:none・JS が真の異常時のみ block にする -->
+    <div id="mmReadyIndicator"
+         style="display:none;text-align:center;font-size:13px;font-weight:700;letter-spacing:1px;
+                padding:8px 16px;margin:6px 24px 0;border-radius:8px;
+                background:#FDECEA;color:#C0392B;line-height:1.4;"></div>
     <!-- 続きから再開ボタン（直前の業務が3時間以内に終了してる場合のみ表示） -->
     <button class="btn-business-resume-start" id="btnResumeFromStart" onclick="onResumeFromStart()" style="display:none;">続きから再開</button>
     <div class="resume-note" id="resumeNote" style="display:none;">直前の業務（<span id="resumeNoteTime">--:--</span>終了）から3時間以内なら再開できます</div>
@@ -706,6 +1111,26 @@ justify-content:center;
         <div class="meter-label">走行距離</div>
         <div class="meter-value"><span id="driveDist">0.00</span><span class="meter-unit">km</span></div>
       </div>
+      <!-- 距離ソース表示 (2026-05-09・M3/M4) -->
+      <!-- ★設計変更宣言 (2026-05-10): 初期 display:none・JS が真の異常時のみ block -->
+      <div id="driveSource" class="drive-source"
+           style="display:none;text-align:center;font-size:13px;font-weight:700;letter-spacing:1px;
+                  padding:8px 16px;margin:6px 12px 0;border-radius:8px;
+                  background:#FDECEA;color:#C0392B;line-height:1.4;"></div>
+      <!-- P13 (2026-05-09): 停車 5 分以上で実車終了候補バナー -->
+      <div id="stopCandidateBanner" style="display:none;text-align:center;font-size:13px;
+           font-weight:700;padding:10px 14px;margin:6px 12px 0;border-radius:8px;
+           background:#FFF6E6;color:#7A5A12;border:1px solid #E0AC2F;line-height:1.5;">
+        ⏸ 停車 <span id="stopCandidateMin">5</span> 分以上 — 実車終了ですか?
+      </div>
+      <!-- P11/P12 (2026-05-09): 道路属性警告バナー (schoolZone/冠水/事前/予防) -->
+      <div id="roadAttrBanner" style="display:none;text-align:center;font-size:13px;
+           font-weight:700;padding:10px 14px;margin:6px 12px 0;border-radius:8px;
+           background:#FFF6E6;color:#7A5A12;border:1px solid #E0AC2F;line-height:1.5;">
+        <span id="roadAttrLabel">⚠ 警告</span>
+      </div>
+      <!-- ★設計変更宣言 (2026-05-10): 「追加料金」セクションラベル + 押下回数表示 -->
+      <div id="extrasSectionLabel" style="display:none;font-size:11px;font-weight:700;color:#8E8E93;letter-spacing:1px;margin:8px 12px 4px;">追加料金</div>
       <div class="extras-list" id="extrasList"></div>
     </div>
   </div>
@@ -823,6 +1248,9 @@ class NoSleep {
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
+<!-- Phase 2.B (2026-05-10): Firebase Storage SDK・訓練データ upload に必要 -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+
 <script src="js/debug-config.js"></script>
 
 <!-- ★debug-config.js：環境変数制御・本番自動OFF（2026/04/26追加） -->
@@ -853,10 +1281,6 @@ class NoSleep {
 })();
 </script>
 
-<script src="js/compat.js"></script>
-
-<!-- ★compat.js：端末互換性判定レイヤー・古いスマホ対応基盤（2026/04/29追加） -->
-
 <script src="js/firebase-config.js"></script>
 
 <script src="js/roads-decoder.js"></script>
@@ -865,7 +1289,16 @@ class NoSleep {
 
 <script src="js/region-loader.js"></script>
 
+<!-- ★road-graph-tile-loader.js: Phase B タイル road-graph 遅延ロード（main 側）-->
+<script src="js/road-graph-tile-loader.js"></script>
+
+<!-- ★dem-loader.js: MM-5 DEM データ遅延ロード -->
+<script src="js/dem-loader.js"></script>
+
 <script src="js/gps.js"></script>
+
+<!-- Phase 2.A (2026-05-10): 訓練データ収集 (将来 AI 推論用蓄積)・gps.js の後に load -->
+<script src="js/training-collector.js"></script>
 
 <!-- OSRM削除済（2026/04/26）：公開API依存ゼロ化・スケール無制限化のため -->
 
@@ -873,7 +1306,11 @@ class NoSleep {
 
 <script src="js/firebase.js"></script>
 
-<script src="js/test-mode.js"></script>
+<!-- Phase 2.B (2026-05-10): 訓練データ Firebase Storage 送信 framework・firebase.js の後に load -->
+<script src="js/training-uploader.js"></script>
+
+<!-- test-mode.js は H-3 対応で削除済 -->
+
 
 <!-- ★テスト用・リリース時削除（2026/04/26追加）-->
 
@@ -882,7 +1319,41 @@ class NoSleep {
 <!-- ★business.js：業務管理スーパー機能（2026/05/01追加）-->
 
 <script>
-// ─── 状態 ───
+// ★設計変更宣言 (2026-05-10): TDZ 撲滅のため全 let/const を script 先頭に集約
+//   旧: line 1906/2254/3843/4214 等に分散・script 中盤の throw で halt すると
+//       後続宣言が TDZ → startGPS 内 appState 参照, onBusinessStart 内 noSleep
+//       参照, MM guard setInterval 内 _forwardedPrefs 参照で全て ReferenceError
+//   新: script 先頭で初期化・script 中盤に halt があっても TDZ は発生しない
+//
+// デバイス判定
+const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const _isAndroid = /Android/.test(navigator.userAgent);
+
+// ─── MM-1 + H-1 修正 (2026-05-08): Map Matching Worker B 起動 + 自動再起動 ───
+// js/map-matcher.js を Worker として起動し Meter.setMapMatcher で注入。
+// H-1: Worker B が死んだら 5 秒後に自動再生成し state を再 forward する。
+//      再起動中も meter.js inline fallback で state.distance_m は継続。
+let _mmWorker = null;
+let _mmWorkerRestartTimer = null;
+const _MM_WORKER_RESTART_DELAY_MS = 5000;
+
+// MM-3 health check 状態 (旧 line 1485-1487)
+let _mmHealthPongAt = 0;
+let _mmHealthPingAt = 0;
+const _MM_HEALTH_TIMEOUT_MS = 3000;
+
+// MM forward 状態・guard setInterval / Worker 通信が参照 (旧 line 1740-1753)
+const _crossUserSubscribedPrefs = new Set();
+const _forwardedPrefs = new Set();
+const _attrsLoadedPrefs = new Set();
+const _attrsSchoolZoneByPref = new Map();
+const _attrsRoadFloodByPref = new Map();
+const _attrsRoadJizenByPref = new Map();
+const _attrsRoadYoboByPref = new Map();
+const _attrsEmergencyByPref = new Map();
+let _autoRoadLoadInflight = null;
+
+// アプリ全体状態 (旧 line 1906-1918・startGPS / onBusinessStart 等が参照)
 let appState = 'idle'; // idle / driving / fare
 let histSaved = false; // 確定時の履歴保存済みフラグ
 let noSleep = null;       // NoSleepインスタンス
@@ -896,6 +1367,749 @@ let todayDist = 0;
 let todayCount = 0;
 let uiTimer = null;
 let vehicleId = 'v1';
+
+// GPS 状態 (旧 line 2254-2257)
+let gpsStarted = false;
+let _lastGpsLogAt = 0;
+let _gpsCallbackCount = 0;
+
+// チュートリアル状態 (旧 line 3843)
+let _tutorialPage = 0;
+
+// 停車検出 (旧 line 4214-4215)
+let _stopStartedAt = 0;
+const STOP_CANDIDATE_THRESHOLD_MS = 5 * 60 * 1000;
+
+// MM 先読み 1 回限定フラグ (旧 line 4321)
+let _preloadDone = false;
+
+// ★設計変更宣言 (2026-05-10): sensor_denied_v2 / _showSensorBannerIfDeniedV2 /
+//   sensor_denied_once migration を全削除し、本番 (Daikou-app) と同じシンプル
+//   仕様に戻す。
+//   旧: localStorage.sensor_denied_v2 で拒否履歴を gate して banner 表示
+//   新: 「iOS PWA + sessionStorage.sensor_permission_active !== '1'」だけで
+//       orange banner を表示 (本番 Daikou-app と完全一致)
+//   起動時 banner 表示は line ~4218 の iOS PWA boot IIFE で行う
+
+// ★設計変更宣言 (2026-05-10): fresh load 判定で stale sensor_permission_active をクリア
+//   問題: iOS PWA 1 回目のタスクキル後、iOS の snapshot 機構で sessionStorage が
+//        保持されてしまい、orange banner が出ない (showSensorBannerIfNeeded が
+//        sessionStorage='1' を見て banner hide してしまう)
+//   解決: document.referrer が同一 origin でなければ fresh load (= task kill 起動)
+//        と判定し、sensor_permission_active を強制 removeItem する
+//   navigation (settings.html → index.html) では referrer が同 origin → 維持
+//   task kill → home icon 起動では referrer empty → 強制 clear → banner 表示
+//   この処理を script 先頭に置くことで全 showSensorBannerIfNeeded 呼出より先に実行
+try {
+  const _sameOriginRef = document.referrer &&
+                          document.referrer.indexOf(location.origin) === 0;
+  if(!_sameOriginRef){
+    sessionStorage.removeItem('sensor_permission_active');
+    if(typeof dlog === 'function'){
+      dlog('[Sensor] fresh load 検知 (referrer empty) → sensor_permission_active クリア');
+    }
+  }
+} catch(_){}
+
+// ★設計変更宣言 (2026-05-10): user gesture 直近時刻を記録
+//   blockIfSensorNotGranted が「user gesture 起因」かを判定するため
+//   document への click listener で _lastUserGestureAt を更新
+//   capture phase + passive で UI 干渉なし
+window._lastUserGestureAt = null;
+try {
+  document.addEventListener('click', function(){
+    window._lastUserGestureAt = Date.now();
+  }, { capture: true, passive: true });
+  document.addEventListener('touchstart', function(){
+    window._lastUserGestureAt = Date.now();
+  }, { capture: true, passive: true });
+} catch(_){}
+
+// ★設計変更宣言 (2026-05-10): 業務開始ボタンの bottom-line safety guard
+//   旧: P6 setInterval (script 末尾) のみで disable/enable を制御
+//       → script 中盤で halt すると setInterval が register されず
+//         MM 0/5 でもボタンが押せて ReferenceError 発生
+//   新: 宣言直後に最小限の guard setInterval を register
+//       → script 中盤の halt があっても確実に動作
+//   絶対ルール準拠: 道路距離 0 件で業務開始 = inline fallback で
+//                   GPS 直線距離課金リスク → MM 1 県以上を gate に
+setInterval(function(){
+  try {
+    if(appState !== 'businessStart') return;
+    const btnStart = document.querySelector('#screenBusinessStart .btn-business-start');
+    if(!btnStart) return;
+    if(_forwardedPrefs.size === 0){
+      btnStart.disabled = true;
+      btnStart.style.opacity = '0.4';
+      btnStart.style.cursor = 'not-allowed';
+      btnStart.style.pointerEvents = 'none';
+      btnStart.setAttribute('aria-disabled', 'true');
+    } else {
+      btnStart.disabled = false;
+      btnStart.style.opacity = '';
+      btnStart.style.cursor = '';
+      btnStart.style.pointerEvents = '';
+      btnStart.removeAttribute('aria-disabled');
+    }
+  } catch(_){}
+}, 1000);
+
+function _setupMmWorker(reason){
+  try {
+    _mmWorker = new Worker('js/map-matcher.js');
+  } catch(e){
+    console.warn('[MM] worker 起動失敗・既存インライン経路で稼働:', e.message);
+    _mmWorker = null;
+    window._mmWorker = null;
+    return;
+  }
+  _mmWorker.addEventListener('error', function(err){
+    console.error('[MM] worker error:', (err && err.message) || err);
+    // エラー時は Meter 側を fallback に切替してから再起動を予約
+    if(typeof Meter !== 'undefined' && Meter.setMapMatcher){
+      Meter.setMapMatcher(null);
+    }
+    try { _mmWorker.terminate(); } catch(e){}
+    _mmWorker = null;
+    window._mmWorker = null;
+    if(_mmWorkerRestartTimer){ clearTimeout(_mmWorkerRestartTimer); }
+    _mmWorkerRestartTimer = setTimeout(function(){
+      _mmWorkerRestartTimer = null;
+      if(typeof dlog === 'function') dlog('[MM] worker 自動再起動を試行（reason: error）');
+      _setupMmWorker('error-recover');
+    }, _MM_WORKER_RESTART_DELAY_MS);
+  });
+  _mmWorker.addEventListener('message', _mmWorkerOnMessage);
+  if(typeof Meter !== 'undefined' && Meter.setMapMatcher){
+    Meter.setMapMatcher(_mmWorker);
+  }
+  // H-1: 再起動時は state（OSRM/graph/dem）を全て再 forward
+  _mmReforwardAllState();
+  window._mmWorker = _mmWorker;
+  if(typeof dlog === 'function'){
+    dlog('[MM] worker B ' + (reason === 'init' ? '起動' : '再起動') + '・Meter 注入完了');
+  }
+}
+
+// H-1: Worker B 再起動時に状態を全て再 forward
+function _mmReforwardAllState(){
+  if(!_mmWorker) return;
+  // 実機デバッグログ ON/OFF (test-dashboard.html から localStorage で操作)
+  try {
+    const flag = localStorage.getItem('daikou_mm_debug') === '1';
+    _mmWorker.postMessage({ type: 'configDebug', enabled: flag });
+  } catch(e){}
+  // OSRM 設定
+  try {
+    const osrmEp = localStorage.getItem('daikou_osrm_endpoint');
+    const cfg = { type: 'configOsrm' };
+    if(osrmEp == null){
+      // ★設計変更宣言 (2026-05-12): hardcoded URL → debug-config.js の OSRM_ENDPOINT 経由
+      cfg.endpoint = (typeof OSRM_ENDPOINT !== 'undefined') ? OSRM_ENDPOINT : 'https://router.project-osrm.org';
+      cfg.enabled = true;
+    } else if(osrmEp.length === 0){
+      cfg.enabled = false;
+    } else {
+      cfg.endpoint = osrmEp;
+      cfg.enabled = true;
+    }
+    _mmWorker.postMessage(cfg);
+  } catch(e){}
+  // G6 (2026-05-09): iOS 検出して Viterbi N を MIN に設定
+  //   iOS Safari は GPS 最大 1Hz・浅い窓 (N=10) で warmup 短縮
+  try {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    _mmWorker.postMessage({ type: 'configPlatform', isIOS: isIOS });
+  } catch(e){}
+  // Worker 再起動時は _forwardedPrefs を clear して全再 forward
+  // (新 Worker の decoders Map は空・main 側で「forward 済」記憶のままでは再投入されない)
+  if(typeof _forwardedPrefs !== 'undefined' && _forwardedPrefs.clear){
+    _forwardedPrefs.clear();
+  }
+  // 既ロード済 roads (window.ROADS_<PREF>) を全て再 forward
+  // M1 設計: roads は GPS callback の _autoLoadNearbyRoads で動的に load される
+  // ため、Worker 再起動時点で window.ROADS_* がある県を全部送り直す
+  try {
+    const PREF_LIST = [
+      'hokkaido','aomori','iwate','miyagi','akita','yamagata','fukushima',
+      'ibaraki','tochigi','gunma','saitama','chiba','tokyo','kanagawa',
+      'niigata','toyama','ishikawa','fukui','yamanashi','nagano',
+      'gifu','shizuoka','aichi','mie',
+      'shiga','kyoto','osaka','hyogo','nara','wakayama',
+      'tottori','shimane','okayama','hiroshima','yamaguchi',
+      'tokushima','kagawa','ehime','kochi',
+      'fukuoka','saga','nagasaki','kumamoto','oita','miyazaki','kagoshima','okinawa',
+    ];
+    const loaded = PREF_LIST.filter(function(p){
+      return !!window['ROADS_' + p.toUpperCase().replace(/-/g, '_')];
+    });
+    if(loaded.length > 0) _forwardRoadsToMmWorker(loaded);
+  } catch(e){}
+  // DEM 再 forward
+  try { if(typeof _forwardDemToMmWorker === 'function') _forwardDemToMmWorker(); } catch(e){}
+  // Backbone 再 forward (Worker 自動再起動時)
+  try { if(typeof _forwardBackboneToMmWorker === 'function') _forwardBackboneToMmWorker(); } catch(e){}
+}
+
+// メッセージハンドラを別関数に分離（addEventListener / removeEventListener 整合性）
+function _mmWorkerOnMessage(e){
+    const m = e.data;
+    if(!m || typeof dlog !== 'function') return;
+    if(m.type === 'roadsLoaded'){
+      dlog('[MM] worker roads ' + (m.ok ? 'loaded' : 'fail') +
+           ': ' + m.pref + (m.ok ? ' (' + m.numRoads + '本)' : ' err=' + m.error));
+    } else if(m.type === 'mmResult' && m.snap && appState === 'driving'){
+      // P11/P12 (2026-05-09): 道路属性警告 UI 更新
+      try {
+        const pref = m.snap.prefecture;
+        const roadIdx = m.snap.roadIndex;
+        const banner = document.getElementById('roadAttrBanner');
+        const label = document.getElementById('roadAttrLabel');
+        if(banner && label && pref != null && roadIdx != null){
+          const sz = _attrsSchoolZoneByPref.get(pref);
+          const fl = _attrsRoadFloodByPref.get(pref);
+          const ji = _attrsRoadJizenByPref.get(pref);
+          const yo = _attrsRoadYoboByPref.get(pref);
+          let warn = null;
+          if(sz && sz.has(roadIdx)) warn = '⚠ スクールゾーン (30km/h 制限)';
+          else if(fl && fl.has(roadIdx)) warn = '🌊 冠水履歴のある区間';
+          else if(ji && ji.has(roadIdx)) warn = '⚠ 事前通行規制 区間';
+          else if(yo && yo.has(roadIdx)) warn = '⚠ 予防的通行規制 区間';
+          if(warn){
+            label.textContent = warn;
+            banner.style.display = 'block';
+          } else {
+            banner.style.display = 'none';
+          }
+        }
+      } catch(_){}
+    } else if(m.type === 'demLoaded'){
+      // MM-5: DEM 受信ログ
+      dlog('[MM] worker DEM ' + (m.ok ? 'loaded' : 'fail') +
+           (m.ok ? ' (cells=' + m.cells + ' size=' + m.sizeMB + 'MB)'
+                 : ' err=' + m.error));
+    } else if(m.type === 'backboneLoaded'){
+      // Phase B: backbone graph 受信ログ
+      dlog('[MM] backbone ' + (m.ok ? 'loaded' : 'fail') +
+           (m.ok ? ' (nodes=' + m.numNodes + ' edges=' + m.numEdges + ')'
+                 : ' err=' + m.error));
+    } else if(m.type === 'tileStats'){
+      dlog('[MM] tile cache ' + m.cacheSize + '/' + m.cacheMax +
+           ' pinned=' + m.pinnedCount + ' inflight=' + (m.inflight || 0) +
+           ' hit=' + m.hitCount + ' miss=' + m.missCount +
+           ' hitRate=' + ((m.hitRate || 0) * 100).toFixed(1) + '%' +
+           ' backbone=' + m.backboneLoaded);
+    } else if(m.type === 'requestTile'){
+      // Phase B runtime: Worker B からタイル取得依頼 → RoadGraphTileLoader で fetch
+      if(typeof RoadGraphTileLoader !== 'undefined'){
+        RoadGraphTileLoader.loadTile(m.pref, m.tx, m.ty).then(function(tile){
+          if(_mmWorker){
+            try {
+              _mmWorker.postMessage({
+                type: tile ? 'loadTile' : 'tileNotFound',
+                pref: m.pref, tx: m.tx, ty: m.ty,
+                tileData: tile || null,
+              });
+            } catch(e){}
+          }
+        }).catch(function(){
+          if(_mmWorker){
+            try { _mmWorker.postMessage({ type: 'tileNotFound', pref: m.pref, tx: m.tx, ty: m.ty }); } catch(e){}
+          }
+        });
+      }
+    } else if(m.type === 'osrmConfigured'){
+      // MM-6: OSRM 設定確認ログ
+      dlog('[MM] OSRM ' + (m.ok ? ('configured: ' + (m.endpoint || '(none)') +
+                                    ' enabled=' + m.enabled)
+                                : ('config fail: ' + m.error)));
+    } else if(m.type === 'mcmShrink'){
+      // MM-7: MCM 窓自動縮小通知
+      dlog('[MCM] window shrunk: N=' + m.from + ' → N=' + m.to +
+           ' (p99=' + m.p99.toFixed(1) + 'ms)');
+    } else if(m.type === 'mm7Stats'){
+      // M-3: visibility 復帰時 ping への応答（pong 代わり）
+      _mmHealthPongAt = Date.now();
+      // MM-7: MCM/pheromone/grid 統計（debug 用 probe で取得）
+      dlog('[MM-7] N=' + m.mcm_window_size + '/' + m.mcm_window_max +
+           ' shrunk=' + m.mcm_shrunk +
+           ' pheromone=' + m.pheromone_roads_count + ' roads (' + m.pheromone_prefs + ' prefs)' +
+           ' grid=' + m.grid_cells_count + '/' + m.grid_cells_max + ' cells' +
+           ' worker_p99=' + m.worker_p99_ms.toFixed(2) + 'ms');
+    } else if(m.type === 'osrmStats'){
+      // MM-6: OSRM 統計（debug 用 probe で取得）
+      dlog('[MM] OSRM stats: enabled=' + m.enabled + ' endpoint=' + m.endpoint +
+           ' buf=' + m.bufferSize + ' teacher=' + (m.teacherActive ? '✓' : '✗') +
+           ' legs=' + m.teacherLegs + ' hits=' + m.hits + ' miss=' + m.misses +
+           ' batches=' + m.batches + ' fails=' + m.batchFails +
+           ' onLine=' + m.onLine);
+    }
+}
+
+// 起動（H-1: 失敗しても自動再起動が回るので例外で止めない）
+_setupMmWorker('init');
+
+// ★設計変更宣言 (2026-05-10): 起動直後の last-GPS warm-up を Worker B 初期化
+//   直後 (line ~1600) に移動して再起動後の道路データ load を高速化。
+//   旧: loadSettings 内 (line ~3357) → setTimeout 500ms → _autoLoadNearbyRoads
+//       script 末尾近くで呼ばれるため起動直後の表示遅延に直結
+//   新: Worker B init 直後に即時実行 (~1.7 秒早い・setTimeout 0)
+//       sw.js キャッシュヒットなら roads-{pref}.js が ms 単位で load 完了
+//       loadSettings 内の旧 warm-up は idempotent な fallback として残置
+//   絶対ルール準拠: 道路距離課金担保のための高速化・安全側格下げではない
+// ★設計変更宣言 (2026-05-10): iOS の場合は PWA standalone のみ実行
+//   iOS Safari (非 PWA) で起動時に GPS 関連処理が動くと不適切なため
+//   iOS 以外 (Android 等) は従来通り無条件実行
+try {
+  const _bootIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const _bootGpsAllowed = !_bootIsIOS || window.navigator.standalone === true;
+  if(_bootGpsAllowed){
+    const _bootRaw = localStorage.getItem('daikou_driving_state')
+                  || localStorage.getItem('daikou_business_state');
+    if(_bootRaw){
+      const _b = JSON.parse(_bootRaw);
+      let _bootLat = null, _bootLng = null;
+      if(_b){
+        if(typeof _b.last_lat === 'number' && typeof _b.last_lng === 'number'){
+          _bootLat = _b.last_lat; _bootLng = _b.last_lng;
+        } else if(_b.last_gps && typeof _b.last_gps.lat === 'number'){
+          _bootLat = _b.last_gps.lat; _bootLng = _b.last_gps.lng;
+        }
+      }
+      if(_bootLat != null && _bootLng != null){
+        // 0ms setTimeout で current task を抜けてから (Worker creation の microtask 後)
+        setTimeout(function(){
+          try {
+            if(typeof _autoLoadNearbyRoads === 'function'){
+              _autoLoadNearbyRoads(_bootLat, _bootLng);
+              if(typeof dlog === 'function') dlog('[boot-fast] roads warm-up at ' +
+                _bootLat.toFixed(4) + ',' + _bootLng.toFixed(4));
+            }
+          } catch(_){}
+        }, 0);
+      }
+    }
+  }
+} catch(_){}
+
+// ─── M-3: Page Visibility 復帰時 Worker B 生存確認 ───
+// document.visibilityState が visible になったら ping を送り、
+// 一定時間（3 秒）応答がなければ Worker を再起動する。
+// (2026-05-10) _mmHealthPongAt / _mmHealthPingAt / _MM_HEALTH_TIMEOUT_MS は
+// script 先頭に移動済 (TDZ 対策)
+function _mmHealthCheck(){
+  if(!_mmWorker) {
+    if(typeof dlog === 'function') dlog('[MM] visibility 復帰: worker 不在 → 再起動');
+    if(_mmWorkerRestartTimer){ clearTimeout(_mmWorkerRestartTimer); _mmWorkerRestartTimer = null; }
+    _setupMmWorker('visibility-recover');
+    return;
+  }
+  _mmHealthPingAt = Date.now();
+  try { _mmWorker.postMessage({ type: 'getMm7Stats' }); } catch(e){}
+  setTimeout(function(){
+    if(_mmHealthPongAt < _mmHealthPingAt){
+      // pong 未着 → worker が応答不能と判断して再起動
+      if(typeof dlog === 'function') dlog('[MM] visibility ping 応答なし → worker 再起動');
+      try { if(_mmWorker) _mmWorker.terminate(); } catch(e){}
+      _mmWorker = null;
+      window._mmWorker = null;
+      if(typeof Meter !== 'undefined' && Meter.setMapMatcher){
+        Meter.setMapMatcher(null);
+      }
+      _setupMmWorker('visibility-timeout');
+    }
+  }, _MM_HEALTH_TIMEOUT_MS);
+}
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){
+    _mmHealthCheck();
+    // P7 (2026-05-09): iOS PWA backgrounded → resume race 短縮
+    //   visibility 復帰で last GPS から roads 再 warm を発火
+    //   Worker が kill されてた場合は _setupMmWorker 経由で _forwardedPrefs.clear→
+    //   全ROADS_<PREF> 再 forward が動くが、新規 pref が必要なら _autoLoadNearbyRoads
+    //   が補完
+    try {
+      const lastDriving = localStorage.getItem('daikou_driving_state');
+      if(lastDriving){
+        const d = JSON.parse(lastDriving);
+        if(d && typeof d.last_lat === 'number' && typeof d.last_lng === 'number'
+           && typeof _autoLoadNearbyRoads === 'function'){
+          _autoLoadNearbyRoads(d.last_lat, d.last_lng);
+        }
+      }
+    } catch(e){}
+  }
+});
+
+// ─── MM-2 (2026-05-08): 実機評価インフラ ──────────────────────
+// DEBUG.enabled の時のみ画面右下に MM 統計バッジを常時表示
+// 2 秒ごとに Meter.getMMStats() を読み snap_rate / skip_rate /
+// mm_distance_m / p99_latency_ms を更新
+(function _initMmStatsBadge(){
+  if(typeof DEBUG === 'undefined' || !DEBUG.enabled) return;
+  const badge = document.createElement('div');
+  badge.id = 'mmStatsBadge';
+  badge.style.cssText =
+    'position:fixed;right:8px;bottom:8px;z-index:9000;' +
+    'background:rgba(0,0,0,0.72);color:#fff;font-family:monospace;' +
+    'font-size:10px;padding:6px 8px;border-radius:6px;line-height:1.4;' +
+    'pointer-events:none;white-space:nowrap;letter-spacing:0.3px;';
+  badge.textContent = 'MM init...';
+  document.body.appendChild(badge);
+  setInterval(function(){
+    if(typeof Meter === 'undefined' || !Meter.getMMStats) return;
+    const s = Meter.getMMStats();
+    const snapPct = (s.snap_rate * 100).toFixed(0);
+    const skipPct = (s.skip_rate * 100).toFixed(1);
+    const mmKm = (s.mm_distance_m / 1000).toFixed(2);
+    const dKm = (s.distance_m / 1000).toFixed(2);
+    const p99 = s.p99_latency_ms.toFixed(1);
+    const ac = s.avg_candidates.toFixed(1);
+    const w = s.worker_active ? 'W' : 'I';  // W=worker / I=inline
+    const mcm = (s.mcm_window_size && s.mcm_window_size > 0) ? (' N=' + s.mcm_window_size) : '';
+    // RAM 実測（performance.memory は Chromium 系のみ）
+    let ramStr = '';
+    if(performance && performance.memory){
+      const heapMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
+      const limitMB = (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(0);
+      ramStr = ' main=' + heapMB + '/' + limitMB + 'MB';
+    }
+    badge.textContent =
+      '[' + w + '] src=' + (s.distance_source || '?') +
+      ' snap=' + snapPct + '% skip=' + skipPct + '%' +
+      ' mm=' + mmKm + 'km d=' + dKm + 'km' +
+      ' p99=' + p99 + 'ms cand=' + ac + mcm + ramStr;
+  }, 2000);
+
+  // ─── D2 (2026-05-09): 直近 mmResult 20 件オーバーレイ (DEBUG 限定) ──
+  //   Worker B → main の mmResult メッセージを傍受して画面右下にスクロール表示
+  //   候補数・採用 emission・mmIncrementM が GPS step 単位で見える
+  const mmLog = document.createElement('div');
+  mmLog.id = 'mmEventLog';
+  mmLog.style.cssText =
+    'position:fixed;right:8px;bottom:32px;z-index:8999;' +
+    'background:rgba(0,0,0,0.72);color:#9fe;font-family:monospace;' +
+    'font-size:9px;padding:6px 8px;border-radius:6px;line-height:1.35;' +
+    'pointer-events:none;white-space:pre;letter-spacing:0.2px;' +
+    'max-width:60vw;max-height:32vh;overflow:hidden;';
+  mmLog.textContent = 'mmResult 受信待ち';
+  document.body.appendChild(mmLog);
+  const _mmEvents = [];   // 直近 20 件 (新→古)
+  function _pushMmEvent(line){
+    _mmEvents.unshift(line);
+    if(_mmEvents.length > 20) _mmEvents.pop();
+    mmLog.textContent = _mmEvents.join('\n');
+  }
+  // 既存 _mmWorkerOnMessage と並行する独立 listener (worker 再起動毎に貼り直す必要あり)
+  function _attachMmEventLog(){
+    if(!_mmWorker) return;
+    _mmWorker.addEventListener('message', function(ev){
+      const m = ev && ev.data;
+      if(!m || m.type !== 'mmResult') return;
+      const inc = (m.mmIncrementM != null ? m.mmIncrementM.toFixed(1) : '0').padStart(6);
+      const cand = (m.candidatesCount != null ? m.candidatesCount : 0).toString().padStart(2);
+      const emit = (m.pickedEmission != null ? m.pickedEmission.toFixed(2) : '0.00');
+      const lat = (m.latencyMs != null ? m.latencyMs.toFixed(1) : '?').padStart(4);
+      const flag = m.committed ? 'C' : (m.snapped ? 's' : (m.skipped ? 'X' : '-'));
+      const r = m._reason ? (' ' + m._reason).slice(0, 18) : '';
+      _pushMmEvent('[' + flag + '] inc=' + inc + 'm cand=' + cand +
+                   ' e=' + emit + ' lat=' + lat + 'ms' + r);
+    });
+  }
+  _attachMmEventLog();
+  // Worker 再起動時に再 attach (window._mmWorker が変わったら検知)
+  let _mmEventLogWorkerRef = window._mmWorker;
+  setInterval(function(){
+    if(window._mmWorker !== _mmEventLogWorkerRef){
+      _mmEventLogWorkerRef = window._mmWorker;
+      _attachMmEventLog();
+      _pushMmEvent('--- Worker 再起動・log re-attached ---');
+    }
+  }, 3000);
+
+  // ─── 詳細 RAM パネル（DEBUG 限定・タップで開閉）────────────────
+  // Worker B / 各 graph / pheromone / grid / DEM の RAM 内訳を可視化
+  const ramPanel = document.createElement('div');
+  ramPanel.id = 'mmRamPanel';
+  ramPanel.style.cssText =
+    'position:fixed;left:8px;bottom:36px;z-index:9000;' +
+    'background:rgba(0,0,0,0.85);color:#fff;font-family:monospace;' +
+    'font-size:10px;padding:8px 10px;border-radius:6px;line-height:1.5;' +
+    'max-width:80vw;display:none;white-space:pre;letter-spacing:0.3px;';
+  document.body.appendChild(ramPanel);
+
+  // バッジタップで RAM パネル開閉
+  badge.style.pointerEvents = 'auto';
+  badge.style.cursor = 'pointer';
+  badge.addEventListener('click', function(){
+    ramPanel.style.display = ramPanel.style.display === 'none' ? 'block' : 'none';
+    if(ramPanel.style.display === 'block') _refreshRamPanel();
+  });
+
+  // RAM パネル更新（5 秒ごと + 開閉時に即更新）
+  const _ramSnapshot = {
+    workerMm7: null, workerOsrm: null, workerTile: null, mainHeap: null,
+  };
+  function _refreshRamPanel(){
+    if(!_mmWorker) return;
+    try { _mmWorker.postMessage({ type: 'getMm7Stats' }); } catch(e){}
+    try { _mmWorker.postMessage({ type: 'getOsrmStats' }); } catch(e){}
+    try { _mmWorker.postMessage({ type: 'getTileStats' }); } catch(e){}
+    setTimeout(_renderRamPanel, 200);
+  }
+  function _renderRamPanel(){
+    const lines = ['=== Worker B RAM 計測 ==='];
+    if(performance && performance.memory){
+      const heapMB = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
+      const limitMB = (performance.memory.jsHeapSizeLimit / 1024 / 1024).toFixed(0);
+      lines.push('main heap : ' + heapMB + ' / ' + limitMB + ' MB');
+    } else {
+      lines.push('main heap : N/A (Chromium 限定)');
+    }
+    if(_ramSnapshot.workerMm7){
+      const m = _ramSnapshot.workerMm7;
+      lines.push('MCM       : N=' + m.mcm_window_size + '/' + m.mcm_window_max +
+                 (m.mcm_shrunk ? ' [shrunk]' : ''));
+      lines.push('pheromone : ' + m.pheromone_roads_count + ' roads (' + m.pheromone_prefs + ' prefs)');
+      lines.push('grid bias : ' + m.grid_cells_count + ' / ' + m.grid_cells_max + ' cells');
+      lines.push('worker p99: ' + m.worker_p99_ms.toFixed(2) + ' ms');
+    }
+    if(_ramSnapshot.workerOsrm){
+      const m = _ramSnapshot.workerOsrm;
+      lines.push('OSRM      : ' + (m.enabled ? 'ON' : 'OFF') +
+                 ' batches=' + m.batches + ' fails=' + m.batchFails +
+                 ' onLine=' + m.onLine);
+    }
+    if(_ramSnapshot.workerTile){
+      const m = _ramSnapshot.workerTile;
+      lines.push('TileCache : ' + m.cacheSize + ' / ' + m.cacheMax +
+                 ' pinned=' + m.pinnedCount);
+      lines.push('Backbone  : ' + (m.backboneLoaded ? m.backboneNodes + ' nodes' : 'OFF'));
+    }
+    lines.push('=== タップで閉じる ===');
+    ramPanel.textContent = lines.join('\n');
+  }
+
+  // mmStats / osrmStats / tileStats 受信時に snapshot 更新
+  _mmWorker && _mmWorker.addEventListener('message', function(e){
+    const m = e.data;
+    if(!m) return;
+    if(m.type === 'mm7Stats') _ramSnapshot.workerMm7 = m;
+    else if(m.type === 'osrmStats') _ramSnapshot.workerOsrm = m;
+    else if(m.type === 'tileStats') _ramSnapshot.workerTile = m;
+  });
+
+  // 5 秒ごとに自動更新（開いている時のみ）
+  setInterval(function(){
+    if(ramPanel.style.display === 'block') _refreshRamPanel();
+  }, 5000);
+})();
+
+// 既ロード済 roads-{pref}.js があれば Worker に転送する関数
+// loadUserRegions / 設定画面からの追加ロード両方から呼べる共通化
+function _forwardRoadsToMmWorker(prefs){
+  if(!_mmWorker || !Array.isArray(prefs)) return;
+  for(const pref of prefs){
+    const varName = 'ROADS_' + String(pref).toUpperCase().replace(/-/g, '_');
+    const data = window[varName];
+    if(!data) continue;
+    if(_forwardedPrefs.has(pref)) continue;       // 重複 forward 防止
+    try {
+      _mmWorker.postMessage({ type: 'loadRoads', pref: pref, roadsData: data });
+      _forwardedPrefs.add(pref);
+      // T3 (2026-05-09): POI proximity prior データを Worker B に転送
+      if(Array.isArray(data.pois) && data.pois.length > 0){
+        _mmWorker.postMessage({ type: 'loadPois', pref: pref, points: data.pois });
+      }
+      // T11 (2026-05-09): 時間帯条件付き oneway/通行制限を Worker B に転送
+      if(Array.isArray(data.conditionalRestrictions) && data.conditionalRestrictions.length > 0){
+        _mmWorker.postMessage({
+          type: 'loadConditionalRestrictions',
+          pref: pref,
+          list: data.conditionalRestrictions,
+        });
+      }
+      // T8 (2026-05-09): cross-user pheromone 購読開始 → Worker B に転送
+      if(typeof FB !== 'undefined' && typeof FB.subscribeCrossUserPheromone === 'function'
+         && !_crossUserSubscribedPrefs.has(pref)){
+        _crossUserSubscribedPrefs.add(pref);
+        try {
+          FB.subscribeCrossUserPheromone(pref, function(list){
+            if(_mmWorker){
+              _mmWorker.postMessage({ type: 'updateCrossUserPheromone', pref: pref, list: list });
+            }
+          });
+        } catch(e){
+          console.warn('[T8] cross-user pheromone 購読失敗 ' + pref + ': ' + e.message);
+        }
+      }
+    } catch(e){
+      console.warn('[MM] forward roads ' + pref + ' err:', e.message);
+    }
+  }
+}
+// T8 (2026-05-09): cross-user pheromone 購読済 pref (重複防止)
+// 既に Worker B に forward 済みの pref を記録 (重複 postMessage 抑制)
+// (2026-05-10) _crossUserSubscribedPrefs / _forwardedPrefs / _attrs* は
+// script 先頭に移動済 (TDZ 対策)
+
+// P11/P12 (2026-05-09): road-attrs / road-flood/jizen/yobo の動的 load
+//   roads-{pref}.js と並行で同 pref のメタデータを script タグ load
+//   schoolZone / 冠水 / 通行規制 を運転手警告 UI に活用 (Tier B 範囲)
+//   delta-varint-base64 デコードはシンプル実装で Set<roadIdx> 化
+function _decodeDeltaVarintB64(b64){
+  if(!b64) return new Set();
+  try {
+    const bin = atob(b64);
+    const set = new Set();
+    let acc = 0, shift = 0, idx = 0;
+    for(let i = 0; i < bin.length; i++){
+      const b = bin.charCodeAt(i);
+      acc |= (b & 0x7f) << shift;
+      if((b & 0x80) === 0){
+        idx += acc;
+        set.add(idx);
+        acc = 0; shift = 0;
+      } else {
+        shift += 7;
+      }
+    }
+    return set;
+  } catch(_){ return new Set(); }
+}
+function _loadOneAttrFile(pref, base, varName, targetMap, fieldKey){
+  return new Promise(function(resolve){
+    const s = document.createElement('script');
+    s.src = 'data/' + base + '-' + pref + '.js';
+    s.async = true;
+    s.onload = function(){
+      try {
+        const data = window[varName];
+        if(data){
+          const b64 = fieldKey ? data[fieldKey] : data.roadIdxB64;
+          targetMap.set(pref, _decodeDeltaVarintB64(b64));
+        }
+      } catch(_){}
+      resolve();
+    };
+    s.onerror = function(){ resolve(); };
+    document.head.appendChild(s);
+  });
+}
+function _autoLoadNearbyAttrs(prefs){
+  if(!Array.isArray(prefs)) return;
+  for(const pref of prefs){
+    if(_attrsLoadedPrefs.has(pref)) continue;
+    _attrsLoadedPrefs.add(pref);
+    const PREF_UC = pref.toUpperCase().replace(/-/g, '_');
+    _loadOneAttrFile(pref, 'road-attrs', 'ROAD_ATTRS_' + PREF_UC, _attrsSchoolZoneByPref, 'schoolZoneB64');
+    _loadOneAttrFile(pref, 'road-flood', 'ROAD_FLOOD_' + PREF_UC, _attrsRoadFloodByPref, 'roadIdxB64');
+    _loadOneAttrFile(pref, 'road-jizen', 'ROAD_JIZEN_' + PREF_UC, _attrsRoadJizenByPref, 'roadIdxB64');
+    _loadOneAttrFile(pref, 'road-yobo',  'ROAD_YOBO_'  + PREF_UC, _attrsRoadYoboByPref,  'roadIdxB64');
+    // D3 (2026-05-09): emergencyRoute も同 road-attrs ファイルから抽出して
+    //   Worker B に forward (scoring boost に活用)
+    //   road-attrs file に emergencyRouteB64 と schoolZoneB64 が共存しているので
+    //   1 回 load で両方取れる - schoolZone load 完了後に処理
+    setTimeout(function(){
+      const data = window['ROAD_ATTRS_' + PREF_UC];
+      if(!data || !data.emergencyRouteB64) return;
+      const set = _decodeDeltaVarintB64(data.emergencyRouteB64);
+      _attrsEmergencyByPref.set(pref, set);
+      // Worker B に forward (Set は postMessage で送れないので Array 化)
+      if(_mmWorker && set.size > 0){
+        try {
+          _mmWorker.postMessage({
+            type: 'loadEmergencyAttrs',
+            pref: pref,
+            roadIndices: Array.from(set),
+          });
+        } catch(_){}
+      }
+    }, 1500);   // road-attrs ファイル load 完了想定で 1.5 秒後
+  }
+}
+
+// 2026-05-09 (M1): GPS から近隣 5 県を取得 → roads-{pref}.js を script 動的 load
+//   → 完了後 Worker B に forward。県境を跨ぐと自動拡張・重複は skip。
+//   絶対ルール: 「課金距離は道路距離」のため Worker B に roads が届く前は MM が
+//   稼働しない。GPS callback で常時呼び出し続ければ走行中も追加 load 可能。
+// (2026-05-10) _autoRoadLoadInflight は script 先頭に移動済 (TDZ 対策)
+function _autoLoadNearbyRoads(lat, lng){
+  if(typeof RegionLoader === 'undefined' || !RegionLoader.nearestPrefectures) return;
+  if(_autoRoadLoadInflight) return;               // 1 リクエストずつ直列化
+  const prefs = RegionLoader.nearestPrefectures(lat, lng, 5);
+  if(!Array.isArray(prefs) || prefs.length === 0) return;
+  // 全部 forward 済みなら早期 return (走行中の頻繁呼出を軽量化)
+  const pending = prefs.filter(function(p){ return !_forwardedPrefs.has(p); });
+  if(pending.length === 0) return;
+  _autoRoadLoadInflight = RegionLoader.ensureRoadsLoaded(pending).then(function(){
+    _forwardRoadsToMmWorker(pending);
+    if(typeof dlog === 'function') dlog('[MM] auto-loaded roads: ' + pending.join(','));
+    // P11/P12 (Tier B): roads と一緒に attrs もロード
+    _autoLoadNearbyAttrs(pending);
+  }).catch(function(e){
+    if(typeof dlog === 'function') dlog('[MM] auto-load roads err: ' + (e && e.message || e));
+  }).then(function(){ _autoRoadLoadInflight = null; });
+}
+
+// MM-5 (2026-05-08): DEM データを Worker B に転送する関数
+// data/dem-jp.js (window.DEM_JP) が未ビルドなら no-op（layer scorer は roads v6 + accel hint で稼働）
+function _forwardDemToMmWorker(){
+  if(!_mmWorker) return;
+  const data = window.DEM_JP;
+  if(!data || !data.altB64) return;
+  try {
+    _mmWorker.postMessage({
+      type: 'loadDem',
+      bbox: data.bbox,
+      gridSize: data.gridSize,
+      numLat: data.numLat,
+      numLng: data.numLng,
+      altB64: data.altB64,
+    });
+  } catch(e){
+    console.warn('[MM] forward dem err:', e.message);
+  }
+}
+
+// MM-5: 起動時に DEM を試行ロード（あれば Worker B に転送）
+if(typeof DemLoader !== 'undefined' && DemLoader.load){
+  DemLoader.load().then((data) => {
+    if(data) _forwardDemToMmWorker();
+  }).catch(e => {
+    console.warn('[DEM] load error:', e.message);
+  });
+}
+
+// Phase B: 起動時にバックボーン graph を試行ロード（全国 motorway/trunk 常駐）
+function _forwardBackboneToMmWorker(){
+  if(!_mmWorker) return;
+  const data = window.ROAD_GRAPH_BACKBONE_JP;
+  if(!data) return;
+  try {
+    _mmWorker.postMessage({ type: 'loadBackbone', graphData: data });
+  } catch(e){
+    console.warn('[MM] forward backbone err:', e.message);
+  }
+}
+(function _loadBackbone(){
+  const script = document.createElement('script');
+  script.src = 'data/road-graph-backbone-jp.js';
+  script.async = true;
+  script.onload = function(){
+    if(typeof dlog === 'function' && window.ROAD_GRAPH_BACKBONE_JP){
+      dlog('[Backbone] loaded ' + window.ROAD_GRAPH_BACKBONE_JP.numNodes + ' nodes');
+    }
+    _forwardBackboneToMmWorker();
+  };
+  script.onerror = function(){
+    if(typeof dlog === 'function') dlog('[Backbone] not found（任意機能・無くても稼働）');
+  };
+  document.head.appendChild(script);
+})();
+
+// ─── 状態 ───
+// (2026-05-10) appState 〜 vehicleId は script 先頭に移動済 (TDZ 対策)
 
 // ─── リロード復元 ───
 function checkDrivingRestore(){
@@ -924,8 +2138,9 @@ function checkDrivingRestore(){
     window._restoreFareYen   = saved.fare_yen;
     showScreen('driving');
     document.getElementById('appbarTitle').textContent = '代行中';
-    // GPS・UIタイマー再起動
-    startGPS();
+    // ★設計変更宣言 (2026-05-10): 自動 startGPS() を削除
+    //   GPS は btnSensorPermission 押下経由でのみ起動する設計に変更
+    //   旧: startGPS();  ← 自動発火 (driving 復元時)
     startUiTimer();
     // 緑バナー表示（復元できたことを通知するだけ）
     document.getElementById('restoreBanner').classList.add('show');
@@ -935,9 +2150,18 @@ function checkDrivingRestore(){
     //   司さんがボタン押下時に user gesture で全部復活させる
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if(isIOS && window.navigator.standalone === true){
-      const sensorBanner = document.getElementById('sensorRestoreBanner');
-      if(sensorBanner) sensorBanner.style.display = 'block';
-      if(typeof dlog === 'function') dlog('[復元] センサー再起動バナー表示');
+      // ★設計変更宣言 (2026-05-10): businessStart 画面では青ボタンを表示・orange banner のみ抑制
+      const _bs = document.getElementById('screenBusinessStart');
+      const _onBsScreen = _bs && _bs.style.display !== 'none';
+      if(_onBsScreen){
+        const _btn = document.getElementById('btnSensorPermission');
+        if(_btn) _btn.style.display = 'block';
+        if(typeof dlog === 'function') dlog('[復元] businessStart 中 → 青ボタン表示・orange 抑制');
+      } else {
+        const sensorBanner = document.getElementById('sensorRestoreBanner');
+        if(sensorBanner) sensorBanner.style.display = 'block';
+        if(typeof dlog === 'function') dlog('[復元] センサー再起動バナー表示');
+      }
     }
   } catch(e){
     console.error('[復元] エラー:', e);
@@ -1023,18 +2247,11 @@ function onSensorRestoreTap(){
 function loadSettings(){
   FB.loadFareConfig(cfg => { Meter.setFareConfig(cfg); });
 
-  // 初回起動時にデフォルトのクイック追加料金をセット
-  // (一度も保存されていない=null の場合のみ)
+  // ★設計変更宣言 (2026-05-10): デフォルト extras 全削除
+  //   旧: 外車/MT車/左ハンドル/深夜割増/迎車料金/キャンセル料 をプリセット
+  //   新: 空配列・ユーザーが fare.html や追加料金モーダルから自由に追加
   if(localStorage.getItem('daikou_extras') === null){
-    const defaultExtras = [
-      {name:'外車', amount:500},
-      {name:'MT車', amount:500},
-      {name:'左ハンドル', amount:1000},
-      {name:'深夜割増', amount:1000},
-      {name:'迎車料金', amount:1000},
-      {name:'キャンセル料', amount:2000}
-    ];
-    localStorage.setItem('daikou_extras', JSON.stringify(defaultExtras));
+    localStorage.setItem('daikou_extras', JSON.stringify([]));
   }
 
   const s = localStorage.getItem('daikou_settings');
@@ -1077,6 +2294,50 @@ function loadSettings(){
   // 活動エリア（Map Matching・2026/04/30追加）
   // 設定画面で選択された都道府県の roads データを起動時に自動ロード
   loadUserRegions();
+
+  // P2 (2026-05-09): 起動時 last-GPS warm-up
+  //   localStorage から最後の GPS を復元 → 即時 _autoLoadNearbyRoads 発火
+  //   → センサー許可前 (= GPS 未取得) でも近隣 5 県の roads を script タグ load
+  //   → 業務開始ボタン押下時には Worker B に decoders 充填済み
+  try {
+    const lastDriving = localStorage.getItem('daikou_driving_state');
+    const lastBusiness = localStorage.getItem('daikou_business_state');
+    let lat = null, lng = null;
+    if(lastDriving){
+      const d = JSON.parse(lastDriving);
+      if(d && typeof d.last_lat === 'number' && typeof d.last_lng === 'number'){
+        lat = d.last_lat; lng = d.last_lng;
+      }
+    }
+    if((lat == null || lng == null) && lastBusiness){
+      const b = JSON.parse(lastBusiness);
+      if(b && b.last_gps && typeof b.last_gps.lat === 'number'){
+        lat = b.last_gps.lat; lng = b.last_gps.lng;
+      }
+    }
+    if(lat != null && lng != null){
+      // ★設計変更宣言 (2026-05-10): 旧 setTimeout 500ms → 0ms に短縮
+      //   _mmWorker は line 1599 _setupMmWorker で初期化済・RegionLoader は
+      //   src 経由 load 済 → 500ms 待つ理由なし
+      //   _autoLoadNearbyRoads は _forwardedPrefs.has で重複防止しているので
+      //   line 1600 fast-path との二重呼出も safe
+      // ★設計変更宣言 (2026-05-10): iOS の場合は PWA standalone のみ実行
+      //   iOS Safari (非 PWA) では GPS 関連処理 skip
+      const _ls_isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const _ls_gpsAllowed = !_ls_isIOS || window.navigator.standalone === true;
+      if(_ls_gpsAllowed){
+        setTimeout(function(){
+          if(typeof _autoLoadNearbyRoads === 'function'){
+            _autoLoadNearbyRoads(lat, lng);
+            if(typeof dlog === 'function') dlog('[boot] roads warm-up at last GPS ' +
+              lat.toFixed(4) + ',' + lng.toFixed(4));
+          }
+        }, 0);
+      }
+    }
+  } catch(e){
+    if(typeof dlog === 'function') dlog('[boot] warm-up error: ' + e.message);
+  }
 }
 
 // 活動エリア自動ロード（2026/04/30追加・Map Matching用）
@@ -1095,6 +2356,13 @@ function loadUserRegions(){
       if(typeof dlog === 'function'){
         dlog('[Region] 活動エリア自動ロード完了: ' + loaded + '/' + regions.length + '県');
       }
+      // MM-1: Worker B にも roads データを転送（main 側 RegionLoader と二重保持）
+      // 失敗しても main 側の MM 動作には影響しない（fallback あり）
+      _forwardRoadsToMmWorker(regions);
+
+      // Phase B (2026-05-08〜): per-pref road-graph の auto-load は廃止済み。
+      //   タイル経路（5km × 5km・LRU 25 個）+ backbone graph (cross-pref nearest-node)
+      //   で routing 精度を維持しつつ Worker B RAM を 60MB 以下に保つ。
     }).catch(e=>{
       console.error('活動エリアロードエラー:', e);
     });
@@ -1197,10 +2465,8 @@ setInterval(updateBusinessDashboard, 1000);
 updateBusinessDashboard();
 
 // ─── GPS（代行開始時に初めて起動） ───
-let gpsStarted = false;
-// 2026/05/02：GPS動作確認用ログ（5秒間隔・スパム防止）
-let _lastGpsLogAt = 0;
-let _gpsCallbackCount = 0;
+// (2026-05-10) gpsStarted / _lastGpsLogAt / _gpsCallbackCount は
+// script 先頭に移動済 (TDZ 対策・startGPS が appState 等を参照する前に確実に初期化)
 function startGPS(){
   if(gpsStarted){
     if(typeof dlog === 'function') dlog('[GPS] startGPS: 既に起動済（スキップ）');
@@ -1231,13 +2497,24 @@ function startGPS(){
         // 起動時warm up（2026/04/30追加）：常にGPSをMeterに渡す
         // 代行開始前でもlastWarmupGpsを保持・押した瞬間に即時計測開始
         if(typeof Meter.updateGpsOnly === 'function') Meter.updateGpsOnly(g);
-        if(appState==='driving' || appState==='fare') Meter.update(g);
+        // B6 (2026-05-09): 停車に変化したら Worker B にヒント送って _gpsBuffer クリア
+        if(g.isStationary && !window._lastStationary && _mmWorker){
+          try { _mmWorker.postMessage({ type: 'stationaryHint' }); } catch(_){}
+        }
+        window._lastStationary = !!g.isStationary;
+        // P3 (2026-05-09): 常時 Meter.update を呼出
+        //   Meter は state.running=false 中は加算しないので副作用なし。
+        //   業務外でも Worker B に GPS が流れて MM がウォームアップされる
+        //   (snap miss/skip カウントは加算されるが課金には影響しない)
+        Meter.update(g);
         // 業務中の総走行距離計測（2026/05/04 夜・修正）
         // business.js は onGps を公開しており state.active 中なら total_distance_m に加算する
         // 実車中・空車中問わず業務全体の距離を計測する設計
         if(typeof Business !== 'undefined' && typeof Business.onGps === 'function'){
           Business.onGps(g);
         }
+        // S2 (2026-05-10): 業務開始忘れ検出
+        try { _checkBusinessForgot(g); } catch(_){}
         // 復元後の補完検知：距離・料金が変わったらバナーを更新
         if(window._restoreDistanceM != null){
           const cur = Meter.getState();
@@ -1252,8 +2529,10 @@ function startGPS(){
         }
         // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
         if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
-        // TestMode：走行中のみ位置記録（★テスト用・リリース時削除）
-        if(typeof TestMode !== 'undefined' && appState==='driving') TestMode.recordPosition(g.lat, g.lng);
+        // M1 (2026-05-09): roads-{pref}.js も動的 load → Worker B に forward
+        //   絶対ルール: 課金距離は道路距離 = MM が常時動くために必要
+        _autoLoadNearbyRoads(g.lat, g.lng);
+        // TestMode 走行中位置記録は H-3 対応で削除済
       } catch(e){ console.error('GPS callback error:', e); }
     });
   } catch(e){ console.error('GPS start error:', e); }
@@ -1289,6 +2568,34 @@ function startUiTimer(){
     document.getElementById('driveDist').textContent = (s.distance_m/1000).toFixed(2);
     document.getElementById('driveFare').textContent = total.toLocaleString();
 
+    // ★設計変更宣言 (2026-05-10): driveSource を全面見直し
+    //   旧: 通常 (mm/inline/gap/gps 各状態) を逐一テキスト表示・「課金」単語あり
+    //   新: 通常時は完全非表示・「⚠ 位置情報の精度が低下しています」のみ
+    //       表示条件: _forwardedPrefs.size === 0 が 30 秒継続のとき (= 真のエラー)
+    //   「課金」ワードは UX 不安要因のため全削除 (絶対ルール「道路距離課金」は
+    //   コード側で担保済み・表示は要らない)
+    try {
+      const src = document.getElementById('driveSource');
+      if(src){
+        const forwarded = (typeof _forwardedPrefs !== 'undefined') ? _forwardedPrefs.size : 0;
+        const now = Date.now();
+        if(forwarded > 0){
+          window._mmZeroSince = null;
+          src.style.display = 'none';
+        } else {
+          if(window._mmZeroSince == null) window._mmZeroSince = now;
+          if(now - window._mmZeroSince >= 30000){
+            src.textContent = '⚠ 位置情報の精度が低下しています';
+            src.style.background = '#FDECEA';
+            src.style.color = '#C0392B';
+            src.style.display = 'block';
+          } else {
+            src.style.display = 'none';
+          }
+        }
+      }
+    } catch(_){}
+
     // 確定画面でもリアルタイム更新
     if(appState==='fare'){
       document.getElementById('fareTotalAmount').textContent = total.toLocaleString();
@@ -1313,6 +2620,7 @@ function startUiTimer(){
     }
     // 走行状態をlocalStorageに保存（リロード復元用）
     const ms = Meter.getState();
+    const mmStats = (typeof Meter.getMMStats === 'function') ? Meter.getMMStats() : null;
     localStorage.setItem('daikou_driving_state', JSON.stringify({
       distance_m:    s.distance_m,
       fare_yen:      total,
@@ -1322,18 +2630,43 @@ function startUiTimer(){
       last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
       last_speed_kmh: ms.last_speed_kmh || 0,
       last_gps_at:   ms.last_timestamp || null,
+      // F2 (2026-05-09): MM stats を併せて保存・復元時の動作確認用
+      mm_distance_m: mmStats ? mmStats.mm_distance_m : 0,
+      distance_source: mmStats ? mmStats.distance_source : null,
+      mm_snap_rate: mmStats ? mmStats.snap_rate : 0,
     }));
   },500);
 }
 
+// ★設計変更宣言 (2026-05-10): 同名 extras をグループ化・押下回数 / 累計を表示
+//   旧: 1 加算 = 1 行、削除は ✕
+//   新: 同名+同金額をグループ化「{name} +¥{amount} ×{count} = ¥{total}」、削除はグループ末尾 1 件
 function renderExtras(){
   const el = document.getElementById('extrasList');
-  el.innerHTML = extras.map((e,i)=>
+  const lbl = document.getElementById('extrasSectionLabel');
+  if(!extras || extras.length === 0){
+    el.innerHTML = '';
+    if(lbl) lbl.style.display = 'none';
+    return;
+  }
+  if(lbl) lbl.style.display = 'block';
+  // name+amount でグループ化 + 最後の index を保持 (削除時に末尾を消す)
+  const groups = new Map();
+  extras.forEach((e, i) => {
+    const key = e.name + '|' + e.amount;
+    if(!groups.has(key)){
+      groups.set(key, { name: e.name, amount: e.amount, count: 0, lastIdx: i });
+    }
+    const g = groups.get(key);
+    g.count++;
+    g.lastIdx = i;
+  });
+  el.innerHTML = Array.from(groups.values()).map(g =>
     `<div class="extra-item" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>${e.name}</span>
+      <span>${g.name}<span style="font-size:11px;color:#8E8E93;margin-left:6px;font-family:'DM Mono',monospace;">×${g.count}</span></span>
       <div style="display:flex;align-items:center;gap:6px;">
-        <span>+¥${e.amount.toLocaleString()}</span>
-        <button class="extra-del-btn" onclick="removeExtra(${i})">✕</button>
+        <span>+¥${(g.amount * g.count).toLocaleString()}</span>
+        <button class="extra-del-btn" onclick="removeExtra(${g.lastIdx})">✕</button>
       </div>
     </div>`
   ).join('');
@@ -1372,10 +2705,17 @@ function blockIfSensorNotGranted(){
   // 許可済みなら通過
   if(window._compassGranted && window._motionGranted) return false;
 
-  // 未許可：バナー表示 + ダイアログ発火（重複防止）+ ブロック
+  // 未許可：バナー表示 + 「センサーを許可する」青ボタン表示でブロック
   showSensorBannerIfNeeded();
-  // ダイアログ発火（重複防止フラグ管理）
-  if(!window._sensorRequestInFlight){
+  // ★設計変更宣言 (2026-05-10): user gesture context でない場合は
+  //   requestSensorPermission() を自動発火しない (DL 完了 → 自動 onBusinessStart
+  //   からの呼出で iOS PWA の reject → orange バナー誤表示を防ぐ)
+  //   user gesture 判定: 直近 1 秒以内に画面 onclick が走っていたか
+  //   (window._lastUserGestureAt は body click handler で記録)
+  const now = Date.now();
+  const userGestureRecent = (window._lastUserGestureAt != null) &&
+                             (now - window._lastUserGestureAt < 1000);
+  if(userGestureRecent && !window._sensorRequestInFlight){
     window._sensorRequestInFlight = true;
     try {
       requestSensorPermission();
@@ -1385,18 +2725,32 @@ function blockIfSensorNotGranted(){
       // 連打防止：500ms 後にフラグ解除（ダイアログ処理中の再呼出防止）
       setTimeout(() => { window._sensorRequestInFlight = false; }, 500);
     }
+    if(typeof dlog === 'function') dlog('[Sensor] blocked + dialog fired (user gesture)');
+  } else {
+    if(typeof dlog === 'function') dlog('[Sensor] blocked (no dialog・user gesture 待ち)');
   }
-  if(typeof dlog === 'function') dlog('[Sensor] blocked + dialog fired');
   return true;
 }
 
 // バナー表示のみ（ダイアログは発火しない・起動時/画面遷移時用）
 function showSensorBannerIfNeeded(){
+  // ★設計変更宣言 (2026-05-10): screenBusinessStart 内の「センサーを許可する」ボタン表示制御も統合
+  //   iOS PWA 未許可時のみボタン+説明文を表示・許可後は非表示
+  const _btnSP = document.getElementById('btnSensorPermission');
+  const _noteSP = document.getElementById('sensorPermissionNote');
   // iOS PWA 以外は表示しない（他環境ではバナー出ない）
   // 2026/05/02：_isIOS が未定義の可能性（呼出順序問題）対策で直接判定
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  if(!isIOS) return;
-  if(window.navigator.standalone !== true) return;
+  if(!isIOS){
+    if(_btnSP) _btnSP.style.display = 'none';
+    if(_noteSP) _noteSP.style.display = 'none';
+    return;
+  }
+  if(window.navigator.standalone !== true){
+    if(_btnSP) _btnSP.style.display = 'none';
+    if(_noteSP) _noteSP.style.display = 'none';
+    return;
+  }
   // 2026/05/04 夜・修正：sessionStorage で同 session 内の permission 維持を判定
   //   sensor_permission_active='1' があれば同 session 内 → permission 維持されてる
   if(sessionStorage.getItem('sensor_permission_active') === '1'){
@@ -1407,6 +2761,8 @@ function showSensorBannerIfNeeded(){
       banner.style.display = 'none';
       if(typeof dlog === 'function') dlog('[Sensor] 同session内: バナー非表示');
     }
+    if(_btnSP) _btnSP.style.display = 'none';
+    if(_noteSP) _noteSP.style.display = 'none';
     return;
   }
   // 許可済みなら：既にバナー出てたら消す（2026/05/02追加・許可後の残留バナー対策）
@@ -1416,14 +2772,42 @@ function showSensorBannerIfNeeded(){
       banner.style.display = 'none';
       if(typeof dlog === 'function') dlog('[Sensor] 許可済み: バナー強制非表示');
     }
+    if(_btnSP) _btnSP.style.display = 'none';
+    if(_noteSP) _noteSP.style.display = 'none';
     return;
   }
-  // バナー表示
+  // ★設計変更宣言 (2026-05-10): v2 flag check を削除し本番と同じシンプル仕様に統一
+  //   iOS PWA 未許可時は orange banner を表示 + 青ボタンも表示
+  //   (条件は呼出元で iOS/standalone/sessionStorage チェック済み)
+  // ★設計変更宣言 (2026-05-10): DL 中 / DL 完了直後は banner 抑制
+  //   - dl-overlay 表示中 (display:flex): DL UI 優先で banner 出さない
+  //   - sessionStorage.dl_just_completed='1': DL 完了直後の businessStart 画面で
+  //     orange banner が即座に出るのを防ぐ (許可後にクリアされる)
+  const _dlO2 = document.getElementById('dlOverlay');
+  if(_dlO2 && _dlO2.style.display === 'flex'){
+    if(typeof dlog === 'function') dlog('[Sensor] DL 中 → banner 抑制');
+    return;
+  }
+  if(sessionStorage.getItem('dl_just_completed') === '1'){
+    if(typeof dlog === 'function') dlog('[Sensor] DL 完了直後 → banner 抑制');
+    return;
+  }
+  // ★設計変更宣言 (2026-05-10): businessStart 画面では青ボタンを表示・orange banner のみ抑制
+  const _bs = document.getElementById('screenBusinessStart');
+  if(_bs && _bs.style.display !== 'none'){
+    const _btn = document.getElementById('btnSensorPermission');
+    if(_btn) _btn.style.display = 'block';
+    if(typeof dlog === 'function') dlog('[Sensor] businessStart 中 → 青ボタン表示・orange 抑制');
+    return;
+  }
   const banner = document.getElementById('sensorRestoreBanner');
   if(banner){
     banner.style.display = 'block';
     setTimeout(() => banner.scrollIntoView({behavior:'smooth', block:'end'}), 100);
   }
+  // 「センサーを許可する」青ボタンも未許可なら常に表示
+  if(_btnSP) _btnSP.style.display = 'inline-block';
+  if(_noteSP) _noteSP.style.display = 'block';
   if(typeof dlog === 'function') dlog('[Sensor] banner shown');
 }
 
@@ -1457,9 +2841,10 @@ function onMainBtn(){
     startGPS();
     try { Meter.start(); } catch(e){ console.error('Meter start error:', e); }
     try { FB.startSession(Meter.getFareConfig()); } catch(e){ console.error('FB session error:', e); }
-    // TestMode：走行開始記録（★テスト用・リリース時削除）
-    try { if(typeof TestMode !== 'undefined') TestMode.startTrip(); } catch(e){ console.error('TestMode start error:', e); }
+    // TestMode 走行開始記録は H-3 対応で削除済
     startUiTimer();
+    // fareConfig v2: 業務開始で surcharge ボタン群を表示
+    try { if(typeof renderSurchargeButtons === 'function') renderSurchargeButtons(); } catch(_){}
   } else if(appState==='driving'){
     // 実車中はメインボタン非表示（仕様2026/05/01）→ ここに来ない想定だが保険
   } else if(appState==='fare'){
@@ -1475,10 +2860,35 @@ function onMainBtn(){
 //   司さん仕様「業務開始から1日の総距離もほしい」に合致
 //   業務開始 = 1日の業務スタート = 全GPS情報を取り始める
 function onBusinessStart(){
+  // S1 (2026-05-10): 閲覧専用モードでは業務開始不可
+  if(window._tabReadOnly){
+    showToast('別のタブで業務中です');
+    return;
+  }
+  // ★設計変更宣言 (2026-05-12): 全 OS で PWA standalone 必須化
+  //   理由: 非 PWA (iOS Safari ブラウザ・Android Chrome ブラウザ) では
+  //         道路データ DL (47県/204MB) が DakomeDL.init() 起動時の
+  //         standalone ガードにより未実行
+  //         → MM 不可・GPS 直線距離課金に劣化 → 絶対ルール
+  //         「道路ジオメトリに沿った距離で課金」違反
+  //   判定:
+  //     iOS Safari PWA      → navigator.standalone === true
+  //     Android Chrome PWA  → matchMedia('(display-mode: standalone)').matches
+  //   非 standalone → ホーム画面追加を促してブロック
+  try {
+    const _bsIsStandalone = window.navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if(!_bsIsStandalone){
+      showToast('ホーム画面に追加してから業務開始してください');
+      if(typeof dlog === 'function') dlog('[Business] start blocked: not PWA standalone');
+      return;
+    }
+  } catch(_){}
   // 全ボタン共通：センサー未許可ならバナー表示してブロック（2026/05/01）
   if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined'){
     console.error('[Business] not loaded');
+    showToast('業務開始に失敗しました (Business 未ロード)');
     return;
   }
   try {
@@ -1489,9 +2899,12 @@ function onBusinessStart(){
     }
     // Business 状態を active に
     Business.start();
+    // ★設計変更宣言 (2026-05-11): 業務開始押下でデータ更新バナーを自動非表示
+    //   snooze 記録なし (= 翌業務サイクルで再判定・古いデータ未更新を忘れさせない)
+    try { if(typeof DataUpdateBanner !== 'undefined') DataUpdateBanner.hide(false); } catch(_){}
     // NoSleep 起動（画面消灯防止）
     if(!noSleep){ noSleep = new NoSleep(); }
-    noSleep.enable().catch(e=>dlog('NoSleep error:', e));
+    noSleep.enable().catch(e => { if(typeof dlog === 'function') dlog('NoSleep error:', e); });
     // 暗転タイマーリセット
     if(dimTimer){ clearTimeout(dimTimer); dimTimer = null; }
     document.documentElement.style.filter = '';
@@ -1500,17 +2913,25 @@ function onBusinessStart(){
     // 画面遷移
     appState = 'idle';
     showScreen('idle');
-    document.getElementById('appbarTitle').textContent = '空　車';
+    const _appbarEl = document.getElementById('appbarTitle');
+    if(_appbarEl) _appbarEl.textContent = '空　車';
     updateBusinessDashboard();
     if(typeof dlog === 'function') dlog('[Business] start (GPS/NoSleep activated)');
   } catch(e){
-    console.error('[Business] start error:', e);
+    // ★設計変更宣言 (2026-05-10): エラー詳細を Eruda に出るように改善
+    //   旧: console.error('[Business] start error:', e) → Eruda は "ReferenceError {}" のみ表示
+    //   新: e.message と e.stack を文字列で出力 → 実際の変数名/行番号が見える
+    console.error('[Business] start error:',
+      (e && e.message) || String(e),
+      (e && e.stack) || '(no stack)');
     showToast('業務開始に失敗しました');
   }
 }
 
 // [業務終了] 押下：Business.end() 発火 → 日報画面へ
 function onBusinessEnd(){
+  // S3 (2026-05-10): 業務終了の確認 dialog (誤操作防止)
+  if(!confirm('業務を終了します。よろしいですか?')) return;
   // 全ボタン共通：センサー未許可ならバナー表示してブロック
   if(blockIfSensorNotGranted()) return;
   if(typeof Business === 'undefined') return;
@@ -1520,7 +2941,13 @@ function onBusinessEnd(){
     return;
   }
   try {
+    // B7 (2026-05-09): Worker B Viterbi 窓を flush して残値を distance_m に加算
+    if(typeof Meter !== 'undefined' && typeof Meter.businessEnd === 'function'){
+      Meter.businessEnd();
+    }
     Business.end();
+    // fareConfig v2: 業務終了で surcharge ボタン群を非表示
+    try { if(typeof renderSurchargeButtons === 'function') renderSurchargeButtons(); } catch(_){}
     // GPS / センサー蓄積を停止（D案・2026/05/06）
     //   日報画面では位置・加速度・ジャイロを使わないので即停止
     //   [続ける]で再開された時は onBusinessResume 側で startGPS() し直す
@@ -1548,6 +2975,9 @@ function onBusinessResume(){
   }
   try {
     Business.resume();
+    // F3 (2026-05-09): Worker B 健全性 ping → 不調なら再起動して再 forward
+    //   3 時間後再開で Worker が kill されている可能性に対応
+    if(typeof _mmHealthCheck === 'function') _mmHealthCheck();
     // GPS / センサー蓄積を再開（D案・2026/05/06）
     //   onBusinessEnd で stopGPS() している分を起こし直す。
     //   リスナーは生きているので _isBizActive を true に戻すだけで蓄積復活。
@@ -1797,14 +3227,12 @@ function onIdle(){
     // 仕事開始時刻を取得
     const lastStart = parseInt(localStorage.getItem('daikou_last_start') || '0');
     tripStartTime = lastStart > 0 ? lastStart : null;
-    // TestMode：走行終了記録（★テスト用・リリース時削除）
-    try { if(typeof TestMode !== 'undefined') TestMode.endTrip(s.distance_m); } catch(e){ console.error('TestMode end error:', e); }
+    // TestMode 走行終了記録は H-3 対応で削除済
 
     // ─── 走行サマリートースト（5秒表示）───
     try {
-      const logs = (typeof TestMode !== 'undefined') ? TestMode.getLogs() : [];
-      const lastLog = logs[logs.length - 1];
-      const hasPosData = lastLog && lastLog.start_pos && lastLog.end_pos;
+      // TestMode 削除済（H-3）→ pos データは meter 経由で取得するか省略
+      const hasPosData = false;
       const gapCount = s.gap_fill_count || 0;
       const gapM    = Math.round(s.gap_fill_total_m || 0);
       const lines = [
@@ -1967,7 +3395,7 @@ function cancelFare(){
   document.getElementById('appbarTitle').textContent='代行中';
 }
 
-// ─── 割増トグル ───
+// ─── 割増トグル (旧式: 単一 surchargeOn) ───
 function toggleSurcharge(){
   surchargeOn = !surchargeOn;
   updateSurchargeBadge();
@@ -1980,6 +3408,48 @@ function updateSurchargeBadge(){
   badge.style.background = surchargeOn ? '#FF3B30' : '#8E8E93';
   document.getElementById('surchargeLabel').textContent = surchargeOn ? '割増 ON' : '割増 OFF';
 }
+
+// ─── fareConfig v2 (2026-05-10): 動的 surcharge ボタン群 ───
+function renderSurchargeButtons(){
+  const group = document.getElementById('surchargeGroup');
+  const multEl = document.getElementById('surchargeMult');
+  if(!group || typeof Meter === 'undefined') return;
+  const cfg = (typeof Meter.getFareConfig === 'function') ? Meter.getFareConfig() : null;
+  if(!cfg || !Array.isArray(cfg.surcharges) || cfg.surcharges.length === 0){
+    group.classList.remove('show');
+    return;
+  }
+  // ボタンを再描画
+  // multiplier element 以外を全削除して再生成
+  const multClone = multEl;
+  group.innerHTML = '';
+  const active = (typeof Meter.getActiveSurcharges === 'function') ? new Set(Meter.getActiveSurcharges()) : new Set();
+  cfg.surcharges.forEach(s => {
+    if(!s || !s.id) return;
+    const btn = document.createElement('button');
+    btn.className = 'surcharge-btn' + (active.has(s.id) ? ' on' : '');
+    btn.textContent = (s.name || '割増') + ' ×' + s.rate;
+    if(active.has(s.id)){
+      btn.style.background = s.color || '#007AFF';
+      btn.style.borderColor = s.color || '#007AFF';
+    }
+    btn.onclick = function(){
+      if(typeof Meter.toggleSurcharge === 'function') Meter.toggleSurcharge(s.id);
+      renderSurchargeButtons();
+    };
+    group.appendChild(btn);
+  });
+  group.appendChild(multClone);
+  // multiplier 更新
+  const mul = (typeof Meter.getSurchargeMultiplier === 'function') ? Meter.getSurchargeMultiplier() : 1.0;
+  if(multClone) multClone.textContent = '×' + mul.toFixed(2);
+  // 業務中のみ表示
+  const ms = (typeof Meter.getState === 'function') ? Meter.getState() : null;
+  if(ms && ms.running) group.classList.add('show');
+  else group.classList.remove('show');
+}
+// 業務開始/終了時に再描画
+window.renderSurchargeButtons = renderSurchargeButtons;
 
 // ─── 追加料金モーダル ───
 function openExtraModal(){
@@ -2062,7 +3532,13 @@ function showScreen(name){
   }
   // businessStart は btn-area のボタン全部非表示（リセットだけ）
 }
-// 起動直後の初期状態（idle）にも上記表示制御を即適用
+// 起動直後の初期状態にも上記表示制御を即適用
+// ★設計変更宣言 (2026-05-10): btnMain (代行開始) を無条件で .show する処理を削除
+//   旧: 起動時に btnMain.classList.add('show') を呼ぶ
+//       → businessStart 画面表示中も 代行開始 ボタンが見えてしまうバグ
+//   新: btnMain の表示制御は showScreen('idle') のみが管理
+//       (showScreen は Business init で適切な画面に対して必ず呼ばれる)
+//   row/back ボタンの reset は initial state として残す
 (function _initBtnVisibility(){
   const btnMain      = document.getElementById('btnMain');
   const btnRow       = document.getElementById('btnRow');
@@ -2071,7 +3547,8 @@ function showScreen(name){
   if(btnRow)   btnRow.classList.remove('show');
   if(btnBackP) btnBackP.classList.remove('show');
   if(btnBackL) btnBackL.classList.remove('show');
-  if(btnMain){ btnMain.textContent = '代行開始'; btnMain.classList.add('show'); }
+  // 念のため btnMain のテキストを「代行開始」に揃え・.show は付与しない
+  if(btnMain){ btnMain.textContent = '代行開始'; btnMain.classList.remove('show'); }
 })();
 
 // ─── VisibilityChange：裏に回った瞬間を確実に保存（層2） ───
@@ -2084,6 +3561,7 @@ document.addEventListener('visibilitychange', function(){
       if(surchargeOn) fare = Math.round(fare * surchargeRate);
       const extraTotal = extras.reduce((a,b)=>a+b.amount, 0);
       const total = fare + extraTotal;
+      const mmStats2 = (typeof Meter.getMMStats === 'function') ? Meter.getMMStats() : null;
       localStorage.setItem('daikou_driving_state', JSON.stringify({
         distance_m:    s.distance_m,
         fare_yen:      total,
@@ -2093,6 +3571,10 @@ document.addEventListener('visibilitychange', function(){
         last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
         last_speed_kmh: ms.last_speed_kmh || 0,
         last_gps_at:   ms.last_timestamp || null,
+        // F2: MM stats 同時保存
+        mm_distance_m: mmStats2 ? mmStats2.mm_distance_m : 0,
+        distance_source: mmStats2 ? mmStats2.distance_source : null,
+        mm_snap_rate: mmStats2 ? mmStats2.snap_rate : 0,
       }));
       dlog('[復元] 裏に回った瞬間を保存');
     } catch(e){ console.error('[復元] visibilitychange保存エラー:', e); }
@@ -2111,13 +3593,24 @@ document.addEventListener('visibilitychange', function(){
 // 起動時センサーバナー表示は「センサー未許可バナー（PWA起動時）」ロジックに統合（2026/04/30）
 // drivingState の有無に関係なく、未許可なら起動のたびにバナー表示
 
-loadSettings();
+// ★設計変更宣言 (2026-05-10): loadSettings() を try/catch で防御
+//   旧: 素裸で呼出・JSON.parse 失敗等で script 全体が halt
+//       → 後続 const (_isIOS 等) が TDZ → onBusinessStart で ReferenceError
+//   新: try/catch で守り、上流 halt を防止
+try { loadSettings(); } catch(e){ console.error('[loadSettings] error:', e && e.message, e && e.stack); }
 try { FB.setIdle(); } catch(e){ console.error('FB setIdle error:', e); }
 
 // ─── 業務管理スーパー機能の初期化（2026/05/01追加） ───
 // 永続化された業務状態を復元 + 3時間経過チェック（自動 abandon）
 // Business.load() 内で checkAutoAbandon() も呼ばれるが、保険で明示呼出
 try {
+  // ★設計変更宣言 (2026-05-10): Business 未定義/未初期化でも screenBusinessStart に必ず遷移
+  //   旧: Business 未定義時は何も起こらず screenIdle (初期 display:flex) のまま → 業務開始ボタンが見えないバグ
+  //   新: Business 未定義 fallback で showScreen('businessStart') を呼ぶ
+  if(typeof Business === 'undefined'){
+    appState = 'businessStart';
+    if(typeof showScreen === 'function') showScreen('businessStart');
+  }
   if(typeof Business !== 'undefined'){
     Business.load();
     Business.checkAutoAbandon();
@@ -2132,9 +3625,45 @@ try {
     //     ※ 直前の履歴が3時間以内なら「続きから再開」ボタン表示
     const bs = Business.getState();
     if(bs.active){
-      // 既に業務中・既存の appState ロジックに委ねる（idle / driving / fare の復元処理が後続にある）
+      // ★設計変更宣言 (2026-05-10): 業務中タスクキルからの復元フロー
+      //   旧: appState ロジック委ね だけで showScreen 呼ばず
+      //       → screenIdle (display:none) のまま businessStart (display:flex) が
+      //         残って「業務中なのにセンサー許可画面」と表示されるバグ
+      //   新: appState が driving/fare に既に復元されてなければ idle に遷移
+      //       (driving/fare は checkDrivingRestore (loadSettings 内) で先に復元される)
+      //       sensor 未許可なら orange banner で許可導線 (画面は idle のまま)
       updateBusinessDashboard();
-      startGPS(); // タスクキル後GPS再起動（許可は切れないがwatchPositionは再起動必要）
+      if(appState !== 'driving' && appState !== 'fare'){
+        appState = 'idle';
+        showScreen('idle');
+        const _t = document.getElementById('appbarTitle');
+        if(_t) _t.textContent = '空　車';
+      }
+      // ★設計変更宣言 (2026-05-10): 自動 startGPS() を削除
+      //   旧: startGPS();  ← bs.active 復元時の自動発火
+      //   新: btnSensorPermission 押下時のみ GPS 起動 (user gesture 必須)
+      // ★設計変更宣言 (2026-05-10): 業務復元時は iOS PWA で permission lost の
+      //   可能性が高い (タスクキルで失効) → orange banner を強制 overlay 表示し
+      //   ユーザーに「センサー再起動」の導線を明示
+      //   sessionStorage active が '1' なら同 session 内 (= GPS 稼働中) なので skip
+      try {
+        if(_isIOS && window.navigator.standalone === true &&
+           sessionStorage.getItem('sensor_permission_active') !== '1'){
+          // ★設計変更宣言 (2026-05-10): businessStart 画面では青ボタン表示・orange 抑制
+          const _bs = document.getElementById('screenBusinessStart');
+          const _onBs = _bs && _bs.style.display !== 'none';
+          if(_onBs){
+            const _btn = document.getElementById('btnSensorPermission');
+            if(_btn) _btn.style.display = 'block';
+            if(typeof dlog === 'function') dlog('[Business] active 復元: businessStart 中 → 青ボタン表示');
+          } else {
+            const _b = document.getElementById('sensorRestoreBanner');
+            if(_b) _b.style.display = 'block';
+            if(typeof dlog === 'function') dlog('[Business] active 復元: orange banner 強制表示');
+          }
+        }
+      } catch(_){}
+      if(typeof dlog === 'function') dlog('[Business] active 復元: appState=' + appState);
     } else if(bs.ended && Business.canResume()){
       // 業務終了済みかつ3時間以内 → 日報画面表示
       appState = 'businessReport';
@@ -2150,6 +3679,9 @@ try {
       updateResumeFromStartVisibility();
       // 2026/05/01：未許可ならバナー表示（許可済みなら何もしない）
       showSensorBannerIfNeeded();
+      // ★設計変更宣言 (2026-05-11): データ更新バナー表示判定
+      //   businessStart 表示直後・7 日経過 + snooze 期限切れなら表示
+      try { if(typeof DataUpdateBanner !== 'undefined') DataUpdateBanner.checkAndShow(); } catch(_){}
     }
   }
 } catch(e){
@@ -2160,16 +3692,10 @@ try {
 // （Business 未定義の場合や、active 業務中でも未許可ならバナー出す）
 try { showSensorBannerIfNeeded(); } catch(e){ console.error('[Sensor] init banner error:', e); }
 
-// ─── 起動時 GPS 自動起動（2026/05/04 夜・追加） ───
-// 司さん指示：「GPSは許可はずれんって分かったんやけんコードで常に作動するようにしろや」
-// sessionStorage='1' があれば（同session内・許可済み）起動時に即 startGPS()
-// → タスクキル後の再起動でも、設定画面遷移後でも、自動で GPS 動く
-try {
-  if(sessionStorage.getItem('sensor_permission_active') === '1'){
-    startGPS();
-    if(typeof dlog === 'function') dlog('[GPS] 起動時自動起動（許可済み）');
-  }
-} catch(e){ console.error('[GPS] 起動時自動起動エラー:', e); }
+// ★設計変更宣言 (2026-05-10): 起動時 GPS 自動起動を撤廃
+//   旧: sessionStorage active='1' なら起動時に即 startGPS()
+//   新: GPS は btnSensorPermission 押下経由でのみ起動する設計に統一
+//   user gesture 経由でのみ navigator.geolocation を呼ぶ厳格化
 
 // ─── PWAバナー（ホーム画面追加促進） ───
 (function(){
@@ -2189,6 +3715,33 @@ function closePwaBanner(){
 function showPwaInstructions(){
   alert('① 画面下の「共有」ボタン（□↑）をタップ\n② 「ホーム画面に追加」を選択\n③「追加」をタップ\n\nホーム画面のアイコンから起動するとコンパス・ジャイロが使えます！');
 }
+
+// ─── Android APK 配布バナー / モーダル 制御 ───
+function closeApkBanner(){
+  document.getElementById('apkBanner').classList.remove('show');
+  localStorage.setItem('apk_banner_dismissed', '1');
+}
+function showApkInstall(){
+  document.getElementById('apkModal').classList.add('show');
+}
+function closeApkModal(){
+  document.getElementById('apkModal').classList.remove('show');
+}
+// Android Chrome かつ standalone 起動でない場合に表示 (iOS / 既 PWA 化端末では出さない)
+(function(){
+  try {
+    const ua = navigator.userAgent || '';
+    const isAndroid = /Android/i.test(ua);
+    const isStandalone =
+      window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+    const dismissed = localStorage.getItem('apk_banner_dismissed') === '1';
+    if (isAndroid && !isStandalone && !dismissed) {
+      const el = document.getElementById('apkBanner');
+      if (el) el.classList.add('show');
+    }
+  } catch (e) {}
+})();
 
 // ─── 初回DL UI 制御（Phase 0a-2） ───
 // 47県データの初回DL：fetch + Cache Storage + IndexedDB県別進捗
@@ -2272,6 +3825,31 @@ const DakomeDL = (function(){
     })).catch(() => new Set());
   }
 
+  // ★設計変更宣言 (2026-05-11): 全 pref レコードを {pref, downloaded, size, timestamp} で取得
+  //   データ更新バナーの「最古 timestamp 判定」用
+  function getAllPrefectures(){
+    return openDb().then(db => new Promise((resolve) => {
+      const tx = db.transaction(STORE_PREF, 'readonly');
+      const store = tx.objectStore(STORE_PREF);
+      const valuesReq = store.getAll();
+      const keysReq = store.getAllKeys();
+      let values = null, keys = null;
+      function done(){
+        if(values === null || keys === null) return;
+        const result = [];
+        for(let i = 0; i < keys.length; i++){
+          const v = values[i] || {};
+          result.push({ pref: keys[i], downloaded: !!v.downloaded, size: v.size||0, timestamp: v.timestamp||0 });
+        }
+        resolve(result);
+      }
+      valuesReq.onsuccess = () => { values = valuesReq.result || []; done(); };
+      keysReq.onsuccess = () => { keys = keysReq.result || []; done(); };
+      valuesReq.onerror = () => resolve([]);
+      keysReq.onerror = () => resolve([]);
+    })).catch(() => []);
+  }
+
   // 県の完了をマーク（out-of-line key）
   function markPrefDone(pref, sizeBytes){
     return openDb().then(db => new Promise((resolve, reject) => {
@@ -2286,38 +3864,92 @@ const DakomeDL = (function(){
     }));
   }
 
+  // ★設計変更宣言 (2026-05-13): pref を「未完了」に戻す (delete from STORE_PREF)
+  //   SW の cache.put が失敗した際に main thread から呼出され、
+  //   IndexedDB prefStatus と Cache Storage の整合性を回復する
+  function markPrefUndone(pref){
+    return openDb().then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_PREF, 'readwrite');
+      const req = tx.objectStore(STORE_PREF).delete(pref);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    }));
+  }
+
   // ── UI制御 ──
+  // ★設計変更宣言 (2026-05-10): inline style.display を明示的に書き換える方式に変更
+  //   旧: classList.add/remove('show') のみ → 要素に inline style="display:none"
+  //       が付与されると class は negate されてしまう (inline 優先)
+  //   新: o.style.display を明示的に 'flex' / 'none' に切り替え + class も同期
+  //       inline style を書き換えるので必ず効く
   function showOverlay(){
     const o = document.getElementById('dlOverlay');
-    if(o) o.classList.add('show');
+    if(o){
+      o.style.display = 'flex';
+      o.classList.add('show');
+    }
+    // ★設計変更宣言 (2026-05-10): showOverlay 時に orange banner を強制非表示
+    //   DL UI 表示中は orange banner を画面に出さない (DL 画面に重畳防止)
+    try {
+      const _b = document.getElementById('sensorRestoreBanner');
+      if(_b) _b.style.display = 'none';
+    } catch(_){}
   }
   function hideOverlay(){
     const o = document.getElementById('dlOverlay');
-    if(o) o.classList.remove('show');
+    if(o){
+      o.style.display = 'none';
+      o.classList.remove('show');
+    }
   }
-  // 完了バナー表示 → 1.8秒後に dl_completed=true を保存しフェードアウト → メーター画面へ
+  // 完了バナー表示 → 1.5秒後に dl_completed=true を保存し
+  //  ① 業務未開始ならメイン画面（idle）へ自動遷移（業務開始押下と等価）
+  //  ② overlay を 0.5 秒フェードアウト（合計 2.0 秒で完了）
   // ユーザー操作ゼロで業務可能な状態へ（過去確定 G案：業務開始押下後はメーター直行 の真意を反映）
+  // 2026-05-08 修正：旧コードは overlay フェードのみで screenBusinessStart が裏に残り、
+  //   「業務開始」ボタンが表示されたまま自動遷移しない症状があった。onBusinessStart を
+  //   自動発火させて screenIdle（メイン画面）に遷移させる。
   function showCompleteBanner(){
     const loading = document.getElementById('dlStateLoading');
     const complete = document.getElementById('dlStateComplete');
     const overlay = document.getElementById('dlOverlay');
     if(loading) loading.classList.remove('show');
     if(complete) complete.classList.add('show');
-    // バナー表示の余韻 → IDB に完了マーク → 0.5秒フェード → 非表示
     setTimeout(() => {
       setDlCompleted().then(() => {
         if(typeof dlog === 'function') dlog('[DL] 完了・dl_completed=true 保存');
       }).catch(e => {
         console.warn('[DL] dl_completed 保存失敗:', e.message);
       });
+      // ★設計変更宣言 (2026-05-10): DL 完了後の自動 onBusinessStart 発火を撤廃
+      //   旧: setTimeout 経由で onBusinessStart() を自動呼出
+      //       → blockIfSensorNotGranted が iOS PWA 未許可時に
+      //         requestSensorPermission() を user gesture 無しで実行
+      //       → DeviceMotion/Orientation.requestPermission() reject
+      //       → orange「センサー再起動が必要」バナー誤表示
+      //   新: 自動遷移は撤廃・businessStart 画面に留まり「センサーを許可する」
+      //       青ボタンを user gesture で押してもらう (= iOS PWA 仕様準拠)
+      //   絶対ルール準拠: 業務継続性を理由に user gesture 違反するのは NG・
+      //                   (画面遷移は onBusinessStart 内で行うため留まる方が安全)
+      if(typeof dlog === 'function') dlog('[DL] 完了・businessStart 画面に留まる (自動遷移なし・user gesture 待ち)');
+      // ② overlay フェードアウト → 完全 hide
+      // ★設計変更宣言 (2026-05-10 再修正): DL 完了 flag を set + hideOverlay 順序修正
+      //   問題: fade-out class 削除 → opacity:0→1 に戻る transition の最中に
+      //         hideOverlay が呼ばれていたが、iOS WebView の render order で
+      //         opacity:1 への遷移が一瞬視認されて DL 完了画面が再表示
+      //   解決: hideOverlay を先に呼んで display:none 化 (要素消滅) → その後
+      //         fade-out class 削除 (見えないので opacity 遷移しても影響なし)
+      //   sessionStorage.dl_just_completed='1' で「DL 完了直後」を marking し、
+      //   それ以降の orange banner 表示判定で skip するために使う
+      try { sessionStorage.setItem('dl_just_completed','1'); } catch(_){}
       if(overlay) overlay.classList.add('fade-out');
       setTimeout(() => {
         if(overlay){
-          overlay.classList.remove('show');
-          overlay.classList.remove('fade-out');
+          hideOverlay();   // display:none → 要素消滅を先に
+          overlay.classList.remove('fade-out');  // その後 fade-out 解除 (見えない)
         }
       }, 500);
-    }, 1800);
+    }, 1500);
   }
   function updateProgress(done, total){
     const fill = document.getElementById('dlProgressFill');
@@ -2420,13 +4052,57 @@ const DakomeDL = (function(){
     });
   }
 
+  // ★設計変更宣言 (2026-05-13): ?_v= 付き重複エントリの起動時 cleanup
+  //   過去の SW staleWhileRevalidate が request.url (?_v={timestamp} 付き) で
+  //   cache.put していたため、同一 pref が "no-query" と "?_v= 付き" の 2 件
+  //   重複して残っているケースを 1 度だけ削除する。
+  //   現在の SW は normalized URL で put するため、新規には重複は発生しない。
+  //   起動時 1 回 (init() 冒頭から fire-and-forget) のみ実行。
+  async function _cleanupQueriedRoadsCacheEntries(){
+    try {
+      if(typeof caches === 'undefined' || typeof caches.has !== 'function') return;
+      const exists = await caches.has('daikome-roads-v1');
+      if(!exists) return;
+      const c = await caches.open('daikome-roads-v1');
+      const reqs = await c.keys();
+      let removed = 0;
+      for(const req of reqs){
+        if(req.url.indexOf('?') === -1) continue;
+        try {
+          await c.delete(req);
+          removed++;
+        } catch(_){}
+      }
+      if(removed > 0 && typeof dlog === 'function'){
+        dlog('[CacheCleanup] ?_v= 付き重複エントリ ' + removed + ' 件削除');
+      }
+    } catch(e){
+      if(typeof dlog === 'function') dlog('[CacheCleanup] error: ' + (e && e.message));
+    }
+  }
+
   // ── 起動時実行 ──
   function init(){
-    getDlCompleted().then(completed => {
+    // ★設計変更宣言 (2026-05-12): DL 進行中フラグ
+    //   _detectCacheEviction が初回 DL 中の transient な cache 欠落を誤検知し
+    //   DataUpdateBanner.show() 経由で並列自動 DL を起動する事故を防ぐ
+    window._dakomeDLInProgress = true;
+    // ★設計変更宣言 (2026-05-13): 起動時 1 回だけ ?_v= 付き重複エントリ削除
+    //   fire-and-forget (失敗しても DL フローを止めない)
+    _cleanupQueriedRoadsCacheEntries();
+    getDlCompleted().then(async (completed) => {
       if(completed){
         // 既存ユーザー：未DL県があればバックグラウンドで差分DL
         if(typeof dlog === 'function') dlog('[DL] 初回DL済み・差分DLチェック');
+        // ★設計変更宣言 (2026-05-13): Cache Storage 実態確認 + 欠落復旧
+        //   完了済 (IndexedDB dl_completed=true) でも Cache に 47 県揃っていない
+        //   可能性があるため、await で検証・復旧してから checkAndUpdateExisting へ
+        await _verifyAndRecoverRoadsCache();
         checkAndUpdateExisting();
+        // ★設計変更宣言 (2026-05-13): 既存ユーザー (差分DLパス) では
+        //   showCompleteBanner が呼ばれず flag が true のまま残り
+        //   _detectCacheEviction が永続的に skip されるため、return 直前で false にリセット
+        window._dakomeDLInProgress = false;
         return;
       }
       if(typeof dlog === 'function') dlog('[DL] 初回起動・47県DL開始');
@@ -2434,7 +4110,7 @@ const DakomeDL = (function(){
       startDownload().then(result => {
         if(result.failed.length === 0){
           updateProgress(PREFECTURES.length, PREFECTURES.length);
-          setTimeout(showCompleteBanner, 400);
+          setTimeout(() => { window._dakomeDLInProgress = false; showCompleteBanner(); }, 400);
         } else {
           showRetryHint(result.failed.length);
           if(typeof dlog === 'function') dlog('[DL] ' + result.failed.length + '県失敗・3秒後再試行');
@@ -2442,12 +4118,12 @@ const DakomeDL = (function(){
             startDownload().then(r2 => {
               if(r2.failed.length === 0){
                 updateProgress(PREFECTURES.length, PREFECTURES.length);
-                setTimeout(showCompleteBanner, 400);
+                setTimeout(() => { window._dakomeDLInProgress = false; showCompleteBanner(); }, 400);
               } else {
                 showRetryHint(r2.failed.length);
                 if(typeof dlog === 'function') dlog('[DL] 再試行も失敗・次回起動で再開');
                 // 業務継続可能にするためバナーは出す
-                setTimeout(showCompleteBanner, 1000);
+                setTimeout(() => { window._dakomeDLInProgress = false; showCompleteBanner(); }, 1000);
               }
             });
           }, 3000);
@@ -2504,8 +4180,499 @@ const DakomeDL = (function(){
     });
   }
 
-  return { init, setDlCompleted, hideOverlay, getPrefStatus, checkAndUpdateExisting };
+  // ★設計変更宣言 (2026-05-12): Cache Storage エビクション検知 + 強制復旧導線 (P0 Step 3)
+  //   目的: iOS Safari の自動エビクションで Cache Storage から
+  //         /data/roads-{pref}.js が部分的/全件削除された場合に検知し、
+  //         ユーザーに再 DL を促す (データ更新バナー強制表示)
+  //
+  //   検知条件 (どちらか満たせばエビクション扱い):
+  //     A. navigator.storage.estimate() の (quota - usage) / quota < 0.1
+  //        = 残量 10% 未満 → 自動 evict が始まる前に警告
+  //     B. caches API で daikome- prefix のキャッシュを open し、
+  //        47 県の /data/roads-{pref}.js を cache.match() で確認
+  //        1 件でも欠落していれば evict 発生済
+  //
+  //   復旧導線:
+  //     既存 DataUpdateBanner.show() を呼出 (snooze 無視で表示) +
+  //     文言を「データが不足しています。再ダウンロードしてください」に override
+  //
+  //   多重実行防止: _cacheCheckInProgress フラグ + try/finally
+  //
+  // ★設計変更宣言 (2026-05-12): false positive 対策 3 点修正
+  //   旧: PREFECTURES 47 件全件チェック・visibilitychange 即時・1 回欠落で即バナー
+  //       → SW 更新中/DL 途中で誤検知発生
+  //   新:
+  //     A. DL 完了済みの県のみ確認 (getPrefStatus() の doneSet を参照)
+  //        → 未 DL 県は最初から欠落扱いしない (DL 未着手の県でバナー出ない)
+  //     B. visibilitychange に 5 秒 debounce (タブ往復連打で連続検知しない)
+  //     C. 欠落検知時は 3 秒後に 1 回だけ再確認・両方欠落で初めてバナー表示
+  //        (SW 更新中/cache addAll 途中の transient な欠落を吸収)
+  let _cacheCheckInProgress = false;
+  let _lastVisibilityCheckAt = 0;
+  const _VISIBILITY_DEBOUNCE_MS = 5000;
+  const _CONFIRM_RECHECK_DELAY_MS = 3000;
+
+  async function _detectCacheEviction(isConfirm){
+    // ★設計変更宣言 (2026-05-12): DL 進行中はキャッシュ欠落判定を skip
+    //   初回 DL の SW cache.put が非同期完了する前に cache.match=null と判定し
+    //   DataUpdateBanner.show() を強制呼出 → 並列自動 DL が起動する事故を防ぐ
+    if(window._dakomeDLInProgress) return;
+    if(_cacheCheckInProgress) return;
+    _cacheCheckInProgress = true;
+    try {
+      let lowStorage = false;
+      let missingFiles = false;
+      // ★設計変更宣言 (2026-05-13): 欠落県リストを収集 (全 47 県再 DL ではなく
+      //   欠落県のみ復旧するため・空配列なら復旧対象なし)
+      let missingPrefs = [];
+
+      // A. ストレージ残量チェック (未サポート環境では skip・エラー化しない)
+      try {
+        if(navigator.storage && typeof navigator.storage.estimate === 'function'){
+          const est = await navigator.storage.estimate();
+          if(est && typeof est.quota === 'number' && typeof est.usage === 'number'){
+            const remaining = est.quota - est.usage;
+            if(est.quota > 0 && remaining < est.quota * 0.1){
+              lowStorage = true;
+              if(typeof dlog === 'function'){
+                dlog('[CacheCheck] 残量不足: ' + (remaining/1024/1024).toFixed(0) + 'MB / ' +
+                     (est.quota/1024/1024).toFixed(0) + 'MB (10% 未満)');
+              }
+            }
+          }
+        }
+      } catch(_){}
+
+      // B. キャッシュ存在チェック (修正: DL 完了済みの県のみ確認)
+      //    ★設計変更宣言 (2026-05-13): roads cache を固定名 'daikome-roads-v1' へ分離
+      //       旧: caches.keys().find(daikome-) で動的取得
+      //       新: 'daikome-roads-v1' を直接参照
+      try {
+        // ★修正 A: getPrefStatus() で DL 完了済みの県セットを取得
+        //   未 DL 県 (まだ一度も DL してない / 初回起動直後等) は欠落扱いしない
+        //   doneSet.size === 0 (一切 DL 未完了) なら check 全体を skip
+        const doneSet = await getPrefStatus();
+        if(!doneSet || doneSet.size === 0){
+          if(typeof dlog === 'function') dlog('[CacheCheck] DL 完了県 0 件 → 欠落判定スキップ');
+        } else if(typeof caches !== 'undefined' && typeof caches.has === 'function'){
+          const exists = await caches.has('daikome-roads-v1');
+          if(!exists){
+            // 'daikome-roads-v1' キャッシュが存在しない = 全 evict 想定 (新規 install 直後等)
+            missingFiles = true;
+            if(typeof dlog === 'function') dlog('[CacheCheck] daikome-roads-v1 キャッシュなし (全 evict 想定)');
+          } else {
+            const cache = await caches.open('daikome-roads-v1');
+            // ★設計変更宣言 (2026-05-13): 旧 break で 1 件で抜けていたが、
+            //   欠落県のみ復旧するため全件 scan して missingPrefs に蓄積する
+            for(const pref of doneSet){
+              const url = '/data/roads-' + pref + '.js';
+              const match = await cache.match(url);
+              if(!match){
+                missingFiles = true;
+                missingPrefs.push(pref);
+                if(typeof dlog === 'function') dlog('[CacheCheck] 欠落検知 (DL 完了済): ' + pref);
+              }
+            }
+          }
+        }
+      } catch(_){}
+
+      // C. 欠落検知時の処理 (修正: 1 回目疑い → 3 秒後再確認 → 両方欠落で復旧)
+      if(lowStorage || missingFiles){
+        if(!isConfirm){
+          // 1 回目: 復旧せず・3 秒後に再確認
+          //   SW activate 中・cache addAll 途中等の transient な欠落を吸収
+          if(typeof dlog === 'function'){
+            dlog('[CacheCheck] 欠落疑い (lowStorage=' + lowStorage +
+                 ' missing=' + missingFiles + ' prefs=' + missingPrefs.length +
+                 ') → 3 秒後に再確認');
+          }
+          setTimeout(() => _detectCacheEviction(true), _CONFIRM_RECHECK_DELAY_MS);
+          return;  // 1 回目は何もせず exit (finally で _cacheCheckInProgress リセット)
+        }
+        // ★設計変更宣言 (2026-05-13): 2 回目 (確認モード) でも欠落 → 欠落県のみ復旧
+        //   旧: DataUpdateBanner.show() 強制呼出 → 全 47 県再 DL (204MB の無駄)
+        //   新: _recoverMissingPrefs(missingPrefs) → 欠落県のみ fetch + cache.put + markPrefDone
+        if(typeof dlog === 'function'){
+          dlog('[CacheCheck] 再確認でも欠落 → 復旧開始: lowStorage=' + lowStorage +
+               ' missing=' + missingFiles + ' prefs=[' + missingPrefs.join(',') + ']');
+        }
+        // 確認モードで finally に到達する前に復旧を kick (await しない・
+        // _cacheCheckInProgress を早く解放するため)
+        if(missingPrefs.length > 0){
+          _recoverMissingPrefs(missingPrefs);
+        }
+      } else {
+        if(typeof dlog === 'function'){
+          dlog('[CacheCheck] OK (' + (isConfirm ? '再確認 ' : '') +
+               'DL 完了県揃い・残量 10% 以上)');
+        }
+      }
+    } catch(e){
+      console.error('[CacheCheck] error:', e && e.message);
+    } finally {
+      _cacheCheckInProgress = false;
+    }
+  }
+
+  // ★設計変更宣言 (2026-05-13): 欠落県のみ再 DL する復旧専用関数
+  //   旧: DataUpdateBanner.startDownload() (全 47 県・204MB 再 fetch) を強制呼出
+  //   新: missingList の県のみ fetch + 明示的 cache.put + markPrefDone
+  //       (SW SWR の暗黙 cache.put は失敗時の通知経路があるが、復旧時は確実性を
+  //        優先し main thread で直接 cache.put して結果を await・成功時のみ
+  //        markPrefDone することで cache と prefStatus の整合性を担保)
+  let _recoveryInProgress = false;
+  async function _recoverMissingPrefs(missingList){
+    if(_recoveryInProgress) return;
+    if(!Array.isArray(missingList) || missingList.length === 0) return;
+    _recoveryInProgress = true;
+    if(typeof dlog === 'function') dlog('[Recover] 開始: ' + missingList.length + ' 県');
+    let ok = 0;
+    const failed = [];
+    try {
+      // ★設計変更宣言 (2026-05-13): 復旧対象 cache を固定名 'daikome-roads-v1' に直接参照
+      //   旧: caches.keys().find(daikome-) で動的取得 (アプリコード cache を間違って参照する可能性)
+      //   新: roads データ専用の 'daikome-roads-v1' を直接 open
+      let cache = null;
+      try {
+        if(typeof caches !== 'undefined'){
+          cache = await caches.open('daikome-roads-v1');
+        }
+      } catch(_){}
+      const MAX_RETRY = 3;
+      for(const pref of missingList){
+        let success = false;
+        let blobSize = 0;
+        for(let attempt = 1; attempt <= MAX_RETRY; attempt++){
+          try {
+            // ★設計変更宣言 (2026-05-13): ?_v= cache-busting を撤廃し {cache:'reload'} に変更
+            //   旧 SW (cacheKey 正規化前) が ?_v= 付き URL で別エントリを put する
+            //   重複生成事故を防ぐため、URL は canonical (no-query) で fetch
+            //   {cache:'reload'} で HTTP cache をバイパス (cache-busting 効果は維持)
+            const fetchUrl = '/data/roads-' + pref + '.js';
+            const cacheUrl = '/data/roads-' + pref + '.js';
+            const res = await fetch(fetchUrl, { cache: 'reload' });
+            if(!res.ok) throw new Error('HTTP ' + res.status);
+            // ★設計変更宣言 (2026-05-13): cache 取得不可なら復旧失敗扱い
+            //   旧: if(cache){ cache.put(...) } で skip し markPrefDone のみ実行
+            //       → cache に入っていないのに完了マークだけ立つ整合性破れ
+            //       → 次回 _detectCacheEviction で再び欠落判定される無限ループ
+            //   新: cache===null なら throw → attempt 再試行・最終的に failed リスト入り
+            //       cache.put 成功時のみ markPrefDone (整合性担保)
+            if(!cache) throw new Error('cache unavailable');
+            const resClone = res.clone();
+            await cache.put(cacheUrl, resClone);
+            const blob = await res.blob();
+            blobSize = blob.size;
+            await markPrefDone(pref, blobSize);
+            success = true;
+            break;
+          } catch(e){
+            if(typeof dlog === 'function'){
+              dlog('[Recover] ' + pref + ' attempt ' + attempt + ' 失敗: ' + (e && e.message));
+            }
+            if(attempt < MAX_RETRY) await new Promise(r => setTimeout(r, 1000 * attempt));
+          }
+        }
+        if(success){ ok++; }
+        else { failed.push(pref); }
+      }
+      // 完了通知 (showToast はグローバル関数・無ければ何もしない)
+      try {
+        if(ok > 0 && failed.length === 0){
+          if(typeof showToast === 'function') showToast(ok + ' 県のデータを復旧しました');
+        } else if(ok > 0){
+          if(typeof showToast === 'function') showToast(ok + ' 県復旧・' + failed.length + ' 県失敗');
+        } else {
+          if(typeof showToast === 'function') showToast('データ復旧に失敗しました');
+        }
+      } catch(_){}
+      if(typeof dlog === 'function'){
+        dlog('[Recover] 完了: ok=' + ok + ' failed=' + failed.length +
+             (failed.length > 0 ? ' [' + failed.join(',') + ']' : ''));
+      }
+    } catch(e){
+      console.error('[Recover] error:', e && e.message);
+    } finally {
+      _recoveryInProgress = false;
+    }
+  }
+
+  // ★設計変更宣言 (2026-05-13): DL 完了判定を IndexedDB + Cache Storage 両方で検証
+  //   旧: getDlCompleted=true で即 businessStart 遷移 (Cache 実態未確認)
+  //   新: completed=true 経路で Cache Storage に 47 県 canonical URL が全て存在するか
+  //       を確認し、欠落があれば _recoverMissingPrefs を await で実行してから先に進む
+  //   recovery 中は DL オーバーレイを維持 (ユーザーに「準備中」状態を可視化)
+  async function _verifyAndRecoverRoadsCache(){
+    try {
+      if(typeof caches === 'undefined') return;
+      const exists = await caches.has('daikome-roads-v1');
+      let missing = [];
+      if(!exists){
+        // daikome-roads-v1 が無い = 全 evict 想定 (デプロイ migration 失敗等)
+        missing = PREFECTURES.slice();
+        if(typeof dlog === 'function'){
+          dlog('[Verify] daikome-roads-v1 なし → 全 ' + missing.length + ' 県復旧');
+        }
+      } else {
+        const cache = await caches.open('daikome-roads-v1');
+        const reqs = await cache.keys();
+        const cachedPaths = new Set();
+        for(const req of reqs){
+          try {
+            const u = new URL(req.url);
+            cachedPaths.add(u.pathname);   // canonical pathname (no query)
+          } catch(_){}
+        }
+        for(const pref of PREFECTURES){
+          if(!cachedPaths.has('/data/roads-' + pref + '.js')) missing.push(pref);
+        }
+      }
+      if(missing.length === 0){
+        if(typeof dlog === 'function') dlog('[Verify] 47 県全て cache OK');
+        return;
+      }
+      if(typeof dlog === 'function'){
+        dlog('[Verify] cache 欠落 ' + missing.length + ' 県 → 復旧開始: ' + missing.join(','));
+      }
+      // recovery 中は DL オーバーレイを表示してユーザーに「準備中」を可視化
+      try { showOverlay(); } catch(_){}
+      try {
+        await _recoverMissingPrefs(missing);
+      } finally {
+        try { hideOverlay(); } catch(_){}
+      }
+    } catch(e){
+      if(typeof dlog === 'function') dlog('[Verify] error: ' + (e && e.message));
+      try { hideOverlay(); } catch(_){}
+    }
+  }
+
+  // トリガ 1: DOMContentLoaded 後 (初回起動時の検知)
+  if(typeof document !== 'undefined'){
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => _detectCacheEviction(), 1000);  // SW activate 完了を少し待つ
+      });
+    } else {
+      setTimeout(() => _detectCacheEviction(), 1000);
+    }
+
+    // トリガ 2: visibilitychange (タブ復帰時に再チェック・5 秒 debounce)
+    //   ★修正 B: タブ往復連打 / 短時間の visibility 変化で連続検知させない
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if(now - _lastVisibilityCheckAt < _VISIBILITY_DEBOUNCE_MS){
+        if(typeof dlog === 'function') dlog('[CacheCheck] visibility debounce skip');
+        return;
+      }
+      _lastVisibilityCheckAt = now;
+      _detectCacheEviction();
+    });
+  }
+
+  return { init, setDlCompleted, hideOverlay, getPrefStatus, checkAndUpdateExisting,
+           getAllPrefectures, downloadWithRetry, markPrefDone, markPrefUndone, PREFECTURES,
+           // P0 Step 3 (2026-05-12) - debug / 手動チェック用 export
+           _detectCacheEviction,
+           // 2026-05-13: 欠落復旧 (SW cache.put 失敗時の整合性回復)
+           _recoverMissingPrefs };
 })();
+
+// ★設計変更宣言 (2026-05-11): データ更新バナー (businessStart 7 日経過時のみ表示)
+//   仕様:
+//   - 表示条件: appState='businessStart' AND iOS PWA AND oldest pref >7日前
+//                AND snooze 24h 経過済
+//   - WiFi 検出 (navigator.connection.type==='wifi' or downlink>5Mbps) で自動 DL
+//   - × タップで 24h スヌーズ
+//   - 業務開始ボタン押下で自動非表示 (snooze なし)
+//   - 業務中 (idle/driving/fare) は絶対表示しない
+//   - 完了で自動消滅・snooze 記録なし
+const DataUpdateBanner = (function(){
+  const STALE_MS  = 7 * 24 * 60 * 60 * 1000;
+  const SNOOZE_MS = 24 * 60 * 60 * 1000;
+  const SNOOZE_KEY = 'daikou_update_snooze';
+  let _downloading = false;
+  let _autoTriggered = false;  // wifi 自動 DL の重複防止
+
+  // IndexedDB から全 pref レコードを取得 (DakomeDL 公開 API 経由)
+  function _getAllPrefs(){
+    return DakomeDL.getAllPrefectures ? DakomeDL.getAllPrefectures() : Promise.resolve([]);
+  }
+
+  async function _getOldestPrefTimestamp(){
+    try {
+      const all = await _getAllPrefs();
+      if(all.length === 0) return null;
+      return Math.min.apply(null, all.map(r => r.timestamp || Date.now()));
+    } catch(_) { return null; }
+  }
+
+  async function _shouldShow(){
+    if(appState !== 'businessStart') return false;
+    if(!_isIOS || window.navigator.standalone !== true) return false;
+    const snooze = parseInt(localStorage.getItem(SNOOZE_KEY) || '0', 10);
+    if(Date.now() - snooze < SNOOZE_MS) return false;
+    const oldest = await _getOldestPrefTimestamp();
+    if(oldest === null) return false;
+    return (Date.now() - oldest) > STALE_MS;
+  }
+
+  function _isOnWifi(){
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if(!c) return navigator.onLine;
+    return c.type === 'wifi' || (c.downlink && c.downlink > 5);
+  }
+
+  function _resetText(){
+    const banner = document.getElementById('dataUpdateBanner');
+    if(!banner) return;
+    banner.classList.remove('downloading');
+    const icon = banner.querySelector('.icon');
+    const text = banner.querySelector('.text');
+    if(icon) icon.textContent = '📡';
+    if(text) text.innerHTML = '道路データが古くなっています。<strong>WiFiに繋いで</strong>更新してください。';
+  }
+
+  function show(){
+    _resetText();
+    const wrap = document.getElementById('dataUpdateBannerWrap');
+    if(wrap) wrap.classList.add('show');
+    // 既に WiFi なら 3 秒後に自動 DL (重複防止 _autoTriggered)
+    if(!_autoTriggered && !_downloading && _isOnWifi()){
+      _autoTriggered = true;
+      setTimeout(() => { if(!_downloading) startDownload(); }, 3000);
+    }
+  }
+
+  function hide(snooze){
+    const wrap = document.getElementById('dataUpdateBannerWrap');
+    if(wrap) wrap.classList.remove('show');
+    if(snooze){
+      try { localStorage.setItem(SNOOZE_KEY, Date.now().toString()); } catch(_){}
+    }
+  }
+
+  function _setProgress(done, total){
+    const banner = document.getElementById('dataUpdateBanner');
+    if(!banner) return;
+    const text = banner.querySelector('.text');
+    if(text) text.innerHTML = '<strong>地図データ更新中</strong> <span class="progress-text">' + done + '/' + total + ' 県</span>';
+  }
+
+  async function startDownload(){
+    if(_downloading) return;
+    _downloading = true;
+    const wrap = document.getElementById('dataUpdateBannerWrap');
+    const banner = document.getElementById('dataUpdateBanner');
+    const icon = banner.querySelector('.icon');
+    if(wrap) wrap.classList.add('show');
+    banner.classList.add('downloading');
+    if(icon) icon.textContent = '⟳';
+    const total = (DakomeDL.PREFECTURES || []).length || 47;
+    _setProgress(0, total);
+    try {
+      // ★設計変更宣言 (2026-05-12): 全 47 県 fetch 時に size 差で「実更新数」をカウント
+      //   settings.html onCheckUpdate と同じ判定方式 (size 差 = 実コンテンツ更新)
+      //   _finish に updated 件数を渡してメッセージに含める
+      const existing = await (DakomeDL.getAllPrefectures
+        ? DakomeDL.getAllPrefectures() : Promise.resolve([]));
+      const sizeMap = new Map((existing || []).map(r => [r.pref, r.size || 0]));
+      // 全 47 県を強制再 fetch (settings.html の onCheckUpdate と同等・cache busting)
+      const stamp = Date.now();
+      const PARALLEL = 2;
+      const MAX_RETRY = 3;
+      const queue = (DakomeDL.PREFECTURES || []).slice();
+      let done = 0;
+      let updated = 0;
+      async function worker(){
+        while(queue.length > 0){
+          const pref = queue.shift();
+          let newSize = 0;
+          let success = false;
+          for(let attempt = 1; attempt <= MAX_RETRY; attempt++){
+            try {
+              // ★設計変更宣言 (2026-05-13): ?_v= cache-busting を撤廃し {cache:'reload'} に変更
+              //   旧 SW が ?_v= 付き URL で別エントリ put する重複事故を防ぐ
+              const url = '/data/roads-' + pref + '.js';
+              const res = await fetch(url, { cache: 'reload' });
+              if(!res.ok) throw new Error('HTTP ' + res.status);
+              const blob = await res.blob();
+              newSize = blob.size;
+              await DakomeDL.markPrefDone(pref, newSize);
+              success = true;
+              break;
+            } catch(e){
+              if(attempt < MAX_RETRY) await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+          }
+          if(success){
+            const prev = sizeMap.get(pref) || 0;
+            if(prev !== newSize) updated++;
+          }
+          done++;
+          _setProgress(done, total);
+        }
+      }
+      const workers = [];
+      for(let i = 0; i < PARALLEL; i++) workers.push(worker());
+      await Promise.all(workers);
+      _finish(true, updated, total);
+    } catch(e){
+      console.warn('[DataUpdate] 失敗:', e && e.message);
+      _finish(false, 0, total);
+    }
+  }
+
+  function _finish(ok, updated, total){
+    const banner = document.getElementById('dataUpdateBanner');
+    const icon = banner.querySelector('.icon');
+    const text = banner.querySelector('.text');
+    banner.classList.remove('downloading');
+    if(ok){
+      if(icon) icon.textContent = '✅';
+      if(text){
+        // ★設計変更宣言 (2026-05-12): 実更新数を明示
+        //   updated > 0: "X 県の地図データを更新しました"
+        //   updated === 0: "すべて最新でした (全 N 県確認)"
+        if(updated > 0){
+          text.innerHTML = '<strong>' + updated + ' 県の地図データを更新しました</strong>';
+        } else {
+          text.innerHTML = '<strong>すべて最新でした</strong> (全 ' + total + ' 県確認)';
+        }
+      }
+    } else {
+      if(icon) icon.textContent = '⚠️';
+      if(text) text.innerHTML = '<strong>更新失敗・また後で試してください</strong>';
+    }
+    setTimeout(() => {
+      hide(false);  // snooze 記録しない (正常終了)
+      _downloading = false;
+      _autoTriggered = false;
+    }, 1800);
+  }
+
+  async function checkAndShow(){
+    if(await _shouldShow()) show();
+  }
+
+  return { show, hide, startDownload, checkAndShow, _isOnWifi };
+})();
+
+// グローバル関数として close-btn onclick から呼べるよう公開
+function hideDataUpdateBanner(){ DataUpdateBanner.hide(true); }
+
+// visibility 復帰 + online で WiFi 自動 DL を再評価
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){
+    DataUpdateBanner.checkAndShow();
+  }
+});
+window.addEventListener('online', function(){
+  // online になったら WiFi 経由の可能性ありなので再判定
+  DataUpdateBanner.checkAndShow();
+});
 
 // ─── 月次更新トースト UI 制御 ───
 const DakomeUpdateToast = (function(){
@@ -2560,7 +4727,11 @@ function onDlToastTap(){
 // ─── チュートリアル（初回URL訪問時のみ） ───
 (function(){
   const done = localStorage.getItem('tutorial_done');
-  const isInstalled = window.navigator.standalone === true;
+  // 修正 (2026-05-08): iOS の navigator.standalone は Android で undefined のため
+  // matchMedia('(display-mode: standalone)') を併用してクロスプラットフォーム化
+  const isInstalled =
+    window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
   // PWAインストール済み（アイコンから起動）→ チュートリアル不要
   if(isInstalled) return;
   // 完了済みならスキップ
@@ -2569,7 +4740,7 @@ function onDlToastTap(){
   document.getElementById('tutorialOverlay').classList.add('show');
 })();
 
-let _tutorialPage = 0;
+// (2026-05-10) _tutorialPage は script 先頭に移動済 (TDZ 対策)
 
 function tutorialNext(){
   const pages = document.querySelectorAll('.tutorial-page');
@@ -2590,6 +4761,12 @@ function tutorialNext(){
   if(_tutorialPage === 2){
     // ページ3（ホーム画面）：ボタンなし・自分で追加するだけ
     navArea.style.display = 'none';
+    // 修正 (2026-05-08): ユーザーが Chrome 離脱で tutorialComplete() が呼ばれないため
+    // ページ 3 到達時点で完了フラグを永続化 (Android 無限ループ対策)
+    try {
+      localStorage.setItem('tutorial_done', '1');
+      if(typeof dlog === 'function') dlog('[Tutorial] page 3 到達 → tutorial_done=1 設定');
+    } catch(e) {}
   } else {
     navArea.style.display = 'block';
     navBtn.textContent = '次へ';
@@ -2638,12 +4815,19 @@ function requestSensorPermission(){
       localStorage.setItem('motion_granted','1');
       // 2026/05/04 夜・追加：同 session 内のページ遷移で permission 維持を判定するため
       sessionStorage.setItem('sensor_permission_active','1');
-
+      // ★設計変更宣言 (2026-05-10): 許可後は dl_just_completed flag を削除
+      //   (banner 抑制条件を解除・許可されれば banner も不要になる)
+      try { sessionStorage.removeItem('dl_just_completed'); } catch(_){}
       // 2026/05/02：バナーから許可ボタン削除済み・即座に非表示
       const banner = document.getElementById('sensorRestoreBanner');
       if(banner && banner.style.display !== 'none'){
         banner.style.display = 'none';
       }
+      // ★設計変更宣言 (2026-05-10): screenBusinessStart の許可ボタンも非表示
+      const _btnSP = document.getElementById('btnSensorPermission');
+      const _noteSP = document.getElementById('sensorPermissionNote');
+      if(_btnSP) _btnSP.style.display = 'none';
+      if(_noteSP) _noteSP.style.display = 'none';
       const overlay = document.getElementById('tutorialOverlay');
       if(overlay && overlay.classList.contains('show')) tutorialNext();
 
@@ -2654,14 +4838,39 @@ function requestSensorPermission(){
         if(typeof dlog === 'function') dlog('[GPS] requestSensorPermission後に起動');
       } catch(e){ console.error('[GPS] 起動エラー:', e); }
 
+      // ★設計変更宣言 (2026-05-10): センサー許可後に近隣道路データを先読み
+      //   getCurrentPosition で 1 回だけ位置取得 → _autoLoadNearbyRoads で
+      //   roads-{pref}.js 5 県分を Worker B に forward
+      //   user gesture 経由 (btnSensorPermission 押下) なので iOS PWA でも動作
+      try {
+        if(navigator.geolocation){
+          navigator.geolocation.getCurrentPosition(function(pos){
+            try {
+              if(pos && pos.coords && typeof _autoLoadNearbyRoads === 'function'){
+                _autoLoadNearbyRoads(pos.coords.latitude, pos.coords.longitude);
+                if(typeof dlog === 'function') dlog('[MM] preload roads after permission grant');
+              }
+            } catch(_){}
+          }, function(){}, {enableHighAccuracy:true, timeout:10000});
+        }
+      } catch(_){}
+
     } else {
-      // 許可失敗（iOSキャンセル）：バナーをそのまま表示（手順1+手順2の案内）
-      // 2026/05/02：バナー文言を上書きしない（新文言を維持）
-      const banner = document.getElementById('sensorRestoreBanner');
-      if(banner){
-        banner.style.display = 'block';
+      // 許可失敗（iOSキャンセル or user gesture 不足）：バナーをそのまま表示
+      // ★設計変更宣言 (2026-05-10): businessStart 画面では青ボタン表示・orange 抑制
+      const _bs = document.getElementById('screenBusinessStart');
+      const _onBs = _bs && _bs.style.display !== 'none';
+      if(_onBs){
+        const _btn = document.getElementById('btnSensorPermission');
+        if(_btn) _btn.style.display = 'block';
+        dlog('[GPS] センサー許可失敗・businessStart 中 → 青ボタン表示');
+      } else {
+        const banner = document.getElementById('sensorRestoreBanner');
+        if(banner){
+          banner.style.display = 'block';
+        }
+        dlog('[GPS] センサー許可失敗・バナー表示');
       }
-      dlog('[GPS] センサー許可失敗・バナー表示');
     }
   });
 }
@@ -2707,8 +4916,7 @@ function refreshSensorPermission(){
 }
 
 // ─── デバイス判定 ───
-const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-const _isAndroid = /Android/.test(navigator.userAgent);
+// (2026-05-10) const _isIOS / _isAndroid は script 先頭に移動済 (TDZ 対策)
 
 // 2026/05/02：confirmAndroidSensor 削除（バナーから呼出ボタン削除済み・未使用関数）
 
@@ -2738,21 +4946,29 @@ const _isAndroid = /Android/.test(navigator.userAgent);
     return;
   }
 
-  if(_isIOS){
-    // 2026/05/03 修正：iOS PWA は起動時必ずバナー表示
-    //   旧コード：localStorage の compass_granted/motion_granted があれば非表示
-    //   問題：iOS PWA の DeviceMotion/Orientation は session 毎失効するのに
-    //         localStorage は永続化される → 実態と乖離 → タスクキル後でも非表示
-    //   修正：localStorage は信用せず、起動時は必ずバナー表示
-    //         ユーザーが「センサーを再起動する」ボタンで実 permission を再取得
-    //         実際に許可済み（session 内）なら requestSensorPermission の
-    //         Promise.allSettled で granted 判定 → フラグ true → バナー消える
-    // 2026/05/04 夜・追加修正：sessionStorage で同 session 内のページ遷移を判定
-    //   - sessionStorage は タスクキルで消える・ページ遷移で残る性質
-    //   - sensor_permission_active='1' があれば同 session 内 → permission 維持
-    //   - なければ新 session（タスクキル後）→ バナー表示
+  if(_isIOS && window.navigator.standalone === true){
+    // ★設計変更宣言 (2026-05-10): standalone === true 条件を追加し iOS PWA 限定化
+    //   旧: if(_isIOS) のみで Safari 通常モードでも banner 出ていた
+    //   新: PWA standalone のみで banner 表示・Safari 通常モードは出さない
+    //   本番 (Daikou-app) と同じシンプル仕様に統一
+    //   fresh load 判定 + sensor_permission_active のクリアは script 先頭で
+    //   済んでいる (showSensorBannerIfNeeded より早く実行する必要があるため)
     if(sessionStorage.getItem('sensor_permission_active') === '1'){
-      // 同 session 内（設定画面遷移後など）：バナー出さない
+      // 同 session 内 (設定画面遷移後など)：バナー出さない
+      return;
+    }
+    // ★設計変更宣言 (2026-05-10): DL 中 / DL 完了直後は orange banner を出さない
+    //   - dl-overlay が表示中 (display:flex) なら DL UI が前面・banner 出すと醜悪
+    //   - sessionStorage.dl_just_completed='1' (showCompleteBanner 直後) なら
+    //     businessStart 画面遷移後でも一旦 banner 抑制 (許可後にクリアされる)
+    const _dlO = document.getElementById('dlOverlay');
+    if(_dlO && _dlO.style.display === 'flex') return;
+    if(sessionStorage.getItem('dl_just_completed') === '1') return;
+    // ★設計変更宣言 (2026-05-10): businessStart 画面では青ボタンを表示・orange のみ抑制
+    const _bs = document.getElementById('screenBusinessStart');
+    if(_bs && _bs.style.display !== 'none'){
+      const _btn = document.getElementById('btnSensorPermission');
+      if(_btn) _btn.style.display = 'block';
       return;
     }
     document.getElementById('sensorRestoreBanner').style.display = 'block';
@@ -2925,7 +5141,113 @@ if('serviceWorker' in navigator){
   }).catch(function(err){
     dlog('[SW] 登録失敗（開発環境では正常）:', err.message);
   });
+  // ★設計変更宣言 (2026-05-13): sw.js の cache.put 失敗通知を受信
+  //   IndexedDB prefStatus と Cache Storage の整合性を回復するため、
+  //   該当 pref を STORE_PREF から削除 (markPrefUndone) して未完了に戻す
+  navigator.serviceWorker.addEventListener('message', function(ev){
+    try {
+      const m = ev && ev.data;
+      if(!m || m.type !== 'cachePutFailed' || !m.url) return;
+      const match = /\/data\/roads-([^./?]+)\.js/.exec(m.url);
+      if(!match) return;
+      const pref = match[1];
+      if(typeof DakomeDL !== 'undefined' && DakomeDL.markPrefUndone){
+        DakomeDL.markPrefUndone(pref).then(function(){
+          if(typeof dlog === 'function') dlog('[SW] cachePutFailed → prefStatus 削除: ' + pref);
+        }).catch(function(e){
+          console.warn('[SW] markPrefUndone 失敗:', pref, e && e.message);
+        });
+      }
+    } catch(_){}
+  });
 }
+
+// P13 (2026-05-09): 停車 5 分以上で実車終了候補バナー
+//   driving 画面で isStationary 状態の連続秒数を track
+//   5 分超で stopCandidateBanner を表示・走行再開で隠す
+// (2026-05-10) _stopStartedAt / STOP_CANDIDATE_THRESHOLD_MS は script 先頭に移動済
+setInterval(function(){
+  if(appState !== 'driving'){ _stopStartedAt = 0; return; }
+  const banner = document.getElementById('stopCandidateBanner');
+  if(!banner) return;
+  if(window._lastStationary){
+    if(_stopStartedAt === 0) _stopStartedAt = Date.now();
+    const elapsed = Date.now() - _stopStartedAt;
+    if(elapsed >= STOP_CANDIDATE_THRESHOLD_MS){
+      const min = Math.floor(elapsed / 60000);
+      const span = document.getElementById('stopCandidateMin');
+      if(span) span.textContent = min;
+      banner.style.display = 'block';
+    }
+  } else {
+    _stopStartedAt = 0;
+    banner.style.display = 'none';
+  }
+}, 5000);
+
+// P6 (2026-05-09): idle 画面 MM 準備状況インジケータ 1Hz 更新
+//   _forwardedPrefs Set のサイズを業務開始ボタン下に表示
+//   5 県以上 forward 済 + 直近 mmResult あれば「準備完了」緑表示
+//
+// ★設計変更宣言 (2026-05-10): MM データ読込前の業務開始ガード追加
+//   businessStart 画面で _forwardedPrefs.size === 0 の間は
+//   業務開始ボタンを disabled にして「データ読み込み中です (X/5県)」表示。
+//   1 県以上 forward 済になり次第 enabled に戻す。
+//   理由: MM 道路データが 0 件のまま業務開始すると、Worker B に snap 候補が
+//         無く inline fallback (= GPS 直線距離禁止ルールの境界) に依存してしまう。
+//         絶対ルール「道路距離課金」を担保するため、最低 1 県の forward を待つ。
+setInterval(function(){
+  const ind = document.getElementById('mmReadyIndicator');
+  if(!ind) return;
+  // ★設計変更宣言 (2026-05-10): mmReadyIndicator も全面見直し
+  //   旧: MM 準備完了 / 準備中 / 0/5 等を常時表示
+  //   新: 通常時は完全非表示・「⚠ 位置情報の精度が低下しています」のみ
+  //       表示条件: forwarded === 0 が 30 秒継続のとき
+  //   「課金」ワードは UX 不安要因のため全削除
+  if(appState !== 'idle' && appState !== 'businessStart'){
+    ind.style.display = 'none';
+    return;
+  }
+  const forwarded = (typeof _forwardedPrefs !== 'undefined') ? _forwardedPrefs.size : 0;
+  const now = Date.now();
+  if(forwarded > 0){
+    window._mmReadyZeroSince = null;
+    ind.style.display = 'none';
+  } else {
+    if(window._mmReadyZeroSince == null) window._mmReadyZeroSince = now;
+    if(now - window._mmReadyZeroSince >= 30000){
+      ind.textContent = '⚠ 位置情報の精度が低下しています';
+      ind.style.background = '#FDECEA';
+      ind.style.color = '#C0392B';
+      ind.style.display = 'block';
+    } else {
+      ind.style.display = 'none';
+    }
+  }
+  // 業務開始ボタンの enable/disable
+  const btnStart = document.querySelector('#screenBusinessStart .btn-business-start');
+  if(btnStart){
+    if(forwarded === 0 && appState === 'businessStart'){
+      btnStart.disabled = true;
+      btnStart.style.opacity = '0.4';
+      btnStart.style.cursor = 'not-allowed';
+      btnStart.style.pointerEvents = 'none';
+    } else {
+      btnStart.disabled = false;
+      btnStart.style.opacity = '';
+      btnStart.style.cursor = '';
+      btnStart.style.pointerEvents = '';
+    }
+  }
+}, 1000);
+
+// ★設計変更宣言 (2026-05-10): _preloadRoadsForBusinessStart を全削除
+//   旧: businessStart 画面遷移時に getCurrentPosition() を自動発火して
+//       MM データを先読み
+//   新: 自動 GPS 発火を全廃する設計に従い getCurrentPosition 経路を撤廃
+//       (btnSensorPermission 押下経由でのみ navigator.geolocation を呼ぶ)
+//   先読み機能は失われるが、btnSensorPermission → startGPS → GPS callback
+//   → _autoLoadNearbyRoads という従来 path で MM データ load される
 
 // ─── ストレージ永続化（2026/04/30追加：オフライン業務でデータ消失防止） ───
 // iOS のキャッシュ自動削除を防ぐ・道路データ等を永続的に保持
@@ -2936,7 +5258,208 @@ if(navigator.storage && navigator.storage.persist){
     dlog('[Storage] 永続化エラー:', err.message);
   });
 }
+
+// ─── Wi-Fi 接続時の test-results 自動 push (2026-05-09 追加) ─────────
+// 走行終了して事務所に戻り Wi-Fi が掴めたら、IndexedDB に貯めた
+// data/test-results/latest.json のスナップショットを GitHub Contents API で push する。
+// 操作は不要・連続 push を防ぐためデバウンス + 24h 内重複ハッシュ skip。
+//
+// PAT は localStorage 'daikou_gh_pat' に保存 (UI 未提供・必要に応じて DevTools で投入)
+// 未設定なら一切走らない (= 通常ユーザーには無影響)
+//
+// IndexedDB ストア daikome_test_results: { id: 'latest', json: '...stringified...' }
+(function setupTestResultsAutoPush(){
+  const GH_OWNER = 'exally-zeroact';
+  const GH_REPO  = 'Daikou-app-test';
+  const GH_BRANCH = 'main';
+  const GH_PATH  = 'data/test-results/latest.json';
+  const TR_DB = 'daikome_test_results';
+  const TR_STORE = 'kv';
+  const COOLDOWN_MS = 5 * 60 * 1000;   // 5 分以内の連続 push は抑制
+
+  let _busy = false;
+  let _lastPushAt = 0;
+  let _lastPushedHash = null;
+
+  function _hash(s){
+    let h = 0;
+    for(let i = 0; i < s.length; i++){ h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+    return h.toString(16);
+  }
+  function _isWifi(){
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if(!c) return false;
+    if(c.type) return c.type === 'wifi' || c.type === 'ethernet';
+    // type 取れないブラウザは effectiveType=4g かつ saveData=false を Wi-Fi 相当扱い
+    return c.effectiveType === '4g' && !c.saveData;
+  }
+  function _openDb(){
+    return new Promise(function(resolve, reject){
+      const req = indexedDB.open(TR_DB, 1);
+      req.onupgradeneeded = function(e){
+        const db = e.target.result;
+        if(!db.objectStoreNames.contains(TR_STORE)) db.createObjectStore(TR_STORE);
+      };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  function _readLatest(){
+    return _openDb().then(function(db){
+      return new Promise(function(resolve){
+        const tx = db.transaction(TR_STORE, 'readonly');
+        const store = tx.objectStore(TR_STORE);
+        const req = store.get('latest');
+        req.onsuccess = function(){ db.close(); resolve(req.result || null); };
+        req.onerror = function(){ db.close(); resolve(null); };
+      });
+    });
+  }
+  // 公開: 端末側 OBD/ground-truth 計測ループ等が完了したら呼ぶ
+  // payload は schema 互換 JSON object (replay-mm.js が出力するもの相当)
+  window.saveTestResultsLocally = function(payload){
+    return _openDb().then(function(db){
+      return new Promise(function(resolve, reject){
+        const tx = db.transaction(TR_STORE, 'readwrite');
+        const store = tx.objectStore(TR_STORE);
+        const req = store.put({ json: JSON.stringify(payload), savedAt: Date.now() }, 'latest');
+        req.onsuccess = function(){ db.close(); resolve(true); };
+        req.onerror = function(){ db.close(); reject(req.error); };
+      });
+    }).then(function(){ tryPush(false); });
+  };
+
+  async function tryPush(triggeredByConnChange){
+    if(_busy) return;
+    const pat = (function(){
+      try { return localStorage.getItem('daikou_gh_pat') || ''; } catch(_){ return ''; }
+    })();
+    if(!pat) return;                                 // PAT 無し → 自動 push 機能 OFF
+    if(!navigator.onLine) return;
+    if(!_isWifi()) return;
+    if(Date.now() - _lastPushAt < COOLDOWN_MS) return;
+    const rec = await _readLatest();
+    if(!rec || !rec.json) return;
+    const hash = _hash(rec.json);
+    if(hash === _lastPushedHash) return;             // 内容変化なし
+
+    _busy = true;
+    try {
+      const apiUrl = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_PATH;
+      // 既存 file の sha を取得 (上書き update に必要)
+      const headRes = await fetch(apiUrl + '?ref=' + GH_BRANCH, {
+        headers: { 'Authorization': 'token ' + pat, 'Accept': 'application/vnd.github+json' },
+      });
+      let sha = null;
+      if(headRes.ok){
+        const j = await headRes.json();
+        sha = j.sha || null;
+      } else if(headRes.status !== 404){
+        throw new Error('lookup HTTP ' + headRes.status);
+      }
+      const body = {
+        message: 'chore(test-results): auto-push from device [skip ci]',
+        content: btoa(unescape(encodeURIComponent(rec.json))),
+        branch: GH_BRANCH,
+      };
+      if(sha) body.sha = sha;
+      const putRes = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token ' + pat,
+          'Accept': 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if(!putRes.ok) throw new Error('put HTTP ' + putRes.status);
+      _lastPushAt = Date.now();
+      _lastPushedHash = hash;
+      if(typeof dlog === 'function') dlog('[TestPush] uploaded test-results (' + (triggeredByConnChange ? 'wifi' : 'manual') + ')');
+    } catch(e){
+      if(typeof dlog === 'function') dlog('[TestPush] failed: ' + (e && e.message || e));
+    } finally {
+      _busy = false;
+    }
+  }
+
+  // 接続状態変化を監視
+  const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if(conn && conn.addEventListener) conn.addEventListener('change', function(){ tryPush(true); });
+  window.addEventListener('online', function(){ tryPush(true); });
+  // 初回起動時にも 1 回チェック
+  setTimeout(function(){ tryPush(false); }, 8000);
+})();
+
+// ★設計変更宣言 (2026-05-12): ライフサイクル heartbeat 実装 (P0 - iOS RAM 検証代替)
+//   目的: Mac なし環境で iOS PWA の OOM kill / 予期せぬ終了を間接検知
+//   仕組み:
+//     1. 5 秒ごとに localStorage に Date.now() を書込
+//     2. 起動時に前回の値と現在時刻を比較
+//     3. gap が 30 秒 〜 24 時間の範囲 = 想定外終了 (OOM 疑い) と判定
+//     4. Firebase の 'crash_reports/{sessionId}' に statistics を記録
+//   UI 影響: なし (サイレント動作)
+//   業務状態に関わらず常時稼働 (idle/driving/fare 全て)
+(function _initLifecycleHeartbeat(){
+  const HEARTBEAT_KEY = 'daikou_last_alive_at';
+  const HEARTBEAT_INTERVAL_MS = 5000;
+  const GAP_MIN_MS = 30 * 1000;             // 30 秒以上の gap で疑い
+  const GAP_MAX_MS = 24 * 60 * 60 * 1000;   // 24 時間以上は除外 (通常の長期未起動)
+
+  // 5 秒ごと heartbeat 書込 (DOMContentLoaded を待たない・即座に開始)
+  function _writeHeartbeat(){
+    try { localStorage.setItem(HEARTBEAT_KEY, Date.now().toString()); } catch(_){}
+  }
+  setInterval(_writeHeartbeat, HEARTBEAT_INTERVAL_MS);
+  // 初回も即座に 1 回書込 (起動直後 → 5 秒以内終了でも痕跡を残す)
+  _writeHeartbeat();
+
+  // 起動時クラッシュ検知 (DOMContentLoaded 後・FB 初期化を少し待ってから記録)
+  function _checkCrashAndReport(){
+    let lastAlive = 0;
+    try { lastAlive = parseInt(localStorage.getItem(HEARTBEAT_KEY) || '0', 10); } catch(_){}
+    if(!lastAlive) return;
+    const gap = Date.now() - lastAlive;
+    if(gap <= GAP_MIN_MS || gap >= GAP_MAX_MS) return;
+
+    const gapSec = Math.round(gap / 1000);
+    if(typeof dlog === 'function'){
+      dlog('[Lifecycle] 想定外の終了検知: gap=' + gapSec + 's');
+    }
+
+    // Firebase 'crash_reports/{sessionId}' に記録 (失敗しても無視)
+    try {
+      const sid = (typeof FB !== 'undefined' && typeof FB.getSessionId === 'function')
+        ? (FB.getSessionId() || ('crash_' + Date.now()))
+        : ('crash_' + Date.now());
+      if(typeof firebase !== 'undefined' && firebase.database){
+        firebase.database().ref('crash_reports/' + sid).set({
+          timestamp: Date.now(),
+          gap_sec: gapSec,
+          user_agent: navigator.userAgent,
+          device_memory: navigator.deviceMemory || 0,
+        }).catch(function(){});
+      }
+    } catch(_){}
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', function(){
+      setTimeout(_checkCrashAndReport, 2000);  // FB init 安定化を 2 秒待つ
+    });
+  } else {
+    setTimeout(_checkCrashAndReport, 2000);
+  }
+})();
 </script>
+
+<!-- ★設計変更宣言 (2026-05-10): ボトムナビ (4 タブ) -->
+<nav class="bottom-nav">
+  <button class="nav-item active" type="button" onclick="location.href='/'"><span class="nav-icon">●</span><span class="nav-label">業務</span></button>
+  <button class="nav-item" type="button" onclick="location.href='history.html'"><span class="nav-icon">≡</span><span class="nav-label">履歴</span></button>
+  <button class="nav-item" type="button" onclick="location.href='help.html'"><span class="nav-icon">?</span><span class="nav-label">使い方</span></button>
+  <button class="nav-item" type="button" onclick="location.href='settings.html'"><span class="nav-icon">⚙</span><span class="nav-label">設定</span></button>
+</nav>
 
 </body>
 </html>

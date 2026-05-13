@@ -75,6 +75,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 }
 .empty-icon{font-size:48px;opacity:0.2;}
 .empty-text{font-size:15px;color:#aaa;}
+
+/* ボトムナビ (4 タブ) */
+.wrap{padding-bottom:calc(70px + env(safe-area-inset-bottom)) !important;}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #C6C6C8;display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:100;}
+.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;cursor:pointer;background:none;border:none;font-family:'Noto Sans JP',sans-serif;color:#8E8E93;}
+.bottom-nav .nav-item:active{background:#F2F2F7;}
+.bottom-nav .nav-item.active{color:#007AFF;}
+.bottom-nav .nav-icon{font-size:20px;line-height:1;margin-bottom:3px;font-weight:700;}
+.bottom-nav .nav-label{font-size:11px;font-weight:700;letter-spacing:0.5px;}
+@media (orientation: landscape) and (min-width: 700px){
+  body{display:flex;}
+  .bottom-nav{position:static;flex-direction:column;width:80px;border-top:none;border-right:1px solid #C6C6C8;padding-bottom:0;padding-top:env(safe-area-inset-top);flex-shrink:0;}
+  .bottom-nav .nav-item{flex:0 0 auto;padding:14px 4px;}
+  body > .appbar, body > .wrap{flex:1;}
+}
 </style>
 </head>
 <body ontouchstart="">
@@ -86,12 +101,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 
 <div class="wrap" id="wrap">
 
-  <!-- テスト集計（1週間） -->
-  <div class="test-section" id="testSection" style="display:none;">
-    <div class="test-title">📊 テスト集計（全期間）</div>
-    <div class="test-grid" id="testGrid"></div>
-    <button class="test-export-btn" onclick="exportTestCSV()">CSVエクスポート（Google Maps誤差検証）</button>
-  </div>
+  <!-- TestMode 削除済（H-3 対応）：テスト集計・CSV 出力セクションは廃止 -->
 
   <div class="empty" id="emptyMsg">
     <div class="empty-icon">🚗</div>
@@ -100,95 +110,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-hei
 </div>
 
 <script>
-// ─── テスト集計（1週間分）───
-function loadTestStats(){
-  const logs = JSON.parse(localStorage.getItem('daikou_test_logs') || '[]');
-  if(logs.length === 0) return;
+// TestMode 関連 (loadTestStats / exportTestCSV) は H-3 対応で削除済 (2026-05-08)
+// 旧 localStorage キー daikou_test_logs は次回 cleanup で削除予定
+// _removed_loadTestStats 削除済（H-3）
 
-  const section = document.getElementById('testSection');
-  const grid    = document.getElementById('testGrid');
-  section.style.display = 'block';
-
-  const totalTrips = logs.length;
-  const totalDistM = logs.reduce((a,b) => a + (b.gps_distance_m||0), 0);
-  const withPos    = logs.filter(l => l.start_pos && l.end_pos).length;
-  const analyzed   = logs.filter(l => l.error_pct != null).length;
-  const avgError   = analyzed > 0
-    ? (logs.filter(l=>l.error_pct!=null).reduce((a,b)=>a+Math.abs(b.error_pct),0) / analyzed).toFixed(1)
-    : '―';
-
-  grid.innerHTML = `
-    <div class="test-cell">
-      <div class="test-cell-label">走行回数</div>
-      <div class="test-cell-value">${totalTrips}<span class="test-cell-unit">回</span></div>
-    </div>
-    <div class="test-cell">
-      <div class="test-cell-label">総走行距離</div>
-      <div class="test-cell-value">${(totalDistM/1000).toFixed(1)}<span class="test-cell-unit">km</span></div>
-    </div>
-    <div class="test-cell">
-      <div class="test-cell-label">座標取得済</div>
-      <div class="test-cell-value">${withPos}<span class="test-cell-unit">件</span></div>
-    </div>
-    <div class="test-cell">
-      <div class="test-cell-label">平均誤差</div>
-      <div class="test-cell-value" style="color:${analyzed>0?'#007AFF':'#aaa'};">${avgError}<span class="test-cell-unit">${analyzed>0?'%':''}</span></div>
-    </div>
-  `;
-}
-
-// CSVエクスポート（Google Maps API連携）
-async function exportTestCSV(){
-  const logs = JSON.parse(localStorage.getItem('daikou_test_logs') || '[]');
-  if(logs.length === 0){ alert('テストログがありません'); return; }
-
-  // Google Maps API経由で真の距離取得（座標あり・未取得のもの）
-  const toFetch = logs.filter(l => l.start_pos && l.end_pos && l.true_distance_m == null);
-  if(toFetch.length > 0){
-    const ok = confirm(`${toFetch.length}件のGoogle Maps距離を取得しますか？\n（時間がかかる場合があります）`);
-    if(ok){
-      let done = 0;
-      for(const log of toFetch){
-        try {
-          const url = `/api/distance?from=${log.start_pos.lat},${log.start_pos.lng}&to=${log.end_pos.lat},${log.end_pos.lng}`;
-          const res = await fetch(url);
-          if(res.ok){
-            const data = await res.json();
-            log.true_distance_m = data.distance_m;
-            log.true_distance_text = data.distance_text;
-            if(log.true_distance_m > 0)
-              log.error_pct = (log.gps_distance_m - log.true_distance_m) / log.true_distance_m * 100;
-          }
-        } catch(e){}
-        done++;
-        if(done % 5 === 0) alert(`取得中... ${done}/${toFetch.length}`);
-        await new Promise(r => setTimeout(r, 100));
-      }
-      localStorage.setItem('daikou_test_logs', JSON.stringify(logs));
-    }
-  }
-
-  // CSV生成
-  const header = ['走行ID','開始時刻','終了時刻','アプリ距離(m)','Google Maps距離(m)','誤差(%)','開始座標','終了座標','Googleマップルート'];
-  const rows = logs.map(l => [
-    l.id, l.start_time, l.end_time||'',
-    l.gps_distance_m,
-    l.true_distance_m != null ? l.true_distance_m : '',
-    l.error_pct != null ? l.error_pct.toFixed(2) : '',
-    l.start_pos ? `${l.start_pos.lat},${l.start_pos.lng}` : '',
-    l.end_pos   ? `${l.end_pos.lat},${l.end_pos.lng}`     : '',
-    l.route_url || '',
-  ]);
-  const csv = [header, ...rows].map(r => r.map(v=>`"${v}"`).join(',')).join('\n');
-  const blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `daikou_test_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(url);
-
-  // 集計更新
-  loadTestStats();
-}
 
 function load(){
   const today = new Date();
@@ -266,7 +191,14 @@ function load(){
 }
 
 load();
-loadTestStats();
+// TestMode 関連の loadTestStats 呼び出しは H-3 対応で削除
 </script>
+<!-- ボトムナビ (4 タブ) -->
+<nav class="bottom-nav">
+  <button class="nav-item" type="button" onclick="location.href='/'"><span class="nav-icon">●</span><span class="nav-label">業務</span></button>
+  <button class="nav-item active" type="button" onclick="location.href='history.html'"><span class="nav-icon">≡</span><span class="nav-label">履歴</span></button>
+  <button class="nav-item" type="button" onclick="location.href='help.html'"><span class="nav-icon">?</span><span class="nav-label">使い方</span></button>
+  <button class="nav-item" type="button" onclick="location.href='settings.html'"><span class="nav-icon">⚙</span><span class="nav-label">設定</span></button>
+</nav>
 </body>
 </html>

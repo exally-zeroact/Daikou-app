@@ -11,6 +11,8 @@
   "orientation": "portrait",
   "lang": "ja",
   "categories": ["business", "productivity", "utilities"],
+  "prefer_related_applications": false,
+  "related_applications": [],
   "icons": [
     {
       "src": "/icon-192.png",

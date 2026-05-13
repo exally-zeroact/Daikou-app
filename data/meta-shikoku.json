@@ -1,46 +1,94 @@
 {
   "region": "shikoku",
-  "generated": "2026-05-09T19:09:31.291Z",
+  "generated": "2026-05-09T18:47:04.766Z",
   "prefectures": {
     "tokushima": {
-      "numRoads": 56437,
-      "sizeBytes": 1764397,
+      "numRoads": 56436,
+      "sizeBytes": 2032753,
       "bbox": [
-        3324565,
+        3324560,
         13392012,
         3425791,
         13481916
-      ]
+      ],
+      "attrCounts": {
+        "oneway": 1421,
+        "incline": 15,
+        "lanes": 5186,
+        "width": 9,
+        "layer": 5294,
+        "access": 35,
+        "maxspeed": 1710,
+        "track": 0,
+        "inclineFromOSM": 15,
+        "inclineFromDem": 0
+      }
     },
     "kagawa": {
       "numRoads": 77296,
-      "sizeBytes": 2341576,
+      "sizeBytes": 2694263,
       "bbox": [
         3381258,
         13352821,
         3456374,
         13435819
-      ]
+      ],
+      "attrCounts": {
+        "oneway": 3198,
+        "incline": 72,
+        "lanes": 6883,
+        "width": 49,
+        "layer": 5360,
+        "access": 143,
+        "maxspeed": 4369,
+        "track": 0,
+        "inclineFromOSM": 72,
+        "inclineFromDem": 0
+      }
     },
     "ehime": {
       "numRoads": 117499,
-      "sizeBytes": 3968263,
+      "sizeBytes": 4607181,
       "bbox": [
         3270859,
         13201828,
         3429947,
         13332927
-      ]
+      ],
+      "attrCounts": {
+        "oneway": 2581,
+        "incline": 7,
+        "lanes": 5208,
+        "width": 587,
+        "layer": 6180,
+        "access": 36,
+        "maxspeed": 670,
+        "track": 0,
+        "inclineFromOSM": 7,
+        "inclineFromDem": 0
+      }
     },
     "kochi": {
-      "numRoads": 56497,
-      "sizeBytes": 1858604,
+      "numRoads": 56498,
+      "sizeBytes": 2151801,
       "bbox": [
         3272272,
         13292826,
         3401558,
         13412764
-      ]
+      ],
+      "attrCounts": {
+        "oneway": 1804,
+        "incline": 24,
+        "lanes": 4631,
+        "width": 6,
+        "layer": 4733,
+        "access": 45,
+        "maxspeed": 1800,
+        "track": 0,
+        "inclineFromOSM": 24,
+        "inclineFromDem": 0
+      }
     }
   }
 }

@@ -1,15 +1,35 @@
 // ============================================================
-// roads-decoder.js v1
-// 
+// roads-decoder.js v2
+//
 // roads-{prefecture}.js の道路データを部分デコードする軽量デコーダー
 // メモリ消費を抑えるため、オフセットテーブルだけ事前構築し、
 // 必要な道路だけオンデマンドデコードする。
-// 
-// 対応フォーマット：v4（build-roads.js の出力）
-// 
-// エンコード仕様：
+//
+// 対応フォーマット：v4 / v5 / v6 / v7 (build-roads.js)
+//
+// エンコード仕様 (v4/v5):
 //   各道路 = [typeCode 1byte][numPoints varint][lat0 svarint][lng0 svarint]
 //            [(dLat svarint)(dLng svarint) × (numPoints-1)]
+// エンコード仕様 (v6):
+//   各道路 = [bitmap 2byte LE][numPoints varint][lat0 svarint][lng0 svarint]
+//            [(dLat svarint)(dLng svarint) × (numPoints-1)]
+// エンコード仕様 (v7・T6 2026-05-09):
+//   各道路 = [bitmap 3byte LE][numPoints varint][lat0 svarint][lng0 svarint]
+//            [(dLat svarint)(dLng svarint) × (numPoints-1)]
+//   bitmap (24bit, little-endian):
+//     bit 0-3   typeCode (motorway-track, 0-12)
+//     bit 4     oneway   (1=一方通行)
+//     bit 5-6   incline  (00=なし, 01=登り急, 10=下り急, 11=方向不明・急)
+//     bit 7-9   lanes    (0=不明, 1-6=本数, 7=7+)
+//     bit 10-11 width    (00=不明, 01=≤2m, 10=2-5m, 11=>5m)
+//     bit 12-13 layer    (00=平面, 01=高架, 10=地下, 11=その他)
+//     bit 14-15 access   (00=public, 01=private, 10=no_motor)
+//     bit 16-18 maxspeed (T6: 0=unk/1=≤30/2=40/3=50/4=60/5=70/6=80/7=≥100 km/h)
+//     bit 19-23 reserved
+//
+// roadsData.restrictions[] (T4 2026-05-09):
+//   [[fromRoadIdx, toRoadIdx], ...]  禁止 transition 対 (右折禁止等)
+//
 //   varint：LSB7bit + 継続フラグ（0x80）
 //   signed varint = zigzag varint
 // ============================================================
@@ -60,10 +80,30 @@
     return [zigzagDecode(r[0]), r[1]];
   }
   
+  // bitmap (v6=16bit / v7=24bit) → 属性オブジェクト
+  // D1 (2026-05-09): bit 14-15 を access (00=public/01=private/10=no_motor) として追加
+  // T6 (2026-05-09): bit 16-18 を maxspeed (0=unk/1=≤30/.../7=≥100 km/h) として追加
+  //   既存 v6 build データは v6 path で読まれ maxspeed フィールドは未付与
+  //   新 v7 build データは bit 16-18 から maxspeed を取得
+  function unpackAttrBitmap(bits) {
+    const a = {
+      typeCode: bits & 0x0F,
+      oneway:  (bits >> 4) & 0x01,
+      incline: (bits >> 5) & 0x03,
+      lanes:   (bits >> 7) & 0x07,
+      width:   (bits >> 10) & 0x03,
+      layer:   (bits >> 12) & 0x03,
+      access:  (bits >> 14) & 0x03,
+      maxspeed: (bits >> 16) & 0x07,    // v6 (16bit) は常に 0=不明・v7 で実値
+    };
+    return a;
+  }
+
   // 1道路のバイト長を計算（デコードせず）
   // 戻り値：次の道路の開始オフセット
-  function skipRoad(bytes, offset) {
-    offset++; // typeCode 1byte
+  // headerSize: v4/v5=1, v6=2, v7=3
+  function skipRoad(bytes, offset, headerSize) {
+    offset += headerSize; // typeCode (1byte) or bitmap (2/3byte)
     let numPoints;
     [numPoints, offset] = readVarint(bytes, offset);
     // 始点 lat, lng
@@ -76,11 +116,25 @@
     }
     return offset;
   }
-  
+
   // 1道路を部分デコード
-  // 戻り値：{ typeCode, points: [[lat*1e5, lng*1e5], ...] }
-  function decodeRoadAtOffset(bytes, offset) {
-    const typeCode = bytes[offset++];
+  // version 7: 24bit bitmap (3 byte) + maxspeed (T6)
+  // version 6: 16bit bitmap (2 byte) + access (D1)
+  // version 4/5: 1 byte typeCode のみ
+  function decodeRoadAtOffset(bytes, offset, version) {
+    let attrs;
+    if (version >= 7) {
+      const bits = bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+      offset += 3;
+      attrs = unpackAttrBitmap(bits);
+    } else if (version >= 6) {
+      const bits = bytes[offset] | (bytes[offset + 1] << 8);
+      offset += 2;
+      attrs = unpackAttrBitmap(bits);
+      // v6 では maxspeed フィールドは存在しないが unpack で 0 が入っているため neutral
+    } else {
+      attrs = { typeCode: bytes[offset++] };
+    }
     let numPoints;
     [numPoints, offset] = readVarint(bytes, offset);
     let lat, lng;
@@ -96,15 +150,19 @@
       lng += dLng;
       points[i] = [lat, lng];
     }
-    return { typeCode: typeCode, points: points };
+    attrs.points = points;
+    return attrs;
   }
   
   // ─── RoadDecoder クラス ────────────────────────────────────────
   function RoadDecoder(roadsData) {
-    if (!roadsData || (roadsData.v !== 4 && roadsData.v !== 5)) {
+    if (!roadsData || roadsData.v < 4 || roadsData.v > 7) {
       throw new Error('[RoadDecoder] 未対応フォーマット v=' + (roadsData && roadsData.v));
     }
     this.data = roadsData;
+    this.version = roadsData.v;
+    // headerSize: v4/v5=1, v6=2, v7=3
+    this.headerSize = (this.version >= 7) ? 3 : (this.version >= 6 ? 2 : 1);
     this.bytes = base64ToBytes(roadsData.roadsB64);
     this.offsetTable = null;  // buildOffsetTable() で構築
     this.gridSize = roadsData.gridSize || 1000;
@@ -113,17 +171,33 @@
     this.grid = roadsData.grid || {};
     this.numRoads = roadsData.numRoads || 0;
     this.prefecture = roadsData.prefecture || '';
+    // T4 (2026-05-09): turn:restriction Set ("from|to" string キー)
+    //   data.restrictions = [[fromIdx, toIdx], ...]・無ければ空 Set
+    this._restrictionSet = new Set();
+    if (Array.isArray(roadsData.restrictions)) {
+      for (const r of roadsData.restrictions) {
+        if (Array.isArray(r) && r.length >= 2) {
+          this._restrictionSet.add(r[0] + '|' + r[1]);
+        }
+      }
+    }
   }
-  
+  // T4: 指定 from→to の transition が禁止されているか
+  RoadDecoder.prototype.isRestrictedTransition = function(fromRoadIdx, toRoadIdx) {
+    if (this._restrictionSet.size === 0) return false;
+    return this._restrictionSet.has(fromRoadIdx + '|' + toRoadIdx);
+  };
+
   // オフセットテーブル構築（起動時1回・線形スキャン）
   RoadDecoder.prototype.buildOffsetTable = function() {
     const t0 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     const offsets = new Uint32Array(this.numRoads);
+    const headerSize = this.headerSize;
     let offset = 0;
     let i = 0;
     while (offset < this.bytes.length && i < this.numRoads) {
       offsets[i++] = offset;
-      offset = skipRoad(this.bytes, offset);
+      offset = skipRoad(this.bytes, offset, headerSize);
     }
     if (i !== this.numRoads) {
       throw new Error('[RoadDecoder] オフセット数不一致 expected=' + this.numRoads + ' got=' + i);
@@ -132,7 +206,7 @@
     const t1 = (typeof performance !== 'undefined') ? performance.now() : Date.now();
     return { ms: t1 - t0, count: i };
   };
-  
+
   // 1道路をインデックスでデコード
   RoadDecoder.prototype.decodeRoadAt = function(index) {
     if (!this.offsetTable) {
@@ -141,7 +215,7 @@
     if (index < 0 || index >= this.numRoads) {
       return null;
     }
-    return decodeRoadAtOffset(this.bytes, this.offsetTable[index]);
+    return decodeRoadAtOffset(this.bytes, this.offsetTable[index], this.version);
   };
   
   // グリッドキー内の全道路を取得
@@ -361,6 +435,120 @@
     };
   };
   
+  // ─── snapAllWithin (MM-2 多候補化) ───────────────────────────────
+  // GPS 周辺の上位 K 個（既定 8）の snap 候補を距離昇順で返す。
+  // emission スコアリング（距離 × heading × Mahalanobis × 道路種別）の入力
+  // となる。snapToNearestRoad は内部で snapAllWithin の先頭 1 件を返す形と等価。
+  // options:
+  //   maxDistM     : 最大許容距離（既定 50m）
+  //   K            : 返却候補上限（既定 8）
+  //   typeFilter   : 道路タイプ配列（既定なし）
+  //   radiusGrids  : 周辺グリッド検索範囲（既定: 5 → 9 でフォールバック）
+  RoadDecoder.prototype.snapAllWithin = function(lat, lng, options) {
+    options = options || {};
+    const K = options.K != null ? options.K : 8;
+    if (options.radiusGrids != null) {
+      return this._searchAllSnaps(lat, lng, options, options.radiusGrids, K);
+    }
+    let result = this._searchAllSnaps(lat, lng, options, 5, K);
+    if (result.length >= K) return result;
+    // フォールバック: より広い範囲で再検索（長い道路の始点が遠い場合）
+    return this._searchAllSnaps(lat, lng, options, 9, K);
+  };
+
+  // 内部: 多候補列挙（snapAllWithin から呼ばれる）
+  // 各道路につき最近接 segment を 1 つ算出し、distanceM 昇順 K 個を返す。
+  RoadDecoder.prototype._searchAllSnaps = function(lat, lng, options, radiusGrids, K) {
+    const maxDistM = options.maxDistM != null ? options.maxDistM : 50;
+    const typeFilter = options.typeFilter || null;
+    const mpd = metersPerDegree(lat);
+    const mpdLat = mpd.lat, mpdLng = mpd.lng;
+    const precision = this.precision;
+    const latInt = Math.round(lat * precision);
+    const lngInt = Math.round(lng * precision);
+    const gy = Math.floor(latInt / this.gridSize);
+    const gx = Math.floor(lngInt / this.gridSize);
+    const maxDistSq = maxDistM * maxDistM;
+    const candidates = [];
+    const seen = {};
+
+    for (let dy = -radiusGrids; dy <= radiusGrids; dy++) {
+      for (let dx = -radiusGrids; dx <= radiusGrids; dx++) {
+        const key = (gy + dy) + '_' + (gx + dx);
+        const ids = this.grid[key];
+        if (!ids) continue;
+        for (let i = 0; i < ids.length; i++) {
+          const id = ids[i];
+          if (seen[id]) continue;
+          seen[id] = 1;
+          const road = this.decodeRoadAt(id);
+          if (!road) continue;
+          if (typeFilter && typeFilter.indexOf(road.typeCode) < 0) continue;
+          const points = road.points;
+          let bestSegIdx = -1, bestT = 0;
+          let bestSnapLat = 0, bestSnapLng = 0;
+          let bestDistSq = Infinity;
+          for (let j = 0; j < points.length - 1; j++) {
+            const aLat = points[j][0] / precision;
+            const aLng = points[j][1] / precision;
+            const bLat = points[j+1][0] / precision;
+            const bLng = points[j+1][1] / precision;
+            const ax = (aLng - lng) * mpdLng;
+            const ay = (aLat - lat) * mpdLat;
+            const bx = (bLng - lng) * mpdLng;
+            const by = (bLat - lat) * mpdLat;
+            const abx = bx - ax, aby = by - ay;
+            const ab2 = abx*abx + aby*aby;
+            let t;
+            if (ab2 < 1e-9) t = 0;
+            else {
+              t = (-ax * abx + -ay * aby) / ab2;
+              if (t < 0) t = 0; else if (t > 1) t = 1;
+            }
+            const sx = ax + t * abx, sy = ay + t * aby;
+            const distSq = sx*sx + sy*sy;
+            if (distSq < bestDistSq) {
+              bestDistSq = distSq;
+              bestSegIdx = j;
+              bestT = t;
+              bestSnapLat = aLat + t * (bLat - aLat);
+              bestSnapLng = aLng + t * (bLng - aLng);
+            }
+          }
+          if (bestSegIdx >= 0 && bestDistSq <= maxDistSq) {
+            // segment 端点を保持（heading score の bearing 計算に使用）
+            const segLatA = points[bestSegIdx][0] / precision;
+            const segLngA = points[bestSegIdx][1] / precision;
+            const segLatB = points[bestSegIdx+1][0] / precision;
+            const segLngB = points[bestSegIdx+1][1] / precision;
+            candidates.push({
+              roadIndex: id,
+              segmentIndex: bestSegIdx,
+              t: bestT,
+              snapLat: bestSnapLat,
+              snapLng: bestSnapLng,
+              distanceM: Math.sqrt(bestDistSq),
+              typeCode: road.typeCode,
+              // v6/v7 attribute info（emission scoring 用）
+              oneway: road.oneway != null ? road.oneway : 0,
+              layer: road.layer != null ? road.layer : 0,
+              lanes: road.lanes != null ? road.lanes : 0,
+              width: road.width != null ? road.width : 0,
+              incline: road.incline != null ? road.incline : 0,
+              access: road.access != null ? road.access : 0,
+              maxspeed: road.maxspeed != null ? road.maxspeed : 0,   // T6 v7
+              // segment bearing 計算用
+              segLatA: segLatA, segLngA: segLngA,
+              segLatB: segLatB, segLngB: segLngB,
+            });
+          }
+        }
+      }
+    }
+    candidates.sort(function(a, b){ return a.distanceM - b.distanceM; });
+    return candidates.slice(0, K);
+  };
+
   // ─── calcRoadDistance ───────────────────────────────────────────
   // 2つの snap 点間の道路上の距離を計算（メートル）
   // snapA, snapB: snapToNearestRoad の戻り値
@@ -449,5 +637,8 @@
   
   // export
   global.RoadDecoder = RoadDecoder;
-  
-})(typeof window !== 'undefined' ? window : global);
+
+})(typeof window !== 'undefined' ? window
+   : typeof self !== 'undefined' ? self
+   : typeof globalThis !== 'undefined' ? globalThis
+   : this);

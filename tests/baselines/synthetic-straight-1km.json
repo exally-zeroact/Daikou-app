@@ -1,0 +1,7 @@
+{
+  "name": "synthetic-straight-1km",
+  "mm_distance_m": 1000.79,
+  "expected_distance_m": 1000,
+  "snap_rate": 1.0,
+  "_note": "seeded 2026-05-09 from a clean replay run; update only when an algorithm change is intentional"
+}

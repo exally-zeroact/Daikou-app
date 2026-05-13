@@ -30,15 +30,12 @@ trip_count: 0,              // 営業回数（実車回数）
 // 履歴
 trips: [],                  // [{distance_m, fare_yen, start_time, end_time}]
 
-// GPS連続性
-last_gps: null,             // {lat, lng, timestamp}
-
+// 2026-05-09 設計変更 (P1/F1/F4 絶対ルール準拠):
+//   total_distance_m は Meter.getState().distance_m を信源とする
+//   旧: GPS Haversine 直線距離 (絶対ルール違反)
+//   新: Meter の差分を加算 (= MM 道路距離・GPS 直線禁止)
+last_meter_distance_m: 0,   // 直前に観測した Meter.distance_m (差分計算用)
 };
-
-// GPS差分の異常値しきい値（meter.js MM_MAX_SEGMENT_DIST_M と揃える）
-const MAX_SEGMENT_DIST_M = 1000;
-// GPS空白検出（5秒以上空いたら連続性リセット）
-const GAP_RESET_SEC = 5;
 
 // 終了後の再開猶予期間（3時間）
 const RESUME_GRACE_MS = 3 * 60 * 60 * 1000;
@@ -77,7 +74,7 @@ actual_total_m: 0,
 fare_total_yen: 0,
 trip_count: 0,
 trips: [],
-last_gps: null,
+last_meter_distance_m: 0,
 };
 save();
 if(typeof dlog === 'function') dlog('[Business] start at ' + new Date(now).toISOString());
@@ -116,7 +113,10 @@ state.active = true;
 state.ended = false;
 state.ended_at = null;
 state.end_time = null;
-state.last_gps = null;  // GPS連続性リセット（再開時にジャンプ防止）
+// 2026-05-09: Meter 信源化 (P1) で last_gps→last_meter_distance_m に置換
+//   再開時の baseline は現 Meter.distance_m に揃える (差分=0 から再開)
+state.last_meter_distance_m = (typeof Meter !== 'undefined' && Meter.getState)
+  ? (Meter.getState().distance_m || 0) : 0;
 save();
 if(typeof dlog === 'function') dlog('[Business] resume');
 return true;
@@ -153,7 +153,7 @@ actual_total_m: 0,
 fare_total_yen: 0,
 trip_count: 0,
 trips: [],
-last_gps: null,
+last_meter_distance_m: 0,
 };
 save();
 if(typeof dlog === 'function') dlog('[Business] auto-abandon (3h elapsed)');
@@ -179,7 +179,7 @@ actual_total_m: 0,
 fare_total_yen: 0,
 trip_count: 0,
 trips: [],
-last_gps: null,
+last_meter_distance_m: 0,
 };
 save();
 if(typeof dlog === 'function') dlog('[Business] abandon (history saved)');
@@ -187,78 +187,51 @@ return true;
 }
 
 // ─────────────────────────────────────────
-// GPS受信（業務中なら総走行距離に加算）
+// GPS受信 (業務中なら Meter ベースで total_distance_m を加算)
 // ─────────────────────────────────────────
-// 注：meter.js の Meter.update() と並行で呼ばれる想定
-//     実車中も呼ばれて total_distance_m に加算される（実車中も走ってる事実）
-//     実車距離は Meter.getState().distance_m で別管理
-// GPS save throttle（onGps 毎回 save するとパフォーマンス問題のため）
-// 2026/05/04 夜・追加：タスクキル時の total_distance_m 消失防止
+// 2026-05-09 設計変更 (P1/F1/F4 絶対ルール準拠):
+//   旧: GPS Haversine で独自に距離計算 (絶対ルール違反)
+//   新: Meter.getState().distance_m の差分を加算 (= MM 道路距離)
+//   gpsResult 引数は互換のため残すが内容は無視。
+//   意味:
+//     - state.total_distance_m = 業務開始からの全走行距離 (空車+実車)
+//     - 業務開始時 last_meter_distance_m = 0 (Meter は別途 reset 想定)
+//     - その後の各 GPS callback で
+//       diff = current Meter.distance_m - last_meter_distance_m
+//       diff > 0 なら state.total_distance_m += diff
+//   これにより MM 道路距離 (= 課金距離と一致) が業務集計にも反映される。
 let _lastGpsSaveAt = 0;
-const GPS_SAVE_INTERVAL_MS = 1000;  // 1秒に1回 save
-let _lastDebugLogAt = 0;  // 加算ログのthrottle
+const GPS_SAVE_INTERVAL_MS = 1000;
+let _lastDebugLogAt = 0;
 
 function onGps(gpsResult){
 if(!state.active) return;
-if(!gpsResult) return;
-// 2026/05/05 修正：isStationary 判定削除（司さん指示）
-//   旧コード：停止判定で return → 信号待ち・低速時に加算されない
-//   問題：iPhone GPS の速度判定が低速時に不正確 → 動いてるのに stationary 扱い
-//         → 1時間動いても加算 2.2m しかない（実機ログ確認済）
-//   修正：「タイムラインで増やせ」司さん指示に従い isStationary 判定削除
-//         GPS callback 来るたびに前回からの距離を加算する
-//         異常値（1km超え）は MAX_SEGMENT_DIST_M でスキップする保険は維持
-if(typeof gpsResult.lat !== 'number' || typeof gpsResult.lng !== 'number') return;
+if(typeof Meter === 'undefined' || !Meter.getState) return;
 
+const meterState = Meter.getState();
+const cur = meterState.distance_m || 0;
+const prev = state.last_meter_distance_m || 0;
+const diff = cur - prev;
 
-const now = gpsResult.timestamp || Date.now();
-
-if(state.last_gps){
-  const dtSec = (now - state.last_gps.timestamp) / 1000;
-
-  // GPS空白検出：5秒以上空いたら連続性リセット（距離加算しない）
-  if(dtSec >= GAP_RESET_SEC){
-    state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, timestamp: now };
-    return;
-  }
-
-  // GPS差分計算（Haversine 公式・自前実装で外部依存ゼロ）
-  // 2026/05/04 夜・修正：GPS.calcDistance が公開されてない可能性に対応
-  let d = 0;
-  try {
-    const R = 6371000; // 地球半径（メートル）
-    const lat1 = state.last_gps.lat * Math.PI / 180;
-    const lat2 = gpsResult.lat * Math.PI / 180;
-    const dLat = (gpsResult.lat - state.last_gps.lat) * Math.PI / 180;
-    const dLng = (gpsResult.lng - state.last_gps.lng) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    d = R * c;
-  } catch(e){
-    if(typeof dlog === 'function') dlog('[Business] 距離計算エラー: ' + e.message);
-    d = 0;
-  }
-
-  // 異常値スキップ（1更新で1km超えはGPSジャンプ）
-  if(d >= 0 && d <= MAX_SEGMENT_DIST_M){
-    state.total_distance_m += d;
-    // 5秒に1回ログ（スパム防止・動作確認用）
-    const _logNow = Date.now();
-    if(!_lastDebugLogAt || _logNow - _lastDebugLogAt > 5000){
-      _lastDebugLogAt = _logNow;
-      if(typeof dlog === 'function') dlog('[Business] 加算: +' + d.toFixed(1) + 'm 累計=' + (state.total_distance_m/1000).toFixed(2) + 'km');
-    }
-  } else {
-    if(typeof dlog === 'function') dlog('[Business] skip 異常距離: ' + d.toFixed(0) + 'm');
+// Meter.reset 後・業務開始直後は cur < prev になり得る → 0 リセット
+if(diff < 0){
+  state.last_meter_distance_m = cur;
+  return;
+}
+if(diff > 0){
+  state.total_distance_m += diff;
+  state.last_meter_distance_m = cur;
+  // 5 秒間隔ログ
+  const _logNow = Date.now();
+  if(!_lastDebugLogAt || _logNow - _lastDebugLogAt > 5000){
+    _lastDebugLogAt = _logNow;
+    if(typeof dlog === 'function')
+      dlog('[Business] +' + diff.toFixed(1) + 'm (' + (meterState.distanceSource || '?') +
+           ') total=' + (state.total_distance_m/1000).toFixed(2) + 'km');
   }
 }
 
-state.last_gps = { lat: gpsResult.lat, lng: gpsResult.lng, timestamp: now };
-
-// 1秒に1回 localStorage に保存（タスクキル対策）
-// 2026/05/04 夜・追加：司さん指摘「タスクキルしたら総走行距離が0に戻る」
+// 1 秒間隔 save
 const nowMs = Date.now();
 if(nowMs - _lastGpsSaveAt >= GPS_SAVE_INTERVAL_MS){
   _lastGpsSaveAt = nowMs;
@@ -337,53 +310,6 @@ return {
 }
 
 // ─────────────────────────────────────────
-// CSV 出力
-// ─────────────────────────────────────────
-function exportCSV(){
-const r = getReport();
-const fmtTime = t => t ? new Date(t).toLocaleString('ja-JP') : '';
-const fmtDur = sec => {
-const h = Math.floor(sec / 3600);
-const m = Math.floor((sec % 3600) / 60);
-return h + '時間' + m + '分';
-};
-
-
-const lines = [
-  'ダイコメ業務日報',
-  '',
-  '業務開始,' + fmtTime(r.start_time),
-  '業務終了,' + fmtTime(r.end_time),
-  '業務時間,' + fmtDur(r.elapsed_sec),
-  '',
-  '総走行距離(km),' + (r.total_distance_m / 1000).toFixed(2),
-  '実車総距離(km),' + (r.actual_total_m / 1000).toFixed(2),
-  '空車距離(km),' + (r.empty_distance_m / 1000).toFixed(2),
-  '実車率(%),' + (r.actual_ratio * 100).toFixed(1),
-  '',
-  '売上合計(円),' + r.fare_total_yen,
-  '営業回数,' + r.trip_count,
-  '平均単価(円),' + r.avg_fare_yen,
-  '平均速度(km/h),' + r.avg_speed_kmh.toFixed(1),
-  '',
-  '【実車明細】',
-  '回,開始,終了,距離(km),料金(円)',
-];
-
-r.trips.forEach((t, i) => {
-  lines.push([
-    i + 1,
-    fmtTime(t.start_time),
-    fmtTime(t.end_time),
-    (t.distance_m / 1000).toFixed(2),
-    t.fare_yen,
-  ].join(','));
-});
-
-return lines.join('\n');
-
-}
-
 // ─────────────────────────────────────────
 // 永続化
 // ─────────────────────────────────────────
@@ -413,7 +339,7 @@ actual_total_m: parsed.actual_total_m || 0,
 fare_total_yen: parsed.fare_total_yen || 0,
 trip_count: parsed.trip_count || 0,
 trips: Array.isArray(parsed.trips) ? parsed.trips : [],
-last_gps: parsed.last_gps || null,
+last_meter_distance_m: parsed.last_meter_distance_m || 0,
 };
 // ロード後に3時間経過チェック（自動 abandon）
 checkAutoAbandon();
@@ -448,21 +374,6 @@ if(typeof dlog === 'function') dlog('[Business] history save error: ' + e.messag
 }
 }
 
-// 履歴取得
-function getHistory(){
-try {
-const raw = localStorage.getItem(HISTORY_KEY);
-return raw ? JSON.parse(raw) : [];
-} catch(e) {
-return [];
-}
-}
-
-// 履歴クリア（デバッグ用）
-function clearHistory(){
-try { localStorage.removeItem(HISTORY_KEY); } catch(e){}
-}
-
 // 履歴から業務状態を復元して active 状態に戻す（業務開始画面の「続きから再開」用）
 // history: getLastEndedBusiness() で取得した履歴オブジェクト
 function restoreFromHistory(history){
@@ -480,7 +391,7 @@ actual_total_m: history.actual_total_m || 0,
 fare_total_yen: history.fare_total_yen || 0,
 trip_count: history.trip_count || 0,
 trips: Array.isArray(history.trips) ? [...history.trips] : [],
-last_gps: null,                            // GPS は再起動するためクリア
+last_meter_distance_m: 0,                   // Meter は再起動するためクリア
 };
 // 履歴から該当エントリを削除（重複防止）
 try {
@@ -503,9 +414,8 @@ return {
 start, end, resume, abandon,
 canResume, checkAutoAbandon,
 onGps, onTripEnd,
-getState, getReport, exportCSV,
+getState, getReport,
 save, load,
-getHistory, clearHistory,
 restoreFromHistory,
 };
 })();

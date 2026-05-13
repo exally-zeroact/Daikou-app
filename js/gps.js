@@ -82,6 +82,31 @@ const GPS = (() => {
   // コンパス（DeviceOrientation・許可不要）
   let compassHeading = null;
 
+  // G3 (2026-05-09): 地磁気偏差テーブル (簡易・主要都市バウンディングボックス)
+  //   iOS の webkitCompassHeading は真北・Android の alpha は磁北
+  //   日本の地磁気偏差は -7° 〜 -8° (西偏) で都市別に細部差
+  //   端末位置から偏差を引くと真北 heading に統一
+  //   Android の alpha (磁北) → 真北補正後 heading で MM heading scoring に渡す
+  function _magneticDeclination(lat, lng){
+    if(typeof lat !== 'number' || typeof lng !== 'number') return -7.5;
+    // 北海道
+    if(lat >= 41.0) return -9.5;
+    // 東北
+    if(lat >= 37.0) return -8.5;
+    // 関東・甲信越
+    if(lat >= 35.0 && lng >= 138.0) return -7.5;
+    // 東海・近畿
+    if(lat >= 33.5 && lng >= 135.0) return -7.0;
+    // 中国・四国
+    if(lat >= 33.0 && lng >= 132.0) return -6.5;
+    // 九州・沖縄
+    if(lat >= 30.0) return -6.0;
+    // 沖縄離島
+    return -4.5;
+  }
+  let _lastKnownLat = null;
+  let _lastKnownLng = null;
+
   // 加速度センサー（DeviceMotion・案A・2026/04/29）
   let accelData = null;       // 直近値: {x,y,z,t}
   let accelBuffer = [];       // GPS更新までのサンプル蓄積（C段階で詳細解析に使う）
@@ -123,15 +148,18 @@ const GPS = (() => {
           dlog('[GPS] DeviceOrientation発火 webkitCompassHeading=' + e.webkitCompassHeading + ' alpha=' + e.alpha);
         }
         if(e.webkitCompassHeading != null){
-          if(compassHeading === null) dlog('[GPS] コンパス初回取得(iOS): ' + e.webkitCompassHeading.toFixed(0) + '°');
+          // iOS は真北 (no correction needed)
+          if(compassHeading === null) dlog('[GPS] コンパス初回取得(iOS 真北): ' + e.webkitCompassHeading.toFixed(0) + '°');
           compassHeading = e.webkitCompassHeading;
-          // Compat連携：コンパス取れたフラグ（B段階・2026/04/29）
-          if(typeof window.Compat !== 'undefined') window.Compat.hasCompass = true;
         } else if(e.alpha != null){
-          if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android): ' + e.alpha.toFixed(0) + '°');
-          compassHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
-          // Compat連携：コンパス取れたフラグ
-          if(typeof window.Compat !== 'undefined') window.Compat.hasCompass = true;
+          // Android は磁北・地磁気偏差で真北補正 (G3 2026-05-09)
+          const magHeading = (360 - e.alpha + (e.beta || 0) * 0.1) % 360;
+          const decl = _magneticDeclination(_lastKnownLat, _lastKnownLng);
+          // 真北 = 磁北 + 偏差 (西偏は負・引くと真北になる→西偏を加算)
+          const trueHeading = (magHeading + decl + 360) % 360;
+          if(compassHeading === null) dlog('[GPS] コンパス初回取得(Android 磁北→真北補正): ' +
+            magHeading.toFixed(0) + '° decl=' + decl.toFixed(1) + '° → ' + trueHeading.toFixed(0) + '°');
+          compassHeading = trueHeading;
         }
       }, true);
       _compassListenerAdded = true;  // 登録完了フラグ（B段階修正・2026/04/30）
@@ -192,8 +220,6 @@ const GPS = (() => {
         accelData = accSample;       // 直近値
         accelBuffer.push(accSample); // バッファ蓄積（GPS更新時にWorkerへ）
         if(accelBuffer.length > 200) accelBuffer.shift();
-        // Compat連携：加速度取れたフラグ
-        if(typeof window.Compat !== 'undefined') window.Compat.hasAccel = true;
 
         // ジャイロ（B段階・新規）
         // null安全：rot自体null/プロパティ全てnull/非オブジェクトを完全防御
@@ -208,8 +234,6 @@ const GPS = (() => {
           gyroData = gyroSample;
           gyroBuffer.push(gyroSample);
           if(gyroBuffer.length > 200) gyroBuffer.shift();
-          // Compat連携：ジャイロ取れたフラグ
-          if(typeof window.Compat !== 'undefined') window.Compat.hasGyro = true;
         }
 
         // 初回ログ（加速度＋ジャイロ状態を一括表示）
@@ -359,6 +383,9 @@ const GPS = (() => {
     if (_status.state !== 'granted') _setStatus('granted', null);
     const now = Date.now();
     const { latitude: lat, longitude: lng, accuracy, speed, heading, altitude } = pos.coords;
+    // G3 (2026-05-09): 最新位置を地磁気偏差ルックアップ用に記録
+    _lastKnownLat = lat;
+    _lastKnownLng = lng;
     const speedKmh = (speed != null && speed >= 0) ? speed * 3.6 : 0;
     // 加速度サンプル取り出し（案A・2026/04/29）
     const accelSamples = accelBuffer.slice();
@@ -551,6 +578,15 @@ const GPS = (() => {
     };
   }
 
+  // T5 (2026-05-09): map-matcher.js が commit した snap の typeCode を Worker に伝達
+  //   meter.js の mmResult ハンドラから呼ばれる
+  //   Worker 側で typeCode → Q の動的マッピングを行う
+  function setRoadType(typeCode){
+    if (useWorker && worker){
+      worker.postMessage({ type: 'setRoadType', data: { typeCode: typeCode } });
+    }
+  }
+
   return {
     start, stop,
     calcDistance, calcDistance3D,
@@ -562,5 +598,7 @@ const GPS = (() => {
     //   重複防止フラグ（_compassListenerAdded/_motionListenerAdded）で
     //   既に登録済みなら何もしない
     startCompass, startMotion,
+    // T5 (2026-05-09): Adaptive Kalman Q (道路種別連動) 用 API
+    setRoadType,
   };
 })();

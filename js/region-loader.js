@@ -1,178 +1,19 @@
-// 地方判定・トンネル＋橋データ動的読み込み
-// 2026/04/30：roads-*.js（都道府県別道路データ）対応追加
+// 都道府県別データの動的読み込み（橋・トンネル・道路）
+// 2026/05: 橋・トンネルを地方別 → 都道府県別に統一
+//          公開 API（findNearestBridge / findNearestTunnel / ensureLoaded）は無変更
 const RegionLoader = (() => {
-  // 地方ごとのトンネル/橋データ
-  const tunnelsData = {};
+  // 都道府県別データ（橋・トンネル）
+  const tunnelsData = {};        // pref → 配列
   const bridgesData = {};
-
-  // 読み込み済みの地方
   const loaded = { tunnels: new Set(), bridges: new Set() };
   const loading = { tunnels: new Map(), bridges: new Map() };
 
-  // ─── roads 用（2026/04/30 追加・既存機能とは独立） ─────────────
-  // 都道府県別の RoadDecoder インスタンス
-  const roadDecoders = new Map();          // prefecture(string) → RoadDecoder
-  const loadedRoads = new Set();           // ロード済み都道府県
-  const loadingRoads = new Map();          // ロード中の Promise
+  // 道路（roads-decoder ベース）
+  const roadDecoders = new Map();
+  const loadedRoads = new Set();
+  const loadingRoads = new Map();
 
-  // 地方判定
-  function getRegion(lat, lng) {
-    if (lat > 41.5) return 'hokkaido';
-    if (lat < 28) return 'kyushu-okinawa';
-    if (lat < 34 && lng < 132) return 'kyushu-okinawa';
-    if (32.5 <= lat && lat <= 34.5 && 132 <= lng && lng <= 134.7) return 'shikoku';
-    if (33 <= lat && lat <= 35.7 && 131 <= lng && lng <= 134.5) return 'chugoku';
-    if (33 <= lat && lat <= 35.8 && 134.5 <= lng && lng <= 136.5) return 'kinki';
-    if (33.5 <= lat && lat <= 35.5 && 136 <= lng && lng <= 137) return 'kinki';
-    if (34.5 <= lat && lat <= 37.5 && 136 <= lng && lng <= 139) return 'chubu';
-    if (36.5 <= lat && lat <= 38.5 && 137 <= lng && lng <= 139.8) return 'chubu';
-    if (34.5 <= lat && lat <= 37 && 138.5 <= lng && lng <= 141) return 'kanto';
-    if (lat >= 36.5) return 'tohoku';
-    return null;
-  }
-
-  // 隣接地方
-  const ADJACENT = {
-    'hokkaido': ['tohoku'],
-    'tohoku': ['hokkaido', 'kanto'],
-    'kanto': ['tohoku', 'chubu'],
-    'chubu': ['kanto', 'kinki'],
-    'kinki': ['chubu', 'chugoku', 'shikoku'],
-    'chugoku': ['kinki', 'shikoku', 'kyushu-okinawa'],
-    'shikoku': ['kinki', 'chugoku', 'kyushu-okinawa'],
-    'kyushu-okinawa': ['chugoku', 'shikoku'],
-  };
-
-  const REGION_TO_VAR = {
-    'hokkaido': 'HOKKAIDO',
-    'tohoku': 'TOHOKU',
-    'kanto': 'KANTO',
-    'chubu': 'CHUBU',
-    'kinki': 'KINKI',
-    'chugoku': 'CHUGOKU',
-    'shikoku': 'SHIKOKU',
-    'kyushu-okinawa': 'KYUSHU_OKINAWA',
-  };
-
-  // 動的JSファイル読み込み（共通）
-  function loadFile(region, kind) {
-    if (!region) return Promise.resolve(null);
-    const dataMap = (kind === 'tunnels') ? tunnelsData : bridgesData;
-    const loadedSet = loaded[kind];
-    const loadingMap = loading[kind];
-    const varPrefix = (kind === 'tunnels') ? 'TUNNELS_' : 'BRIDGES_';
-
-    if (loadedSet.has(region)) return Promise.resolve(dataMap[region]);
-    if (loadingMap.has(region)) return loadingMap.get(region);
-
-    const promise = new Promise((resolve) => {
-      const script = document.createElement('script');
-      script.src = `data/${kind}-${region}.js`;
-      script.async = true;
-      script.onload = () => {
-        const varName = varPrefix + REGION_TO_VAR[region];
-        const data = window[varName];
-        if (data) {
-          dataMap[region] = data;
-          loadedSet.add(region);
-          dlog(`[Region] ${kind}/${region}: ${data.length}件`);
-          resolve(data);
-        } else {
-          console.warn(`[Region] ${kind}/${region} 変数なし`);
-          resolve(null);
-        }
-        loadingMap.delete(region);
-      };
-      script.onerror = () => {
-        console.warn(`[Region] ${kind}/${region} 読み込み失敗`);
-        loadingMap.delete(region);
-        resolve(null);
-      };
-      document.head.appendChild(script);
-    });
-
-    loadingMap.set(region, promise);
-    return promise;
-  }
-
-  // 現在地に基づき必要な地方を読み込む（トンネル＋橋両方）
-  function ensureLoaded(lat, lng) {
-    const region = getRegion(lat, lng);
-    if (!region) return;
-    loadFile(region, 'tunnels');
-    loadFile(region, 'bridges');
-    const adjacents = ADJACENT[region] || [];
-    for (const adj of adjacents) {
-      loadFile(adj, 'tunnels');
-      loadFile(adj, 'bridges');
-    }
-  }
-
-  // 最寄りトンネル検索
-  function findNearestTunnel(lat, lng, maxDistanceM = 500) {
-    return findNearest(lat, lng, maxDistanceM, tunnelsData, loaded.tunnels);
-  }
-
-  // 最寄り橋検索
-  function findNearestBridge(lat, lng, maxDistanceM = 500) {
-    return findNearest(lat, lng, maxDistanceM, bridgesData, loaded.bridges);
-  }
-
-  // 共通検索
-  function findNearest(lat, lng, maxDistanceM, dataMap, loadedSet) {
-    let best = null;
-    let bestDist = maxDistanceM;
-    for (const region of loadedSet) {
-      const list = dataMap[region];
-      if (!list) continue;
-      for (const t of list) {
-        const midLat = t[4][0];
-        const midLng = t[4][1];
-        const d = haversine(lat, lng, midLat, midLng);
-        if (d < bestDist) {
-          bestDist = d;
-          best = { item: t, distanceToMid_m: d };
-        }
-      }
-    }
-    return best;
-  }
-
-  function haversine(lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  function getStats() {
-    let totalT = 0, totalB = 0;
-    for (const region of loaded.tunnels) totalT += (tunnelsData[region] || []).length;
-    for (const region of loaded.bridges) totalB += (bridgesData[region] || []).length;
-    // roads 統計（2026/04/30追加）
-    let totalRoads = 0;
-    for (const pref of loadedRoads) {
-      const decoder = roadDecoders.get(pref);
-      if (decoder) totalRoads += decoder.numRoads;
-    }
-    return {
-      loadedTunnelRegions: Array.from(loaded.tunnels),
-      loadedBridgeRegions: Array.from(loaded.bridges),
-      totalTunnels: totalT,
-      totalBridges: totalB,
-      // roads（2026/04/30追加）
-      loadedRoadPrefectures: Array.from(loadedRoads),
-      totalRoads: totalRoads,
-    };
-  }
-
-  // ════════════════════════════════════════════════════════════
-  // roads-*.js（都道府県別道路データ）対応・2026/04/30 追加
-  // 既存機能（tunnels/bridges）とは独立して動作
-  // ════════════════════════════════════════════════════════════
-
-  // 47都道府県の重心座標（build-roads.js と同じ・getPrefecture用）
+  // 47 都道府県の重心 [lat, lon]
   const PREFECTURES = {
     hokkaido:  [43.3, 142.8],
     aomori:    [40.8, 140.7], iwate:    [39.7, 141.2], miyagi:    [38.3, 140.9],
@@ -195,20 +36,225 @@ const RegionLoader = (() => {
     kagoshima: [31.4, 130.6], okinawa:  [26.5, 128.0],
   };
 
-  // 緯度経度から最寄り都道府県を判定（重心からの近傍）
-  function getPrefecture(lat, lng) {
-    let best = null, bestDist = Infinity;
+  // 中心の県＋N 県（重心距離順）を返す・ensureLoaded 内部用
+  function nearestPrefectures(lat, lng, n = 5) {
+    const arr = [];
     for (const pref in PREFECTURES) {
       const [pLat, pLng] = PREFECTURES[pref];
       const dLat = lat - pLat;
       const dLng = lng - pLng;
-      const d = dLat * dLat + dLng * dLng;
-      if (d < bestDist) { bestDist = d; best = pref; }
+      arr.push({ pref, d: dLat * dLat + dLng * dLng });
+    }
+    arr.sort((a, b) => a.d - b.d);
+    return arr.slice(0, n).map(x => x.pref);
+  }
+
+  // 県別 JS 動的読み込み（共通）
+  function loadFile(prefecture, kind) {
+    if (!prefecture) return Promise.resolve(null);
+    const dataMap = (kind === 'tunnels') ? tunnelsData : bridgesData;
+    const loadedSet = loaded[kind];
+    const loadingMap = loading[kind];
+    const varPrefix = (kind === 'tunnels') ? 'TUNNELS_' : 'BRIDGES_';
+
+    if (loadedSet.has(prefecture)) return Promise.resolve(dataMap[prefecture]);
+    if (loadingMap.has(prefecture)) return loadingMap.get(prefecture);
+
+    const promise = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = `data/${kind}-${prefecture}.js`;
+      script.async = true;
+      script.onload = () => {
+        const varName = varPrefix + prefecture.toUpperCase().replace(/-/g, '_');
+        const data = window[varName];
+        if (data) {
+          dataMap[prefecture] = data;
+          loadedSet.add(prefecture);
+          if (typeof dlog === 'function') {
+            dlog(`[Region] ${kind}/${prefecture}: ${data.length}件`);
+          }
+          resolve(data);
+        } else {
+          console.warn(`[Region] ${kind}/${prefecture} 変数なし`);
+          resolve(null);
+        }
+        loadingMap.delete(prefecture);
+      };
+      script.onerror = () => {
+        // 県ファイルが存在しない（橋・トンネルが0件の県）は警告レベルを下げる
+        if (typeof dlog === 'function') {
+          dlog(`[Region] ${kind}/${prefecture} 読み込み失敗（県内データなしの可能性）`);
+        }
+        loadingMap.delete(prefecture);
+        resolve(null);
+      };
+      document.head.appendChild(script);
+    });
+
+    loadingMap.set(prefecture, promise);
+    return promise;
+  }
+
+  // 公開 API: 現在地に基づき必要な県を読み込む（橋＋トンネル両方）
+  // 後方互換: シグネチャ ensureLoaded(lat, lng) は維持
+  function ensureLoaded(lat, lng) {
+    const prefs = nearestPrefectures(lat, lng, 5);
+    for (const pref of prefs) {
+      loadFile(pref, 'tunnels');
+      loadFile(pref, 'bridges');
+    }
+  }
+
+  // 公開 API（シグネチャ無変更）
+  function findNearestTunnel(lat, lng, maxDistanceM = 500) {
+    return findNearest(lat, lng, maxDistanceM, tunnelsData, loaded.tunnels);
+  }
+  function findNearestBridge(lat, lng, maxDistanceM = 500) {
+    return findNearest(lat, lng, maxDistanceM, bridgesData, loaded.bridges);
+  }
+
+  function findNearest(lat, lng, maxDistanceM, dataMap, loadedSet) {
+    let best = null;
+    let bestDist = maxDistanceM;
+    for (const pref of loadedSet) {
+      const list = dataMap[pref];
+      if (!list) continue;
+      for (const t of list) {
+        const midLat = t[4][0];
+        const midLng = t[4][1];
+        const d = haversine(lat, lng, midLat, midLng);
+        if (d < bestDist) {
+          bestDist = d;
+          best = { item: t, distanceToMid_m: d };
+        }
+      }
     }
     return best;
   }
 
-  // 1つの都道府県の roads データをロードして RoadDecoder を構築
+  function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Phase 1.B (2026-05-10): polyline 投影系 API
+  //   findNearestTunnel/Bridge は mid から半径 maxDist で探すため、
+  //   長トンネル (1km+) の端点が mid から離れていると見逃す。
+  //   polyline 投影距離で「点が tunnel 上にあるか」を判定する API を追加。
+  //   tunnels の polyline は [start, mid, end] の 3 点 (= 2 segment)。
+  // ════════════════════════════════════════════════════════════
+
+  // 点 (lat, lng) を polyline (= [[lat,lng], ...]) に投影
+  // 戻り値: { segmentIndex, t (0-1), projectedLat, projectedLng, distM }
+  function _projectOntoPolyline(lat, lng, polyline) {
+    let bestSeg = -1, bestT = 0, bestDistM = Infinity;
+    let bestLat = lat, bestLng = lng;
+    for (let i = 0; i < polyline.length - 1; i++) {
+      const aLat = polyline[i][0], aLng = polyline[i][1];
+      const bLat = polyline[i+1][0], bLng = polyline[i+1][1];
+      const refLat = (aLat + bLat) / 2;
+      const tr = Math.PI / 180;
+      const mpdLat = 111000;
+      const mpdLng = 111000 * Math.cos(refLat * tr);
+      const ax = (aLng - lng) * mpdLng;
+      const ay = (aLat - lat) * mpdLat;
+      const bx = (bLng - lng) * mpdLng;
+      const by = (bLat - lat) * mpdLat;
+      const abx = bx - ax, aby = by - ay;
+      const ab2 = abx*abx + aby*aby;
+      let t = 0;
+      if (ab2 > 1e-9) {
+        t = -(ax * abx + ay * aby) / ab2;
+        if (t < 0) t = 0;
+        else if (t > 1) t = 1;
+      }
+      const sx = ax + t * abx, sy = ay + t * aby;
+      const distM = Math.sqrt(sx*sx + sy*sy);
+      if (distM < bestDistM) {
+        bestDistM = distM;
+        bestSeg = i;
+        bestT = t;
+        bestLat = aLat + t * (bLat - aLat);
+        bestLng = aLng + t * (bLng - aLng);
+      }
+    }
+    return {
+      segmentIndex: bestSeg, t: bestT,
+      projectedLat: bestLat, projectedLng: bestLng,
+      distM: bestDistM,
+    };
+  }
+
+  // (lat, lng) が tunnel/bridge polyline の maxDistM 以内にあるか探す
+  // 長トンネルでも端点近傍を正しく検出できる
+  function findTunnelByPosition(lat, lng, maxDistM = 200) {
+    return _findInfraByPosition(lat, lng, maxDistM, tunnelsData, loaded.tunnels);
+  }
+  function findBridgeByPosition(lat, lng, maxDistM = 200) {
+    return _findInfraByPosition(lat, lng, maxDistM, bridgesData, loaded.bridges);
+  }
+  function _findInfraByPosition(lat, lng, maxDistM, dataMap, loadedSet) {
+    let best = null;
+    let bestDist = maxDistM;
+    for (const pref of loadedSet) {
+      const list = dataMap[pref];
+      if (!list) continue;
+      for (const t of list) {
+        const polyline = [t[2], t[4], t[3]]; // start, mid, end
+        const proj = _projectOntoPolyline(lat, lng, polyline);
+        if (proj.distM < bestDist) {
+          bestDist = proj.distM;
+          best = { item: t, distanceToPolyline_m: proj.distM, projection: proj };
+        }
+      }
+    }
+    return best;
+  }
+
+  // infra (tunnel/bridge) polyline 上の A→B 実走距離を計算
+  // infra: { item: [name, length, start, end, mid] }
+  // 戻り値: 距離 (m)・projection 距離が大きすぎる場合 null
+  // 計算:
+  //   1. polyline (start,mid,end) 上に A・B を射影
+  //   2. 各々の projection の polyline 始点からの累積距離を求める
+  //   3. |dB - dA| が straight-line 累積・実 length / straight-line 比で curvature 補正
+  function calcInfraPolylineDistance(infra, latA, lngA, latB, lngB) {
+    if (!infra || !infra.item) return null;
+    const start = infra.item[2];
+    const mid = infra.item[4];
+    const end = infra.item[3];
+    const polyline = [start, mid, end];
+    const totalLength = infra.item[1];
+    const seg1 = haversine(start[0], start[1], mid[0], mid[1]);
+    const seg2 = haversine(mid[0], mid[1], end[0], end[1]);
+    const polyStraightLen = seg1 + seg2;
+    if (polyStraightLen < 1) return null;
+    // 実 length / straight 比で curvature 補正
+    const curveScale = totalLength / polyStraightLen;
+    const projA = _projectOntoPolyline(latA, lngA, polyline);
+    const projB = _projectOntoPolyline(latB, lngB, polyline);
+    // polyline から離れすぎ → 信頼できない
+    if (projA.distM > 200 || projB.distM > 200) return null;
+    function cumDist(proj) {
+      let d = 0;
+      if (proj.segmentIndex >= 1) d += seg1;
+      const segLen = (proj.segmentIndex === 0) ? seg1 : seg2;
+      d += segLen * proj.t;
+      return d;
+    }
+    const dA = cumDist(projA);
+    const dB = cumDist(projB);
+    return Math.abs(dB - dA) * curveScale;
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // roads-*.js（都道府県別道路データ）対応
+  // ════════════════════════════════════════════════════════════
+
   function loadRoadFile(prefecture) {
     if (!prefecture) return Promise.resolve(null);
     if (loadedRoads.has(prefecture)) return Promise.resolve(roadDecoders.get(prefecture));
@@ -226,22 +272,35 @@ const RegionLoader = (() => {
       script.onload = () => {
         const varName = 'ROADS_' + prefecture.toUpperCase().replace(/-/g, '_');
         const data = window[varName];
-        if (data && (data.v === 4 || data.v === 5)) {
+        // ★設計変更宣言 (2026-05-10): v6/v7 受入れ追加
+        //   旧: v === 4 || v === 5 のみ → 47 県 v7 build 後は全件 warn 出力
+        //   新: 4-7 を全て受入・将来 v8 が来ても roads-decoder 互換ならそのまま動く
+        //   data.v が無い (= window 変数未設定) ケースのみ silent dlog に降格
+        //   (script は load 成功・MM は worker B 側で別 path で稼働中)
+        if (data && typeof data.v === 'number' && data.v >= 4 && data.v <= 7) {
           try {
             const decoder = new window.RoadDecoder(data);
             const result = decoder.buildOffsetTable();
             roadDecoders.set(prefecture, decoder);
             loadedRoads.add(prefecture);
             if (typeof dlog === 'function') {
-              dlog(`[Region] roads/${prefecture}: ${data.numRoads}本 (build ${result.ms.toFixed(0)}ms)`);
+              dlog(`[Region] roads/${prefecture}: ${data.numRoads}本 v${data.v} (build ${result.ms.toFixed(0)}ms)`);
             }
             resolve(decoder);
           } catch (e) {
             console.warn(`[Region] roads/${prefecture} デコーダー構築失敗:`, e.message);
             resolve(null);
           }
+        } else if (data && typeof data.v === 'number') {
+          // 既知の data あるが version 範囲外 → 真の警告
+          console.warn(`[Region] roads/${prefecture} 未対応バージョン v${data.v}`);
+          resolve(null);
         } else {
-          console.warn(`[Region] roads/${prefecture} 変数なし or 未対応バージョン`);
+          // window 変数未設定 = 別 path (Worker B forward) で稼働中の可能性
+          // dlog (DEBUG 限定) に降格して prod console を汚さない
+          if (typeof dlog === 'function') {
+            dlog(`[Region] roads/${prefecture} 変数未設定 (Worker B path で稼働の可能性)`);
+          }
           resolve(null);
         }
         loadingRoads.delete(prefecture);
@@ -258,23 +317,11 @@ const RegionLoader = (() => {
     return promise;
   }
 
-  // 指定された複数の都道府県の roads をロード
-  // prefectures: 文字列の配列（例：['osaka', 'hyogo', 'kyoto']）
-  // 戻り値：Promise（全部ロード完了で resolve）
   function ensureRoadsLoaded(prefectures) {
     if (!prefectures || prefectures.length === 0) return Promise.resolve([]);
     return Promise.all(prefectures.map(loadRoadFile));
   }
 
-  // 指定都道府県の RoadDecoder を取得（ロード済みのみ）
-  function getRoadDecoder(prefecture) {
-    return roadDecoders.get(prefecture) || null;
-  }
-
-  // ロード済みの全 RoadDecoder から最寄り道路を探索
-  // lat, lng: 実緯度経度
-  // options: { maxDistM, typeFilter, radiusGrids }
-  // 戻り値：snap オブジェクト（prefecture プロパティ付き）または null
   function snapToNearestRoad(lat, lng, options) {
     if (loadedRoads.size === 0) return null;
     let best = null;
@@ -292,13 +339,9 @@ const RegionLoader = (() => {
     return best;
   }
 
-  // 2つの snap 点間の道路距離を計算
-  // snapA, snapB: snapToNearestRoad の戻り値
   function calcRoadDistance(snapA, snapB) {
     if (!snapA || !snapB) return null;
-    // 同じ都道府県でなければ別道路扱い
     if (snapA.prefecture !== snapB.prefecture) {
-      // Haversine 直線距離
       const R = 6371000;
       const tr = Math.PI / 180;
       const dLat = (snapB.snapLat - snapA.snapLat) * tr;
@@ -314,10 +357,12 @@ const RegionLoader = (() => {
     return decoder.calcRoadDistance(snapA, snapB);
   }
 
-  return { 
-    getRegion, ensureLoaded, findNearestTunnel, findNearestBridge, getStats,
-    // roads 機能（2026/04/30 追加）
-    getPrefecture, ensureRoadsLoaded, getRoadDecoder, 
+  return {
+    ensureLoaded, findNearestTunnel, findNearestBridge,
+    ensureRoadsLoaded,
     snapToNearestRoad, calcRoadDistance,
+    nearestPrefectures,
+    // Phase 1.B (2026-05-10): polyline 投影 API
+    findTunnelByPosition, findBridgeByPosition, calcInfraPolylineDistance,
   };
 })();

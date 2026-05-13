@@ -23,7 +23,7 @@ let CONFIG = {
   heading_diff_threshold_deg: 90,
   heading_check_min_distance_m: 5,
   heading_check_min_speed_kmh: 5,
-  kalman_Q: 3,
+  kalman_Q: 3,                      // T5 既定値 (typeCode 不明時 / setRoadType 未受信時)
   jam_speed_max_kmh: 10,
   jam_duration_sec: 60,
   _kalman_Q_override: null, // コンパス融合で動的に変更
@@ -45,17 +45,62 @@ let trafficJamSince = null;
 let isTrafficJam = false;
 let kalman = null;
 
+// T5 (2026-05-09): Adaptive Kalman Q (道路種別連動)
+//   map-matcher.js で commit された snap の typeCode を main 経由で受信し、
+//   typeCode に応じて Q を動的化する。
+//   motorway/trunk: 直線・信頼度高 → Q 小 (1.5)
+//   residential/track: カーブ多・信頼度低 → Q 大 (4.0)
+//   typeCode 不明時は CONFIG.kalman_Q (=3) を使う。
+let _currentTypeCode = null;
+function _typeCodeToQ(typeCode){
+  if(typeCode == null) return CONFIG.kalman_Q;
+  switch(typeCode){
+    case 0: case 1:           return 1.5;  // motorway / trunk
+    case 7: case 8:           return 1.5;  // motorway_link / trunk_link
+    case 2: case 3:           return 2.5;  // primary / secondary
+    case 9: case 10:          return 2.5;  // primary_link / secondary_link
+    case 4: case 5:           return 3.0;  // tertiary / unclassified
+    case 11:                  return 3.0;  // tertiary_link
+    case 6: case 12:          return 4.0;  // residential / track
+    default:                  return CONFIG.kalman_Q;
+  }
+}
+function _getDynamicBaseQ(){ return _typeCodeToQ(_currentTypeCode); }
+
+// 2026-05-09 (P4 廃止): cellular tunnel hint 完全削除
+//   理由: layer (v6 attribute) + tunnels-{pref}.js データで道路属性ベースに代替
+//   利点: iOS Safari/PWA でも同等動作・接続不安定時の偽陽性なし
+//   詳細: map-matcher.js の _computeLayerScore で prevLayer 連続性 boost に置換
+
+let _prevAccuracy = null;
+
 // ─── Kalmanフィルター（案D・2026/04/27） ───
+// ★設計変更宣言 Phase 1.ZUPT (2026-05-10): Zero Velocity Update
+//   現 Kalman は position-only (vx/vy 状態を持たない) のため、
+//   ユーザー指示「vx/vy を 0 に強制リセット」は process noise Q の override で実現する。
+//   ZUPT active 中: Q = 0.01 (≒ 速度ドリフト 0)
+//     → decayed accuracy ≒ 既存 _accuracy (= 位置共分散維持)
+//     → K ≒ 0 (新 GPS 値による位置移動は小・GPS noise 由来 drift を抑制)
+//   ZUPT inactive: 既存通り T5 動的 Q (typeCode 連動) または qOverride
+//   起動条件: 直前 frame の isStationary 判定 (3 点 AND: GPS+C-1+C-2)
+//   停車終了で自動的に通常 Q に復帰 (Off-Road Mode 中の慣性誤差累積も抑える効果)
+const ZUPT_Q = 0.01;
 class KalmanGPS {
   constructor() {
     this._lat      = null;
     this._lng      = null;
     this._accuracy = 0;
     this._timestamp = null;
+    this._zuptActive = false;   // Phase 1.ZUPT: 停車中フラグ
   }
   reset() {
     this._lat = null; this._lng = null;
     this._accuracy = 0; this._timestamp = null;
+    this._zuptActive = false;
+  }
+  // Phase 1.ZUPT: 停車検出に応じて ZUPT モードを切替
+  setZuptActive(active) {
+    this._zuptActive = !!active;
   }
   update(lat, lng, accuracy, timestamp, qOverride) {
     if (this._lat === null) {
@@ -69,7 +114,17 @@ class KalmanGPS {
       this._accuracy = accuracy; this._timestamp = timestamp;
       return { lat, lng };
     }
-    const Q = (qOverride != null) ? qOverride : CONFIG.kalman_Q;
+    // Phase 1.ZUPT: ZUPT active 中は速度成分 (Q) を 0 ≒ ZUPT_Q に強制
+    //   通常時: T5 typeCode 連動の動的 Q または qOverride (コンパス融合)
+    //   ZUPT active 時: ZUPT_Q (0.01) に強制し速度ドリフトを抑制
+    let Q;
+    if (this._zuptActive) {
+      Q = ZUPT_Q;
+    } else if (qOverride != null) {
+      Q = qOverride;
+    } else {
+      Q = _getDynamicBaseQ();
+    }
     const decayed = Math.sqrt(
       this._accuracy * this._accuracy + Q * Q * dt * dt
     );
@@ -87,6 +142,11 @@ class KalmanGPS {
     return { lat: this._lat, lng: this._lng };
   }
 }
+
+// Phase 1.ZUPT: 直前 frame の停車判定を carry
+//   processPosition 内で stationary 検出は Kalman 後に走るため、
+//   今 frame の Kalman に ZUPT を適用するには「前 frame の判定」を使う必要あり (1 frame lag)
+let _isStationaryLast = false;
 
 // ─── 動的accuracy閾値 ───
 function getDynamicAccuracyLimit(speedKmh, now) {
@@ -165,6 +225,69 @@ function calcAccelVariance(accelSamples, now) {
   return variance;
 }
 
+// ─── MM-5 (2026-05-08): 加速度路面セマンティクス検出 ─────────
+// vibration_index = std(|a|) を 1Hz で算出し、橋進入時の急上下 G impulse を検出
+// accelLayerHint: 'bridge' | 'normal'
+//   - 'bridge': 直近 5 秒で max(|a|) - min(|a|) > 4 m/s² の impulse を観測
+//   - 'normal': デフォルト・上記閾値未満
+// トンネルは accel から検出困難なため normal のまま（cellular hint で補完）
+//
+// 戻り値: { hint, vibrationIndex, magRange, sampleCount } | null
+const ACCEL_LAYER_WINDOW_MS = 5000;
+const ACCEL_LAYER_MIN_SAMPLES = 8;
+const ACCEL_BRIDGE_RANGE_THRESHOLD = 4.0;     // m/s² 急上下 G の検出閾値
+const ACCEL_BRIDGE_VARIANCE_THRESHOLD = 0.8;  // 高 vibration の検出閾値
+
+function calcAccelLayerHint(accelSamples, now) {
+  if (!accelSamples || !Array.isArray(accelSamples)) return null;
+  if (accelSamples.length < ACCEL_LAYER_MIN_SAMPLES) return null;
+
+  const recent = accelSamples.filter(s =>
+    s && typeof s.t === 'number' && (now - s.t) < ACCEL_LAYER_WINDOW_MS
+  );
+  if (recent.length < ACCEL_LAYER_MIN_SAMPLES) return null;
+
+  // 各サンプルの |a| = √(x² + y² + z²) を算出
+  let maxMag = -Infinity, minMag = Infinity, sumMag = 0;
+  const mags = new Array(recent.length);
+  for (let i = 0; i < recent.length; i++) {
+    const s = recent[i];
+    const m = Math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
+    mags[i] = m;
+    if (m > maxMag) maxMag = m;
+    if (m < minMag) minMag = m;
+    sumMag += m;
+  }
+  const mean = sumMag / recent.length;
+
+  // 標準偏差 (vibration_index)
+  let variance = 0;
+  for (let i = 0; i < mags.length; i++) {
+    const d = mags[i] - mean;
+    variance += d * d;
+  }
+  variance /= mags.length;
+  const vibrationIndex = Math.sqrt(variance);
+
+  // 急上下 G の range（最大 - 最小）
+  const magRange = maxMag - minMag;
+
+  let hint = 'normal';
+  // 橋進入: range が大きい（伸縮継ぎ目を踏んだ瞬間の vertical G impulse）
+  // または vibration_index が高い（橋面の不整・段差）
+  if (magRange > ACCEL_BRIDGE_RANGE_THRESHOLD ||
+      vibrationIndex > ACCEL_BRIDGE_VARIANCE_THRESHOLD) {
+    hint = 'bridge';
+  }
+
+  return {
+    hint: hint,
+    vibrationIndex: vibrationIndex,
+    magRange: magRange,
+    sampleCount: recent.length,
+  };
+}
+
 // ─── C-2：加速度合算ベクトル動き判定（2026/04/30追加） ───
 // 直近のサンプルから |a|=√(x²+y²+z²) の平均を計算し、9.8（重力）からの偏差を返す
 // 静止時：|平均|a|| ≈ 9.8 → 偏差 ≈ 0
@@ -190,6 +313,61 @@ function calcAccelMagnitudeDeviation(accelSamples, now) {
 
   // 9.8（地球の重力加速度）からの絶対偏差
   return Math.abs(meanMag - 9.8);
+}
+
+// T12 (2026-05-09): DeviceMotion 拡大活用
+//   ① 急ブレーキ検出: 加速度の長軸 (進行方向) 方向で連続して負の値が出たら急ブレーキ
+//      速度クランプを GPS 速度ではなく加速度ベース速度推定で抑える
+//   ② GPS gap 区間の慣性航法補間: GPS 圏外時に加速度を時間積分して位置を推定
+//      過信防止のため積分時間 5 秒上限・dead reckoning 30m 上限
+//   accelSamples: [{ x, y, z, t }, ...] (t=epoch ms)・x: east, y: north, z: up は端末座標系で
+//      正確には端末姿勢に依存するが、ここでは |a| ベース近似のみ
+const T12_HARD_BRAKE_THRESHOLD = 4.0;   // m/s² | a |の正味偏差 (含む水平+垂直成分)
+const T12_HARD_BRAKE_MIN_SAMPLES = 3;
+const T12_INERTIAL_MAX_GAP_SEC  = 5;    // 5 秒以内の GPS gap のみ慣性で補間
+const T12_INERTIAL_MAX_DRIFT_M  = 30;   // 慣性推定 30m 超なら信用しない (lat/lng 維持)
+
+// 急ブレーキ検出: 直近 N サンプルの |a|-9.8 が一貫して大きい (= 強い動き)
+//   かつ GPS 速度が下降中なら急ブレーキ確度高
+function _detectHardBrake(accelSamples, prevSpeedKmh, currSpeedKmh, now){
+  if (!accelSamples || accelSamples.length < T12_HARD_BRAKE_MIN_SAMPLES) return false;
+  const recent = accelSamples.slice(-T12_HARD_BRAKE_MIN_SAMPLES);
+  let count = 0;
+  for (const s of recent){
+    if (!s) continue;
+    const mag = Math.sqrt(s.x*s.x + s.y*s.y + s.z*s.z);
+    if (Math.abs(mag - 9.8) > T12_HARD_BRAKE_THRESHOLD) count++;
+  }
+  // 全 sample が threshold 超 + GPS 速度 -10 km/h 以上の減速 = 急ブレーキ
+  if (count >= T12_HARD_BRAKE_MIN_SAMPLES && (prevSpeedKmh - currSpeedKmh) > 10){
+    return true;
+  }
+  return false;
+}
+
+// 慣性航法による gap 補間: 直前位置 + dt + 加速度積分 → 推定位置
+//   limited fallback として位置の微小補正のみ (主体は GPS の Kalman 後座標)
+function _inertialGapCorrection(prevPos, accelSamples, currLat, currLng, dt){
+  if (!prevPos || !accelSamples || accelSamples.length === 0) return null;
+  if (dt <= 0 || dt > T12_INERTIAL_MAX_GAP_SEC) return null;
+  // 直近サンプルの平均水平加速度 (端末座標系の x/y を概略で水平に流用)
+  let sx = 0, sy = 0, n = 0;
+  for (const s of accelSamples){
+    if (!s) continue;
+    sx += s.x; sy += s.y; n++;
+  }
+  if (n === 0) return null;
+  const ax = sx / n, ay = sy / n;
+  // 速度初期値 (前 GPS から求める) + 積分
+  const v0 = (prevPos.speedKmh || 0) / 3.6;
+  // 進行方向は heading 不明なので簡易に「水平速度方向 = 0」と仮定し
+  // ax/ay の二乗平均を水平速度変動として扱う (= drift estimate)
+  const aMag = Math.sqrt(ax*ax + ay*ay);
+  const driftDist = (v0 * dt) + 0.5 * aMag * dt * dt;
+  if (driftDist > T12_INERTIAL_MAX_DRIFT_M) return null;
+  // この関数は「GPS が来ない区間の補間」用だが、本実装では
+  // GPS が届いている前提なので driftDist を quality-check として使用するのみ
+  return { driftDist: driftDist };
 }
 
 function checkStationary(speedKmh, lat, lng, now) {
@@ -306,8 +484,12 @@ function processPosition(data) {
       // 不一致（diff大）→ Q大きく（GPS座標をより信頼）
       if (compassHeading != null) {
         const matchRatio = 1 - (diff / CONFIG.heading_diff_threshold_deg); // 0〜1
-        CONFIG._kalman_Q_override = CONFIG.kalman_Q * (0.5 + 0.5 * (1 - matchRatio));
-        CONFIG._compassDebug = 'コンパス融合: 方向差' + diff.toFixed(0) + '° Q=' + CONFIG._kalman_Q_override.toFixed(1);
+        // T5: ベース Q を typeCode 連動の動的値にし、コンパス融合は乗算で適用
+        const baseQ = _getDynamicBaseQ();
+        CONFIG._kalman_Q_override = baseQ * (0.5 + 0.5 * (1 - matchRatio));
+        CONFIG._compassDebug = 'コンパス融合: 方向差' + diff.toFixed(0) + '° baseQ=' + baseQ.toFixed(1) +
+          ' Q=' + CONFIG._kalman_Q_override.toFixed(1) +
+          ' typeCode=' + (_currentTypeCode != null ? _currentTypeCode : '?');
         wlog('[GPS] ' + CONFIG._compassDebug);
       }
     }
@@ -317,6 +499,10 @@ function processPosition(data) {
   checkTrafficJam(speedKmh, now);
 
   // ④ Kalmanフィルター（コンパス融合Q値で更新）
+  // Phase 1.ZUPT (2026-05-10): 直前 frame の isStationary 判定を carry
+  //   今 frame の Kalman に ZUPT (Q ≈ 0) を適用して GPS noise 由来 drift を抑制
+  //   停車終了で自動的に通常 Q に復帰
+  kalman.setZuptActive(_isStationaryLast);
   const filtered = kalman.update(lat, lng, accuracy, now, CONFIG._kalman_Q_override);
   CONFIG._kalman_Q_override = null; // 使い捨て
 
@@ -353,25 +539,56 @@ function processPosition(data) {
     finalStationary = gpsStationary && c1Stationary && !c2Moving;
   }
   isStationary = finalStationary;
+  // Phase 1.ZUPT (2026-05-10): 次 frame の Kalman 用に判定を carry
+  _isStationaryLast = finalStationary;
 
-  lastPosition = { lat: filtered.lat, lng: filtered.lng, timestamp: now, speedKmh, altitude };
+  // T12 (2026-05-09): 急ブレーキ検出 → 速度クランプを強化
+  //   速度誤検出 (GPS spike) を抑え、急ブレーキ後の異常な高速度報告をフィルタ
+  let hardBrake = false;
+  let clampedSpeedKmh = speedKmh;
+  if (lastPosition){
+    hardBrake = _detectHardBrake(accelSamples, lastPosition.speedKmh, speedKmh, now);
+    if (hardBrake){
+      // 急ブレーキ時は GPS 速度の上振れをクランプ (前 GPS 速度 ÷ 1.2 を上限)
+      const cap = Math.max(5, lastPosition.speedKmh / 1.2);
+      if (speedKmh > cap){
+        clampedSpeedKmh = cap;
+        wlog('[T12] hardBrake clamp: ' + speedKmh.toFixed(1) + ' → ' + cap.toFixed(1) + ' km/h');
+      }
+    }
+  }
+  // T12: GPS gap 区間の慣性航法 quality check (大きな drift 推定なら GPS 信用度を下げる)
+  let inertialDriftHint = null;
+  if (lastPosition){
+    const dt = (now - lastPosition.timestamp) / 1000;
+    if (dt > 1 && dt <= T12_INERTIAL_MAX_GAP_SEC){
+      const inertial = _inertialGapCorrection(lastPosition, accelSamples, filtered.lat, filtered.lng, dt);
+      if (inertial) inertialDriftHint = inertial.driftDist;
+    }
+  }
 
+  lastPosition = { lat: filtered.lat, lng: filtered.lng, timestamp: now, speedKmh: clampedSpeedKmh, altitude };
+
+  _prevAccuracy = accuracy;
+  // 2026-05-09 (P4/P5): cellularLayerHint / accelLayerHint 廃止
+  //   layer (v6 attribute) + tunnels-/bridges-{pref}.js データで完全代替
   return {
     lat: filtered.lat,
     lng: filtered.lng,
     altitude,
     accuracy,
-    speedKmh,
+    speedKmh: clampedSpeedKmh,
     isStationary,
     timestamp: now,
     compassHeading: (compassHeading != null) ? compassHeading : null,
     _debugCompass: (compassHeading != null && CONFIG._compassDebug) ? CONFIG._compassDebug : null,
-    // 加速度センサー（案A・2026/04/29・取得確認用・C段階で活用）
     accelData: accelData || null,
     accelSampleCount: accelSamples ? accelSamples.length : 0,
-    // ジャイロセンサー（B段階・2026/04/29・取得確認用・C段階で活用）
     gyroData: gyroData || null,
     gyroSampleCount: gyroSamples ? gyroSamples.length : 0,
+    // T12 (2026-05-09): diagnostic - 急ブレーキ / 慣性 drift
+    hardBrake: hardBrake,
+    inertialDriftHint: inertialDriftHint,
   };
 }
 
@@ -389,6 +606,8 @@ self.onmessage = function(e) {
     isStationary = false;
     trafficJamSince = null;
     isTrafficJam = false;
+    _isStationaryLast = false;   // Phase 1.ZUPT: ZUPT carry リセット
+    // 2026-05-09 (P4): cellular polling 廃止
     wlog('[Worker] 初期化完了');
     return;
   }
@@ -401,6 +620,19 @@ self.onmessage = function(e) {
     isStationary = false;
     trafficJamSince = null;
     isTrafficJam = false;
+    _currentTypeCode = null;     // T5: typeCode もリセット
+    _isStationaryLast = false;   // Phase 1.ZUPT: ZUPT carry リセット
+    return;
+  }
+
+  // T5 (2026-05-09): main 経由で map-matcher の commit typeCode を受信
+  //   _currentTypeCode に保持し、次回以降の Kalman 更新で動的 Q を選択
+  if (type === 'setRoadType') {
+    if (data && typeof data.typeCode === 'number') {
+      _currentTypeCode = data.typeCode;
+    } else if (data && data.typeCode == null) {
+      _currentTypeCode = null;
+    }
     return;
   }
 

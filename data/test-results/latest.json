@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-09T21:54:16.139Z",
+  "git_sha": "62e27a4bc1419774986413cb02dd180d93c1b767",
+  "git_ref": "main",
+  "runner": "github-actions",
+  "summary": {
+    "snap_rate_overall": 1,
+    "distance_error_ratio_overall": 0.0004,
+    "mm_distance_total_m": 3251.3,
+    "expected_distance_total_m": 3250,
+    "fixture_count": 3,
+    "total_gps_points": 328
+  },
+  "fixtures": [
+    {
+      "name": "synthetic-curve-1.5km",
+      "description": "ゆるカーブ 5 セグメント 約 1.6km・GPS ノイズ ±2m",
+      "expected_distance_m": 1550,
+      "mm_distance_m": 1549.79,
+      "distance_error_m": -0.21,
+      "distance_error_ratio": 0.00013,
+      "total_count": 156,
+      "snap_count": 156,
+      "snap_rate": 1,
+      "skip_count": 0,
+      "layer_check_count": 0,
+      "layer_hit_count": 0,
+      "elapsed_ms": 1,
+      "issues": []
+    },
+    {
+      "name": "synthetic-overpass-700m",
+      "description": "並行 2 道路 (地上/高架 6m 離隔)・GPS は地上寄り",
+      "expected_distance_m": 700,
+      "mm_distance_m": 700.72,
+      "distance_error_m": 0.72,
+      "distance_error_ratio": 0.00102,
+      "total_count": 71,
+      "snap_count": 71,
+      "snap_rate": 1,
+      "skip_count": 0,
+      "layer_check_count": 71,
+      "layer_hit_count": 71,
+      "elapsed_ms": 1,
+      "issues": []
+    },
+    {
+      "name": "synthetic-straight-1km",
+      "description": "直線 1km 北向き・GPS 横方向ノイズ ±3m",
+      "expected_distance_m": 1000,
+      "mm_distance_m": 1000.79,
+      "distance_error_m": 0.79,
+      "distance_error_ratio": 0.00079,
+      "total_count": 101,
+      "snap_count": 101,
+      "snap_rate": 1,
+      "skip_count": 0,
+      "layer_check_count": 0,
+      "layer_hit_count": 0,
+      "elapsed_ms": 0,
+      "issues": []
+    }
+  ],
+  "tiers": {
+    "tier1_osrm": {
+      "status": "not_run",
+      "note": "weekly cron / set OSRM_ENDPOINT secret"
+    },
+    "tier2_self": {
+      "status": "ok",
+      "note": "replay-mm.js (this run)",
+      "der": 0.0004
+    },
+    "tier4_google": {
+      "status": "not_run",
+      "note": "monthly limited / set GOOGLE_DIRECTIONS_API_KEY secret"
+    }
+  },
+  "issues": []
+}

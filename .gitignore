@@ -1,0 +1,38 @@
+# Build/cache directories
+tmp/
+node_modules/
+.npm/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Large fetched intermediate data (regenerable via scripts/fetch-real-data.js)
+# 国土数値情報の生 ZIP・展開後 GML（数百MB）
+input/*/raw/
+
+# 大容量 GeoJSON 中間ファイル（KSJ から再取得可能）
+input/*/flood.geojson
+input/*/tsunami.geojson
+
+# CI が毎回 PBF から再生成する POI 中間 GeoJSON（最終 data/poi-*.js だけ追跡）
+# tokyo は 100MB 超のため git に乗せられない。デバッグ用に Actions artifact で保管。
+input/*/poi.geojson
+
+# Local logs
+*.log
+
+# input/ ディレクトリ全体を git 管理外
+# 理由: KSJ/N06等の生 GIS データは100MB超ファイルあり（例: input/ibaraki/streets.csv 114MB）
+# scripts/fetch-*.js で再取得可能・最終 data/*.js のみ追跡する方針
+# （既にtrack済みのファイルは git rm --cached で個別対応）
+input/
+
+# 環境変数ファイル (シークレット流出防止・2026-05-11 追加)
+.env
+.env.local
+.env.*.local

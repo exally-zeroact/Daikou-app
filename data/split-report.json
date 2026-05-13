@@ -1,0 +1,382 @@
+{
+  "bridges": {
+    "aichi": {
+      "count": 195,
+      "sizeBytes": 19322
+    },
+    "akita": {
+      "count": 15,
+      "sizeBytes": 1686
+    },
+    "aomori": {
+      "count": 30,
+      "sizeBytes": 3181
+    },
+    "chiba": {
+      "count": 73,
+      "sizeBytes": 7505
+    },
+    "ehime": {
+      "count": 45,
+      "sizeBytes": 5321
+    },
+    "fukui": {
+      "count": 21,
+      "sizeBytes": 2233
+    },
+    "fukuoka": {
+      "count": 105,
+      "sizeBytes": 11312
+    },
+    "fukushima": {
+      "count": 28,
+      "sizeBytes": 3002
+    },
+    "gifu": {
+      "count": 70,
+      "sizeBytes": 7067
+    },
+    "gunma": {
+      "count": 37,
+      "sizeBytes": 3796
+    },
+    "hiroshima": {
+      "count": 81,
+      "sizeBytes": 8624
+    },
+    "hokkaido": {
+      "count": 116,
+      "sizeBytes": 11314
+    },
+    "hyogo": {
+      "count": 81,
+      "sizeBytes": 8304
+    },
+    "ibaraki": {
+      "count": 63,
+      "sizeBytes": 6581
+    },
+    "ishikawa": {
+      "count": 24,
+      "sizeBytes": 2644
+    },
+    "iwate": {
+      "count": 21,
+      "sizeBytes": 2277
+    },
+    "kagawa": {
+      "count": 43,
+      "sizeBytes": 4509
+    },
+    "kagoshima": {
+      "count": 14,
+      "sizeBytes": 1618
+    },
+    "kanagawa": {
+      "count": 142,
+      "sizeBytes": 14508
+    },
+    "kochi": {
+      "count": 20,
+      "sizeBytes": 2257
+    },
+    "kumamoto": {
+      "count": 35,
+      "sizeBytes": 3971
+    },
+    "kyoto": {
+      "count": 82,
+      "sizeBytes": 8131
+    },
+    "mie": {
+      "count": 37,
+      "sizeBytes": 3900
+    },
+    "miyagi": {
+      "count": 47,
+      "sizeBytes": 4947
+    },
+    "miyazaki": {
+      "count": 15,
+      "sizeBytes": 1721
+    },
+    "nagano": {
+      "count": 57,
+      "sizeBytes": 5688
+    },
+    "nagasaki": {
+      "count": 37,
+      "sizeBytes": 4015
+    },
+    "nara": {
+      "count": 40,
+      "sizeBytes": 4156
+    },
+    "niigata": {
+      "count": 62,
+      "sizeBytes": 6024
+    },
+    "oita": {
+      "count": 27,
+      "sizeBytes": 2887
+    },
+    "okayama": {
+      "count": 56,
+      "sizeBytes": 5542
+    },
+    "okinawa": {
+      "count": 41,
+      "sizeBytes": 4383
+    },
+    "osaka": {
+      "count": 402,
+      "sizeBytes": 39823
+    },
+    "saga": {
+      "count": 51,
+      "sizeBytes": 5436
+    },
+    "saitama": {
+      "count": 92,
+      "sizeBytes": 9301
+    },
+    "shiga": {
+      "count": 31,
+      "sizeBytes": 3251
+    },
+    "shimane": {
+      "count": 20,
+      "sizeBytes": 2207
+    },
+    "shizuoka": {
+      "count": 138,
+      "sizeBytes": 13481
+    },
+    "tochigi": {
+      "count": 38,
+      "sizeBytes": 3866
+    },
+    "tokushima": {
+      "count": 47,
+      "sizeBytes": 4947
+    },
+    "tokyo": {
+      "count": 377,
+      "sizeBytes": 37908
+    },
+    "tottori": {
+      "count": 30,
+      "sizeBytes": 3147
+    },
+    "toyama": {
+      "count": 59,
+      "sizeBytes": 5737
+    },
+    "wakayama": {
+      "count": 24,
+      "sizeBytes": 2624
+    },
+    "yamagata": {
+      "count": 31,
+      "sizeBytes": 3240
+    },
+    "yamaguchi": {
+      "count": 33,
+      "sizeBytes": 3399
+    },
+    "yamanashi": {
+      "count": 41,
+      "sizeBytes": 4503
+    }
+  },
+  "tunnels": {
+    "aichi": {
+      "count": 179,
+      "sizeBytes": 17743
+    },
+    "akita": {
+      "count": 138,
+      "sizeBytes": 13404
+    },
+    "aomori": {
+      "count": 197,
+      "sizeBytes": 18660
+    },
+    "chiba": {
+      "count": 147,
+      "sizeBytes": 14216
+    },
+    "ehime": {
+      "count": 338,
+      "sizeBytes": 32590
+    },
+    "fukui": {
+      "count": 231,
+      "sizeBytes": 22103
+    },
+    "fukuoka": {
+      "count": 146,
+      "sizeBytes": 14707
+    },
+    "fukushima": {
+      "count": 224,
+      "sizeBytes": 21942
+    },
+    "gifu": {
+      "count": 249,
+      "sizeBytes": 24416
+    },
+    "gunma": {
+      "count": 116,
+      "sizeBytes": 11442
+    },
+    "hiroshima": {
+      "count": 292,
+      "sizeBytes": 28299
+    },
+    "hokkaido": {
+      "count": 402,
+      "sizeBytes": 38599
+    },
+    "hyogo": {
+      "count": 304,
+      "sizeBytes": 29988
+    },
+    "ibaraki": {
+      "count": 85,
+      "sizeBytes": 8662
+    },
+    "ishikawa": {
+      "count": 135,
+      "sizeBytes": 13250
+    },
+    "iwate": {
+      "count": 380,
+      "sizeBytes": 38298
+    },
+    "kagawa": {
+      "count": 95,
+      "sizeBytes": 9314
+    },
+    "kagoshima": {
+      "count": 118,
+      "sizeBytes": 11937
+    },
+    "kanagawa": {
+      "count": 318,
+      "sizeBytes": 31220
+    },
+    "kochi": {
+      "count": 234,
+      "sizeBytes": 23580
+    },
+    "kumamoto": {
+      "count": 185,
+      "sizeBytes": 18471
+    },
+    "kyoto": {
+      "count": 213,
+      "sizeBytes": 20731
+    },
+    "mie": {
+      "count": 133,
+      "sizeBytes": 12829
+    },
+    "miyagi": {
+      "count": 129,
+      "sizeBytes": 13055
+    },
+    "miyazaki": {
+      "count": 146,
+      "sizeBytes": 14413
+    },
+    "nagano": {
+      "count": 261,
+      "sizeBytes": 24916
+    },
+    "nagasaki": {
+      "count": 173,
+      "sizeBytes": 17241
+    },
+    "nara": {
+      "count": 182,
+      "sizeBytes": 17271
+    },
+    "niigata": {
+      "count": 254,
+      "sizeBytes": 24889
+    },
+    "oita": {
+      "count": 386,
+      "sizeBytes": 37514
+    },
+    "okayama": {
+      "count": 201,
+      "sizeBytes": 19461
+    },
+    "okinawa": {
+      "count": 91,
+      "sizeBytes": 8965
+    },
+    "osaka": {
+      "count": 287,
+      "sizeBytes": 28346
+    },
+    "saga": {
+      "count": 66,
+      "sizeBytes": 6709
+    },
+    "saitama": {
+      "count": 109,
+      "sizeBytes": 11051
+    },
+    "shiga": {
+      "count": 68,
+      "sizeBytes": 6703
+    },
+    "shimane": {
+      "count": 261,
+      "sizeBytes": 25561
+    },
+    "shizuoka": {
+      "count": 297,
+      "sizeBytes": 28475
+    },
+    "tochigi": {
+      "count": 80,
+      "sizeBytes": 8016
+    },
+    "tokushima": {
+      "count": 126,
+      "sizeBytes": 12141
+    },
+    "tokyo": {
+      "count": 330,
+      "sizeBytes": 32520
+    },
+    "tottori": {
+      "count": 225,
+      "sizeBytes": 22174
+    },
+    "toyama": {
+      "count": 189,
+      "sizeBytes": 18109
+    },
+    "wakayama": {
+      "count": 281,
+      "sizeBytes": 26620
+    },
+    "yamagata": {
+      "count": 166,
+      "sizeBytes": 15812
+    },
+    "yamaguchi": {
+      "count": 287,
+      "sizeBytes": 27196
+    },
+    "yamanashi": {
+      "count": 190,
+      "sizeBytes": 18702
+    }
+  }
+}

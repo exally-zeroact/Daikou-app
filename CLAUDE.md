@@ -127,3 +127,94 @@ Exallyのコードを触るときのみ適用。
 - `C:\Users\zeroa\zeroact-memory\projects\daikome\decisions.md`
 - `C:\Users\zeroa\zeroact-memory\projects\daikome\tasks.md`
 - `C:\Users\zeroa\zeroact-memory\projects\daikome\rules.md`
+
+-----
+
+## 絶対ルール（全セッション共通・例外なし）
+
+- 実装済みの機能は必ず全て課金・業務フローに接続すること
+- 「業務継続性」を理由に機能を参照値・dead codeにしないこと
+- 設計変更をした場合は必ずレポートに明記すること
+- 安全側への勝手な格下げ禁止
+- 距離計算はGoogleマップと同じようにGPSの座標を道路にスナップして道路に沿った距離で課金すること。GPS直線距離での課金は絶対に使わない
+
+## 設計方針
+
+- メーターの課金距離（state.distance_m）はMap Matching（mm）が主・GPS直線はMMが5秒以上沈黙した場合のfallbackのみ
+- Worker B（map-matcher.js）に道路データが届いていない状態は絶対に許容しない
+- distanceSourceは常にUI上で運転手が確認できるように表示すること
+- 実装した機能が動いているかどうかを常に確認してレポートに記載すること
+
+-----
+
+## 国土地理院 1/2,500 道路縁データ統合手順 (Phase E・2026-05-09)
+
+> **[ARCHIVED 2026-05-09]** 測量法 (測量成果の複製・使用承認) 申請リスクにより
+> 本機能は**現在は未使用**。代替策として scripts/build-roads.js の DP_TOLERANCE を
+> 5m → 3m に緩和し OSM polyline 実効精度を 1.7 倍化 (47 県再 build で実装済)。
+> 将来 国土地理院がオープンデータ化した場合に再活用予定。
+> 関連スクリプト (parse-gsi-2500-gml.js / merge-gsi-into-osm.js / fetch-gsi-2500-roads.js)
+> およびこの節の手順は参考用に温存。--gsi-2500-dir フラグ未指定時は実行されない。
+
+### 背景
+OSM polyline (10-50m サンプル間隔) より高精度な国土地理院 基盤地図情報
+1/2,500 道路縁データ (0.5-2.5m 精度) を build-roads.js に注入することで
+都市部 DID (人口集中地区) の MM 精度を向上させる。
+
+### データソース
+- 配布元: 国土地理院 基盤地図情報ダウンロードサービス
+- URL: https://fgd.gsi.go.jp/download/menu.php
+- 形式: GML (XML)・二次メッシュ単位
+- 利用条件: ユーザ登録 (氏名+メール・無料) 必須・自動 fetch 不可
+- ライセンス: 国土地理院コンテンツ利用規約 (出典明記で商用可)
+
+### 取得手順 (手動)
+1. ブラウザで上記 URL にアクセス・ユーザ登録 (初回のみ)
+2. 「基盤地図情報 (縮尺レベル 2500)」を選択
+3. 対象都道府県の DID メッシュ一覧を確認:
+   `node scripts/fetch-gsi-2500-roads.js <pref>`
+4. 該当メッシュコードを画面上で選択
+5. 「道路縁」レイヤを選択してダウンロード (zip)
+6. zip を `input/<pref>/gsi-2500/` に展開
+
+### 変換 + build 手順
+```bash
+# 1. GML → GeoJSON 変換
+node scripts/parse-gsi-2500-gml.js input/ehime/gsi-2500/ \
+     --output=tmp/ehime/gsi-geojson/
+
+# 2. build (--gsi-2500-dir フラグで内部 merge)
+node scripts/build-roads.js \
+     input/ehime/streets.geojson \
+     data/ ehime \
+     --gsi-2500-dir=tmp/ehime/gsi-geojson/
+
+# 3. (代替) merge-gsi-into-osm.js を単体で実行する場合
+node scripts/merge-gsi-into-osm.js \
+     input/ehime/streets.geojson \
+     tmp/ehime/gsi-geojson/ \
+     > input/ehime/streets-merged.geojson
+node scripts/build-roads.js input/ehime/streets-merged.geojson data/ ehime
+```
+
+### マッチングアルゴリズム
+- 100m × 100m 空間 grid に GSI ポリラインを index 化
+- 各 OSM polyline について grid で候補抽出
+- Hausdorff 距離 < 5m なら "同じ道路" と判定し OSM の geometry を GSI に置換
+- properties (highway/oneway/lanes 等の OSM タグ) は維持
+- 結果フラグ: `gsi_2500_merged: true` を properties に付与
+
+### カバレッジ
+- 国土地理院 1/2,500 は DID (人口集中地区) のみ整備
+- 全国の DID は OSM road 全体の約 30-40%
+- 期待マッチング率: DID 内で 70-90%・全体で 25-35%
+- 山間部・郊外・私道は OSM のみ (変化なし)
+
+### 注意事項
+- 47 県全データ (約 50GB+) のダウンロードは数日かかる
+- 自動 fetch 不可 (login 必須) のため OPERATOR が手動取得
+- メッシュコード一覧の prefecture mapping は scripts/fetch-gsi-2500-roads.js
+  に書かれているが現状 4 県のみ (ehime/tokyo/osaka/kanagawa)
+  他 43 県は OPERATOR が国土地理院 mesh tool で確認後追加
+- 商用利用には「国土地理院長承認」表記が必須
+- 47 県 build はローカル PC で 1 県あたり 5-30 分・全国で半日-1 日

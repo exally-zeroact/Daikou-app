@@ -1,0 +1,133 @@
+name: MM Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/map-matcher.js'
+      - 'js/meter.js'
+      - 'js/roads-decoder.js'
+      - 'tests/**'
+      - '.github/workflows/mm-regression.yml'
+  pull_request:
+    paths:
+      - 'js/map-matcher.js'
+      - 'js/meter.js'
+      - 'js/roads-decoder.js'
+      - 'tests/**'
+      - '.github/workflows/mm-regression.yml'
+  schedule:
+    # 毎週月曜 03:00 JST (= 18:00 UTC 日曜) に Tier1 OSRM cron 実行
+    - cron: '0 18 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  regression:
+    name: Map Matching Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Generate fixtures
+        run: node tests/lib/generate-fixtures.js
+
+      - name: Replay map-matcher (Tier2 self)
+        run: node tests/replay-mm.js
+
+      - name: Meter MM-priority integration test
+        run: node tests/meter-mm-priority.js
+
+      - name: Tier1 OSRM /match (skips if OSRM_ENDPOINT secret unset)
+        env:
+          OSRM_ENDPOINT: ${{ secrets.OSRM_ENDPOINT }}
+          OSRM_PROFILE: ${{ secrets.OSRM_PROFILE }}
+        # cron 実行と workflow_dispatch のみ Tier1 を回す (PR/push では時間節約)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: node tests/tier1-osrm.js
+        continue-on-error: true
+
+      - name: Tier4 Google Directions (skips if API key unset)
+        env:
+          GOOGLE_DIRECTIONS_API_KEY: ${{ secrets.GOOGLE_DIRECTIONS_API_KEY }}
+          GOOGLE_MAX_REQUESTS_PER_RUN: '5'
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: node tests/tier4-google.js
+        continue-on-error: true
+
+      - name: Compare against baselines
+        run: node tests/compare-baseline.js
+
+      - name: Generate PR report
+        if: always()
+        run: node tests/generate-pr-report.js > pr-report.md
+
+      - name: Upload latest.json artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.sha }}
+          path: data/test-results/
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('pr-report.md', 'utf8');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            const marker = '🚗 Map Matching Regression';
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
+
+      - name: Commit updated latest.json (push to main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data/test-results/latest.json data/test-results/history.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(test-results): update from CI [skip ci]"
+          # auto-version.yml が並走して sw.js を先に push してくる race を吸収する
+          # rebase + retry 3 回で競合を解消する (本 commit は data/test-results/ のみ
+          # 触るため auto-version.yml の sw.js commit と衝突しない)
+          for i in 1 2 3; do
+            if git pull --rebase origin main && git push; then
+              echo "push ok on attempt $i"
+              exit 0
+            fi
+            echo "attempt $i failed, retrying after backoff..."
+            sleep $((5 * i))
+          done
+          echo "push failed after 3 attempts"
+          exit 1

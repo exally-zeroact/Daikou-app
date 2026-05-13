@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#007AFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ダイコメ">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<title>使い方 - ダイコメ</title>
+<style>
+html{height:100%;overscroll-behavior:none;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Noto Sans JP',sans-serif;background:#F2F2F7;color:#111;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.appbar{background:#007AFF;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.appbar-title{font-size:18px;font-weight:700;color:#fff;letter-spacing:2px;}
+.appbar-right{display:flex;align-items:center;gap:8px;}
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 14px calc(70px + env(safe-area-inset-bottom));}
+.section-title{font-size:14px;font-weight:700;color:#8E8E93;margin:18px 4px 8px;letter-spacing:1px;}
+.section-title:first-child{margin-top:4px;}
+.acc-card{background:#fff;border-radius:10px;margin-bottom:8px;overflow:hidden;}
+.acc-head{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border:none;background:#fff;width:100%;font-family:'Noto Sans JP',sans-serif;font-size:15px;color:#111;text-align:left;}
+.acc-head:active{background:#F2F2F7;}
+.acc-head-num{display:inline-block;width:24px;height:24px;border-radius:50%;background:#007AFF;color:#fff;font-size:13px;font-weight:700;text-align:center;line-height:24px;margin-right:10px;flex-shrink:0;}
+.acc-head-text{flex:1;font-weight:700;}
+.acc-arrow{color:#8E8E93;font-size:18px;transition:transform 0.2s;flex-shrink:0;}
+.acc-card.open .acc-arrow{transform:rotate(180deg);}
+.acc-body{padding:0 16px 14px 50px;font-size:14px;color:#3C3C43;line-height:1.7;display:none;}
+.acc-card.open .acc-body{display:block;}
+.faq-card .acc-head-num{background:#8E8E93;font-size:14px;}
+.faq-card .acc-body{padding-left:16px;}
+/* ボトムナビ (4 タブ) */
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #C6C6C8;display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:100;}
+.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;cursor:pointer;background:none;border:none;font-family:'Noto Sans JP',sans-serif;color:#8E8E93;}
+.bottom-nav .nav-item:active{background:#F2F2F7;}
+.bottom-nav .nav-item.active{color:#007AFF;}
+.bottom-nav .nav-icon{font-size:20px;line-height:1;margin-bottom:3px;font-weight:700;}
+.bottom-nav .nav-label{font-size:11px;font-weight:700;letter-spacing:0.5px;}
+@media (orientation: landscape) and (min-width: 700px){
+  body{flex-direction:row;}
+  .appbar{display:none;}
+  .bottom-nav{position:static;flex-direction:column;width:80px;border-top:none;border-right:1px solid #C6C6C8;padding-bottom:0;padding-top:env(safe-area-inset-top);}
+  .bottom-nav .nav-item{flex:0 0 auto;padding:14px 4px;}
+  .content{padding:16px 14px;}
+  .acc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+}
+</style>
+</head>
+<body>
+<div class="appbar">
+  <div class="appbar-title">使い方</div>
+  <div class="appbar-right"></div>
+</div>
+<div class="content">
+  <div class="section-title">操作手順</div>
+  <div class="acc-grid">
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">1</span><span class="acc-head-text">初回設定</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">下の「設定」タブ→「料金設定」を開いて、初乗り料金・加算料金を入力してください。タクシーや既存の代行業者の料金表に合わせて設定できます。</div>
+    </div>
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">2</span><span class="acc-head-text">GPS許可</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">起動時に位置情報の許可ダイアログが出たら「常に許可」を選んでください。バックグラウンドでも距離を計測するため必須です。</div>
+    </div>
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">3</span><span class="acc-head-text">業務開始</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">お客様を乗せたら、青い「業務開始」ボタンをタップしてください。GPS取得と料金計算が開始されます。</div>
+    </div>
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">4</span><span class="acc-head-text">割増の使い方</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">深夜・悪天候時に「割増」ボタンをONにします。複数同時にONにすると倍率が掛け算されます（例：深夜×1.2 + 悪天候×1.1 = 1.32倍）。</div>
+    </div>
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">5</span><span class="acc-head-text">追加料金の使い方</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">高速代・配車料・指名料などの追加料金は、業務中いつでもボタンをタップで即加算できます。タップした回数だけ累計されます。</div>
+    </div>
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">6</span><span class="acc-head-text">業務終了</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">目的地到着後、「業務終了」ボタンをタップしてください。確認ダイアログが出ます。3時間以内なら「続ける」で再開できます。</div>
+    </div>
+    <div class="acc-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">7</span><span class="acc-head-text">履歴の見方</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">下の「履歴」タブで過去の業務（trip）と売上を確認できます。日別・月別の集計も表示されます。</div>
+    </div>
+  </div>
+  <div class="section-title">よくある質問</div>
+  <div class="acc-grid">
+    <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">Q</span><span class="acc-head-text">GPS許可を拒否してしまった</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">iPhone：設定アプリ→ダイコメ→位置情報→「常に」を選択。<br>Android：設定→アプリ→ダイコメ→権限→位置情報→「常に許可」を選択。</div>
+    </div>
+    <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">Q</span><span class="acc-head-text">途中でアプリが閉じた場合</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">直近3時間以内なら、再起動時に「続きから再開」ボタンが表示されます。tripの途中状態（距離・料金・追加料金）も自動で復元されます。</div>
+    </div>
+    <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">Q</span><span class="acc-head-text">オフラインでも使えるか</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">使えます。47都道府県の道路データは初回起動時に端末内に保存されるので、地下・トンネル・電波の届かない場所でも料金計算は継続します。</div>
+    </div>
+    <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">Q</span><span class="acc-head-text">追加料金の種類を変えたい</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">「設定」→「料金設定」→「区間」タブで、追加料金ボタンの名前と金額を自由にカスタマイズできます。</div>
+    </div>
+    <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">Q</span><span class="acc-head-text">割増の種類を増やしたい</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">「設定」→「料金設定」→「割増」タブで、割増ボタンを追加できます。名前・倍率・色を自由に設定できます。</div>
+    </div>
+    <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+      <button class="acc-head" type="button"><span class="acc-head-num">Q</span><span class="acc-head-text">料金が変わらない</span><span class="acc-arrow">▾</span></button>
+      <div class="acc-body">「設定」→「料金設定」で、初乗り距離・加算距離が正しく入っているか確認してください。0や空欄のままだと料金が変わりません。</div>
+    </div>
+  </div>
+</div>
+<!-- ボトムナビ (4 タブ) -->
+<nav class="bottom-nav">
+  <button class="nav-item" type="button" onclick="location.href='/'"><span class="nav-icon">●</span><span class="nav-label">業務</span></button>
+  <button class="nav-item" type="button" onclick="location.href='history.html'"><span class="nav-icon">≡</span><span class="nav-label">履歴</span></button>
+  <button class="nav-item active" type="button" onclick="location.href='help.html'"><span class="nav-icon">?</span><span class="nav-label">使い方</span></button>
+  <button class="nav-item" type="button" onclick="location.href='settings.html'"><span class="nav-icon">⚙</span><span class="nav-label">設定</span></button>
+</nav>
+</body>
+</html>
