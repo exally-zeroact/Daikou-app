@@ -562,20 +562,40 @@ const PREF_EN_TO_JP = {
   saga:'佐賀', nagasaki:'長崎', kumamoto:'熊本', oita:'大分', miyazaki:'宮崎',
   kagoshima:'鹿児島', okinawa:'沖縄'
 };
+// ★設計変更宣言 (2026-05-13・Phase 6-4): loadDlStatus を cache scan ベースに書換
+//   旧: IndexedDB 'prefectures' store から getAllPrefectures()
+//       (timestamp / size 情報も取得)
+//   新: SW Cache Storage 'daikome-roads-v1' を直接 scan
+//       (新パイプライン経由で populate された cache を実態判定の source)
+//   timestamp / size は cache から取得困難のため非表示化
+//   ("─" 表示・meta.json 実装後に復活可能)
 async function loadDlStatus(){
   const updateEl = document.getElementById('dlLastUpdate');           // dev 用
   const statusEl = document.getElementById('dlPrefStatus');           // dev 用
   const visibleLineEl = document.getElementById('dataLastUpdateLine'); // 常時表示
-  const dlStatusEl = document.getElementById('dataDlStatusLine');     // 常時表示 (新規)
-  const pendingRow = document.getElementById('dataPendingRow');       // 常時表示 (新規)
-  const pendingEl = document.getElementById('dataPendingLine');       // 常時表示 (新規)
-  // dev 用が無くても常時表示用があれば処理を続ける
+  const dlStatusEl = document.getElementById('dataDlStatusLine');     // 常時表示
+  const pendingRow = document.getElementById('dataPendingRow');       // 常時表示
+  const pendingEl = document.getElementById('dataPendingLine');       // 常時表示
   if(!updateEl && !statusEl && !visibleLineEl && !dlStatusEl) return;
   function setText(el, txt){ if(el) el.textContent = txt; }
   const TOTAL = PREFECTURES_DL.length; // 47
   try {
-    const all = await getAllPrefectures();
-    if(all.length === 0){
+    // Cache Storage 'daikome-roads-v1' を直接 scan して 47 県の存在判定
+    let doneSet = new Set();
+    if(typeof caches !== 'undefined' && typeof caches.has === 'function'){
+      const exists = await caches.has('daikome-roads-v1');
+      if(exists){
+        const cache = await caches.open('daikome-roads-v1');
+        const reqs = await cache.keys();
+        for(const r of reqs){
+          const m = /\/data\/roads-([^./?]+)\.js/.exec(r.url);
+          if(m) doneSet.add(m[1]);
+        }
+      }
+    }
+    const pending = PREFECTURES_DL.filter(function(p){ return !doneSet.has(p); });
+    const doneCount = TOTAL - pending.length;
+    if(doneCount === 0){
       setText(updateEl, '未取得');
       setText(statusEl, '0県');
       setText(visibleLineEl, '未取得');
@@ -583,31 +603,16 @@ async function loadDlStatus(){
       if(pendingRow) pendingRow.style.display = 'none';
       return;
     }
-    // 最新更新日（max timestamp・index.html の DakomeDL と同じ field 名）
-    const maxTs = Math.max.apply(null, all.map(r => r.timestamp || 0));
-    let dateStr;
-    if(maxTs > 0){
-      const d = new Date(maxTs);
-      dateStr = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
-    } else {
-      dateStr = '不明';
-    }
-    setText(updateEl, dateStr);
-    setText(visibleLineEl, dateStr);
-    // 県数とサイズ
-    const totalSize = all.reduce((sum, r) => sum + (r.size || 0), 0);
-    const sizeMB = (totalSize / (1024*1024)).toFixed(0);
-    setText(statusEl, all.length + '県 / 約' + sizeMB + 'MB');
-    // 常時表示: ダウンロード状況 + 未完了県名
-    const doneSet = new Set(all.map(r => r.pref));
-    const pending = PREFECTURES_DL.filter(p => !doneSet.has(p));
-    const doneCount = TOTAL - pending.length;
+    // 最終更新日 / サイズは cache から取得困難・meta.json 実装まで "─"
+    setText(updateEl, '─');
+    setText(visibleLineEl, '─');
+    setText(statusEl, doneCount + '県');
     if(pending.length === 0){
       setText(dlStatusEl, doneCount + '/' + TOTAL + ' 県完了 ✅');
       if(pendingRow) pendingRow.style.display = 'none';
     } else {
       setText(dlStatusEl, doneCount + '/' + TOTAL + ' 県完了');
-      const names = pending.map(p => PREF_EN_TO_JP[p] || p).join('・');
+      const names = pending.map(function(p){ return PREF_EN_TO_JP[p] || p; }).join('・');
       setText(pendingEl, names);
       if(pendingRow) pendingRow.style.display = 'flex';
     }

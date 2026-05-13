@@ -25,6 +25,12 @@ permissions:
   contents: write
   pull-requests: write
 
+# 連続 push 時の race を抑止: 古い workflow をキャンセル・最新のみ実行
+# 古い test 結果は cancel で破棄・最新 commit の test 結果のみ反映
+concurrency:
+  group: mm-regression-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   regression:
     name: Map Matching Regression
@@ -121,12 +127,17 @@ jobs:
           # auto-version.yml が並走して sw.js を先に push してくる race を吸収する
           # rebase + retry 3 回で競合を解消する (本 commit は data/test-results/ のみ
           # 触るため auto-version.yml の sw.js commit と衝突しない)
+          # 同じ test 結果 JSON を別 run が先に push した場合の conflict は
+          # CI 側 (本 run) の新しい値を採用する: --strategy-option=theirs
+          # (rebase 中の "theirs" = rebase されている側 = 本 run の commit)
           for i in 1 2 3; do
-            if git pull --rebase origin main && git push; then
+            if git pull --rebase --strategy-option=theirs origin main && git push; then
               echo "push ok on attempt $i"
               exit 0
             fi
             echo "attempt $i failed, retrying after backoff..."
+            # rebase が壊れたまま終わった場合は abort して clean state に戻す
+            git rebase --abort 2>/dev/null || true
             sleep $((5 * i))
           done
           echo "push failed after 3 attempts"

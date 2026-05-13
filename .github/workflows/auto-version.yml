@@ -13,6 +13,11 @@ on:
 permissions:
   contents: write
 
+# 連続 push 時の race condition 抑止: 古い workflow をキャンセルし最新だけ実行
+concurrency:
+  group: auto-version-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   update-cache-name:
     runs-on: ubuntu-latest
@@ -55,5 +60,14 @@ jobs:
           git add sw.js
           # [skip ci] でこのワークフロー自身の連鎖実行を防止
           git commit -m "chore: auto-update CACHE_NAME to daikome-${{ steps.sha.outputs.short_sha }} [skip ci]"
-          git push
-          echo "Pushed updated sw.js"
+          # 連続 push との race 対策: 失敗時に rebase してリトライ (最大 3 回)
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "Pushed (attempt $attempt)"
+              exit 0
+            fi
+            echo "Push failed at attempt $attempt, rebasing..."
+            git pull --rebase origin main || exit 1
+          done
+          echo "Failed after 3 attempts"
+          exit 1

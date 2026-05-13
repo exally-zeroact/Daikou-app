@@ -20,7 +20,7 @@
 //   ✅ 業務中に急にバージョン変わらない（安全）
 // ===========================================
 
-const CACHE_NAME = 'daikome-d2efeee';
+const CACHE_NAME = 'daikome-cf7fbb0';
 // ★設計変更宣言 (2026-05-13): 47県データを固定名 cache に分離
 //   旧: アプリコード CACHE_NAME が hash で毎デプロイ更新 → 旧 cache 全削除 →
 //       47県データ (/data/roads-*.js) も全削除 → 全欠落・204MB 再 DL
@@ -46,18 +46,22 @@ const PRECACHE_FILES = [
   '/data/emergency-medical-jp.js',
   '/data/highways-jp.js',
   '/data/stations-jp.js',
-  '/data/misc-jp.js',
+  // ★設計変更宣言 (2026-05-13): waterways/peaks/hiking-trails/misc は
+  //   ダイコメ機能上絶対使わないため precache 対象から除外 (~32MB 削減)
+  //   data/ フォルダにファイル自体は残置・他プロジェクトで利用可
   '/data/faults-jp.js',
   '/data/night-clinics-jp.js',
   '/data/airports-jp.js',
   '/data/michinoeki-jp.js',
   '/data/coastline-jp.js',
   '/data/ports-jp.js',
-  '/data/peaks-jp.js',
-  '/data/hiking-trails-jp.js',
   '/data/railways-jp.js',
-  '/data/waterways-jp.js',
   '/data/hazard-cliff-jp.js',
+  // ★設計変更宣言 (2026-05-13): DEM (標高) データを precache に追加
+  //   全国 0.05° grid (~5.5km/cell) 333k cells Int16 → base64 ~870KB
+  //   用途: GPS 高度照合で誤マッチ判定 / 道路区間 Δh 加味で 3D 距離補正
+  //   従来 404 で globalFailed に積まれてた dem-jp.js を実データで提供
+  '/data/dem-jp.js',
 ];
 
 self.addEventListener('install', function(e){

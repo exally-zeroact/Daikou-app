@@ -891,12 +891,12 @@ setInterval(_checkTripLimit, 30000);
 <div class="dl-update-toast" id="dlUpdateToast" onclick="onDlToastTap()">✅ 最新の地図データに更新しました</div>
 
 <!-- 初回DL UI（IndexedDBの dl_completed=true で2回目以降は表示しない） -->
-<!-- ★設計変更宣言 (2026-05-10): inline style="display:none" を追加
-     CSS .dl-overlay { display:none } と二重で hide。FOUC や stale cache で
-     .show class が残留しても inline style がより優先 (同 specificity だが
-     後勝ち) で hide 状態を維持。showOverlay/hideOverlay は inline style を
-     明示的に書き換える方式に変更。 -->
-<div class="dl-overlay" id="dlOverlay" style="display:none;">
+<!-- ★設計変更宣言 (2026-05-13): inline style="display:flex" に変更 (初期表示 ON)
+     ユーザー指摘「データ揃う前に業務画面に行くから矛盾が起きる」を受けて、
+     起動時から overlay を表示し、warmup 完了 (cache 復元 or 新規 DL) まで
+     業務画面を裏に隠す方式へ。非 PWA (Safari ブラウザ) では JS 起動直後に
+     overlay を hide するため、ブラウザ閲覧体験には影響しない。 -->
+<div class="dl-overlay" id="dlOverlay" style="display:flex;">
   <!-- 状態1：DL中 -->
   <div class="dl-state-loading show" id="dlStateLoading">
     <div style="text-align:center;width:100%;display:flex;flex-direction:column;align-items:center;">
@@ -1287,13 +1287,12 @@ class NoSleep {
 
 <!-- ★roads-decoder.js：道路データデコーダー・Map Matching用（2026/04/30追加） -->
 
-<script src="js/region-loader.js"></script>
-
-<!-- ★road-graph-tile-loader.js: Phase B タイル road-graph 遅延ロード（main 側）-->
-<script src="js/road-graph-tile-loader.js"></script>
-
-<!-- ★dem-loader.js: MM-5 DEM データ遅延ロード -->
-<script src="js/dem-loader.js"></script>
+<!-- ★設計変更宣言 (2026-05-13・大改修 C11): 旧 region-loader.js / road-graph-tile-loader.js
+     / dem-loader.js の script タグを削除。新パイプライン (data-loader.js +
+     data-registry.js + mm-data-pipeline.js) が役割を引き継ぐ。 -->
+<script src="js/data-loader.js"></script>
+<script src="js/data-registry.js"></script>
+<script src="js/mm-data-pipeline.js"></script>
 
 <script src="js/gps.js"></script>
 
@@ -1342,16 +1341,11 @@ let _mmHealthPongAt = 0;
 let _mmHealthPingAt = 0;
 const _MM_HEALTH_TIMEOUT_MS = 3000;
 
-// MM forward 状態・guard setInterval / Worker 通信が参照 (旧 line 1740-1753)
-const _crossUserSubscribedPrefs = new Set();
-const _forwardedPrefs = new Set();
-const _attrsLoadedPrefs = new Set();
-const _attrsSchoolZoneByPref = new Map();
-const _attrsRoadFloodByPref = new Map();
-const _attrsRoadJizenByPref = new Map();
-const _attrsRoadYoboByPref = new Map();
-const _attrsEmergencyByPref = new Map();
-let _autoRoadLoadInflight = null;
+// ★設計変更宣言 (2026-05-13・大改修 C11): 旧 MM forward 関連変数を全削除
+//   _crossUserSubscribedPrefs / _forwardedPrefs / _attrsLoadedPrefs /
+//   _attrs*ByPref / _autoRoadLoadInflight は新パイプライン (MMDataPipeline)
+//   に置き換え。旧 _forwardRoadsToMmWorker / _autoLoadNearbyRoads /
+//   _autoLoadNearbyAttrs が使っていた状態管理は不要。
 
 // アプリ全体状態 (旧 line 1906-1918・startGPS / onBusinessStart 等が参照)
 let appState = 'idle'; // idle / driving / fare
@@ -1438,7 +1432,12 @@ setInterval(function(){
     if(appState !== 'businessStart') return;
     const btnStart = document.querySelector('#screenBusinessStart .btn-business-start');
     if(!btnStart) return;
-    if(_forwardedPrefs.size === 0){
+    // ★設計変更宣言 (2026-05-13・gate 修正): 旧 _forwardedPrefs.size から
+    //   新パイプライン (MMDataPipeline.stats.roadsOk) 参照に書換。
+    //   C11+ で _forwardedPrefs を削除した影響で永久 disable していた問題を解消。
+    const forwarded = (window._mmPipeline && window._mmPipeline.stats)
+                      ? window._mmPipeline.stats.roadsOk : 0;
+    if(forwarded === 0){
       btnStart.disabled = true;
       btnStart.style.opacity = '0.4';
       btnStart.style.cursor = 'not-allowed';
@@ -1483,106 +1482,34 @@ function _setupMmWorker(reason){
   if(typeof Meter !== 'undefined' && Meter.setMapMatcher){
     Meter.setMapMatcher(_mmWorker);
   }
-  // H-1: 再起動時は state（OSRM/graph/dem）を全て再 forward
-  _mmReforwardAllState();
+  // ★設計変更宣言 (2026-05-13・大改修 C11): 旧 _mmReforwardAllState() 呼出を削除
+  //   再起動時の state 再 forward は新パイプライン (MMDataPipeline) の責務に移譲予定
   window._mmWorker = _mmWorker;
   if(typeof dlog === 'function'){
     dlog('[MM] worker B ' + (reason === 'init' ? '起動' : '再起動') + '・Meter 注入完了');
   }
 }
 
-// H-1: Worker B 再起動時に状態を全て再 forward
-function _mmReforwardAllState(){
-  if(!_mmWorker) return;
-  // 実機デバッグログ ON/OFF (test-dashboard.html から localStorage で操作)
-  try {
-    const flag = localStorage.getItem('daikou_mm_debug') === '1';
-    _mmWorker.postMessage({ type: 'configDebug', enabled: flag });
-  } catch(e){}
-  // OSRM 設定
-  try {
-    const osrmEp = localStorage.getItem('daikou_osrm_endpoint');
-    const cfg = { type: 'configOsrm' };
-    if(osrmEp == null){
-      // ★設計変更宣言 (2026-05-12): hardcoded URL → debug-config.js の OSRM_ENDPOINT 経由
-      cfg.endpoint = (typeof OSRM_ENDPOINT !== 'undefined') ? OSRM_ENDPOINT : 'https://router.project-osrm.org';
-      cfg.enabled = true;
-    } else if(osrmEp.length === 0){
-      cfg.enabled = false;
-    } else {
-      cfg.endpoint = osrmEp;
-      cfg.enabled = true;
-    }
-    _mmWorker.postMessage(cfg);
-  } catch(e){}
-  // G6 (2026-05-09): iOS 検出して Viterbi N を MIN に設定
-  //   iOS Safari は GPS 最大 1Hz・浅い窓 (N=10) で warmup 短縮
-  try {
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    _mmWorker.postMessage({ type: 'configPlatform', isIOS: isIOS });
-  } catch(e){}
-  // Worker 再起動時は _forwardedPrefs を clear して全再 forward
-  // (新 Worker の decoders Map は空・main 側で「forward 済」記憶のままでは再投入されない)
-  if(typeof _forwardedPrefs !== 'undefined' && _forwardedPrefs.clear){
-    _forwardedPrefs.clear();
-  }
-  // 既ロード済 roads (window.ROADS_<PREF>) を全て再 forward
-  // M1 設計: roads は GPS callback の _autoLoadNearbyRoads で動的に load される
-  // ため、Worker 再起動時点で window.ROADS_* がある県を全部送り直す
-  try {
-    const PREF_LIST = [
-      'hokkaido','aomori','iwate','miyagi','akita','yamagata','fukushima',
-      'ibaraki','tochigi','gunma','saitama','chiba','tokyo','kanagawa',
-      'niigata','toyama','ishikawa','fukui','yamanashi','nagano',
-      'gifu','shizuoka','aichi','mie',
-      'shiga','kyoto','osaka','hyogo','nara','wakayama',
-      'tottori','shimane','okayama','hiroshima','yamaguchi',
-      'tokushima','kagawa','ehime','kochi',
-      'fukuoka','saga','nagasaki','kumamoto','oita','miyazaki','kagoshima','okinawa',
-    ];
-    const loaded = PREF_LIST.filter(function(p){
-      return !!window['ROADS_' + p.toUpperCase().replace(/-/g, '_')];
-    });
-    if(loaded.length > 0) _forwardRoadsToMmWorker(loaded);
-  } catch(e){}
-  // DEM 再 forward
-  try { if(typeof _forwardDemToMmWorker === 'function') _forwardDemToMmWorker(); } catch(e){}
-  // Backbone 再 forward (Worker 自動再起動時)
-  try { if(typeof _forwardBackboneToMmWorker === 'function') _forwardBackboneToMmWorker(); } catch(e){}
-}
+// ★設計変更宣言 (2026-05-13・大改修 C11): _mmReforwardAllState 関数を全削除
+//   旧経路 (_forwardRoadsToMmWorker / _forwardDemToMmWorker /
+//   _forwardBackboneToMmWorker / _forwardedPrefs) と一緒に削除。
+//   再起動時の state 再 forward は新パイプライン (MMDataPipeline) の責務へ。
 
 // メッセージハンドラを別関数に分離（addEventListener / removeEventListener 整合性）
 function _mmWorkerOnMessage(e){
     const m = e.data;
-    if(!m || typeof dlog !== 'function') return;
+    if(!m) return;
+    // ★設計変更宣言 (2026-05-13・大改修 C10): MM warmup 通知
+    //   committed=true (snap commit 成功) を 1 回受信したら pipeline に通知
+    //   Phase E (waitForMMWarmup) を resolve
+    if(m.type === 'mmResult' && m.committed && window._mmPipeline
+       && !window._mmPipeline.ready.mmWarmed){
+      try { window._mmPipeline.notifyMMCommit(); } catch(_){}
+    }
+    if(typeof dlog !== 'function') return;
     if(m.type === 'roadsLoaded'){
       dlog('[MM] worker roads ' + (m.ok ? 'loaded' : 'fail') +
            ': ' + m.pref + (m.ok ? ' (' + m.numRoads + '本)' : ' err=' + m.error));
-    } else if(m.type === 'mmResult' && m.snap && appState === 'driving'){
-      // P11/P12 (2026-05-09): 道路属性警告 UI 更新
-      try {
-        const pref = m.snap.prefecture;
-        const roadIdx = m.snap.roadIndex;
-        const banner = document.getElementById('roadAttrBanner');
-        const label = document.getElementById('roadAttrLabel');
-        if(banner && label && pref != null && roadIdx != null){
-          const sz = _attrsSchoolZoneByPref.get(pref);
-          const fl = _attrsRoadFloodByPref.get(pref);
-          const ji = _attrsRoadJizenByPref.get(pref);
-          const yo = _attrsRoadYoboByPref.get(pref);
-          let warn = null;
-          if(sz && sz.has(roadIdx)) warn = '⚠ スクールゾーン (30km/h 制限)';
-          else if(fl && fl.has(roadIdx)) warn = '🌊 冠水履歴のある区間';
-          else if(ji && ji.has(roadIdx)) warn = '⚠ 事前通行規制 区間';
-          else if(yo && yo.has(roadIdx)) warn = '⚠ 予防的通行規制 区間';
-          if(warn){
-            label.textContent = warn;
-            banner.style.display = 'block';
-          } else {
-            banner.style.display = 'none';
-          }
-        }
-      } catch(_){}
     } else if(m.type === 'demLoaded'){
       // MM-5: DEM 受信ログ
       dlog('[MM] worker DEM ' + (m.ok ? 'loaded' : 'fail') +
@@ -1649,48 +1576,177 @@ function _mmWorkerOnMessage(e){
 // 起動（H-1: 失敗しても自動再起動が回るので例外で止めない）
 _setupMmWorker('init');
 
-// ★設計変更宣言 (2026-05-10): 起動直後の last-GPS warm-up を Worker B 初期化
-//   直後 (line ~1600) に移動して再起動後の道路データ load を高速化。
-//   旧: loadSettings 内 (line ~3357) → setTimeout 500ms → _autoLoadNearbyRoads
-//       script 末尾近くで呼ばれるため起動直後の表示遅延に直結
-//   新: Worker B init 直後に即時実行 (~1.7 秒早い・setTimeout 0)
-//       sw.js キャッシュヒットなら roads-{pref}.js が ms 単位で load 完了
-//       loadSettings 内の旧 warm-up は idempotent な fallback として残置
-//   絶対ルール準拠: 道路距離課金担保のための高速化・安全側格下げではない
-// ★設計変更宣言 (2026-05-10): iOS の場合は PWA standalone のみ実行
-//   iOS Safari (非 PWA) で起動時に GPS 関連処理が動くと不適切なため
-//   iOS 以外 (Android 等) は従来通り無条件実行
-try {
-  const _bootIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const _bootGpsAllowed = !_bootIsIOS || window.navigator.standalone === true;
-  if(_bootGpsAllowed){
-    const _bootRaw = localStorage.getItem('daikou_driving_state')
-                  || localStorage.getItem('daikou_business_state');
-    if(_bootRaw){
-      const _b = JSON.parse(_bootRaw);
-      let _bootLat = null, _bootLng = null;
-      if(_b){
-        if(typeof _b.last_lat === 'number' && typeof _b.last_lng === 'number'){
-          _bootLat = _b.last_lat; _bootLng = _b.last_lng;
-        } else if(_b.last_gps && typeof _b.last_gps.lat === 'number'){
-          _bootLat = _b.last_gps.lat; _bootLng = _b.last_gps.lng;
-        }
-      }
-      if(_bootLat != null && _bootLng != null){
-        // 0ms setTimeout で current task を抜けてから (Worker creation の microtask 後)
-        setTimeout(function(){
-          try {
-            if(typeof _autoLoadNearbyRoads === 'function'){
-              _autoLoadNearbyRoads(_bootLat, _bootLng);
-              if(typeof dlog === 'function') dlog('[boot-fast] roads warm-up at ' +
-                _bootLat.toFixed(4) + ',' + _bootLng.toFixed(4));
-            }
-          } catch(_){}
-        }, 0);
-      }
+// ★設計変更宣言 (2026-05-13・大改修 C10): 新パイプライン稼働
+//   MMDataPipeline で全データロード + GPS + MM warmup を段階的に制御
+//   旧 _autoLoadNearbyRoads 起動 kick は並行で残置 (C11 で削除予定)
+//   warmup() は fire-and-forget で起動・結果は ready フラグで参照
+// ★設計変更宣言 (2026-05-13・Phase 4 / C12): dlOverlay 流用 ローディング UI
+//   新パイプライン (MMDataPipeline) の進捗を dlOverlay に反映。
+//   Phase 進行表現 (2026-05-13・Phase D/E は warmup から除外で再配分):
+//     Phase A (global):       0% →  20%  "全国共通データ読込中... X/20"
+//     Phase B (roads):       20% →  50%  "X/47 県完了"
+//     Phase C (aux-*):       50% → 100%  "補助データ読込中... X/282"
+//     ※ GPS / MM warmup は「業務開始」ボタンで startGPS() 呼出後に発生する
+//       通常フローに任せる (仕様: index.html:2739 参照)
+function _updatePipelineProgressUI(p){
+  try {
+    const fill = document.getElementById('dlProgressFill');
+    const text = document.getElementById('dlProgressText');
+    if(!fill || !text) return;
+    let phaseLabel = '';
+    let phaseStart = 0;
+    let phaseRange = 0;
+    if(p.phase === 'global'){
+      phaseLabel = '全国共通データ読込中... ' + p.current + '/' + p.total;
+      phaseStart = 0; phaseRange = 20;
+    } else if(p.phase === 'roads'){
+      phaseLabel = p.current + '/' + p.total + ' 県完了';
+      phaseStart = 20; phaseRange = 30;
+    } else if(p.phase && p.phase.indexOf('aux-') === 0){
+      // ★設計変更宣言 (2026-05-13・Phase C 累計化):
+      //   旧: 種別 (tunnels/bridges/...) ごとに 1/47 → 47/47 でリセット表示
+      //   新: 6 種 × 47 = 282 件の全体累計を smooth に表示
+      //   stats.auxOk は各 kind 完了後に 47 ずつ加算 → 現在 kind 内は stagnant
+      //   stats.auxOk + p.current で正確な累計 (1→282) を算出
+      //   Phase D/E を warmup から外したので Phase C を 50% → 100% に再配分。
+      const _auxOk = (window._mmPipeline && window._mmPipeline.stats)
+                    ? window._mmPipeline.stats.auxOk : 0;
+      const _cum = _auxOk + p.current;
+      const _TOTAL_AUX = 282;  // 47 県 × 6 種
+      phaseLabel = '補助データ読込中... ' + _cum + '/' + _TOTAL_AUX;
+      phaseStart = 50; phaseRange = 50;
+      const _auxPct = phaseStart + (_cum / _TOTAL_AUX) * phaseRange;
+      fill.style.width = Math.min(100, Math.max(5, _auxPct)).toFixed(1) + '%';
+      text.textContent = phaseLabel;
+      return;
+    } else {
+      phaseLabel = p.phase + ' ' + p.current + '/' + p.total;
     }
+    const phasePct = phaseStart + (p.total > 0 ? (p.current / p.total) * phaseRange : 0);
+    fill.style.width = Math.min(100, Math.max(5, phasePct)).toFixed(1) + '%';
+    text.textContent = phaseLabel;
+  } catch(_){}
+}
+
+try {
+  if(typeof MMDataPipeline === 'function' && typeof DataLoader !== 'undefined'){
+    window._mmPipeline = new MMDataPipeline({
+      worker: _mmWorker,
+      loader: DataLoader,
+      onProgress: function(p){
+        if(typeof dlog === 'function'){
+          dlog('[Pipeline] ' + p.phase + ' ' + p.current + '/' + p.total + ' ' + (p.label || ''));
+        }
+        _updatePipelineProgressUI(p);
+        // ★設計変更宣言 (2026-05-13・Phase C 早期 hide 撤去):
+        //   旧: aux 282/282 で 500ms 後 hide → Phase D (GPS) / Phase E (MM warmup)
+        //       完了前に業務画面が見える矛盾 (ユーザー指摘の根本原因)
+        //   新: hide は warmup().then の Phase E 完了後のみ
+        //   ユーザー指示「データ揃ってから業務画面」を厳格に履行
+      },
+    });
+    setTimeout(function(){
+      const _isStandalone = window.navigator.standalone === true ||
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+      // ★ helper: dlOverlay を即 hide
+      const _hideOverlay = function(){
+        try {
+          const _ov = document.getElementById('dlOverlay');
+          if(_ov){
+            _ov.style.display = 'none';
+            _ov.classList.remove('show');
+          }
+        } catch(_){}
+      };
+
+      // ★設計変更宣言 (2026-05-13・非 PWA は即 hide):
+      //   ブラウザ閲覧 (非 PWA) では overlay を出さず即 hide。warmup も skip。
+      if(!_isStandalone){
+        _hideOverlay();
+        if(typeof dlog === 'function') dlog('[Pipeline] 非 standalone・warmup skip + overlay 即 hide');
+        return;
+      }
+
+      // ★設計変更宣言 (2026-05-13・warmup 完了マーカー check):
+      //   旧: 毎回 overlay 表示 + warmup 全実行 → 履歴→戻るで毎回チラつき
+      //   新: localStorage 'daikome_warmup_v1' を確認・version 一致なら
+      //       overlay 即 hide + warmup を bg で実行 (cache 復元・SW 経由)
+      //   無 or 旧 version: overlay 表示 + warmup blocking → 完了で hide + マーカー更新
+      //   bg warmup 中も loadFromCache は ms 単位なので業務に影響なし。
+      let _markerOk = false;
+      try {
+        const _m = localStorage.getItem('daikome_warmup_v1');
+        if(_m){
+          const _p = JSON.parse(_m);
+          const _expected = (window.DataRegistry && window.DataRegistry.VERSION) || '0';
+          _markerOk = _p && _p.version === _expected;
+          if(typeof dlog === 'function'){
+            dlog('[Pipeline] マーカー確認 version=' + (_p && _p.version) +
+                 ' expected=' + _expected + ' overlay=' + (_markerOk ? 'skip' : 'show'));
+          }
+        } else {
+          if(typeof dlog === 'function') dlog('[Pipeline] マーカー無 (初回) overlay=show');
+        }
+      } catch(_){}
+
+      if(_markerOk){
+        // 完了済 → overlay 即 hide + warmup bg (cache 復元目的)
+        _hideOverlay();
+        try {
+          window._mmPipeline.warmup().catch(function(e){
+            console.warn('[Pipeline] warmup error (bg):', e && e.message);
+          });
+        } catch(e){ console.warn('[Pipeline] warmup throw (bg):', e && e.message); }
+        return;
+      }
+
+      // 初回 or 旧 version: overlay 維持 + warmup blocking
+      try {
+        const _loading = document.getElementById('dlStateLoading');
+        if(_loading) _loading.classList.add('show');
+        const _complete = document.getElementById('dlStateComplete');
+        if(_complete) _complete.classList.remove('show');
+        const _text0 = document.getElementById('dlProgressText');
+        if(_text0) _text0.textContent = '全国地図データを準備中...';
+        const _fill0 = document.getElementById('dlProgressFill');
+        if(_fill0) _fill0.style.width = '5%';
+      } catch(_){}
+      try {
+        window._mmPipeline.warmup().then(function(){
+          // ★ warmup 完了で進捗を 100% に固定 + 完了文言
+          try {
+            const fill = document.getElementById('dlProgressFill');
+            const text = document.getElementById('dlProgressText');
+            if(fill) fill.style.width = '100%';
+            if(text) text.textContent = '準備完了';
+          } catch(_){}
+          if(typeof dlog === 'function') dlog('[Pipeline] UI 完了表示');
+          setTimeout(function(){
+            _hideOverlay();
+            // ★設計変更宣言 (2026-05-13): warmup 完了直後に許可/業務開始ボタンを切替
+            //   未許可なら許可ボタンのみ・許可済なら業務開始ボタンのみ表示
+            try { if(typeof updateStartButtonsGate === 'function') updateStartButtonsGate(); } catch(_){}
+          }, 800);
+        }).catch(function(e){
+          console.warn('[Pipeline] warmup error:', e && e.message);
+        });
+      } catch(e){
+        console.warn('[Pipeline] warmup throw:', e && e.message);
+      }
+    }, 0);
+  } else {
+    if(typeof dlog === 'function') dlog('[Pipeline] 依存未満で起動 skip (MMDataPipeline or DataLoader 未定義)');
   }
-} catch(_){}
+} catch(e){
+  console.warn('[Pipeline] init err:', e && e.message);
+}
+
+// ★設計変更宣言 (2026-05-13・大改修 C11): boot-fast IIFE を全削除
+//   last_gps ベースの roads warm-up は MMDataPipeline (C10) で代替。
+//   起動時に全 47 県を新パイプラインがロードするため、位置依存の
+//   早期 warm-up は不要。_bootRaw / _bootLat / _bootLng 等の関連
+//   変数も全廃。
 
 // ─── M-3: Page Visibility 復帰時 Worker B 生存確認 ───
 // document.visibilityState が visible になったら ping を送り、
@@ -1905,208 +1961,18 @@ document.addEventListener('visibilitychange', function(){
   }, 5000);
 })();
 
-// 既ロード済 roads-{pref}.js があれば Worker に転送する関数
-// loadUserRegions / 設定画面からの追加ロード両方から呼べる共通化
-function _forwardRoadsToMmWorker(prefs){
-  if(!_mmWorker || !Array.isArray(prefs)) return;
-  for(const pref of prefs){
-    const varName = 'ROADS_' + String(pref).toUpperCase().replace(/-/g, '_');
-    const data = window[varName];
-    if(!data) continue;
-    if(_forwardedPrefs.has(pref)) continue;       // 重複 forward 防止
-    try {
-      _mmWorker.postMessage({ type: 'loadRoads', pref: pref, roadsData: data });
-      _forwardedPrefs.add(pref);
-      // T3 (2026-05-09): POI proximity prior データを Worker B に転送
-      if(Array.isArray(data.pois) && data.pois.length > 0){
-        _mmWorker.postMessage({ type: 'loadPois', pref: pref, points: data.pois });
-      }
-      // T11 (2026-05-09): 時間帯条件付き oneway/通行制限を Worker B に転送
-      if(Array.isArray(data.conditionalRestrictions) && data.conditionalRestrictions.length > 0){
-        _mmWorker.postMessage({
-          type: 'loadConditionalRestrictions',
-          pref: pref,
-          list: data.conditionalRestrictions,
-        });
-      }
-      // T8 (2026-05-09): cross-user pheromone 購読開始 → Worker B に転送
-      if(typeof FB !== 'undefined' && typeof FB.subscribeCrossUserPheromone === 'function'
-         && !_crossUserSubscribedPrefs.has(pref)){
-        _crossUserSubscribedPrefs.add(pref);
-        try {
-          FB.subscribeCrossUserPheromone(pref, function(list){
-            if(_mmWorker){
-              _mmWorker.postMessage({ type: 'updateCrossUserPheromone', pref: pref, list: list });
-            }
-          });
-        } catch(e){
-          console.warn('[T8] cross-user pheromone 購読失敗 ' + pref + ': ' + e.message);
-        }
-      }
-    } catch(e){
-      console.warn('[MM] forward roads ' + pref + ' err:', e.message);
-    }
-  }
-}
-// T8 (2026-05-09): cross-user pheromone 購読済 pref (重複防止)
-// 既に Worker B に forward 済みの pref を記録 (重複 postMessage 抑制)
-// (2026-05-10) _crossUserSubscribedPrefs / _forwardedPrefs / _attrs* は
-// script 先頭に移動済 (TDZ 対策)
-
-// P11/P12 (2026-05-09): road-attrs / road-flood/jizen/yobo の動的 load
-//   roads-{pref}.js と並行で同 pref のメタデータを script タグ load
-//   schoolZone / 冠水 / 通行規制 を運転手警告 UI に活用 (Tier B 範囲)
-//   delta-varint-base64 デコードはシンプル実装で Set<roadIdx> 化
-function _decodeDeltaVarintB64(b64){
-  if(!b64) return new Set();
-  try {
-    const bin = atob(b64);
-    const set = new Set();
-    let acc = 0, shift = 0, idx = 0;
-    for(let i = 0; i < bin.length; i++){
-      const b = bin.charCodeAt(i);
-      acc |= (b & 0x7f) << shift;
-      if((b & 0x80) === 0){
-        idx += acc;
-        set.add(idx);
-        acc = 0; shift = 0;
-      } else {
-        shift += 7;
-      }
-    }
-    return set;
-  } catch(_){ return new Set(); }
-}
-function _loadOneAttrFile(pref, base, varName, targetMap, fieldKey){
-  return new Promise(function(resolve){
-    const s = document.createElement('script');
-    s.src = 'data/' + base + '-' + pref + '.js';
-    s.async = true;
-    s.onload = function(){
-      try {
-        const data = window[varName];
-        if(data){
-          const b64 = fieldKey ? data[fieldKey] : data.roadIdxB64;
-          targetMap.set(pref, _decodeDeltaVarintB64(b64));
-        }
-      } catch(_){}
-      resolve();
-    };
-    s.onerror = function(){ resolve(); };
-    document.head.appendChild(s);
-  });
-}
-function _autoLoadNearbyAttrs(prefs){
-  if(!Array.isArray(prefs)) return;
-  for(const pref of prefs){
-    if(_attrsLoadedPrefs.has(pref)) continue;
-    _attrsLoadedPrefs.add(pref);
-    const PREF_UC = pref.toUpperCase().replace(/-/g, '_');
-    _loadOneAttrFile(pref, 'road-attrs', 'ROAD_ATTRS_' + PREF_UC, _attrsSchoolZoneByPref, 'schoolZoneB64');
-    _loadOneAttrFile(pref, 'road-flood', 'ROAD_FLOOD_' + PREF_UC, _attrsRoadFloodByPref, 'roadIdxB64');
-    _loadOneAttrFile(pref, 'road-jizen', 'ROAD_JIZEN_' + PREF_UC, _attrsRoadJizenByPref, 'roadIdxB64');
-    _loadOneAttrFile(pref, 'road-yobo',  'ROAD_YOBO_'  + PREF_UC, _attrsRoadYoboByPref,  'roadIdxB64');
-    // D3 (2026-05-09): emergencyRoute も同 road-attrs ファイルから抽出して
-    //   Worker B に forward (scoring boost に活用)
-    //   road-attrs file に emergencyRouteB64 と schoolZoneB64 が共存しているので
-    //   1 回 load で両方取れる - schoolZone load 完了後に処理
-    setTimeout(function(){
-      const data = window['ROAD_ATTRS_' + PREF_UC];
-      if(!data || !data.emergencyRouteB64) return;
-      const set = _decodeDeltaVarintB64(data.emergencyRouteB64);
-      _attrsEmergencyByPref.set(pref, set);
-      // Worker B に forward (Set は postMessage で送れないので Array 化)
-      if(_mmWorker && set.size > 0){
-        try {
-          _mmWorker.postMessage({
-            type: 'loadEmergencyAttrs',
-            pref: pref,
-            roadIndices: Array.from(set),
-          });
-        } catch(_){}
-      }
-    }, 1500);   // road-attrs ファイル load 完了想定で 1.5 秒後
-  }
-}
-
-// 2026-05-09 (M1): GPS から近隣 5 県を取得 → roads-{pref}.js を script 動的 load
-//   → 完了後 Worker B に forward。県境を跨ぐと自動拡張・重複は skip。
-//   絶対ルール: 「課金距離は道路距離」のため Worker B に roads が届く前は MM が
-//   稼働しない。GPS callback で常時呼び出し続ければ走行中も追加 load 可能。
-// (2026-05-10) _autoRoadLoadInflight は script 先頭に移動済 (TDZ 対策)
-function _autoLoadNearbyRoads(lat, lng){
-  if(typeof RegionLoader === 'undefined' || !RegionLoader.nearestPrefectures) return;
-  if(_autoRoadLoadInflight) return;               // 1 リクエストずつ直列化
-  const prefs = RegionLoader.nearestPrefectures(lat, lng, 5);
-  if(!Array.isArray(prefs) || prefs.length === 0) return;
-  // 全部 forward 済みなら早期 return (走行中の頻繁呼出を軽量化)
-  const pending = prefs.filter(function(p){ return !_forwardedPrefs.has(p); });
-  if(pending.length === 0) return;
-  _autoRoadLoadInflight = RegionLoader.ensureRoadsLoaded(pending).then(function(){
-    _forwardRoadsToMmWorker(pending);
-    if(typeof dlog === 'function') dlog('[MM] auto-loaded roads: ' + pending.join(','));
-    // P11/P12 (Tier B): roads と一緒に attrs もロード
-    _autoLoadNearbyAttrs(pending);
-  }).catch(function(e){
-    if(typeof dlog === 'function') dlog('[MM] auto-load roads err: ' + (e && e.message || e));
-  }).then(function(){ _autoRoadLoadInflight = null; });
-}
-
-// MM-5 (2026-05-08): DEM データを Worker B に転送する関数
-// data/dem-jp.js (window.DEM_JP) が未ビルドなら no-op（layer scorer は roads v6 + accel hint で稼働）
-function _forwardDemToMmWorker(){
-  if(!_mmWorker) return;
-  const data = window.DEM_JP;
-  if(!data || !data.altB64) return;
-  try {
-    _mmWorker.postMessage({
-      type: 'loadDem',
-      bbox: data.bbox,
-      gridSize: data.gridSize,
-      numLat: data.numLat,
-      numLng: data.numLng,
-      altB64: data.altB64,
-    });
-  } catch(e){
-    console.warn('[MM] forward dem err:', e.message);
-  }
-}
-
-// MM-5: 起動時に DEM を試行ロード（あれば Worker B に転送）
-if(typeof DemLoader !== 'undefined' && DemLoader.load){
-  DemLoader.load().then((data) => {
-    if(data) _forwardDemToMmWorker();
-  }).catch(e => {
-    console.warn('[DEM] load error:', e.message);
-  });
-}
-
-// Phase B: 起動時にバックボーン graph を試行ロード（全国 motorway/trunk 常駐）
-function _forwardBackboneToMmWorker(){
-  if(!_mmWorker) return;
-  const data = window.ROAD_GRAPH_BACKBONE_JP;
-  if(!data) return;
-  try {
-    _mmWorker.postMessage({ type: 'loadBackbone', graphData: data });
-  } catch(e){
-    console.warn('[MM] forward backbone err:', e.message);
-  }
-}
-(function _loadBackbone(){
-  const script = document.createElement('script');
-  script.src = 'data/road-graph-backbone-jp.js';
-  script.async = true;
-  script.onload = function(){
-    if(typeof dlog === 'function' && window.ROAD_GRAPH_BACKBONE_JP){
-      dlog('[Backbone] loaded ' + window.ROAD_GRAPH_BACKBONE_JP.numNodes + ' nodes');
-    }
-    _forwardBackboneToMmWorker();
-  };
-  script.onerror = function(){
-    if(typeof dlog === 'function') dlog('[Backbone] not found（任意機能・無くても稼働）');
-  };
-  document.head.appendChild(script);
-})();
+// ★設計変更宣言 (2026-05-13・大改修 C11): 旧読み込みコード一括削除
+//   削除対象:
+//   - _forwardRoadsToMmWorker (window.ROADS_{PREF} 経由 worker forward)
+//   - _decodeDeltaVarintB64 / _loadOneAttrFile / _autoLoadNearbyAttrs
+//     (road-attrs / road-flood / road-jizen / road-yobo の script タグ load)
+//   - _autoLoadNearbyRoads (関数定義・全 47 県常時ロード版)
+//   - _forwardDemToMmWorker + DemLoader.load IIFE
+//   - _forwardBackboneToMmWorker + _loadBackbone IIFE
+//   これらは新パイプライン (MMDataPipeline.warmup・C10) に役割を移譲。
+//   data-loader.js が cache 直接読出、data-registry.js が宣言的 metadata、
+//   mm-data-pipeline.js が段階的ロード制御を担う。
+//   consumer 側 (RegionLoader 利用箇所等) は後 commit で書き直す前提。
 
 // ─── 状態 ───
 // (2026-05-10) appState 〜 vehicleId は script 先頭に移動済 (TDZ 対策)
@@ -2478,6 +2344,11 @@ function startGPS(){
     GPS.start(function(g){
       try {
         _gpsCallbackCount++;
+        // ★設計変更宣言 (2026-05-13・大改修 C10): GPS 初回 fix 通知
+        //   pipeline の Phase D (waitForGPS) を resolve
+        if(window._mmPipeline && !window._mmPipeline.ready.gpsAcquired){
+          try { window._mmPipeline.notifyGpsFix(); } catch(_){}
+        }
         // 5秒に1回のペースで動作確認ログ（スパム防止）
         const now = Date.now();
         if(now - _lastGpsLogAt > 5000){
@@ -2529,9 +2400,9 @@ function startGPS(){
         }
         // RegionLoader：トンネル/橋データを動的読込（meter.jsの補完で使用）
         if(typeof RegionLoader !== 'undefined') RegionLoader.ensureLoaded(g.lat, g.lng);
-        // M1 (2026-05-09): roads-{pref}.js も動的 load → Worker B に forward
-        //   絶対ルール: 課金距離は道路距離 = MM が常時動くために必要
-        _autoLoadNearbyRoads(g.lat, g.lng);
+        // ★設計変更宣言 (2026-05-13・大改修 C11): GPS callback 内の旧経路呼出を削除
+        //   MMDataPipeline (C10) が起動時に全 47 県ロード済のため、走行中の追加 load は不要。
+        //   旧 M1: _autoLoadNearbyRoads(g.lat, g.lng);  ← 削除済
         // TestMode 走行中位置記録は H-3 対応で削除済
       } catch(e){ console.error('GPS callback error:', e); }
     });
@@ -2577,7 +2448,10 @@ function startUiTimer(){
     try {
       const src = document.getElementById('driveSource');
       if(src){
-        const forwarded = (typeof _forwardedPrefs !== 'undefined') ? _forwardedPrefs.size : 0;
+        // ★設計変更宣言 (2026-05-13・gate 修正): 旧 _forwardedPrefs.size から
+        //   新パイプライン参照に書換 (driving 画面 driveSource warning)
+        const forwarded = (window._mmPipeline && window._mmPipeline.stats)
+                          ? window._mmPipeline.stats.roadsOk : 0;
         const now = Date.now();
         if(forwarded > 0){
           window._mmZeroSince = null;
@@ -2690,6 +2564,8 @@ function fmt(sec){
 // 全ボタン関数の冒頭で「if(blockIfSensorNotGranted()) return;」と呼ぶ
 // 戻り値：true=ブロックした（呼出元は処理中止）/ false=通過OK
 function blockIfSensorNotGranted(){
+  // ★設計変更宣言 (2026-05-13): 画面タップ毎に許可/業務開始ボタンの排他表示を再評価
+  try { if(typeof updateStartButtonsGate === 'function') updateStartButtonsGate(); } catch(_){}
   // iOS PWA 以外は常に通過（Android・PC・Safari通常モードは未許可ブロックしない）
   // 2026/05/02：_isIOS 未定義リスク対策で直接判定
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -3679,9 +3555,8 @@ try {
       updateResumeFromStartVisibility();
       // 2026/05/01：未許可ならバナー表示（許可済みなら何もしない）
       showSensorBannerIfNeeded();
-      // ★設計変更宣言 (2026-05-11): データ更新バナー表示判定
-      //   businessStart 表示直後・7 日経過 + snooze 期限切れなら表示
-      try { if(typeof DataUpdateBanner !== 'undefined') DataUpdateBanner.checkAndShow(); } catch(_){}
+      // ★設計変更宣言 (2026-05-13): 旧 DataUpdateBanner.checkAndShow 呼出削除
+      //   meta.json ベース差分検知実装まで dataUpdateBanner 機能停止中 (Phase 6-5)
     }
   }
 } catch(e){
@@ -3743,742 +3618,18 @@ function closeApkModal(){
   } catch (e) {}
 })();
 
-// ─── 初回DL UI 制御（Phase 0a-2） ───
-// 47県データの初回DL：fetch + Cache Storage + IndexedDB県別進捗
-// 並列4・タイムアウト30秒・失敗時3回リトライ
-// 部分DL保持・続きから再開
-const DakomeDL = (function(){
-  const DB_NAME = 'daikome';
-  const DB_VERSION = 3;  // settings.html と同じ。v2 で keyPath:'pref' で作られていたら作り直す
-  const STORE_APP = 'app_state';
-  const STORE_PREF = 'prefectures';
-  const KEY_DL_COMPLETED = 'dl_completed';
-
-  // 47都道府県（build-roads.js v5 と同じ順序）
-  const PREFECTURES = [
-    'hokkaido',
-    'aomori','iwate','miyagi','akita','yamagata','fukushima',
-    'ibaraki','tochigi','gunma','saitama','chiba','tokyo','kanagawa',
-    'niigata','toyama','ishikawa','fukui','yamanashi','nagano','gifu','shizuoka','aichi',
-    'mie','shiga','kyoto','osaka','hyogo','nara','wakayama',
-    'tottori','shimane','okayama','hiroshima','yamaguchi',
-    'tokushima','kagawa','ehime','kochi',
-    'fukuoka','saga','nagasaki','kumamoto','oita','miyazaki','kagoshima','okinawa',
-  ];
-
-  const PARALLEL = 4;
-  const TIMEOUT_MS = 30000;
-  const MAX_RETRY = 3;
-
-  // ── IndexedDB ──
-  function openDb(){
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        const tx = e.target.transaction;
-        if(!db.objectStoreNames.contains(STORE_APP)){
-          db.createObjectStore(STORE_APP);
-        }
-        if(!db.objectStoreNames.contains(STORE_PREF)){
-          db.createObjectStore(STORE_PREF);
-        } else {
-          // 壊れた v2 schema 救済：keyPath が設定されてたら作り直す
-          const existing = tx.objectStore(STORE_PREF);
-          if(existing.keyPath !== null){
-            db.deleteObjectStore(STORE_PREF);
-            db.createObjectStore(STORE_PREF);
-          }
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  function getDlCompleted(){
-    return openDb().then(db => new Promise((resolve) => {
-      const tx = db.transaction(STORE_APP, 'readonly');
-      const req = tx.objectStore(STORE_APP).get(KEY_DL_COMPLETED);
-      req.onsuccess = () => resolve(req.result === true);
-      req.onerror = () => resolve(false);
-    })).catch(() => false);
-  }
-
-  function setDlCompleted(){
-    return openDb().then(db => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_APP, 'readwrite');
-      const req = tx.objectStore(STORE_APP).put(true, KEY_DL_COMPLETED);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    }));
-  }
-
-  // 県別の完了状態を取得（Set<pref>）
-  function getPrefStatus(){
-    return openDb().then(db => new Promise((resolve) => {
-      const tx = db.transaction(STORE_PREF, 'readonly');
-      const store = tx.objectStore(STORE_PREF);
-      const req = store.getAllKeys();
-      req.onsuccess = () => resolve(new Set(req.result || []));
-      req.onerror = () => resolve(new Set());
-    })).catch(() => new Set());
-  }
-
-  // ★設計変更宣言 (2026-05-11): 全 pref レコードを {pref, downloaded, size, timestamp} で取得
-  //   データ更新バナーの「最古 timestamp 判定」用
-  function getAllPrefectures(){
-    return openDb().then(db => new Promise((resolve) => {
-      const tx = db.transaction(STORE_PREF, 'readonly');
-      const store = tx.objectStore(STORE_PREF);
-      const valuesReq = store.getAll();
-      const keysReq = store.getAllKeys();
-      let values = null, keys = null;
-      function done(){
-        if(values === null || keys === null) return;
-        const result = [];
-        for(let i = 0; i < keys.length; i++){
-          const v = values[i] || {};
-          result.push({ pref: keys[i], downloaded: !!v.downloaded, size: v.size||0, timestamp: v.timestamp||0 });
-        }
-        resolve(result);
-      }
-      valuesReq.onsuccess = () => { values = valuesReq.result || []; done(); };
-      keysReq.onsuccess = () => { keys = keysReq.result || []; done(); };
-      valuesReq.onerror = () => resolve([]);
-      keysReq.onerror = () => resolve([]);
-    })).catch(() => []);
-  }
-
-  // 県の完了をマーク（out-of-line key）
-  function markPrefDone(pref, sizeBytes){
-    return openDb().then(db => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_PREF, 'readwrite');
-      const req = tx.objectStore(STORE_PREF).put({
-        downloaded: true,
-        size: sizeBytes,
-        timestamp: Date.now(),
-      }, pref);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    }));
-  }
-
-  // ★設計変更宣言 (2026-05-13): pref を「未完了」に戻す (delete from STORE_PREF)
-  //   SW の cache.put が失敗した際に main thread から呼出され、
-  //   IndexedDB prefStatus と Cache Storage の整合性を回復する
-  function markPrefUndone(pref){
-    return openDb().then(db => new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_PREF, 'readwrite');
-      const req = tx.objectStore(STORE_PREF).delete(pref);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    }));
-  }
-
-  // ── UI制御 ──
-  // ★設計変更宣言 (2026-05-10): inline style.display を明示的に書き換える方式に変更
-  //   旧: classList.add/remove('show') のみ → 要素に inline style="display:none"
-  //       が付与されると class は negate されてしまう (inline 優先)
-  //   新: o.style.display を明示的に 'flex' / 'none' に切り替え + class も同期
-  //       inline style を書き換えるので必ず効く
-  function showOverlay(){
-    const o = document.getElementById('dlOverlay');
-    if(o){
-      o.style.display = 'flex';
-      o.classList.add('show');
-    }
-    // ★設計変更宣言 (2026-05-10): showOverlay 時に orange banner を強制非表示
-    //   DL UI 表示中は orange banner を画面に出さない (DL 画面に重畳防止)
-    try {
-      const _b = document.getElementById('sensorRestoreBanner');
-      if(_b) _b.style.display = 'none';
-    } catch(_){}
-  }
-  function hideOverlay(){
-    const o = document.getElementById('dlOverlay');
-    if(o){
-      o.style.display = 'none';
-      o.classList.remove('show');
-    }
-  }
-  // 完了バナー表示 → 1.5秒後に dl_completed=true を保存し
-  //  ① 業務未開始ならメイン画面（idle）へ自動遷移（業務開始押下と等価）
-  //  ② overlay を 0.5 秒フェードアウト（合計 2.0 秒で完了）
-  // ユーザー操作ゼロで業務可能な状態へ（過去確定 G案：業務開始押下後はメーター直行 の真意を反映）
-  // 2026-05-08 修正：旧コードは overlay フェードのみで screenBusinessStart が裏に残り、
-  //   「業務開始」ボタンが表示されたまま自動遷移しない症状があった。onBusinessStart を
-  //   自動発火させて screenIdle（メイン画面）に遷移させる。
-  function showCompleteBanner(){
-    const loading = document.getElementById('dlStateLoading');
-    const complete = document.getElementById('dlStateComplete');
-    const overlay = document.getElementById('dlOverlay');
-    if(loading) loading.classList.remove('show');
-    if(complete) complete.classList.add('show');
-    setTimeout(() => {
-      setDlCompleted().then(() => {
-        if(typeof dlog === 'function') dlog('[DL] 完了・dl_completed=true 保存');
-      }).catch(e => {
-        console.warn('[DL] dl_completed 保存失敗:', e.message);
-      });
-      // ★設計変更宣言 (2026-05-10): DL 完了後の自動 onBusinessStart 発火を撤廃
-      //   旧: setTimeout 経由で onBusinessStart() を自動呼出
-      //       → blockIfSensorNotGranted が iOS PWA 未許可時に
-      //         requestSensorPermission() を user gesture 無しで実行
-      //       → DeviceMotion/Orientation.requestPermission() reject
-      //       → orange「センサー再起動が必要」バナー誤表示
-      //   新: 自動遷移は撤廃・businessStart 画面に留まり「センサーを許可する」
-      //       青ボタンを user gesture で押してもらう (= iOS PWA 仕様準拠)
-      //   絶対ルール準拠: 業務継続性を理由に user gesture 違反するのは NG・
-      //                   (画面遷移は onBusinessStart 内で行うため留まる方が安全)
-      if(typeof dlog === 'function') dlog('[DL] 完了・businessStart 画面に留まる (自動遷移なし・user gesture 待ち)');
-      // ② overlay フェードアウト → 完全 hide
-      // ★設計変更宣言 (2026-05-10 再修正): DL 完了 flag を set + hideOverlay 順序修正
-      //   問題: fade-out class 削除 → opacity:0→1 に戻る transition の最中に
-      //         hideOverlay が呼ばれていたが、iOS WebView の render order で
-      //         opacity:1 への遷移が一瞬視認されて DL 完了画面が再表示
-      //   解決: hideOverlay を先に呼んで display:none 化 (要素消滅) → その後
-      //         fade-out class 削除 (見えないので opacity 遷移しても影響なし)
-      //   sessionStorage.dl_just_completed='1' で「DL 完了直後」を marking し、
-      //   それ以降の orange banner 表示判定で skip するために使う
-      try { sessionStorage.setItem('dl_just_completed','1'); } catch(_){}
-      if(overlay) overlay.classList.add('fade-out');
-      setTimeout(() => {
-        if(overlay){
-          hideOverlay();   // display:none → 要素消滅を先に
-          overlay.classList.remove('fade-out');  // その後 fade-out 解除 (見えない)
-        }
-      }, 500);
-    }, 1500);
-  }
-  function updateProgress(done, total){
-    const fill = document.getElementById('dlProgressFill');
-    const text = document.getElementById('dlProgressText');
-    const pct = Math.round((done / total) * 100);
-    if(fill) fill.style.width = Math.max(5, pct) + '%';
-    if(text) text.textContent = done + '/' + total + '県 完了';
-  }
-  function showRetryHint(failedCount){
-    const text = document.getElementById('dlProgressText');
-    if(text){
-      text.textContent = (PREFECTURES.length - failedCount) + '/' + PREFECTURES.length
-        + '県 完了（' + failedCount + '県失敗・自動リトライ中...）';
-    }
-  }
-
-  // ── 1県をfetch（タイムアウト付き） ──
-  function fetchPrefecture(pref){
-    const url = 'data/roads-' + pref + '.js';
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    return fetch(url, { signal: ctrl.signal, cache: 'reload' })
-      .then(res => {
-        clearTimeout(timer);
-        if(!res.ok) throw new Error('HTTP ' + res.status);
-        return res.blob().then(blob => ({ size: blob.size }));
-      })
-      .catch(e => {
-        clearTimeout(timer);
-        throw e;
-      });
-  }
-
-  // ── 1県をリトライ込みでDL（指数バックオフ 1/2/4 秒） ──
-  function downloadWithRetry(pref){
-    let attempt = 0;
-    function tryOnce(){
-      attempt++;
-      return fetchPrefecture(pref).catch(e => {
-        if(attempt < MAX_RETRY){
-          const wait = 1000 * Math.pow(2, attempt - 1);
-          return new Promise(r => setTimeout(r, wait)).then(tryOnce);
-        }
-        throw e;
-      });
-    }
-    return tryOnce();
-  }
-
-  // ── 47県を並列4で順次DL ──
-  function downloadAll(targetPrefs){
-    let done = 0;
-    let failed = [];
-    const total = targetPrefs.length;
-    updateProgress(done, PREFECTURES.length);
-
-    return new Promise((resolveAll) => {
-      let queue = targetPrefs.slice();
-
-      function worker(){
-        if(queue.length === 0) return Promise.resolve();
-        const pref = queue.shift();
-        return downloadWithRetry(pref)
-          .then(result => {
-            return markPrefDone(pref, result.size).then(() => {
-              done++;
-              updateProgress(done + (PREFECTURES.length - total), PREFECTURES.length);
-              if(typeof dlog === 'function') dlog('[DL] ' + pref + ' OK (' + result.size + 'B)');
-            });
-          })
-          .catch(e => {
-            failed.push(pref);
-            console.warn('[DL] ' + pref + ' 失敗:', e.message);
-          })
-          .then(worker);
-      }
-
-      const workers = [];
-      for(let i = 0; i < PARALLEL; i++) workers.push(worker());
-      Promise.all(workers).then(() => resolveAll({ done, failed, total }));
-    });
-  }
-
-  function startDownload(){
-    return getPrefStatus().then(doneSet => {
-      const todo = PREFECTURES.filter(p => !doneSet.has(p));
-      const alreadyDone = PREFECTURES.length - todo.length;
-
-      if(todo.length === 0){
-        if(typeof dlog === 'function') dlog('[DL] 既に47県完了済');
-        updateProgress(PREFECTURES.length, PREFECTURES.length);
-        return Promise.resolve({ done: 0, failed: [], total: 0 });
-      }
-
-      if(typeof dlog === 'function'){
-        dlog('[DL] 開始：' + todo.length + '県（既存:' + alreadyDone + '/' + PREFECTURES.length + '）');
-      }
-      updateProgress(alreadyDone, PREFECTURES.length);
-      return downloadAll(todo);
-    });
-  }
-
-  // ★設計変更宣言 (2026-05-13): ?_v= 付き重複エントリの起動時 cleanup
-  //   過去の SW staleWhileRevalidate が request.url (?_v={timestamp} 付き) で
-  //   cache.put していたため、同一 pref が "no-query" と "?_v= 付き" の 2 件
-  //   重複して残っているケースを 1 度だけ削除する。
-  //   現在の SW は normalized URL で put するため、新規には重複は発生しない。
-  //   起動時 1 回 (init() 冒頭から fire-and-forget) のみ実行。
-  async function _cleanupQueriedRoadsCacheEntries(){
-    try {
-      if(typeof caches === 'undefined' || typeof caches.has !== 'function') return;
-      const exists = await caches.has('daikome-roads-v1');
-      if(!exists) return;
-      const c = await caches.open('daikome-roads-v1');
-      const reqs = await c.keys();
-      let removed = 0;
-      for(const req of reqs){
-        if(req.url.indexOf('?') === -1) continue;
-        try {
-          await c.delete(req);
-          removed++;
-        } catch(_){}
-      }
-      if(removed > 0 && typeof dlog === 'function'){
-        dlog('[CacheCleanup] ?_v= 付き重複エントリ ' + removed + ' 件削除');
-      }
-    } catch(e){
-      if(typeof dlog === 'function') dlog('[CacheCleanup] error: ' + (e && e.message));
-    }
-  }
-
-  // ── 起動時実行 ──
-  function init(){
-    // ★設計変更宣言 (2026-05-12): DL 進行中フラグ
-    //   _detectCacheEviction が初回 DL 中の transient な cache 欠落を誤検知し
-    //   DataUpdateBanner.show() 経由で並列自動 DL を起動する事故を防ぐ
-    window._dakomeDLInProgress = true;
-    // ★設計変更宣言 (2026-05-13): 起動時 1 回だけ ?_v= 付き重複エントリ削除
-    //   fire-and-forget (失敗しても DL フローを止めない)
-    _cleanupQueriedRoadsCacheEntries();
-    getDlCompleted().then(async (completed) => {
-      if(completed){
-        // 既存ユーザー：未DL県があればバックグラウンドで差分DL
-        if(typeof dlog === 'function') dlog('[DL] 初回DL済み・差分DLチェック');
-        // ★設計変更宣言 (2026-05-13): Cache Storage 実態確認 + 欠落復旧
-        //   完了済 (IndexedDB dl_completed=true) でも Cache に 47 県揃っていない
-        //   可能性があるため、await で検証・復旧してから checkAndUpdateExisting へ
-        await _verifyAndRecoverRoadsCache();
-        checkAndUpdateExisting();
-        // ★設計変更宣言 (2026-05-13): 既存ユーザー (差分DLパス) では
-        //   showCompleteBanner が呼ばれず flag が true のまま残り
-        //   _detectCacheEviction が永続的に skip されるため、return 直前で false にリセット
-        window._dakomeDLInProgress = false;
-        return;
-      }
-      if(typeof dlog === 'function') dlog('[DL] 初回起動・47県DL開始');
-      showOverlay();
-      startDownload().then(result => {
-        if(result.failed.length === 0){
-          updateProgress(PREFECTURES.length, PREFECTURES.length);
-          setTimeout(() => { window._dakomeDLInProgress = false; showCompleteBanner(); }, 400);
-        } else {
-          showRetryHint(result.failed.length);
-          if(typeof dlog === 'function') dlog('[DL] ' + result.failed.length + '県失敗・3秒後再試行');
-          setTimeout(() => {
-            startDownload().then(r2 => {
-              if(r2.failed.length === 0){
-                updateProgress(PREFECTURES.length, PREFECTURES.length);
-                setTimeout(() => { window._dakomeDLInProgress = false; showCompleteBanner(); }, 400);
-              } else {
-                showRetryHint(r2.failed.length);
-                if(typeof dlog === 'function') dlog('[DL] 再試行も失敗・次回起動で再開');
-                // 業務継続可能にするためバナーは出す
-                setTimeout(() => { window._dakomeDLInProgress = false; showCompleteBanner(); }, 1000);
-              }
-            });
-          }, 3000);
-        }
-      });
-    });
-  }
-
-  // 既存ユーザー向け差分DL（バックグラウンド・トーストのみ）
-  function checkAndUpdateExisting(){
-    getPrefStatus().then(doneSet => {
-      const todo = PREFECTURES.filter(p => !doneSet.has(p));
-      if(todo.length === 0){
-        if(typeof dlog === 'function') dlog('[DL] 差分DL：未DL県なし');
-        return;
-      }
-      if(typeof dlog === 'function') dlog('[DL] 差分DL：' + todo.length + '県を追加DL');
-      let done = 0;
-      let failed = [];
-      const queue = todo.slice();
-      const PARALLEL_BG = 2;
-
-      function worker(){
-        if(queue.length === 0) return Promise.resolve();
-        const pref = queue.shift();
-        return downloadWithRetry(pref)
-          .then(result => {
-            return markPrefDone(pref, result.size).then(() => {
-              done++;
-              if(typeof dlog === 'function') dlog('[DL] 差分:' + pref + ' OK (' + result.size + 'B)');
-            });
-          })
-          .catch(e => {
-            failed.push(pref);
-            console.warn('[DL] 差分:' + pref + ' 失敗:', e.message);
-          })
-          .then(worker);
-      }
-
-      const workers = [];
-      for(let i = 0; i < PARALLEL_BG; i++) workers.push(worker());
-      Promise.all(workers).then(() => {
-        if(done > 0){
-          if(typeof DakomeUpdateToast !== 'undefined' && DakomeUpdateToast.show){
-            DakomeUpdateToast.show();
-          }
-          if(typeof dlog === 'function'){
-            dlog('[DL] 差分DL完了：' + done + '県成功・' + failed.length + '県失敗');
-          }
-        } else {
-          if(typeof dlog === 'function') dlog('[DL] 差分DL全失敗・次回再試行');
-        }
-      });
-    });
-  }
-
-  // ★設計変更宣言 (2026-05-12): Cache Storage エビクション検知 + 強制復旧導線 (P0 Step 3)
-  //   目的: iOS Safari の自動エビクションで Cache Storage から
-  //         /data/roads-{pref}.js が部分的/全件削除された場合に検知し、
-  //         ユーザーに再 DL を促す (データ更新バナー強制表示)
-  //
-  //   検知条件 (どちらか満たせばエビクション扱い):
-  //     A. navigator.storage.estimate() の (quota - usage) / quota < 0.1
-  //        = 残量 10% 未満 → 自動 evict が始まる前に警告
-  //     B. caches API で daikome- prefix のキャッシュを open し、
-  //        47 県の /data/roads-{pref}.js を cache.match() で確認
-  //        1 件でも欠落していれば evict 発生済
-  //
-  //   復旧導線:
-  //     既存 DataUpdateBanner.show() を呼出 (snooze 無視で表示) +
-  //     文言を「データが不足しています。再ダウンロードしてください」に override
-  //
-  //   多重実行防止: _cacheCheckInProgress フラグ + try/finally
-  //
-  // ★設計変更宣言 (2026-05-12): false positive 対策 3 点修正
-  //   旧: PREFECTURES 47 件全件チェック・visibilitychange 即時・1 回欠落で即バナー
-  //       → SW 更新中/DL 途中で誤検知発生
-  //   新:
-  //     A. DL 完了済みの県のみ確認 (getPrefStatus() の doneSet を参照)
-  //        → 未 DL 県は最初から欠落扱いしない (DL 未着手の県でバナー出ない)
-  //     B. visibilitychange に 5 秒 debounce (タブ往復連打で連続検知しない)
-  //     C. 欠落検知時は 3 秒後に 1 回だけ再確認・両方欠落で初めてバナー表示
-  //        (SW 更新中/cache addAll 途中の transient な欠落を吸収)
-  let _cacheCheckInProgress = false;
-  let _lastVisibilityCheckAt = 0;
-  const _VISIBILITY_DEBOUNCE_MS = 5000;
-  const _CONFIRM_RECHECK_DELAY_MS = 3000;
-
-  async function _detectCacheEviction(isConfirm){
-    // ★設計変更宣言 (2026-05-12): DL 進行中はキャッシュ欠落判定を skip
-    //   初回 DL の SW cache.put が非同期完了する前に cache.match=null と判定し
-    //   DataUpdateBanner.show() を強制呼出 → 並列自動 DL が起動する事故を防ぐ
-    if(window._dakomeDLInProgress) return;
-    if(_cacheCheckInProgress) return;
-    _cacheCheckInProgress = true;
-    try {
-      let lowStorage = false;
-      let missingFiles = false;
-      // ★設計変更宣言 (2026-05-13): 欠落県リストを収集 (全 47 県再 DL ではなく
-      //   欠落県のみ復旧するため・空配列なら復旧対象なし)
-      let missingPrefs = [];
-
-      // A. ストレージ残量チェック (未サポート環境では skip・エラー化しない)
-      try {
-        if(navigator.storage && typeof navigator.storage.estimate === 'function'){
-          const est = await navigator.storage.estimate();
-          if(est && typeof est.quota === 'number' && typeof est.usage === 'number'){
-            const remaining = est.quota - est.usage;
-            if(est.quota > 0 && remaining < est.quota * 0.1){
-              lowStorage = true;
-              if(typeof dlog === 'function'){
-                dlog('[CacheCheck] 残量不足: ' + (remaining/1024/1024).toFixed(0) + 'MB / ' +
-                     (est.quota/1024/1024).toFixed(0) + 'MB (10% 未満)');
-              }
-            }
-          }
-        }
-      } catch(_){}
-
-      // B. キャッシュ存在チェック (修正: DL 完了済みの県のみ確認)
-      //    ★設計変更宣言 (2026-05-13): roads cache を固定名 'daikome-roads-v1' へ分離
-      //       旧: caches.keys().find(daikome-) で動的取得
-      //       新: 'daikome-roads-v1' を直接参照
-      try {
-        // ★修正 A: getPrefStatus() で DL 完了済みの県セットを取得
-        //   未 DL 県 (まだ一度も DL してない / 初回起動直後等) は欠落扱いしない
-        //   doneSet.size === 0 (一切 DL 未完了) なら check 全体を skip
-        const doneSet = await getPrefStatus();
-        if(!doneSet || doneSet.size === 0){
-          if(typeof dlog === 'function') dlog('[CacheCheck] DL 完了県 0 件 → 欠落判定スキップ');
-        } else if(typeof caches !== 'undefined' && typeof caches.has === 'function'){
-          const exists = await caches.has('daikome-roads-v1');
-          if(!exists){
-            // 'daikome-roads-v1' キャッシュが存在しない = 全 evict 想定 (新規 install 直後等)
-            missingFiles = true;
-            if(typeof dlog === 'function') dlog('[CacheCheck] daikome-roads-v1 キャッシュなし (全 evict 想定)');
-          } else {
-            const cache = await caches.open('daikome-roads-v1');
-            // ★設計変更宣言 (2026-05-13): 旧 break で 1 件で抜けていたが、
-            //   欠落県のみ復旧するため全件 scan して missingPrefs に蓄積する
-            for(const pref of doneSet){
-              const url = '/data/roads-' + pref + '.js';
-              const match = await cache.match(url);
-              if(!match){
-                missingFiles = true;
-                missingPrefs.push(pref);
-                if(typeof dlog === 'function') dlog('[CacheCheck] 欠落検知 (DL 完了済): ' + pref);
-              }
-            }
-          }
-        }
-      } catch(_){}
-
-      // C. 欠落検知時の処理 (修正: 1 回目疑い → 3 秒後再確認 → 両方欠落で復旧)
-      if(lowStorage || missingFiles){
-        if(!isConfirm){
-          // 1 回目: 復旧せず・3 秒後に再確認
-          //   SW activate 中・cache addAll 途中等の transient な欠落を吸収
-          if(typeof dlog === 'function'){
-            dlog('[CacheCheck] 欠落疑い (lowStorage=' + lowStorage +
-                 ' missing=' + missingFiles + ' prefs=' + missingPrefs.length +
-                 ') → 3 秒後に再確認');
-          }
-          setTimeout(() => _detectCacheEviction(true), _CONFIRM_RECHECK_DELAY_MS);
-          return;  // 1 回目は何もせず exit (finally で _cacheCheckInProgress リセット)
-        }
-        // ★設計変更宣言 (2026-05-13): 2 回目 (確認モード) でも欠落 → 欠落県のみ復旧
-        //   旧: DataUpdateBanner.show() 強制呼出 → 全 47 県再 DL (204MB の無駄)
-        //   新: _recoverMissingPrefs(missingPrefs) → 欠落県のみ fetch + cache.put + markPrefDone
-        if(typeof dlog === 'function'){
-          dlog('[CacheCheck] 再確認でも欠落 → 復旧開始: lowStorage=' + lowStorage +
-               ' missing=' + missingFiles + ' prefs=[' + missingPrefs.join(',') + ']');
-        }
-        // 確認モードで finally に到達する前に復旧を kick (await しない・
-        // _cacheCheckInProgress を早く解放するため)
-        if(missingPrefs.length > 0){
-          _recoverMissingPrefs(missingPrefs);
-        }
-      } else {
-        if(typeof dlog === 'function'){
-          dlog('[CacheCheck] OK (' + (isConfirm ? '再確認 ' : '') +
-               'DL 完了県揃い・残量 10% 以上)');
-        }
-      }
-    } catch(e){
-      console.error('[CacheCheck] error:', e && e.message);
-    } finally {
-      _cacheCheckInProgress = false;
-    }
-  }
-
-  // ★設計変更宣言 (2026-05-13): 欠落県のみ再 DL する復旧専用関数
-  //   旧: DataUpdateBanner.startDownload() (全 47 県・204MB 再 fetch) を強制呼出
-  //   新: missingList の県のみ fetch + 明示的 cache.put + markPrefDone
-  //       (SW SWR の暗黙 cache.put は失敗時の通知経路があるが、復旧時は確実性を
-  //        優先し main thread で直接 cache.put して結果を await・成功時のみ
-  //        markPrefDone することで cache と prefStatus の整合性を担保)
-  let _recoveryInProgress = false;
-  async function _recoverMissingPrefs(missingList){
-    if(_recoveryInProgress) return;
-    if(!Array.isArray(missingList) || missingList.length === 0) return;
-    _recoveryInProgress = true;
-    if(typeof dlog === 'function') dlog('[Recover] 開始: ' + missingList.length + ' 県');
-    let ok = 0;
-    const failed = [];
-    try {
-      // ★設計変更宣言 (2026-05-13): 復旧対象 cache を固定名 'daikome-roads-v1' に直接参照
-      //   旧: caches.keys().find(daikome-) で動的取得 (アプリコード cache を間違って参照する可能性)
-      //   新: roads データ専用の 'daikome-roads-v1' を直接 open
-      let cache = null;
-      try {
-        if(typeof caches !== 'undefined'){
-          cache = await caches.open('daikome-roads-v1');
-        }
-      } catch(_){}
-      const MAX_RETRY = 3;
-      for(const pref of missingList){
-        let success = false;
-        let blobSize = 0;
-        for(let attempt = 1; attempt <= MAX_RETRY; attempt++){
-          try {
-            // ★設計変更宣言 (2026-05-13): ?_v= cache-busting を撤廃し {cache:'reload'} に変更
-            //   旧 SW (cacheKey 正規化前) が ?_v= 付き URL で別エントリを put する
-            //   重複生成事故を防ぐため、URL は canonical (no-query) で fetch
-            //   {cache:'reload'} で HTTP cache をバイパス (cache-busting 効果は維持)
-            const fetchUrl = '/data/roads-' + pref + '.js';
-            const cacheUrl = '/data/roads-' + pref + '.js';
-            const res = await fetch(fetchUrl, { cache: 'reload' });
-            if(!res.ok) throw new Error('HTTP ' + res.status);
-            // ★設計変更宣言 (2026-05-13): cache 取得不可なら復旧失敗扱い
-            //   旧: if(cache){ cache.put(...) } で skip し markPrefDone のみ実行
-            //       → cache に入っていないのに完了マークだけ立つ整合性破れ
-            //       → 次回 _detectCacheEviction で再び欠落判定される無限ループ
-            //   新: cache===null なら throw → attempt 再試行・最終的に failed リスト入り
-            //       cache.put 成功時のみ markPrefDone (整合性担保)
-            if(!cache) throw new Error('cache unavailable');
-            const resClone = res.clone();
-            await cache.put(cacheUrl, resClone);
-            const blob = await res.blob();
-            blobSize = blob.size;
-            await markPrefDone(pref, blobSize);
-            success = true;
-            break;
-          } catch(e){
-            if(typeof dlog === 'function'){
-              dlog('[Recover] ' + pref + ' attempt ' + attempt + ' 失敗: ' + (e && e.message));
-            }
-            if(attempt < MAX_RETRY) await new Promise(r => setTimeout(r, 1000 * attempt));
-          }
-        }
-        if(success){ ok++; }
-        else { failed.push(pref); }
-      }
-      // 完了通知 (showToast はグローバル関数・無ければ何もしない)
-      try {
-        if(ok > 0 && failed.length === 0){
-          if(typeof showToast === 'function') showToast(ok + ' 県のデータを復旧しました');
-        } else if(ok > 0){
-          if(typeof showToast === 'function') showToast(ok + ' 県復旧・' + failed.length + ' 県失敗');
-        } else {
-          if(typeof showToast === 'function') showToast('データ復旧に失敗しました');
-        }
-      } catch(_){}
-      if(typeof dlog === 'function'){
-        dlog('[Recover] 完了: ok=' + ok + ' failed=' + failed.length +
-             (failed.length > 0 ? ' [' + failed.join(',') + ']' : ''));
-      }
-    } catch(e){
-      console.error('[Recover] error:', e && e.message);
-    } finally {
-      _recoveryInProgress = false;
-    }
-  }
-
-  // ★設計変更宣言 (2026-05-13): DL 完了判定を IndexedDB + Cache Storage 両方で検証
-  //   旧: getDlCompleted=true で即 businessStart 遷移 (Cache 実態未確認)
-  //   新: completed=true 経路で Cache Storage に 47 県 canonical URL が全て存在するか
-  //       を確認し、欠落があれば _recoverMissingPrefs を await で実行してから先に進む
-  //   recovery 中は DL オーバーレイを維持 (ユーザーに「準備中」状態を可視化)
-  async function _verifyAndRecoverRoadsCache(){
-    try {
-      if(typeof caches === 'undefined') return;
-      const exists = await caches.has('daikome-roads-v1');
-      let missing = [];
-      if(!exists){
-        // daikome-roads-v1 が無い = 全 evict 想定 (デプロイ migration 失敗等)
-        missing = PREFECTURES.slice();
-        if(typeof dlog === 'function'){
-          dlog('[Verify] daikome-roads-v1 なし → 全 ' + missing.length + ' 県復旧');
-        }
-      } else {
-        const cache = await caches.open('daikome-roads-v1');
-        const reqs = await cache.keys();
-        const cachedPaths = new Set();
-        for(const req of reqs){
-          try {
-            const u = new URL(req.url);
-            cachedPaths.add(u.pathname);   // canonical pathname (no query)
-          } catch(_){}
-        }
-        for(const pref of PREFECTURES){
-          if(!cachedPaths.has('/data/roads-' + pref + '.js')) missing.push(pref);
-        }
-      }
-      if(missing.length === 0){
-        if(typeof dlog === 'function') dlog('[Verify] 47 県全て cache OK');
-        return;
-      }
-      if(typeof dlog === 'function'){
-        dlog('[Verify] cache 欠落 ' + missing.length + ' 県 → 復旧開始: ' + missing.join(','));
-      }
-      // recovery 中は DL オーバーレイを表示してユーザーに「準備中」を可視化
-      try { showOverlay(); } catch(_){}
-      try {
-        await _recoverMissingPrefs(missing);
-      } finally {
-        try { hideOverlay(); } catch(_){}
-      }
-    } catch(e){
-      if(typeof dlog === 'function') dlog('[Verify] error: ' + (e && e.message));
-      try { hideOverlay(); } catch(_){}
-    }
-  }
-
-  // トリガ 1: DOMContentLoaded 後 (初回起動時の検知)
-  if(typeof document !== 'undefined'){
-    if(document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => _detectCacheEviction(), 1000);  // SW activate 完了を少し待つ
-      });
-    } else {
-      setTimeout(() => _detectCacheEviction(), 1000);
-    }
-
-    // トリガ 2: visibilitychange (タブ復帰時に再チェック・5 秒 debounce)
-    //   ★修正 B: タブ往復連打 / 短時間の visibility 変化で連続検知させない
-    document.addEventListener('visibilitychange', function(){
-      if(document.visibilityState !== 'visible') return;
-      const now = Date.now();
-      if(now - _lastVisibilityCheckAt < _VISIBILITY_DEBOUNCE_MS){
-        if(typeof dlog === 'function') dlog('[CacheCheck] visibility debounce skip');
-        return;
-      }
-      _lastVisibilityCheckAt = now;
-      _detectCacheEviction();
-    });
-  }
-
-  return { init, setDlCompleted, hideOverlay, getPrefStatus, checkAndUpdateExisting,
-           getAllPrefectures, downloadWithRetry, markPrefDone, markPrefUndone, PREFECTURES,
-           // P0 Step 3 (2026-05-12) - debug / 手動チェック用 export
-           _detectCacheEviction,
-           // 2026-05-13: 欠落復旧 (SW cache.put 失敗時の整合性回復)
-           _recoverMissingPrefs };
-})();
+// ★設計変更宣言 (2026-05-13・Phase 6-2): DakomeDL モジュール全削除
+//   旧 47県 DL UI 制御モジュール (DakomeDL IIFE・約 730 行)。
+//   役割は全て新パイプライン (MMDataPipeline) に移管完了:
+//   - 47県 DL → MMDataPipeline.warmup の Phase B
+//   - cache 検証 → SW staleWhileRevalidate + cache.put + cachePutFailed 通知
+//   - 欠落復旧 → _mmPipeline.enqueueRetry (Phase 1 修正1-B)
+//   - DL 完了マーク → 不要 (新パイプラインは IndexedDB 使わず)
+//   削除対象内訳:
+//   - DakomeDL IIFE 全体 (~730 行)
+//   - 内部 recovery 関数群 (Phase 6-3 該当): _verifyAndRecoverRoadsCache /
+//     _recoverMissingPrefs / _cleanupQueriedRoadsCacheEntries / _detectCacheEviction
+//   残置: consumer (dataUpdateBanner 等) は Phase 6-4・6-5 で書換予定
 
 // ★設計変更宣言 (2026-05-11): データ更新バナー (businessStart 7 日経過時のみ表示)
 //   仕様:
@@ -4489,190 +3640,28 @@ const DakomeDL = (function(){
 //   - 業務開始ボタン押下で自動非表示 (snooze なし)
 //   - 業務中 (idle/driving/fare) は絶対表示しない
 //   - 完了で自動消滅・snooze 記録なし
+// ★設計変更宣言 (2026-05-13・Phase 6-5): dataUpdateBanner 簡易化
+//   旧: 7 日経過で「更新通知」バナー表示 + 全 47 県再 DL + 更新件数表示
+//        DakomeDL.getAllPrefectures / markPrefDone / PREFECTURES に依存
+//   新: DakomeDL 依存を全削除・「7 日経過判定 + 再 DL」機能を一時停止
+//        meta.json ベース差分検知の実装まで checkAndShow / show は no-op
+//        HTML (dataUpdateBannerWrap / dataUpdateBanner) は残置・hide も維持
+//        将来 meta.json 実装時に _shouldShow / startDownload を新方式で復活可能
+// ★設計変更宣言 (2026-05-13): DataUpdateBanner の no-op method 群を整理
+//   機能停止中 (Phase 6-5) で show / startDownload / checkAndShow / _isOnWifi
+//   は全て no-op だった → 全削除。close-btn が呼ぶ hide のみ残置。
+//   visibilitychange / online listener も checkAndShow 呼出のみだったので削除。
+//   meta.json 実装時に新方式で復活予定。
 const DataUpdateBanner = (function(){
-  const STALE_MS  = 7 * 24 * 60 * 60 * 1000;
-  const SNOOZE_MS = 24 * 60 * 60 * 1000;
-  const SNOOZE_KEY = 'daikou_update_snooze';
-  let _downloading = false;
-  let _autoTriggered = false;  // wifi 自動 DL の重複防止
-
-  // IndexedDB から全 pref レコードを取得 (DakomeDL 公開 API 経由)
-  function _getAllPrefs(){
-    return DakomeDL.getAllPrefectures ? DakomeDL.getAllPrefectures() : Promise.resolve([]);
-  }
-
-  async function _getOldestPrefTimestamp(){
-    try {
-      const all = await _getAllPrefs();
-      if(all.length === 0) return null;
-      return Math.min.apply(null, all.map(r => r.timestamp || Date.now()));
-    } catch(_) { return null; }
-  }
-
-  async function _shouldShow(){
-    if(appState !== 'businessStart') return false;
-    if(!_isIOS || window.navigator.standalone !== true) return false;
-    const snooze = parseInt(localStorage.getItem(SNOOZE_KEY) || '0', 10);
-    if(Date.now() - snooze < SNOOZE_MS) return false;
-    const oldest = await _getOldestPrefTimestamp();
-    if(oldest === null) return false;
-    return (Date.now() - oldest) > STALE_MS;
-  }
-
-  function _isOnWifi(){
-    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    if(!c) return navigator.onLine;
-    return c.type === 'wifi' || (c.downlink && c.downlink > 5);
-  }
-
-  function _resetText(){
-    const banner = document.getElementById('dataUpdateBanner');
-    if(!banner) return;
-    banner.classList.remove('downloading');
-    const icon = banner.querySelector('.icon');
-    const text = banner.querySelector('.text');
-    if(icon) icon.textContent = '📡';
-    if(text) text.innerHTML = '道路データが古くなっています。<strong>WiFiに繋いで</strong>更新してください。';
-  }
-
-  function show(){
-    _resetText();
-    const wrap = document.getElementById('dataUpdateBannerWrap');
-    if(wrap) wrap.classList.add('show');
-    // 既に WiFi なら 3 秒後に自動 DL (重複防止 _autoTriggered)
-    if(!_autoTriggered && !_downloading && _isOnWifi()){
-      _autoTriggered = true;
-      setTimeout(() => { if(!_downloading) startDownload(); }, 3000);
-    }
-  }
-
-  function hide(snooze){
+  function hide(){
     const wrap = document.getElementById('dataUpdateBannerWrap');
     if(wrap) wrap.classList.remove('show');
-    if(snooze){
-      try { localStorage.setItem(SNOOZE_KEY, Date.now().toString()); } catch(_){}
-    }
   }
-
-  function _setProgress(done, total){
-    const banner = document.getElementById('dataUpdateBanner');
-    if(!banner) return;
-    const text = banner.querySelector('.text');
-    if(text) text.innerHTML = '<strong>地図データ更新中</strong> <span class="progress-text">' + done + '/' + total + ' 県</span>';
-  }
-
-  async function startDownload(){
-    if(_downloading) return;
-    _downloading = true;
-    const wrap = document.getElementById('dataUpdateBannerWrap');
-    const banner = document.getElementById('dataUpdateBanner');
-    const icon = banner.querySelector('.icon');
-    if(wrap) wrap.classList.add('show');
-    banner.classList.add('downloading');
-    if(icon) icon.textContent = '⟳';
-    const total = (DakomeDL.PREFECTURES || []).length || 47;
-    _setProgress(0, total);
-    try {
-      // ★設計変更宣言 (2026-05-12): 全 47 県 fetch 時に size 差で「実更新数」をカウント
-      //   settings.html onCheckUpdate と同じ判定方式 (size 差 = 実コンテンツ更新)
-      //   _finish に updated 件数を渡してメッセージに含める
-      const existing = await (DakomeDL.getAllPrefectures
-        ? DakomeDL.getAllPrefectures() : Promise.resolve([]));
-      const sizeMap = new Map((existing || []).map(r => [r.pref, r.size || 0]));
-      // 全 47 県を強制再 fetch (settings.html の onCheckUpdate と同等・cache busting)
-      const stamp = Date.now();
-      const PARALLEL = 2;
-      const MAX_RETRY = 3;
-      const queue = (DakomeDL.PREFECTURES || []).slice();
-      let done = 0;
-      let updated = 0;
-      async function worker(){
-        while(queue.length > 0){
-          const pref = queue.shift();
-          let newSize = 0;
-          let success = false;
-          for(let attempt = 1; attempt <= MAX_RETRY; attempt++){
-            try {
-              // ★設計変更宣言 (2026-05-13): ?_v= cache-busting を撤廃し {cache:'reload'} に変更
-              //   旧 SW が ?_v= 付き URL で別エントリ put する重複事故を防ぐ
-              const url = '/data/roads-' + pref + '.js';
-              const res = await fetch(url, { cache: 'reload' });
-              if(!res.ok) throw new Error('HTTP ' + res.status);
-              const blob = await res.blob();
-              newSize = blob.size;
-              await DakomeDL.markPrefDone(pref, newSize);
-              success = true;
-              break;
-            } catch(e){
-              if(attempt < MAX_RETRY) await new Promise(r => setTimeout(r, 1000 * attempt));
-            }
-          }
-          if(success){
-            const prev = sizeMap.get(pref) || 0;
-            if(prev !== newSize) updated++;
-          }
-          done++;
-          _setProgress(done, total);
-        }
-      }
-      const workers = [];
-      for(let i = 0; i < PARALLEL; i++) workers.push(worker());
-      await Promise.all(workers);
-      _finish(true, updated, total);
-    } catch(e){
-      console.warn('[DataUpdate] 失敗:', e && e.message);
-      _finish(false, 0, total);
-    }
-  }
-
-  function _finish(ok, updated, total){
-    const banner = document.getElementById('dataUpdateBanner');
-    const icon = banner.querySelector('.icon');
-    const text = banner.querySelector('.text');
-    banner.classList.remove('downloading');
-    if(ok){
-      if(icon) icon.textContent = '✅';
-      if(text){
-        // ★設計変更宣言 (2026-05-12): 実更新数を明示
-        //   updated > 0: "X 県の地図データを更新しました"
-        //   updated === 0: "すべて最新でした (全 N 県確認)"
-        if(updated > 0){
-          text.innerHTML = '<strong>' + updated + ' 県の地図データを更新しました</strong>';
-        } else {
-          text.innerHTML = '<strong>すべて最新でした</strong> (全 ' + total + ' 県確認)';
-        }
-      }
-    } else {
-      if(icon) icon.textContent = '⚠️';
-      if(text) text.innerHTML = '<strong>更新失敗・また後で試してください</strong>';
-    }
-    setTimeout(() => {
-      hide(false);  // snooze 記録しない (正常終了)
-      _downloading = false;
-      _autoTriggered = false;
-    }, 1800);
-  }
-
-  async function checkAndShow(){
-    if(await _shouldShow()) show();
-  }
-
-  return { show, hide, startDownload, checkAndShow, _isOnWifi };
+  return { hide };
 })();
 
 // グローバル関数として close-btn onclick から呼べるよう公開
-function hideDataUpdateBanner(){ DataUpdateBanner.hide(true); }
-
-// visibility 復帰 + online で WiFi 自動 DL を再評価
-document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible'){
-    DataUpdateBanner.checkAndShow();
-  }
-});
-window.addEventListener('online', function(){
-  // online になったら WiFi 経由の可能性ありなので再判定
-  DataUpdateBanner.checkAndShow();
-});
+function hideDataUpdateBanner(){ DataUpdateBanner.hide(); }
 
 // ─── 月次更新トースト UI 制御 ───
 const DakomeUpdateToast = (function(){
@@ -4708,21 +3697,9 @@ function onDlToastTap(){
   DakomeUpdateToast.hide();
 }
 
-// 起動時実行：standalone（PWA）起動時のみDL実行
-// 理由：iOS Safari と PWA は IndexedDB が分離されているため
-//       Safari でDLしても PWA で再DLが必要になり二度DL
-//       Safari は Cache Storage 制限のため47県データ保持不可
-(function(){
-  const isStandalone =
-    window.navigator.standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches;
-  if(isStandalone){
-    DakomeDL.init();
-    if(typeof dlog === 'function') dlog('[DL] standalone起動・DL判定実行');
-  } else {
-    if(typeof dlog === 'function') dlog('[DL] ブラウザ起動・DLスキップ（ホーム画面追加待ち）');
-  }
-})();
+// ★設計変更宣言 (2026-05-13・Phase 5): DakomeDL.init() 呼出 standalone IIFE を削除
+//   役割は新パイプライン (MMDataPipeline.warmup) に完全移管済。
+//   DakomeDL モジュール自体は Phase 6 で削除予定 (consumer がまだ参照しているため残置)。
 
 // ─── チュートリアル（初回URL訪問時のみ） ───
 (function(){
@@ -4770,6 +3747,33 @@ function tutorialNext(){
   } else {
     navArea.style.display = 'block';
     navBtn.textContent = '次へ';
+  }
+}
+
+// ★設計変更宣言 (2026-05-13・許可/業務開始ボタンの排他表示):
+//   ユーザー指摘: 業務開始ボタンが先に出て押すと許可ダイアログ→再度業務開始
+//   → 望ましいフロー: ダウンロード完了 → 許可ボタンのみ → 許可 → 業務開始のみ
+//   集約関数 updateStartButtonsGate で permission 状態に応じて両ボタンを切替。
+//   呼出: (1) warmup 完了時 (2) requestSensorPermission の granted callback
+//        (3) blockIfSensorNotGranted (画面タップで再評価)
+function updateStartButtonsGate(){
+  const needs = typeof DeviceOrientationEvent !== 'undefined' &&
+                typeof DeviceOrientationEvent.requestPermission === 'function';
+  const granted = !needs ||
+    (sessionStorage.getItem('sensor_permission_active') === '1') ||
+    (localStorage.getItem('compass_granted') === '1' &&
+     localStorage.getItem('motion_granted') === '1');
+  const btnPerm = document.getElementById('btnSensorPermission');
+  const note = document.getElementById('sensorPermissionNote');
+  const btnStart = document.querySelector('#screenBusinessStart .btn-business-start');
+  if(granted){
+    if(btnPerm) btnPerm.style.display = 'none';
+    if(note) note.style.display = 'none';
+    if(btnStart) btnStart.style.display = '';
+  } else {
+    if(btnPerm) btnPerm.style.display = 'block';
+    if(note) note.style.display = 'block';
+    if(btnStart) btnStart.style.display = 'none';
   }
 }
 
@@ -4828,6 +3832,8 @@ function requestSensorPermission(){
       const _noteSP = document.getElementById('sensorPermissionNote');
       if(_btnSP) _btnSP.style.display = 'none';
       if(_noteSP) _noteSP.style.display = 'none';
+      // ★設計変更宣言 (2026-05-13): 許可後に業務開始ボタンを表示
+      try { updateStartButtonsGate(); } catch(_){}
       const overlay = document.getElementById('tutorialOverlay');
       if(overlay && overlay.classList.contains('show')) tutorialNext();
 
@@ -5136,27 +4142,46 @@ function playSensorRecover(){
 
 // ─── ServiceWorker登録（PWA化・オフライン対応） ───
 if('serviceWorker' in navigator){
+  // ★設計変更宣言 (2026-05-13・SW update 時の自動 reload):
+  //   問題: 新 SW が install → activate → claim しても、起動中の page は
+  //   古い JS を memory 上で持ち続け、reload しないと新 code が反映されない。
+  //   iOS PWA で「履歴→戻る」レベルの navigation では強制 reload にならず、
+  //   ユーザーは古い code を見続ける (実機スクショで Phase D/E 表示が出ない例)。
+  //   対策: controllerchange event で新 SW が controller を取った瞬間に reload。
+  //   初回登録 (controller=null → SW) では reload しない (無限 loop 防止)。
+  const _hadSWController = !!navigator.serviceWorker.controller;
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if(_swReloaded) return;
+    if(!_hadSWController) return;   // 初回登録は reload skip
+    _swReloaded = true;
+    if(typeof dlog === 'function') dlog('[SW] controllerchange → reload (新 code 適用)');
+    window.location.reload();
+  });
   navigator.serviceWorker.register('/sw.js').then(function(reg){
     dlog('[SW] 登録完了:', reg.scope);
+    // 起動時に明示的に update check (新 SW があれば即 install 開始)
+    try { reg.update(); } catch(_){}
   }).catch(function(err){
     dlog('[SW] 登録失敗（開発環境では正常）:', err.message);
   });
-  // ★設計変更宣言 (2026-05-13): sw.js の cache.put 失敗通知を受信
-  //   IndexedDB prefStatus と Cache Storage の整合性を回復するため、
-  //   該当 pref を STORE_PREF から削除 (markPrefUndone) して未完了に戻す
+  // ★設計変更宣言 (2026-05-13・Phase 6-6): cachePutFailed handler 整理
+  //   旧: DakomeDL.markPrefUndone + _mmPipeline.enqueueRetry の両経路
+  //   新: DakomeDL 廃止 (Phase 6-2) に伴い markPrefUndone 経路を削除
+  //       _mmPipeline.enqueueRetry のみで cache.put 失敗を救済
+  //   _loadOne 内の 3 回 retry (Phase 1 修正1-A) + 60 秒 cooldown で
+  //   重複防止しながら再 load を試行する。
   navigator.serviceWorker.addEventListener('message', function(ev){
     try {
       const m = ev && ev.data;
       if(!m || m.type !== 'cachePutFailed' || !m.url) return;
-      const match = /\/data\/roads-([^./?]+)\.js/.exec(m.url);
-      if(!match) return;
-      const pref = match[1];
-      if(typeof DakomeDL !== 'undefined' && DakomeDL.markPrefUndone){
-        DakomeDL.markPrefUndone(pref).then(function(){
-          if(typeof dlog === 'function') dlog('[SW] cachePutFailed → prefStatus 削除: ' + pref);
-        }).catch(function(e){
-          console.warn('[SW] markPrefUndone 失敗:', pref, e && e.message);
+      // 新パイプライン経路: enqueueRetry で再 load (3 回 retry 自動・cooldown 60 秒)
+      if(window._mmPipeline && typeof window._mmPipeline.enqueueRetry === 'function'){
+        window._mmPipeline.enqueueRetry(m.url).catch(function(e){
+          if(typeof dlog === 'function') dlog('[SW] enqueueRetry エラー: ' + (e && e.message));
         });
+      } else {
+        if(typeof dlog === 'function') dlog('[SW] _mmPipeline 未初期化・enqueueRetry skip: ' + m.url);
       }
     } catch(_){}
   });
@@ -5208,7 +4233,10 @@ setInterval(function(){
     ind.style.display = 'none';
     return;
   }
-  const forwarded = (typeof _forwardedPrefs !== 'undefined') ? _forwardedPrefs.size : 0;
+  // ★設計変更宣言 (2026-05-13・gate 修正): 旧 _forwardedPrefs.size から
+  //   新パイプライン参照に書換 (mmReadyIndicator + business start button)
+  const forwarded = (window._mmPipeline && window._mmPipeline.stats)
+                    ? window._mmPipeline.stats.roadsOk : 0;
   const now = Date.now();
   if(forwarded > 0){
     window._mmReadyZeroSince = null;
@@ -5455,7 +4483,7 @@ if(navigator.storage && navigator.storage.persist){
 
 <!-- ★設計変更宣言 (2026-05-10): ボトムナビ (4 タブ) -->
 <nav class="bottom-nav">
-  <button class="nav-item active" type="button" onclick="location.href='/'"><span class="nav-icon">●</span><span class="nav-label">業務</span></button>
+  <button class="nav-item active" type="button" onclick="if(location.pathname !== '/' &amp;&amp; !location.pathname.endsWith('/index.html')) location.href='/';"><span class="nav-icon">●</span><span class="nav-label">業務</span></button>
   <button class="nav-item" type="button" onclick="location.href='history.html'"><span class="nav-icon">≡</span><span class="nav-label">履歴</span></button>
   <button class="nav-item" type="button" onclick="location.href='help.html'"><span class="nav-icon">?</span><span class="nav-label">使い方</span></button>
   <button class="nav-item" type="button" onclick="location.href='settings.html'"><span class="nav-icon">⚙</span><span class="nav-label">設定</span></button>
