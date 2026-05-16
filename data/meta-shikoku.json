@@ -1,10 +1,10 @@
 {
   "region": "shikoku",
-  "generated": "2026-05-09T18:47:04.766Z",
+  "generated": "2026-05-16T19:12:11.598Z",
   "prefectures": {
     "tokushima": {
       "numRoads": 56436,
-      "sizeBytes": 2032753,
+      "sizeBytes": 2032758,
       "bbox": [
         3324560,
         13392012,
@@ -25,8 +25,8 @@
       }
     },
     "kagawa": {
-      "numRoads": 77296,
-      "sizeBytes": 2694263,
+      "numRoads": 77318,
+      "sizeBytes": 2695813,
       "bbox": [
         3381258,
         13352821,
@@ -36,9 +36,9 @@
       "attrCounts": {
         "oneway": 3198,
         "incline": 72,
-        "lanes": 6883,
+        "lanes": 6889,
         "width": 49,
-        "layer": 5360,
+        "layer": 5370,
         "access": 143,
         "maxspeed": 4369,
         "track": 0,
@@ -47,8 +47,8 @@
       }
     },
     "ehime": {
-      "numRoads": 117499,
-      "sizeBytes": 4607181,
+      "numRoads": 117504,
+      "sizeBytes": 4607432,
       "bbox": [
         3270859,
         13201828,
@@ -56,11 +56,11 @@
         13332927
       ],
       "attrCounts": {
-        "oneway": 2581,
+        "oneway": 2585,
         "incline": 7,
         "lanes": 5208,
         "width": 587,
-        "layer": 6180,
+        "layer": 6192,
         "access": 36,
         "maxspeed": 670,
         "track": 0,
@@ -69,8 +69,8 @@
       }
     },
     "kochi": {
-      "numRoads": 56498,
-      "sizeBytes": 2151801,
+      "numRoads": 56510,
+      "sizeBytes": 2152302,
       "bbox": [
         3272272,
         13292826,
@@ -78,11 +78,11 @@
         13412764
       ],
       "attrCounts": {
-        "oneway": 1804,
+        "oneway": 1805,
         "incline": 24,
-        "lanes": 4631,
+        "lanes": 4634,
         "width": 6,
-        "layer": 4733,
+        "layer": 4747,
         "access": 45,
         "maxspeed": 1800,
         "track": 0,
