@@ -2,4 +2,16 @@
 // Type: road-jizen (事前通行規制区間) / Prefecture: tokyo
 // Source: 国土地理院 重ねるハザードマップ 10_jizentuukoukiseikukan / zoom=11
 // Generated: 2026-05-08T06:40:27.698Z
-window.ROAD_JIZEN_TOKYO = {"v":1,"type":"road-jizen","prefecture":"tokyo","generated":"2026-05-08T06:40:27.698Z","precision":100000,"bbox":null,"gridSize":1000,"count":0,"grid":{},"attrs":[],"polygonsB64":"AA=="};
+window.ROAD_JIZEN_TOKYO = {
+  v: 1,
+  type: 'road-jizen',
+  prefecture: 'tokyo',
+  generated: '2026-05-08T06:40:27.698Z',
+  precision: 100000,
+  bbox: null,
+  gridSize: 1000,
+  count: 0,
+  grid: {},
+  attrs: [],
+  polygonsB64: 'AA==',
+};

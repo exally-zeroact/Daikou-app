@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-13T11:34:33.224Z",
-  "git_sha": "4866b38c8aae1dae35f5d909a7ba8b90f24fe377",
-  "git_ref": "main",
-  "runner": "github-actions",
+  "generated_at": "2026-05-23T12:24:37.566Z",
+  "git_sha": null,
+  "git_ref": null,
+  "runner": "local",
   "summary": {
     "snap_rate_overall": 1,
     "distance_error_ratio_overall": 0.0004,
@@ -42,7 +42,7 @@
       "skip_count": 0,
       "layer_check_count": 71,
       "layer_hit_count": 71,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "issues": []
     },
     {

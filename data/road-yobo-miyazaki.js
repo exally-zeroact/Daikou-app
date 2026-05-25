@@ -2,4 +2,16 @@
 // Type: road-yobo (予防的通行規制区間) / Prefecture: miyazaki
 // Source: 国土地理院 重ねるハザードマップ 10_yoboutekituukoukiseikukan / zoom=11
 // Generated: 2026-05-08T06:43:21.616Z
-window.ROAD_YOBO_MIYAZAKI = {"v":1,"type":"road-yobo","prefecture":"miyazaki","generated":"2026-05-08T06:43:21.616Z","precision":100000,"bbox":null,"gridSize":1000,"count":0,"grid":{},"attrs":[],"polygonsB64":"AA=="};
+window.ROAD_YOBO_MIYAZAKI = {
+  v: 1,
+  type: 'road-yobo',
+  prefecture: 'miyazaki',
+  generated: '2026-05-08T06:43:21.616Z',
+  precision: 100000,
+  bbox: null,
+  gridSize: 1000,
+  count: 0,
+  grid: {},
+  attrs: [],
+  polygonsB64: 'AA==',
+};

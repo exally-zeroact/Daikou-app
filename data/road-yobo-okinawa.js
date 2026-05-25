@@ -2,4 +2,16 @@
 // Type: road-yobo (予防的通行規制区間) / Prefecture: okinawa
 // Source: 国土地理院 重ねるハザードマップ 10_yoboutekituukoukiseikukan / zoom=11
 // Generated: 2026-05-08T06:44:54.313Z
-window.ROAD_YOBO_OKINAWA = {"v":1,"type":"road-yobo","prefecture":"okinawa","generated":"2026-05-08T06:44:54.313Z","precision":100000,"bbox":null,"gridSize":1000,"count":0,"grid":{},"attrs":[],"polygonsB64":"AA=="};
+window.ROAD_YOBO_OKINAWA = {
+  v: 1,
+  type: 'road-yobo',
+  prefecture: 'okinawa',
+  generated: '2026-05-08T06:44:54.313Z',
+  precision: 100000,
+  bbox: null,
+  gridSize: 1000,
+  count: 0,
+  grid: {},
+  attrs: [],
+  polygonsB64: 'AA==',
+};

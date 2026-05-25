@@ -3,4 +3,51 @@
 // 出典: 産総研 活断層データベース（政府標準利用規約2.0 / CC-BY 4.0互換）
 // 取得元: ArcGIS Feature Service https://services3.arcgis.com/PI6kZkOcyJG3voe2/arcgis/rest/services/%E6%B4%BB%E6%96%AD%E5%B1%A4/FeatureServer/1/query
 // 主要活断層帯 18 ライン
-window.FAULTS_JP = {"v":1,"generated":"2026-05-07T01:57:34.093Z","precision":100000,"faults":[{"n":"175-01","line":"EryxrQPOtPQMjQPeBp0CtAa9BMAJuQOuDp0CrA7hAswL2wHcCi32FIMBpBoWygbxAfYL9wLSEVfkB/MBngvxAcYKxQHSEbUC5gw="},{"n":"175-02","line":"DqSOrQPQkvYM9wLaDpkG0BGHDKIVuQ22EIML9guzB/AF3Qa8CJkGyguVBZ4L5QOuBcEK2hPBBcwL2wGSBA=="},{"n":"175-03","line":"BejNqgOixfgM8QTyAtkE0gGdBYsBtwNz"},{"n":"175-03","line":"BdbkqwPAhfgMuw78CacKxAS9CrgD2QYX"},{"n":"175-03","line":"LqzKrAO8tPcMkQgvmwmMAeUFXL8IxAKtAlyHAy2FCYsDrQJzhQdc/QFE2QYY+wWiAY8MzgOdB9wC2QKAAs8D/gXLCbQR4wWUDMMCxAbDApYEkwa4CasCigWpCMIM/QPcBLMJuAepBrgFvwisCJ8FoAObCf4DkwbcAqsERtMOLL8IANkERL8G0AOVBF6dBYoB+QvOBbEL8gaHBegBtwMXiQOLAe8E5wPlBf8DkQbPAw=="},{"n":"175-03","line":"Bu6srAOKtPcMtQfbAskJ0QG3BV3lA4oBtwOuAg=="},{"n":"175-04","line":"B66oqgPSl/gMnQXaA50F9AXxCo4GvQPEAfUDGpcHmAI="},{"n":"175-04","line":"DtDoqgPAjvgM3waXAvsGG40GxAHJBK4EwwbuB7kF+APvBZYC8QUbxwRwowiaB6sL9grrB5YJsQKMAQ=="},{"n":"175-04","line":"G+K1qwPGsvcM2wjqCa8J/gbbDa4LlweiCv0G8gyXB7YOnQXKC6cG3gj1A/wBzweLAZcH2wOFA/cD3wFv6wdSwwboBKsLvArpB8gGkQSWApEEpwG/CKsGjQbDAdMF4AGhA84CjQasBtkD1gWbBbQC"},{"n":"175-04","line":"B6zmqwOukfcMyQkA+wbCAcsJjgbfBqgI6wfaCvUDggU="},{"n":"175-04","line":"C5qErAPU7PYMhwiUBKcGvgO5BbAE7wWGA4cI+AOpBoYD7wWaB7kFrAbvBYIF0QyGCg=="},{"n":"175-04","line":"BIz+qwOWg/cM7wXEAdUKrgSpBqID"},{"n":"175-04","line":"B9yWrAPO9/YMpwa+A/cI0gevCcgGsweiA8kJ2gOHA3A="},{"n":"175-04","line":"CIjOrAPopPYM+wauC7kF+gj/BP4NyQSaDr0DqAi5BYoI3wbaCg=="},{"n":"175-05","line":"Dtj2qgOO/fcM8Qj7AdcQnwbpC90GnQXHAo0FL7cM9gKnB5YDywriBJMNxAO3B5gCzQ5O5RFPkwiNAQ=="},{"n":"180-01","line":"B4DkqwPu7/UMxQT8BskJuA2HBJQIlwfICo0DyASTAqQF"},{"n":"180-01","line":"D9yGrAPc2/QMHboNeZYUjwO0DpMCmg39BaAYgwX2DekDyAqHBOwJ1wyQFakPnhjXDJYUhwTcBoMFyArFBJoN"},{"n":"180-01","line":"BpiNrAOKnPQMXOgKHb4MW7AJsQK4DfUB2A0="}],"source":"産総研活断層データベース ＜政府標準利用規約第2.0版＞ via ESRI Japan","license":"政府標準利用規約2.0（CC-BY 4.0互換）"};
+window.FAULTS_JP = {
+  v: 1,
+  generated: '2026-05-07T01:57:34.093Z',
+  precision: 100000,
+  faults: [
+    {
+      n: '175-01',
+      line: 'EryxrQPOtPQMjQPeBp0CtAa9BMAJuQOuDp0CrA7hAswL2wHcCi32FIMBpBoWygbxAfYL9wLSEVfkB/MBngvxAcYKxQHSEbUC5gw=',
+    },
+    {
+      n: '175-02',
+      line: 'DqSOrQPQkvYM9wLaDpkG0BGHDKIVuQ22EIML9guzB/AF3Qa8CJkGyguVBZ4L5QOuBcEK2hPBBcwL2wGSBA==',
+    },
+    { n: '175-03', line: 'BejNqgOixfgM8QTyAtkE0gGdBYsBtwNz' },
+    { n: '175-03', line: 'BdbkqwPAhfgMuw78CacKxAS9CrgD2QYX' },
+    {
+      n: '175-03',
+      line: 'LqzKrAO8tPcMkQgvmwmMAeUFXL8IxAKtAlyHAy2FCYsDrQJzhQdc/QFE2QYY+wWiAY8MzgOdB9wC2QKAAs8D/gXLCbQR4wWUDMMCxAbDApYEkwa4CasCigWpCMIM/QPcBLMJuAepBrgFvwisCJ8FoAObCf4DkwbcAqsERtMOLL8IANkERL8G0AOVBF6dBYoB+QvOBbEL8gaHBegBtwMXiQOLAe8E5wPlBf8DkQbPAw==',
+    },
+    { n: '175-03', line: 'Bu6srAOKtPcMtQfbAskJ0QG3BV3lA4oBtwOuAg==' },
+    { n: '175-04', line: 'B66oqgPSl/gMnQXaA50F9AXxCo4GvQPEAfUDGpcHmAI=' },
+    {
+      n: '175-04',
+      line: 'DtDoqgPAjvgM3waXAvsGG40GxAHJBK4EwwbuB7kF+APvBZYC8QUbxwRwowiaB6sL9grrB5YJsQKMAQ==',
+    },
+    {
+      n: '175-04',
+      line: 'G+K1qwPGsvcM2wjqCa8J/gbbDa4LlweiCv0G8gyXB7YOnQXKC6cG3gj1A/wBzweLAZcH2wOFA/cD3wFv6wdSwwboBKsLvArpB8gGkQSWApEEpwG/CKsGjQbDAdMF4AGhA84CjQasBtkD1gWbBbQC',
+    },
+    { n: '175-04', line: 'B6zmqwOukfcMyQkA+wbCAcsJjgbfBqgI6wfaCvUDggU=' },
+    { n: '175-04', line: 'C5qErAPU7PYMhwiUBKcGvgO5BbAE7wWGA4cI+AOpBoYD7wWaB7kFrAbvBYIF0QyGCg==' },
+    { n: '175-04', line: 'BIz+qwOWg/cM7wXEAdUKrgSpBqID' },
+    { n: '175-04', line: 'B9yWrAPO9/YMpwa+A/cI0gevCcgGsweiA8kJ2gOHA3A=' },
+    { n: '175-04', line: 'CIjOrAPopPYM+wauC7kF+gj/BP4NyQSaDr0DqAi5BYoI3wbaCg==' },
+    {
+      n: '175-05',
+      line: 'Dtj2qgOO/fcM8Qj7AdcQnwbpC90GnQXHAo0FL7cM9gKnB5YDywriBJMNxAO3B5gCzQ5O5RFPkwiNAQ==',
+    },
+    { n: '180-01', line: 'B4DkqwPu7/UMxQT8BskJuA2HBJQIlwfICo0DyASTAqQF' },
+    {
+      n: '180-01',
+      line: 'D9yGrAPc2/QMHboNeZYUjwO0DpMCmg39BaAYgwX2DekDyAqHBOwJ1wyQFakPnhjXDJYUhwTcBoMFyArFBJoN',
+    },
+    { n: '180-01', line: 'BpiNrAOKnPQMXOgKHb4MW7AJsQK4DfUB2A0=' },
+  ],
+  source: '産総研活断層データベース ＜政府標準利用規約第2.0版＞ via ESRI Japan',
+  license: '政府標準利用規約2.0（CC-BY 4.0互換）',
+};
