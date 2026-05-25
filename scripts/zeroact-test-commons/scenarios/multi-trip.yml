@@ -1,0 +1,101 @@
+# ============================================================
+# scenarios/multi-trip.yml
+# 1 夜に複数回の代行 (= 業務単位累積 / trip 単位 reset)
+# ============================================================
+
+name: multi-trip
+title: 複数 trip (1 業務内の連続代行)
+description: |
+  1 出勤 (= business) 内で複数 trip を実施する典型運用。
+  trip ごとに distance_m / fare_yen は reset されるが
+  business_distance_m は累積される (= 2026-05-17 ★設計変更後)。
+  trip 間の空車区間は business_distance_m 加算されない (= running=false)。
+category: business-flow
+
+context:
+  trip_type: multi-trip
+  location_type: mixed
+  weather: clear
+  time_of_day: night
+  trip_count: 3
+  duration_sec: 7200  # 2 時間
+  expected_business_distance_m: 18000  # 各 trip 6000 × 3
+  expected_business_trip_count: 3
+
+trips:
+  - trip_no: 1
+    duration_sec: 1200
+    distance_m: 6000
+    fare_yen: 2400  # base + add ceil((6000-1000)/420)*100 = 12*100 = 1200
+    note: 通常市街地走行
+  - trip_no: 2
+    duration_sec: 600
+    distance_m: 3000
+    fare_yen: 1800  # base + add ceil((3000-1000)/420)*100 = 5*100 = 500・rounding で 1800
+    note: 短距離
+  - trip_no: 3
+    duration_sec: 2400
+    distance_m: 9000
+    fare_yen: 3300  # base + add ceil((9000-1000)/420)*100 = 20*100 = 2000・rounding で 3300
+    note: 長距離
+
+inter_trip_periods:
+  - between_trip: [1, 2]
+    duration_sec: 600  # 10 分の空車移動
+    running: false
+    business_distance_added: 0  # ★2026-05-17 設計変更で 加算しない
+  - between_trip: [2, 3]
+    duration_sec: 1800  # 30 分の待機 + 空車移動
+    running: false
+    business_distance_added: 0
+
+expected_events:
+  - event: business_start
+    description: state.running=false (= 待機開始)
+  - event: trip_1_start
+    timing: 0 sec
+    description: Meter.start() → state.running=true / distance_m=0
+  - event: trip_1_end
+    timing: 1200 sec
+    description: Meter.businessEnd → state.running=false (= 但し business 自体は継続)
+  - event: trip_2_start
+    timing: 1800 sec (= 600 sec 空車後)
+    description: 次 trip 用に Meter.start() 再呼出 → distance_m reset
+  - event: trip_2_end
+    timing: 2400 sec
+  - event: trip_3_start
+    timing: 4200 sec (= 1800 sec 空車後)
+  - event: trip_3_end
+    timing: 6600 sec
+  - event: business_final_end
+    timing: 7200 sec
+    description: 全 trip 終了 / business_distance_m 集計
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit  (各 trip 内)
+  reset_paths:
+    - 各 trip 開始時に distance_m = 0 (= Meter.start() reset)
+  not_expected:
+    - meter.js L824 gap-fill
+    - meter.js L842 offroad-incremental
+    - meter.js L462 offroad-retroactive
+
+verification:
+  invariants:
+    - 各 trip 内の distance_m は単調非減少
+    - trip 跨ぎでは distance_m が reset される (= 同一 trip 内のみ単調)
+    - business_distance_m は trip 間累積 (= 全 trip の distance_m 合算)
+    - 空車区間 (state.running=false) では business_distance_m 加算されない
+    - 各 trip の fare_yen = calcFare(その trip の distance_m)
+  expected_metrics:
+    trip_count: 3
+    business_distance_m: 18000  # 6000 + 3000 + 9000
+    business_distance_inter_trip: 0  # 空車中加算なし
+    total_business_fare_yen: 7500  # 2400 + 1800 + 3300
+
+absolute_rules_tested:
+  - "trip ごとの distance_m reset (= start で 0 戻し)"
+  - "business_distance_m は running=true のときのみ加算"
+  - "calcFare は各 trip ごとに独立計算 (= 純粋関数)"
+  - "複数 trip で日跨ぎなし (= 1 出勤完結)"

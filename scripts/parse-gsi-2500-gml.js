@@ -45,60 +45,63 @@ const path = require('path');
 //   フル XML パーサは over-engineering なので tag 検索で十分
 //   FGD RdEdg は単純な構造: <fgd:RdEdg> ... <gml:posList>...</gml:posList> ... </fgd:RdEdg>
 
-function _extractTagBlocks(xml, tag){
+function _extractTagBlocks(xml, tag) {
   // tag に合致する <{tag} ...> ... </{tag}> を全部返す (生 string)
   const open = '<' + tag;
   const close = '</' + tag + '>';
   const blocks = [];
   let pos = 0;
-  while(true){
+  while (true) {
     const start = xml.indexOf(open, pos);
-    if(start < 0) break;
+    if (start < 0) break;
     const tagEnd = xml.indexOf('>', start);
-    if(tagEnd < 0) break;
+    if (tagEnd < 0) break;
     // self-closing tag (<tag .../>) はスキップ
-    if(xml[tagEnd - 1] === '/'){ pos = tagEnd + 1; continue; }
+    if (xml[tagEnd - 1] === '/') {
+      pos = tagEnd + 1;
+      continue;
+    }
     const closeStart = xml.indexOf(close, tagEnd);
-    if(closeStart < 0) break;
+    if (closeStart < 0) break;
     blocks.push(xml.substring(start, closeStart + close.length));
     pos = closeStart + close.length;
   }
   return blocks;
 }
 
-function _extractTagText(xml, tag){
+function _extractTagText(xml, tag) {
   const open = '<' + tag;
   const close = '</' + tag + '>';
   const start = xml.indexOf(open);
-  if(start < 0) return null;
+  if (start < 0) return null;
   const tagEnd = xml.indexOf('>', start);
-  if(tagEnd < 0) return null;
+  if (tagEnd < 0) return null;
   const closeStart = xml.indexOf(close, tagEnd);
-  if(closeStart < 0) return null;
+  if (closeStart < 0) return null;
   return xml.substring(tagEnd + 1, closeStart).trim();
 }
 
-function _parsePosList(text){
+function _parsePosList(text) {
   // text: "lat lng lat lng ..." (空白区切り・改行含む)
-  if(!text) return [];
+  if (!text) return [];
   const tokens = text.trim().split(/\s+/);
   const points = [];
-  for(let i = 0; i + 1 < tokens.length; i += 2){
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
     const lat = parseFloat(tokens[i]);
     const lng = parseFloat(tokens[i + 1]);
-    if(!isNaN(lat) && !isNaN(lng)) points.push([lng, lat]);  // GeoJSON は [lng, lat]
+    if (!isNaN(lat) && !isNaN(lng)) points.push([lng, lat]); // GeoJSON は [lng, lat]
   }
   return points;
 }
 
-function parseGml(xml){
+function parseGml(xml) {
   const features = [];
   const rdedgs = _extractTagBlocks(xml, 'fgd:RdEdg');
-  for(const block of rdedgs){
+  for (const block of rdedgs) {
     const posListText = _extractTagText(block, 'gml:posList');
-    if(!posListText) continue;
+    if (!posListText) continue;
     const coords = _parsePosList(posListText);
-    if(coords.length < 2) continue;
+    if (coords.length < 2) continue;
     const gsiType = _extractTagText(block, 'fgd:type') || 'unknown';
     features.push({
       type: 'Feature',
@@ -113,32 +116,32 @@ function parseGml(xml){
 }
 
 // ─── CLI ────────────────────────────────────────────────────────
-function main(){
+function main() {
   const args = process.argv.slice(2);
-  if(args.length === 0){
+  if (args.length === 0) {
     console.error('Usage: parse-gsi-2500-gml.js <gml-file> > output.geojson');
     console.error('       parse-gsi-2500-gml.js <input-dir> --output=<output-dir>');
     process.exit(1);
   }
   const input = args[0];
-  const outputDirArg = args.find(a => a.startsWith('--output='));
+  const outputDirArg = args.find((a) => a.startsWith('--output='));
   const outputDir = outputDirArg ? outputDirArg.slice(9) : null;
   const stat = fs.statSync(input);
-  if(stat.isFile()){
+  if (stat.isFile()) {
     const xml = fs.readFileSync(input, 'utf8');
     const features = parseGml(xml);
     const fc = { type: 'FeatureCollection', features: features };
     process.stdout.write(JSON.stringify(fc));
     process.stderr.write('parsed ' + features.length + ' RdEdg features\n');
-  } else if(stat.isDirectory()){
-    if(!outputDir){
+  } else if (stat.isDirectory()) {
+    if (!outputDir) {
       console.error('--output=<dir> required for directory input');
       process.exit(1);
     }
     fs.mkdirSync(outputDir, { recursive: true });
-    const files = fs.readdirSync(input).filter(f => /RdEdg.*\.xml$/.test(f));
+    const files = fs.readdirSync(input).filter((f) => /RdEdg.*\.xml$/.test(f));
     let totalFeatures = 0;
-    for(const f of files){
+    for (const f of files) {
       const xml = fs.readFileSync(path.join(input, f), 'utf8');
       const features = parseGml(xml);
       const fc = { type: 'FeatureCollection', features: features };
@@ -151,5 +154,5 @@ function main(){
   }
 }
 
-if(require.main === module) main();
+if (require.main === module) main();
 module.exports = { parseGml };

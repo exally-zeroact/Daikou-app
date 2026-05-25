@@ -47,11 +47,15 @@ console.log(`[split-poi-by-region] region=${REGION} prefs=${prefs.length}`);
 function representativePoint(g) {
   if (!g) return null;
   if (g.type === 'Point' && Array.isArray(g.coordinates)) return g.coordinates;
-  let sumLon = 0, sumLat = 0, n = 0;
+  let sumLon = 0,
+    sumLat = 0,
+    n = 0;
   function walk(node) {
     if (!Array.isArray(node)) return;
     if (typeof node[0] === 'number' && typeof node[1] === 'number') {
-      sumLon += node[0]; sumLat += node[1]; n++;
+      sumLon += node[0];
+      sumLat += node[1];
+      n++;
       return;
     }
     for (const v of node) walk(v);
@@ -74,10 +78,16 @@ for (const pref of prefs) buckets[pref] = [];
 let dropped = 0;
 for (const f of fc.features) {
   const c = representativePoint(f.geometry);
-  if (!c) { dropped++; continue; }
+  if (!c) {
+    dropped++;
+    continue;
+  }
   // 中点 [lon, lat] → 県（地方内のみ評価）
   const pref = nearestPrefecture(c[1], c[0], prefs);
-  if (!pref) { dropped++; continue; }
+  if (!pref) {
+    dropped++;
+    continue;
+  }
   buckets[pref].push(f);
 }
 
@@ -91,7 +101,9 @@ for (const pref of prefs) {
   const outPath = path.join(dir, 'poi.geojson');
   fs.writeFileSync(outPath, JSON.stringify({ type: 'FeatureCollection', features: arr }));
   const sizeKB = (fs.statSync(outPath).size / 1024).toFixed(1);
-  console.log(`  ${pref.padEnd(12)} count=${String(arr.length).padStart(6)}  size=${sizeKB.padStart(8)} KB`);
+  console.log(
+    `  ${pref.padEnd(12)} count=${String(arr.length).padStart(6)}  size=${sizeKB.padStart(8)} KB`
+  );
 }
 console.log(`  ─────────────────`);
 console.log(`  total=${total}  dropped(no-geom)=${dropped}`);

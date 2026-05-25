@@ -50,7 +50,7 @@ const path = require('path');
 
 const args = process.argv.slice(2);
 const USE_DEM = args.includes('--dem');
-const onlyArg = args.find(a => a.startsWith('--only='));
+const onlyArg = args.find((a) => a.startsWith('--only='));
 const ONLY_PREF = onlyArg ? onlyArg.slice(7) : null; // 単一県のみ書き出す
 // [ARCHIVED 2026-05-09] GSI 1/2,500 統合フラグ
 //   測量法申請リスクにより現在は未使用 (フラグ未指定時は実行されない)
@@ -59,26 +59,28 @@ const ONLY_PREF = onlyArg ? onlyArg.slice(7) : null; // 単一県のみ書き出
 //   --gsi-2500-dir=<path>  parse-gsi-2500-gml.js が出力した GeoJSON ディレクトリ
 //   merge-gsi-into-osm.js を呼び出して input.geojson を高精度版に置換する
 //   フラグ未指定時は OSM のみで build (= 旧挙動・現在の運用)
-const gsiArg = args.find(a => a.startsWith('--gsi-2500-dir='));
+const gsiArg = args.find((a) => a.startsWith('--gsi-2500-dir='));
 const GSI_2500_DIR = gsiArg ? gsiArg.slice(15) : null;
 // T4 (2026-05-09): turn:restriction サイドカーファイル
 //   JSON 形式: [{ pref: 'ehime', fromRoadIdx: 12, toRoadIdx: 34, kind: 'no_right_turn' }]
-const trArg = args.find(a => a.startsWith('--turn-restrictions='));
+const trArg = args.find((a) => a.startsWith('--turn-restrictions='));
 const TURN_RESTRICTIONS_PATH = trArg ? trArg.slice(20) : null;
 // T11 (2026-05-09): conditional restriction (時間帯) サイドカー
 //   JSON 形式: [{ pref, roadIndex, startMin, endMin, days?, kind: 'oneway'|'no_through' }]
 //   startMin/endMin: 0-1439 (= 0:00-23:59)
 //   days: [0-6] (0=Sun)・null=全日
-const crArg = args.find(a => a.startsWith('--conditional-restrictions='));
+const crArg = args.find((a) => a.startsWith('--conditional-restrictions='));
 const CONDITIONAL_RESTRICTIONS_PATH = crArg ? crArg.slice(27) : null;
 // T3 (2026-05-09): POI サイドカー (各種 9 カテゴリの座標)
 //   JSON 形式: [{ pref, lat, lng, category? }]
-const poiArg = args.find(a => a.startsWith('--pois='));
+const poiArg = args.find((a) => a.startsWith('--pois='));
 const POIS_PATH = poiArg ? poiArg.slice(7) : null;
-const positional = args.filter(a => !a.startsWith('--'));
+const positional = args.filter((a) => !a.startsWith('--'));
 const [INPUT, OUTPUT_DIR, REGION] = positional;
 if (!INPUT || !OUTPUT_DIR || !REGION) {
-  console.error('Usage: build-roads.js <input.geojson> <output_dir> <region> [--dem] [--only=<pref>]');
+  console.error(
+    'Usage: build-roads.js <input.geojson> <output_dir> <region> [--dem] [--only=<pref>]'
+  );
   process.exit(1);
 }
 
@@ -86,36 +88,74 @@ if (!fs.existsSync(OUTPUT_DIR)) fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 // ─── 都道府県重心 ─────────────────────────────────────────────────
 const PREFECTURES = {
-  hokkaido:  [43.3, 142.8],
-  aomori:    [40.8, 140.7], iwate:    [39.7, 141.2], miyagi:    [38.3, 140.9],
-  akita:     [39.7, 140.4], yamagata: [38.2, 140.0], fukushima: [37.4, 140.2],
-  ibaraki:   [36.4, 140.4], tochigi:  [36.7, 139.9], gunma:     [36.4, 139.0],
-  saitama:   [35.9, 139.4], chiba:    [35.5, 140.2], tokyo:     [35.7, 139.7],
-  kanagawa:  [35.4, 139.4],
-  niigata:   [37.5, 138.9], toyama:   [36.6, 137.2], ishikawa:  [36.6, 136.7],
-  fukui:     [35.8, 136.2], yamanashi:[35.6, 138.6], nagano:    [36.2, 138.0],
-  gifu:      [35.6, 137.0], shizuoka: [34.9, 138.4], aichi:     [35.1, 137.0],
-  mie:       [34.6, 136.5], shiga:    [35.1, 136.1], kyoto:     [35.2, 135.7],
-  osaka:     [34.6, 135.5], hyogo:    [35.0, 134.9], nara:      [34.4, 135.8],
-  wakayama:  [33.8, 135.5],
-  tottori:   [35.4, 134.0], shimane:  [35.0, 132.8], okayama:   [34.9, 133.8],
-  hiroshima: [34.5, 132.7], yamaguchi:[34.2, 131.6],
-  tokushima: [33.9, 134.4], kagawa:   [34.3, 134.0],
-  ehime:     [33.7, 132.9], kochi:    [33.5, 133.5],
-  fukuoka:   [33.6, 130.7], saga:     [33.3, 130.1], nagasaki:  [32.9, 129.9],
-  kumamoto:  [32.7, 130.7], oita:     [33.2, 131.4], miyazaki:  [32.0, 131.4],
-  kagoshima: [31.4, 130.6], okinawa:  [26.5, 128.0],
+  hokkaido: [43.3, 142.8],
+  aomori: [40.8, 140.7],
+  iwate: [39.7, 141.2],
+  miyagi: [38.3, 140.9],
+  akita: [39.7, 140.4],
+  yamagata: [38.2, 140.0],
+  fukushima: [37.4, 140.2],
+  ibaraki: [36.4, 140.4],
+  tochigi: [36.7, 139.9],
+  gunma: [36.4, 139.0],
+  saitama: [35.9, 139.4],
+  chiba: [35.5, 140.2],
+  tokyo: [35.7, 139.7],
+  kanagawa: [35.4, 139.4],
+  niigata: [37.5, 138.9],
+  toyama: [36.6, 137.2],
+  ishikawa: [36.6, 136.7],
+  fukui: [35.8, 136.2],
+  yamanashi: [35.6, 138.6],
+  nagano: [36.2, 138.0],
+  gifu: [35.6, 137.0],
+  shizuoka: [34.9, 138.4],
+  aichi: [35.1, 137.0],
+  mie: [34.6, 136.5],
+  shiga: [35.1, 136.1],
+  kyoto: [35.2, 135.7],
+  osaka: [34.6, 135.5],
+  hyogo: [35.0, 134.9],
+  nara: [34.4, 135.8],
+  wakayama: [33.8, 135.5],
+  tottori: [35.4, 134.0],
+  shimane: [35.0, 132.8],
+  okayama: [34.9, 133.8],
+  hiroshima: [34.5, 132.7],
+  yamaguchi: [34.2, 131.6],
+  tokushima: [33.9, 134.4],
+  kagawa: [34.3, 134.0],
+  ehime: [33.7, 132.9],
+  kochi: [33.5, 133.5],
+  fukuoka: [33.6, 130.7],
+  saga: [33.3, 130.1],
+  nagasaki: [32.9, 129.9],
+  kumamoto: [32.7, 130.7],
+  oita: [33.2, 131.4],
+  miyazaki: [32.0, 131.4],
+  kagoshima: [31.4, 130.6],
+  okinawa: [26.5, 128.0],
 };
 
 const REGION_PREFECTURES = {
   hokkaido: ['hokkaido'],
-  tohoku:   ['aomori','iwate','miyagi','akita','yamagata','fukushima'],
-  kanto:    ['ibaraki','tochigi','gunma','saitama','chiba','tokyo','kanagawa'],
-  chubu:    ['niigata','toyama','ishikawa','fukui','yamanashi','nagano','gifu','shizuoka','aichi'],
-  kansai:   ['mie','shiga','kyoto','osaka','hyogo','nara','wakayama'],
-  chugoku:  ['tottori','shimane','okayama','hiroshima','yamaguchi'],
-  shikoku:  ['tokushima','kagawa','ehime','kochi'],
-  kyushu:   ['fukuoka','saga','nagasaki','kumamoto','oita','miyazaki','kagoshima','okinawa'],
+  tohoku: ['aomori', 'iwate', 'miyagi', 'akita', 'yamagata', 'fukushima'],
+  kanto: ['ibaraki', 'tochigi', 'gunma', 'saitama', 'chiba', 'tokyo', 'kanagawa'],
+  chubu: [
+    'niigata',
+    'toyama',
+    'ishikawa',
+    'fukui',
+    'yamanashi',
+    'nagano',
+    'gifu',
+    'shizuoka',
+    'aichi',
+  ],
+  kansai: ['mie', 'shiga', 'kyoto', 'osaka', 'hyogo', 'nara', 'wakayama'],
+  chugoku: ['tottori', 'shimane', 'okayama', 'hiroshima', 'yamaguchi'],
+  shikoku: ['tokushima', 'kagawa', 'ehime', 'kochi'],
+  kyushu: ['fukuoka', 'saga', 'nagasaki', 'kumamoto', 'oita', 'miyazaki', 'kagoshima', 'okinawa'],
 };
 
 const targetPrefs = REGION_PREFECTURES[REGION];
@@ -124,10 +164,18 @@ console.log(`  → 地方: ${REGION} (${targetPrefs.length}県: ${targetPrefs.jo
 
 // ─── 道路種別コード (v6: track 追加) ───────────────────────────────
 const TYPE_CODES = {
-  motorway: 0, trunk: 1, primary: 2, secondary: 3, tertiary: 4,
-  unclassified: 5, residential: 6,
-  motorway_link: 7, trunk_link: 8, primary_link: 9,
-  secondary_link: 10, tertiary_link: 11,
+  motorway: 0,
+  trunk: 1,
+  primary: 2,
+  secondary: 3,
+  tertiary: 4,
+  unclassified: 5,
+  residential: 6,
+  motorway_link: 7,
+  trunk_link: 8,
+  primary_link: 9,
+  secondary_link: 10,
+  tertiary_link: 11,
   track: 12,
 };
 
@@ -143,7 +191,7 @@ function parseInclineRaw(raw) {
   if (/°$/.test(v)) {
     const deg = parseFloat(v);
     if (isNaN(deg)) return 0;
-    return classifyPct(Math.tan(deg * Math.PI / 180) * 100);
+    return classifyPct(Math.tan((deg * Math.PI) / 180) * 100);
   }
   if (/^[+-]?\d+(\.\d+)?\s*%?$/.test(v)) {
     const pct = parseFloat(v);
@@ -233,12 +281,12 @@ function parseMaxspeed(raw) {
   if (unit === 'mph') kmh *= 1.60934;
   // ビン分け
   if (kmh >= 100) return 7;
-  if (kmh >= 80)  return 6;
-  if (kmh >= 70)  return 5;
-  if (kmh >= 60)  return 4;
-  if (kmh >= 50)  return 3;
-  if (kmh >= 40)  return 2;
-  if (kmh > 0)    return 1;        // ≤30
+  if (kmh >= 80) return 6;
+  if (kmh >= 70) return 5;
+  if (kmh >= 60) return 4;
+  if (kmh >= 50) return 3;
+  if (kmh >= 40) return 2;
+  if (kmh > 0) return 1; // ≤30
   return 0;
 }
 
@@ -253,12 +301,25 @@ function parseAccessRestriction(props) {
   if (mv === 'no' || mv === 'private') return 2;
   // highway による歩行者専用判定
   const hw = props.highway != null ? String(props.highway).trim().toLowerCase() : '';
-  if (hw === 'footway' || hw === 'cycleway' || hw === 'path' || hw === 'pedestrian' ||
-      hw === 'steps' || hw === 'bridleway') return 2;
+  if (
+    hw === 'footway' ||
+    hw === 'cycleway' ||
+    hw === 'path' ||
+    hw === 'pedestrian' ||
+    hw === 'steps' ||
+    hw === 'bridleway'
+  )
+    return 2;
   // access タグでの制限
   const ac = props.access != null ? String(props.access).trim().toLowerCase() : '';
-  if (ac === 'no' || ac === 'private' || ac === 'customers' || ac === 'destination' ||
-      ac === 'permissive') return 1;
+  if (
+    ac === 'no' ||
+    ac === 'private' ||
+    ac === 'customers' ||
+    ac === 'destination' ||
+    ac === 'permissive'
+  )
+    return 1;
   return 0;
 }
 
@@ -273,7 +334,7 @@ function parseAccessRestriction(props) {
 //   bit 16-18 maxspeed (T6 2026-05-09・8段階)
 //   bit 19-23 reserved
 function packAttrBitmap(typeCode, props, inclineCode) {
-  let bits = typeCode & 0x0F;
+  let bits = typeCode & 0x0f;
   bits |= (parseOneway(props.oneway) & 0x01) << 4;
   bits |= ((inclineCode != null ? inclineCode : parseInclineRaw(props.incline)) & 0x03) << 5;
   bits |= (parseLanes(props.lanes) & 0x07) << 7;
@@ -281,7 +342,7 @@ function packAttrBitmap(typeCode, props, inclineCode) {
   bits |= (parseLayer(props.layer) & 0x03) << 12;
   bits |= (parseAccessRestriction(props) & 0x03) << 14;
   bits |= (parseMaxspeed(props.maxspeed) & 0x07) << 16;
-  return bits & 0xFFFFFF;     // 24bit mask
+  return bits & 0xffffff; // 24bit mask
 }
 
 // ─── Douglas-Peucker ──────────────────────────────────────────────
@@ -293,8 +354,11 @@ function packAttrBitmap(typeCode, props, inclineCode) {
 const DP_TOLERANCE = 3;
 
 function pointLineDist(p, a, b) {
-  const [px, py] = p, [ax, ay] = a, [bx, by] = b;
-  const dx = bx - ax, dy = by - ay;
+  const [px, py] = p,
+    [ax, ay] = a,
+    [bx, by] = b;
+  const dx = bx - ax,
+    dy = by - ay;
   if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
   const t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
   const tC = Math.max(0, Math.min(1, t));
@@ -303,11 +367,16 @@ function pointLineDist(p, a, b) {
 
 function douglasPeucker(points, tolerance) {
   if (points.length < 3) return points;
-  let maxDist = 0, maxIdx = 0;
-  const first = points[0], last = points[points.length - 1];
+  let maxDist = 0,
+    maxIdx = 0;
+  const first = points[0],
+    last = points[points.length - 1];
   for (let i = 1; i < points.length - 1; i++) {
     const d = pointLineDist(points[i], first, last);
-    if (d > maxDist) { maxDist = d; maxIdx = i; }
+    if (d > maxDist) {
+      maxDist = d;
+      maxIdx = i;
+    }
   }
   if (maxDist > tolerance) {
     const left = douglasPeucker(points.slice(0, maxIdx + 1), tolerance);
@@ -318,23 +387,34 @@ function douglasPeucker(points, tolerance) {
 }
 
 // ─── Varint + Zigzag ──────────────────────────────────────────────
-function zigzagEncode(n) { return (n << 1) ^ (n >> 31); }
+function zigzagEncode(n) {
+  return (n << 1) ^ (n >> 31);
+}
 
 function writeVarint(buf, n) {
-  while (n >= 0x80) { buf.push((n & 0x7f) | 0x80); n = n >>> 7; }
+  while (n >= 0x80) {
+    buf.push((n & 0x7f) | 0x80);
+    n = n >>> 7;
+  }
   buf.push(n & 0x7f);
 }
-function writeSignedVarint(buf, n) { writeVarint(buf, zigzagEncode(n)); }
+function writeSignedVarint(buf, n) {
+  writeVarint(buf, zigzagEncode(n));
+}
 
 // ─── 都道府県判定 ────────────────────────────────────────────────
 function nearestPrefecture(lat, lon, prefList) {
-  let best = null, bestDist = Infinity;
+  let best = null,
+    bestDist = Infinity;
   for (const pref of prefList) {
     const [pLat, pLon] = PREFECTURES[pref];
     const dLat = lat - pLat;
     const dLon = lon - pLon;
     const d = dLat * dLat + dLon * dLon;
-    if (d < bestDist) { bestDist = d; best = pref; }
+    if (d < bestDist) {
+      bestDist = d;
+      best = pref;
+    }
   }
   return best;
 }
@@ -360,7 +440,9 @@ function haversineM(lat1, lng1, lat2, lng2) {
   const toRad = Math.PI / 180;
   const dLat = (lat2 - lat1) * toRad;
   const dLng = (lng2 - lng1) * toRad;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*toRad)*Math.cos(lat2*toRad)*Math.sin(dLng/2)**2;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 function computeInclineFromDem(simplified) {
@@ -379,9 +461,12 @@ function computeInclineFromDem(simplified) {
   }
   if (okCount < 2) return null; // 全/ほぼ DEM 未取得
   // 連続する有効頂点間の勾配を計算
-  let hasUp = false, hasDown = false, maxAbs = 0;
+  let hasUp = false,
+    hasDown = false,
+    maxAbs = 0;
   for (let i = 0; i < n - 1; i++) {
-    const ha = elevs[i], hb = elevs[i + 1];
+    const ha = elevs[i],
+      hb = elevs[i + 1];
     if (isNaN(ha) || isNaN(hb)) continue;
     const lat1 = simplified[i][0] * PRECISION_INV;
     const lng1 = simplified[i][1] * PRECISION_INV;
@@ -389,7 +474,7 @@ function computeInclineFromDem(simplified) {
     const lng2 = simplified[i + 1][1] * PRECISION_INV;
     const distM = haversineM(lat1, lng1, lat2, lng2);
     if (distM < 5) continue; // 短すぎる線分はノイズ
-    const grad = (hb - ha) / distM * 100; // %
+    const grad = ((hb - ha) / distM) * 100; // %
     if (Math.abs(grad) > maxAbs) maxAbs = Math.abs(grad);
     if (grad >= INCLINE_THRESHOLD) hasUp = true;
     if (grad <= -INCLINE_THRESHOLD) hasDown = true;
@@ -413,15 +498,17 @@ if (!geo.features) throw new Error('Invalid GeoJSON');
 //   --gsi-2500-dir=<path> 指定時は merge-gsi-into-osm.js と同等の処理を内部で行う
 //   GSI ポリラインで近接 (<5m) なものがあれば OSM の geometry を置換 (高精度化)
 //   properties は OSM 維持・build 側のロジックは変更不要
-if(GSI_2500_DIR){
+if (GSI_2500_DIR) {
   console.log(`  → GSI 1/2,500 統合: ${GSI_2500_DIR}`);
   try {
     const { mergeGsiIntoOsm } = require('./merge-gsi-into-osm.js');
     const merged = mergeGsiIntoOsm(geo, GSI_2500_DIR);
     geo = merged.featureCollection;
-    console.log(`    replaced=${merged.replaced} kept=${merged.kept} ` +
-                `coverage=${((merged.replaced * 100) / Math.max(1, merged.replaced + merged.kept)).toFixed(1)}%`);
-  } catch(e){
+    console.log(
+      `    replaced=${merged.replaced} kept=${merged.kept} ` +
+        `coverage=${((merged.replaced * 100) / Math.max(1, merged.replaced + merged.kept)).toFixed(1)}%`
+    );
+  } catch (e) {
     console.warn(`    GSI 統合失敗: ${e.message} (OSM のみで build 続行)`);
   }
 }
@@ -441,7 +528,9 @@ if (TURN_RESTRICTIONS_PATH) {
           count++;
         }
       }
-      console.log(`  → turn:restriction: ${count} 件を ${Object.keys(turnRestrictionsByPref).length} 県に振り分け`);
+      console.log(
+        `  → turn:restriction: ${count} 件を ${Object.keys(turnRestrictionsByPref).length} 県に振り分け`
+      );
     } else {
       console.warn(`  → turn-restrictions: array 形式ではないため無視`);
     }
@@ -458,8 +547,13 @@ if (CONDITIONAL_RESTRICTIONS_PATH) {
     if (Array.isArray(raw)) {
       let count = 0;
       for (const r of raw) {
-        if (r && r.pref && typeof r.roadIndex === 'number'
-            && typeof r.startMin === 'number' && typeof r.endMin === 'number') {
+        if (
+          r &&
+          r.pref &&
+          typeof r.roadIndex === 'number' &&
+          typeof r.startMin === 'number' &&
+          typeof r.endMin === 'number'
+        ) {
           (conditionalRestrictionsByPref[r.pref] ||= []).push({
             roadIndex: r.roadIndex,
             startMin: r.startMin,
@@ -470,7 +564,9 @@ if (CONDITIONAL_RESTRICTIONS_PATH) {
           count++;
         }
       }
-      console.log(`  → conditional restriction: ${count} 件を ${Object.keys(conditionalRestrictionsByPref).length} 県に振り分け`);
+      console.log(
+        `  → conditional restriction: ${count} 件を ${Object.keys(conditionalRestrictionsByPref).length} 県に振り分け`
+      );
     }
   } catch (e) {
     console.warn(`  → conditional-restrictions ロード失敗: ${e.message} (制約なしで build 続行)`);
@@ -499,34 +595,53 @@ if (POIS_PATH) {
 }
 
 let totalRoads = 0;
-let totalPointsBefore = 0, totalPointsAfter = 0;
+let totalPointsBefore = 0,
+  totalPointsAfter = 0;
 let droppedUnknownType = 0;
-let demCalcCount = 0, demFromOSM = 0, demFromDem = 0;
+let demCalcCount = 0,
+  demFromOSM = 0,
+  demFromDem = 0;
 
 const buckets = {};
 const bboxByPref = {};
-for (const p of targetPrefs) { buckets[p] = []; bboxByPref[p] = [Infinity, Infinity, -Infinity, -Infinity]; }
+for (const p of targetPrefs) {
+  buckets[p] = [];
+  bboxByPref[p] = [Infinity, Infinity, -Infinity, -Infinity];
+}
 
 // 属性充足率カウンタ
 const attrCounters = {};
-for (const p of targetPrefs) attrCounters[p] = { oneway: 0, incline: 0, lanes: 0, width: 0, layer: 0, access: 0, maxspeed: 0, track: 0, inclineFromOSM: 0, inclineFromDem: 0 };
+for (const p of targetPrefs)
+  attrCounters[p] = {
+    oneway: 0,
+    incline: 0,
+    lanes: 0,
+    width: 0,
+    layer: 0,
+    access: 0,
+    maxspeed: 0,
+    track: 0,
+    inclineFromOSM: 0,
+    inclineFromDem: 0,
+  };
 
 for (const f of geo.features) {
   if (!f.geometry) continue;
   const g = f.geometry;
-  const lines = g.type === 'LineString' ? [g.coordinates]
-              : g.type === 'MultiLineString' ? g.coordinates : null;
+  const lines =
+    g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : null;
   if (!lines) continue;
 
   const props = f.properties || {};
   const typeCode = TYPE_CODES[props.highway];
-  if (typeCode === undefined) { droppedUnknownType++; continue; }
+  if (typeCode === undefined) {
+    droppedUnknownType++;
+    continue;
+  }
 
   for (const coords of lines) {
     if (coords.length < 2) continue;
-    const intPoints = coords.map(([lon, lat]) => [
-      Math.round(lat * 1e5), Math.round(lon * 1e5),
-    ]);
+    const intPoints = coords.map(([lon, lat]) => [Math.round(lat * 1e5), Math.round(lon * 1e5)]);
     totalPointsBefore += intPoints.length;
     const simplified = douglasPeucker(intPoints, DP_TOLERANCE);
     if (simplified.length < 2) continue;
@@ -571,7 +686,7 @@ for (const f of geo.features) {
     if ((bitmap >> 10) & 0x03) c.width++;
     if ((bitmap >> 12) & 0x03) c.layer++;
     if ((bitmap >> 14) & 0x03) c.access++;
-    if ((bitmap >> 16) & 0x07) c.maxspeed++;     // T6
+    if ((bitmap >> 16) & 0x07) c.maxspeed++; // T6
     if (typeCode === 12) c.track++;
     if (inclineSource === 'osm') c.inclineFromOSM++;
     if (inclineSource === 'dem') c.inclineFromDem++;
@@ -580,7 +695,9 @@ for (const f of geo.features) {
 
 console.log(`  → 道路数: ${totalRoads}`);
 console.log(`  → 不明な道路種別スキップ: ${droppedUnknownType}`);
-console.log(`  → 簡略化前後の点数: ${totalPointsBefore} → ${totalPointsAfter} (${((1 - totalPointsAfter / totalPointsBefore) * 100).toFixed(1)}%削減)`);
+console.log(
+  `  → 簡略化前後の点数: ${totalPointsBefore} → ${totalPointsAfter} (${((1 - totalPointsAfter / totalPointsBefore) * 100).toFixed(1)}%削減)`
+);
 
 const meta = { region: REGION, generated: new Date().toISOString(), prefectures: {} };
 
@@ -595,9 +712,9 @@ for (const pref of targetPrefs) {
   // バイナリエンコード（v7: bitmap 3byte little-endian）
   const byteBuf = [];
   for (const [bitmap, points] of entries) {
-    byteBuf.push(bitmap & 0xFF);             // LSB
-    byteBuf.push((bitmap >> 8) & 0xFF);      // mid
-    byteBuf.push((bitmap >> 16) & 0xFF);     // MSB (maxspeed bits + reserved)
+    byteBuf.push(bitmap & 0xff); // LSB
+    byteBuf.push((bitmap >> 8) & 0xff); // mid
+    byteBuf.push((bitmap >> 16) & 0xff); // MSB (maxspeed bits + reserved)
     writeVarint(byteBuf, points.length);
     writeSignedVarint(byteBuf, points[0][0]);
     writeSignedVarint(byteBuf, points[0][1]);
@@ -650,7 +767,7 @@ for (const pref of targetPrefs) {
   const c = attrCounters[pref];
   // T4 (2026-05-09): turn:restriction サイドカーから当該県分を抽出
   //   形式: [[fromIdx, toIdx], ...]・空 array なら制約なし
-  const restrictionsForPref = (turnRestrictionsByPref[pref] || []);
+  const restrictionsForPref = turnRestrictionsByPref[pref] || [];
   let outBody = JSON.stringify({
     v: 7,
     region: REGION,
@@ -663,20 +780,20 @@ for (const pref of targetPrefs) {
     types: Object.fromEntries(Object.entries(TYPE_CODES).map(([k, v]) => [v, k])),
     attrLegend: {
       typeCode: 'bit 0-3',
-      oneway:   'bit 4 (1=oneway)',
-      incline:  'bit 5-6 (0=none, 1=up≥6%, 2=down≥6%, 3=steep dir-unknown)',
-      lanes:    'bit 7-9 (0=unknown, 1-6=lanes, 7=7+)',
-      width:    'bit 10-11 (0=unknown, 1=≤2m, 2=2-5m, 3=>5m)',
-      layer:    'bit 12-13 (0=ground, 1=bridge+, 2=tunnel-, 3=other)',
-      access:   'bit 14-15 (0=public, 1=private, 2=no_motor)',
+      oneway: 'bit 4 (1=oneway)',
+      incline: 'bit 5-6 (0=none, 1=up≥6%, 2=down≥6%, 3=steep dir-unknown)',
+      lanes: 'bit 7-9 (0=unknown, 1-6=lanes, 7=7+)',
+      width: 'bit 10-11 (0=unknown, 1=≤2m, 2=2-5m, 3=>5m)',
+      layer: 'bit 12-13 (0=ground, 1=bridge+, 2=tunnel-, 3=other)',
+      access: 'bit 14-15 (0=public, 1=private, 2=no_motor)',
       maxspeed: 'bit 16-18 (0=unk, 1=≤30, 2=40, 3=50, 4=60, 5=70, 6=80, 7=≥100 km/h)',
     },
     attrCounts: c,
     grid,
     roadsB64,
-    restrictions: restrictionsForPref,                                // T4
-    conditionalRestrictions: conditionalRestrictionsByPref[pref] || [],  // T11
-    pois: poisByPref[pref] || [],                                     // T3
+    restrictions: restrictionsForPref, // T4
+    conditionalRestrictions: conditionalRestrictionsByPref[pref] || [], // T11
+    pois: poisByPref[pref] || [], // T3
   });
   // GitHub push protection の Tencent Cloud Secret ID 誤検出パターン
   // AKID[A-Za-z0-9]{32,} を文字列リテラル境界で分割して回避
@@ -703,8 +820,12 @@ window.ROADS_${PREF_UPPER} = ${outBody};
   fs.writeFileSync(outPath, out);
   const size = fs.statSync(outPath).size;
   const pct = (n) => `${((n / entries.length) * 100).toFixed(1)}%`;
-  console.log(`  → ${pref}: ${entries.length}本・${(size / 1024 / 1024).toFixed(2)} MB → ${outPath}`);
-  console.log(`     attr 充足: oneway ${pct(c.oneway)} / incline ${pct(c.incline)} (osm ${pct(c.inclineFromOSM)} + dem ${pct(c.inclineFromDem)}) / lanes ${pct(c.lanes)} / width ${pct(c.width)} / layer ${pct(c.layer)} / track ${pct(c.track)}`);
+  console.log(
+    `  → ${pref}: ${entries.length}本・${(size / 1024 / 1024).toFixed(2)} MB → ${outPath}`
+  );
+  console.log(
+    `     attr 充足: oneway ${pct(c.oneway)} / incline ${pct(c.incline)} (osm ${pct(c.inclineFromOSM)} + dem ${pct(c.inclineFromDem)}) / lanes ${pct(c.lanes)} / width ${pct(c.width)} / layer ${pct(c.layer)} / track ${pct(c.track)}`
+  );
 
   meta.prefectures[pref] = {
     numRoads: entries.length,
@@ -719,7 +840,9 @@ fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
 console.log(`  → meta: ${metaPath}`);
 if (USE_DEM && dem) {
   const s = dem.stats();
-  console.log(`  DEM lookup stats: hits=${s.hits} misses=${s.misses} naSamples=${s.naSamples} cacheTiles=${s.cacheTiles} (5m=${s.tiles5m}/10m=${s.tiles10m}/missing=${s.tilesMissing})`);
+  console.log(
+    `  DEM lookup stats: hits=${s.hits} misses=${s.misses} naSamples=${s.naSamples} cacheTiles=${s.cacheTiles} (5m=${s.tiles5m}/10m=${s.tiles10m}/missing=${s.tilesMissing})`
+  );
   console.log(`  incline 出典: OSM=${demFromOSM} / DEM=${demFromDem} / 計算試行=${demCalcCount}`);
 }
 console.log(`✅ 全${targetPrefs.length}県の出力完了`);

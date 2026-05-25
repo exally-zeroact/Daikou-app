@@ -32,41 +32,83 @@ const { execSync } = require('child_process');
 const { encodePolygonsBytes, PRECISION, GRID_INT, gridKey } = require('./encoding-utils.js');
 
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
 const pngjs = requireGlobal('pngjs');
 
 const PREFS = {
-  hokkaido:'01', aomori:'02', iwate:'03', miyagi:'04', akita:'05', yamagata:'06', fukushima:'07',
-  ibaraki:'08', tochigi:'09', gunma:'10', saitama:'11', chiba:'12', tokyo:'13', kanagawa:'14',
-  niigata:'15', toyama:'16', ishikawa:'17', fukui:'18', yamanashi:'19', nagano:'20', gifu:'21',
-  shizuoka:'22', aichi:'23', mie:'24', shiga:'25', kyoto:'26', osaka:'27', hyogo:'28',
-  nara:'29', wakayama:'30', tottori:'31', shimane:'32', okayama:'33', hiroshima:'34',
-  yamaguchi:'35', tokushima:'36', kagawa:'37', ehime:'38', kochi:'39', fukuoka:'40', saga:'41',
-  nagasaki:'42', kumamoto:'43', oita:'44', miyazaki:'45', kagoshima:'46', okinawa:'47',
+  hokkaido: '01',
+  aomori: '02',
+  iwate: '03',
+  miyagi: '04',
+  akita: '05',
+  yamagata: '06',
+  fukushima: '07',
+  ibaraki: '08',
+  tochigi: '09',
+  gunma: '10',
+  saitama: '11',
+  chiba: '12',
+  tokyo: '13',
+  kanagawa: '14',
+  niigata: '15',
+  toyama: '16',
+  ishikawa: '17',
+  fukui: '18',
+  yamanashi: '19',
+  nagano: '20',
+  gifu: '21',
+  shizuoka: '22',
+  aichi: '23',
+  mie: '24',
+  shiga: '25',
+  kyoto: '26',
+  osaka: '27',
+  hyogo: '28',
+  nara: '29',
+  wakayama: '30',
+  tottori: '31',
+  shimane: '32',
+  okayama: '33',
+  hiroshima: '34',
+  yamaguchi: '35',
+  tokushima: '36',
+  kagawa: '37',
+  ehime: '38',
+  kochi: '39',
+  fukuoka: '40',
+  saga: '41',
+  nagasaki: '42',
+  kumamoto: '43',
+  oita: '44',
+  miyazaki: '45',
+  kagoshima: '46',
+  okinawa: '47',
 };
 
 const KIND_CONF = {
   flood: {
     layer: '10_kansui',
     type: 'road-flood',
-    color: [255, 207, 0],          // 黄
-    tolerance: 60,                  // 三角マーク小+anti-aliasing 強 → 寛容
+    color: [255, 207, 0], // 黄
+    tolerance: 60, // 三角マーク小+anti-aliasing 強 → 寛容
     typeLabel: '道路冠水想定箇所',
   },
   jizen: {
     layer: '10_jizentuukoukiseikukan',
     type: 'road-jizen',
-    color: [255, 0, 0],             // 赤
+    color: [255, 0, 0], // 赤
     tolerance: 40,
     typeLabel: '事前通行規制区間',
   },
   yobo: {
     layer: '10_yoboutekituukoukiseikukan',
     type: 'road-yobo',
-    color: [21, 24, 173],           // 青 (純 BLUE ではなく濃紺寄り)
+    color: [21, 24, 173], // 青 (純 BLUE ではなく濃紺寄り)
     tolerance: 40,
     typeLabel: '予防的通行規制区間',
   },
@@ -74,9 +116,9 @@ const KIND_CONF = {
 
 const args = process.argv.slice(2);
 const PREF = args[0];
-const kindArg = args.find(a => a.startsWith('--kind=')) || '';
+const kindArg = args.find((a) => a.startsWith('--kind=')) || '';
 const KIND = kindArg.slice(7);
-const zoomArg = args.find(a => a.startsWith('--zoom=')) || '';
+const zoomArg = args.find((a) => a.startsWith('--zoom=')) || '';
 const ZOOM = zoomArg ? parseInt(zoomArg.slice(7), 10) : 11;
 
 if (!PREF || !PREFS[PREF] || !KIND_CONF[KIND]) {
@@ -102,17 +144,19 @@ function loadPrefBbox() {
   const text = fs.readFileSync(fp, 'utf8');
   const m = text.match(/"bbox":\[([^\]]+)\]/);
   if (!m) throw new Error('bbox 抽出失敗');
-  const [latMin, lngMin, latMax, lngMax] = m[1].split(',').map(s => parseInt(s, 10) / 1e5);
+  const [latMin, lngMin, latMax, lngMax] = m[1].split(',').map((s) => parseInt(s, 10) / 1e5);
   return { latMin, lngMin, latMax, lngMax };
 }
-function lng2tx(lng, z) { return (lng + 180) / 360 * Math.pow(2, z); }
+function lng2tx(lng, z) {
+  return ((lng + 180) / 360) * Math.pow(2, z);
+}
 function lat2ty(lat, z) {
-  const r = lat * Math.PI / 180;
-  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+  const r = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z);
 }
 function ty2lat(ty, z) {
-  const n = Math.PI - 2 * Math.PI * ty / Math.pow(2, z);
-  return Math.atan(Math.sinh(n)) * 180 / Math.PI;
+  const n = Math.PI - (2 * Math.PI * ty) / Math.pow(2, z);
+  return (Math.atan(Math.sinh(n)) * 180) / Math.PI;
 }
 
 function classifyColor(r, g, b, a) {
@@ -125,7 +169,7 @@ function classifyColor(r, g, b, a) {
 
 async function fetchTile(z, x, y) {
   const cachePath = path.join(TILE_CACHE, `${x}_${y}.png`);
-  const missMark  = path.join(TILE_CACHE, `${x}_${y}.miss`);
+  const missMark = path.join(TILE_CACHE, `${x}_${y}.miss`);
   if (fs.existsSync(cachePath)) return fs.readFileSync(cachePath);
   if (fs.existsSync(missMark)) return null;
   const url = TILE_URL(z, x, y);
@@ -133,30 +177,36 @@ async function fetchTile(z, x, y) {
   const t = setTimeout(() => ctrl.abort(), 30000);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers: UA });
-    if (res.status === 404) { fs.writeFileSync(missMark, ''); return null; }
+    if (res.status === 404) {
+      fs.writeFileSync(missMark, '');
+      return null;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(cachePath, buf);
     return buf;
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // PNG → run-length 矩形 (rank=0 のみ)
 function extractRectangles(pngBuffer) {
   const png = pngjs.PNG.sync.read(pngBuffer);
-  const W = png.width, H = png.height;
+  const W = png.width,
+    H = png.height;
   const m = new Int8Array(W * H);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 4;
-      m[y * W + x] = classifyColor(png.data[i], png.data[i+1], png.data[i+2], png.data[i+3]);
+      m[y * W + x] = classifyColor(png.data[i], png.data[i + 1], png.data[i + 2], png.data[i + 3]);
     }
   }
   const rects = [];
   for (let y = 0; y < H; y++) {
     let runStart = -1;
     for (let x = 0; x <= W; x++) {
-      const r = (x < W) ? m[y * W + x] : -2;
+      const r = x < W ? m[y * W + x] : -2;
       if (r === 0) {
         if (runStart < 0) runStart = x;
       } else {
@@ -175,10 +225,12 @@ function extractRectangles(pngBuffer) {
     const cur = rects[i];
     let y1 = cur.y1;
     let j = i + 1;
-    while (j < rects.length &&
-           rects[j].x0 === cur.x0 &&
-           rects[j].x1 === cur.x1 &&
-           rects[j].y0 === y1) {
+    while (
+      j < rects.length &&
+      rects[j].x0 === cur.x0 &&
+      rects[j].x1 === cur.x1 &&
+      rects[j].y0 === y1
+    ) {
       y1 = rects[j].y1;
       j++;
     }
@@ -189,7 +241,9 @@ function extractRectangles(pngBuffer) {
 }
 
 (async () => {
-  console.log(`[fetch-road-tile-hazard] pref=${PREF} kind=${KIND} (${CONF.typeLabel}) zoom=${ZOOM} layer=${CONF.layer}`);
+  console.log(
+    `[fetch-road-tile-hazard] pref=${PREF} kind=${KIND} (${CONF.typeLabel}) zoom=${ZOOM} layer=${CONF.layer}`
+  );
   const t0 = Date.now();
   const bb = loadPrefBbox();
   const tx0 = Math.floor(lng2tx(bb.lngMin, ZOOM));
@@ -200,18 +254,27 @@ function extractRectangles(pngBuffer) {
   console.log(`  タイル範囲 z=${ZOOM}: x[${tx0}..${tx1}] y[${ty0}..${ty1}] total=${total}`);
 
   // タイル走査 → polygon 列収集
-  const polygons = [];          // [[ [latInt,lngInt],... ]] each polygon は 1 ring の矩形
-  let dl = 0, miss = 0, withData = 0;
-  let bboxLatMin = Infinity, bboxLatMax = -Infinity, bboxLngMin = Infinity, bboxLngMax = -Infinity;
+  const polygons = []; // [[ [latInt,lngInt],... ]] each polygon は 1 ring の矩形
+  let dl = 0,
+    miss = 0,
+    withData = 0;
+  let bboxLatMin = Infinity,
+    bboxLatMax = -Infinity,
+    bboxLngMin = Infinity,
+    bboxLngMax = -Infinity;
   for (let tx = tx0; tx <= tx1; tx++) {
     for (let ty = ty0; ty <= ty1; ty++) {
       const buf = await fetchTile(ZOOM, tx, ty);
-      if (!buf) { miss++; continue; }
+      if (!buf) {
+        miss++;
+        continue;
+      }
       dl++;
       const rects = extractRectangles(buf);
       if (rects.length === 0) continue;
       withData++;
-      const W = 256, H = 256;
+      const W = 256,
+        H = 256;
       const worldPx = W * Math.pow(2, ZOOM);
       for (const rec of rects) {
         const wx0 = tx * W + rec.x0;
@@ -227,9 +290,14 @@ function extractRectangles(pngBuffer) {
         const lng0i = Math.round(lng0 * PRECISION);
         const lng1i = Math.round(lng1 * PRECISION);
         // 1 polygon = 1 ring (4 頂点) の矩形
-        polygons.push([[
-          [lat0i, lng0i], [lat0i, lng1i], [lat1i, lng1i], [lat1i, lng0i],
-        ]]);
+        polygons.push([
+          [
+            [lat0i, lng0i],
+            [lat0i, lng1i],
+            [lat1i, lng1i],
+            [lat1i, lng0i],
+          ],
+        ]);
         if (lat0i < bboxLatMin) bboxLatMin = lat0i;
         if (lat1i > bboxLatMax) bboxLatMax = lat1i;
         if (lng0i < bboxLngMin) bboxLngMin = lng0i;
@@ -237,7 +305,9 @@ function extractRectangles(pngBuffer) {
       }
     }
   }
-  console.log(`  DL: ok=${dl} 404=${miss} withData=${withData} (${((Date.now()-t0)/1000).toFixed(1)}s)`);
+  console.log(
+    `  DL: ok=${dl} 404=${miss} withData=${withData} (${((Date.now() - t0) / 1000).toFixed(1)}s)`
+  );
   console.log(`  polygons: ${polygons.length}`);
 
   // grid 索引 (polygon の重心を含むセル + 矩形範囲セル)
@@ -292,6 +362,11 @@ function extractRectangles(pngBuffer) {
   fs.writeFileSync(outPath, header);
   const size = fs.statSync(outPath).size;
   console.log(`✅ ${outPath}`);
-  console.log(`  count=${polygons.length} cells=${Object.keys(grid).length} size=${(size/1024).toFixed(2)} KB akidSplits=${secretSplits}`);
-  console.log(`  ${PREF} ${KIND} 完了 (${((Date.now()-t0)/1000).toFixed(1)}s)`);
-})().catch(e => { console.error('FATAL:', e.stack || e); process.exit(1); });
+  console.log(
+    `  count=${polygons.length} cells=${Object.keys(grid).length} size=${(size / 1024).toFixed(2)} KB akidSplits=${secretSplits}`
+  );
+  console.log(`  ${PREF} ${KIND} 完了 (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+})().catch((e) => {
+  console.error('FATAL:', e.stack || e);
+  process.exit(1);
+});

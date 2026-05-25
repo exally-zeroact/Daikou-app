@@ -21,7 +21,7 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/N06/N06-22/N06-22_GML.zip';
   const { features, fileCounts, zipBytes } = await u.loadKsjFeaturesFromZipUrl(URL, TMP, {
     layerFilter: (name) => /Joint/.test(name),
   });
-  console.log(`  zip ${(zipBytes/1024).toFixed(1)}KB → features=${features.length}`);
+  console.log(`  zip ${(zipBytes / 1024).toFixed(1)}KB → features=${features.length}`);
   console.log('  files:', JSON.stringify(fileCounts));
 
   // KSJ N06 Joint レイヤ属性:
@@ -55,9 +55,9 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/N06/N06-22/N06-22_GML.zip';
   // 重複排除（同名・近接10m・最新年度残し）
   const dedup = new Map();
   for (const it of items) {
-    const key = `${it.n}_${Math.round(it.lat*1000)}_${Math.round(it.lng*1000)}`;
+    const key = `${it.n}_${Math.round(it.lat * 1000)}_${Math.round(it.lng * 1000)}`;
     const ex = dedup.get(key);
-    if (!ex || (it.year > ex.year)) dedup.set(key, it);
+    if (!ex || it.year > ex.year) dedup.set(key, it);
   }
   const uniq = Array.from(dedup.values());
   console.log(`  dedup=${uniq.length}`);
@@ -81,5 +81,8 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/N06/N06-22/N06-22_GML.zip';
     `// IC/JCT/SAPA ${uniq.length} 件`,
   ]);
   console.log(`✅ ${OUT}`);
-  console.log(`  count=${uniq.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`  count=${uniq.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

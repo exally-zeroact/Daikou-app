@@ -1,0 +1,32 @@
+# Daikome テスト CI
+# push 毎に Vitest (business.js / meter.js ユニットテスト) + replay-mm.js (MM 回帰) を実行
+# mm-regression.yml (既存) は MM 専用の重い検証を担当・本 workflow は軽量な常時 gate
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-and-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Vitest (business.js / meter.js ユニットテスト)
+        run: npm run test
+
+      - name: Run replay-mm (MM 回帰テスト)
+        run: npm run test:replay

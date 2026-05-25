@@ -30,10 +30,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const {
-  encodePolygonsBytes, encodeLineB64,
-  PRECISION, GRID_INT,
-} = require('./encoding-utils.js');
+const { encodePolygonsBytes, encodeLineB64, PRECISION, GRID_INT } = require('./encoding-utils.js');
 
 const TYPES = ['flood', 'landslide', 'tsunami', 'liquefaction', 'fault'];
 
@@ -61,7 +58,7 @@ const isLine = TYPE === 'fault';
 
 // 各 feature を attrs / 形状に分解
 const attrs = [];
-const shapes = [];   // polygon: rings (int)、line: points (int)
+const shapes = []; // polygon: rings (int)、line: points (int)
 const bbox = [Infinity, Infinity, -Infinity, -Infinity];
 
 function toIntPair(coord) {
@@ -76,10 +73,10 @@ function toIntPair(coord) {
 }
 
 function attrFromProps(p) {
-  if (TYPE === 'flood' || TYPE === 'tsunami') return { d: (p.depth | 0) };
-  if (TYPE === 'landslide')                   return { k: (p.kind === 'red' ? 'red' : 'yellow') };
-  if (TYPE === 'liquefaction')                return { r: (p.rank | 0) };
-  if (TYPE === 'fault')                       return { name: String(p.name || '') };
+  if (TYPE === 'flood' || TYPE === 'tsunami') return { d: p.depth | 0 };
+  if (TYPE === 'landslide') return { k: p.kind === 'red' ? 'red' : 'yellow' };
+  if (TYPE === 'liquefaction') return { r: p.rank | 0 };
+  if (TYPE === 'fault') return { name: String(p.name || '') };
 }
 
 for (const f of geo.features) {
@@ -89,8 +86,12 @@ for (const f of geo.features) {
 
   if (isLine) {
     // LineString or MultiLineString
-    const lines = g.type === 'LineString' ? [g.coordinates]
-                : g.type === 'MultiLineString' ? g.coordinates : null;
+    const lines =
+      g.type === 'LineString'
+        ? [g.coordinates]
+        : g.type === 'MultiLineString'
+          ? g.coordinates
+          : null;
     if (!lines) continue;
     for (const coords of lines) {
       if (coords.length < 2) continue;
@@ -100,13 +101,13 @@ for (const f of geo.features) {
     }
   } else {
     // Polygon or MultiPolygon
-    const polys = g.type === 'Polygon' ? [g.coordinates]
-                : g.type === 'MultiPolygon' ? g.coordinates : null;
+    const polys =
+      g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : null;
     if (!polys) continue;
     for (const rings of polys) {
-      const intRings = rings.map(ring => ring.map(toIntPair));
+      const intRings = rings.map((ring) => ring.map(toIntPair));
       attrs.push(attrFromProps(props));
-      shapes.push(intRings);    // shapes[i] = [outer, hole1, ...]
+      shapes.push(intRings); // shapes[i] = [outer, hole1, ...]
     }
   }
 }
@@ -128,8 +129,10 @@ if (isLine) {
       const gx = Math.floor(pts[i][1] / GRID_INT);
       cells.add(gy + '_' + gx);
       if (i < pts.length - 1) {
-        const a = pts[i], b = pts[i+1];
-        const dy = b[0] - a[0], dx = b[1] - a[1];
+        const a = pts[i],
+          b = pts[i + 1];
+        const dy = b[0] - a[0],
+          dx = b[1] - a[1];
         const dist = Math.hypot(dy, dx);
         const numSamples = Math.ceil(dist / (GRID_INT / 4));
         for (let s = 1; s < numSamples; s++) {
@@ -146,12 +149,13 @@ if (isLine) {
   // ポリゴン: bbox cells（簡易・over-register）
   shapes.forEach((rings, idx) => {
     let pbbox = [Infinity, Infinity, -Infinity, -Infinity];
-    for (const ring of rings) for (const [lat, lon] of ring) {
-      if (lat < pbbox[0]) pbbox[0] = lat;
-      if (lon < pbbox[1]) pbbox[1] = lon;
-      if (lat > pbbox[2]) pbbox[2] = lat;
-      if (lon > pbbox[3]) pbbox[3] = lon;
-    }
+    for (const ring of rings)
+      for (const [lat, lon] of ring) {
+        if (lat < pbbox[0]) pbbox[0] = lat;
+        if (lon < pbbox[1]) pbbox[1] = lon;
+        if (lat > pbbox[2]) pbbox[2] = lat;
+        if (lon > pbbox[3]) pbbox[3] = lon;
+      }
     const gy0 = Math.floor(pbbox[0] / GRID_INT);
     const gx0 = Math.floor(pbbox[1] / GRID_INT);
     const gy1 = Math.floor(pbbox[2] / GRID_INT);
@@ -212,11 +216,13 @@ const header = [
   `// Type: ${TYPE} / Prefecture: ${PREF}`,
   `// Generated: ${out.generated}`,
   `window.${VAR} = ${outBody};`,
-  ''
+  '',
 ].join('\n');
 
 const outPath = path.join(__dirname, '..', 'data', `hazard-${TYPE}-${PREF}.js`);
 fs.writeFileSync(outPath, header);
 const size = fs.statSync(outPath).size;
 console.log(`✅ ${outPath}`);
-console.log(`  count=${shapes.length} / cells=${Object.keys(grid).length} / size=${(size/1024).toFixed(2)} KB`);
+console.log(
+  `  count=${shapes.length} / cells=${Object.keys(grid).length} / size=${(size / 1024).toFixed(2)} KB`
+);

@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# ★設計変更宣言 (2026-05-14・MA-8): pre-push を no-op (exit 0) から Vitest + replay-mm に切替。
+#   push 直前に最低限のロジック層検査 (37 unit tests + 3 MM baselines) を強制実行。
+#   絶対ルール「Vitest + replay-mm が通れば push してよい」のゲートを localhost でも担保。
+#   lint chain (ESLint/Prettier/Stylelint) は既存 217 errors が解消されるまで含めない
+#   (含めると全 push がブロックされてしまうため・lint fix 完了後に check:all に置換予定)。
+npm run test && npm run test:replay

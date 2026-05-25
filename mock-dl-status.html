@@ -1,124 +1,233 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>mock: ダウンロード状況表示</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-height:100vh;padding-bottom:80px;}
-.appbar{background:#007AFF;padding:12px 16px;display:flex;align-items:center;gap:12px;}
-.appbar-title{font-size:17px;font-weight:700;color:#fff;}
-.mock-note{background:#FFF3CD;border-left:4px solid #FFC107;padding:12px 16px;margin:16px;border-radius:6px;font-size:12px;color:#856404;line-height:1.6;}
-.wrap{padding:16px;display:flex;flex-direction:column;gap:24px;}
-.scenario-title{font-size:13px;font-weight:700;color:#8E8E93;letter-spacing:1px;padding:0 4px;}
-.section{background:#fff;border-radius:12px;overflow:hidden;}
-.row{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:0.5px solid #f0f0f0;gap:12px;}
-.row:last-child{border-bottom:none;}
-.row-label{font-size:15px;color:#8E8E93;flex-shrink:0;}
-.row-value{font-size:14px;color:#1c1c1e;font-weight:600;text-align:right;line-height:1.5;}
-.row-value .ok{color:#34C759;margin-left:6px;}
-.row-value .pending{color:#FF9500;}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>mock: ダウンロード状況表示</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        font-family: 'Noto Sans JP', sans-serif;
+        background: #f5f5f5;
+        color: #111;
+        min-height: 100vh;
+        padding-bottom: 80px;
+      }
+      .appbar {
+        background: #007aff;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .appbar-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .mock-note {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 12px 16px;
+        margin: 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #856404;
+        line-height: 1.6;
+      }
+      .wrap {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .scenario-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #8e8e93;
+        letter-spacing: 1px;
+        padding: 0 4px;
+      }
+      .section {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .row {
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 0.5px solid #f0f0f0;
+        gap: 12px;
+      }
+      .row:last-child {
+        border-bottom: none;
+      }
+      .row-label {
+        font-size: 15px;
+        color: #8e8e93;
+        flex-shrink: 0;
+      }
+      .row-value {
+        font-size: 14px;
+        color: #1c1c1e;
+        font-weight: 600;
+        text-align: right;
+        line-height: 1.5;
+      }
+      .row-value .ok {
+        color: #34c759;
+        margin-left: 6px;
+      }
+      .row-value .pending {
+        color: #ff9500;
+      }
 
-/* 自動更新バナー mock */
-.banner-mock{background:#E8F4FD;border:1.5px solid #007AFF;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;}
-.banner-mock.warn{background:#FFF3E0;border-color:#FF9800;}
-.banner-mock .icon{font-size:22px;}
-.banner-mock .text{font-size:14px;color:#1c1c1e;line-height:1.5;flex:1;}
-.banner-mock .text strong{font-weight:700;}
+      /* 自動更新バナー mock */
+      .banner-mock {
+        background: #e8f4fd;
+        border: 1.5px solid #007aff;
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .banner-mock.warn {
+        background: #fff3e0;
+        border-color: #ff9800;
+      }
+      .banner-mock .icon {
+        font-size: 22px;
+      }
+      .banner-mock .text {
+        font-size: 14px;
+        color: #1c1c1e;
+        line-height: 1.5;
+        flex: 1;
+      }
+      .banner-mock .text strong {
+        font-weight: 700;
+      }
 
-.btn-row{padding:12px 16px;display:flex;gap:10px;}
-.btn-mock{flex:1;padding:12px;background:#007AFF;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'Noto Sans JP',sans-serif;}
-.btn-mock:active{filter:brightness(0.9);}
+      .btn-row {
+        padding: 12px 16px;
+        display: flex;
+        gap: 10px;
+      }
+      .btn-mock {
+        flex: 1;
+        padding: 12px;
+        background: #007aff;
+        border: none;
+        border-radius: 10px;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      .btn-mock:active {
+        filter: brightness(0.9);
+      }
 
-.divider{height:1px;background:#ddd;margin:8px 0;}
-</style>
-</head>
-<body>
-
-<div class="appbar">
-  <div class="appbar-title">mock: ダウンロード状況表示</div>
-</div>
-
-<div class="mock-note">
-  ⚠️ これは確認用 mock です・実コードには反映されていません。<br>
-  実装する場合は settings.html と index.html DataUpdateBanner._finish() を変更します。
-</div>
-
-<div class="wrap">
-
-  <!-- ────────────────────────────────────────── -->
-  <div class="scenario-title">▼ 設定画面 (全 47 県完了している時)</div>
-  <div class="section">
-    <div class="row">
-      <div class="row-label">道路データ最終更新</div>
-      <div class="row-value">2026年5月12日</div>
+      .divider {
+        height: 1px;
+        background: #ddd;
+        margin: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="appbar">
+      <div class="appbar-title">mock: ダウンロード状況表示</div>
     </div>
-    <div class="row">
-      <div class="row-label">ダウンロード状況</div>
-      <div class="row-value">47/47 県完了 <span class="ok">✅</span></div>
+
+    <div class="mock-note">
+      ⚠️ これは確認用 mock です・実コードには反映されていません。<br />
+      実装する場合は settings.html と index.html DataUpdateBanner._finish() を変更します。
     </div>
-  </div>
 
-  <!-- ────────────────────────────────────────── -->
-  <div class="scenario-title">▼ 設定画面 (未完了 3 県の時)</div>
-  <div class="section">
-    <div class="row">
-      <div class="row-label">道路データ最終更新</div>
-      <div class="row-value">2026年5月12日</div>
+    <div class="wrap">
+      <!-- ────────────────────────────────────────── -->
+      <div class="scenario-title">▼ 設定画面 (全 47 県完了している時)</div>
+      <div class="section">
+        <div class="row">
+          <div class="row-label">道路データ最終更新</div>
+          <div class="row-value">2026年5月12日</div>
+        </div>
+        <div class="row">
+          <div class="row-label">ダウンロード状況</div>
+          <div class="row-value">47/47 県完了 <span class="ok">✅</span></div>
+        </div>
+      </div>
+
+      <!-- ────────────────────────────────────────── -->
+      <div class="scenario-title">▼ 設定画面 (未完了 3 県の時)</div>
+      <div class="section">
+        <div class="row">
+          <div class="row-label">道路データ最終更新</div>
+          <div class="row-value">2026年5月12日</div>
+        </div>
+        <div class="row">
+          <div class="row-label">ダウンロード状況</div>
+          <div class="row-value"><span class="pending">44/47 県完了</span></div>
+        </div>
+        <div class="row">
+          <div class="row-label">未完了</div>
+          <div class="row-value">沖縄・鹿児島・宮崎</div>
+        </div>
+      </div>
+
+      <!-- ────────────────────────────────────────── -->
+      <div class="scenario-title">▼ 設定画面 (未完了が多い時・例 5 県以上)</div>
+      <div class="section">
+        <div class="row">
+          <div class="row-label">道路データ最終更新</div>
+          <div class="row-value">2026年5月12日</div>
+        </div>
+        <div class="row">
+          <div class="row-label">ダウンロード状況</div>
+          <div class="row-value"><span class="pending">40/47 県完了</span></div>
+        </div>
+        <div class="row">
+          <div class="row-label">未完了</div>
+          <div class="row-value">北海道・青森・岩手・<br />秋田・宮城・福島・<br />山形</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- ────────────────────────────────────────── -->
+      <div class="scenario-title">▼ 自動更新バナー (更新があった時・3 県)</div>
+      <div class="banner-mock">
+        <div class="icon">✅</div>
+        <div class="text"><strong>3 県の地図データを更新しました</strong></div>
+      </div>
+
+      <!-- ────────────────────────────────────────── -->
+      <div class="scenario-title">▼ 自動更新バナー (全部最新だった時)</div>
+      <div class="banner-mock">
+        <div class="icon">✅</div>
+        <div class="text"><strong>すべて最新でした</strong> (全 47 県確認)</div>
+      </div>
+
+      <!-- ────────────────────────────────────────── -->
+      <div class="scenario-title">▼ 自動更新バナー (失敗時・参考)</div>
+      <div class="banner-mock warn">
+        <div class="icon">⚠️</div>
+        <div class="text"><strong>更新失敗・また後で試してください</strong></div>
+      </div>
     </div>
-    <div class="row">
-      <div class="row-label">ダウンロード状況</div>
-      <div class="row-value"><span class="pending">44/47 県完了</span></div>
-    </div>
-    <div class="row">
-      <div class="row-label">未完了</div>
-      <div class="row-value">沖縄・鹿児島・宮崎</div>
-    </div>
-  </div>
-
-  <!-- ────────────────────────────────────────── -->
-  <div class="scenario-title">▼ 設定画面 (未完了が多い時・例 5 県以上)</div>
-  <div class="section">
-    <div class="row">
-      <div class="row-label">道路データ最終更新</div>
-      <div class="row-value">2026年5月12日</div>
-    </div>
-    <div class="row">
-      <div class="row-label">ダウンロード状況</div>
-      <div class="row-value"><span class="pending">40/47 県完了</span></div>
-    </div>
-    <div class="row">
-      <div class="row-label">未完了</div>
-      <div class="row-value">北海道・青森・岩手・<br>秋田・宮城・福島・<br>山形</div>
-    </div>
-  </div>
-
-  <div class="divider"></div>
-
-  <!-- ────────────────────────────────────────── -->
-  <div class="scenario-title">▼ 自動更新バナー (更新があった時・3 県)</div>
-  <div class="banner-mock">
-    <div class="icon">✅</div>
-    <div class="text"><strong>3 県の地図データを更新しました</strong></div>
-  </div>
-
-  <!-- ────────────────────────────────────────── -->
-  <div class="scenario-title">▼ 自動更新バナー (全部最新だった時)</div>
-  <div class="banner-mock">
-    <div class="icon">✅</div>
-    <div class="text"><strong>すべて最新でした</strong> (全 47 県確認)</div>
-  </div>
-
-  <!-- ────────────────────────────────────────── -->
-  <div class="scenario-title">▼ 自動更新バナー (失敗時・参考)</div>
-  <div class="banner-mock warn">
-    <div class="icon">⚠️</div>
-    <div class="text"><strong>更新失敗・また後で試してください</strong></div>
-  </div>
-
-</div>
-
-</body>
+  </body>
 </html>

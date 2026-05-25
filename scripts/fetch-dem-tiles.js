@@ -25,62 +25,62 @@ const TILES_DIR = path.join(PROJECT_ROOT, 'tmp', 'tiles');
 
 // 都道府県別 bbox [south, west, north, east]
 const PREF_BBOX = {
-  hokkaido:  [41.35, 139.70, 45.55, 145.85],
-  aomori:    [40.20, 139.40, 41.55, 141.70],
-  iwate:     [38.75, 140.65, 40.45, 142.15],
-  miyagi:    [37.75, 140.30, 39.00, 141.70],
-  akita:     [38.85, 139.65, 40.55, 141.05],
-  yamagata:  [37.70, 139.50, 39.10, 140.65],
-  fukushima: [36.75, 139.15, 38.00, 141.05],
-  ibaraki:   [35.70, 139.65, 36.95, 140.85],
-  tochigi:   [36.20, 139.30, 37.20, 140.30],
-  gunma:     [35.95, 138.40, 37.10, 139.70],
-  saitama:   [35.75, 138.70, 36.30, 139.95],
-  chiba:     [34.90, 139.70, 36.10, 140.90],
-  tokyo:     [24.20, 136.05, 35.90, 142.30], // 小笠原・南鳥島含む
-  kanagawa:  [35.10, 138.90, 35.70, 139.80],
-  niigata:   [36.75, 137.60, 38.60, 139.90],
-  toyama:    [36.25, 136.80, 36.95, 137.75],
-  ishikawa:  [36.05, 136.20, 37.55, 137.40],
-  fukui:     [35.30, 135.45, 36.30, 136.85],
-  yamanashi: [35.15, 138.20, 35.95, 139.15],
-  nagano:    [35.20, 137.30, 37.05, 138.75],
-  gifu:      [35.15, 136.25, 36.50, 137.65],
-  shizuoka:  [34.55, 137.45, 35.65, 139.20],
-  aichi:     [34.55, 136.65, 35.45, 137.85],
-  mie:       [33.70, 135.85, 35.30, 136.95],
-  shiga:     [34.75, 135.75, 35.70, 136.45],
-  kyoto:     [34.70, 134.85, 35.80, 136.05],
-  osaka:     [34.25, 135.10, 35.05, 135.75],
-  hyogo:     [34.15, 134.20, 35.70, 135.45],
-  nara:      [33.85, 135.65, 34.80, 136.20],
-  wakayama:  [33.40, 135.00, 34.40, 136.05],
-  tottori:   [35.05, 133.10, 35.65, 134.50],
-  shimane:   [34.30, 131.60, 36.40, 133.40],
-  okayama:   [34.30, 133.20, 35.40, 134.45],
-  hiroshima: [34.00, 132.00, 35.10, 133.50],
-  yamaguchi: [33.70, 130.75, 34.80, 132.45],
-  tokushima: [33.50, 133.65, 34.30, 134.75],
-  kagawa:    [34.05, 133.45, 34.55, 134.45],
-  ehime:     [32.85, 132.00, 34.50, 133.75],
-  kochi:     [32.70, 132.45, 33.95, 134.35],
-  fukuoka:   [33.10, 130.05, 34.00, 131.20],
-  saga:      [32.90, 129.70, 33.70, 130.55],
-  nagasaki:  [32.55, 128.55, 34.75, 130.45],
-  kumamoto:  [32.05, 129.95, 33.25, 131.30],
-  oita:      [32.70, 130.80, 33.75, 132.10],
-  miyazaki:  [31.30, 130.70, 32.85, 131.90],
-  kagoshima: [27.00, 128.40, 32.20, 131.20],
-  okinawa:   [24.00, 122.80, 27.90, 131.40],
+  hokkaido: [41.35, 139.7, 45.55, 145.85],
+  aomori: [40.2, 139.4, 41.55, 141.7],
+  iwate: [38.75, 140.65, 40.45, 142.15],
+  miyagi: [37.75, 140.3, 39.0, 141.7],
+  akita: [38.85, 139.65, 40.55, 141.05],
+  yamagata: [37.7, 139.5, 39.1, 140.65],
+  fukushima: [36.75, 139.15, 38.0, 141.05],
+  ibaraki: [35.7, 139.65, 36.95, 140.85],
+  tochigi: [36.2, 139.3, 37.2, 140.3],
+  gunma: [35.95, 138.4, 37.1, 139.7],
+  saitama: [35.75, 138.7, 36.3, 139.95],
+  chiba: [34.9, 139.7, 36.1, 140.9],
+  tokyo: [24.2, 136.05, 35.9, 142.3], // 小笠原・南鳥島含む
+  kanagawa: [35.1, 138.9, 35.7, 139.8],
+  niigata: [36.75, 137.6, 38.6, 139.9],
+  toyama: [36.25, 136.8, 36.95, 137.75],
+  ishikawa: [36.05, 136.2, 37.55, 137.4],
+  fukui: [35.3, 135.45, 36.3, 136.85],
+  yamanashi: [35.15, 138.2, 35.95, 139.15],
+  nagano: [35.2, 137.3, 37.05, 138.75],
+  gifu: [35.15, 136.25, 36.5, 137.65],
+  shizuoka: [34.55, 137.45, 35.65, 139.2],
+  aichi: [34.55, 136.65, 35.45, 137.85],
+  mie: [33.7, 135.85, 35.3, 136.95],
+  shiga: [34.75, 135.75, 35.7, 136.45],
+  kyoto: [34.7, 134.85, 35.8, 136.05],
+  osaka: [34.25, 135.1, 35.05, 135.75],
+  hyogo: [34.15, 134.2, 35.7, 135.45],
+  nara: [33.85, 135.65, 34.8, 136.2],
+  wakayama: [33.4, 135.0, 34.4, 136.05],
+  tottori: [35.05, 133.1, 35.65, 134.5],
+  shimane: [34.3, 131.6, 36.4, 133.4],
+  okayama: [34.3, 133.2, 35.4, 134.45],
+  hiroshima: [34.0, 132.0, 35.1, 133.5],
+  yamaguchi: [33.7, 130.75, 34.8, 132.45],
+  tokushima: [33.5, 133.65, 34.3, 134.75],
+  kagawa: [34.05, 133.45, 34.55, 134.45],
+  ehime: [32.85, 132.0, 34.5, 133.75],
+  kochi: [32.7, 132.45, 33.95, 134.35],
+  fukuoka: [33.1, 130.05, 34.0, 131.2],
+  saga: [32.9, 129.7, 33.7, 130.55],
+  nagasaki: [32.55, 128.55, 34.75, 130.45],
+  kumamoto: [32.05, 129.95, 33.25, 131.3],
+  oita: [32.7, 130.8, 33.75, 132.1],
+  miyazaki: [31.3, 130.7, 32.85, 131.9],
+  kagoshima: [27.0, 128.4, 32.2, 131.2],
+  okinawa: [24.0, 122.8, 27.9, 131.4],
 };
 
 // ─── XYZ tile math (web mercator) ─────────────────────────────────
 function lat2tileY(lat, z) {
-  const r = lat * Math.PI / 180;
-  return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z));
+  const r = (lat * Math.PI) / 180;
+  return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z));
 }
 function lng2tileX(lng, z) {
-  return Math.floor((lng + 180) / 360 * Math.pow(2, z));
+  return Math.floor(((lng + 180) / 360) * Math.pow(2, z));
 }
 
 function bboxToTileRange(bbox, z) {
@@ -89,7 +89,12 @@ function bboxToTileRange(bbox, z) {
   const x2 = lng2tileX(e, z);
   const y1 = lat2tileY(n, z); // north → smaller y
   const y2 = lat2tileY(s, z);
-  return { xMin: Math.min(x1, x2), xMax: Math.max(x1, x2), yMin: Math.min(y1, y2), yMax: Math.max(y1, y2) };
+  return {
+    xMin: Math.min(x1, x2),
+    xMax: Math.max(x1, x2),
+    yMin: Math.min(y1, y2),
+    yMax: Math.max(y1, y2),
+  };
 }
 
 // ─── HTTP fetch with cache ────────────────────────────────────────
@@ -106,7 +111,9 @@ async function fetchTile(url, dest, ua) {
     return { ok: true, status: 200, bytes: buf.length };
   } catch (err) {
     return { ok: false, status: 0, error: err.message };
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function downloadAll(jobs, opts) {
@@ -127,16 +134,20 @@ async function downloadAll(jobs, opts) {
         stats.cached++;
       } else {
         r = await fetchTile(job.url5, job.dest5, ua);
-        if (r.ok) { stats.ok++; stats.totalBytes += r.bytes; }
-        else if (r.status === 404) {
+        if (r.ok) {
+          stats.ok++;
+          stats.totalBytes += r.bytes;
+        } else if (r.status === 404) {
           // 10mDEM フォールバック
           if (fs.existsSync(job.dest10)) {
             stats.cached++;
             stats.fallbackOk++;
           } else {
             const r2 = await fetchTile(job.url10, job.dest10, ua);
-            if (r2.ok) { stats.fallbackOk++; stats.totalBytes += r2.bytes; }
-            else if (r2.status === 404) stats.fail404++;
+            if (r2.ok) {
+              stats.fallbackOk++;
+              stats.totalBytes += r2.bytes;
+            } else if (r2.status === 404) stats.fail404++;
             else stats.failOther++;
             await sleep(delayMs);
           }
@@ -149,11 +160,15 @@ async function downloadAll(jobs, opts) {
       if (Date.now() - lastReport > 5000) {
         lastReport = Date.now();
         const total = stats.ok + stats.cached + stats.fallbackOk + stats.fail404 + stats.failOther;
-        console.log(`  [${total}/${jobs.length}] ok=${stats.ok} cached=${stats.cached} fallback=${stats.fallbackOk} 404=${stats.fail404} err=${stats.failOther}`);
+        console.log(
+          `  [${total}/${jobs.length}] ok=${stats.ok} cached=${stats.cached} fallback=${stats.fallbackOk} 404=${stats.fail404} err=${stats.failOther}`
+        );
       }
     }
   }
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
   await Promise.all(Array.from({ length: concurrency }, (_, i) => worker(i)));
   return stats;
 }
@@ -166,12 +181,21 @@ async function main() {
     process.exit(1);
   }
   const pref = args[0];
-  const zoom = parseInt((args.find(a => a.startsWith('--zoom=')) || '--zoom=14').slice(7), 10);
-  const concurrency = parseInt((args.find(a => a.startsWith('--concurrency=')) || '--concurrency=4').slice(14), 10);
-  const delay = parseInt((args.find(a => a.startsWith('--delay=')) || '--delay=250').slice(8), 10);
+  const zoom = parseInt((args.find((a) => a.startsWith('--zoom=')) || '--zoom=14').slice(7), 10);
+  const concurrency = parseInt(
+    (args.find((a) => a.startsWith('--concurrency=')) || '--concurrency=4').slice(14),
+    10
+  );
+  const delay = parseInt(
+    (args.find((a) => a.startsWith('--delay=')) || '--delay=250').slice(8),
+    10
+  );
 
   const bbox = PREF_BBOX[pref];
-  if (!bbox) { console.error(`未定義 prefecture: ${pref}`); process.exit(1); }
+  if (!bbox) {
+    console.error(`未定義 prefecture: ${pref}`);
+    process.exit(1);
+  }
 
   const range = bboxToTileRange(bbox, zoom);
   const numTiles = (range.xMax - range.xMin + 1) * (range.yMax - range.yMin + 1);
@@ -199,12 +223,17 @@ async function main() {
   const stats = await downloadAll(jobs, { concurrency, delay });
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\n  完了 ${elapsed}s`);
-  console.log(`  ok(5m)=${stats.ok}  cached=${stats.cached}  fallback(10m)=${stats.fallbackOk}  404=${stats.fail404}  err=${stats.failOther}`);
+  console.log(
+    `  ok(5m)=${stats.ok}  cached=${stats.cached}  fallback(10m)=${stats.fallbackOk}  404=${stats.fail404}  err=${stats.failOther}`
+  );
   console.log(`  total bytes: ${(stats.totalBytes / 1024 / 1024).toFixed(2)} MB`);
 }
 
 if (require.main === module) {
-  main().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  main().catch((e) => {
+    console.error('FATAL:', e);
+    process.exit(1);
+  });
 }
 
 module.exports = { lat2tileY, lng2tileX, bboxToTileRange, PREF_BBOX };

@@ -1,0 +1,70 @@
+# ============================================================
+# bug-patterns/sensor-dropout.yml
+# センサー消失・GPS 空白・加速度 null
+# ============================================================
+
+pattern_id: SENS-DROP-001
+title: センサー消失バグ (GPS 空白・加速度 null・compass 不在)
+category: sensor-availability
+
+description: |
+  GPS / 加速度 / compass などのセンサーが一時的に取得できなくなる
+  状況での挙動不整合バグ。特に屋内・トンネル・端末固有問題で発生。
+  「センサーが取れなくなった」だけで距離計算 / 静止判定が誤動作する。
+
+real_world_example:
+  - source: Google Android docs "Sensor framework permissions" (2021)
+    issue: Android 12+ で permission 拒否されるとセンサー API が無音で null 返却
+    consequence: stationary 判定が常時 false (= 加速度 null で判定不能)
+  - source: Apple WWDC "Core Motion best practices" (2020)
+    issue: iOS Safari は permission flow が complex で
+            DeviceMotionEvent 取得失敗が頻発
+    consequence: 加速度ベースの静止判定が機能せず GPS jitter で誤加算
+  - source: Daikome 開発履歴 (gps-worker.js L596-598)
+    issue: 加速度サンプル null 時の C-1+C-2 判定不能
+    fix: 加速度 null 時は GPS 判定のみで finalStationary 確定 (= 救済 path)
+
+how_it_manifests:
+  symptoms:
+    - 停車しているのに distance_m が増える (= 加速度判定不能で GPS jitter 通過)
+    - GPS 完全消失なのに gap fill が発火しない (= state.last_speed_kmh=0 で null)
+    - compass 不在で Kalman の方向融合が効かない
+    - 屋内 / 地下駐車場で代行開始しても距離 0 のまま
+  log_indicators:
+    - "[C-1+C-2] 判定不一致 GPS={x} C1={null} C2_moving={null}"
+    - "[GPS] compass届いてる" ログが出ない
+    - state.last_isStationary が常時 false / true
+
+daikome_risk:
+  severity: 中
+  affected_components:
+    - gps-worker.js Kalman update (= compass 不在で重み降下)
+    - gps-worker.js checkStationary (= GPS 単独 fallback)
+    - meter.js calculateGapFill (= lastSpeedKmh=0 で null)
+  existing_protections:
+    - 加速度サンプル null 時の GPS 単独 fallback (gps-worker.js L596-598)
+    - calculateGapFill の lastSpeedKmh<=0 null 返却
+    - GPS 精度低下時の haversine skip (= accuracy>50m gating)
+    - permission 拒否時の dlog 出力で原因切分け可能
+
+detection_method:
+  static_analysis:
+    - センサー API 呼出箇所の null チェック存在を grep
+  property_test:
+    - tests/property/isstationary-no-increase.test.js (= GPS 単独でも isStationary 動作)
+  e2e_test:
+    - Playwright は加速度未模擬で GPS 単独 fallback path を test 済 (= scenarios/stationary-no-increase)
+  monitoring:
+    - dlog 出力で permission 状態 / sensor 取得状況を確認
+    - 司さんの実車テストで permission flow 確認
+
+test_scenario_ref:
+  - scenarios/tunnel.yml          (= GPS 消失で gap fill)
+  - scenarios/rainy-night.yml     (= GPS 精度低下)
+  - scenarios/traffic-jam.yml     (= 停車発進繰返・加速度有/無 両方 test)
+
+prevention:
+  - 全センサー API 呼出で null チェック必須
+  - 加速度 null 時の GPS 単独 fallback を維持 (= 既存救済 path 触らない)
+  - permission 拒否時の dlog で運用切分け
+  - dropout シナリオを scenarios/ に網羅 (= 想定外 dropout で破綻しない設計)

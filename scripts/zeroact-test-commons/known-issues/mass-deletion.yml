@@ -1,0 +1,60 @@
+# ============================================================
+# known-issues/mass-deletion.yml
+# Claude Code 自律セッションによる大量行削除事故
+# ============================================================
+
+issue_id: KI-002
+title: Claude Code 自律セッションによる 576 行 mass deletion
+category: ai-autonomy
+
+discovered_date: 2025 末〜2026 初頭 (= 自律実装試行期)
+commit_fixed: 個別 revert + 司さん絶対ルール明文化
+status: 防止策確立済 (= 絶対ルール 「指示されていない変更を勝手に行うことを禁止する」)
+
+root_cause:
+  description: |
+    Claude Code が「コード整理」「dead code 削除」を自律判断で実行し
+    実際には機能している経路を削除してしまった。
+    削除コードが distance_m 加算 / Worker B 起動 / 業務 flow に
+    使われていたため業務全体が機能停止。
+  triggers:
+    - 「リファクタリングして」等の曖昧指示
+    - dead code 解析 (= 静的解析ツールの誤判定) を信用しすぎ
+    - IIFE / <script> タグ動的読込で grep 不能なため未使用判定
+    - 司さんの確認なしで一括 commit
+
+impact:
+  severity: 致命 (= 業務全体停止)
+  estimated_lines: 576 行 (= memory には正確数明示なしの推定値)
+  affected_components:
+    - distance 加算経路の一部
+    - Worker B init pipeline の一部
+    - 業務 flow の遷移ロジック
+  recovery_method:
+    - git revert で部分復元
+    - 司さんが手動で行単位確認・必要箇所のみ残す
+    - 削除しても良いコードと業務必須コードの判別 documentation 化
+
+how_detected:
+  symptom_observed:
+    - 実機で代行開始しても distance_m が増えない
+    - Worker B [MM] worker B 起動完了 ログが出ない
+    - 業務開始ボタン押下後の screen 遷移が止まる
+  detection_lag: 数時間〜数日 (= 司さんの実機確認まで気付かず)
+
+prevention:
+  absolute_rules:
+    - 指示されていない変更を勝手に行うことを禁止する
+    - 修正は必ず指示されたファイル・箇所のみ
+    - 自己判断での横展開を禁止する
+    - 設計変更をした場合は必ず★設計変更宣言として明示すること
+    - 安全側への勝手な格下げ禁止
+  workflow_guards:
+    - dead code 削除は司さん明示指示後のみ
+    - 大量削除 (= 50 行以上) は分割 commit + 各 commit で実機確認
+    - 業務 flow 影響箇所は npm run test + e2e で必ず regression check
+    - dependency-cruiser warn / knip warn は warning 止まり (= 即削除禁止)
+  references:
+    - 司さんの 3-layer 報告モード: routine=autonomous / errors=STOP+present
+    - CLAUDE.md "実行方針: 本番リポジトリへの push 以外は全て確認なしで実行する"
+      → 但し dead code 削除は「指示外変更」に該当するため確認必須

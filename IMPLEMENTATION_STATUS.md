@@ -1,10 +1,26 @@
 # ダイコメ 実装状況
 
-最終更新: 2026-05-10
+最終更新: 2026-05-24
 管理: 司さん + Claude
+
+main HEAD: f5246719 (= 2026-05-24・走行中の距離表示を予測補間で滑らか化)
+sw.js CACHE_NAME: daikome-f524671 (= CI auto-update・タスクキル再起動で新仕様有効化)
 
 このファイルはダイコメの Map Matching / 距離計測 / 課金 / UI / リリース準備の実装状況を一元管理する。
 セッション間で継続してメンテナンスする。
+
+## 距離方式 (= 2026-05-24 確定)
+- ★ distance_m (= 課金根拠) ★ = 道路 snap (= Worker B mmIncrementM) 主 + retroactive haversine 補完
+  + Off-Road haversine + gap fill + setDistance の・5 経路 (= state.running gate)
+  ・表示: display_distance_m = max(distance_m, gps_predictive, distance_m+tier2_pending_m) + 予測補間 + Reconciliation rate 100m/sec
+  ・preview: tier2_pending_m (= Worker B tentativeIncrementM 累積 + commit 時差分減算・単調増加)
+- ★ business_distance_m (= 業務総走行) ★ = distance_m と同じ道路 snap 5 経路 + state.business_active gate 並記
+  ・Off-Road incremental のみ・business 側に・屋内 ZUPT ガード追加 (= 連続点 30s net 変位 < 10m AND 現 haver < 5m → skip)
+  ・preview: business_tier2_pending_m (= 課金 tier2_pending_m と・完全非共有・別 if ブロック・別変数)
+  ・表示: business_display_distance_m (= business_distance_m + business_tier2_pending_m + 予測補間 + Reconciliation rate 100m/sec)
+- ★ 表示層 予測補間 ★ = target_velocity_mps (= 直近 1 秒の target 増分/dt・自己整合) で・GPS 待ち間も滑らか先取り
+  ・屋内/停車 (= target 0 進捗) → velocity 0 → 予測 0
+  ・UI refresh: startUiTimer 100ms (= 10Hz)
 
 ────────────────────────────────────────────────────────────────────
 
@@ -126,23 +142,24 @@ calcFare を 7-step pipeline 化 (tiers/fallback → vehicle → manual → auto
 | ID | 機能 | 詳細 | 場所 |
 |----|------|------|------|
 | S1 | 複数タブ guard (BroadcastChannel) | チャンネル名 'daikome-tab-guard'・他タブ検出時に閲覧専用化 (赤バナー + ボタン disabled + window._tabReadOnly)・onBusinessStart でも block+toast | index.html |
-| S2 | 業務開始忘れ警告 | GPS 5km/h+ × accuracy<=50m × Meter.state.running=false が 10 秒継続で橙バナー・[業務開始する] / [閉じる] (5 分抑制) | index.html |
+| S2 | ~~業務開始忘れ警告~~ | ★ 2026-05-23 a8fb51a0 で・お節介ルール適用・完全削除済 (= businessForgotBanner / _checkBusinessForgot / 全関連 logic) ★ | (削除済) |
 | S3 | 業務終了 confirm + 1 trip 上限警告 | onBusinessEnd 冒頭で confirm dialog・setInterval 30 秒で distance>500km なら赤警告バナー・running=false で自動非表示 | index.html |
 | M1 | DAIKOME_APP_VERSION 設定 | index.html `<head>` 冒頭に `<script>window.DAIKOME_APP_VERSION='1.0.0';</script>`・training-collector が deviceId と一緒に記録 | index.html + js/training-collector.js |
 | M2 | sw.js firebase-sync dead handler 削除 | 旧 'firebase-sync' tag は誰も register していなかった・'training-upload' のみ残す | sw.js |
 
-### UI 大改修 (commit 0c705436・2026-05-10)
+### UI 大改修 (commit 0c705436・2026-05-10)・★ 2026-05-24 ナビ再設計で・以下 変更 ★
 
 | 項目 | 詳細 | 場所 |
 |------|------|------|
 | 走行開始ボタン非表示 bug 修正 | screenIdle 初期 display:flex→none・screenBusinessStart 初期 display:none→flex・Business 未定義時も showScreen('businessStart') を強制呼出 | index.html |
 | センサー許可ダイアログ修正 | screenBusinessStart に「センサーを許可する」明示ボタン (#btnSensorPermission)・iOS PWA 未許可時のみ表示・user gesture 経由で requestSensorPermission() 発火 | index.html |
-| ボトムナビ 4 タブ追加 | 業務/履歴/使い方/設定・縦画面: 下端固定 + safe-area-inset-bottom・横画面 ≥700px: 左サイドナビに切替・iOS 標準色 (#007AFF / #fff / #8E8E93) | index.html / history.html / help.html / settings.html / fare.html |
+| ボトムナビ ~~4 タブ~~ → ★ 3 タブ ★ | ★ 2026-05-24 2d8acb6a: 履歴タブ削除 → 業務/使い方/設定 3 タブ均等配置 ・履歴は・独立画面 (= screenIdle 内 .btn-history で到達) ★ | index.html |
+| 横画面サイドナビ | ★ 2026-05-24 2d8acb6a + ef3349c1: 横画面 overlay (履歴/使い方/設定) + screenIdle + screenBusinessStart で・左 64px サイドレール表示・代行中/料金は・既存通り非表示 ★ class detection (= body.screen-xxx) で・iOS Safari :has() bug 回避 | index.html |
 | help.html 新規 | 操作手順 7 + FAQ 6 アコーディオン形式・縦 1 列/横 2 列 grid | help.html (125 行) |
 | history.html 新規 | 走行履歴ページ | history.html |
 | settings.html シンプル化 | 通常: 料金設定リンク・学習データ提供 ON/OFF・過去データ削除のみ。隠し: 自動リセット・OSRM・精度テスト・走行履歴リンク (#devSection / #devSection2)。切替: タイトル「設定」5 秒長押し or URL hash #dev・localStorage に状態保存 | settings.html |
 | 割増/追加料金 UI 分離 | surcharge-group に「割増」セクションラベル追加・extras-list 上に「追加料金」セクションラベル追加・renderExtras() 同名グループ化 ({name} ×{count} 累計表示)・デフォルト extras 配列を空に変更 (旧プリセット 6 件削除) | index.html |
-| 縦横レスポンシブ | landscape 2 カラム/サイドナビ切替 (≥700px) | 全 HTML |
+| 縦横レスポンシブ | landscape 2 カラム/サイドナビ切替 | 全 HTML |
 
 ### データ・フォーマット
 
@@ -165,6 +182,62 @@ calcFare を 7-step pipeline 化 (tiers/fallback → vehicle → manual → auto
 | fareConfig (料金設定 v2) | 稼働中・v1→v2 自動 migration あり |
 | pheromone (T8 cross-user・markVisited / pushSessionAggregates) | framework のみ・本番運用未開始 |
 | training data (Phase 2.B) | uploader 実装済・WiFi+充電 gate で送信 |
+| debug_traces (= 較正用 GPS trace) | js/debug-trace.js・テストビルドで・既定 ON (= 42e1f689 2026-05-23)・本番 OFF |
+
+────────────────────────────────────────────────────────────────────
+
+## 2026-05-11 〜 05-24 追加実装 (= main HEAD f5246719 までに統合)
+
+### 距離計測 大改修 (= 2026-05-24)
+
+| commit | 内容 |
+|--------|------|
+| 87134c69 (feat) | ★ 業務距離 道路 snap 構成化 ★: business_distance_m を・GPS haversine 直接 (L991 旧) から・distance_m と同じ道路 snap 5 経路に移行 (= L506/L582/L1049/L1078)・business_active gate 並記・Off-Road incremental に・business 側のみ・屋内 ZUPT ガード (= 連続点 30s net 変位 < 10m AND 現 haver < 5m)・過去 dac45f03 真因「非対称ガード」を構造的回避 |
+| 87134c69 | ★ business_tier2_pending_m 別回路 preview ★: 課金 tier2_pending_m とは・完全非共有・別 if ブロック・別変数・別計算 (= mm commit 確定減算 + tentativeIncrementM 累積)・課金 tier2 系 1 byte 不変 |
+| f5246719 (feat) | ★ 走行中表示 予測補間 滑らか化 ★: target_velocity_mps (= 直近 1 秒 target 増分/dt・自己整合)・GPS 待ち間も・display 滑らか先取り・屋内/停車で velocity 0 → 予測 0・物理上限 60 m/sec・単調増加保証・rate 100 m/sec |
+| f5246719 | ★ business_display_distance_m 新設 ★: 課金 display と同仕様・別 state (= 完全独立)・business.js getReport で・採用・state.total_distance_m mirror sync は 1 byte 不変 (= 永続化用) |
+| f5246719 | UI startUiTimer: 500ms → 100ms (= 10Hz refresh・予測補間で stair-step 解消・バッテリー +1-3% 推定) |
+
+### お節介バナー全削除 (= 「お節介バナー全面禁止」 恒久ルール 2026-05-23)
+
+| commit | 削除対象 |
+|--------|----------|
+| a8fb51a0 (Phase 1) | businessForgotBanner (= 「🚗 走行を検知しました・業務開始していますか?」) |
+| a8fb51a0 (Phase 2) | restoreBanner 単独表示 (= 「✅ 走行データを復元しました」)・「+Xm 補完」 追記時のみ・表示維持 |
+| b8bd1900 (2026-05-24) | stopCandidateBanner (= 「⏸ 停車 5 分以上 — 実車終了ですか?」)・isStationary 判定本体は 1 byte 不変 |
+
+### 住所表示 機能
+
+| commit | 内容 |
+|--------|------|
+| 5378efb3 (feat) | 住所① fine 配線 + 丁目カット表示 (= 「今治市常盤町」) |
+| bfddc5c7 (feat) | 住所① 案 C 高精度版 (= 町丁字 polygon + map-matched snap + 4 段 fallback・rural 100m DP・hokkaido 6.95MB / 47 県 69.5MB) |
+| b90eb62c (feat) | 住所② 現在地ライブ表示 (= カーナビ風・waypointCard 末尾「→ 📡 現在地住所」・青パルス) |
+| e8e3bf8a (feat) | 住所② 現在地ライブ常時表示・作り直し (= 重複回避撤去・「(現在地)」 サフィックス・3 段 fallback snap fresh → stale → raw GPS・「タップ」 赤強調 #e11d48) |
+
+### ナビ再設計 + 横画面 layout
+
+| commit | 内容 |
+|--------|------|
+| 2d8acb6a (feat) | ナビ再設計: 履歴タブ削除・縦画面 3 タブ均等 (= 業務/使い方/設定)・横画面 overlay 表示時のみ・左 64px サイドレール・代行中/料金 横画面は・既存通り非表示 |
+| ef3349c1 (fix) | 横画面サイドレール拡張: screenIdle + screenBusinessStart 横画面でも・左 64px サイドレール表示・業務開始 button 幅崩れ修正 (= class detection で・iOS Safari :has() bug 回避) |
+
+### 起動・履歴・debug 系
+
+| commit | 内容 |
+|--------|------|
+| ec61fff4 (feat) | 起動最速化 方式E (= IDB parse cache + 即時 + 背景遅延 + 現在地県 priority load) |
+| 88d9c0c6 (fix) | 履歴 3 個重複バグ修正 (= A 案・trip_key 冪等化) |
+| 42e1f689 (feat) | debug-trace.js テストビルドで・既定 ON 化 (= noise calibration 30 日収集 加速) |
+| 27e16b69 (fix) | COARSE 半径 3000m → 25000m + COORD_SCALE 定数化 (距離課金 完全無変更) |
+| 88d9c0c6 / 29218a33 | CI auto-commit race 解消 (= test-results auto-commit step 削除) |
+
+### address-fine データ build / 配信
+
+| commit | 内容 |
+|--------|------|
+| c8d2b68b (chore) | --street/--rsdt/--chiban build scripts + tests + gitignore (= data 非配信化) |
+| df079f3e (feat) | Page Lifecycle API・iOS PWA freeze/kill 時の・distance_m 永続化補完 (= ★ Phase A の・「Page Lifecycle API」 実装済 ★) |
 
 ────────────────────────────────────────────────────────────────────
 
@@ -174,7 +247,10 @@ calcFare を 7-step pipeline 化 (tiers/fallback → vehicle → manual → auto
 
 - [ ] 走行開始ボタン表示確認 (screenBusinessStart 初期表示)
 - [ ] センサー許可動作確認 (iOS PWA・user gesture 経由)
-- [ ] ボトムナビ 4 タブ動作確認 (業務/履歴/使い方/設定)
+- [ ] ★ ナビ 3 タブ動作確認 (業務/使い方/設定) ★ (= 2026-05-24 ナビ再設計・履歴タブ削除後)
+- [ ] ★ 横画面サイドレール動作確認 (overlay/screenIdle/screenBusinessStart で 左 64px・代行中/料金は非表示) ★ (= 2026-05-24)
+- [ ] ★ 業務距離 道路 snap 構成 動作確認 (= 屋内駐車 5 分で・総走行距離 増えない) ★ (= 2026-05-24 87134c69 本丸)
+- [ ] ★ 走行中表示 予測補間 滑らか化 動作確認 ★ (= 2026-05-24 f5246719・走行中 driveDist / totalDist が滑らか連続・屋内駐車で進まない・料金不変)
 - [ ] 縦横レイアウト切替確認 (landscape 2 カラム・サイドナビ)
 - [ ] Phase 1.B トンネル polyline 計算確認 (実トンネルでの A→B 距離)
 - [ ] Phase 1.C Off-Road Mode 確認 (snap 連続失敗 5 回・retroactive add・二重課金回避)
@@ -283,9 +359,15 @@ calcFare を 7-step pipeline 化 (tiers/fallback → vehicle → manual → auto
 | 5 | Phase 2.B 送信 framework | ✅ 完了 (46964bc4) |
 | 6 | Phase 3.UI + Terms | ✅ 完了 (87f878c2) |
 | 7 | fareConfig v2 + fare.html | ✅ 完了 (62e27a4b) |
-| 8 | リリース前保護機能 S1+S2+S3+M1+M2 | ✅ 完了 (d30d7290) |
-| 9 | UI 大改修 + ボトムナビ + help.html | ✅ 完了 (0c705436) |
-| 10 | 統合テスト + 実機検証 + 本番マージ | 🔲 残タスク |
+| 8 | リリース前保護機能 S1+~~S2~~+S3+M1+M2 | ✅ 完了 (d30d7290)・S2 は・2026-05-23 a8fb51a0 で・お節介ルール適用・削除済 |
+| 9 | UI 大改修 + ボトムナビ + help.html | ✅ 完了 (0c705436)・★ 2026-05-24 2d8acb6a + ef3349c1 で・3 タブ + 横画面サイドレールに再設計 ★ |
+| 10 | お節介バナー全削除 (3 件) | ✅ 完了 (a8fb51a0 + b8bd1900・2026-05-23 〜 05-24) |
+| 11 | 住所① + 住所② 機能 | ✅ 完了 (5378efb3 / bfddc5c7 / b90eb62c / e8e3bf8a・2026-05-22 〜 05-23) |
+| 12 | Page Lifecycle API (= Phase A 既実装) | ✅ 完了 (df079f3e) |
+| 13 | 起動最速化 方式 E | ✅ 完了 (ec61fff4) |
+| 14 | 業務距離 道路 snap 構成 + business preview 別回路 | ✅ 完了 (87134c69・2026-05-24) |
+| 15 | 走行中表示 予測補間 滑らか化 + business_display + UI 100ms | ✅ 完了 (f5246719・2026-05-24) |
+| 16 | 統合テスト + 実機検証 + 本番マージ | 🔲 残タスク (= 14/15 は・push 後 実機検証 推奨) |
 
 Phase 4 (AI 推論) は データ蓄積後に判断・別フェーズ
 

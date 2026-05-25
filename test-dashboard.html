@@ -1,501 +1,1034 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>精度テスト</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{font-family:'Noto Sans JP',sans-serif;background:#f5f5f5;color:#111;min-height:100vh;}
-.appbar{background:#007AFF;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:12px;}
-.appbar-back{color:#fff;font-size:16px;cursor:pointer;padding:4px 8px;}
-.appbar-title{font-size:17px;font-weight:700;color:#fff;}
-.appbar-spacer{flex:1;}
-.appbar-refresh{color:#fff;font-size:18px;cursor:pointer;padding:4px 10px;border-radius:6px;}
-.appbar-refresh:active{background:rgba(255,255,255,0.2);}
-.wrap{padding:16px;padding-bottom:80px;display:flex;flex-direction:column;gap:14px;}
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>精度テスト</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      body {
+        font-family: 'Noto Sans JP', sans-serif;
+        background: #f5f5f5;
+        color: #111;
+        min-height: 100vh;
+      }
+      .appbar {
+        background: #007aff;
+        padding: 12px 16px;
+        padding-top: max(12px, env(safe-area-inset-top));
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .appbar-back {
+        color: #fff;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 4px 8px;
+      }
+      .appbar-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .appbar-spacer {
+        flex: 1;
+      }
+      .appbar-refresh {
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 4px 10px;
+        border-radius: 6px;
+      }
+      .appbar-refresh:active {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .wrap {
+        padding: 16px;
+        padding-bottom: 80px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
 
-/* 大数字カード (snap rate / DER) */
-.hero{background:#fff;border-radius:14px;padding:18px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
-.hero-row{display:flex;gap:10px;}
-.hero-cell{flex:1;text-align:center;padding:10px 6px;border-radius:10px;}
-.hero-cell .label{font-size:11px;color:#8E8E93;letter-spacing:1px;}
-.hero-cell .value{font-family:'DM Mono',monospace;font-size:32px;font-weight:700;line-height:1.2;margin-top:4px;}
-.hero-cell .sub{font-size:11px;color:#8E8E93;margin-top:2px;}
-.hero-cell.ok{background:#E8F7EE;}
-.hero-cell.ok .value{color:#1A7340;}
-.hero-cell.ng{background:#FDECEA;}
-.hero-cell.ng .value{color:#C0392B;}
-.hero-cell.warn{background:#FFF6E6;}
-.hero-cell.warn .value{color:#B8810E;}
-.hero-cell.idle{background:#f3f3f3;}
-.hero-cell.idle .value{color:#8E8E93;}
-.hero-status{margin-top:10px;text-align:center;font-size:13px;font-weight:700;letter-spacing:1px;padding:8px 0;border-radius:8px;}
-.hero-status.ok{color:#1A7340;background:#E8F7EE;}
-.hero-status.ng{color:#C0392B;background:#FDECEA;}
-.hero-status.idle{color:#8E8E93;background:#f3f3f3;}
+      /* 大数字カード (snap rate / DER) */
+      .hero {
+        background: #fff;
+        border-radius: 14px;
+        padding: 18px 16px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .hero-row {
+        display: flex;
+        gap: 10px;
+      }
+      .hero-cell {
+        flex: 1;
+        text-align: center;
+        padding: 10px 6px;
+        border-radius: 10px;
+      }
+      .hero-cell .label {
+        font-size: 11px;
+        color: #8e8e93;
+        letter-spacing: 1px;
+      }
+      .hero-cell .value {
+        font-family: 'DM Mono', monospace;
+        font-size: 32px;
+        font-weight: 700;
+        line-height: 1.2;
+        margin-top: 4px;
+      }
+      .hero-cell .sub {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 2px;
+      }
+      .hero-cell.ok {
+        background: #e8f7ee;
+      }
+      .hero-cell.ok .value {
+        color: #1a7340;
+      }
+      .hero-cell.ng {
+        background: #fdecea;
+      }
+      .hero-cell.ng .value {
+        color: #c0392b;
+      }
+      .hero-cell.warn {
+        background: #fff6e6;
+      }
+      .hero-cell.warn .value {
+        color: #b8810e;
+      }
+      .hero-cell.idle {
+        background: #f3f3f3;
+      }
+      .hero-cell.idle .value {
+        color: #8e8e93;
+      }
+      .hero-status {
+        margin-top: 10px;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        padding: 8px 0;
+        border-radius: 8px;
+      }
+      .hero-status.ok {
+        color: #1a7340;
+        background: #e8f7ee;
+      }
+      .hero-status.ng {
+        color: #c0392b;
+        background: #fdecea;
+      }
+      .hero-status.idle {
+        color: #8e8e93;
+        background: #f3f3f3;
+      }
 
-.section{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
-.section-title{font-size:11px;color:#8E8E93;letter-spacing:1px;margin-bottom:10px;}
-.row{padding:10px 0;border-bottom:0.5px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;font-size:14px;}
-.row:last-child{border-bottom:none;}
-.row-key{color:#444;}
-.row-val{font-family:'DM Mono',monospace;color:#111;font-weight:500;}
+      .section {
+        background: #fff;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .section-title {
+        font-size: 11px;
+        color: #8e8e93;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+      }
+      .row {
+        padding: 10px 0;
+        border-bottom: 0.5px solid #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+      }
+      .row:last-child {
+        border-bottom: none;
+      }
+      .row-key {
+        color: #444;
+      }
+      .row-val {
+        font-family: 'DM Mono', monospace;
+        color: #111;
+        font-weight: 500;
+      }
 
-/* trend chart */
-.chart-wrap{padding:10px 0 4px;}
-.chart-svg{width:100%;height:120px;display:block;}
-.chart-legend{display:flex;justify-content:space-between;font-size:11px;color:#8E8E93;margin-top:4px;font-family:'DM Mono',monospace;}
+      /* trend chart */
+      .chart-wrap {
+        padding: 10px 0 4px;
+      }
+      .chart-svg {
+        width: 100%;
+        height: 120px;
+        display: block;
+      }
+      .chart-legend {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 4px;
+        font-family: 'DM Mono', monospace;
+      }
 
-/* tier 状態 */
-.tier-row{padding:10px 0;border-bottom:0.5px solid #f0f0f0;}
-.tier-row:last-child{border-bottom:none;}
-.tier-head{display:flex;justify-content:space-between;align-items:center;font-size:14px;}
-.tier-name{font-weight:700;color:#111;}
-.tier-badge{font-size:11px;padding:3px 8px;border-radius:10px;font-family:'DM Mono',monospace;}
-.tier-badge.ok{background:#E8F7EE;color:#1A7340;}
-.tier-badge.ng{background:#FDECEA;color:#C0392B;}
-.tier-badge.idle{background:#f3f3f3;color:#8E8E93;}
-.tier-badge.warn{background:#FFF6E6;color:#B8810E;}
-.tier-note{font-size:11px;color:#8E8E93;margin-top:4px;line-height:1.5;}
-.tier-metric{font-family:'DM Mono',monospace;font-size:13px;color:#007AFF;font-weight:500;margin-top:4px;}
+      /* tier 状態 */
+      .tier-row {
+        padding: 10px 0;
+        border-bottom: 0.5px solid #f0f0f0;
+      }
+      .tier-row:last-child {
+        border-bottom: none;
+      }
+      .tier-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+      }
+      .tier-name {
+        font-weight: 700;
+        color: #111;
+      }
+      .tier-badge {
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-family: 'DM Mono', monospace;
+      }
+      .tier-badge.ok {
+        background: #e8f7ee;
+        color: #1a7340;
+      }
+      .tier-badge.ng {
+        background: #fdecea;
+        color: #c0392b;
+      }
+      .tier-badge.idle {
+        background: #f3f3f3;
+        color: #8e8e93;
+      }
+      .tier-badge.warn {
+        background: #fff6e6;
+        color: #b8810e;
+      }
+      .tier-note {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 4px;
+        line-height: 1.5;
+      }
+      .tier-metric {
+        font-family: 'DM Mono', monospace;
+        font-size: 13px;
+        color: #007aff;
+        font-weight: 500;
+        margin-top: 4px;
+      }
 
-/* fixture 一覧 */
-.fixture-row{padding:8px 0;border-bottom:0.5px solid #f0f0f0;}
-.fixture-row:last-child{border-bottom:none;}
-.fixture-head{display:flex;justify-content:space-between;align-items:center;font-size:13px;}
-.fixture-name{color:#111;font-weight:500;}
-.fixture-pct{font-family:'DM Mono',monospace;font-size:12px;}
-.fixture-pct.ok{color:#1A7340;}
-.fixture-pct.ng{color:#C0392B;}
-.fixture-detail{font-size:11px;color:#8E8E93;margin-top:2px;font-family:'DM Mono',monospace;}
+      /* fixture 一覧 */
+      .fixture-row {
+        padding: 8px 0;
+        border-bottom: 0.5px solid #f0f0f0;
+      }
+      .fixture-row:last-child {
+        border-bottom: none;
+      }
+      .fixture-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+      }
+      .fixture-name {
+        color: #111;
+        font-weight: 500;
+      }
+      .fixture-pct {
+        font-family: 'DM Mono', monospace;
+        font-size: 12px;
+      }
+      .fixture-pct.ok {
+        color: #1a7340;
+      }
+      .fixture-pct.ng {
+        color: #c0392b;
+      }
+      .fixture-detail {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 2px;
+        font-family: 'DM Mono', monospace;
+      }
 
-/* 問題リスト */
-.issue{padding:10px;background:#FFF6E6;border-left:3px solid #E0AC2F;border-radius:6px;font-size:13px;color:#7A5A12;margin-bottom:6px;}
-.issue:last-child{margin-bottom:0;}
+      /* 問題リスト */
+      .issue {
+        padding: 10px;
+        background: #fff6e6;
+        border-left: 3px solid #e0ac2f;
+        border-radius: 6px;
+        font-size: 13px;
+        color: #7a5a12;
+        margin-bottom: 6px;
+      }
+      .issue:last-child {
+        margin-bottom: 0;
+      }
 
-.meta{font-size:11px;color:#8E8E93;text-align:center;margin-top:8px;font-family:'DM Mono',monospace;}
-.empty{padding:30px 16px;text-align:center;color:#8E8E93;font-size:13px;}
-.error-box{background:#FDECEA;border:1px solid #f0b4ad;border-radius:8px;padding:12px;color:#7a2f24;font-size:13px;}
+      .meta {
+        font-size: 11px;
+        color: #8e8e93;
+        text-align: center;
+        margin-top: 8px;
+        font-family: 'DM Mono', monospace;
+      }
+      .empty {
+        padding: 30px 16px;
+        text-align: center;
+        color: #8e8e93;
+        font-size: 13px;
+      }
+      .error-box {
+        background: #fdecea;
+        border: 1px solid #f0b4ad;
+        border-radius: 8px;
+        padding: 12px;
+        color: #7a2f24;
+        font-size: 13px;
+      }
 
-/* タブ */
-.tabs{display:flex;background:#fff;border-bottom:1px solid #e5e5e5;position:sticky;top:0;z-index:10;}
-.tab{flex:1;padding:12px 0;text-align:center;font-size:13px;font-weight:700;color:#8E8E93;cursor:pointer;border-bottom:2px solid transparent;}
-.tab.active{color:#007AFF;border-bottom-color:#007AFF;}
-.tab:active{background:#f5f5f5;}
+      /* タブ */
+      .tabs {
+        display: flex;
+        background: #fff;
+        border-bottom: 1px solid #e5e5e5;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      .tab {
+        flex: 1;
+        padding: 12px 0;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 700;
+        color: #8e8e93;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+      }
+      .tab.active {
+        color: #007aff;
+        border-bottom-color: #007aff;
+      }
+      .tab:active {
+        background: #f5f5f5;
+      }
 
-/* チェックリスト */
-.check-section{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
-.check-row{display:flex;align-items:flex-start;gap:12px;padding:14px 0;border-bottom:0.5px solid #f0f0f0;cursor:pointer;}
-.check-row:last-child{border-bottom:none;}
-.check-box{flex-shrink:0;width:24px;height:24px;border:2px solid #ccc;border-radius:6px;background:#fff;position:relative;transition:all 0.15s;}
-.check-row.done .check-box{background:#007AFF;border-color:#007AFF;}
-.check-row.done .check-box::after{content:'';position:absolute;left:6px;top:2px;width:6px;height:11px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
-.check-body{flex:1;}
-.check-title{font-size:14px;font-weight:700;color:#111;line-height:1.4;}
-.check-row.done .check-title{color:#666;text-decoration:line-through;}
-.check-desc{font-size:11px;color:#8E8E93;margin-top:3px;line-height:1.5;}
-.check-meta{font-size:10px;color:#8E8E93;margin-top:4px;font-family:'DM Mono',monospace;}
-.check-summary{padding:14px 16px 6px;font-size:13px;color:#007AFF;font-weight:700;text-align:center;}
-.check-action{display:flex;gap:8px;padding:0 0 6px;}
-.check-action button{flex:1;padding:10px;border-radius:8px;border:1px solid #e5e5e5;background:#fff;font-family:'Noto Sans JP',sans-serif;font-size:12px;color:#007AFF;font-weight:700;cursor:pointer;}
-.check-action button:active{background:#f5f5f5;}
-.check-action button.warn{color:#C0392B;}
+      /* チェックリスト */
+      .check-section {
+        background: #fff;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .check-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 14px 0;
+        border-bottom: 0.5px solid #f0f0f0;
+        cursor: pointer;
+      }
+      .check-row:last-child {
+        border-bottom: none;
+      }
+      .check-box {
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        border: 2px solid #ccc;
+        border-radius: 6px;
+        background: #fff;
+        position: relative;
+        transition: all 0.15s;
+      }
+      .check-row.done .check-box {
+        background: #007aff;
+        border-color: #007aff;
+      }
+      .check-row.done .check-box::after {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 2px;
+        width: 6px;
+        height: 11px;
+        border: solid #fff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+      .check-body {
+        flex: 1;
+      }
+      .check-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #111;
+        line-height: 1.4;
+      }
+      .check-row.done .check-title {
+        color: #666;
+        text-decoration: line-through;
+      }
+      .check-desc {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 3px;
+        line-height: 1.5;
+      }
+      .check-meta {
+        font-size: 10px;
+        color: #8e8e93;
+        margin-top: 4px;
+        font-family: 'DM Mono', monospace;
+      }
+      .check-summary {
+        padding: 14px 16px 6px;
+        font-size: 13px;
+        color: #007aff;
+        font-weight: 700;
+        text-align: center;
+      }
+      .check-action {
+        display: flex;
+        gap: 8px;
+        padding: 0 0 6px;
+      }
+      .check-action button {
+        flex: 1;
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #e5e5e5;
+        background: #fff;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-size: 12px;
+        color: #007aff;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .check-action button:active {
+        background: #f5f5f5;
+      }
+      .check-action button.warn {
+        color: #c0392b;
+      }
 
-/* MM デバッグログトグル */
-.mm-debug-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:0.5px solid #f0f0f0;}
-.mm-debug-row:last-child{border-bottom:none;}
-.mm-debug-label{font-size:13px;color:#111;font-weight:700;}
-.mm-debug-desc{font-size:11px;color:#8E8E93;margin-top:3px;}
-.mm-toggle{flex-shrink:0;width:48px;height:28px;background:#ddd;border-radius:14px;position:relative;cursor:pointer;transition:background 0.2s;}
-.mm-toggle.on{background:#007AFF;}
-.mm-toggle::after{content:'';position:absolute;top:2px;left:2px;width:24px;height:24px;background:#fff;border-radius:50%;transition:left 0.2s;}
-.mm-toggle.on::after{left:22px;}
-</style>
-</head>
-<body ontouchstart="">
+      /* MM デバッグログトグル */
+      .mm-debug-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 0;
+        border-bottom: 0.5px solid #f0f0f0;
+      }
+      .mm-debug-row:last-child {
+        border-bottom: none;
+      }
+      .mm-debug-label {
+        font-size: 13px;
+        color: #111;
+        font-weight: 700;
+      }
+      .mm-debug-desc {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 3px;
+      }
+      .mm-toggle {
+        flex-shrink: 0;
+        width: 48px;
+        height: 28px;
+        background: #ddd;
+        border-radius: 14px;
+        position: relative;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .mm-toggle.on {
+        background: #007aff;
+      }
+      .mm-toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 24px;
+        height: 24px;
+        background: #fff;
+        border-radius: 50%;
+        transition: left 0.2s;
+      }
+      .mm-toggle.on::after {
+        left: 22px;
+      }
+    </style>
+  </head>
+  <body ontouchstart="">
+    <div class="appbar">
+      <div
+        class="appbar-back"
+        onclick="history.length > 1 ? history.back() : (location.href = 'settings.html')"
+      >
+        ＜
+      </div>
+      <div class="appbar-title">📊 精度テスト</div>
+      <div class="appbar-spacer"></div>
+      <div class="appbar-refresh" id="refreshBtn" onclick="refresh(true)">⟳</div>
+    </div>
 
-<div class="appbar">
-  <div class="appbar-back" onclick="history.length>1?history.back():location.href='settings.html'">＜</div>
-  <div class="appbar-title">📊 精度テスト</div>
-  <div class="appbar-spacer"></div>
-  <div class="appbar-refresh" id="refreshBtn" onclick="refresh(true)">⟳</div>
-</div>
+    <div class="tabs" id="tabs">
+      <div class="tab active" data-tab="results" onclick="switchTab('results')">テスト結果</div>
+      <div class="tab" data-tab="checklist" onclick="switchTab('checklist')">実機チェック</div>
+    </div>
 
-<div class="tabs" id="tabs">
-  <div class="tab active" data-tab="results" onclick="switchTab('results')">テスト結果</div>
-  <div class="tab" data-tab="checklist" onclick="switchTab('checklist')">実機チェック</div>
-</div>
+    <div class="wrap" id="root">
+      <div class="empty">読込中...</div>
+    </div>
 
-<div class="wrap" id="root">
-  <div class="empty">読込中...</div>
-</div>
+    <div class="wrap" id="checklistRoot" style="display: none"></div>
 
-<div class="wrap" id="checklistRoot" style="display:none;"></div>
+    <script>
+      'use strict';
 
-<script>
-'use strict';
+      // raw.githubusercontent.com 経由で latest.json / history.json を取得
+      // public repo なら CORS 問題なし
+      const GH_OWNER = 'exally-zeroact';
+      const GH_REPO = 'Daikou-app-test';
+      const GH_BRANCH = 'main';
+      const RAW_BASE =
+        'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/' + GH_BRANCH;
+      const LATEST_URL = RAW_BASE + '/data/test-results/latest.json';
+      const HISTORY_URL = RAW_BASE + '/data/test-results/history.json';
 
-// raw.githubusercontent.com 経由で latest.json / history.json を取得
-// public repo なら CORS 問題なし
-const GH_OWNER = 'exally-zeroact';
-const GH_REPO  = 'Daikou-app-test';
-const GH_BRANCH = 'main';
-const RAW_BASE = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/' + GH_BRANCH;
-const LATEST_URL  = RAW_BASE + '/data/test-results/latest.json';
-const HISTORY_URL = RAW_BASE + '/data/test-results/history.json';
+      const REFRESH_MS = 5000;
+      let _autoTimer = null;
+      let _lastFetchedAt = 0;
 
-const REFRESH_MS = 5000;
-let _autoTimer = null;
-let _lastFetchedAt = 0;
+      function fmtPct(x, digits) {
+        if (x == null || isNaN(x)) return '—';
+        return (x * 100).toFixed(digits == null ? 2 : digits) + '%';
+      }
+      function fmtMeters(x) {
+        if (x == null || isNaN(x)) return '—';
+        if (x >= 1000) return (x / 1000).toFixed(2) + 'km';
+        return x.toFixed(1) + 'm';
+      }
+      function fmtTimeAgo(iso) {
+        if (!iso) return '—';
+        const t = new Date(iso).getTime();
+        if (!t) return iso;
+        const diff = Math.floor((Date.now() - t) / 1000);
+        if (diff < 60) return diff + '秒前';
+        if (diff < 3600) return Math.floor(diff / 60) + '分前';
+        if (diff < 86400) return Math.floor(diff / 3600) + '時間前';
+        return Math.floor(diff / 86400) + '日前';
+      }
+      function shortSha(sha) {
+        return sha ? sha.slice(0, 7) : 'local';
+      }
 
-function fmtPct(x, digits){
-  if(x == null || isNaN(x)) return '—';
-  return (x * 100).toFixed(digits == null ? 2 : digits) + '%';
-}
-function fmtMeters(x){
-  if(x == null || isNaN(x)) return '—';
-  if(x >= 1000) return (x / 1000).toFixed(2) + 'km';
-  return x.toFixed(1) + 'm';
-}
-function fmtTimeAgo(iso){
-  if(!iso) return '—';
-  const t = new Date(iso).getTime();
-  if(!t) return iso;
-  const diff = Math.floor((Date.now() - t) / 1000);
-  if(diff < 60)    return diff + '秒前';
-  if(diff < 3600)  return Math.floor(diff / 60) + '分前';
-  if(diff < 86400) return Math.floor(diff / 3600) + '時間前';
-  return Math.floor(diff / 86400) + '日前';
-}
-function shortSha(sha){ return sha ? sha.slice(0, 7) : 'local'; }
+      function classifySnap(rate) {
+        if (rate == null) return 'idle';
+        if (rate >= 0.97) return 'ok';
+        if (rate >= 0.9) return 'warn';
+        return 'ng';
+      }
+      function classifyDer(der) {
+        if (der == null) return 'idle';
+        if (der <= 0.01) return 'ok';
+        if (der <= 0.02) return 'warn';
+        return 'ng';
+      }
 
-function classifySnap(rate){
-  if(rate == null) return 'idle';
-  if(rate >= 0.97) return 'ok';
-  if(rate >= 0.90) return 'warn';
-  return 'ng';
-}
-function classifyDer(der){
-  if(der == null) return 'idle';
-  if(der <= 0.01) return 'ok';
-  if(der <= 0.02) return 'warn';
-  return 'ng';
-}
-
-function renderHero(latest){
-  const s = latest.summary || {};
-  const snap = s.snap_rate_overall;
-  const der = s.distance_error_ratio_overall;
-  const snapCls = classifySnap(snap);
-  const derCls = classifyDer(der);
-  const overallOk = snapCls === 'ok' && derCls === 'ok';
-  const overallNg = snapCls === 'ng' || derCls === 'ng';
-  const statusCls = overallOk ? 'ok' : (overallNg ? 'ng' : 'idle');
-  const statusText = overallOk ? '✅ 合格 (基準を満たしています)' :
-                     overallNg ? '❌ 不合格 (基準を満たしていません)' :
-                     '⚠ 注意 (基準近傍)';
-  return '' +
-    '<div class="hero">' +
-      '<div class="hero-row">' +
-        '<div class="hero-cell ' + snapCls + '">' +
+      function renderHero(latest) {
+        const s = latest.summary || {};
+        const snap = s.snap_rate_overall;
+        const der = s.distance_error_ratio_overall;
+        const snapCls = classifySnap(snap);
+        const derCls = classifyDer(der);
+        const overallOk = snapCls === 'ok' && derCls === 'ok';
+        const overallNg = snapCls === 'ng' || derCls === 'ng';
+        const statusCls = overallOk ? 'ok' : overallNg ? 'ng' : 'idle';
+        const statusText = overallOk
+          ? '✅ 合格 (基準を満たしています)'
+          : overallNg
+            ? '❌ 不合格 (基準を満たしていません)'
+            : '⚠ 注意 (基準近傍)';
+        return (
+          '' +
+          '<div class="hero">' +
+          '<div class="hero-row">' +
+          '<div class="hero-cell ' +
+          snapCls +
+          '">' +
           '<div class="label">SNAP 成功率</div>' +
-          '<div class="value">' + fmtPct(snap, 1) + '</div>' +
+          '<div class="value">' +
+          fmtPct(snap, 1) +
+          '</div>' +
           '<div class="sub">基準 ≥ 97%</div>' +
-        '</div>' +
-        '<div class="hero-cell ' + derCls + '">' +
+          '</div>' +
+          '<div class="hero-cell ' +
+          derCls +
+          '">' +
           '<div class="label">距離誤差 (DER)</div>' +
-          '<div class="value">' + fmtPct(der, 2) + '</div>' +
+          '<div class="value">' +
+          fmtPct(der, 2) +
+          '</div>' +
           '<div class="sub">基準 ≤ 2%</div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="hero-status ' + statusCls + '">' + statusText + '</div>' +
-    '</div>';
-}
+          '</div>' +
+          '</div>' +
+          '<div class="hero-status ' +
+          statusCls +
+          '">' +
+          statusText +
+          '</div>' +
+          '</div>'
+        );
+      }
 
-function renderSummary(latest){
-  const s = latest.summary || {};
-  return '' +
-    '<div class="section">' +
-      '<div class="section-title">テスト概要</div>' +
-      '<div class="row"><span class="row-key">最終実行</span><span class="row-val">' +
-        fmtTimeAgo(latest.generated_at) + '</span></div>' +
-      '<div class="row"><span class="row-key">commit</span><span class="row-val">' +
-        shortSha(latest.git_sha) + (latest.git_ref ? ' / ' + latest.git_ref : '') + '</span></div>' +
-      '<div class="row"><span class="row-key">実行元</span><span class="row-val">' +
-        (latest.runner || '—') + '</span></div>' +
-      '<div class="row"><span class="row-key">fixture 数</span><span class="row-val">' +
-        (s.fixture_count || 0) + '</span></div>' +
-      '<div class="row"><span class="row-key">GPS 点数</span><span class="row-val">' +
-        (s.total_gps_points || 0) + '</span></div>' +
-      '<div class="row"><span class="row-key">MM 距離合計</span><span class="row-val">' +
-        fmtMeters(s.mm_distance_total_m) + ' / ' + fmtMeters(s.expected_distance_total_m) + '</span></div>' +
-    '</div>';
-}
+      function renderSummary(latest) {
+        const s = latest.summary || {};
+        return (
+          '' +
+          '<div class="section">' +
+          '<div class="section-title">テスト概要</div>' +
+          '<div class="row"><span class="row-key">最終実行</span><span class="row-val">' +
+          fmtTimeAgo(latest.generated_at) +
+          '</span></div>' +
+          '<div class="row"><span class="row-key">commit</span><span class="row-val">' +
+          shortSha(latest.git_sha) +
+          (latest.git_ref ? ' / ' + latest.git_ref : '') +
+          '</span></div>' +
+          '<div class="row"><span class="row-key">実行元</span><span class="row-val">' +
+          (latest.runner || '—') +
+          '</span></div>' +
+          '<div class="row"><span class="row-key">fixture 数</span><span class="row-val">' +
+          (s.fixture_count || 0) +
+          '</span></div>' +
+          '<div class="row"><span class="row-key">GPS 点数</span><span class="row-val">' +
+          (s.total_gps_points || 0) +
+          '</span></div>' +
+          '<div class="row"><span class="row-key">MM 距離合計</span><span class="row-val">' +
+          fmtMeters(s.mm_distance_total_m) +
+          ' / ' +
+          fmtMeters(s.expected_distance_total_m) +
+          '</span></div>' +
+          '</div>'
+        );
+      }
 
-function renderTrendSvg(history){
-  if(!history || history.length === 0){
-    return '<div class="empty" style="padding:14px 0;">履歴がまだありません</div>';
-  }
-  const W = 320, H = 100, PADL = 28, PADR = 6, PADT = 6, PADB = 16;
-  const ders = history.map(h => h.der || 0);
-  const maxD = Math.max(0.02, Math.max.apply(null, ders) * 1.2);
-  const n = history.length;
-  const stepX = (W - PADL - PADR) / Math.max(1, n - 1);
-  const yAt = (v) => PADT + (1 - v / maxD) * (H - PADT - PADB);
-  const xAt = (i) => PADL + i * stepX;
-  let path = '';
-  let dots = '';
-  for(let i = 0; i < n; i++){
-    const x = xAt(i), y = yAt(history[i].der || 0);
-    path += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
-    const cls = classifyDer(history[i].der || 0);
-    const color = cls === 'ok' ? '#007AFF' : (cls === 'warn' ? '#E0AC2F' : '#C0392B');
-    dots += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3" fill="' + color + '"/>';
-  }
-  // 2% threshold line
-  const thY = yAt(0.02);
-  const okY = yAt(0.01);
-  return '' +
-    '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
-      '<line x1="' + PADL + '" y1="' + thY + '" x2="' + (W - PADR) + '" y2="' + thY +
-        '" stroke="#FDECEA" stroke-width="1" stroke-dasharray="3 3"/>' +
-      '<line x1="' + PADL + '" y1="' + okY + '" x2="' + (W - PADR) + '" y2="' + okY +
-        '" stroke="#E8F7EE" stroke-width="1" stroke-dasharray="3 3"/>' +
-      '<text x="2" y="' + (thY + 4) + '" font-size="9" fill="#C0392B" font-family="DM Mono">2%</text>' +
-      '<text x="2" y="' + (okY + 4) + '" font-size="9" fill="#1A7340" font-family="DM Mono">1%</text>' +
-      '<path d="' + path.trim() + '" fill="none" stroke="#007AFF" stroke-width="1.5"/>' +
-      dots +
-    '</svg>' +
-    '<div class="chart-legend"><span>古い</span><span>n=' + n + '</span><span>新しい</span></div>';
-}
+      function renderTrendSvg(history) {
+        if (!history || history.length === 0) {
+          return '<div class="empty" style="padding:14px 0;">履歴がまだありません</div>';
+        }
+        const W = 320,
+          H = 100,
+          PADL = 28,
+          PADR = 6,
+          PADT = 6,
+          PADB = 16;
+        const ders = history.map((h) => h.der || 0);
+        const maxD = Math.max(0.02, Math.max.apply(null, ders) * 1.2);
+        const n = history.length;
+        const stepX = (W - PADL - PADR) / Math.max(1, n - 1);
+        const yAt = (v) => PADT + (1 - v / maxD) * (H - PADT - PADB);
+        const xAt = (i) => PADL + i * stepX;
+        let path = '';
+        let dots = '';
+        for (let i = 0; i < n; i++) {
+          const x = xAt(i),
+            y = yAt(history[i].der || 0);
+          path += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+          const cls = classifyDer(history[i].der || 0);
+          const color = cls === 'ok' ? '#007AFF' : cls === 'warn' ? '#E0AC2F' : '#C0392B';
+          dots +=
+            '<circle cx="' +
+            x.toFixed(1) +
+            '" cy="' +
+            y.toFixed(1) +
+            '" r="3" fill="' +
+            color +
+            '"/>';
+        }
+        // 2% threshold line
+        const thY = yAt(0.02);
+        const okY = yAt(0.01);
+        return (
+          '' +
+          '<svg class="chart-svg" viewBox="0 0 ' +
+          W +
+          ' ' +
+          H +
+          '" preserveAspectRatio="none">' +
+          '<line x1="' +
+          PADL +
+          '" y1="' +
+          thY +
+          '" x2="' +
+          (W - PADR) +
+          '" y2="' +
+          thY +
+          '" stroke="#FDECEA" stroke-width="1" stroke-dasharray="3 3"/>' +
+          '<line x1="' +
+          PADL +
+          '" y1="' +
+          okY +
+          '" x2="' +
+          (W - PADR) +
+          '" y2="' +
+          okY +
+          '" stroke="#E8F7EE" stroke-width="1" stroke-dasharray="3 3"/>' +
+          '<text x="2" y="' +
+          (thY + 4) +
+          '" font-size="9" fill="#C0392B" font-family="DM Mono">2%</text>' +
+          '<text x="2" y="' +
+          (okY + 4) +
+          '" font-size="9" fill="#1A7340" font-family="DM Mono">1%</text>' +
+          '<path d="' +
+          path.trim() +
+          '" fill="none" stroke="#007AFF" stroke-width="1.5"/>' +
+          dots +
+          '</svg>' +
+          '<div class="chart-legend"><span>古い</span><span>n=' +
+          n +
+          '</span><span>新しい</span></div>'
+        );
+      }
 
-function renderTrend(history){
-  return '' +
-    '<div class="section">' +
-      '<div class="section-title">過去 ' + (history ? history.length : 0) + ' 回の DER 推移</div>' +
-      '<div class="chart-wrap">' + renderTrendSvg(history) + '</div>' +
-    '</div>';
-}
+      function renderTrend(history) {
+        return (
+          '' +
+          '<div class="section">' +
+          '<div class="section-title">過去 ' +
+          (history ? history.length : 0) +
+          ' 回の DER 推移</div>' +
+          '<div class="chart-wrap">' +
+          renderTrendSvg(history) +
+          '</div>' +
+          '</div>'
+        );
+      }
 
-function tierBadge(t){
-  if(!t || !t.status) return { cls: 'idle', txt: '—' };
-  if(t.status === 'ok')             return { cls: 'ok',   txt: 'OK' };
-  if(t.status === 'not_run')        return { cls: 'idle', txt: '未実行' };
-  if(t.status === 'no_data')        return { cls: 'idle', txt: 'データなし' };
-  if(t.status === 'no_match')       return { cls: 'warn', txt: 'no_match' };
-  if(t.status === 'error')          return { cls: 'ng',   txt: 'エラー' };
-  if(t.status === 'skipped_no_disagreement') return { cls: 'ok', txt: '一致' };
-  return { cls: 'warn', txt: t.status };
-}
+      function tierBadge(t) {
+        if (!t || !t.status) return { cls: 'idle', txt: '—' };
+        if (t.status === 'ok') return { cls: 'ok', txt: 'OK' };
+        if (t.status === 'not_run') return { cls: 'idle', txt: '未実行' };
+        if (t.status === 'no_data') return { cls: 'idle', txt: 'データなし' };
+        if (t.status === 'no_match') return { cls: 'warn', txt: 'no_match' };
+        if (t.status === 'error') return { cls: 'ng', txt: 'エラー' };
+        if (t.status === 'skipped_no_disagreement') return { cls: 'ok', txt: '一致' };
+        return { cls: 'warn', txt: t.status };
+      }
 
-function renderTiers(latest){
-  const tiers = latest.tiers || {};
-  const order = [
-    ['tier1_osrm',  'Tier 1 — OSRM /match'],
-    ['tier2_self',  'Tier 2 — 自己 replay'],
-    ['tier4_google','Tier 4 — Google Directions'],
-  ];
-  let html = '<div class="section"><div class="section-title">独立基準との比較 (Tier)</div>';
-  for(const [k, label] of order){
-    const t = tiers[k] || {};
-    const b = tierBadge(t);
-    let metric = '';
-    if(k === 'tier2_self' && t.der != null){
-      const cls = classifyDer(t.der);
-      metric = '<div class="tier-metric">DER ' + fmtPct(t.der) + ' (基準 ≤ 2%)</div>';
-    } else if(k === 'tier1_osrm' && t.der_overall != null){
-      metric = '<div class="tier-metric">対 daikou DER ' + fmtPct(t.der_overall) + '</div>';
-    } else if(k === 'tier4_google' && t.requests_sent != null){
-      metric = '<div class="tier-metric">' + t.requests_sent + ' リクエスト送信</div>';
-    }
-    html += '<div class="tier-row">' +
-      '<div class="tier-head"><span class="tier-name">' + label + '</span>' +
-      '<span class="tier-badge ' + b.cls + '">' + b.txt + '</span></div>' +
-      metric +
-      (t.note ? '<div class="tier-note">' + t.note + '</div>' : '') +
-      (t.ran_at ? '<div class="tier-note">最終: ' + fmtTimeAgo(t.ran_at) + '</div>' : '') +
-    '</div>';
-  }
-  html += '</div>';
-  return html;
-}
+      function renderTiers(latest) {
+        const tiers = latest.tiers || {};
+        const order = [
+          ['tier1_osrm', 'Tier 1 — OSRM /match'],
+          ['tier2_self', 'Tier 2 — 自己 replay'],
+          ['tier4_google', 'Tier 4 — Google Directions'],
+        ];
+        let html = '<div class="section"><div class="section-title">独立基準との比較 (Tier)</div>';
+        for (const [k, label] of order) {
+          const t = tiers[k] || {};
+          const b = tierBadge(t);
+          let metric = '';
+          if (k === 'tier2_self' && t.der != null) {
+            const cls = classifyDer(t.der);
+            metric = '<div class="tier-metric">DER ' + fmtPct(t.der) + ' (基準 ≤ 2%)</div>';
+          } else if (k === 'tier1_osrm' && t.der_overall != null) {
+            metric = '<div class="tier-metric">対 daikou DER ' + fmtPct(t.der_overall) + '</div>';
+          } else if (k === 'tier4_google' && t.requests_sent != null) {
+            metric = '<div class="tier-metric">' + t.requests_sent + ' リクエスト送信</div>';
+          }
+          html +=
+            '<div class="tier-row">' +
+            '<div class="tier-head"><span class="tier-name">' +
+            label +
+            '</span>' +
+            '<span class="tier-badge ' +
+            b.cls +
+            '">' +
+            b.txt +
+            '</span></div>' +
+            metric +
+            (t.note ? '<div class="tier-note">' + t.note + '</div>' : '') +
+            (t.ran_at ? '<div class="tier-note">最終: ' + fmtTimeAgo(t.ran_at) + '</div>' : '') +
+            '</div>';
+        }
+        html += '</div>';
+        return html;
+      }
 
-function renderFixtures(latest){
-  const fxs = latest.fixtures || [];
-  if(fxs.length === 0) return '';
-  let html = '<div class="section"><div class="section-title">Fixture 別の精度</div>';
-  for(const f of fxs){
-    const cls = classifyDer(f.distance_error_ratio);
-    const pctCls = cls === 'ok' ? 'ok' : 'ng';
-    html += '<div class="fixture-row">' +
-      '<div class="fixture-head"><span class="fixture-name">' + f.name + '</span>' +
-      '<span class="fixture-pct ' + pctCls + '">' + fmtPct(f.distance_error_ratio) + '</span></div>' +
-      '<div class="fixture-detail">' +
-        fmtMeters(f.mm_distance_m) + ' / ' + fmtMeters(f.expected_distance_m) +
-        ' · snap ' + fmtPct(f.snap_rate, 0) +
-      '</div>' +
-    '</div>';
-  }
-  html += '</div>';
-  return html;
-}
+      function renderFixtures(latest) {
+        const fxs = latest.fixtures || [];
+        if (fxs.length === 0) return '';
+        let html = '<div class="section"><div class="section-title">Fixture 別の精度</div>';
+        for (const f of fxs) {
+          const cls = classifyDer(f.distance_error_ratio);
+          const pctCls = cls === 'ok' ? 'ok' : 'ng';
+          html +=
+            '<div class="fixture-row">' +
+            '<div class="fixture-head"><span class="fixture-name">' +
+            f.name +
+            '</span>' +
+            '<span class="fixture-pct ' +
+            pctCls +
+            '">' +
+            fmtPct(f.distance_error_ratio) +
+            '</span></div>' +
+            '<div class="fixture-detail">' +
+            fmtMeters(f.mm_distance_m) +
+            ' / ' +
+            fmtMeters(f.expected_distance_m) +
+            ' · snap ' +
+            fmtPct(f.snap_rate, 0) +
+            '</div>' +
+            '</div>';
+        }
+        html += '</div>';
+        return html;
+      }
 
-function renderIssues(latest){
-  const issues = latest.issues || [];
-  if(issues.length === 0) return '';
-  let html = '<div class="section"><div class="section-title">⚠ 検出された問題</div>';
-  for(const it of issues) html += '<div class="issue">' + (it.ja || it.en) + '</div>';
-  html += '</div>';
-  return html;
-}
+      function renderIssues(latest) {
+        const issues = latest.issues || [];
+        if (issues.length === 0) return '';
+        let html = '<div class="section"><div class="section-title">⚠ 検出された問題</div>';
+        for (const it of issues) html += '<div class="issue">' + (it.ja || it.en) + '</div>';
+        html += '</div>';
+        return html;
+      }
 
-function renderError(msg){
-  return '<div class="wrap"><div class="error-box">⚠ データ取得失敗<br>' + msg +
-    '<br><br>初回 push 前 / Actions 未実行の場合は data/test-results/latest.json が GitHub 上に存在しません。' +
-    '<br>ローカルで <code>node tests/replay-mm.js</code> を実行 → push してから再表示してください。</div></div>';
-}
+      function renderError(msg) {
+        return (
+          '<div class="wrap"><div class="error-box">⚠ データ取得失敗<br>' +
+          msg +
+          '<br><br>初回 push 前 / Actions 未実行の場合は data/test-results/latest.json が GitHub 上に存在しません。' +
+          '<br>ローカルで <code>node tests/replay-mm.js</code> を実行 → push してから再表示してください。</div></div>'
+        );
+      }
 
-async function refresh(forceShowSpinner){
-  const root = document.getElementById('root');
-  const refresher = document.getElementById('refreshBtn');
-  if(forceShowSpinner) refresher.style.opacity = '0.4';
-  try {
-    // cache-busting: ?_=epoch (raw.githubusercontent.com は cache TTL 5 分なので busting 必須)
-    const stamp = Date.now();
-    const [latestRes, histRes] = await Promise.all([
-      fetch(LATEST_URL  + '?_=' + stamp, { cache: 'no-store' }),
-      fetch(HISTORY_URL + '?_=' + stamp, { cache: 'no-store' }).catch(() => null),
-    ]);
-    if(!latestRes.ok) throw new Error('HTTP ' + latestRes.status + ' (' + LATEST_URL + ')');
-    const latest = await latestRes.json();
-    const history = (histRes && histRes.ok) ? await histRes.json().catch(() => []) : [];
-    _lastFetchedAt = Date.now();
-    root.innerHTML =
-      renderHero(latest) +
-      renderSummary(latest) +
-      renderTrend(history) +
-      renderTiers(latest) +
-      renderFixtures(latest) +
-      renderIssues(latest) +
-      '<div class="meta">最終取得: ' + new Date(_lastFetchedAt).toLocaleTimeString('ja-JP') + ' / 自動更新 5 秒</div>';
-  } catch(e){
-    root.innerHTML = renderError(String(e && e.message || e));
-  } finally {
-    refresher.style.opacity = '1';
-  }
-}
+      async function refresh(forceShowSpinner) {
+        const root = document.getElementById('root');
+        const refresher = document.getElementById('refreshBtn');
+        if (forceShowSpinner) refresher.style.opacity = '0.4';
+        try {
+          // cache-busting: ?_=epoch (raw.githubusercontent.com は cache TTL 5 分なので busting 必須)
+          const stamp = Date.now();
+          const [latestRes, histRes] = await Promise.all([
+            fetch(LATEST_URL + '?_=' + stamp, { cache: 'no-store' }),
+            fetch(HISTORY_URL + '?_=' + stamp, { cache: 'no-store' }).catch(() => null),
+          ]);
+          if (!latestRes.ok) throw new Error('HTTP ' + latestRes.status + ' (' + LATEST_URL + ')');
+          const latest = await latestRes.json();
+          const history = histRes && histRes.ok ? await histRes.json().catch(() => []) : [];
+          _lastFetchedAt = Date.now();
+          root.innerHTML =
+            renderHero(latest) +
+            renderSummary(latest) +
+            renderTrend(history) +
+            renderTiers(latest) +
+            renderFixtures(latest) +
+            renderIssues(latest) +
+            '<div class="meta">最終取得: ' +
+            new Date(_lastFetchedAt).toLocaleTimeString('ja-JP') +
+            ' / 自動更新 5 秒</div>';
+        } catch (e) {
+          root.innerHTML = renderError(String((e && e.message) || e));
+        } finally {
+          refresher.style.opacity = '1';
+        }
+      }
 
-function startAutoRefresh(){
-  if(_autoTimer) clearInterval(_autoTimer);
-  _autoTimer = setInterval(() => {
-    if(document.visibilityState === 'visible') refresh(false);
-  }, REFRESH_MS);
-}
+      function startAutoRefresh() {
+        if (_autoTimer) clearInterval(_autoTimer);
+        _autoTimer = setInterval(() => {
+          if (document.visibilityState === 'visible') refresh(false);
+        }, REFRESH_MS);
+      }
 
-document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible') refresh(false);
-});
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') refresh(false);
+      });
 
-refresh(true);
-startAutoRefresh();
+      refresh(true);
+      startAutoRefresh();
 
-// ─── 実機チェックリスト ─────────────────────────────────────────
-const CHECKLIST_KEY = 'daikou_test_checklist_v1';
-const MM_DEBUG_KEY = 'daikou_mm_debug';
-const CHECK_ITEMS = [
-  { id: 'mm', title: 'Map Matching 動作', desc: 'GPS が道路に吸着し mm_distance_m が増えていく (右下バッジで snap≥97% を確認)' },
-  { id: 'ram', title: 'iOS RAM 1 時間連続', desc: '走行を 1 時間続けて main heap ≤ 100MB を維持 (右下 RAM パネル)' },
-  { id: 'kill', title: 'タスクキル後の業務復旧', desc: 'メータ作動中にタスクキル → 再起動で前回業務が再開できる (3 時間猶予)' },
-  { id: 'offline', title: 'オフライン動作', desc: '機内モードで起動して index/history/settings/メーターが全て開ける (sw.js precache)' },
-  { id: 'flow', title: '業務開始〜終了 フル業務フロー', desc: '業務開始 → 走行 → 実車 → 終了 → レポート表示まで通しで動く' },
-  { id: 'dl', title: 'DL 完了画面の自動遷移', desc: '初回 DL 完了 2 秒後に メーター画面 (idle) へ自動遷移する' },
-  { id: 'multi', title: 'Android / iOS 両 OS で動作', desc: 'AQUOS と iPhone の両方で上記 6 項目をクリアする' },
-];
+      // ─── 実機チェックリスト ─────────────────────────────────────────
+      const CHECKLIST_KEY = 'daikou_test_checklist_v1';
+      const MM_DEBUG_KEY = 'daikou_mm_debug';
+      const CHECK_ITEMS = [
+        {
+          id: 'mm',
+          title: 'Map Matching 動作',
+          desc: 'GPS が道路に吸着し mm_distance_m が増えていく (右下バッジで snap≥97% を確認)',
+        },
+        {
+          id: 'ram',
+          title: 'iOS RAM 1 時間連続',
+          desc: '走行を 1 時間続けて main heap ≤ 100MB を維持 (右下 RAM パネル)',
+        },
+        {
+          id: 'kill',
+          title: 'タスクキル後の業務復旧',
+          desc: 'メータ作動中にタスクキル → 再起動で前回業務が再開できる (3 時間猶予)',
+        },
+        {
+          id: 'offline',
+          title: 'オフライン動作',
+          desc: '機内モードで起動して index/history/settings/メーターが全て開ける (sw.js precache)',
+        },
+        {
+          id: 'flow',
+          title: '業務開始〜終了 フル業務フロー',
+          desc: '業務開始 → 走行 → 実車 → 終了 → レポート表示まで通しで動く',
+        },
+        {
+          id: 'dl',
+          title: 'DL 完了画面の自動遷移',
+          desc: '初回 DL 完了 2 秒後に メーター画面 (idle) へ自動遷移する',
+        },
+        {
+          id: 'multi',
+          title: 'Android / iOS 両 OS で動作',
+          desc: 'AQUOS と iPhone の両方で上記 6 項目をクリアする',
+        },
+      ];
 
-function loadChecklist(){
-  try { return JSON.parse(localStorage.getItem(CHECKLIST_KEY) || '{}'); }
-  catch(_){ return {}; }
-}
-function saveChecklist(state){
-  try { localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state)); } catch(_){}
-}
+      function loadChecklist() {
+        try {
+          return JSON.parse(localStorage.getItem(CHECKLIST_KEY) || '{}');
+        } catch (_) {
+          return {};
+        }
+      }
+      function saveChecklist(state) {
+        try {
+          localStorage.setItem(CHECKLIST_KEY, JSON.stringify(state));
+        } catch (_) {}
+      }
 
-function switchTab(name){
-  const tabs = document.querySelectorAll('.tab');
-  for(const t of tabs) t.classList.toggle('active', t.dataset.tab === name);
-  document.getElementById('root').style.display = name === 'results' ? 'flex' : 'none';
-  document.getElementById('checklistRoot').style.display = name === 'checklist' ? 'flex' : 'none';
-  if(name === 'checklist') renderChecklist();
-}
+      function switchTab(name) {
+        const tabs = document.querySelectorAll('.tab');
+        for (const t of tabs) t.classList.toggle('active', t.dataset.tab === name);
+        document.getElementById('root').style.display = name === 'results' ? 'flex' : 'none';
+        document.getElementById('checklistRoot').style.display =
+          name === 'checklist' ? 'flex' : 'none';
+        if (name === 'checklist') renderChecklist();
+      }
 
-function renderChecklist(){
-  const root = document.getElementById('checklistRoot');
-  const state = loadChecklist();
-  const debugOn = localStorage.getItem(MM_DEBUG_KEY) === '1';
-  const doneCount = CHECK_ITEMS.filter(it => state[it.id] && state[it.id].done).length;
-  let html = '';
-  html += '<div class="check-section">' +
-    '<div class="check-summary">' + doneCount + ' / ' + CHECK_ITEMS.length + ' 項目クリア</div>' +
-    '<div class="check-action">' +
-      '<button onclick="resetChecklist()" class="warn">全リセット</button>' +
-      '<button onclick="markAllDone()">全チェック</button>' +
-    '</div>';
-  html += '</div>';
+      function renderChecklist() {
+        const root = document.getElementById('checklistRoot');
+        const state = loadChecklist();
+        const debugOn = localStorage.getItem(MM_DEBUG_KEY) === '1';
+        const doneCount = CHECK_ITEMS.filter((it) => state[it.id] && state[it.id].done).length;
+        let html = '';
+        html +=
+          '<div class="check-section">' +
+          '<div class="check-summary">' +
+          doneCount +
+          ' / ' +
+          CHECK_ITEMS.length +
+          ' 項目クリア</div>' +
+          '<div class="check-action">' +
+          '<button onclick="resetChecklist()" class="warn">全リセット</button>' +
+          '<button onclick="markAllDone()">全チェック</button>' +
+          '</div>';
+        html += '</div>';
 
-  html += '<div class="check-section"><div class="section-title">実機テストチェックリスト</div>';
-  for(const it of CHECK_ITEMS){
-    const s = state[it.id] || {};
-    const cls = s.done ? 'check-row done' : 'check-row';
-    const ts = s.checkedAt ? fmtTimeAgo(s.checkedAt) : '';
-    html += '<div class="' + cls + '" onclick="toggleCheck(\'' + it.id + '\')">' +
-      '<div class="check-box"></div>' +
-      '<div class="check-body">' +
-        '<div class="check-title">' + it.title + '</div>' +
-        '<div class="check-desc">' + it.desc + '</div>' +
-        (ts ? '<div class="check-meta">確認: ' + ts + '</div>' : '') +
-      '</div>' +
-    '</div>';
-  }
-  html += '</div>';
+        html +=
+          '<div class="check-section"><div class="section-title">実機テストチェックリスト</div>';
+        for (const it of CHECK_ITEMS) {
+          const s = state[it.id] || {};
+          const cls = s.done ? 'check-row done' : 'check-row';
+          const ts = s.checkedAt ? fmtTimeAgo(s.checkedAt) : '';
+          html +=
+            '<div class="' +
+            cls +
+            '" onclick="toggleCheck(\'' +
+            it.id +
+            '\')">' +
+            '<div class="check-box"></div>' +
+            '<div class="check-body">' +
+            '<div class="check-title">' +
+            it.title +
+            '</div>' +
+            '<div class="check-desc">' +
+            it.desc +
+            '</div>' +
+            (ts ? '<div class="check-meta">確認: ' + ts + '</div>' : '') +
+            '</div>' +
+            '</div>';
+        }
+        html += '</div>';
 
-  html += '<div class="check-section"><div class="section-title">MM デバッグログ</div>' +
-    '<div class="mm-debug-row" onclick="toggleMmDebug()">' +
-      '<div>' +
-        '<div class="mm-debug-label">Worker B console.log を有効化</div>' +
-        '<div class="mm-debug-desc">受信 GPS / 候補スコア / mmResult を console に出力。メーター画面を再読込で反映。</div>' +
-      '</div>' +
-      '<div class="mm-toggle ' + (debugOn ? 'on' : '') + '" id="mmDebugToggle"></div>' +
-    '</div>' +
-  '</div>';
+        html +=
+          '<div class="check-section"><div class="section-title">MM デバッグログ</div>' +
+          '<div class="mm-debug-row" onclick="toggleMmDebug()">' +
+          '<div>' +
+          '<div class="mm-debug-label">Worker B console.log を有効化</div>' +
+          '<div class="mm-debug-desc">受信 GPS / 候補スコア / mmResult を console に出力。メーター画面を再読込で反映。</div>' +
+          '</div>' +
+          '<div class="mm-toggle ' +
+          (debugOn ? 'on' : '') +
+          '" id="mmDebugToggle"></div>' +
+          '</div>' +
+          '</div>';
 
-  root.innerHTML = html;
-}
+        root.innerHTML = html;
+      }
 
-function toggleCheck(id){
-  const state = loadChecklist();
-  const cur = state[id] || {};
-  state[id] = { done: !cur.done, checkedAt: !cur.done ? new Date().toISOString() : null };
-  saveChecklist(state);
-  renderChecklist();
-}
-function markAllDone(){
-  const state = {};
-  const now = new Date().toISOString();
-  for(const it of CHECK_ITEMS) state[it.id] = { done: true, checkedAt: now };
-  saveChecklist(state);
-  renderChecklist();
-}
-function resetChecklist(){
-  saveChecklist({});
-  renderChecklist();
-}
-function toggleMmDebug(){
-  const cur = localStorage.getItem(MM_DEBUG_KEY) === '1';
-  localStorage.setItem(MM_DEBUG_KEY, cur ? '0' : '1');
-  renderChecklist();
-}
-</script>
-</body>
+      function toggleCheck(id) {
+        const state = loadChecklist();
+        const cur = state[id] || {};
+        state[id] = { done: !cur.done, checkedAt: !cur.done ? new Date().toISOString() : null };
+        saveChecklist(state);
+        renderChecklist();
+      }
+      function markAllDone() {
+        const state = {};
+        const now = new Date().toISOString();
+        for (const it of CHECK_ITEMS) state[it.id] = { done: true, checkedAt: now };
+        saveChecklist(state);
+        renderChecklist();
+      }
+      function resetChecklist() {
+        saveChecklist({});
+        renderChecklist();
+      }
+      function toggleMmDebug() {
+        const cur = localStorage.getItem(MM_DEBUG_KEY) === '1';
+        localStorage.setItem(MM_DEBUG_KEY, cur ? '0' : '1');
+        renderChecklist();
+      }
+    </script>
+  </body>
 </html>

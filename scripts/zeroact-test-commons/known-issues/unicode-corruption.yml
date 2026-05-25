@@ -1,0 +1,61 @@
+# ============================================================
+# known-issues/unicode-corruption.yml
+# Markdown / コード内 Unicode 文字混入 (スマートクォート・省略記号 等)
+# ============================================================
+
+issue_id: KI-001
+title: Unicode 文字混入によるパースエラー (スマートクォート・省略記号・全角バッククォート)
+category: encoding
+
+discovered_date: 開発初期 (~2025 年・複数回再発)
+commit_fixed: 累積対策 (= CLAUDE.md push 前チェック規定追加)
+status: 予防策確立済 (= 司さんの push 前 grep / Cloudflare 汚染チェック)
+
+root_cause:
+  description: |
+    GitHub ウェブエディタの「鉛筆アイコン編集」を経由すると
+    Cloudflare 経由で文字置換が起きる (= data-cfemail 属性 / スマートクォート化)。
+    結果として ASCII バッククォート ` が ` (U+2018/2019) に / "" が "" (U+201C/201D) に変換され
+    JS / Markdown / YAML パーサーが構文エラーで停止する。
+  triggers:
+    - GitHub web editor の使用 (= 鉛筆アイコン)
+    - Word / OS の自動修正 (= AutoCorrect)
+    - 一部メールクライアント経由のコピペ
+    - Microsoft IME の全角バッククォート入力
+
+impact:
+  severity: 致命 (= ビルド失敗 / 実行時エラー)
+  affected_areas:
+    - JS ファイル (= テンプレートリテラル `${var}` が `${var}` で SyntaxError)
+    - Markdown (= コードブロック ``` が ``` で表示崩れ)
+    - YAML (= " " が " " で string boundary 不整合)
+    - HTML (= class="..." が class="..." で属性パース不能)
+  daikome_specific_breakage:
+    - distance_m 計算式中の `${distance}` が動作不能
+    - calcFare 数式エンジン中の string template 破綻
+    - .stylelintrc.json / .eslintrc.json の JSON パースエラー
+
+how_detected:
+  manual_checks:
+    - 司さん push 前チェック (CLAUDE.md 規定):
+        grep -c 'data-cfemail' {file}     # Cloudflare 汚染 = 0 期待
+        node --check {file}                # JS 構文チェック
+        grep -c '<div' {file}              # div 開閉差分
+        grep -c '</div' {file}
+  ci_checks:
+    - eslint --fix (= 全 .js ファイル)
+    - prettier --write (= 全 .{js,css,html})
+    - test.yml workflow で vitest が SyntaxError 検出
+
+prevention:
+  rules:
+    - GitHub ウェブエディタ使用禁止 (CLAUDE.md 明記)
+    - ローカル editor (VS Code / IntelliJ) からの commit 必須
+    - PR 前に node --check と grep でチェック
+    - PAT を URL に埋め込まない (= 別 issue だが encoding 関連)
+  tooling:
+    - .editorconfig で改行 / charset 統一 (未導入・将来検討)
+    - pre-commit hook で Unicode 検出 (未導入・将来検討)
+  references:
+    - CLAUDE.md "禁止事項" + "過去の失敗パターン"
+    - 司さんの教訓「PATをgit configのURLに直書き」「ASCII文字のみ使用」

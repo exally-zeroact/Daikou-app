@@ -38,21 +38,21 @@
 
 const TrainingUploader = (() => {
   const PATH_PREFIX = 'training-data';
-  const UPLOAD_MIN_SAMPLES = 500;             // ≒ 3-4 trip 相当
-  const UPLOAD_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000;   // 1 day
-  const UPLOAD_BATCH_SIZE = 1000;              // 1 回の upload 最大 sample 数
-  const UPLOAD_PERIODIC_MS = 30 * 60 * 1000;   // 30 分 periodic
+  const UPLOAD_MIN_SAMPLES = 500; // ≒ 3-4 trip 相当
+  const UPLOAD_MIN_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1 day
+  const UPLOAD_BATCH_SIZE = 1000; // 1 回の upload 最大 sample 数
+  const UPLOAD_PERIODIC_MS = 30 * 60 * 1000; // 30 分 periodic
   const LAST_UPLOAD_KEY = 'daikome_training_last_upload';
 
   // Phase 3 (2026-05-10): localStorage から _enabled を初期化
   //   training-collector と同じロジック (consent 有無で初期判定)
-  function _initEnabledState(){
+  function _initEnabledState() {
     try {
       const explicit = localStorage.getItem('daikome_training_enabled');
       if (explicit !== null) return explicit === 'true';
       const consent = localStorage.getItem('daikome_training_consent');
       return consent !== null;
-    } catch(_) {
+    } catch (_) {
       return false;
     }
   }
@@ -61,12 +61,20 @@ const TrainingUploader = (() => {
   let _periodicTimer = null;
   let _initDone = false;
 
-  let _stats = {
-    triggered: 0, uploaded: 0,
-    skipped_disabled: 0, skipped_running: 0,
-    skipped_offline: 0, skipped_not_wifi: 0, skipped_not_charging: 0,
-    skipped_too_soon: 0, skipped_insufficient: 0, skipped_no_collector: 0,
-    errors: 0, samples_uploaded: 0, samples_deleted: 0,
+  const _stats = {
+    triggered: 0,
+    uploaded: 0,
+    skipped_disabled: 0,
+    skipped_running: 0,
+    skipped_offline: 0,
+    skipped_not_wifi: 0,
+    skipped_not_charging: 0,
+    skipped_too_soon: 0,
+    skipped_insufficient: 0,
+    skipped_no_collector: 0,
+    errors: 0,
+    samples_uploaded: 0,
+    samples_deleted: 0,
   };
 
   function init() {
@@ -75,24 +83,24 @@ const TrainingUploader = (() => {
 
     // Event-based trigger
     if (typeof window !== 'undefined') {
-      window.addEventListener('online', function() {
+      window.addEventListener('online', function () {
         _maybeUpload('online_event');
       });
     }
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', function() {
+      document.addEventListener('visibilitychange', function () {
         if (!document.hidden) _maybeUpload('visibility_visible');
       });
     }
 
     // Periodic timer (30 分ごと)
     if (_periodicTimer) clearInterval(_periodicTimer);
-    _periodicTimer = setInterval(function() {
+    _periodicTimer = setInterval(function () {
       _maybeUpload('periodic');
     }, UPLOAD_PERIODIC_MS);
 
     // Initial check after 30s (起動直後の負荷を避けるため少し遅延)
-    setTimeout(function() {
+    setTimeout(function () {
       _maybeUpload('init_delayed');
     }, 30000);
 
@@ -101,7 +109,7 @@ const TrainingUploader = (() => {
 
     // Service Worker からの message を listen (sync event 起動時)
     if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
-      navigator.serviceWorker.addEventListener('message', function(e) {
+      navigator.serviceWorker.addEventListener('message', function (e) {
         if (e.data && e.data.type === 'TRAINING_UPLOAD_TRIGGER') {
           _maybeUpload('sw_sync');
         }
@@ -117,21 +125,30 @@ const TrainingUploader = (() => {
     if (typeof navigator === 'undefined') return;
     if (!navigator.serviceWorker) return;
     if (typeof window === 'undefined' || !('SyncManager' in window)) return;
-    navigator.serviceWorker.ready.then(function(reg) {
-      try {
-        if (reg.sync && reg.sync.register) {
-          reg.sync.register('training-upload').catch(function() {});
-        }
-      } catch(_) {}
-    }).catch(function() {});
+    navigator.serviceWorker.ready
+      .then(function (reg) {
+        try {
+          if (reg.sync && reg.sync.register) {
+            reg.sync.register('training-upload').catch(function () {});
+          }
+        } catch (_) {}
+      })
+      .catch(function () {});
   }
 
   // 送信条件チェック (all-or-nothing)
   function _checkConditions() {
-    if (!_enabled) { _stats.skipped_disabled++; return { ok: false, reason: 'disabled' }; }
-    if (_runningGuard) { _stats.skipped_running++; return { ok: false, reason: 'running' }; }
+    if (!_enabled) {
+      _stats.skipped_disabled++;
+      return { ok: false, reason: 'disabled' };
+    }
+    if (_runningGuard) {
+      _stats.skipped_running++;
+      return { ok: false, reason: 'running' };
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      _stats.skipped_offline++; return { ok: false, reason: 'offline' };
+      _stats.skipped_offline++;
+      return { ok: false, reason: 'offline' };
     }
     // WiFi check (best-effort・API 未対応は許可)
     if (typeof navigator !== 'undefined' && navigator.connection && navigator.connection.type) {
@@ -145,7 +162,7 @@ const TrainingUploader = (() => {
     let last = 0;
     try {
       last = parseInt(localStorage.getItem(LAST_UPLOAD_KEY) || '0', 10) || 0;
-    } catch(_) {}
+    } catch (_) {}
     if (Date.now() - last < UPLOAD_MIN_INTERVAL_MS) {
       _stats.skipped_too_soon++;
       return { ok: false, reason: 'too_soon' };
@@ -164,46 +181,51 @@ const TrainingUploader = (() => {
       // API 未対応 → 許可 (graceful degrade)
       return Promise.resolve(true);
     }
-    return navigator.getBattery().then(function(battery) {
-      if (battery && battery.charging === false) {
-        _stats.skipped_not_charging++;
-        return false;
-      }
-      return true;
-    }).catch(function() {
-      return true;   // 取得失敗は許可
-    });
+    return navigator
+      .getBattery()
+      .then(function (battery) {
+        if (battery && battery.charging === false) {
+          _stats.skipped_not_charging++;
+          return false;
+        }
+        return true;
+      })
+      .catch(function () {
+        return true; // 取得失敗は許可
+      });
   }
 
   function _maybeUpload(triggerSource) {
     _stats.triggered++;
     const cond = _checkConditions();
     if (!cond.ok) return;
-    _checkBatteryAsync().then(function(charging) {
+    _checkBatteryAsync().then(function (charging) {
       if (!charging) return;
       // Sample count
-      TrainingCollector.getCount().then(function(count) {
+      TrainingCollector.getCount().then(function (count) {
         if (count < UPLOAD_MIN_SAMPLES) {
           _stats.skipped_insufficient++;
           return;
         }
         if (_runningGuard) return;
         _runningGuard = true;
-        _runUpload(triggerSource).then(function() {
-          _runningGuard = false;
-        }).catch(function(err) {
-          _stats.errors++;
-          _runningGuard = false;
-          if (typeof dlog === 'function') {
-            dlog('[TrainingUploader] upload err: ' + (err && err.message));
-          }
-        });
+        _runUpload(triggerSource)
+          .then(function () {
+            _runningGuard = false;
+          })
+          .catch(function (err) {
+            _stats.errors++;
+            _runningGuard = false;
+            if (typeof dlog === 'function') {
+              dlog('[TrainingUploader] upload err: ' + (err && err.message));
+            }
+          });
       });
     });
   }
 
   function _runUpload(triggerSource) {
-    return TrainingCollector.readBatch(UPLOAD_BATCH_SIZE).then(function(samples) {
+    return TrainingCollector.readBatch(UPLOAD_BATCH_SIZE).then(function (samples) {
       if (!samples || samples.length === 0) return;
       const firstId = samples[0].id;
       const lastId = samples[samples.length - 1].id;
@@ -216,7 +238,7 @@ const TrainingUploader = (() => {
         appVersion: appVersion,
         uploadedAt: Date.now(),
         sampleCount: samples.length,
-        samples: samples.map(function(s) {
+        samples: samples.map(function (s) {
           // accel/gyro は Float32Array → 通常 Array (JSON 互換)
           return {
             accel: Array.from(s.accel),
@@ -232,21 +254,33 @@ const TrainingUploader = (() => {
       const basePath = PATH_PREFIX + '/' + deviceId + '/' + dateStr + '-' + firstId;
 
       // Compress (CompressionStream・best-effort)
-      return _maybeGzip(json).then(function(result) {
+      return _maybeGzip(json).then(function (result) {
         const blob = result.blob;
         const path = basePath + (result.compressed ? '.json.gz' : '.json');
         if (typeof FB === 'undefined' || !FB.uploadTrainingBatch) {
           throw new Error('FB.uploadTrainingBatch not available');
         }
-        return FB.uploadTrainingBatch(path, blob).then(function(meta) {
+        return FB.uploadTrainingBatch(path, blob).then(function (meta) {
           // 送信成功 → IndexedDB から削除
-          return TrainingCollector.deleteUpToId(lastId).then(function(deleted) {
-            try { localStorage.setItem(LAST_UPLOAD_KEY, String(Date.now())); } catch(_) {}
+          return TrainingCollector.deleteUpToId(lastId).then(function (deleted) {
+            try {
+              localStorage.setItem(LAST_UPLOAD_KEY, String(Date.now()));
+            } catch (_) {}
             _stats.uploaded++;
             _stats.samples_uploaded += samples.length;
             _stats.samples_deleted += deleted;
             if (typeof dlog === 'function') {
-              dlog('[TrainingUploader] upload OK ' + path + ' (' + samples.length + ' samples・' + (meta && meta.size) + 'B・trigger=' + triggerSource + ')');
+              dlog(
+                '[TrainingUploader] upload OK ' +
+                  path +
+                  ' (' +
+                  samples.length +
+                  ' samples・' +
+                  (meta && meta.size) +
+                  'B・trigger=' +
+                  triggerSource +
+                  ')'
+              );
             }
           });
         });
@@ -264,12 +298,15 @@ const TrainingUploader = (() => {
     try {
       const stream = new Blob([text]).stream();
       const compressed = stream.pipeThrough(new CompressionStream('gzip'));
-      return new Response(compressed).blob().then(function(blob) {
-        return { blob: blob, compressed: true };
-      }).catch(function() {
-        return { blob: new Blob([text], { type: 'application/json' }), compressed: false };
-      });
-    } catch(_) {
+      return new Response(compressed)
+        .blob()
+        .then(function (blob) {
+          return { blob: blob, compressed: true };
+        })
+        .catch(function () {
+          return { blob: new Blob([text], { type: 'application/json' }), compressed: false };
+        });
+    } catch (_) {
       return Promise.resolve({
         blob: new Blob([text], { type: 'application/json' }),
         compressed: false,
@@ -280,12 +317,16 @@ const TrainingUploader = (() => {
   // Phase 3 設定 UI 用・localStorage に永続化
   function setEnabled(enabled) {
     _enabled = !!enabled;
-    try { localStorage.setItem('daikome_training_enabled', String(_enabled)); } catch(_){}
+    try {
+      localStorage.setItem('daikome_training_enabled', String(_enabled));
+    } catch (_) {}
     if (typeof dlog === 'function') {
       dlog('[TrainingUploader] enabled=' + _enabled);
     }
   }
-  function getEnabled() { return _enabled; }
+  function getEnabled() {
+    return _enabled;
+  }
 
   function refreshEnabledFromStorage() {
     _enabled = _initEnabledState();
@@ -303,15 +344,22 @@ const TrainingUploader = (() => {
     return Object.assign({}, _stats, {
       enabled: _enabled,
       running: _runningGuard,
-      lastUpload: (function() {
-        try { return parseInt(localStorage.getItem(LAST_UPLOAD_KEY) || '0', 10); }
-        catch(_) { return 0; }
+      lastUpload: (function () {
+        try {
+          return parseInt(localStorage.getItem(LAST_UPLOAD_KEY) || '0', 10);
+        } catch (_) {
+          return 0;
+        }
       })(),
     });
   }
 
   return {
-    init, setEnabled, getEnabled, tryUploadNow, getStats,
+    init,
+    setEnabled,
+    getEnabled,
+    tryUploadNow,
+    getStats,
     // Phase 3 用
     refreshEnabledFromStorage,
   };
@@ -319,5 +367,7 @@ const TrainingUploader = (() => {
 
 // 自動初期化
 if (typeof window !== 'undefined') {
-  try { TrainingUploader.init(); } catch(_) {}
+  try {
+    TrainingUploader.init();
+  } catch (_) {}
 }

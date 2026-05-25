@@ -1,0 +1,26 @@
+# Knip 未使用 export / dependency 検出 (2026-05-17 新規・Stage 1 Step E)
+# 既存コードに warn が大量に出る可能性があるため初期は --no-exit-code (= 警告のみ)
+name: Knip
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  knip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Knip (warn-only mode)
+        run: npx knip --no-exit-code

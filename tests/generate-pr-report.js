@@ -11,37 +11,51 @@ const path = require('path');
 const LATEST = path.join(__dirname, '..', 'data', 'test-results', 'latest.json');
 const BASELINE_DIR = path.join(__dirname, 'baselines');
 
-function readBaseline(name){
+function readBaseline(name) {
   const p = path.join(BASELINE_DIR, name + '.json');
-  if(!fs.existsSync(p)) return null;
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch(_){ return null; }
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (_) {
+    return null;
+  }
 }
 
-function fmtPct(x){
-  if(x == null || isNaN(x)) return '-';
+function fmtPct(x) {
+  if (x == null || isNaN(x)) return '-';
   return (x * 100).toFixed(2) + '%';
 }
 
-function main(){
-  if(!fs.existsSync(LATEST)){
+function main() {
+  if (!fs.existsSync(LATEST)) {
     console.error('latest.json not found');
     process.exit(2);
   }
   const r = JSON.parse(fs.readFileSync(LATEST, 'utf8'));
   const lines = [];
-  const overallOk = r.summary.snap_rate_overall >= 0.97 &&
-                    r.summary.distance_error_ratio_overall <= 0.02;
+  const overallOk =
+    r.summary.snap_rate_overall >= 0.97 && r.summary.distance_error_ratio_overall <= 0.02;
   lines.push('## 🚗 Map Matching Regression ' + (overallOk ? '✅ PASS' : '❌ FAIL'));
   lines.push('');
-  lines.push('生成: `' + r.generated_at + '` / commit: `' + (r.git_sha || 'local').slice(0, 7) + '`');
+  lines.push(
+    '生成: `' + r.generated_at + '` / commit: `' + (r.git_sha || 'local').slice(0, 7) + '`'
+  );
   lines.push('');
   lines.push('### 全体サマリ');
   lines.push('');
   lines.push('| 指標 | 値 | 閾値 |');
   lines.push('|---|---:|---:|');
   lines.push('| snap 成功率 | **' + fmtPct(r.summary.snap_rate_overall) + '** | ≥ 97% |');
-  lines.push('| 距離誤差 (DER) | **' + fmtPct(r.summary.distance_error_ratio_overall) + '** | ≤ 2% |');
-  lines.push('| MM 距離合計 | ' + r.summary.mm_distance_total_m + 'm | (期待 ' + r.summary.expected_distance_total_m + 'm) |');
+  lines.push(
+    '| 距離誤差 (DER) | **' + fmtPct(r.summary.distance_error_ratio_overall) + '** | ≤ 2% |'
+  );
+  lines.push(
+    '| MM 距離合計 | ' +
+      r.summary.mm_distance_total_m +
+      'm | (期待 ' +
+      r.summary.expected_distance_total_m +
+      'm) |'
+  );
   lines.push('| fixture 数 | ' + r.summary.fixture_count + ' | - |');
   lines.push('| GPS 点数 | ' + r.summary.total_gps_points + ' | - |');
   lines.push('');
@@ -49,31 +63,44 @@ function main(){
   lines.push('');
   lines.push('| Fixture | MM 距離 | 期待 | DER | snap | baseline 差 |');
   lines.push('|---|---:|---:|---:|---:|---:|');
-  for(const f of r.fixtures){
+  for (const f of r.fixtures) {
     const bl = readBaseline(f.name);
     let diff = '-';
-    if(bl){
+    if (bl) {
       const d = f.mm_distance_m - bl.mm_distance_m;
       const dr = bl.mm_distance_m > 0 ? d / bl.mm_distance_m : 0;
       diff = (d >= 0 ? '+' : '') + d.toFixed(1) + 'm (' + (dr * 100).toFixed(2) + '%)';
     }
-    lines.push('| ' + f.name + ' | ' + f.mm_distance_m + 'm | ' + f.expected_distance_m + 'm | ' +
-               fmtPct(f.distance_error_ratio) + ' | ' + fmtPct(f.snap_rate) + ' | ' + diff + ' |');
+    lines.push(
+      '| ' +
+        f.name +
+        ' | ' +
+        f.mm_distance_m +
+        'm | ' +
+        f.expected_distance_m +
+        'm | ' +
+        fmtPct(f.distance_error_ratio) +
+        ' | ' +
+        fmtPct(f.snap_rate) +
+        ' | ' +
+        diff +
+        ' |'
+    );
   }
-  if(r.issues && r.issues.length > 0){
+  if (r.issues && r.issues.length > 0) {
     lines.push('');
     lines.push('### ⚠️ 検出された問題');
     lines.push('');
-    for(const it of r.issues) lines.push('- ' + (it.ja || it.en));
+    for (const it of r.issues) lines.push('- ' + (it.ja || it.en));
   }
   lines.push('');
   lines.push('### Tier 状況');
   lines.push('');
-  for(const k of Object.keys(r.tiers)){
+  for (const k of Object.keys(r.tiers)) {
     const t = r.tiers[k];
     let line = '- **' + k + '**: ' + t.status;
-    if(t.note) line += ' — ' + t.note;
-    if(t.der != null) line += ' (DER ' + (t.der * 100).toFixed(2) + '%)';
+    if (t.note) line += ' — ' + t.note;
+    if (t.der != null) line += ' (DER ' + (t.der * 100).toFixed(2) + '%)';
     lines.push(line);
   }
   lines.push('');
@@ -82,4 +109,4 @@ function main(){
   process.stdout.write(lines.join('\n') + '\n');
 }
 
-if(require.main === module) main();
+if (require.main === module) main();

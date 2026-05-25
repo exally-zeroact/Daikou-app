@@ -1,0 +1,50 @@
+{
+  "env": { "browser": true, "es2021": true, "serviceworker": true },
+  "extends": ["eslint:recommended"],
+  "parserOptions": { "ecmaVersion": 2021, "sourceType": "module" },
+  "globals": {
+    "dlog": "readonly",
+    "DEBUG": "readonly",
+    "Meter": "readonly",
+    "GPS": "readonly",
+    "FB": "readonly",
+    "RegionLoader": "readonly",
+    "TrainingCollector": "readonly",
+    "firebase": "readonly",
+    "eruda": "readonly",
+    "Buffer": "readonly"
+  },
+  "rules": {
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
+    "no-undef": "error",
+    "no-console": ["error", { "allow": ["error"] }],
+    "prefer-const": "error",
+    "no-var": "error"
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.js"],
+      "env": { "node": true },
+      "globals": {
+        "describe": "readonly",
+        "it": "readonly",
+        "expect": "readonly",
+        "beforeEach": "readonly",
+        "afterEach": "readonly",
+        "beforeAll": "readonly",
+        "afterAll": "readonly"
+      },
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["scripts/**/*.js"],
+      "env": { "node": true, "browser": false },
+      "rules": {
+        "no-console": "off",
+        "no-undef": "off"
+      }
+    }
+  ]
+}

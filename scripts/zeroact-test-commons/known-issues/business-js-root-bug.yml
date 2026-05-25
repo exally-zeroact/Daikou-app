@@ -1,0 +1,56 @@
+# ============================================================
+# known-issues/business-js-root-bug.yml
+# business.js 全関数 dead code 化事象
+# ============================================================
+
+issue_id: KI-003
+title: business.js 全関数 dead code 化 (= 業務単位処理機能停止)
+category: dead-code
+
+discovered_date: 開発中期 (= 推定 2025 末)
+commit_fixed: 業務フロー再配線 (= 個別 commit 不明・段階的修正)
+status: 解消済
+
+root_cause:
+  description: |
+    business.js (= 業務単位 / trip 単位の累積処理を担うファイル) の
+    全関数が「呼出されない状態」に陥った。
+    リファクタリング時に index.html / meter.js 側の呼出を削除し
+    business.js 側の関数定義だけが残された (= orphan)。
+    結果として trip 跨ぎ / business_distance_m / 業務終了集計が機能停止。
+  estimated_triggers:
+    - 一括リファクタリングで呼出側を削除
+    - business.js の関数を export し直す前に呼出側を改修
+    - 司さんの「Phase 移行」期間中の不整合
+
+impact:
+  severity: 高 (= 業務単位集計不能)
+  symptoms:
+    - business_distance_m が累積しない
+    - 業務終了サマリ (= screenBusinessReport) が表示されない
+    - trip 跨ぎで状態が引き継がれない
+  business_consequence:
+    - 1 夜売上の集計不能
+    - 運転手が「今日いくら稼いだか分からない」
+    - 司さんへのリリース遅延
+
+how_detected:
+  detection_method: 実機テスト (= 司さんが trip 完了後に確認)
+  symptoms_observed:
+    - 業務終了画面で distance_m / fare_yen が 0 or NaN
+    - localStorage に business state が保存されていない
+  recovery_method:
+    - business.js の関数を index.html / meter.js から再呼出
+    - state restore 経路 (= タスクキル復元) を追加
+
+prevention:
+  rules:
+    - 関数定義の削除は呼出側削除と同 commit で実施 (= step-wise でない)
+    - knip warn (= 未使用 export) で早期検出
+    - 既存テスト (tests/business.test.js) で外部 API 経路を維持確認
+  tooling:
+    - audit:knip で未使用 export を継続的に検出
+    - dependency-cruiser no-orphans で warn 検知
+    - Stage 1 で導入済の audit chain で再発防止
+  references:
+    - dead-code 削除の絶対ルール (mass-deletion KI-002 参照)

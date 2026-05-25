@@ -26,7 +26,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const { CATEGORIES, CATEGORY_NAME_TO_ID, classifyOsmTags, extractAttrsFromOsmTags } = require('./poi-categories.js');
+const {
+  CATEGORIES,
+  CATEGORY_NAME_TO_ID,
+  classifyOsmTags,
+  extractAttrsFromOsmTags,
+} = require('./poi-categories.js');
 const { PRECISION, GRID_INT } = require('./encoding-utils.js');
 
 const [, , INPUT, PREF] = process.argv;
@@ -45,18 +50,23 @@ if (!geo.features) throw new Error('Invalid GeoJSON');
 
 const bbox = [Infinity, Infinity, -Infinity, -Infinity];
 const rawPois = [];
-let droppedNoCategory = 0, droppedNoGeom = 0;
+let droppedNoCategory = 0,
+  droppedNoGeom = 0;
 
 // 任意ジオメトリから代表点 [lon, lat] を取得する（Point はそのまま、Way/Polygon は重心）
 function representativePoint(g) {
   if (!g) return null;
   if (g.type === 'Point' && Array.isArray(g.coordinates)) return g.coordinates;
   // 任意の coordinates ツリーから経度/緯度の平均を取る（粗いが Point 出力には十分）
-  let sumLon = 0, sumLat = 0, n = 0;
+  let sumLon = 0,
+    sumLat = 0,
+    n = 0;
   function walk(node) {
     if (!Array.isArray(node)) return;
     if (typeof node[0] === 'number' && typeof node[1] === 'number') {
-      sumLon += node[0]; sumLat += node[1]; n++;
+      sumLon += node[0];
+      sumLat += node[1];
+      n++;
       return;
     }
     for (const v of node) walk(v);
@@ -69,7 +79,10 @@ function representativePoint(g) {
 for (const f of geo.features) {
   const g = f.geometry;
   const coord = representativePoint(g);
-  if (!coord) { droppedNoGeom++; continue; }
+  if (!coord) {
+    droppedNoGeom++;
+    continue;
+  }
   const props = f.properties || {};
 
   // カテゴリ解決
@@ -111,7 +124,7 @@ for (const f of geo.features) {
 }
 
 if (droppedNoCategory) console.log(`  ⚠️ カテゴリ不明: ${droppedNoCategory} 件をスキップ`);
-if (droppedNoGeom)     console.log(`  ⚠️ ジオメトリ無効: ${droppedNoGeom} 件をスキップ`);
+if (droppedNoGeom) console.log(`  ⚠️ ジオメトリ無効: ${droppedNoGeom} 件をスキップ`);
 
 // ─── 重複除去 ─────────────────────────────────────────────────────
 // 同じ施設が OSM 上で node + way（建物）両方に POI タグ付与されているケースを統合。
@@ -121,12 +134,9 @@ const DEDUP_GRID = 10; // 1e5 整数で 10 ＝ 約11m
 const dedupBucket = new Map();
 let merged = 0;
 for (const p of rawPois) {
-  const key = [
-    p.c,
-    p.n || '',
-    Math.floor(p.lat / DEDUP_GRID),
-    Math.floor(p.lng / DEDUP_GRID),
-  ].join('|');
+  const key = [p.c, p.n || '', Math.floor(p.lat / DEDUP_GRID), Math.floor(p.lng / DEDUP_GRID)].join(
+    '|'
+  );
   if (dedupBucket.has(key)) {
     // 既存にマージ：属性は既存優先、名前があるほうを優先
     const existing = dedupBucket.get(key);
@@ -167,7 +177,7 @@ const header = [
   `// Generated: ${out.generated}`,
   `// 形式 v2: 41カテゴリ・属性短縮キー（h24/open/fee/cap/height_m/self/full/diesel/er/kind）`,
   `window.${VAR} = ${JSON.stringify(out)};`,
-  ''
+  '',
 ].join('\n');
 
 const outPath = path.join(__dirname, '..', 'data', `poi-${PREF}.js`);
@@ -179,7 +189,11 @@ const byCat = {};
 for (const p of pois) byCat[p.c] = (byCat[p.c] || 0) + 1;
 
 console.log(`✅ ${outPath}`);
-console.log(`  total=${pois.length} / cells=${Object.keys(grid).length} / size=${(size/1024).toFixed(2)} KB`);
-const catLines = Object.entries(byCat).sort((a, b) => +a[0] - +b[0])
-  .map(([id, n]) => `    [${id}] ${CATEGORIES[id]}: ${n}`).join('\n');
+console.log(
+  `  total=${pois.length} / cells=${Object.keys(grid).length} / size=${(size / 1024).toFixed(2)} KB`
+);
+const catLines = Object.entries(byCat)
+  .sort((a, b) => +a[0] - +b[0])
+  .map(([id, n]) => `    [${id}] ${CATEGORIES[id]}: ${n}`)
+  .join('\n');
 if (catLines) console.log('  カテゴリ別:\n' + catLines);

@@ -1,5 +1,63 @@
 {
   "dependencies": {
     "iconv-lite": "^0.7.2"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "lint": "eslint '**/*.js' --fix",
+    "format": "prettier --write '**/*.{js,css,html}'",
+    "stylelint": "stylelint '**/*.{css,html}' --fix",
+    "audit": "npm audit --audit-level=moderate",
+    "audit:handlers": "node scripts/zeroact-test-commons/audit-message-handlers.js audit-handlers.config.js",
+    "audit:semgrep": "semgrep --config scripts/zeroact-test-commons/semgrep-rules/daikome/ js/",
+    "audit:knip": "knip --no-exit-code",
+    "audit:deps": "dependency-cruiser --config dependency-cruiser.config.mjs js/ scripts/zeroact-test-commons/",
+    "audit:biome": "biome check .",
+    "audit:arch": "vitest run --config vitest.arch.config.js",
+    "check": "npm run lint && npm run format && npm run stylelint && npm run audit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:property": "vitest run tests/property",
+    "test:stryker": "stryker run",
+    "test:replay": "node tests/replay-mm.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "check:logic": "npm run test && npm run test:replay",
+    "check:all": "npm run check && npm run check:logic"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,html}": [
+      "stylelint --fix --allow-empty-input",
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.60.0",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@vitest/browser": "^4.1.6",
+    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/web-worker": "^4.1.6",
+    "dependency-cruiser": "^17.4.0",
+    "eslint": "^8.57.1",
+    "fast-check": "^4.8.0",
+    "http-server": "^14.1.1",
+    "husky": "^9.1.7",
+    "knip": "^6.14.1",
+    "lint-staged": "^17.0.4",
+    "msw": "^2.14.6",
+    "postcss-html": "^1.8.1",
+    "prettier": "^3.8.3",
+    "stylelint": "^17.11.0",
+    "stylelint-config-standard": "^40.0.0",
+    "tsarch": "^5.4.1",
+    "vitest": "^4.1.6"
   }
 }

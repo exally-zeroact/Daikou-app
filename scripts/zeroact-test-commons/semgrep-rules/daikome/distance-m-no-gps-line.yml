@@ -1,0 +1,68 @@
+# ============================================================
+# daikome: state.distance_m への GPS 直線距離流入禁止 (Layer 1 taint analysis)
+# 2026-05-17 新規・Stage 1 Step B
+#
+# 目的:
+#   ダイコメ絶対ルール「距離計算は道路ジオメトリに沿った距離で課金・
+#   GPS 直線距離での課金は禁止」を taint 解析で機械的に保証する。
+#
+# 検査対象:
+#   source -> sink: GPS.calcDistance / GPS.calcDistance3D の戻り値が
+#                   state.distance_m への代入/加算に流入する経路
+#
+# sanitizer (適用外区間):
+#   ・_trackHaversineBetweenGps  : Off-Road 起動時の retroactive 加算用 buffer
+#                                  (= L257 GPS.calcDistance を使うが
+#                                   L462 で ★絶対ルール適用外区間（retroactive） として加算)
+#   ・_calculateOffRoadIncrement : Phase 1.C Off-Road Mode 内
+#                                  (= L295 ★絶対ルール適用外区間（明示宣言） /
+#                                   L305 GPS.calcDistance を使い L842 で加算)
+#
+# verified line numbers (2026-05-17):
+#   L393  Tier1 Worker B Viterbi commit   = source 非該当 (Worker B 出力経由)
+#   L462  retroactive                     = _trackHaversineBetweenGps が sanitizer
+#   L824  gap fill (GPS 消失検出)          = source 非該当 (calculateGapFill = speed × time)
+#   L842  Off-Road incremental            = _calculateOffRoadIncrement が sanitizer
+#   L1172 setDistance (外部 API)          = source 非該当 (引数経由)
+#
+# 期待結果: 既存 HEAD コードで全 PASS。将来「適用外区間以外の GPS 直線」
+#          を distance_m に流入させる新規コードがあれば ERROR で検出。
+# ============================================================
+
+rules:
+  - id: daikome-distance-m-no-gps-line
+    languages: [javascript]
+    severity: ERROR
+    mode: taint
+    message: |
+      state.distance_m に GPS.calcDistance / GPS.calcDistance3D 由来の値が流入しています。
+      ダイコメの絶対ルール: 距離計算は道路ジオメトリに沿った距離で課金・GPS 直線距離での課金は禁止。
+      適用外区間 (Off-Road Mode / retroactive) は ★絶対ルール適用外区間 コメント +
+      sanitizer 関数 (_trackHaversineBetweenGps / _calculateOffRoadIncrement) で明示してください。
+    metadata:
+      category: security
+      subcategory: business-logic-violation
+      project: daikome
+      ruleset: zeroact-test-commons
+      verified: "2026-05-17"
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: GPS.calcDistance(...)
+              - pattern: GPS.calcDistance3D(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: state.distance_m = $X
+              - pattern: state.distance_m += $X
+    pattern-sanitizers:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  function _trackHaversineBetweenGps(...) {
+                    ...
+                  }
+              - pattern-inside: |
+                  function _calculateOffRoadIncrement(...) {
+                    ...
+                  }

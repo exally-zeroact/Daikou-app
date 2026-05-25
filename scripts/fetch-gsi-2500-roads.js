@@ -42,16 +42,18 @@ const PREFECTURES_DID_MESHES = {
   // 他 47 県分は OPERATOR が国土地理院 mesh tool で確認して追加
 };
 
-function main(){
+function main() {
   const pref = process.argv[2];
-  if(!pref){
+  if (!pref) {
     console.error('Usage: node scripts/fetch-gsi-2500-roads.js <prefecture>');
     console.error('Available presets: ' + Object.keys(PREFECTURES_DID_MESHES).join(', '));
     process.exit(1);
   }
   const meshes = PREFECTURES_DID_MESHES[pref];
-  if(!meshes){
-    console.error('No DID mesh preset for ' + pref + '・国土地理院 mesh tool で確認後追加してください');
+  if (!meshes) {
+    console.error(
+      'No DID mesh preset for ' + pref + '・国土地理院 mesh tool で確認後追加してください'
+    );
     process.exit(1);
   }
   console.log('国土地理院 1/2,500 道路縁データ ' + pref + ' 用ダウンロード手順');
@@ -62,7 +64,7 @@ function main(){
   console.log('Step 2: 「基盤地図情報 (縮尺レベル 2500)」を選択');
   console.log('');
   console.log('Step 3: 以下の二次メッシュをダウンロード対象として追加:');
-  for(const m of meshes){
+  for (const m of meshes) {
     console.log('  - ' + m);
   }
   console.log('');
@@ -83,4 +85,4 @@ function main(){
   console.log('注: 商用利用には 国土地理院長承認 第○○号 の取得が必要 (出典明記必須)');
 }
 
-if(require.main === module) main();
+if (require.main === module) main();

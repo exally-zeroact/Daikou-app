@@ -19,9 +19,9 @@ const PROJECT_ROOT = path.join(__dirname, '..');
 const TMP = path.join(PROJECT_ROOT, 'tmp');
 const OUT = path.join(PROJECT_ROOT, 'data', 'emergency-medical-jp.js');
 const EMIS_URL =
-  'https://services8.arcgis.com/rGc6Kyg1ETR5TWY9/arcgis/rest/services/hospital_base_auto/FeatureServer/0/query'
-  + '?where=1%3D1&outFields=name,%E4%BD%8F%E6%89%80,%E4%BA%8C%E6%AC%A1%E5%8C%BB%E7%99%82%E5%9C%8F'
-  + '&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
+  'https://services8.arcgis.com/rGc6Kyg1ETR5TWY9/arcgis/rest/services/hospital_base_auto/FeatureServer/0/query' +
+  '?where=1%3D1&outFields=name,%E4%BD%8F%E6%89%80,%E4%BA%8C%E6%AC%A1%E5%8C%BB%E7%99%82%E5%9C%8F' +
+  '&returnGeometry=true&outSR=4326&resultRecordCount=2000&f=json';
 
 const MATCH_RADIUS_M = 400; // OSM 病院との最大マッチ距離
 
@@ -29,9 +29,11 @@ const MATCH_RADIUS_M = 400; // OSM 病院との最大マッチ距離
 // 緯度経度の度差→m概算（小範囲なら平面近似で十分）
 function distMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
@@ -39,7 +41,7 @@ function distMeters(lat1, lng1, lat2, lng2) {
 function buildOsmHospitalIndex() {
   const index = new Map(); // key="latGrid,lngGrid" -> [{lat,lng,n,h24}]
   const dataDir = path.join(PROJECT_ROOT, 'data');
-  const poiFiles = fs.readdirSync(dataDir).filter(f => /^poi-.+\.js$/.test(f));
+  const poiFiles = fs.readdirSync(dataDir).filter((f) => /^poi-.+\.js$/.test(f));
   let count = 0;
   for (const file of poiFiles) {
     const text = fs.readFileSync(path.join(dataDir, file), 'utf8');
@@ -47,7 +49,7 @@ function buildOsmHospitalIndex() {
     if (!m) continue;
     const o = JSON.parse(m[1]);
     const prec = o.precision || 100000;
-    for (const p of (o.pois || [])) {
+    for (const p of o.pois || []) {
       if (p.c !== 4) continue;
       const lat = p.lat / prec;
       const lng = p.lng / prec;
@@ -63,7 +65,8 @@ function buildOsmHospitalIndex() {
 function nearestOsmHospital(lat, lng, idx) {
   const cellLat = Math.floor(lat * 100);
   const cellLng = Math.floor(lng * 100);
-  let best = null, bestD = Infinity;
+  let best = null,
+    bestD = Infinity;
   for (let dLat = -1; dLat <= 1; dLat++) {
     for (let dLng = -1; dLng <= 1; dLng++) {
       const key = `${cellLat + dLat},${cellLng + dLng}`;
@@ -71,7 +74,10 @@ function nearestOsmHospital(lat, lng, idx) {
       if (!cell) continue;
       for (const h of cell) {
         const d = distMeters(lat, lng, h.lat, h.lng);
-        if (d < bestD) { bestD = d; best = h; }
+        if (d < bestD) {
+          bestD = d;
+          best = h;
+        }
       }
     }
   }
@@ -89,7 +95,7 @@ function inferPrefFromAddress(addr) {
   console.log(`fetching EMIS Feature Service ...`);
   const cachePath = path.join(TMP, 'emis-features.json');
   let raw;
-  if (fs.existsSync(cachePath) && (Date.now() - fs.statSync(cachePath).mtimeMs) < 86400000) {
+  if (fs.existsSync(cachePath) && Date.now() - fs.statSync(cachePath).mtimeMs < 86400000) {
     console.log(`  using cache: ${cachePath}`);
     raw = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
   } else {
@@ -100,7 +106,9 @@ function inferPrefFromAddress(addr) {
   }
   if (raw.error) throw new Error('EMIS API error: ' + JSON.stringify(raw.error));
   const features = raw.features || [];
-  console.log(`  EMIS features: ${features.length} / exceededTransferLimit=${raw.exceededTransferLimit ? 'yes' : 'no'}`);
+  console.log(
+    `  EMIS features: ${features.length} / exceededTransferLimit=${raw.exceededTransferLimit ? 'yes' : 'no'}`
+  );
 
   console.log(`indexing OSM hospitals ...`);
   const { index: osmIdx, count: osmCount } = buildOsmHospitalIndex();
@@ -108,11 +116,13 @@ function inferPrefFromAddress(addr) {
 
   console.log(`matching EMIS → OSM ...`);
   const items = [];
-  let matched = 0, addrFallback = 0;
+  let matched = 0,
+    addrFallback = 0;
   for (const f of features) {
     const g = f.geometry;
     if (!g || typeof g.x !== 'number' || typeof g.y !== 'number') continue;
-    const lat = g.y, lng = g.x;
+    const lat = g.y,
+      lng = g.x;
     const a = f.attributes || {};
     const addr = a['住所'] || '';
     const region = a['二次医療圏'] || '';
@@ -153,5 +163,8 @@ function inferPrefFromAddress(addr) {
     `// 件数 ${items.length} 施設（厚労省指定災害拠点病院）`,
     `// 表示名: OSM POI 名前 ${matched} / 住所 ${addrFallback}`,
   ]);
-  console.log(`✅ ${OUT}  count=${items.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`✅ ${OUT}  count=${items.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

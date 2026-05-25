@@ -1,0 +1,71 @@
+# ============================================================
+# scenarios/traffic-jam.yml
+# 渋滞・停車と発進の繰り返し (= isStationary 頻発)
+# ============================================================
+
+name: traffic-jam
+title: 渋滞走行 (停車発進の繰り返し)
+description: |
+  深夜帯でも繁華街周辺は渋滞することがある。
+  低速 + 5 秒以上停車 + 再発進を繰り返すケース。
+  isStationary 判定の安定性と distance_m 不変保証が試される。
+category: stationary-stress
+
+context:
+  trip_type: stationary-frequent
+  location_type: urban-busy
+  weather: clear
+  time_of_day: night
+  road_type:
+    - 渋滞中の幹線道路 (= 信号 + 渋滞)
+  duration_sec: 1200  # 20 分
+  expected_distance_m: 3000  # 距離は短い (= 渋滞のため)
+
+gps_pattern:
+  hz: 1
+  accuracy_m: 5-12
+  speed_kmh_range: [0, 25]
+  characteristics:
+    - 停車 (= speed_kmh < 3・5 秒以上同座標) を 15-30 回繰り返す
+    - 発進 → 数 m 移動 → 停車 の繰り返し (= jam_mode の動作確認)
+    - isStationary=true / false の遷移が頻繁
+
+expected_events:
+  - event: isStationary_true_first_time
+    timing: 5-10 sec (= speed<3 + elapsedSec>=5 + movedM<3)
+    threshold: gps-worker.js L411
+  - event: stationary_force_zero
+    frequency: 15-30 回 / trip
+    paths:
+      - meter.js L790 (= update() 入口早期 return)
+      - map-matcher.js L3007 (= Worker B 出力強制 0 化)
+  - event: traffic_jam_mode_activation
+    description: jam_speed_max_kmh=10 / jam_duration_sec=60 で isTrafficJam=true
+    consequence: stationary_radius が 3m → 1m に狭まる (= 渋滞中の保守的判定)
+  - event: resume_after_stationary
+    threshold: speed_kmh >= resume_speed_kmh=5
+    behavior: isStationary=false 復帰 → distance_m 加算再開
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit
+  not_expected:
+    - meter.js L462 offroad-retroactive
+    - meter.js L824 gap-fill              # 停車中は dtSec カウントされるが lastSpeedKmh<=0 で null
+    - meter.js L842 offroad-incremental
+
+verification:
+  invariants:
+    - isStationary=true 区間で distance_m 完全不変
+    - 停車区間の合計時間 (= state.wait_sec) が累積
+    - 渋滞 mode 中も distance_m は道路ジオメトリ準拠
+  expected_metrics:
+    stationary_intervals: ">= 15"
+    distance_m_per_minute: "< 200"  # 渋滞のため低速
+    distance_source: mm
+    wait_sec: ">= 600"  # 半分以上が停車
+
+absolute_rules_tested:
+  - "isStationary=true で distance_m 完全不変 (= 2 経路で防御)"
+  - "停車中の GPS ジッターで誤加算しない"
+  - "lastSpeedKmh=0 時の gap fill null 返却 (= 停車中の trigger 抑制)"

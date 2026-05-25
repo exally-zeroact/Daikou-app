@@ -17,8 +17,12 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const {
-  PRECISION, GRID_INT, gridKey,
-  encodeIndexListB64, encodeLineB64, encodePolygonsBytes,
+  PRECISION,
+  GRID_INT,
+  gridKey,
+  encodeIndexListB64,
+  encodeLineB64,
+  encodePolygonsBytes,
 } = require('./encoding-utils.js');
 
 const UA = { 'User-Agent': 'Daikou-app-test/0.1 (zeroact24.729@outlook.com)' };
@@ -31,7 +35,9 @@ async function fetchBuffer(url, timeoutMs = 240000) {
     const res = await fetch(url, { signal: ctrl.signal, headers: UA });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText} for ${url}`);
     return Buffer.from(await res.arrayBuffer());
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function fetchText(url, timeoutMs = 60000) {
@@ -41,7 +47,9 @@ async function fetchText(url, timeoutMs = 60000) {
     const res = await fetch(url, { signal: ctrl.signal, headers: UA });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     return await res.text();
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // ─── ZIP ──────────────────────────────────────────────────────
@@ -66,7 +74,11 @@ function findFiles(dir, extPattern) {
 // 緯度経度がスペース区切りで列挙される。属性は周辺の <ksj:XXX>...</ksj:XXX> 等。
 
 function parseLatLngList(posListText) {
-  const nums = posListText.trim().split(/\s+/).map(Number).filter(n => !isNaN(n));
+  const nums = posListText
+    .trim()
+    .split(/\s+/)
+    .map(Number)
+    .filter((n) => !isNaN(n));
   const out = [];
   for (let i = 0; i + 1 < nums.length; i += 2) {
     out.push([nums[i], nums[i + 1]]); // [lat, lng]
@@ -126,7 +138,7 @@ function writeBundleJs(outFile, varName, dataObj, headerLines = []) {
     `// Generated: ${new Date().toISOString()}`,
     ...headerLines,
     `window.${varName} = ${JSON.stringify(dataObj)};`,
-    ''
+    '',
   ].join('\n');
   fs.writeFileSync(outFile, header);
   return fs.statSync(outFile).size;
@@ -185,11 +197,15 @@ function representativeLatLng(geometry) {
     return { lat: c[1], lng: c[0] };
   }
   // 全座標の平均（簡易重心）
-  let sumLat = 0, sumLng = 0, n = 0;
+  let sumLat = 0,
+    sumLng = 0,
+    n = 0;
   function walk(node) {
     if (!Array.isArray(node)) return;
     if (typeof node[0] === 'number' && typeof node[1] === 'number') {
-      sumLng += node[0]; sumLat += node[1]; n++;
+      sumLng += node[0];
+      sumLat += node[1];
+      n++;
       return;
     }
     for (const v of node) walk(v);
@@ -205,8 +221,9 @@ async function loadKsjFeaturesFromZipUrl(zipUrl, tmpDir, opts = {}) {
   fs.mkdirSync(tmpDir, { recursive: true });
   const zipName = path.basename(zipUrl);
   const zipPath = path.join(tmpDir, zipName);
-  const cacheValid = fs.existsSync(zipPath) &&
-    (Date.now() - fs.statSync(zipPath).mtimeMs) < (opts.cacheMs || 7 * 86400000);
+  const cacheValid =
+    fs.existsSync(zipPath) &&
+    Date.now() - fs.statSync(zipPath).mtimeMs < (opts.cacheMs || 7 * 86400000);
   if (!cacheValid) {
     const buf = await fetchBuffer(zipUrl);
     fs.writeFileSync(zipPath, buf);
@@ -232,11 +249,23 @@ async function loadKsjFeaturesFromZipUrl(zipUrl, tmpDir, opts = {}) {
 }
 
 module.exports = {
-  fetchBuffer, fetchText,
-  unzip, findFiles, findKsjGeoJSON,
-  parseLatLngList, gmlExtractAllPosLists, gmlSplitByFeatureTag, gmlExtractKsjAttrs,
-  representativeLatLng, loadKsjFeaturesFromZipUrl,
-  writeBundleJs, buildPointBundle,
-  PRECISION, GRID_INT, gridKey,
-  encodeIndexListB64, encodeLineB64, encodePolygonsBytes,
+  fetchBuffer,
+  fetchText,
+  unzip,
+  findFiles,
+  findKsjGeoJSON,
+  parseLatLngList,
+  gmlExtractAllPosLists,
+  gmlSplitByFeatureTag,
+  gmlExtractKsjAttrs,
+  representativeLatLng,
+  loadKsjFeaturesFromZipUrl,
+  writeBundleJs,
+  buildPointBundle,
+  PRECISION,
+  GRID_INT,
+  gridKey,
+  encodeIndexListB64,
+  encodeLineB64,
+  encodePolygonsBytes,
 };

@@ -43,7 +43,7 @@ if (!PREF) {
 }
 
 const ROADS_PATH = path.join(__dirname, '..', 'data', `roads-${PREF}.js`);
-const OUT_PATH   = path.join(__dirname, '..', 'data', `road-graph-${PREF}.js`);
+const OUT_PATH = path.join(__dirname, '..', 'data', `road-graph-${PREF}.js`);
 
 if (!fs.existsSync(ROADS_PATH)) {
   console.error(`[${PREF}] not found: ${ROADS_PATH}`);
@@ -66,7 +66,8 @@ console.log(`[${PREF}] roads v=${roadsData.v}, numRoads=${roadsData.numRoads}`);
 
 // ── 軽量デコーダー（roads-decoder.js と同じ仕様・依存ゼロのため再実装） ──
 function readVarint(bytes, offset) {
-  let result = 0, shift = 0;
+  let result = 0,
+    shift = 0;
   while (true) {
     const b = bytes[offset++];
     result |= (b & 0x7f) << shift;
@@ -75,18 +76,21 @@ function readVarint(bytes, offset) {
   }
   return [result >>> 0, offset];
 }
-function zigzagDecode(n) { return (n >>> 1) ^ -(n & 1); }
+function zigzagDecode(n) {
+  return (n >>> 1) ^ -(n & 1);
+}
 function readSignedVarint(bytes, offset) {
   const r = readVarint(bytes, offset);
   return [zigzagDecode(r[0]), r[1]];
 }
 function haversineM(lat1, lng1, lat2, lng2) {
   if (lat1 === lat2 && lng1 === lng2) return 0;
-  const R = 6371000, tr = Math.PI / 180;
+  const R = 6371000,
+    tr = Math.PI / 180;
   const dLat = (lat2 - lat1) * tr;
   const dLng = (lng2 - lng1) * tr;
-  const a = Math.sin(dLat/2) ** 2
-          + Math.cos(lat1*tr) * Math.cos(lat2*tr) * Math.sin(dLng/2) ** 2;
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * tr) * Math.cos(lat2 * tr) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -98,8 +102,8 @@ const headerSize = roadsData.v >= 6 ? 2 : 1;
 console.log(`[${PREF}] decoding roads + building edges...`);
 const tDecode = Date.now();
 
-const nodeMap = new Map();    // "lat_lng" → nodeId
-const nodeLatList = [];       // index = nodeId → lat ×precision
+const nodeMap = new Map(); // "lat_lng" → nodeId
+const nodeLatList = []; // index = nodeId → lat ×precision
 const nodeLngList = [];
 
 function getNodeId(latInt, lngInt) {
@@ -114,31 +118,33 @@ function getNodeId(latInt, lngInt) {
   return id;
 }
 
-const edges = [];   // {from, to, lenM, flags, road, seg}
+const edges = []; // {from, to, lenM, flags, road, seg}
 let offset = 0;
 
 // Phase A: per-road segment index（roadOffset / roadSegFromNode / roadSegToNode）
 // 各 road の polyline segment ごとに from-node / to-node を記録（self-loop は from==to）
 // snap.roadIndex × snap.segmentIndex → graph node を O(1) で引けるようにする
 const roadOffsetArr = new Uint32Array(roadsData.numRoads + 1);
-const roadSegFromNodeBuf = [];   // 後で Uint32Array に変換
-const roadSegToNodeBuf   = [];
+const roadSegFromNodeBuf = []; // 後で Uint32Array に変換
+const roadSegToNodeBuf = [];
 let segPos = 0;
 
 // Phase A: 6500m 超 segment（Uint16 ×0.1m の表現範囲超）の検出と統計
 let oversizedCount = 0;
 let maxSegmentLen = 0;
 const OVERSIZED_THRESHOLD_M = 6500;
-const EDGE_LEN_QUANT_MAX    = 65535;   // Uint16 max（×0.1m で 6553.5m）
+const EDGE_LEN_QUANT_MAX = 65535; // Uint16 max（×0.1m で 6553.5m）
 
 for (let roadIdx = 0; roadIdx < roadsData.numRoads; roadIdx++) {
   roadOffsetArr[roadIdx] = segPos;
-  let typeCode = 0, oneway = 0, layer = 0;
+  let typeCode = 0,
+    oneway = 0,
+    layer = 0;
   if (headerSize === 2) {
     const bits = bytes[offset] | (bytes[offset + 1] << 8);
-    typeCode = bits & 0x0F;
-    oneway   = (bits >> 4) & 0x01;
-    layer    = (bits >> 12) & 0x03;     // 0=平面 1=高架 2=地下 3=その他
+    typeCode = bits & 0x0f;
+    oneway = (bits >> 4) & 0x01;
+    layer = (bits >> 12) & 0x03; // 0=平面 1=高架 2=地下 3=その他
   } else {
     typeCode = bytes[offset];
   }
@@ -172,8 +178,10 @@ for (let roadIdx = 0; roadIdx < roadsData.numRoads; roadIdx++) {
     }
 
     const lenM = haversineM(
-      nodeLatList[prevNode] / precision, nodeLngList[prevNode] / precision,
-      nodeLatList[currNode] / precision, nodeLngList[currNode] / precision
+      nodeLatList[prevNode] / precision,
+      nodeLngList[prevNode] / precision,
+      nodeLatList[currNode] / precision,
+      nodeLngList[currNode] / precision
     );
 
     // Phase A: 6500m 超を統計収集（量子化で頭打ちになる稀ケース）
@@ -181,20 +189,25 @@ for (let roadIdx = 0; roadIdx < roadsData.numRoads; roadIdx++) {
     if (lenM > OVERSIZED_THRESHOLD_M) {
       oversizedCount++;
       if (oversizedCount <= 5) {
-        console.warn(`  [WARN] segment > ${OVERSIZED_THRESHOLD_M}m: road=${roadIdx} seg=${i - 1} len=${lenM.toFixed(1)}m → 6553.5m にクランプ`);
+        console.warn(
+          `  [WARN] segment > ${OVERSIZED_THRESHOLD_M}m: road=${roadIdx} seg=${i - 1} len=${lenM.toFixed(1)}m → 6553.5m にクランプ`
+        );
       }
     }
 
     // bit0=oneway forward only / bit2=bridge / bit3=tunnel
     let flags = 0;
-    if (oneway)       flags |= 0x01;
-    if (layer === 1)  flags |= 0x04;
-    if (layer === 2)  flags |= 0x08;
+    if (oneway) flags |= 0x01;
+    if (layer === 1) flags |= 0x04;
+    if (layer === 2) flags |= 0x08;
 
     edges.push({
-      from: prevNode, to: currNode,
-      lenM: lenM, flags: flags,
-      road: roadIdx, seg: i - 1,
+      from: prevNode,
+      to: currNode,
+      lenM: lenM,
+      flags: flags,
+      road: roadIdx,
+      seg: i - 1,
     });
 
     if (!oneway) {
@@ -202,16 +215,19 @@ for (let roadIdx = 0; roadIdx < roadsData.numRoads; roadIdx++) {
       // 逆向きは oneway フラグなし・bridge/tunnel は維持
       const revFlags = flags & ~0x01;
       edges.push({
-        from: currNode, to: prevNode,
-        lenM: lenM, flags: revFlags,
-        road: roadIdx, seg: i - 1,
+        from: currNode,
+        to: prevNode,
+        lenM: lenM,
+        flags: revFlags,
+        road: roadIdx,
+        seg: i - 1,
       });
     }
 
     prevNode = currNode;
   }
 
-  if ((roadIdx & 0x3FFF) === 0 && roadIdx > 0) {
+  if ((roadIdx & 0x3fff) === 0 && roadIdx > 0) {
     process.stdout.write(`  decode ${roadIdx}/${roadsData.numRoads}\r`);
   }
 }
@@ -219,14 +235,18 @@ for (let roadIdx = 0; roadIdx < roadsData.numRoads; roadIdx++) {
 // Phase A: roadOffset の最終要素（番兵）
 roadOffsetArr[roadsData.numRoads] = segPos;
 const roadSegFromNodeArr = Uint32Array.from(roadSegFromNodeBuf);
-const roadSegToNodeArr   = Uint32Array.from(roadSegToNodeBuf);
+const roadSegToNodeArr = Uint32Array.from(roadSegToNodeBuf);
 
 const numNodes = nodeLatList.length;
 const numEdges = edges.length;
 const numRoadSegs = segPos;
-console.log(`[${PREF}] decoded: nodes=${numNodes} edges=${numEdges} roadSegs=${numRoadSegs} (${((Date.now() - tDecode) / 1000).toFixed(1)}s)`);
+console.log(
+  `[${PREF}] decoded: nodes=${numNodes} edges=${numEdges} roadSegs=${numRoadSegs} (${((Date.now() - tDecode) / 1000).toFixed(1)}s)`
+);
 if (oversizedCount > 0) {
-  console.warn(`[${PREF}] WARN: ${oversizedCount} segments > ${OVERSIZED_THRESHOLD_M}m (max=${maxSegmentLen.toFixed(1)}m)・Uint16 でクランプ済`);
+  console.warn(
+    `[${PREF}] WARN: ${oversizedCount} segments > ${OVERSIZED_THRESHOLD_M}m (max=${maxSegmentLen.toFixed(1)}m)・Uint16 でクランプ済`
+  );
 }
 
 // ── Pass 2: CSR 構築 ─────────────────────────────────────────
@@ -238,28 +258,28 @@ edges.sort(function (a, b) {
   return a.to - b.to;
 });
 
-const nodeLatArr  = new Int32Array(numNodes);
-const nodeLngArr  = new Int32Array(numNodes);
+const nodeLatArr = new Int32Array(numNodes);
+const nodeLngArr = new Int32Array(numNodes);
 for (let i = 0; i < numNodes; i++) {
   nodeLatArr[i] = nodeLatList[i];
   nodeLngArr[i] = nodeLngList[i];
 }
-const nodeOffset  = new Uint32Array(numNodes + 1);
-const edgeTo      = new Uint32Array(numEdges);
+const nodeOffset = new Uint32Array(numNodes + 1);
+const edgeTo = new Uint32Array(numEdges);
 // Phase A: edgeLenM は Uint16 ×0.1m（最大 6553.5m・超えるものはクランプ）
-const edgeLenM    = new Uint16Array(numEdges);
-const edgeFlags   = new Uint8Array(numEdges);
+const edgeLenM = new Uint16Array(numEdges);
+const edgeFlags = new Uint8Array(numEdges);
 // Phase A: edgeRoad / edgeSeg は runtime からドロップ（roadSeg* で代替）
 
 let curNode = 0;
 for (let i = 0; i < numEdges; i++) {
   const e = edges[i];
   while (curNode <= e.from) nodeOffset[curNode++] = i;
-  edgeTo[i]     = e.to;
+  edgeTo[i] = e.to;
   // Phase A: 0.1m 単位で量子化・上限 65535 (= 6553.5m) でクランプ
   const quant = Math.round(e.lenM * 10);
-  edgeLenM[i]   = quant > EDGE_LEN_QUANT_MAX ? EDGE_LEN_QUANT_MAX : quant;
-  edgeFlags[i]  = e.flags;
+  edgeLenM[i] = quant > EDGE_LEN_QUANT_MAX ? EDGE_LEN_QUANT_MAX : quant;
+  edgeFlags[i] = e.flags;
 }
 while (curNode <= numNodes) nodeOffset[curNode++] = numEdges;
 
@@ -270,14 +290,15 @@ console.log(`[${PREF}] building CH (simplified deg≤4 contraction)...`);
 const tCh = Date.now();
 
 // active set 用の隣接リスト（contract 中に動的更新するので Array<{...}>）
-const inAdj  = new Array(numNodes);
+const inAdj = new Array(numNodes);
 const outAdj = new Array(numNodes);
 for (let v = 0; v < numNodes; v++) {
-  inAdj[v]  = [];
+  inAdj[v] = [];
   outAdj[v] = [];
 }
 for (let v = 0; v < numNodes; v++) {
-  const start = nodeOffset[v], end = nodeOffset[v + 1];
+  const start = nodeOffset[v],
+    end = nodeOffset[v + 1];
   for (let k = start; k < end; k++) {
     const w = edgeTo[k];
     // Phase A: edgeLenM は Uint16 ×0.1m なので CH 中の lenM は実距離 (m) に戻す
@@ -291,12 +312,12 @@ for (let v = 0; v < numNodes; v++) {
 const order = new Array(numNodes);
 for (let v = 0; v < numNodes; v++) order[v] = v;
 order.sort(function (a, b) {
-  return (inAdj[a].length + outAdj[a].length) - (inAdj[b].length + outAdj[b].length);
+  return inAdj[a].length + outAdj[a].length - (inAdj[b].length + outAdj[b].length);
 });
 
-const nodeLevel  = new Uint16Array(numNodes);
-const shortcuts  = [];
-const MAX_DEG    = 4;
+const nodeLevel = new Uint16Array(numNodes);
+const shortcuts = [];
+const MAX_DEG = 4;
 let contractedCount = 0;
 let skippedHighDeg = 0;
 
@@ -304,12 +325,15 @@ for (let i = 0; i < order.length; i++) {
   const v = order[i];
   nodeLevel[v] = i < 65535 ? i : 65535;
 
-  const ins  = inAdj[v];
+  const ins = inAdj[v];
   const outs = outAdj[v];
-  if (ins.length + outs.length > MAX_DEG) { skippedHighDeg++; continue; }
+  if (ins.length + outs.length > MAX_DEG) {
+    skippedHighDeg++;
+    continue;
+  }
   if (ins.length === 0 || outs.length === 0) {
     // 端点 / 孤立ノード: contract せず（shortcut 生成不要）
-    inAdj[v]  = null;
+    inAdj[v] = null;
     outAdj[v] = null;
     contractedCount++;
     continue;
@@ -320,16 +344,16 @@ for (let i = 0; i < order.length; i++) {
     for (let b = 0; b < outs.length; b++) {
       const u = ins[a].from;
       const w = outs[b].to;
-      if (u === w || u === v || w === v) continue;  // セルフ除外
+      if (u === w || u === v || w === v) continue; // セルフ除外
       // 防御: u or w が既に contract 済（重複 entry の名残等）ならスキップ
       // （contracted ノードへの shortcut は routing 上意味がない）
       if (!outAdj[u] || !inAdj[w]) continue;
       const sc = {
-        from:  u,
-        to:    w,
-        lenM:  ins[a].lenM + outs[b].lenM,
+        from: u,
+        to: w,
+        lenM: ins[a].lenM + outs[b].lenM,
         flags: ins[a].flags | outs[b].flags,
-        mid:   v,
+        mid: v,
       };
       shortcuts.push(sc);
       // active 隣接リスト更新（後続 contract で再利用される）
@@ -353,30 +377,32 @@ for (let i = 0; i < order.length; i++) {
       if (list[j].from === v) list.splice(j, 1);
     }
   }
-  inAdj[v]  = null;
+  inAdj[v] = null;
   outAdj[v] = null;
   contractedCount++;
 
-  if ((i & 0xFFFF) === 0 && i > 0) {
+  if ((i & 0xffff) === 0 && i > 0) {
     process.stdout.write(`  CH ${i}/${order.length} sc=${shortcuts.length}\r`);
   }
 }
 
 const numShortcuts = shortcuts.length;
-console.log(`[${PREF}] CH done: contracted=${contractedCount} skippedHighDeg=${skippedHighDeg} shortcuts=${numShortcuts} (${((Date.now() - tCh) / 1000).toFixed(1)}s)`);
+console.log(
+  `[${PREF}] CH done: contracted=${contractedCount} skippedHighDeg=${skippedHighDeg} shortcuts=${numShortcuts} (${((Date.now() - tCh) / 1000).toFixed(1)}s)`
+);
 
 // ── Pass 4: shortcut を TypedArray にパック ───────────────────
-const shortcutEdgeFrom  = new Uint32Array(numShortcuts);
-const shortcutEdgeTo    = new Uint32Array(numShortcuts);
-const shortcutEdgeLenM  = new Float32Array(numShortcuts);
+const shortcutEdgeFrom = new Uint32Array(numShortcuts);
+const shortcutEdgeTo = new Uint32Array(numShortcuts);
+const shortcutEdgeLenM = new Float32Array(numShortcuts);
 const shortcutEdgeFlags = new Uint8Array(numShortcuts);
-const shortcutMidNode   = new Uint32Array(numShortcuts);
+const shortcutMidNode = new Uint32Array(numShortcuts);
 for (let i = 0; i < numShortcuts; i++) {
-  shortcutEdgeFrom[i]  = shortcuts[i].from;
-  shortcutEdgeTo[i]    = shortcuts[i].to;
-  shortcutEdgeLenM[i]  = shortcuts[i].lenM;
+  shortcutEdgeFrom[i] = shortcuts[i].from;
+  shortcutEdgeTo[i] = shortcuts[i].to;
+  shortcutEdgeLenM[i] = shortcuts[i].lenM;
   shortcutEdgeFlags[i] = shortcuts[i].flags;
-  shortcutMidNode[i]   = shortcuts[i].mid;
+  shortcutMidNode[i] = shortcuts[i].mid;
 }
 
 // ── Pass 5: ファイル書き出し ──────────────────────────────────
@@ -385,7 +411,7 @@ function tabToB64(arr) {
 }
 
 const output = {
-  v: 2,                          // Phase A 圧縮形式
+  v: 2, // Phase A 圧縮形式
   prefecture: PREF,
   generated: new Date().toISOString(),
   source: `roads-${PREF}.js v${roadsData.v}`,
@@ -393,7 +419,7 @@ const output = {
   numNodes: numNodes,
   numEdges: numEdges,
   // Phase A: Uint16 量子化情報
-  edgeLenScale: 0.1,             // edgeLenM[k] × edgeLenScale = 実距離 (m)
+  edgeLenScale: 0.1, // edgeLenM[k] × edgeLenScale = 実距離 (m)
   oversizedSegments: oversizedCount,
   maxSegmentLenM: maxSegmentLen,
   // Phase A: roadSeg index 用
@@ -458,4 +484,6 @@ const extrasSizeMB = (fs.statSync(EXTRAS_PATH).size / 1024 / 1024).toFixed(2);
 console.log(`[${PREF}] written ${OUT_PATH} (${sizeMB} MB)`);
 console.log(`[${PREF}] written ${EXTRAS_PATH} (${extrasSizeMB} MB extras)`);
 console.log(`[${PREF}] DONE total=${((Date.now() - tStart) / 1000).toFixed(1)}s`);
-console.log(`[${PREF}] SUMMARY nodes=${numNodes} edges=${numEdges} roadSegs=${numRoadSegs} shortcuts=${numShortcuts} main=${sizeMB}MB extras=${extrasSizeMB}MB`);
+console.log(
+  `[${PREF}] SUMMARY nodes=${numNodes} edges=${numEdges} roadSegs=${numRoadSegs} shortcuts=${numShortcuts} main=${sizeMB}MB extras=${extrasSizeMB}MB`
+);

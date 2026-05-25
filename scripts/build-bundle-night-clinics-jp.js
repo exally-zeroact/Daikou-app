@@ -69,7 +69,7 @@ function loadP04Matches() {
   console.log(`loading P04 geojson ...`);
   const json = JSON.parse(fs.readFileSync(P04_GEOJSON, 'utf8'));
   const out = [];
-  for (const f of (json.features || [])) {
+  for (const f of json.features || []) {
     const p = f.properties || {};
     const name = p.P04_002 || '';
     if (!isNightClinicName(name)) continue;
@@ -79,7 +79,7 @@ function loadP04Matches() {
       lat: c[1],
       lng: c[0],
       n: name.replace(/　+$/g, '').trim(),
-      k: p.P04_001 || 0,            // 1=病院 2=診療所 3=歯科
+      k: p.P04_001 || 0, // 1=病院 2=診療所 3=歯科
       addr: p.P04_003 || '',
     });
   }
@@ -94,8 +94,8 @@ async function fetchOverpassNightClinics() {
     `[out:json][timeout:600];` +
     `area["ISO3166-1"="JP"][admin_level=2]->.jp;` +
     `(` +
-      `nwr["amenity"~"^(clinic|doctors|hospital)$"]["name"~"夜間|休日|急患|急病|当番医|時間外"](area.jp);` +
-      `nwr["healthcare"~"^(clinic|doctor|hospital)$"]["name"~"夜間|休日|急患|急病|当番医|時間外"](area.jp);` +
+    `nwr["amenity"~"^(clinic|doctors|hospital)$"]["name"~"夜間|休日|急患|急病|当番医|時間外"](area.jp);` +
+    `nwr["healthcare"~"^(clinic|doctor|hospital)$"]["name"~"夜間|休日|急患|急病|当番医|時間外"](area.jp);` +
     `);` +
     `out center tags;`;
   for (const ep of OVERPASS_ENDPOINTS) {
@@ -106,12 +106,17 @@ async function fetchOverpassNightClinics() {
         const res = await fetch(ep, {
           method: 'POST',
           signal: ctrl.signal,
-          headers: { 'User-Agent': 'Daikou-app-test/0.1', 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'User-Agent': 'Daikou-app-test/0.1',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
           body: 'data=' + encodeURIComponent(q),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
         return await res.json();
-      } finally { clearTimeout(t); }
+      } finally {
+        clearTimeout(t);
+      }
     } catch (err) {
       console.log(`    overpass ${ep} 失敗: ${err.message}`);
     }
@@ -122,28 +127,37 @@ async function fetchOverpassNightClinics() {
 async function loadOverpassMatches() {
   const cachePath = path.join(TMP, 'night-clinics-overpass.json');
   let json;
-  if (fs.existsSync(cachePath) && (Date.now() - fs.statSync(cachePath).mtimeMs) < 7 * 86400000) {
+  if (fs.existsSync(cachePath) && Date.now() - fs.statSync(cachePath).mtimeMs < 7 * 86400000) {
     console.log(`  overpass cache: ${path.basename(cachePath)}`);
     json = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
   } else {
     console.log(`  overpass query (japan-wide) ...`);
     const t0 = Date.now();
     json = await fetchOverpassNightClinics();
-    console.log(`  overpass got ${(json.elements || []).length} elements / ${((Date.now()-t0)/1000).toFixed(1)}s`);
+    console.log(
+      `  overpass got ${(json.elements || []).length} elements / ${((Date.now() - t0) / 1000).toFixed(1)}s`
+    );
     fs.writeFileSync(cachePath, JSON.stringify(json));
   }
   const out = [];
-  for (const el of (json.elements || [])) {
+  for (const el of json.elements || []) {
     const tags = el.tags || {};
     const name = tags.name || '';
     if (!isNightClinicName(name)) continue;
     let lat, lng;
-    if (el.type === 'node' && typeof el.lat === 'number') { lat = el.lat; lng = el.lon; }
-    else if (el.center) { lat = el.center.lat; lng = el.center.lon; }
-    else continue;
-    const k = (tags.amenity === 'hospital' || tags.healthcare === 'hospital') ? 1
-            : (tags.amenity === 'dentist' || tags.healthcare === 'dentist') ? 3
-            : 2;
+    if (el.type === 'node' && typeof el.lat === 'number') {
+      lat = el.lat;
+      lng = el.lon;
+    } else if (el.center) {
+      lat = el.center.lat;
+      lng = el.center.lon;
+    } else continue;
+    const k =
+      tags.amenity === 'hospital' || tags.healthcare === 'hospital'
+        ? 1
+        : tags.amenity === 'dentist' || tags.healthcare === 'dentist'
+          ? 3
+          : 2;
     out.push({ lat, lng, n: name.trim(), k });
   }
   return out;
@@ -152,9 +166,11 @@ async function loadOverpassMatches() {
 // 緯度経度の度差→m概算
 function distMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
@@ -185,7 +201,8 @@ function distMeters(lat1, lng1, lat2, lng2) {
         if (!cell) continue;
         for (const c of cell) {
           if (distMeters(lat, lng, c.lat, c.lng) <= 300) return true;
-          if (c.n && name && (c.n === name || c.n.includes(name) || name.includes(c.n))) return true;
+          if (c.n && name && (c.n === name || c.n.includes(name) || name.includes(c.n)))
+            return true;
         }
       }
     }
@@ -208,12 +225,15 @@ function distMeters(lat1, lng1, lat2, lng2) {
     return o;
   });
   data.source = '国土数値情報 P04（医療機関分布・国交省 2020）+ OSM Overpass 補完';
-  data.kindLegend = { '1': '病院', '2': '診療所', '3': '歯科診療所' };
+  data.kindLegend = { 1: '病院', 2: '診療所', 3: '歯科診療所' };
 
   const size = u.writeBundleJs(OUT, 'NIGHT_CLINICS_JP', data, [
     `// 出典: 国土数値情報 P04（医療機関分布・国交省 2020 / CC BY 4.0）`,
     `// 名前正規表現で夜間/休日/急患/急病/当番医/時間外 を抽出 + OSM 補完`,
-    `// 件数 ${items.length}（病院${items.filter(i=>i.k===1).length} / 診療所${items.filter(i=>i.k===2).length} / 歯科${items.filter(i=>i.k===3).length}）`,
+    `// 件数 ${items.length}（病院${items.filter((i) => i.k === 1).length} / 診療所${items.filter((i) => i.k === 2).length} / 歯科${items.filter((i) => i.k === 3).length}）`,
   ]);
-  console.log(`✅ ${OUT}  count=${items.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`✅ ${OUT}  count=${items.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

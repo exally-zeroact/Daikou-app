@@ -26,22 +26,22 @@ const path = require('path');
 const vm = require('vm');
 
 const PREF = process.argv[2];
-if(!PREF){
+if (!PREF) {
   console.error('Usage: node build-road-graph-tiled.js <pref> [--tile-deg 0.05]');
   process.exit(1);
 }
 
-let TILE_DEG = 0.05;   // 既定 0.05° ≈ 5km
-for(let i = 3; i < process.argv.length; i++){
-  if(process.argv[i] === '--tile-deg' && process.argv[i+1]){
-    TILE_DEG = parseFloat(process.argv[i+1]);
+let TILE_DEG = 0.05; // 既定 0.05° ≈ 5km
+for (let i = 3; i < process.argv.length; i++) {
+  if (process.argv[i] === '--tile-deg' && process.argv[i + 1]) {
+    TILE_DEG = parseFloat(process.argv[i + 1]);
   }
 }
 
 const ROADS_PATH = path.join(__dirname, '..', 'data', `roads-${PREF}.js`);
 const OUT_DIR = path.join(__dirname, '..', 'data', 'road-graph-tiles', PREF);
 
-if(!fs.existsSync(ROADS_PATH)){
+if (!fs.existsSync(ROADS_PATH)) {
   console.error(`[${PREF}] not found: ${ROADS_PATH}`);
   process.exit(1);
 }
@@ -54,26 +54,39 @@ vm.createContext(ctx);
 vm.runInContext(code, ctx, { filename: ROADS_PATH, timeout: 30000 });
 const VAR = 'ROADS_' + PREF.toUpperCase().replace(/-/g, '_');
 const roads = ctx.window[VAR];
-if(!roads){
+if (!roads) {
   console.error(`[${PREF}] ${VAR} not set`);
   process.exit(1);
 }
 console.log(`[${PREF}] roads v=${roads.v} numRoads=${roads.numRoads} tile-deg=${TILE_DEG}`);
 
 // ─── デコーダー ─────────────────────────────────────────────────
-function readVarint(b, o){
-  let r = 0, s = 0;
-  while(true){ const v = b[o++]; r |= (v & 0x7f) << s; if((v & 0x80) === 0) break; s += 7; }
+function readVarint(b, o) {
+  let r = 0,
+    s = 0;
+  while (true) {
+    const v = b[o++];
+    r |= (v & 0x7f) << s;
+    if ((v & 0x80) === 0) break;
+    s += 7;
+  }
   return [r >>> 0, o];
 }
-function zz(n){ return (n >>> 1) ^ -(n & 1); }
-function readSV(b, o){ const r = readVarint(b, o); return [zz(r[0]), r[1]]; }
-function haversineM(lat1, lng1, lat2, lng2){
-  if(lat1 === lat2 && lng1 === lng2) return 0;
-  const R = 6371000, tr = Math.PI / 180;
+function zz(n) {
+  return (n >>> 1) ^ -(n & 1);
+}
+function readSV(b, o) {
+  const r = readVarint(b, o);
+  return [zz(r[0]), r[1]];
+}
+function haversineM(lat1, lng1, lat2, lng2) {
+  if (lat1 === lat2 && lng1 === lng2) return 0;
+  const R = 6371000,
+    tr = Math.PI / 180;
   const dLat = (lat2 - lat1) * tr;
   const dLng = (lng2 - lng1) * tr;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*tr) * Math.cos(lat2*tr) * Math.sin(dLng/2)**2;
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * tr) * Math.cos(lat2 * tr) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -85,14 +98,16 @@ const headerSize = roads.v >= 6 ? 2 : 1;
 console.log(`[${PREF}] decoding roads...`);
 const tDec = Date.now();
 
-const allRoads = [];   // {typeCode, oneway, layer, points:[[lat,lng]...]}
+const allRoads = []; // {typeCode, oneway, layer, points:[[lat,lng]...]}
 let offset = 0;
 
-for(let r = 0; r < roads.numRoads; r++){
-  let typeCode = 0, oneway = 0, layer = 0;
-  if(headerSize === 2){
-    const bits = bytes[offset] | (bytes[offset+1] << 8);
-    typeCode = bits & 0x0F;
+for (let r = 0; r < roads.numRoads; r++) {
+  let typeCode = 0,
+    oneway = 0,
+    layer = 0;
+  if (headerSize === 2) {
+    const bits = bytes[offset] | (bytes[offset + 1] << 8);
+    typeCode = bits & 0x0f;
     oneway = (bits >> 4) & 0x01;
     layer = (bits >> 12) & 0x03;
   } else {
@@ -105,7 +120,7 @@ for(let r = 0; r < roads.numRoads; r++){
   [lat, offset] = readSV(bytes, offset);
   [lng, offset] = readSV(bytes, offset);
   const points = [[lat, lng]];
-  for(let i = 1; i < np; i++){
+  for (let i = 1; i < np; i++) {
     let dLat, dLng;
     [dLat, offset] = readSV(bytes, offset);
     [dLng, offset] = readSV(bytes, offset);
@@ -115,23 +130,25 @@ for(let r = 0; r < roads.numRoads; r++){
   }
   allRoads.push({ typeCode, oneway, layer, points });
 }
-console.log(`[${PREF}] decoded ${allRoads.length} roads (${((Date.now() - tDec) / 1000).toFixed(1)}s)`);
+console.log(
+  `[${PREF}] decoded ${allRoads.length} roads (${((Date.now() - tDec) / 1000).toFixed(1)}s)`
+);
 
 // ─── Pass 2: ノード列挙 + tile 割付 ───────────────────────────────
 console.log(`[${PREF}] tiling...`);
-const nodeMap = new Map();   // "lat_lng" → { id, tx, ty }
-const nodeArr = [];          // index = id → {latI, lngI, tx, ty}
+const nodeMap = new Map(); // "lat_lng" → { id, tx, ty }
+const nodeArr = []; // index = id → {latI, lngI, tx, ty}
 
-function tileOf(latI, lngI){
+function tileOf(latI, lngI) {
   const lat = latI / precision;
   const lng = lngI / precision;
   return [Math.floor(lat / TILE_DEG), Math.floor(lng / TILE_DEG)];
 }
 
-function getNode(latI, lngI){
+function getNode(latI, lngI) {
   const k = latI + '_' + lngI;
   let n = nodeMap.get(k);
-  if(!n){
+  if (!n) {
     const [tx, ty] = tileOf(latI, lngI);
     n = { id: nodeArr.length, tx: tx, ty: ty };
     nodeMap.set(k, n);
@@ -143,54 +160,79 @@ function getNode(latI, lngI){
 // road 単位で edge 列挙・tile ごとに振り分け
 // tileEdges[`tx_ty`] = [{ from, to, lenM, flags, road, seg, fromTile, toTile }]
 const tileEdges = new Map();
-const tileBorderNodes = new Map();   // tileKey → Set<nodeId>
+const tileBorderNodes = new Map(); // tileKey → Set<nodeId>
 
-function pushTileEdge(tx, ty, e){
+function pushTileEdge(tx, ty, e) {
   const k = tx + '_' + ty;
-  if(!tileEdges.has(k)) tileEdges.set(k, []);
+  if (!tileEdges.has(k)) tileEdges.set(k, []);
   tileEdges.get(k).push(e);
 }
-function markBorderNode(tx, ty, nodeId){
+function markBorderNode(tx, ty, nodeId) {
   const k = tx + '_' + ty;
-  if(!tileBorderNodes.has(k)) tileBorderNodes.set(k, new Set());
+  if (!tileBorderNodes.has(k)) tileBorderNodes.set(k, new Set());
   tileBorderNodes.get(k).add(nodeId);
 }
 
 let oversized = 0;
 const EDGE_LEN_QUANT_MAX = 65535;
 
-for(let r = 0; r < allRoads.length; r++){
+for (let r = 0; r < allRoads.length; r++) {
   const road = allRoads[r];
   const { typeCode, oneway, layer, points } = road;
   let prev = getNode(points[0][0], points[0][1]);
-  for(let i = 1; i < points.length; i++){
+  for (let i = 1; i < points.length; i++) {
     const curr = getNode(points[i][0], points[i][1]);
-    if(prev.id === curr.id){ prev = curr; continue; }
+    if (prev.id === curr.id) {
+      prev = curr;
+      continue;
+    }
     const lenM = haversineM(
-      nodeArr[prev.id].latI / precision, nodeArr[prev.id].lngI / precision,
-      nodeArr[curr.id].latI / precision, nodeArr[curr.id].lngI / precision
+      nodeArr[prev.id].latI / precision,
+      nodeArr[prev.id].lngI / precision,
+      nodeArr[curr.id].latI / precision,
+      nodeArr[curr.id].lngI / precision
     );
-    if(lenM > 6500) oversized++;
+    if (lenM > 6500) oversized++;
     let flags = 0;
-    if(oneway) flags |= 0x01;
-    if(layer === 1) flags |= 0x04;
-    if(layer === 2) flags |= 0x08;
+    if (oneway) flags |= 0x01;
+    if (layer === 1) flags |= 0x04;
+    if (layer === 2) flags |= 0x08;
 
-    const e = { from: prev.id, to: curr.id, lenM, flags, road: r, seg: i - 1,
-                fromTx: prev.tx, fromTy: prev.ty, toTx: curr.tx, toTy: curr.ty };
+    const e = {
+      from: prev.id,
+      to: curr.id,
+      lenM,
+      flags,
+      road: r,
+      seg: i - 1,
+      fromTx: prev.tx,
+      fromTy: prev.ty,
+      toTx: curr.tx,
+      toTy: curr.ty,
+    };
     // 同 tile → 該当 tile に追加
     // 跨ぎ → 両 tile に追加（border node マーク）
     pushTileEdge(prev.tx, prev.ty, e);
-    if(prev.tx !== curr.tx || prev.ty !== curr.ty){
+    if (prev.tx !== curr.tx || prev.ty !== curr.ty) {
       pushTileEdge(curr.tx, curr.ty, e);
       markBorderNode(prev.tx, prev.ty, curr.id);
       markBorderNode(curr.tx, curr.ty, prev.id);
     }
-    if(!oneway){
-      const re = { from: curr.id, to: prev.id, lenM, flags: flags & ~0x01, road: r, seg: i - 1,
-                   fromTx: curr.tx, fromTy: curr.ty, toTx: prev.tx, toTy: prev.ty };
+    if (!oneway) {
+      const re = {
+        from: curr.id,
+        to: prev.id,
+        lenM,
+        flags: flags & ~0x01,
+        road: r,
+        seg: i - 1,
+        fromTx: curr.tx,
+        fromTy: curr.ty,
+        toTx: prev.tx,
+        toTy: prev.ty,
+      };
       pushTileEdge(curr.tx, curr.ty, re);
-      if(prev.tx !== curr.tx || prev.ty !== curr.ty){
+      if (prev.tx !== curr.tx || prev.ty !== curr.ty) {
         pushTileEdge(prev.tx, prev.ty, re);
       }
     }
@@ -202,22 +244,27 @@ const numTiles = tileEdges.size;
 console.log(`[${PREF}] tiles=${numTiles} nodes=${nodeArr.length} oversized=${oversized}`);
 
 // ─── Pass 3: 各タイルを書き出し ─────────────────────────────────
-if(!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
+if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
 
-function tabToB64(arr){
+function tabToB64(arr) {
   return Buffer.from(arr.buffer, arr.byteOffset, arr.byteLength).toString('base64');
 }
 
 const tileIndex = [];
 let totalSize = 0;
 
-for(const [tileKey, edges] of tileEdges){
+for (const [tileKey, edges] of tileEdges) {
   // タイル内 / 跨ぎ含めたノード集合を抽出
   const nodeSet = new Set();
-  for(const e of edges){ nodeSet.add(e.from); nodeSet.add(e.to); }
-  const localNodeIds = Array.from(nodeSet).sort(function(a, b){ return a - b; });
-  const localIdMap = new Map();   // global → local
-  for(let i = 0; i < localNodeIds.length; i++){
+  for (const e of edges) {
+    nodeSet.add(e.from);
+    nodeSet.add(e.to);
+  }
+  const localNodeIds = Array.from(nodeSet).sort(function (a, b) {
+    return a - b;
+  });
+  const localIdMap = new Map(); // global → local
+  for (let i = 0; i < localNodeIds.length; i++) {
     localIdMap.set(localNodeIds[i], i);
   }
   const N = localNodeIds.length;
@@ -226,7 +273,7 @@ for(const [tileKey, edges] of tileEdges){
   const localLat = new Int32Array(N);
   const localLng = new Int32Array(N);
   const globalIds = new Uint32Array(N);
-  for(let i = 0; i < N; i++){
+  for (let i = 0; i < N; i++) {
     const gid = localNodeIds[i];
     localLat[i] = nodeArr[gid].latI;
     localLng[i] = nodeArr[gid].lngI;
@@ -234,24 +281,25 @@ for(const [tileKey, edges] of tileEdges){
   }
 
   // CSR for this tile
-  edges.sort(function(a, b){
-    const fa = localIdMap.get(a.from), fb = localIdMap.get(b.from);
-    if(fa !== fb) return fa - fb;
+  edges.sort(function (a, b) {
+    const fa = localIdMap.get(a.from),
+      fb = localIdMap.get(b.from);
+    if (fa !== fb) return fa - fb;
     return localIdMap.get(a.to) - localIdMap.get(b.to);
   });
   const nodeOffset = new Uint32Array(N + 1);
   const edgeTo = new Uint32Array(E);
   const edgeLenM = new Uint16Array(E);
   const edgeFlags = new Uint8Array(E);
-  const edgeRoadG = new Uint32Array(E);   // global road index
+  const edgeRoadG = new Uint32Array(E); // global road index
   const edgeSegG = new Uint16Array(E);
   const edgeToGlobal = new Uint32Array(E);
 
   let cur = 0;
-  for(let i = 0; i < E; i++){
+  for (let i = 0; i < E; i++) {
     const e = edges[i];
     const fromLocal = localIdMap.get(e.from);
-    while(cur <= fromLocal) nodeOffset[cur++] = i;
+    while (cur <= fromLocal) nodeOffset[cur++] = i;
     edgeTo[i] = localIdMap.get(e.to);
     edgeToGlobal[i] = e.to;
     const q = Math.round(e.lenM * 10);
@@ -260,26 +308,27 @@ for(const [tileKey, edges] of tileEdges){
     edgeRoadG[i] = e.road;
     edgeSegG[i] = Math.min(e.seg, 65535);
   }
-  while(cur <= N) nodeOffset[cur++] = E;
+  while (cur <= N) nodeOffset[cur++] = E;
 
   // border nodes（このタイルに登録された隣接タイル参照）
   const borderSet = tileBorderNodes.get(tileKey) || new Set();
   const borderArr = new Uint32Array(borderSet.size);
   let bi = 0;
-  for(const gid of borderSet){ borderArr[bi++] = gid; }
+  for (const gid of borderSet) {
+    borderArr[bi++] = gid;
+  }
 
   const [txStr, tyStr] = tileKey.split('_');
-  const tx = parseInt(txStr, 10), ty = parseInt(tyStr, 10);
+  const tx = parseInt(txStr, 10),
+    ty = parseInt(tyStr, 10);
 
   const out = {
     v: 1,
     prefecture: PREF,
-    tx, ty,
+    tx,
+    ty,
     tileDeg: TILE_DEG,
-    bbox: [
-      ty * TILE_DEG, tx * TILE_DEG,
-      (ty + 1) * TILE_DEG, (tx + 1) * TILE_DEG,
-    ],   // [minLng-ish, minLat-ish 注: tx は lat 系・ty は lng 系で混乱注意]
+    bbox: [ty * TILE_DEG, tx * TILE_DEG, (ty + 1) * TILE_DEG, (tx + 1) * TILE_DEG], // [minLng-ish, minLat-ish 注: tx は lat 系・ty は lng 系で混乱注意]
     precision: precision,
     edgeLenScale: 0.1,
     numNodes: N,
@@ -304,17 +353,26 @@ for(const [tileKey, edges] of tileEdges){
   const filePath = path.join(OUT_DIR, `${tx}_${ty}.js`);
   fs.writeFileSync(filePath, fileContent);
   totalSize += fs.statSync(filePath).size;
-  tileIndex.push({ tx, ty, numNodes: N, numEdges: E, sizeMB: fs.statSync(filePath).size / 1024 / 1024 });
+  tileIndex.push({
+    tx,
+    ty,
+    numNodes: N,
+    numEdges: E,
+    sizeMB: fs.statSync(filePath).size / 1024 / 1024,
+  });
 }
 
 const indexFile = path.join(OUT_DIR, 'index.json');
-fs.writeFileSync(indexFile, JSON.stringify({
-  prefecture: PREF,
-  tileDeg: TILE_DEG,
-  generated: new Date().toISOString(),
-  numTiles: numTiles,
-  tiles: tileIndex,
-}));
+fs.writeFileSync(
+  indexFile,
+  JSON.stringify({
+    prefecture: PREF,
+    tileDeg: TILE_DEG,
+    generated: new Date().toISOString(),
+    numTiles: numTiles,
+    tiles: tileIndex,
+  })
+);
 
 const totalMB = (totalSize / 1024 / 1024).toFixed(2);
 console.log(`[${PREF}] tiles written: ${numTiles} files・total ${totalMB}MB`);

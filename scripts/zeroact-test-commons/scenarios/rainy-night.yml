@@ -1,0 +1,74 @@
+# ============================================================
+# scenarios/rainy-night.yml
+# 悪天候・GPS 精度低下 (= accuracy 大・snap miss 増加)
+# ============================================================
+
+name: rainy-night
+title: 雨天走行 (GPS 精度低下)
+description: |
+  雨天・濃霧などで GPS 精度が低下するケース。
+  accuracy 値が常時 20-50m 程度・たまに 50m 超で _trackHaversineBetweenGps が skip。
+  snap miss も増加し Off-Road Mode 起動の可能性。
+category: low-accuracy
+
+context:
+  trip_type: low-gps-quality
+  location_type: urban
+  weather: rainy
+  time_of_day: night
+  road_type:
+    - 雨天の市街地 (= 5km 程度)
+  duration_sec: 900  # 15 分
+  expected_distance_m: 5000
+
+gps_pattern:
+  hz: 1
+  accuracy_m: 15-60  # 通常の 3 倍程度
+  speed_kmh_range: [0, 40]
+  characteristics:
+    - accuracy > 50m の punctual outlier (= 5-15% of samples)
+    - speed_kmh は通常 (= 雨でも走行可)
+    - 加速度センサーは正常 (= 雨でも影響なし)
+
+expected_events:
+  - event: high_accuracy_skip_haversine
+    frequency: accuracy > 50m 時
+    behavior: meter.js L254-255 _trackHaversineBetweenGps が return (= retroactive buffer 加算なし)
+  - event: high_accuracy_skip_offroad
+    frequency: accuracy > 50m 時
+    behavior: meter.js L302-303 _calculateOffRoadIncrement が return 0 (= Off-Road 加算なし)
+  - event: snap_miss_increase
+    frequency: 通常の 1.5-2 倍
+    cause: GPS 精度低下で Viterbi 候補絞込が困難
+  - event: occasional_offroad_activation
+    frequency: 5-15% probability
+    distance_path:
+      - meter.js L462 offroad-retroactive (= 起動瞬間)
+      - meter.js L842 offroad-incremental (= 継続)
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit       (= 70-85%)
+  secondary:
+    - meter.js L842 offroad-incremental (= 0-30%)
+    - meter.js L462 offroad-retroactive (= 0-1 回)
+  not_expected:
+    - meter.js L824 gap-fill              # GPS 消失ではなく精度低下
+
+verification:
+  invariants:
+    - distance_m は単調非減少
+    - accuracy > 50m の step で haversine buffer 加算されない
+    - Off-Road 起動時も sanitizer 通過のみ加算
+  expected_metrics:
+    snap_rate: "70-85%"
+    accuracy_p50_m: 25
+    accuracy_p95_m: 60
+    distance_source_distribution:
+      mm: 75%
+      offroad: 25%
+
+absolute_rules_tested:
+  - "GPS 精度低下時も distance_m は道路ジオメトリ準拠"
+  - "accuracy > 50m の保護 (= 物理的に信頼できない座標で加算しない)"
+  - "悪天候でも 業務継続性 (= 距離計算継続) を維持"

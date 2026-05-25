@@ -3,15 +3,15 @@
 
 const CATEGORIES = {
   // 既存 9
-  0:  'hotel',                  // ホテル・宿泊
-  1:  'restaurant_bar',         // 飲食・バー（既存「飲食・バー」）
-  2:  'convenience_store',      // コンビニ
-  3:  'gas_station',            // GS
-  4:  'hospital',               // 病院
-  5:  'station',                // 駅
-  6:  'school',                 // 学校
-  7:  'public_facility',        // 公共施設
-  8:  'sightseeing',            // 観光スポット
+  0: 'hotel', // ホテル・宿泊
+  1: 'restaurant_bar', // 飲食・バー（既存「飲食・バー」）
+  2: 'convenience_store', // コンビニ
+  3: 'gas_station', // GS
+  4: 'hospital', // 病院
+  5: 'station', // 駅
+  6: 'school', // 学校
+  7: 'public_facility', // 公共施設
+  8: 'sightseeing', // 観光スポット
 
   // 飲食系（追加 6）
   10: 'fast_food',
@@ -67,11 +67,11 @@ const CATEGORIES = {
   91: 'public_phone',
 
   // 拡張 5（2026/05/B-2 追加）
-  92: 'traffic_signals',  // 信号機 (highway=traffic_signals)
-  93: 'level_crossing',   // 踏切   (railway=level_crossing|crossing)
-  94: 'peak',             // 山頂   (natural=peak|volcano)
-  95: 'parking',          // 駐車場 (amenity=parking)
-  96: 'toilets',          // 公衆トイレ (amenity=toilets)
+  92: 'traffic_signals', // 信号機 (highway=traffic_signals)
+  93: 'level_crossing', // 踏切   (railway=level_crossing|crossing)
+  94: 'peak', // 山頂   (natural=peak|volcano)
+  95: 'parking', // 駐車場 (amenity=parking)
+  96: 'toilets', // 公衆トイレ (amenity=toilets)
 };
 
 // 名前→ID 逆引き（入力 GeoJSON が文字列カテゴリの場合に使用）
@@ -92,8 +92,14 @@ for (const [id, name] of Object.entries(CATEGORIES)) CATEGORY_NAME_TO_ID[name] =
 // OSM tags → 内部カテゴリ名（osmium 由来の生 OSM タグから自動分類するときに使う）
 function classifyOsmTags(tags) {
   if (!tags) return null;
-  const am = tags.amenity, sh = tags.shop, lz = tags.leisure, to = tags.tourism;
-  const rw = tags.railway, hw = tags.highway, ay = tags.aeroway, em = tags.emergency;
+  const am = tags.amenity,
+    sh = tags.shop,
+    lz = tags.leisure,
+    to = tags.tourism;
+  const rw = tags.railway,
+    hw = tags.highway,
+    ay = tags.aeroway,
+    em = tags.emergency;
   const cu = tags.cuisine || '';
   const name = tags.name || '';
 
@@ -103,57 +109,66 @@ function classifyOsmTags(tags) {
   if (/^\s*道の駅/.test(name)) return 'michinoeki';
 
   if (em === 'defibrillator') return 'aed';
-  if (am === 'telephone')     return 'public_phone';
+  if (am === 'telephone') return 'public_phone';
   // 拡張 5 (B-2)
   if (hw === 'traffic_signals') return 'traffic_signals';
   if (rw === 'level_crossing' || rw === 'crossing') return 'level_crossing';
   if (tags.natural === 'peak' || tags.natural === 'volcano') return 'peak';
-  if (am === 'parking')         return 'parking';
-  if (am === 'toilets')         return 'toilets';
+  if (am === 'parking') return 'parking';
+  if (am === 'toilets') return 'toilets';
   if (ay === 'aerodrome' || ay === 'terminal') return 'airport';
-  if (hw === 'bus_stop')        return 'bus_stop';
-  if (rw === 'station')         return 'station';
-  if (am === 'taxi')            return 'taxi_stand';
+  if (hw === 'bus_stop') return 'bus_stop';
+  if (rw === 'station') return 'station';
+  if (am === 'taxi') return 'taxi_stand';
   if (am === 'bicycle_parking') return 'bicycle_parking';
-  if (hw === 'services')        return 'sapa';
-  if (lz === 'golf_course')     return 'golf';
-  if (am === 'cinema')          return 'cinema';
+  if (hw === 'services') return 'sapa';
+  if (lz === 'golf_course') return 'golf';
+  if (am === 'cinema') return 'cinema';
   if (lz === 'adult_gaming_centre') return 'pachinko';
-  if (am === 'karaoke_box')     return 'karaoke';
+  if (am === 'karaoke_box') return 'karaoke';
   if (am === 'public_bath' || lz === 'hot_spring') return 'onsen_sento';
-  if (am === 'atm')             return 'atm';
-  if (am === 'bank')            return 'bank';
-  if (am === 'library')         return 'library';
-  if (am === 'fire_station')    return 'fire_station';
-  if (am === 'police')          return 'police_koban';
-  if (am === 'post_office')     return 'post_office';
-  if (am === 'townhall')        return 'city_office';
+  if (am === 'atm') return 'atm';
+  if (am === 'bank') return 'bank';
+  if (am === 'library') return 'library';
+  if (am === 'fire_station') return 'fire_station';
+  if (am === 'police') return 'police_koban';
+  if (am === 'post_office') return 'post_office';
+  if (am === 'townhall') return 'city_office';
   // 公共施設（市役所以外の community/civic/government 系）
-  if (am === 'community_centre' || am === 'public_building' || am === 'civic'
-      || am === 'social_facility' || am === 'courthouse' || am === 'embassy'
-      || tags.office === 'government') return 'public_facility';
-  if (sh === 'variety_store')   return 'hundred_yen';
+  if (
+    am === 'community_centre' ||
+    am === 'public_building' ||
+    am === 'civic' ||
+    am === 'social_facility' ||
+    am === 'courthouse' ||
+    am === 'embassy' ||
+    tags.office === 'government'
+  )
+    return 'public_facility';
+  if (sh === 'variety_store') return 'hundred_yen';
   if (sh === 'department_store' || sh === 'mall') return 'department_sc';
   if (sh === 'doityourself' || sh === 'hardware') return 'home_center';
-  if (sh === 'supermarket')     return 'supermarket';
+  if (sh === 'supermarket') return 'supermarket';
   if (sh === 'chemist' || am === 'pharmacy') return 'pharmacy_drugstore';
-  if (am === 'dentist')         return 'dental';
+  if (am === 'dentist') return 'dental';
   if (am === 'clinic' || am === 'doctors') return 'clinic';
-  if (am === 'fast_food')       return 'fast_food';
-  if (am === 'cafe')            return 'cafe';
+  if (am === 'fast_food') return 'fast_food';
+  if (am === 'cafe') return 'cafe';
   if (am === 'restaurant' || am === 'bar' || am === 'pub') {
-    if (cu === 'ramen')         return 'ramen';
-    if (cu === 'sushi')         return 'sushi';
+    if (cu === 'ramen') return 'ramen';
+    if (cu === 'sushi') return 'sushi';
     if (cu === 'yakiniku' || cu === 'korean') return 'yakiniku';
-    if (cu === 'izakaya')       return 'izakaya';
+    if (cu === 'izakaya') return 'izakaya';
     return 'restaurant_bar';
   }
   if (to === 'hotel' || to === 'hostel' || to === 'guest_house' || to === 'motel') return 'hotel';
-  if (sh === 'convenience')     return 'convenience_store';
-  if (am === 'fuel')            return 'gas_station';
-  if (am === 'hospital')        return 'hospital';
-  if (am === 'school' || am === 'kindergarten' || am === 'college' || am === 'university') return 'school';
-  if (to === 'attraction' || to === 'museum' || to === 'viewpoint' || to === 'artwork') return 'sightseeing';
+  if (sh === 'convenience') return 'convenience_store';
+  if (am === 'fuel') return 'gas_station';
+  if (am === 'hospital') return 'hospital';
+  if (am === 'school' || am === 'kindergarten' || am === 'college' || am === 'university')
+    return 'school';
+  if (to === 'attraction' || to === 'museum' || to === 'viewpoint' || to === 'artwork')
+    return 'sightseeing';
   return null;
 }
 
@@ -164,7 +179,7 @@ function extractAttrsFromOsmTags(tags, category) {
   else if (oh && oh.length < 80) a.open = oh;
   if (category === 'gas_station') {
     if (tags.self_service === 'yes') a.self = 1;
-    if (tags.self_service === 'no')  a.full = 1;
+    if (tags.self_service === 'no') a.full = 1;
     if (tags['fuel:diesel'] === 'yes') a.diesel = 1;
   }
   if (category === 'hospital') {
@@ -196,23 +211,25 @@ function extractAttrsFromOsmTags(tags, category) {
   }
   if (category === 'school') {
     const am = tags.amenity;
-    if (am === 'kindergarten')      a.kind = 'kg';
-    else if (am === 'college')      a.kind = 'voc';
-    else if (am === 'university')   a.kind = 'univ';
+    if (am === 'kindergarten') a.kind = 'kg';
+    else if (am === 'college') a.kind = 'voc';
+    else if (am === 'university') a.kind = 'univ';
     else if (am === 'school') {
       const isced = tags['isced:level'] || '';
-      if (isced.includes('1'))      a.kind = 'elem';
+      if (isced.includes('1')) a.kind = 'elem';
       else if (isced.includes('2')) a.kind = 'jhs';
       else if (isced.includes('3')) a.kind = 'hs';
       else if (/(高校|高等)/.test(tags.name || '')) a.kind = 'hs';
-      else if (/中学/.test(tags.name || ''))        a.kind = 'jhs';
-      else if (/小学/.test(tags.name || ''))        a.kind = 'elem';
+      else if (/中学/.test(tags.name || '')) a.kind = 'jhs';
+      else if (/小学/.test(tags.name || '')) a.kind = 'elem';
     }
   }
   return Object.keys(a).length ? a : null;
 }
 
 module.exports = {
-  CATEGORIES, CATEGORY_NAME_TO_ID,
-  classifyOsmTags, extractAttrsFromOsmTags,
+  CATEGORIES,
+  CATEGORY_NAME_TO_ID,
+  classifyOsmTags,
+  extractAttrsFromOsmTags,
 };

@@ -52,9 +52,9 @@ for (const [pref, info] of Object.entries(prefs)) {
   }
   const [latMinI, lonMinI, latMaxI, lonMaxI] = info.bbox;
   const south = latMinI / PRECISION;
-  const west  = lonMinI / PRECISION;
+  const west = lonMinI / PRECISION;
   const north = latMaxI / PRECISION;
-  const east  = lonMaxI / PRECISION;
+  const east = lonMaxI / PRECISION;
 
   // 5点（閉じ）の bbox poly。osmium は 「lon lat」順を期待。
   const lines = [
@@ -75,7 +75,9 @@ for (const [pref, info] of Object.entries(prefs)) {
   const size = fs.statSync(outPath).size;
   totalSize += size;
   count++;
-  console.log(`  ✅ ${pref.padEnd(12)} bbox=[${south.toFixed(3)},${west.toFixed(3)} - ${north.toFixed(3)},${east.toFixed(3)}]  ${size}B`);
+  console.log(
+    `  ✅ ${pref.padEnd(12)} bbox=[${south.toFixed(3)},${west.toFixed(3)} - ${north.toFixed(3)},${east.toFixed(3)}]  ${size}B`
+  );
 }
 
 console.log(`\n📁 ${OUT_DIR}`);

@@ -36,3 +36,35 @@ input/
 .env
 .env.local
 .env.*.local
+
+# Playwright / Vitest 動的解析 ② ③ 生成物 (2026-05-15)
+# 注: leading `/` を付けて repo root にアンカー。
+/test-results/
+/playwright-report/
+/coverage/
+
+# test results (2026-05-18 追加・rebase conflict 防止)
+# 旧: CI (mm-regression.yml) 追跡対象として残していたが
+# 新: ローカル npm run test:replay で毎回更新・複数 push の rebase conflict 多発で除外化
+# CI artifact / Sentry release tag で代替記録
+data/test-results/
+
+# Stryker mutation testing 生成物 (2026-05-18 追加・P5)
+# sandbox はテスト毎に dir 名がランダム生成・コミット追跡不要
+# reports/mutation/ は HTML reporter 出力先 (= stryker.config.mjs)
+.stryker-tmp/
+reports/
+
+# ★ ABR / ISJ 派生・大容量データ (= 配信しない・将来用に build script のみ retain・2026-05-22)
+#    住所表示は・丁目(fine)+coarse(市町村) までで・確定。
+#    番(street)/号(rsdt)/地番(chiban) のデータは・配信せず・build script (--street/--rsdt/--chiban)
+#    と・integration test は・将来用 retain。実 file は・ローカル生成可・git には・乗せない。
+#    100MB+ファイルが・GitHub push 拒否の・元 (aichi街区 105MB / chiban-ehime 164MB 等)。
+data/addresses-street-*.js
+data/addresses-rsdt-*.js
+data/addresses-chiban-*.js
+
+# 内部 文書 (= 司さん メモ・引き継ぎ・新セッション プロンプト雛形)・公開 repo 外
+# 2026-05-22 追加: PROMPT_NEW_CHAT.md / HANDOVER*.md は・local retain のみ
+HANDOVER*.md
+PROMPT_NEW_CHAT.md

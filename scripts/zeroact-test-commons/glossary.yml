@@ -1,0 +1,307 @@
+# ============================================================
+# ダイコメ 用語集・変数定義 (glossary.yml)
+# ZEROact 共通テスト基盤 Stage 2 (2026-05-18 新規)
+#
+# 目的:
+#   司さんの業界知識・実コード verified された変数の役割・業界用語を
+#   機械可読な形 (YAML) で集約。CodeRabbit / PR-Agent / Claude Code の
+#   path_instructions・絶対ルール理解の根拠とする。
+#
+# 構造:
+#   variables    コード内の重要変数 (= critical / dangerous_sources / 派生値)
+#   concepts     コード設計の概念 (= Tier / sanitizer / messaging chain 等)
+#   industry     代行運転業界の用語 (= 業務文脈・料金体系・運用慣習)
+# ============================================================
+
+# ─── critical variables (= 課金根拠・絶対不可侵な値) ──────────────────
+
+variables:
+  distance_m:
+    role: critical
+    category: billing-basis
+    description: 課金根拠となる走行距離 (メートル単位)・絶対不可侵
+    invariants:
+      - 同一 trip 内・running=true 中は単調非減少
+      - isStationary=true で増加しない
+      - 更新元は 5 経路のみ (= verified line numbers)
+      - GPS 直線距離 (GPS.calcDistance) は適用外区間以外で sink に流入禁止
+    update_paths:
+      - line: meter.js L393
+        name: tier1-commit
+        source: Worker B Viterbi commit (m.mmIncrementM)
+        billing: ✅
+      - line: meter.js L462
+        name: offroad-retroactive
+        source: _trackHaversineBetweenGps が積算した _haverAccumSinceLastCommit
+        billing: ✅ (★絶対ルール適用外区間 sanitizer 通過)
+      - line: meter.js L824
+        name: gap-fill
+        source: calculateGapFill (= speed × time・GPS 直線非依存)
+        billing: ✅
+      - line: meter.js L842
+        name: offroad-incremental
+        source: _calculateOffRoadIncrement (= GPS polyline 積み上げ)
+        billing: ✅ (★絶対ルール適用外区間 sanitizer 通過)
+      - line: meter.js L1172
+        name: setDistance
+        source: 外部 API 引数 (= タスクキル復元用)
+        billing: 外部復元用 (= source 経由しない)
+    related: [fare_yen, business_distance_m, tier2_pending_m]
+
+  business_distance_m:
+    role: secondary
+    category: cumulative-distance
+    description: 業務単位 (= 業務開始から終了) の総走行距離・空車区間も累積
+    invariants:
+      - state.running===true のときのみ更新 (= 2026-05-17 ★設計変更)
+      - 距離源は distance_m と同じ 5 経路 (= 並行加算)
+    related: [distance_m]
+
+  fare_yen:
+    role: derived
+    category: billing-output
+    description: 確定料金 (円)・distance_m から calcFare() で算出される純粋関数値
+    invariants:
+      - fare_yen === calcFare(distance_m) (= 状態に依存しない純粋関数)
+      - distance_m を守れば自動的に守られる
+    formula: calcFare
+    related: [distance_m]
+
+  tier2_pending_m:
+    role: display-only
+    category: display-buffer
+    description: 表示用先行値 (Worker B tentativeIncrementM 累積)・課金には使わない
+    invariants:
+      - 表示式 = distance_m + tier2_pending_m
+      - commit 時に -= mmIncrementM (0 下限 clamp) で減算 (= 表示単調)
+    related: [distance_m]
+
+# ─── dangerous_sources (= 直接呼ぶと絶対ルール違反候補) ──────────────
+
+  GPS.calcDistance:
+    role: dangerous-source
+    category: gps-straight-line
+    description: GPS 2 点間の直線距離 (Vincenty 公式)・道路ジオメトリ非考慮
+    forbidden_sink: state.distance_m
+    sanitizers:
+      - 関数 _trackHaversineBetweenGps 内 (meter.js L257)
+      - 関数 _calculateOffRoadIncrement 内 (meter.js L305)
+    call_sites:
+      - meter.js L257
+      - meter.js L305
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/daikome/distance-m-no-gps-line.yml
+
+  GPS.calcDistance3D:
+    role: dangerous-source
+    category: gps-straight-line
+    description: GPS 2 点間の 3D 直線距離 (高度差含む)
+    forbidden_sink: state.distance_m
+    status: 予防的 source 登録 (= 現状呼出ゼロ・将来使用に備える)
+    call_sites: []
+    definition: gps.js L699 (export L772)
+
+# ─── 設計概念 ────────────────────────────────────────────────────────
+
+concepts:
+  tier1_commit:
+    layer: Tier 1
+    description: Worker B Viterbi が確定した道路ジオメトリ距離・課金主経路
+    trigger: Worker B から mmResult.mmIncrementM > 0 受信
+    distance_basis: 道路ジオメトリ (= snapped polyline 上の距離)
+    billing: ✅
+
+  tier2_tentative:
+    layer: Tier 2
+    description: Worker B が confirm 前に出す「先行表示用」距離・課金には使わない
+    trigger: Worker B から mmResult.tentativeIncrementM > 0 受信
+    distance_basis: 道路ジオメトリ (= preview)
+    billing: 表示のみ
+
+  gap_fill:
+    layer: gap-fill
+    description: GPS 5 秒以上空白 (トンネル等) 時の補完・速度×時間で推定
+    trigger: meter.js L812 dtSec >= GAP_THRESHOLD_SEC (=5)
+    distance_basis: state.last_speed_kmh × dtSec (= タイヤ回転由来概算)
+    constraint: lastSpeedKmh<=0 で null 返却 (= GPS 直線流入遮断維持)
+    billing: ✅
+    aliases: [Tier 4 (内部メモ用名称・コード中には存在しない)]
+
+  offroad_incremental:
+    layer: Phase 1.C Off-Road Mode (incremental)
+    description: snap miss 5 連続で起動・GPS polyline 累積で課金続行
+    trigger: meter.js L449 _consecutiveSnapMiss >= OFFROAD_SNAP_MISS_THRESHOLD
+    distance_basis: GPS 2 点間 haversine の積み上げ (= short segment polyline)
+    sanitizer: ★絶対ルール適用外区間 (meter.js L295)
+    constraints:
+      - 停車中 (isStationary) で加算しない
+      - GPS accuracy > 50m で加算しない
+      - 物理上限 160 km/h × dtSec + 5m を超えたら skip
+    billing: ✅ (= 道路ジオメトリ非依存だが ★適用外宣言済)
+    aliases: [Tier 5 (内部メモ用名称・コード中には存在しない)]
+
+  offroad_retroactive:
+    layer: Phase 1.C Off-Road Mode (retroactive)
+    description: Off-Road 起動時の遡及加算・起動前の haversine buffer を反映
+    trigger: meter.js L453 _haverAccumSinceLastCommit > 0
+    distance_basis: 起動前の _trackHaversineBetweenGps 積算値
+    sanitizer: ★絶対ルール適用外区間（retroactive） (meter.js L458)
+    billing: ✅ (= 起動直前の snap miss 区間の課金漏れ防止)
+
+  isStationary:
+    description: 停車判定フラグ・gps-worker.js が 3-AND 条件で確定
+    judgment_rule: gps-worker.js L627 finalStationary = gpsStationary && c1Stationary && !c2Moving
+    components:
+      gpsStationary:
+        condition: speedKmh<3 km/h AND elapsedSec>=5 sec AND movedM<3 m
+        source: GPS layer (= 5 秒継続低速 + 3m 半径以内)
+      c1_accelVariance:
+        condition: 加速度 variance < 0.1 m²/s⁴
+        source: 加速度センサー (DeviceMotionEvent)
+      c2_accelMotion:
+        condition: 加速度ベクトル偏差 > 0.5 m/s² (= !c2Moving が true なら静止扱い)
+        source: 加速度センサー
+      fallback:
+        condition: 加速度サンプル null (gps-worker.js L596-598)
+        behavior: GPS 単独で final 確定 (= 後方互換)
+    force_zero_paths:
+      - meter.js L790 update() 入口早期 return
+      - map-matcher.js L3007 Worker B 出力強制 0 化 (mmIncrementM=0 / tentativeIncrementM=0)
+
+  snap_miss:
+    description: Worker B Viterbi snap 失敗 (= 道路マッチング不能)
+    counter: _consecutiveSnapMiss (meter.js)
+    threshold: OFFROAD_SNAP_MISS_THRESHOLD (=5)
+    consequence: 5 連続で Off-Road Mode 起動
+    causes:
+      - 道路データ未 load (47 県中該当県の roads-{pref}.js 未読込)
+      - 私道・新規道路 (= OSM 未登録)
+      - GPS 精度低下 (accuracy > 30m)
+
+  pheromone:
+    description: Firebase 由来の道路重み (= cross-user 走行頻度ベース)
+    storage: Firebase Realtime Database
+    update_path: Worker B updateCrossUserPheromone handler (現状 dead handler)
+    purpose: Viterbi の emission 確率を経験的に補正
+    note: |
+      ⚠️ よくある誤解: [MM-7] roads (X prefs) ステータスの X は
+      _pheromoneByPref.size (= Firebase pheromone) であり
+      実際の loaded_roads_total 件数ではない。
+      memory に loaded_prefs_count / loaded_roads_total が追加された経緯あり (bff139f8)。
+
+  messaging_chain:
+    description: GPS データ伝搬経路 (= 2-hop messaging・main thread 必須経由)
+    flow:
+      - step: 1
+        from: navigator.geolocation.watchPosition
+        to: gps.js L413 onPosition
+      - step: 2
+        from: gps.js L463 worker.postMessage
+        to: gps-worker.js Worker A (Kalman + 静止判定)
+      - step: 3
+        from: gps-worker.js L743 self.postMessage
+        to: gps.js L360 worker.onmessage → onUpdateCallback (= Meter.update)
+      - step: 4
+        from: meter.js L935 mmWorker.postMessage
+        to: map-matcher.js Worker B (Viterbi)
+      - step: 5
+        from: map-matcher.js postMessage
+        to: meter.js _onMmWorkerMessage → state.distance_m += mmIncrementM (L393)
+    constraint: Worker A → Worker B の直接通信なし (= main thread 必須経由)
+
+  sanitizer_marker:
+    description: 絶対ルール適用外区間の明示マーカー (Semgrep taint 除外)
+    instances:
+      - file: meter.js L458
+        marker: ★絶対ルール適用外区間（retroactive）
+        scope: L462 retroactive 加算を許可
+      - file: meter.js L295
+        marker: ★絶対ルール適用外区間（明示宣言）
+        scope: _calculateOffRoadIncrement 関数全体 (= L305 GPS.calcDistance → L842 加算)
+
+# ─── 業界用語 (= 代行運転業界の文脈) ─────────────────────────────────
+
+industry:
+  代行運転:
+    english: designated driver service
+    description: 飲酒等で運転できない顧客の車を、代行運転手が代わりに運転し目的地まで送り届ける日本の業種
+    legal_basis: 自動車運転代行業の業務の適正化に関する法律 (= 国土交通省・警察庁所管)
+    typical_hours: 夕方〜深夜 (= 飲食店利用後の帰宅需要が中心)
+    operation_pattern:
+      - 配車依頼受付 (電話 / アプリ)
+      - 顧客車両に運転手が乗込
+      - 顧客車両 + 随伴車両 2 台で目的地へ
+      - 顧客降車・料金収受
+      - 次の配車待機 or 別現場へ
+    business_metric: 1 夜あたりの trip 数 × 平均料金 = 1 夜売上
+
+  料金メーター:
+    type: タクシー方式 (= 走行距離ベース)
+    fare_formula_v2:
+      base_fare: 1300
+      base_distance_m: 1000
+      add_fare: 100
+      add_distance_m: 420
+      rounding: 10
+    interpretation: |
+      1000m 以下 → 一律 ¥1,300 (base_fare)
+      1000m 超 → ¥1,300 + ceil((distance_m - 1000) / 420) × ¥100
+      (= 420m 走るごとに ¥100 加算・10 円単位で四捨五入)
+    examples:
+      - distance_m: 500
+        fare_yen: 1300
+        note: base 範囲内
+      - distance_m: 1000
+        fare_yen: 1300
+        note: 境界値・ちょうど base
+      - distance_m: 1420
+        fare_yen: 1400
+        note: base + add 1 回 (1420 = 1000 + 420)
+      - distance_m: 5000
+        fare_yen: 2300
+        note: base + add ceil((5000-1000)/420) = ceil(9.52) = 10 回 = ¥1000 加算
+    business_impact: |
+      代行運転手の収益直結 → distance_m の精度低下は売上減を招く
+      → 距離計算は最厳格に運用 (= 絶対ルール「GPS 直線禁止・道路ジオメトリ必須」)
+
+  trip:
+    description: 1 回の代行業務単位 (= 配車受付 → 顧客降車まで)
+    sequence:
+      - 業務開始 (= 待機状態への遷移・Meter 初期化)
+      - 代行開始 (= 顧客車両乗込・Meter.start・running=true)
+      - 走行 (= GPS chain → Worker B Viterbi で distance_m 累積)
+      - 代行終了 (= 顧客降車・Meter 停止・running=false)
+      - 業務終了 or 次 trip 開始
+    distinguish_from_business:
+      trip: 1 回の代行 (= 1 顧客)
+      business: 1 夜全体 (= 出勤〜退勤までの複数 trip 合算)
+
+  business:
+    description: 1 出勤単位 (= 業務開始 → 業務終了まで)・複数 trip を含む
+    metrics:
+      - business_distance_m (= 出勤中の総走行距離・空車区間含む)
+      - business_fare_total (= 全 trip の fare_yen 合算・売上)
+      - business_trip_count (= trip 数)
+
+  空車:
+    description: 顧客降車後・次 trip 待ち or 次現場移動中の状態
+    state: state.running===false
+    fare: 課金しない (= state.distance_m / fare_yen 更新停止)
+    business_distance: 加算しない (= 2026-05-17 ★設計変更)
+
+  実車:
+    description: 顧客乗車中・課金走行中の状態
+    state: state.running===true
+    fare: 課金する (= distance_m / fare_yen 更新)
+    business_distance: 加算する
+
+  ETC:
+    description: 高速道路料金所自動収受システム (= 日本)
+    note: 代行運転では顧客の車両に ETC 搭載あり/なし両方ケース・本アプリは ETC 料金計算は範囲外
+
+  オフライン運用:
+    description: 圏外・通信断時でも業務継続できる設計
+    constraints:
+      - 全 47 県の roads データを事前 cache (= sw.js PRECACHE)
+      - Firebase 等の online API は navigator.onLine===false で何もしない (= silent)
+      - 距離計算 / 課金計算 は完全オフライン動作
+    rationale: 代行運転は山間部・地下駐車場等で通信断が頻発するため

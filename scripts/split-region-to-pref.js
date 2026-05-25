@@ -26,50 +26,91 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 
 // 47都道府県の重心 [lat, lon]（build-roads.js と同一）
 const PREFECTURES = {
-  hokkaido:  [43.3, 142.8],
-  aomori:    [40.8, 140.7], iwate:    [39.7, 141.2], miyagi:    [38.3, 140.9],
-  akita:     [39.7, 140.4], yamagata: [38.2, 140.0], fukushima: [37.4, 140.2],
-  ibaraki:   [36.4, 140.4], tochigi:  [36.7, 139.9], gunma:     [36.4, 139.0],
-  saitama:   [35.9, 139.4], chiba:    [35.5, 140.2], tokyo:     [35.7, 139.7],
-  kanagawa:  [35.4, 139.4],
-  niigata:   [37.5, 138.9], toyama:   [36.6, 137.2], ishikawa:  [36.6, 136.7],
-  fukui:     [35.8, 136.2], yamanashi:[35.6, 138.6], nagano:    [36.2, 138.0],
-  gifu:      [35.6, 137.0], shizuoka: [34.9, 138.4], aichi:     [35.1, 137.0],
-  mie:       [34.6, 136.5], shiga:    [35.1, 136.1], kyoto:     [35.2, 135.7],
-  osaka:     [34.6, 135.5], hyogo:    [35.0, 134.9], nara:      [34.4, 135.8],
-  wakayama:  [33.8, 135.5],
-  tottori:   [35.4, 134.0], shimane:  [35.0, 132.8], okayama:   [34.9, 133.8],
-  hiroshima: [34.5, 132.7], yamaguchi:[34.2, 131.6],
-  tokushima: [33.9, 134.4], kagawa:   [34.3, 134.0],
-  ehime:     [33.7, 132.9], kochi:    [33.5, 133.5],
-  fukuoka:   [33.6, 130.7], saga:     [33.3, 130.1], nagasaki:  [32.9, 129.9],
-  kumamoto:  [32.7, 130.7], oita:     [33.2, 131.4], miyazaki:  [32.0, 131.4],
-  kagoshima: [31.4, 130.6], okinawa:  [26.5, 128.0],
+  hokkaido: [43.3, 142.8],
+  aomori: [40.8, 140.7],
+  iwate: [39.7, 141.2],
+  miyagi: [38.3, 140.9],
+  akita: [39.7, 140.4],
+  yamagata: [38.2, 140.0],
+  fukushima: [37.4, 140.2],
+  ibaraki: [36.4, 140.4],
+  tochigi: [36.7, 139.9],
+  gunma: [36.4, 139.0],
+  saitama: [35.9, 139.4],
+  chiba: [35.5, 140.2],
+  tokyo: [35.7, 139.7],
+  kanagawa: [35.4, 139.4],
+  niigata: [37.5, 138.9],
+  toyama: [36.6, 137.2],
+  ishikawa: [36.6, 136.7],
+  fukui: [35.8, 136.2],
+  yamanashi: [35.6, 138.6],
+  nagano: [36.2, 138.0],
+  gifu: [35.6, 137.0],
+  shizuoka: [34.9, 138.4],
+  aichi: [35.1, 137.0],
+  mie: [34.6, 136.5],
+  shiga: [35.1, 136.1],
+  kyoto: [35.2, 135.7],
+  osaka: [34.6, 135.5],
+  hyogo: [35.0, 134.9],
+  nara: [34.4, 135.8],
+  wakayama: [33.8, 135.5],
+  tottori: [35.4, 134.0],
+  shimane: [35.0, 132.8],
+  okayama: [34.9, 133.8],
+  hiroshima: [34.5, 132.7],
+  yamaguchi: [34.2, 131.6],
+  tokushima: [33.9, 134.4],
+  kagawa: [34.3, 134.0],
+  ehime: [33.7, 132.9],
+  kochi: [33.5, 133.5],
+  fukuoka: [33.6, 130.7],
+  saga: [33.3, 130.1],
+  nagasaki: [32.9, 129.9],
+  kumamoto: [32.7, 130.7],
+  oita: [33.2, 131.4],
+  miyazaki: [32.0, 131.4],
+  kagoshima: [31.4, 130.6],
+  okinawa: [26.5, 128.0],
 };
 
-const REGIONS = ['hokkaido','tohoku','kanto','chubu','kinki','chugoku','shikoku','kyushu-okinawa'];
-const KINDS = ['bridges','tunnels'];
+const REGIONS = [
+  'hokkaido',
+  'tohoku',
+  'kanto',
+  'chubu',
+  'kinki',
+  'chugoku',
+  'shikoku',
+  'kyushu-okinawa',
+];
+const KINDS = ['bridges', 'tunnels'];
 
 // 地方名 → window 変数のサフィックス（既存ファイルに準拠）
 const REGION_TO_VAR = {
-  'hokkaido': 'HOKKAIDO',
-  'tohoku': 'TOHOKU',
-  'kanto': 'KANTO',
-  'chubu': 'CHUBU',
-  'kinki': 'KINKI',
-  'chugoku': 'CHUGOKU',
-  'shikoku': 'SHIKOKU',
+  hokkaido: 'HOKKAIDO',
+  tohoku: 'TOHOKU',
+  kanto: 'KANTO',
+  chubu: 'CHUBU',
+  kinki: 'KINKI',
+  chugoku: 'CHUGOKU',
+  shikoku: 'SHIKOKU',
   'kyushu-okinawa': 'KYUSHU_OKINAWA',
 };
 
 function nearestPrefecture(lat, lng) {
-  let best = null, bestDist = Infinity;
+  let best = null,
+    bestDist = Infinity;
   for (const pref in PREFECTURES) {
     const [pLat, pLng] = PREFECTURES[pref];
     const dLat = lat - pLat;
     const dLng = lng - pLng;
     const d = dLat * dLat + dLng * dLng;
-    if (d < bestDist) { bestDist = d; best = pref; }
+    if (d < bestDist) {
+      bestDist = d;
+      best = pref;
+    }
   }
   return best;
 }
@@ -89,9 +130,15 @@ function buildPerPrefMap(arr) {
   for (const entry of arr) {
     // entry = [name, dist, [s_lat,lng], [e_lat,lng], [m_lat,lng]]
     const mid = entry[4];
-    if (!Array.isArray(mid) || mid.length !== 2) { dropped++; continue; }
+    if (!Array.isArray(mid) || mid.length !== 2) {
+      dropped++;
+      continue;
+    }
     const pref = nearestPrefecture(mid[0], mid[1]);
-    if (!pref) { dropped++; continue; }
+    if (!pref) {
+      dropped++;
+      continue;
+    }
     (out[pref] ||= []).push(entry);
   }
   return { byPref: out, dropped };
@@ -105,7 +152,7 @@ function writePrefFile(kind, pref, entries) {
     `// Generated: ${new Date().toISOString()}`,
     `// データ形式: [name, distance_m, [start_lat,lng], [end_lat,lng], [mid_lat,lng]]`,
     `window.${VAR} = ${JSON.stringify(entries)};`,
-    ''
+    '',
   ].join('\n');
   const outPath = path.join(DATA_DIR, `${kind}-${pref}.js`);
   fs.writeFileSync(outPath, header);
@@ -140,14 +187,17 @@ for (const kind of KINDS) {
   // 出力
   const prefs = Object.keys(byPref).sort();
   console.log(`  出力県数: ${prefs.length}`);
-  let totalOut = 0, totalSize = 0;
+  let totalOut = 0,
+    totalSize = 0;
   for (const pref of prefs) {
     const r = writePrefFile(kind, pref, byPref[pref]);
     summary[kind][pref] = { count: r.count, sizeBytes: r.size };
     totalOut += r.count;
     totalSize += r.size;
   }
-  console.log(`  ✅ ${kind}: 出力件数 ${totalOut} / 合計 ${(totalSize/1024).toFixed(1)} KB / 平均 ${(totalSize/1024/prefs.length).toFixed(1)} KB/県`);
+  console.log(
+    `  ✅ ${kind}: 出力件数 ${totalOut} / 合計 ${(totalSize / 1024).toFixed(1)} KB / 平均 ${(totalSize / 1024 / prefs.length).toFixed(1)} KB/県`
+  );
 }
 
 // レポート

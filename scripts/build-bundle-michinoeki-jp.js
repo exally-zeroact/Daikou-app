@@ -24,14 +24,15 @@ const TMP = path.join(PROJECT_ROOT, 'tmp', 'bundle-michinoeki');
   fs.mkdirSync(TMP, { recursive: true });
 
   const allItems = [];
-  let prefsOk = 0, prefsFail = 0;
+  let prefsOk = 0,
+    prefsFail = 0;
 
   for (let i = 1; i <= 47; i++) {
     const code = String(i).padStart(2, '0');
     const cacheFile = path.join(TMP, `p35_18_${code}.geojson`);
 
     let geojsonText;
-    if (fs.existsSync(cacheFile) && (Date.now() - fs.statSync(cacheFile).mtimeMs) < 30 * 86400000) {
+    if (fs.existsSync(cacheFile) && Date.now() - fs.statSync(cacheFile).mtimeMs < 30 * 86400000) {
       geojsonText = fs.readFileSync(cacheFile, 'utf8');
     } else {
       try {
@@ -39,8 +40,10 @@ const TMP = path.join(PROJECT_ROOT, 'tmp', 'bundle-michinoeki');
         const apiUrl = `https://www.geospatial.jp/ckan/api/3/action/package_show?id=ksj-p35-${code}`;
         const apiResp = await u.fetchText(apiUrl, 20000);
         const api = JSON.parse(apiResp);
-        const resources = api.result && api.result.resources || [];
-        const geojsonRes = resources.find(r => /geojson/i.test(r.format) || /\.geojson$/i.test(r.url));
+        const resources = (api.result && api.result.resources) || [];
+        const geojsonRes = resources.find(
+          (r) => /geojson/i.test(r.format) || /\.geojson$/i.test(r.url)
+        );
         if (!geojsonRes) {
           console.log(`  ⚠️ pref=${code}: GeoJSON resource なし`);
           prefsFail++;
@@ -58,8 +61,16 @@ const TMP = path.join(PROJECT_ROOT, 'tmp', 'bundle-michinoeki');
 
     // パース
     let fc;
-    try { fc = JSON.parse(geojsonText); } catch { prefsFail++; continue; }
-    if (!Array.isArray(fc.features)) { prefsFail++; continue; }
+    try {
+      fc = JSON.parse(geojsonText);
+    } catch {
+      prefsFail++;
+      continue;
+    }
+    if (!Array.isArray(fc.features)) {
+      prefsFail++;
+      continue;
+    }
 
     // CKAN 公開 P35 GeoJSON は日本語プロパティ
     //   "道の駅名", "都道府県名", "市町村名", "緯度", "経度", + 各種設備有無 (1=有, 2=無)
@@ -71,12 +82,12 @@ const TMP = path.join(PROJECT_ROOT, 'tmp', 'bundle-michinoeki');
       if (!name) continue;
       const facilities = [];
       // 重要な設備: ATM(1), レストラン(1), 宿泊(1), 温泉(1), GS(1), EV充電(1), トイレ(1)
-      if (props['ATM有無'] === 1)         facilities.push('atm');
-      if (props['レストラン有無'] === 1)  facilities.push('rest');
-      if (props['宿泊施設有無'] === 1)    facilities.push('hotel');
-      if (props['温泉施設有無'] === 1)    facilities.push('onsen');
+      if (props['ATM有無'] === 1) facilities.push('atm');
+      if (props['レストラン有無'] === 1) facilities.push('rest');
+      if (props['宿泊施設有無'] === 1) facilities.push('hotel');
+      if (props['温泉施設有無'] === 1) facilities.push('onsen');
       if (props['ガソリンスタンド有無'] === 1) facilities.push('gs');
-      if (props['EV充電施設有無'] === 1)  facilities.push('ev');
+      if (props['EV充電施設有無'] === 1) facilities.push('ev');
       if (props['身障者トイレ有無'] === 1) facilities.push('btoilet');
       allItems.push({
         lat: lit.lat,
@@ -96,7 +107,7 @@ const TMP = path.join(PROJECT_ROOT, 'tmp', 'bundle-michinoeki');
   // 重複除去（同名・近接10m）
   const dedup = new Map();
   for (const it of allItems) {
-    const key = `${it.n}_${Math.round(it.lat*1000)}_${Math.round(it.lng*1000)}`;
+    const key = `${it.n}_${Math.round(it.lat * 1000)}_${Math.round(it.lng * 1000)}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
   const uniq = Array.from(dedup.values());
@@ -121,5 +132,8 @@ const TMP = path.join(PROJECT_ROOT, 'tmp', 'bundle-michinoeki');
     `// 出典: 国土数値情報 道の駅 P35-2018（PDL1.0）via G空間情報センター CKAN`,
     `// 全国 ${uniq.length} 箇所`,
   ]);
-  console.log(`✅ ${OUT}  count=${uniq.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`✅ ${OUT}  count=${uniq.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

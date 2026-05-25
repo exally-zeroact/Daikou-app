@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# ★設計変更宣言 (2026-05-14・MA-8): pre-commit を no-op (exit 0) から lint-staged 起動に切替。
+#   package.json の lint-staged 設定:
+#     "*.js":         ["eslint --fix", "prettier --write"]
+#     "*.{css,html}": ["stylelint --fix", "prettier --write"]
+#   commit 直前にステージ済ファイルのみへ lint + format を自動適用。
+#   修正は absolute rule「指示された Phase のみ」を pre-commit hook では強制できないが、
+#   コミット内容の品質ガードとして機能する。
+#   既存 lint errors (217件) は MA-8 後の lint fix で別タスクで段階的に解消する想定。
+npx lint-staged

@@ -24,7 +24,9 @@ const u = require('./bundle-utils.js');
 
 // グローバル shapefile npm を解決
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
@@ -39,14 +41,15 @@ const VERSION = 'P20-12';
   fs.mkdirSync(TMP, { recursive: true });
 
   const items = [];
-  let prefsOk = 0, prefsFail = 0;
+  let prefsOk = 0,
+    prefsFail = 0;
 
   for (let i = 1; i <= 47; i++) {
     const code = String(i).padStart(2, '0');
     const url = `https://nlftp.mlit.go.jp/ksj/gml/data/P20/${VERSION}/${VERSION}_${code}_GML.zip`;
     const zipPath = path.join(TMP, `${code}.zip`);
 
-    if (!fs.existsSync(zipPath) || (Date.now() - fs.statSync(zipPath).mtimeMs) > 30*86400000) {
+    if (!fs.existsSync(zipPath) || Date.now() - fs.statSync(zipPath).mtimeMs > 30 * 86400000) {
       try {
         const buf = await u.fetchBuffer(url, 60000);
         fs.writeFileSync(zipPath, buf);
@@ -59,11 +62,16 @@ const VERSION = 'P20-12';
 
     const ext = path.join(TMP, code);
     fs.mkdirSync(ext, { recursive: true });
-    try { execSync(`unzip -qo "${zipPath}" -d "${ext}"`, { stdio: 'pipe' }); } catch {}
+    try {
+      execSync(`unzip -qo "${zipPath}" -d "${ext}"`, { stdio: 'pipe' });
+    } catch {}
 
     // .shp ファイルを探す
     const shps = u.findFiles(ext, /\.shp$/i);
-    if (shps.length === 0) { prefsFail++; continue; }
+    if (shps.length === 0) {
+      prefsFail++;
+      continue;
+    }
     const shp = shps[0];
     const dbf = shp.replace(/\.shp$/i, '.dbf');
 
@@ -81,12 +89,12 @@ const VERSION = 'P20-12';
         if (!name) continue;
         // 災害種別 bitmap (1=対応, それ以外=非対応)
         let kinds = 0;
-        if (props.P20_007 === 1) kinds |= 1<<1; // 洪水
-        if (props.P20_008 === 1) kinds |= 1<<2; // 崖崩れ
-        if (props.P20_009 === 1) kinds |= 1<<4; // 高潮
-        if (props.P20_010 === 1) kinds |= 1<<0; // 地震
-        if (props.P20_011 === 1) kinds |= 1<<3; // 津波
-        if (props.P20_012 === 1) kinds |= 1<<5; // 大火事
+        if (props.P20_007 === 1) kinds |= 1 << 1; // 洪水
+        if (props.P20_008 === 1) kinds |= 1 << 2; // 崖崩れ
+        if (props.P20_009 === 1) kinds |= 1 << 4; // 高潮
+        if (props.P20_010 === 1) kinds |= 1 << 0; // 地震
+        if (props.P20_011 === 1) kinds |= 1 << 3; // 津波
+        if (props.P20_012 === 1) kinds |= 1 << 5; // 大火事
         items.push({
           lat: lit.lat,
           lng: lit.lng,
@@ -111,17 +119,20 @@ const VERSION = 'P20-12';
   console.log(`\n  prefs OK: ${prefsOk} / 47 / fail: ${prefsFail}`);
   console.log(`  total raw: ${items.length} 施設`);
 
-  if (items.length === 0) { console.error('❌ no shelter parsed'); process.exit(1); }
+  if (items.length === 0) {
+    console.error('❌ no shelter parsed');
+    process.exit(1);
+  }
 
   // サイズ制約: 全国125k は 11MB → バンドル予算超過
   // フィルタ: 収容人数 ≥ 100 または対応災害指定あり
-  const filtered = items.filter(x => x.cap >= 100 || x.k > 0);
+  const filtered = items.filter((x) => x.cap >= 100 || x.k > 0);
   console.log(`  filtered (cap>=100 OR kinds>0): ${filtered.length}`);
   // それでも多すぎる場合は capacity 降順で 30,000 にキャップ
   const CAP = 30000;
   let final = filtered;
   if (filtered.length > CAP) {
-    final = filtered.sort((a,b) => (b.cap||0) - (a.cap||0)).slice(0, CAP);
+    final = filtered.sort((a, b) => (b.cap || 0) - (a.cap || 0)).slice(0, CAP);
     console.log(`  capped to top ${CAP} by capacity`);
   }
   console.log('  sample:', { name: final[0].n, kinds: final[0].k, cap: final[0].cap });
@@ -136,11 +147,14 @@ const VERSION = 'P20-12';
   });
   data.source = `KSJ ${VERSION} (国土交通省・避難施設・47県別 Shape→shapefile npm パース)`;
   data.license = 'PDL1.0';
-  data.kindBitmap = { 1:'地震', 2:'洪水', 4:'崖崩れ', 8:'津波', 16:'高潮', 32:'大火事' };
+  data.kindBitmap = { 1: '地震', 2: '洪水', 4: '崖崩れ', 8: '津波', 16: '高潮', 32: '大火事' };
 
   const size = u.writeBundleJs(OUT, 'SHELTERS_JP', data, [
     `// 出典: 国土数値情報 避難施設 ${VERSION}（PDL1.0）`,
     `// 47県 ${items.length} 施設・対応災害bitmap・収容人数付き`,
   ]);
-  console.log(`✅ ${OUT}  count=${items.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`✅ ${OUT}  count=${items.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

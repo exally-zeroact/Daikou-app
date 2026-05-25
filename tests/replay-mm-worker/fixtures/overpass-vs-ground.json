@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "name": "overpass-vs-ground-200m",
+    "description": "ehime road 70 (= 正解・layer 1 bridge/高架・906m・motorway typeCode 0・無向 oneway 0) が・地上 road 50 (= 競合・layer 0・同 motorway typeCode 0) と水平距離 0m で同位置に存在する高架併走 fixture (= しまなみ海道高架近辺・34.19530N, 133.07543E)。trace は 70 seg 0 の t=0.0→0.22 (= 約 200m) を 50 step に分割 (= 4m/step・高速 motorway 14km/h 仮想・実車では更に高速だが test 用に warmup 償却重視で抑制)。GPS noise は実機相当 default (= accuracy 10m + position σ 3m + heading σ 5度・layer info は GPS altitude には載らない設定)。同 bearing ゆえ A-2 boost は効かない (= layer score + Mahalanobis 担当・司さん「× OK」)。狙い: MM-5 layer scoring + GPS altitude で・layer 1 (= 高架) を選び・直下の layer 0 (= 地上 road 50) に誤 snap しないことを確認。両者 motorway 同 typeCode で typeCode boost 差別化不可・layer scoring が判定軸。",
+    "prefecture": "ehime",
+    "true_speed_kmh": 14.4,
+    "ground_truth_segments": [
+      { "roadIndex": 70, "segmentIndex": 0, "t_start": 0.0, "t_end": 0.22, "num_samples": 50 }
+    ],
+    "competing_road_indices": [50],
+    "noise_model": {
+      "seed": 49,
+      "accuracy_mean_m": 10,
+      "accuracy_stddev_m": 3,
+      "position_noise_stddev_m": 3,
+      "heading_noise_deg": 5,
+      "outlier_rate": 0.02,
+      "outlier_offset_m": 30
+    }
+  }
+}

@@ -1,0 +1,61 @@
+# ============================================================
+# exally: ユーザー入力 → eval / new Function / new RegExp 流入禁止
+# 2026-05-18 新規・横展開基盤 ⑤/8
+#
+# 目的:
+#   Excel 互換数式エンジンで「ユーザー入力数式」を eval / new Function で
+#   直接実行することを禁止する taint analysis。
+#   必ず HyperFormula の setCellContents (= 内部 lexer で安全 parse) を経由する。
+#
+# 期待結果:
+#   ・HyperFormula 経由 (= setCellContents / hf.evaluate 等) → PASS
+#   ・直接 eval(userInput) / new Function(userInput) → ERROR
+#   ・new RegExp(userInput) → ERROR (= ReDoS リスク)
+# ============================================================
+
+rules:
+  - id: exally-no-eval-in-cell
+    languages: [javascript]
+    severity: ERROR
+    mode: taint
+    message: |
+      Exally の絶対ルール違反: ユーザー入力を eval / new Function /
+      new RegExp(...) で直接実行しています。
+      HyperFormula の setCellContents 等の安全 API 経由で処理してください。
+    metadata:
+      category: security
+      subcategory: code-injection
+      project: exally
+      ruleset: zeroact-test-commons
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: |
+                  document.getElementById(...).value
+              - pattern: |
+                  document.querySelector(...).value
+              - pattern: |
+                  $INPUT.value
+              - pattern: |
+                  $INPUT.textContent
+              - pattern: |
+                  prompt(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: eval($X)
+              - pattern: new Function($X)
+              - pattern: new Function($_, $X)
+              - pattern: new Function($_, $_, $X)
+              - pattern: new RegExp($X)
+    pattern-sanitizers:
+      - patterns:
+          - pattern-either:
+              # HyperFormula 経由なら安全 (= 内部 lexer)
+              - pattern-inside: |
+                  hf.setCellContents(...)
+              - pattern-inside: |
+                  setCellFormula(...)
+              # 明示的 sanitize 関数を通過
+              - pattern-inside: |
+                  function sanitizeUserInput(...) { ... }

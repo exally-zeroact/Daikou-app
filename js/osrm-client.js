@@ -27,7 +27,7 @@
 //   }
 // ============================================================
 
-(function(global){
+(function (_global) {
   'use strict';
 
   // ★設計変更宣言 (2026-05-12): Web Worker 内で動作するため main thread の
@@ -40,93 +40,109 @@
   let _endpoint = 'https://router.project-osrm.org';
   const TIMEOUT_MS = 8000;
   const MIN_COORDS = 2;
-  const MAX_COORDS = 100;       // OSRM の 1 リクエスト座標上限
+  const MAX_COORDS = 100; // OSRM の 1 リクエスト座標上限
 
-  function setEndpoint(url){
-    if(typeof url === 'string' && url.length > 0){
-      _endpoint = url.replace(/\/+$/, '');  // trailing slash 除去
+  function setEndpoint(url) {
+    if (typeof url === 'string' && url.length > 0) {
+      _endpoint = url.replace(/\/+$/, ''); // trailing slash 除去
     }
   }
-  function getEndpoint(){ return _endpoint; }
+  function getEndpoint() {
+    return _endpoint;
+  }
 
   // 座標リストを OSRM URL 形式に整形
-  function _formatCoords(coords){
-    return coords.map(c => c.lng + ',' + c.lat).join(';');
+  function _formatCoords(coords) {
+    return coords.map((c) => c.lng + ',' + c.lat).join(';');
   }
-  function _formatRadiuses(coords){
+  function _formatRadiuses(coords) {
     // accuracy ベースの探索半径・最低 10m
-    return coords.map(c => Math.max(10, Math.round(c.accuracy || 20))).join(';');
+    return coords.map((c) => Math.max(10, Math.round(c.accuracy || 20))).join(';');
   }
 
-  function matchBatch(coords){
-    if(!coords || !Array.isArray(coords)) return Promise.resolve({ ok: false, reason: 'invalid coords' });
-    if(coords.length < MIN_COORDS) return Promise.resolve({ ok: false, reason: 'too few coords' });
+  function matchBatch(coords) {
+    if (!coords || !Array.isArray(coords))
+      return Promise.resolve({ ok: false, reason: 'invalid coords' });
+    if (coords.length < MIN_COORDS) return Promise.resolve({ ok: false, reason: 'too few coords' });
 
     // オフライン時は即スキップ
-    if(typeof navigator !== 'undefined' && navigator.onLine === false){
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return Promise.resolve({ ok: false, reason: 'offline' });
     }
 
     // 100 点上限まで間引く（最新を残す方針）
-    const trimmed = coords.length > MAX_COORDS
-      ? coords.slice(coords.length - MAX_COORDS)
-      : coords;
+    const trimmed = coords.length > MAX_COORDS ? coords.slice(coords.length - MAX_COORDS) : coords;
 
-    const url = _endpoint + '/match/v1/driving/' + _formatCoords(trimmed)
-              + '?overview=false&geometries=geojson&annotations=distance'
-              + '&radiuses=' + _formatRadiuses(trimmed);
+    const url =
+      _endpoint +
+      '/match/v1/driving/' +
+      _formatCoords(trimmed) +
+      '?overview=false&geometries=geojson&annotations=distance' +
+      '&radiuses=' +
+      _formatRadiuses(trimmed);
 
-    let abortCtrl = null, timer = null;
-    if(typeof AbortController !== 'undefined'){
+    let abortCtrl = null,
+      timer = null;
+    if (typeof AbortController !== 'undefined') {
       abortCtrl = new AbortController();
-      timer = setTimeout(() => { try { abortCtrl.abort(); } catch(e){} }, TIMEOUT_MS);
+      timer = setTimeout(() => {
+        try {
+          abortCtrl.abort();
+        } catch (e) {}
+      }, TIMEOUT_MS);
     }
 
     const fetchOpts = abortCtrl ? { signal: abortCtrl.signal } : {};
-    return fetch(url, fetchOpts).then(r => {
-      if(timer) clearTimeout(timer);
-      if(!r.ok) return { ok: false, reason: 'http ' + r.status };
-      return r.json().then(json => {
-        if(!json || json.code !== 'Ok'){
-          return { ok: false, reason: 'osrm ' + (json && json.code) };
-        }
-        if(!json.matchings || !json.matchings.length){
-          return { ok: false, reason: 'no matchings' };
-        }
-        // 各 matching の legs を flatten して distance だけ取り出す
-        const legs = [];
-        for(let m = 0; m < json.matchings.length; m++){
-          const matching = json.matchings[m];
-          if(matching && matching.legs){
-            for(let l = 0; l < matching.legs.length; l++){
-              const leg = matching.legs[l];
-              if(leg && typeof leg.distance === 'number'){
-                legs.push(leg.distance);
+    return fetch(url, fetchOpts)
+      .then((r) => {
+        if (timer) clearTimeout(timer);
+        if (!r.ok) return { ok: false, reason: 'http ' + r.status };
+        return r.json().then((json) => {
+          if (!json || json.code !== 'Ok') {
+            return { ok: false, reason: 'osrm ' + (json && json.code) };
+          }
+          if (!json.matchings || !json.matchings.length) {
+            return { ok: false, reason: 'no matchings' };
+          }
+          // 各 matching の legs を flatten して distance だけ取り出す
+          const legs = [];
+          for (let m = 0; m < json.matchings.length; m++) {
+            const matching = json.matchings[m];
+            if (matching && matching.legs) {
+              for (let l = 0; l < matching.legs.length; l++) {
+                const leg = matching.legs[l];
+                if (leg && typeof leg.distance === 'number') {
+                  legs.push(leg.distance);
+                }
               }
             }
           }
-        }
-        return {
-          ok: true,
-          legs: legs,
-          tracepoints: json.tracepoints || null,
-          coordsLen: trimmed.length,
-        };
+          return {
+            ok: true,
+            legs: legs,
+            tracepoints: json.tracepoints || null,
+            coordsLen: trimmed.length,
+          };
+        });
+      })
+      .catch((err) => {
+        if (timer) clearTimeout(timer);
+        const msg = err && err.message ? err.message : 'unknown';
+        return { ok: false, reason: 'error: ' + msg };
       });
-    }).catch(err => {
-      if(timer) clearTimeout(timer);
-      const msg = (err && err.message) ? err.message : 'unknown';
-      return { ok: false, reason: 'error: ' + msg };
-    });
   }
 
   const api = { setEndpoint, getEndpoint, matchBatch };
 
   // 両環境（main / Worker）に公開
-  if(typeof self !== 'undefined') self.OsrmClient = api;
-  if(typeof window !== 'undefined') window.OsrmClient = api;
-
-})(typeof window !== 'undefined' ? window
-   : typeof self !== 'undefined' ? self
-   : typeof globalThis !== 'undefined' ? globalThis
-   : this);
+  if (typeof self !== 'undefined') self.OsrmClient = api;
+  if (typeof window !== 'undefined') window.OsrmClient = api;
+})(
+  typeof window !== 'undefined'
+    ? window
+    : typeof self !== 'undefined'
+      ? self
+      : typeof globalThis !== 'undefined'
+        ? globalThis
+        : this
+);

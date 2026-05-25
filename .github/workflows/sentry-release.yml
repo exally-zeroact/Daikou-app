@@ -1,0 +1,92 @@
+# Sentry Release & Sourcemap Upload (= 本番デプロイ時)
+# Stage 6 (2026-05-18 新規)
+#
+# トリガー: push to main (= Vercel auto-deploy と同時)
+# 必要 secrets:
+#   SENTRY_AUTH_TOKEN  Sentry Personal Auth Token
+#   SENTRY_ORG         Sentry org slug (例: zeroact)
+#   SENTRY_PROJECT     Sentry project slug (例: daikome)
+#
+# 動作:
+#   1. commit SHA を release バージョンとして Sentry に登録
+#   2. sourcemap 相当のソースを Sentry に upload (= bundler 未使用なので
+#      js/*.js を直接 upload・index.html の <script src> パスと整合)
+#   3. release を deploy として finalize
+
+name: Sentry Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/**'
+      - 'index.html'
+      - 'sw.js'
+  # 手動再実行用 (= path filter 対象外の修正検証時 / 過去 commit 再走時)
+  workflow_dispatch:
+
+jobs:
+  sentry-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # set-commits --auto は previous release の git history を遡る必要あり。
+          # 浅い clone (fetch-depth: 2) では SHA 不明エラー → full clone (fetch-depth: 0) に変更。
+          fetch-depth: 0
+
+      - name: Check Sentry secrets availability
+        id: check
+        run: |
+          if [ -z "${{ secrets.SENTRY_AUTH_TOKEN }}" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SENTRY_AUTH_TOKEN 未設定・skip"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Sentry CLI
+        if: steps.check.outputs.available == 'true'
+        run: npm install --no-save @sentry/cli@latest
+
+      - name: Create Sentry release
+        if: steps.check.outputs.available == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          VERSION="daikome@${{ github.sha }}"
+          npx @sentry/cli releases new "$VERSION"
+          # --ignore-missing: 初回 release で previous SHA がない場合に skip (= 全 commits 含めて新規作成)
+          npx @sentry/cli releases set-commits "$VERSION" --auto --ignore-missing
+
+      - name: Upload sources to Sentry
+        if: steps.check.outputs.available == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          VERSION="daikome@${{ github.sha }}"
+          # bundler 未使用のため js/*.js を生 source として upload (= rewrite なし)
+          # ★ @sentry/cli 3.x で `releases files upload-sourcemaps` → `sourcemaps upload` に
+          #    サブコマンド変更されたため新形式に修正 (2026-05-18)
+          npx @sentry/cli sourcemaps upload \
+            --release "$VERSION" \
+            --url-prefix '~/js' \
+            --no-rewrite \
+            --ext js \
+            js/
+
+      - name: Finalize release
+        if: steps.check.outputs.available == 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          VERSION="daikome@${{ github.sha }}"
+          npx @sentry/cli releases finalize "$VERSION"
+          npx @sentry/cli releases deploys "$VERSION" new -e production

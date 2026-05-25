@@ -21,7 +21,7 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/C28/C28-21/C28-21_GML.zip';
   const { features, fileCounts, zipBytes } = await u.loadKsjFeaturesFromZipUrl(URL, TMP, {
     layerFilter: (name) => /^C28-21_Airport\.geojson$/.test(name),
   });
-  console.log(`  zip ${(zipBytes/1024).toFixed(1)}KB → features=${features.length}`);
+  console.log(`  zip ${(zipBytes / 1024).toFixed(1)}KB → features=${features.length}`);
   console.log('  files:', JSON.stringify(fileCounts));
 
   // KSJ C28 属性コード（製品仕様書 v3.0）:
@@ -49,7 +49,7 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/C28/C28-21/C28-21_GML.zip';
   // 重複排除（同名・近接）
   const dedup = new Map();
   for (const it of items) {
-    const key = `${it.n}_${Math.round(it.lat*100)}_${Math.round(it.lng*100)}`;
+    const key = `${it.n}_${Math.round(it.lat * 100)}_${Math.round(it.lng * 100)}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
   const uniq = Array.from(dedup.values());
@@ -61,7 +61,10 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/C28/C28-21/C28-21_GML.zip';
   }
 
   // サンプル
-  console.log('  sample:', uniq.slice(0, 3).map(x => ({ name: x.n, lat: x.lat.toFixed(3), lng: x.lng.toFixed(3) })));
+  console.log(
+    '  sample:',
+    uniq.slice(0, 3).map((x) => ({ name: x.n, lat: x.lat.toFixed(3), lng: x.lng.toFixed(3) }))
+  );
 
   const data = u.buildPointBundle(uniq, (it) => {
     const o = {};
@@ -77,5 +80,8 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/C28/C28-21/C28-21_GML.zip';
     `// 全国 ${uniq.length} 件`,
   ]);
   console.log(`✅ ${OUT}`);
-  console.log(`  count=${uniq.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`  count=${uniq.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

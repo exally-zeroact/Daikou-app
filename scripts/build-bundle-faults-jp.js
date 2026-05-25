@@ -19,7 +19,8 @@ const u = require('./bundle-utils.js');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
 const OUT = path.join(PROJECT_ROOT, 'data', 'faults-jp.js');
-const BASE = 'https://services3.arcgis.com/PI6kZkOcyJG3voe2/arcgis/rest/services/%E6%B4%BB%E6%96%AD%E5%B1%A4/FeatureServer/1/query';
+const BASE =
+  'https://services3.arcgis.com/PI6kZkOcyJG3voe2/arcgis/rest/services/%E6%B4%BB%E6%96%AD%E5%B1%A4/FeatureServer/1/query';
 
 (async () => {
   // GeoJSON で全件取得（maxRecordCount=2000・件数 18 なので 1 回で取れる）
@@ -45,8 +46,8 @@ const BASE = 'https://services3.arcgis.com/PI6kZkOcyJG3voe2/arcgis/rest/services
       if (m) displayName = m[1].trim();
     }
 
-    const lines = g.type === 'LineString' ? [g.coordinates]
-                : g.type === 'MultiLineString' ? g.coordinates : [];
+    const lines =
+      g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : [];
     for (const line of lines) {
       if (line.length < 2) continue;
       const intPts = line.map(([lng, lat]) => [
@@ -61,13 +62,13 @@ const BASE = 'https://services3.arcgis.com/PI6kZkOcyJG3voe2/arcgis/rest/services
     }
   }
 
-  console.log(`  faults: ${out.length} (uniq=${new Set(out.map(x=>x.n)).size})`);
+  console.log(`  faults: ${out.length} (uniq=${new Set(out.map((x) => x.n)).size})`);
 
   const data = {
     v: 1,
     generated: new Date().toISOString(),
     precision: PRECISION,
-    faults: out.map(x => ({ n: x.n, line: x.line })),
+    faults: out.map((x) => ({ n: x.n, line: x.line })),
     source: '産総研活断層データベース ＜政府標準利用規約第2.0版＞ via ESRI Japan',
     license: '政府標準利用規約2.0（CC-BY 4.0互換）',
   };
@@ -77,5 +78,8 @@ const BASE = 'https://services3.arcgis.com/PI6kZkOcyJG3voe2/arcgis/rest/services
     `// 取得元: ArcGIS Feature Service ${BASE.split('?')[0]}`,
     `// 主要活断層帯 ${out.length} ライン`,
   ]);
-  console.log(`✅ ${OUT}  count=${out.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`✅ ${OUT}  count=${out.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

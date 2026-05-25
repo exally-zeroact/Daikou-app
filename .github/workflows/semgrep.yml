@@ -1,0 +1,25 @@
+# Semgrep custom rules (2026-05-17 新規・Stage 1 Step E・Layer 1)
+# scripts/zeroact-test-commons/semgrep-rules/daikome/ の絶対ルール taint 解析を CI 実行
+name: Semgrep
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep custom rules
+        run: semgrep --config scripts/zeroact-test-commons/semgrep-rules/daikome/ --error --metrics off js/

@@ -1,0 +1,77 @@
+# ============================================================
+# bug-patterns/billing-guard.yml
+# 課金ガード漏れ・停車中加算・idle 中加算
+# ============================================================
+
+pattern_id: BILL-GUARD-001
+title: 課金ガード漏れ (停車中 / idle 中 / running=false 時の誤加算)
+category: state-machine
+
+description: |
+  「課金 ON 条件」(= state.running===true) を満たさない時に
+  distance_m / fare_yen / business_distance_m が誤更新されるバグ。
+  rideshare アプリでは driver app の状態遷移漏れで頻発し
+  「動かしていないのに料金が増える」事象として旅客 / driver から報告される。
+
+real_world_example:
+  - source: Uber "State machine consistency in driver apps" (2017)
+    issue: driver app の「accept ride」前に GPS 位置更新で trip 距離が累積
+    consequence: 配車前の距離が課金に混入・rider 苦情
+    fix: state.tripActive === true ガードを全 distance 加算経路に適用
+  - source: Lyft "Phantom rides" 上記 GPS-ACC-001 と関連
+    issue: driver が offline でも GPS 走行履歴が累積され「動かしていない trip」が記録
+    consequence: 統計汚染・税務報告誤り
+    fix: state.online === true のガード強化
+  - source: 日本 タクシー業界 (口頭事例)
+    issue: 乗務員がメーター押下前から GPS 距離が始まる端末で 1m 課金が出る現象
+    consequence: 旅客からの苦情・装置交換
+
+how_it_manifests:
+  symptoms:
+    - 業務開始前 (空車・代行未受託) なのに business_distance_m が増える
+    - メーター起動前なのに distance_m / fare_yen が初期値以外
+    - 業務終了後に画面表示が止まっていない (= 加算継続)
+    - タスクキル復帰後に過剰加算
+  log_indicators:
+    - state.running===false 時に distance_m += 系のログが出力
+    - state.business_distance_m が GPS jitter (= 数 cm) で累積
+
+daikome_risk:
+  severity: 高 (= 旅客 / 運転手双方からの苦情リスク)
+  absolute_rule_referenced: "実装済みの機能は必ず全て課金・業務フローに接続"
+  affected_paths:
+    - meter.js L391-396  Tier1 commit (running ガード適用済)
+    - meter.js L459-466  retroactive (running ガード適用済・2026-05-17 ★設計変更)
+    - meter.js L820-828  gap fill (running ガード適用済)
+    - meter.js L838-846  Off-Road (running ガード適用済)
+  existing_protections:
+    - 全 5 経路に `if (state.running)` ガード追加済 (= commit cd68ecd6)
+    - business_distance_m も running ガード対象 (= 2026-05-17 ★設計変更)
+    - update() 入口で isStationary 早期 return (L790)
+    - Worker B 出力強制 0 化 (L3007)
+    - wait_sec も running=true のみ加算 (L863)
+  unprotected_scenarios:
+    - 短時間 running=true ↔ false トグルでの race (= state 観測順序問題)
+    - setDistance API 経由の外部書込 (= タスクキル復元用・但し意図的)
+
+detection_method:
+  static_analysis:
+    - 静的解析で `state.distance_m\s*[+]?=` の前後 5 行に `state.running` チェック存在を確認
+    - 既存 test: tests/property/distance-m-update-paths.test.js (C1 5 経路 verify)
+  property_test:
+    - tests/property/isstationary-no-increase.test.js (B1: 任意 distance_m + isStationary で不変)
+  e2e_test:
+    - tests/e2e/stationary-no-increase.spec.js (= 停車中 distance_m=500 維持)
+    - tests/e2e/trip-cancel シナリオ (= scenarios/trip-cancel.yml)
+
+test_scenario_ref:
+  - scenarios/trip-cancel.yml      (= 短時間 trip 整合性)
+  - scenarios/traffic-jam.yml      (= 停車発進繰返・isStationary 防御)
+  - scenarios/multi-trip.yml       (= 空車区間 business_distance_m 加算なし確認)
+
+prevention:
+  - 全 distance 加算経路に `if (state.running)` ガード必須
+  - business_distance_m も同等保護
+  - isStationary=true の 2 経路防御 (main + Worker B) 維持
+  - GPS jitter (= 数 cm) を加算しない `accuracy <= 閾値` ゲート
+  - state machine 遷移を property test で網羅

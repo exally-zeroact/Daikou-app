@@ -20,7 +20,7 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-22/N02-22_GML.zip';
   const { features, fileCounts, zipBytes } = await u.loadKsjFeaturesFromZipUrl(URL, TMP, {
     layerFilter: (name) => /Station/.test(name),
   });
-  console.log(`  zip ${(zipBytes/1024).toFixed(1)}KB → features=${features.length}`);
+  console.log(`  zip ${(zipBytes / 1024).toFixed(1)}KB → features=${features.length}`);
   console.log('  files:', JSON.stringify(fileCounts));
 
   // KSJ N02 駅レイヤ属性（製品仕様書 v3.0）:
@@ -57,7 +57,7 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-22/N02-22_GML.zip';
   // 重複排除（同名駅・近接10m）
   const dedup = new Map();
   for (const it of items) {
-    const key = `${it.n}_${Math.round(it.lat*1000)}_${Math.round(it.lng*1000)}`;
+    const key = `${it.n}_${Math.round(it.lat * 1000)}_${Math.round(it.lng * 1000)}`;
     if (!dedup.has(key)) dedup.set(key, it);
   }
   const uniq = Array.from(dedup.values());
@@ -82,5 +82,8 @@ const URL = 'https://nlftp.mlit.go.jp/ksj/gml/data/N02/N02-22/N02-22_GML.zip';
     `// 全国 ${uniq.length} 駅`,
   ]);
   console.log(`✅ ${OUT}`);
-  console.log(`  count=${uniq.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`  count=${uniq.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

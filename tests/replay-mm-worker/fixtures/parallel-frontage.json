@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "name": "parallel-frontage-411m",
+    "description": "ehime road 22203 (= 正解・411m 主道路・8 points・7 segments) 上を西進・直近 25m 並走する road 22235 (= 競合・421m 並走道路) と判別する pilot fixture。両方とも typeCode 5 (unclassified)・layer 0 (平面)・非 oneway・bearing 約 277度 (= 西)。GPS noise は実機相当 default (= iOS 1Hz 典型: accuracy 10m / position σ 3m / heading σ 5度 / outlier 2%・noise-model.js defaultConfig 参照)。trace 長は 22203 全 7 segments を 10 step ずつで 70 step (= 約 411m・代行 trip 相当)。座標: 33.8564N, 132.7611E (= 松山市)。",
+    "prefecture": "ehime",
+    "true_speed_kmh": 40,
+    "ground_truth_segments": [
+      { "roadIndex": 22203, "segmentIndex": 0, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 22203, "segmentIndex": 1, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 22203, "segmentIndex": 2, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 22203, "segmentIndex": 3, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 22203, "segmentIndex": 4, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 22203, "segmentIndex": 5, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 22203, "segmentIndex": 6, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 }
+    ],
+    "competing_road_indices": [22235],
+    "noise_model": {
+      "seed": 42,
+      "accuracy_mean_m": 10,
+      "accuracy_stddev_m": 3,
+      "position_noise_stddev_m": 3,
+      "heading_noise_deg": 5,
+      "outlier_rate": 0.02,
+      "outlier_offset_m": 30
+    }
+  }
+}

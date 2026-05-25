@@ -1,0 +1,77 @@
+# ============================================================
+# scenarios/tunnel.yml
+# トンネル内 GPS 消失 → gap fill 発火
+# ============================================================
+
+name: tunnel
+title: トンネル内 GPS 消失 (gap fill 発火)
+description: |
+  走行中にトンネル進入で GPS 信号が途絶える典型ケース。
+  meter.js L812 GAP_THRESHOLD_SEC=5 を超えると L824 gap fill (= speed × time) で
+  distance_m 補完。GPS 復帰後は通常 Tier1 commit に戻る。
+category: gps-loss
+
+context:
+  trip_type: gap-fill-test
+  location_type: urban-or-highway
+  weather: clear
+  time_of_day: night
+  road_type:
+    - トンネル (= GPS 完全消失区間)
+  duration_sec: 300  # 5 分
+  expected_distance_m: 4000
+  tunnel_length_m: 1500  # トンネル区間想定
+  tunnel_duration_sec: 90  # = 1500m / 60km/h * 3.6
+
+gps_pattern:
+  hz: 1
+  accuracy_m: 5
+  speed_kmh_before_tunnel: 60
+  characteristics:
+    - 0-60 秒: 通常走行 (= speed_kmh ≈ 60・accuracy 5m)
+    - 60-150 秒: GPS 完全消失 (= position 更新なし・dtSec 累積)
+    - 150-300 秒: GPS 復帰・通常走行再開
+
+expected_events:
+  - event: tier1_commit_pre_tunnel
+    timing: 0-60 sec
+    distance_path: meter.js L393
+  - event: gps_silence_5sec_threshold
+    timing: 65 sec (= GAP_THRESHOLD_SEC=5 を超えた瞬間)
+    description: meter.js L812 dtSec >= 5 判定 true
+  - event: gap_fill_fire
+    timing: 150 sec (= GPS 復帰時)
+    distance_path: meter.js L824
+    formula: state.last_speed_kmh (60) / 3.6 × dtSec (90) = 1500m
+    distance_source: gap
+    constraints:
+      - lastSpeedKmh > 0 (= 0 なら null 返却で加算停止)
+      - 物理上限 160 km/h × dtSec で clamp
+  - event: tier1_commit_post_tunnel
+    timing: 150-300 sec
+    distance_path: meter.js L393
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit (= トンネル前後)
+    - meter.js L824 gap-fill      (= トンネル区間)
+  not_expected:
+    - meter.js L842 offroad-incremental  # Off-Road 起動条件 (snap miss 5 連続) 満たさない
+
+verification:
+  invariants:
+    - distance_m は単調非減少 (= gap fill 区間も増加)
+    - gap fill 加算後の distanceSource = 'gap'
+    - gap fill 計算式が speed × time で GPS 直線非依存 (= 絶対ルール準拠)
+  expected_metrics:
+    snap_rate: ">= 80%" # トンネル中 0%・前後 100%
+    distance_source_distribution:
+      mm: 65%
+      gap: 35%
+    distance_m_min: 3500
+    distance_m_max: 4500
+
+absolute_rules_tested:
+  - "GPS 消失時も道路ジオメトリ相当の距離で課金 (= speed × time)"
+  - "GPS 直線距離 (GPS.calcDistance) はトンネル前後で sink 流入禁止"
+  - "lastSpeedKmh=0 で gap fill は null 返却 (= 停車中の GPS 消失で誤加算しない)"

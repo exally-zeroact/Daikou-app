@@ -1,0 +1,71 @@
+# ============================================================
+# bug-patterns/gps-accuracy.yml
+# GPS 精度劣化・ジャンプ・ドリフト系バグパターン
+# ============================================================
+
+pattern_id: GPS-ACC-001
+title: GPS 精度劣化・ジャンプ・ドリフト系バグ
+category: gps-quality
+
+description: |
+  GPS 受信機の精度低下や偽位置 (= ジャンプ / ドリフト) が
+  距離計算ロジックに混入することで発生するバグ群。
+  都市部のビル陰・地下駐車場・トンネル前後・悪天候 / 屋内で頻発。
+
+real_world_example:
+  - source: Uber Engineering Blog "GPS-based location at scale" (2020)
+    issue: 都市部の高層ビル谷間で GPS 反射波により位置が 30-100m ジャンプ
+    consequence: ETA / fare 計算が誤算出され rider/driver 双方が混乱
+  - source: Lyft Engineering "Cleaning Up Driver Phantom Rides" (2021)
+    issue: 停車中の driver app に GPS ジッターで微小距離が累積
+    consequence: 「動いていないのに 1km 走った」誤課金事例
+  - source: Strava "Privacy zone leak via GPS drift" (2018)
+    issue: 屋内停車中の GPS drift で privacy zone 外に位置が漂流
+    consequence: 住所推定で privacy 漏洩
+
+how_it_manifests:
+  symptoms:
+    - distance_m が短時間に急増 (= GPS ジャンプの直線距離が累積)
+    - 停車中なのに distance_m が増える
+    - 速度 0 km/h なのに位置だけ動く
+    - 屋内で GPS が乱れて課金開始前から距離が累積
+  log_indicators:
+    - accuracy 値が 20-100m を高頻度で記録
+    - 連続 2 サンプル間の距離が 物理上限 (160km/h × dtSec) を超える
+
+daikome_risk:
+  severity: 高
+  affected_paths:
+    - meter.js L257 _trackHaversineBetweenGps (= _haverAccumSinceLastCommit 累積)
+    - meter.js L305 _calculateOffRoadIncrement (= Off-Road polyline 加算)
+  existing_protections:
+    - accuracy > 50m で _trackHaversineBetweenGps return (meter.js L254-255)
+    - accuracy > 50m で _calculateOffRoadIncrement return 0 (meter.js L302-303)
+    - 物理上限 160km/h × dtSec + 5m を超えたら skip (L264 / L311)
+    - state.last_gps.accuracy > 50m でも skip (L255 / L303)
+    - gps-worker.js Kalman フィルタで ジャンプ除去
+  unprotected_scenarios:
+    - accuracy 値自体が信頼できない端末 (= 一部 Android で accuracy=3 詐称)
+    - 連続ドリフト (= ジャンプではなく徐々に位置がずれる)
+
+detection_method:
+  static_analysis:
+    - Semgrep: GPS.calcDistance → state.distance_m の taint path 検出
+    - 検出箇所: scripts/zeroact-test-commons/semgrep-rules/daikome/distance-m-no-gps-line.yml
+  property_test:
+    - fast-check: 任意 accuracy 値で distance_m 加算境界を網羅
+    - 既存 test: tests/property/distance-m-update-paths.test.js
+  e2e_test:
+    - Playwright: high-accuracy GPS シーケンスで accuracy>50m が skip されるか検証
+  monitoring:
+    - dlog: "[Meter] Phase1.C off-road skip: {d}m > phys max {physMaxM}m"
+
+test_scenario_ref:
+  - scenarios/rainy-night.yml  (= accuracy 15-60m パターン)
+  - scenarios/mountain-road.yml (= 山間 accuracy 低下)
+
+prevention:
+  - 「accuracy > 閾値」での gating を Tier 1〜Tier 5 全経路で強制
+  - 物理上限 (= speed の物理的最大) で post-filter
+  - Kalman フィルタで連続 spike を平滑化
+  - distanceSource 表示で運転手が異常検知できるようにする

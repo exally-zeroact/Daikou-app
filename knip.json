@@ -1,0 +1,39 @@
+{
+  "$schema": "https://unpkg.com/knip@6.14.1/schema.json",
+  "entry": [
+    "index.html",
+    "sw.js",
+    "tests/**/*.test.js"
+  ],
+  "project": [
+    "js/**/*.js",
+    "scripts/zeroact-test-commons/**/*.js"
+  ],
+  "ignore": [
+    "data/**",
+    "node_modules/**",
+    "coverage/**",
+    ".tmp/**",
+    "tmp/**",
+    "outputs/**",
+    "download/**",
+    "input/**",
+    "test-results/**",
+    "scripts/build-*.js",
+    "scripts/fetch-*.js",
+    "scripts/run-*.sh",
+    "scripts/poly/**"
+  ],
+  "ignoreDependencies": [
+    "@vitest/browser",
+    "@vitest/web-worker",
+    "msw",
+    "@lhci/cli"
+  ],
+  "ignoreBinaries": ["semgrep"],
+  "paths": {
+    "js/*": ["./js/*"],
+    "scripts/zeroact-test-commons/*": ["./scripts/zeroact-test-commons/*"]
+  },
+  "ignoreExportsUsedInFile": true
+}

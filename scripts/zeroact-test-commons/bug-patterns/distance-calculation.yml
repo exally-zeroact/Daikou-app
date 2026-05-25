@@ -1,0 +1,72 @@
+# ============================================================
+# bug-patterns/distance-calculation.yml
+# 距離計算系バグ・直線距離混入・累積誤差
+# ============================================================
+
+pattern_id: DIST-CALC-001
+title: 距離計算系バグ・直線距離混入・累積誤差
+category: distance-billing
+
+description: |
+  距離計算で「GPS 直線距離 (= haversine / Vincenty)」が「道路ジオメトリ距離」の
+  代わりに混入する典型バグ。タクシー / ride-share 業界では最も発生頻度が高く
+  発覚時の被害 (= 過小 / 過大課金訴訟) が甚大なため絶対回避が必要。
+
+real_world_example:
+  - source: Uber Engineering "Map-matching at Uber Eats" (2019)
+    issue: 試作版で GPS 直線距離を fare calculation に直接接続
+    consequence: 道路に沿わない最短直線で計算され rider 過大課金
+    fix: Hidden Markov Model (HMM) based Viterbi map-matching に移行
+  - source: 国土交通省 タクシー業界指導文書 (2018)
+    issue: 一部社のタクシー meter で GPS 弦長を採用していた事例
+    consequence: 行政指導・装置交換義務
+    fix: 国土交通省告示「タクシーメーターの距離測定方式」遵守
+  - source: Lyft "Designing for accuracy at the city level" (2020)
+    issue: Manhattan の grid 道路で複数経路候補がある場合の選択誤り
+    consequence: 短い経路選択で driver 過小課金
+    fix: pheromone (= cross-user 走行頻度) で経路重み付け
+
+how_it_manifests:
+  symptoms:
+    - 走行軌跡の地図表示と課金距離が一致しない (= 直線 < 道路)
+    - 旅客が「Google Maps での距離と違う」とクレーム
+    - U ターン / 一方通行違反のような実際にあり得ない経路の弦長が混入
+    - 加算が瞬間的に大きい (= ジャンプ直線が距離化)
+  log_indicators:
+    - mmIncrementM が異常に大きい / 小さい
+    - distanceSource = 'mm' 以外が予期せず連続発生
+
+daikome_risk:
+  severity: 致命 (= 課金訴訟リスク)
+  absolute_rule_referenced: "GPS 直線距離での課金は禁止 / 道路ジオメトリ準拠"
+  affected_paths:
+    - meter.js L257 / L305 GPS.calcDistance 呼出箇所 (= sanitizer 関数内のみ許可)
+    - meter.js L393 Tier1 commit (= Worker B から受け取る mmIncrementM が直線になっていたら)
+    - meter.js L824 gap fill (= speed × time なら OK・GPS 弦長混入なら NG)
+  existing_protections:
+    - Semgrep taint rule (distance-m-no-gps-line.yml) で sink 流入禁止
+    - sanitizer 関数 (_trackHaversineBetweenGps / _calculateOffRoadIncrement) のみ許可
+    - gap fill は speed × time (= タイヤ回転由来概算) で GPS 弦長不採用
+    - Off-Road は ★絶対ルール適用外区間 で明示宣言
+
+detection_method:
+  static_analysis:
+    - Semgrep: GPS.calcDistance → state.distance_m taint check
+    - 既存 rule: scripts/zeroact-test-commons/semgrep-rules/daikome/distance-m-no-gps-line.yml
+  property_test:
+    - tests/property/distance-m-update-paths.test.js (静的 C3: 呼出 2 箇所のみ)
+  e2e_test:
+    - tests/e2e/gap-fill.spec.js (= gap fill 経路の挙動確認)
+  baseline_check:
+    - tests/replay-mm.js (= 3 synthetic baseline で DER < 0.5% 維持)
+
+test_scenario_ref:
+  - scenarios/normal-drive.yml  (= tier1 主経路)
+  - scenarios/tunnel.yml         (= gap fill で speed × time 維持確認)
+  - scenarios/mountain-road.yml  (= Off-Road sanitizer 経由のみ)
+
+prevention:
+  - GPS.calcDistance / GPS.calcDistance3D は dangerous source として明示登録
+  - sanitizer 関数を限定し ★絶対ルール適用外区間 コメントで明示宣言
+  - distance_m sink への流入経路を 5 経路に限定 (= 静的解析で drift 検出)
+  - tests/replay-mm.js baseline で回帰検知

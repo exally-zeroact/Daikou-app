@@ -23,7 +23,9 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
@@ -35,26 +37,32 @@ const TILE_SIZE = 256;
 
 // ─── XYZ math ─────────────────────────────────────────────────────
 function lng2tileXFloat(lng, z) {
-  return (lng + 180) / 360 * Math.pow(2, z);
+  return ((lng + 180) / 360) * Math.pow(2, z);
 }
 function lat2tileYFloat(lat, z) {
-  const r = lat * Math.PI / 180;
-  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+  const r = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z);
 }
 
 // ─── PNG → 標高グリッド (Float32Array, length 256x256) ────────────
 function decodeTile(pngBuf) {
   const png = PNG.sync.read(pngBuf);
-  const w = png.width, h = png.height;
+  const w = png.width,
+    h = png.height;
   if (w !== TILE_SIZE || h !== TILE_SIZE) {
     throw new Error(`unexpected tile size ${w}x${h}`);
   }
   const elev = new Float32Array(w * h);
   const data = png.data; // RGBA
   for (let i = 0, j = 0; i < data.length; i += 4, j++) {
-    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2];
     const x = (r << 16) | (g << 8) | b;
-    if (x === 0x800000) { elev[j] = NaN; continue; }
+    if (x === 0x800000) {
+      elev[j] = NaN;
+      continue;
+    }
     elev[j] = (x < 0x800000 ? x : x - 0x1000000) * 0.01;
   }
   return elev;
@@ -78,7 +86,9 @@ function createDem(opts) {
         cache.set(key, grid);
         stats.tiles5m++;
         return grid;
-      } catch (err) { /* ignore, fall through */ }
+      } catch (err) {
+        /* ignore, fall through */
+      }
     }
     const p10 = path.join(TILES_DIR, 'dem_png', String(zoom), String(x), `${y}.png`);
     if (fs.existsSync(p10)) {
@@ -87,7 +97,9 @@ function createDem(opts) {
         cache.set(key, grid);
         stats.tiles10m++;
         return grid;
-      } catch (err) { /* ignore */ }
+      } catch (err) {
+        /* ignore */
+      }
     }
     cache.set(key, null);
     stats.tilesMissing++;
@@ -101,19 +113,35 @@ function createDem(opts) {
     // タイル内画素座標 (浮動小数)
     const pxF = (tx - Math.floor(tx)) * TILE_SIZE;
     const pyF = (ty - Math.floor(ty)) * TILE_SIZE;
-    const x0 = Math.floor(pxF), y0 = Math.floor(pyF);
-    const x1 = x0 + 1, y1 = y0 + 1;
+    const x0 = Math.floor(pxF),
+      y0 = Math.floor(pyF);
+    const x1 = x0 + 1,
+      y1 = y0 + 1;
     const tileX = Math.floor(tx);
     const tileY = Math.floor(ty);
 
     // 4 隅のサンプル (タイル境界をまたぐ場合は隣接タイルを取る)
     function sample(px, py) {
-      let tX = tileX, tY = tileY;
-      let lx = px, ly = py;
-      if (lx >= TILE_SIZE) { tX += Math.floor(lx / TILE_SIZE); lx %= TILE_SIZE; }
-      if (lx < 0)          { tX -= 1; lx += TILE_SIZE; }
-      if (ly >= TILE_SIZE) { tY += Math.floor(ly / TILE_SIZE); ly %= TILE_SIZE; }
-      if (ly < 0)          { tY -= 1; ly += TILE_SIZE; }
+      let tX = tileX,
+        tY = tileY;
+      let lx = px,
+        ly = py;
+      if (lx >= TILE_SIZE) {
+        tX += Math.floor(lx / TILE_SIZE);
+        lx %= TILE_SIZE;
+      }
+      if (lx < 0) {
+        tX -= 1;
+        lx += TILE_SIZE;
+      }
+      if (ly >= TILE_SIZE) {
+        tY += Math.floor(ly / TILE_SIZE);
+        ly %= TILE_SIZE;
+      }
+      if (ly < 0) {
+        tY -= 1;
+        ly += TILE_SIZE;
+      }
       const grid = loadTile(tX, tY);
       if (!grid) return NaN;
       return grid[ly * TILE_SIZE + lx];
@@ -124,8 +152,11 @@ function createDem(opts) {
     const h11 = sample(x1, y1);
 
     // 全 NaN なら ミス
-    const has = [h00, h10, h01, h11].some(h => !isNaN(h));
-    if (!has) { stats.misses++; return NaN; }
+    const has = [h00, h10, h01, h11].some((h) => !isNaN(h));
+    if (!has) {
+      stats.misses++;
+      return NaN;
+    }
     stats.hits++;
 
     // bilinear (NaN は隣接サンプルで補完)
@@ -139,7 +170,10 @@ function createDem(opts) {
     const top = blend(h00, h10, fx);
     const bot = blend(h01, h11, fx);
     const result = blend(top, bot, fy);
-    if (isNaN(result)) { stats.naSamples++; return NaN; }
+    if (isNaN(result)) {
+      stats.naSamples++;
+      return NaN;
+    }
     return result;
   }
 
@@ -155,7 +189,10 @@ module.exports = createDem;
 // CLI セルフテスト: node scripts/dem-lookup.js <lat> <lng>
 if (require.main === module) {
   const [, , lat, lng] = process.argv;
-  if (!lat || !lng) { console.error('Usage: dem-lookup.js <lat> <lng>'); process.exit(1); }
+  if (!lat || !lng) {
+    console.error('Usage: dem-lookup.js <lat> <lng>');
+    process.exit(1);
+  }
   const dem = createDem({ zoom: 14 });
   const h = dem.elev(parseFloat(lat), parseFloat(lng));
   console.log(`elev(${lat}, ${lng}) = ${h.toFixed(2)} m`);

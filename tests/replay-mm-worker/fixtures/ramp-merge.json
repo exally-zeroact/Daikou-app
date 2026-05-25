@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "name": "ramp-merge-517m",
+    "description": "ehime road 239 (= 正解 ramp・549m・typeCode 7 motorway_link・oneway) を進入し・本線 road 57 (= 競合・motorway・typeCode 0・oneway) に合流する fixture。ramp 239 末尾と mainline 57 seg 0 が距離 16.4m・bearing 差 47.5度 で合流 (= しまなみ海道 IC 付近・33.88446N, 133.09475E)。trace は 239 の seg 1→4 (= ramp 中央 ~517m 区間・命名 ramp-merge-517m はラベル=実態) を 50 step に分割。GPS noise は実機相当 default (= 10m/3m/2%)。typeCode 7 ramp vs typeCode 0 motorway は・Worker B attrBoost で motorway が遥かに優先される傾向 → ramp 走行中の GPS noise が motorway 寄りに振れると誤 snap 確率上昇 (= 自明回避・典型的 ramp 判別困難)。A-2 検証: ramp bearing と mainline bearing が 47.5度差 → boost on で ramp 進入時は ramp が +6%/mainline は -4% で差別化される角度系 fixture。",
+    "prefecture": "ehime",
+    "true_speed_kmh": 30,
+    "ground_truth_segments": [
+      { "roadIndex": 239, "segmentIndex": 1, "t_start": 0.0, "t_end": 1.0, "num_samples": 5 },
+      { "roadIndex": 239, "segmentIndex": 2, "t_start": 0.0, "t_end": 1.0, "num_samples": 10 },
+      { "roadIndex": 239, "segmentIndex": 3, "t_start": 0.0, "t_end": 1.0, "num_samples": 20 },
+      { "roadIndex": 239, "segmentIndex": 4, "t_start": 0.0, "t_end": 1.0, "num_samples": 15 }
+    ],
+    "competing_road_indices": [57],
+    "noise_model": {
+      "seed": 45,
+      "accuracy_mean_m": 10,
+      "accuracy_stddev_m": 3,
+      "position_noise_stddev_m": 3,
+      "heading_noise_deg": 5,
+      "outlier_rate": 0.02,
+      "outlier_offset_m": 30
+    }
+  }
+}

@@ -39,7 +39,7 @@ const VERSION = '22.0a';
     const zipPath = path.join(TMP, `${code}.zip`);
     const extractDir = path.join(TMP, code);
 
-    if (fs.existsSync(zipPath) && (Date.now() - fs.statSync(zipPath).mtimeMs) < 30 * 86400000) {
+    if (fs.existsSync(zipPath) && Date.now() - fs.statSync(zipPath).mtimeMs < 30 * 86400000) {
       cachedZips++;
     } else {
       try {
@@ -103,7 +103,14 @@ const VERSION = '22.0a';
         const key = `${pref}|${city}`;
         let c = cities.get(key);
         if (!c) {
-          c = { p: pref, n: city, sumLat: 0, sumLng: 0, count: 0, bb: [Infinity, Infinity, -Infinity, -Infinity] };
+          c = {
+            p: pref,
+            n: city,
+            sumLat: 0,
+            sumLng: 0,
+            count: 0,
+            bb: [Infinity, Infinity, -Infinity, -Infinity],
+          };
           cities.set(key, c);
         }
         c.sumLat += lat;
@@ -118,7 +125,9 @@ const VERSION = '22.0a';
     }
     totalRows += prefRowCount;
     if (prefRowCount > 0 && (parseInt(code, 10) % 10 === 0 || code === '01' || code === '47')) {
-      console.log(`  pref ${code}: ${prefRowCount.toLocaleString()} rows / ${cities.size} 累計都市`);
+      console.log(
+        `  pref ${code}: ${prefRowCount.toLocaleString()} rows / ${cities.size} 累計都市`
+      );
     }
   }
 
@@ -177,5 +186,10 @@ const VERSION = '22.0a';
     `// 全国 ${cityPacked.length} 市区町村の重心 + bbox + grid索引`,
   ]);
   console.log(`✅ ${OUT}`);
-  console.log(`  cities=${cityPacked.length} cells=${Object.keys(grid).length} size=${(size/1024/1024).toFixed(2)} MB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(
+    `  cities=${cityPacked.length} cells=${Object.keys(grid).length} size=${(size / 1024 / 1024).toFixed(2)} MB`
+  );
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

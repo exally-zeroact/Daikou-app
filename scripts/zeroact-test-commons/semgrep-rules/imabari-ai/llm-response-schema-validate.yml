@@ -1,0 +1,62 @@
+# ============================================================
+# imabari-ai: LLM 応答 → schema 検証なし使用禁止
+# 2026-05-18 新規・横展開基盤 ⑥/8
+#
+# 目的:
+#   Claude / OpenAI 等の LLM 応答 (= structured output ではない raw text /
+#   JSON) を zod schema 検証なしで downstream に流すことを禁止する taint analysis。
+#
+# 期待結果:
+#   ・zodSchema.parse / validateResponse 経由 → PASS
+#   ・anthropic.messages.create({...}).content[0].text → directly Response.json → ERROR
+#   ・openai.chat.completions.create(...).choices[0].message.content → directly use → ERROR
+# ============================================================
+
+rules:
+  - id: imabari-ai-llm-response-must-validate
+    languages: [typescript, javascript]
+    severity: ERROR
+    mode: taint
+    message: |
+      今治AI の絶対ルール違反: LLM 応答を zod schema 検証なしで使用しています。
+      hallucination + 想定外形式での downstream 障害を防ぐため
+      ResponseSchema.parse() / validateLLMResponse() 等の検証を経由してください。
+    metadata:
+      category: security
+      subcategory: data-validation
+      project: imabari-ai
+      ruleset: zeroact-test-commons
+    pattern-sources:
+      - patterns:
+          - pattern-either:
+              - pattern: anthropic.messages.create(...)
+              - pattern: openai.chat.completions.create(...)
+              - pattern: gemini.generateContent(...)
+              - pattern: $CLIENT.messages.create(...)
+              - pattern: $CLIENT.chat.completions.create(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              # Next.js Response.json で直接返却
+              - pattern: Response.json($X)
+              - pattern: NextResponse.json($X)
+              # Express 系
+              - pattern: res.send($X)
+              - pattern: res.json($X)
+              # DB 書込前
+              - pattern: $DB.insert($X)
+              - pattern: $DB.update($X)
+    pattern-sanitizers:
+      - patterns:
+          - pattern-either:
+              # zod schema 検証
+              - pattern: $SCHEMA.parse($X)
+              - pattern: $SCHEMA.safeParse($X)
+              # 明示的 validation 関数
+              - pattern-inside: |
+                  function validateLLMResponse(...) { ... }
+              - pattern-inside: |
+                  function validateResponse(...) { ... }
+              # zod scope 全体
+              - pattern-inside: |
+                  z.object({ ... }).parse($X)

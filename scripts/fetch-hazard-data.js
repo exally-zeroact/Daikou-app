@@ -25,7 +25,9 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
@@ -33,18 +35,53 @@ const shapefile = requireGlobal('shapefile');
 
 // 47 都道府県 + KSJ コード (JIS X 0401)
 const PREFS = {
-  hokkaido:  '01',
-  aomori:    '02', iwate:     '03', miyagi:    '04', akita:    '05', yamagata: '06', fukushima: '07',
-  ibaraki:   '08', tochigi:   '09', gunma:     '10',
-  saitama:   '11', chiba:     '12', tokyo:     '13', kanagawa:  '14',
-  niigata:   '15', toyama:    '16', ishikawa:  '17', fukui:     '18',
-  yamanashi: '19', nagano:    '20', gifu:      '21', shizuoka:  '22', aichi:    '23',
-  mie:       '24', shiga:     '25', kyoto:     '26', osaka:     '27',
-  hyogo:     '28', nara:      '29', wakayama:  '30',
-  tottori:   '31', shimane:   '32', okayama:   '33', hiroshima: '34', yamaguchi:'35',
-  tokushima: '36', kagawa:    '37', ehime:     '38', kochi:     '39',
-  fukuoka:   '40', saga:      '41', nagasaki:  '42', kumamoto:  '43',
-  oita:      '44', miyazaki:  '45', kagoshima: '46', okinawa:   '47',
+  hokkaido: '01',
+  aomori: '02',
+  iwate: '03',
+  miyagi: '04',
+  akita: '05',
+  yamagata: '06',
+  fukushima: '07',
+  ibaraki: '08',
+  tochigi: '09',
+  gunma: '10',
+  saitama: '11',
+  chiba: '12',
+  tokyo: '13',
+  kanagawa: '14',
+  niigata: '15',
+  toyama: '16',
+  ishikawa: '17',
+  fukui: '18',
+  yamanashi: '19',
+  nagano: '20',
+  gifu: '21',
+  shizuoka: '22',
+  aichi: '23',
+  mie: '24',
+  shiga: '25',
+  kyoto: '26',
+  osaka: '27',
+  hyogo: '28',
+  nara: '29',
+  wakayama: '30',
+  tottori: '31',
+  shimane: '32',
+  okayama: '33',
+  hiroshima: '34',
+  yamaguchi: '35',
+  tokushima: '36',
+  kagawa: '37',
+  ehime: '38',
+  kochi: '39',
+  fukuoka: '40',
+  saga: '41',
+  nagasaki: '42',
+  kumamoto: '43',
+  oita: '44',
+  miyazaki: '45',
+  kagoshima: '46',
+  okinawa: '47',
 };
 
 const PROJECT_ROOT = path.join(__dirname, '..');
@@ -72,7 +109,9 @@ async function fetchBuffer(url, timeoutMs = 240000) {
     const res = await fetch(url, { signal: ctrl.signal, headers: UA });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 function unzipTo(zipPath, dir) {
@@ -101,13 +140,13 @@ function findFiles(dir, pattern) {
 async function downloadZipIfNeeded(url, fname) {
   const zipPath = path.join(RAW_DIR, fname);
   if (fs.existsSync(zipPath) && fs.statSync(zipPath).size > 1024) {
-    console.log(`  cache: ${fname} (${(fs.statSync(zipPath).size/1024/1024).toFixed(1)} MB)`);
+    console.log(`  cache: ${fname} (${(fs.statSync(zipPath).size / 1024 / 1024).toFixed(1)} MB)`);
     return zipPath;
   }
   console.log(`  DL: ${url}`);
   const buf = await fetchBuffer(url);
   fs.writeFileSync(zipPath, buf);
-  console.log(`  saved ${fname} (${(buf.length/1024/1024).toFixed(1)} MB)`);
+  console.log(`  saved ${fname} (${(buf.length / 1024 / 1024).toFixed(1)} MB)`);
   return zipPath;
 }
 
@@ -127,14 +166,14 @@ function rankToDepth(rank) {
 // 各 pref の bbox 内に含まれる 1次メッシュ・cls=10 (洪水予報河川) と
 // cls=20 (その他) を両方取得。実際のポリゴンは bbox check で県別フィルタ。
 const PREF_MESHES = {
-  aichi:  ['5236', '5237', '5337', '5338'],
-  kyoto:  ['5135', '5235', '5335'],
-  nara:   ['5135', '5235'],
+  aichi: ['5236', '5237', '5337', '5338'],
+  kyoto: ['5135', '5235', '5335'],
+  nara: ['5135', '5235'],
 };
 const PREF_FLOOD_BBOX = {
-  aichi:  [34.55, 136.65, 35.45, 137.85],
-  kyoto:  [34.70, 134.85, 35.80, 136.05],
-  nara:   [33.85, 135.65, 34.80, 136.20],
+  aichi: [34.55, 136.65, 35.45, 137.85],
+  kyoto: [34.7, 134.85, 35.8, 136.05],
+  nara: [33.85, 135.65, 34.8, 136.2],
 };
 
 // 大きな GML を SAX ストリーム解析 (Node の string limit 回避)
@@ -161,7 +200,8 @@ function parseA31GmlStream(xmlPath, prefBbox, outAccumulator) {
       } else if (name === 'gml:Surface' && attrs['gml:id']) {
         surfId = attrs['gml:id'];
       } else if (name === 'gml:posList') {
-        inPosList = true; posListBuf = '';
+        inPosList = true;
+        posListBuf = '';
       } else if (name === 'gml:curveMember' && surfId && attrs['xlink:href']) {
         surfHref = attrs['xlink:href'].replace('#', '');
         surfToCurve[surfId] = surfHref;
@@ -183,14 +223,16 @@ function parseA31GmlStream(xmlPath, prefBbox, outAccumulator) {
       } else if (name === 'gml:Curve') {
         curveId = null;
       } else if (name === 'gml:Surface') {
-        surfId = null; surfHref = null;
+        surfId = null;
+        surfHref = null;
       } else if (name === 'ksj:waterDepth') {
         inWaterDepth = false;
       } else if (name === 'ksj:MaximumScale' || name === 'ksj:PlannedScale') {
         // フィーチャ完成
         const sfId = scaleSurfHref;
         const rank = parseInt(scaleDepth, 10);
-        scaleSurfHref = null; scaleDepth = null;
+        scaleSurfHref = null;
+        scaleDepth = null;
         if (!sfId || isNaN(rank)) return;
         const cvId = surfToCurve[sfId];
         if (!cvId) return;
@@ -199,16 +241,25 @@ function parseA31GmlStream(xmlPath, prefBbox, outAccumulator) {
         const nums = posList.trim().split(/\s+/).map(parseFloat);
         if (nums.length < 6) return;
         const coords = [];
-        let cLat = 0, cLng = 0, cnt = 0;
+        let cLat = 0,
+          cLng = 0,
+          cnt = 0;
         for (let i = 0; i + 1 < nums.length; i += 2) {
-          const lat = nums[i], lng = nums[i + 1];
+          const lat = nums[i],
+            lng = nums[i + 1];
           coords.push([lng, lat]);
-          cLat += lat; cLng += lng; cnt++;
+          cLat += lat;
+          cLng += lng;
+          cnt++;
         }
         if (cnt < 3) return;
-        const cx = cLng / cnt, cy = cLat / cnt;
+        const cx = cLng / cnt,
+          cy = cLat / cnt;
         if (cy < prefBbox[0] || cy > prefBbox[2] || cx < prefBbox[1] || cx > prefBbox[3]) return;
-        if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+        if (
+          coords[0][0] !== coords[coords.length - 1][0] ||
+          coords[0][1] !== coords[coords.length - 1][1]
+        ) {
           coords.push(coords[0]);
         }
         const depth = rankToDepth(rank);
@@ -235,8 +286,12 @@ async function fetchA31FromMeshes(meshes, prefBbox) {
       const url = `https://nlftp.mlit.go.jp/ksj/gml/data/A31/A31-22/A31-22_${cls}_${mesh}_GML.zip`;
       const fname = `A31-22_${cls}_${mesh}_GML.zip`;
       let zipPath;
-      try { zipPath = await downloadZipIfNeeded(url, fname); }
-      catch (e) { console.log(`    mesh=${mesh} cls=${cls} 取得失敗 (OK)`); continue; }
+      try {
+        zipPath = await downloadZipIfNeeded(url, fname);
+      } catch (e) {
+        console.log(`    mesh=${mesh} cls=${cls} 取得失敗 (OK)`);
+        continue;
+      }
       const extractDir = path.join(RAW_DIR, `A31-22_${cls}_${mesh}_GML`);
       unzipTo(zipPath, extractDir);
       // 想定最大規模 (20_*A31-20-22*.xml) のみ
@@ -258,10 +313,17 @@ async function fetchA31() {
   //   3. 失敗 (404) なら A31-22 (2022版・1次メッシュ単位) → 愛知/京都/奈良
   //   ※ A31-12 (2012) は H29水防法改正前のため使わない
   const candidates = [
-    { ver: 'A31-21', url: `https://nlftp.mlit.go.jp/ksj/gml/data/A31/A31-21/A31-21_${PCODE}_GML.zip` },
-    { ver: 'A31-20', url: `https://nlftp.mlit.go.jp/ksj/gml/data/A31/A31-20/A31-20_${PCODE}_GML.zip` },
+    {
+      ver: 'A31-21',
+      url: `https://nlftp.mlit.go.jp/ksj/gml/data/A31/A31-21/A31-21_${PCODE}_GML.zip`,
+    },
+    {
+      ver: 'A31-20',
+      url: `https://nlftp.mlit.go.jp/ksj/gml/data/A31/A31-20/A31-20_${PCODE}_GML.zip`,
+    },
   ];
-  let zipPath = null, usedVer = null;
+  let zipPath = null,
+    usedVer = null;
   for (const c of candidates) {
     try {
       zipPath = await downloadZipIfNeeded(c.url, `${c.ver}_${PCODE}_GML.zip`);
@@ -275,15 +337,21 @@ async function fetchA31() {
   if (!zipPath && PREF_MESHES[PREF]) {
     console.log(`  A31-22 メッシュフォールバック: ${PREF_MESHES[PREF].join(',')}`);
     const { features, counts } = await fetchA31FromMeshes(PREF_MESHES[PREF], PREF_FLOOD_BBOX[PREF]);
-    fs.writeFileSync(path.join(OUT_DIR, 'flood.geojson'),
-      JSON.stringify({ type: 'FeatureCollection', features }));
-    console.log(`  A31-22 → flood.geojson: ${features.length} feats / depth 0:${counts[0]} 1:${counts[1]} 2:${counts[2]} 3:${counts[3]}`);
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'flood.geojson'),
+      JSON.stringify({ type: 'FeatureCollection', features })
+    );
+    console.log(
+      `  A31-22 → flood.geojson: ${features.length} feats / depth 0:${counts[0]} 1:${counts[1]} 2:${counts[2]} 3:${counts[3]}`
+    );
     return features.length;
   }
   if (!zipPath) {
     console.log(`  A31 取得不可・空 flood.geojson 出力`);
-    fs.writeFileSync(path.join(OUT_DIR, 'flood.geojson'),
-      JSON.stringify({ type: 'FeatureCollection', features: [] }));
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'flood.geojson'),
+      JSON.stringify({ type: 'FeatureCollection', features: [] })
+    );
     return 0;
   }
   console.log(`  A31 採用版: ${usedVer}`);
@@ -295,17 +363,25 @@ async function fetchA31() {
   let counts = { 0: 0, 1: 0, 2: 0, 3: 0 };
   for (const gp of geojsons) {
     let text;
-    try { text = fs.readFileSync(gp, 'utf8'); } catch { continue; }
+    try {
+      text = fs.readFileSync(gp, 'utf8');
+    } catch {
+      continue;
+    }
     let json;
-    try { json = JSON.parse(text); } catch { continue; }
-    for (const f of (json.features || [])) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      continue;
+    }
+    for (const f of json.features || []) {
       if (!f.geometry) continue;
       const props = f.properties || {};
       // KSJ A31 各版で属性キーが異なる:
       //   A31-21: A31_105 (計画規模) / A31_205 (想定最大規模)
       //   A31-20: A31_405 (想定最大規模)
       //   いずれも 5 番目フィールド = 浸水ランク (1-6)
-      const rankKey = Object.keys(props).find(k => /^A31_\d05$/.test(k));
+      const rankKey = Object.keys(props).find((k) => /^A31_\d05$/.test(k));
       if (!rankKey) continue;
       const rank = parseInt(props[rankKey], 10);
       if (isNaN(rank)) continue;
@@ -324,9 +400,13 @@ async function fetchA31() {
       });
     }
   }
-  fs.writeFileSync(path.join(OUT_DIR, 'flood.geojson'),
-    JSON.stringify({ type: 'FeatureCollection', features }));
-  console.log(`  A31 → flood.geojson: ${features.length} feats / depth 0:${counts[0]} 1:${counts[1]} 2:${counts[2]} 3:${counts[3]}`);
+  fs.writeFileSync(
+    path.join(OUT_DIR, 'flood.geojson'),
+    JSON.stringify({ type: 'FeatureCollection', features })
+  );
+  console.log(
+    `  A31 → flood.geojson: ${features.length} feats / depth 0:${counts[0]} 1:${counts[1]} 2:${counts[2]} 3:${counts[3]}`
+  );
   return features.length;
 }
 
@@ -342,8 +422,10 @@ async function fetchA40() {
     zipPath = await downloadZipIfNeeded(url, `A40-16_${PCODE}_GML.zip`);
   } catch (err) {
     console.log(`  A40: 取得失敗 (内陸県は津波データ無いので OK) ${err.message}`);
-    fs.writeFileSync(path.join(OUT_DIR, 'tsunami.geojson'),
-      JSON.stringify({ type: 'FeatureCollection', features: [] }));
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'tsunami.geojson'),
+      JSON.stringify({ type: 'FeatureCollection', features: [] })
+    );
     return 0;
   }
   const extractDir = path.join(RAW_DIR, `A40-16_${PCODE}_GML`);
@@ -351,8 +433,10 @@ async function fetchA40() {
   const shps = findFiles(extractDir, /^A40-.*\.shp$/i);
   if (shps.length === 0) {
     console.log(`  A40: shapefile 見つからず`);
-    fs.writeFileSync(path.join(OUT_DIR, 'tsunami.geojson'),
-      JSON.stringify({ type: 'FeatureCollection', features: [] }));
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'tsunami.geojson'),
+      JSON.stringify({ type: 'FeatureCollection', features: [] })
+    );
     return 0;
   }
   const features = [];
@@ -382,9 +466,13 @@ async function fetchA40() {
       });
     }
   }
-  fs.writeFileSync(path.join(OUT_DIR, 'tsunami.geojson'),
-    JSON.stringify({ type: 'FeatureCollection', features }));
-  console.log(`  A40 → tsunami.geojson: ${features.length} feats / depth 0:${counts[0]} 1:${counts[1]} 2:${counts[2]} 3:${counts[3]}`);
+  fs.writeFileSync(
+    path.join(OUT_DIR, 'tsunami.geojson'),
+    JSON.stringify({ type: 'FeatureCollection', features })
+  );
+  console.log(
+    `  A40 → tsunami.geojson: ${features.length} feats / depth 0:${counts[0]} 1:${counts[1]} 2:${counts[2]} 3:${counts[3]}`
+  );
   return features.length;
 }
 
@@ -400,8 +488,10 @@ async function fetchA48() {
     zipPath = await downloadZipIfNeeded(url, `A48-21_${PCODE}_GML.zip`);
   } catch (err) {
     console.log(`  A48: 取得失敗 ${err.message}`);
-    fs.writeFileSync(path.join(OUT_DIR, 'landslide.geojson'),
-      JSON.stringify({ type: 'FeatureCollection', features: [] }));
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'landslide.geojson'),
+      JSON.stringify({ type: 'FeatureCollection', features: [] })
+    );
     return 0;
   }
   const extractDir = path.join(RAW_DIR, `A48-21_${PCODE}_GML`);
@@ -409,18 +499,28 @@ async function fetchA48() {
   const geojsons = findFiles(extractDir, /^A48-.*\.geojson$/i);
   if (geojsons.length === 0) {
     console.log(`  A48: GEOJSON 見つからず`);
-    fs.writeFileSync(path.join(OUT_DIR, 'landslide.geojson'),
-      JSON.stringify({ type: 'FeatureCollection', features: [] }));
+    fs.writeFileSync(
+      path.join(OUT_DIR, 'landslide.geojson'),
+      JSON.stringify({ type: 'FeatureCollection', features: [] })
+    );
     return 0;
   }
   const features = [];
   let counts = { red: 0, yellow: 0 };
   for (const gp of geojsons) {
     let text;
-    try { text = fs.readFileSync(gp, 'utf8'); } catch { continue; }
+    try {
+      text = fs.readFileSync(gp, 'utf8');
+    } catch {
+      continue;
+    }
     let json;
-    try { json = JSON.parse(text); } catch { continue; }
-    for (const f of (json.features || [])) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      continue;
+    }
+    for (const f of json.features || []) {
       if (!f.geometry) continue;
       const props = f.properties || {};
       const code = parseInt(props.A48_004, 10);
@@ -438,23 +538,65 @@ async function fetchA48() {
       });
     }
   }
-  fs.writeFileSync(path.join(OUT_DIR, 'landslide.geojson'),
-    JSON.stringify({ type: 'FeatureCollection', features }));
-  console.log(`  A48 → landslide.geojson: ${features.length} feats / red:${counts.red} yellow:${counts.yellow}`);
+  fs.writeFileSync(
+    path.join(OUT_DIR, 'landslide.geojson'),
+    JSON.stringify({ type: 'FeatureCollection', features })
+  );
+  console.log(
+    `  A48 → landslide.geojson: ${features.length} feats / red:${counts.red} yellow:${counts.yellow}`
+  );
   return features.length;
 }
 
 // ─── 都道府県名 ja → Overpass area 用 ───────────────────────────
 const PREF_NAMES_JA = {
-  hokkaido:'北海道',aomori:'青森県',iwate:'岩手県',miyagi:'宮城県',akita:'秋田県',yamagata:'山形県',fukushima:'福島県',
-  ibaraki:'茨城県',tochigi:'栃木県',gunma:'群馬県',saitama:'埼玉県',chiba:'千葉県',tokyo:'東京都',kanagawa:'神奈川県',
-  niigata:'新潟県',toyama:'富山県',ishikawa:'石川県',fukui:'福井県',yamanashi:'山梨県',nagano:'長野県',
-  gifu:'岐阜県',shizuoka:'静岡県',aichi:'愛知県',mie:'三重県',shiga:'滋賀県',kyoto:'京都府',osaka:'大阪府',
-  hyogo:'兵庫県',nara:'奈良県',wakayama:'和歌山県',
-  tottori:'鳥取県',shimane:'島根県',okayama:'岡山県',hiroshima:'広島県',yamaguchi:'山口県',
-  tokushima:'徳島県',kagawa:'香川県',ehime:'愛媛県',kochi:'高知県',
-  fukuoka:'福岡県',saga:'佐賀県',nagasaki:'長崎県',kumamoto:'熊本県',oita:'大分県',miyazaki:'宮崎県',
-  kagoshima:'鹿児島県',okinawa:'沖縄県',
+  hokkaido: '北海道',
+  aomori: '青森県',
+  iwate: '岩手県',
+  miyagi: '宮城県',
+  akita: '秋田県',
+  yamagata: '山形県',
+  fukushima: '福島県',
+  ibaraki: '茨城県',
+  tochigi: '栃木県',
+  gunma: '群馬県',
+  saitama: '埼玉県',
+  chiba: '千葉県',
+  tokyo: '東京都',
+  kanagawa: '神奈川県',
+  niigata: '新潟県',
+  toyama: '富山県',
+  ishikawa: '石川県',
+  fukui: '福井県',
+  yamanashi: '山梨県',
+  nagano: '長野県',
+  gifu: '岐阜県',
+  shizuoka: '静岡県',
+  aichi: '愛知県',
+  mie: '三重県',
+  shiga: '滋賀県',
+  kyoto: '京都府',
+  osaka: '大阪府',
+  hyogo: '兵庫県',
+  nara: '奈良県',
+  wakayama: '和歌山県',
+  tottori: '鳥取県',
+  shimane: '島根県',
+  okayama: '岡山県',
+  hiroshima: '広島県',
+  yamaguchi: '山口県',
+  tokushima: '徳島県',
+  kagawa: '香川県',
+  ehime: '愛媛県',
+  kochi: '高知県',
+  fukuoka: '福岡県',
+  saga: '佐賀県',
+  nagasaki: '長崎県',
+  kumamoto: '熊本県',
+  oita: '大分県',
+  miyazaki: '宮崎県',
+  kagoshima: '鹿児島県',
+  okinawa: '沖縄県',
 };
 
 // ─── 活断層 (OSM Overpass) ─────────────────────────────────────
@@ -464,8 +606,8 @@ async function fetchFault() {
     '[out:json][timeout:300];' +
     `area["name"="${ja}"]->.ep;` +
     '(' +
-      'way["geological"="fault"](area.ep);' +
-      'way["fault"="yes"](area.ep);' +
+    'way["geological"="fault"](area.ep);' +
+    'way["fault"="yes"](area.ep);' +
     ');' +
     'out tags geom;';
   const ENDPOINTS = [
@@ -480,28 +622,42 @@ async function fetchFault() {
       const t = setTimeout(() => ctrl.abort(), 300000);
       try {
         const res = await fetch(ep, {
-          method: 'POST', signal: ctrl.signal,
-          headers: { 'User-Agent': UA['User-Agent'], 'Content-Type': 'application/x-www-form-urlencoded' },
+          method: 'POST',
+          signal: ctrl.signal,
+          headers: {
+            'User-Agent': UA['User-Agent'],
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
           body: 'data=' + encodeURIComponent(q),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         json = await res.json();
         break;
-      } finally { clearTimeout(t); }
-    } catch (err) { console.log(`  fault overpass ${ep} failed: ${err.message}`); }
+      } finally {
+        clearTimeout(t);
+      }
+    } catch (err) {
+      console.log(`  fault overpass ${ep} failed: ${err.message}`);
+    }
   }
   const features = [];
   if (json && json.elements) {
     for (const e of json.elements) {
       if (e.type !== 'way' || !e.geometry) continue;
-      const coords = e.geometry.map(p => [p.lon, p.lat]);
+      const coords = e.geometry.map((p) => [p.lon, p.lat]);
       if (coords.length < 2) continue;
       const name = (e.tags && (e.tags.name || e.tags['name:ja'])) || `fault_${e.id}`;
-      features.push({ type: 'Feature', properties: { name }, geometry: { type: 'LineString', coordinates: coords } });
+      features.push({
+        type: 'Feature',
+        properties: { name },
+        geometry: { type: 'LineString', coordinates: coords },
+      });
     }
   }
-  fs.writeFileSync(path.join(OUT_DIR, 'fault.geojson'),
-    JSON.stringify({ type: 'FeatureCollection', features }));
+  fs.writeFileSync(
+    path.join(OUT_DIR, 'fault.geojson'),
+    JSON.stringify({ type: 'FeatureCollection', features })
+  );
   console.log(`  fault → fault.geojson: ${features.length} ways`);
   return features.length;
 }
@@ -518,11 +674,40 @@ function ensureLiquefaction() {
 // ─── main ──────────────────────────────────────────────────────────
 (async () => {
   const t0 = Date.now();
-  let f31 = 0, f40 = 0, f48 = 0, ff = 0, fl = 0;
-  try { f31 = await fetchA31(); } catch (e) { console.log(`  A31 failed: ${e.message}`); }
-  try { f40 = await fetchA40(); } catch (e) { console.log(`  A40 failed: ${e.message}`); }
-  try { f48 = await fetchA48(); } catch (e) { console.log(`  A48 failed: ${e.message}`); }
-  try { ff = await fetchFault(); } catch (e) { console.log(`  fault failed: ${e.message}`); }
-  try { fl = ensureLiquefaction(); } catch (e) { console.log(`  liquefaction failed: ${e.message}`); }
-  console.log(`✅ ${PREF}: flood=${f31} tsunami=${f40} landslide=${f48} fault=${ff} liquefaction=${fl >= 0 ? fl : 'kept'} (${((Date.now()-t0)/1000).toFixed(1)}s)`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  let f31 = 0,
+    f40 = 0,
+    f48 = 0,
+    ff = 0,
+    fl = 0;
+  try {
+    f31 = await fetchA31();
+  } catch (e) {
+    console.log(`  A31 failed: ${e.message}`);
+  }
+  try {
+    f40 = await fetchA40();
+  } catch (e) {
+    console.log(`  A40 failed: ${e.message}`);
+  }
+  try {
+    f48 = await fetchA48();
+  } catch (e) {
+    console.log(`  A48 failed: ${e.message}`);
+  }
+  try {
+    ff = await fetchFault();
+  } catch (e) {
+    console.log(`  fault failed: ${e.message}`);
+  }
+  try {
+    fl = ensureLiquefaction();
+  } catch (e) {
+    console.log(`  liquefaction failed: ${e.message}`);
+  }
+  console.log(
+    `✅ ${PREF}: flood=${f31} tsunami=${f40} landslide=${f48} fault=${ff} liquefaction=${fl >= 0 ? fl : 'kept'} (${((Date.now() - t0) / 1000).toFixed(1)}s)`
+  );
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

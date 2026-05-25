@@ -1,0 +1,35 @@
+# Qodo PR-Agent OSS (2026-05-17 新規・Stage 1 Step E)
+# PR 自動レビュー・description 生成・絶対ルール違反 alert
+# 設定: .pr-agent.toml
+#
+# ★ 動作には GitHub secrets に ANTHROPIC_API_KEY を設定する必要あり (= 司さん側作業):
+#    Repo Settings → Secrets and variables → Actions → New repository secret
+#      Name: ANTHROPIC_API_KEY
+#      Value: sk-ant-... (anthropic.com から取得)
+#    未設定時は workflow が起動するが API 呼出で fail (= 害なし)
+name: PR Agent
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: write
+
+jobs:
+  pr_agent:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: PR Agent action
+        uses: qodo-ai/pr-agent@main
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFIG.MODEL: anthropic/claude-3-5-haiku-latest
+          CONFIG.FALLBACK_MODELS: '["anthropic/claude-3-5-sonnet-latest"]'

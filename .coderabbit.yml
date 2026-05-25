@@ -1,0 +1,86 @@
+# CodeRabbit Free 設定 (2026-05-17 新規・Stage 1)
+# GitHub App としての CodeRabbit を有効化するには別途
+# https://github.com/marketplace/coderabbitai でリポジトリに install が必要。
+# このファイルは install 後の挙動を制御する。
+
+language: ja
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!data/**"
+    - "!coverage/**"
+    - "!node_modules/**"
+    - "!.tmp/**"
+    - "!tmp/**"
+    - "!outputs/**"
+    - "!download/**"
+    - "!test-results/**"
+    - "!input/**"
+  path_instructions:
+    - path: "js/meter.js"
+      instructions: |
+        distance_m は課金根拠 (絶対不可侵)。
+        GPS 直線距離での課金は禁止・道路ジオメトリ沿い距離のみ。
+        距離加算 5 経路 (L393 Tier1 / L462 retroactive / L824 gap fill /
+        L842 Off-Road / L1172 setDistance) を逸脱した書込は alert。
+        ★絶対ルール適用外区間コメントが sanitizer marker。
+    - path: "js/gps.js"
+      instructions: |
+        GPS.calcDistance / GPS.calcDistance3D は dangerous source。
+        sanitizer なしで distance_m に直接流入する変更は alert。
+    - path: "js/gps-worker.js"
+      instructions: |
+        Worker A: Kalman フィルタ + 静止判定 (3-AND: GPS+C-1+C-2)。
+        加速度サンプル null 時の GPS 単独判定 (L596-598) は仕様。
+        Worker B への直接通信なし (main thread 経由 2-hop) を維持。
+    - path: "js/map-matcher.js"
+      instructions: |
+        Worker B: Viterbi matcher。
+        isStationary=true 受信時の mmIncrementM/tentativeIncrementM 強制 0 化
+        (L3007) は仕様変更禁止。
+    - path: "tests/property/**"
+      instructions: |
+        fast-check property test。距離 / fare 不変条件を検証。
+        propertyAssert / assertMonotonic 等の共通 helper を使う。
+    - path: "tests/e2e/**"
+      instructions: |
+        Playwright E2E。permission/banner 抑制 + Meter API 直接呼出パターン推奨。
+        既存 flow-*.spec.js は無変更原則・新規 spec 冒頭に /* global ... */ 必須。
+        --retries=2 は CI flaky 吸収用 (= chromium SEGV 対策)。
+    - path: "scripts/zeroact-test-commons/ai/**"
+      instructions: |
+        AI 駆動バグ探索 / レビュー script。
+        max_tokens / temperature / Batch API 想定で cost 抑制。
+        secret 未設定時の skip / fallback 必須 (= 害なし運用)。
+    - path: "scripts/zeroact-test-commons/observability/**"
+      instructions: |
+        Sentry / Firebase RC / OpenReplay の config テンプレート。
+        DSN / API key 未設定時 silent skip 必須。
+        課金関連 (distance_m / fare_yen) は sampling bypass で force send。
+    - path: "scripts/zeroact-test-commons/glossary.yml"
+      instructions: |
+        ダイコメ変数・概念・業界用語の定義。CodeRabbit の review 根拠。
+        新規変数追加時は本ファイルも同 commit で更新推奨。
+    - path: "scripts/zeroact-test-commons/scenarios/**"
+      instructions: |
+        代行運転業務シナリオ集 (YAML)。property/e2e の入力データ生成根拠。
+    - path: "scripts/zeroact-test-commons/known-issues/**"
+      instructions: |
+        過去事例レポジトリ。同種事象再発防止の learning material。
+    - path: "scripts/zeroact-test-commons/bug-patterns/**"
+      instructions: |
+        Uber/Lyft 等業界事例ベースのバグパターン集。検出 detection_method 連動。
+    - path: "index.html"
+      instructions: |
+        index.html は原則 Sentry / AB config / configPlatform 等の minimal 配線のみ許可。
+        他箇所 (= 業務 flow / DOM 構造) の変更は alert + ★設計変更宣言が必要。
+chat:
+  auto_reply: true

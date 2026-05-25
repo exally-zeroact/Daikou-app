@@ -1,0 +1,63 @@
+# Dependabot 設定 (2026-05-18 新規・P2)
+#
+# 目的:
+#   npm 依存パッケージの脆弱性パッチ + 定期 update を自動 PR 化。
+#   既知 4 件 (npm audit moderate) + 将来の CVE alert を漏らさず取込む。
+#
+# 必要 GitHub repo settings:
+#   Settings → Code security and analysis →
+#     Dependabot security updates: Enabled (= 推奨・別途有効化)
+#     Dependabot version updates: 本 yml で制御
+#
+# 設定方針:
+#   ・npm のみ対象 (= ダイコメは Python / GitHub Actions も使うが
+#     当面 npm の脆弱性対応を最優先)
+#   ・schedule weekly (= 月曜・PR 量制御)
+#   ・open-pull-requests-limit 5 (= 一度に大量 PR で詰まらないように)
+#   ・production / development 分けない (= 既存 devDependencies が多いため)
+#
+# 将来追加候補:
+#   - github-actions ecosystem (= .github/workflows/ の actions/ バージョン更新)
+#   - python ecosystem (= Semgrep CLI 等)
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - dependabot
+    commit-message:
+      prefix: chore
+      include: scope
+    # ダイコメ絶対ルール: 課金根拠 distance_m 計算ロジックに影響する
+    # 依存 (= fast-check 等の test 基盤) は major update を慎重に扱う
+    ignore:
+      # vitest 系の major は test 全件影響あり・手動検証必要のため auto PR 除外
+      - dependency-name: 'vitest'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@vitest/*'
+        update-types: ['version-update:semver-major']
+      # Playwright major は API 破壊変更ありがち
+      - dependency-name: '@playwright/test'
+        update-types: ['version-update:semver-major']
+
+  # GitHub Actions 自体の更新 (= .github/workflows/*.yml で使う actions/* のバージョン)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - github-actions
+      - dependabot

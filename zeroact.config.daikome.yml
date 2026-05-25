@@ -1,0 +1,156 @@
+# ============================================================
+# zeroact.config.daikome.yml (2026-05-18 新規)
+# ダイコメ (代行運転 PWA メーター) の実プロジェクト設定
+#
+# 実コード照合済 (= verified 2026-05-17):
+#   js/meter.js line numbers / js/gps.js / js/gps-worker.js / js/map-matcher.js
+#
+# 関連:
+#   テンプレート: scripts/zeroact-test-commons/zeroact.config.template.yml
+#   既存知識集: scripts/zeroact-test-commons/glossary.yml (= 用語集・併存)
+#   既存 audit: audit-handlers.config.js (= postMessage channel・併存)
+# ============================================================
+
+project:
+  name: daikome
+  language: javascript
+  type: pwa
+
+critical_variables:
+  - name: distance_m
+    role: 課金根拠
+    forbidden_modification: 5 経路 (L393/L462/L824/L842/L1172) 以外での書込
+    invariants:
+      - 同一 trip 内 running=true で単調非減少
+      - isStationary=true で増加禁止
+      - GPS 直線距離由来の値の流入禁止 (= sanitizer 関数経由のみ許容)
+
+  - name: business_distance_m
+    role: 業務単位累積距離
+    forbidden_modification: state.running===true 以外での加算
+    note: 2026-05-17 設計変更で running ガード追加 (cd68ecd6)
+
+  - name: fare_yen
+    role: 確定料金
+    forbidden_modification: calcFare(distance_m) 以外で計算
+    note: distance_m の純粋関数値・distance_m を守れば自動保護
+
+  - name: tier2_pending_m
+    role: 表示用先行値
+    forbidden_modification: 課金計算への流入
+
+dangerous_sources:
+  - name: GPS.calcDistance
+    description: GPS 2 点間 Vincenty 直線距離
+    call_sites:
+      - js/meter.js L257 (_trackHaversineBetweenGps 内・sanitizer)
+      - js/meter.js L305 (_calculateOffRoadIncrement 内・sanitizer)
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/daikome/distance-m-no-gps-line.yml
+
+  - name: GPS.calcDistance3D
+    description: GPS 2 点間 3D 直線距離 (高度含む)
+    call_sites: []
+    note: 予防的 source 登録 (= 現状呼出ゼロ)
+
+critical_paths:
+  - js/meter.js          # distance_m 5 経路・課金根拠核心
+  - js/gps.js             # GPS chain 入口・dangerous_sources 含む
+  - js/gps-worker.js      # Worker A (Kalman + 静止判定)
+  - js/map-matcher.js     # Worker B (Viterbi)
+  - js/mm-data-pipeline.js # MM warmup orchestration
+  - js/business.js        # 業務 flow 状態遷移
+  - index.html            # GPS chain 配線 + Sentry/AB config 配線
+  - sw.js                 # Service Worker (= PRECACHE 47 県戦略)
+
+external_io_boundaries:
+  - navigator.geolocation        # GPS chain 入口 (= Playwright で setGeolocation 経由 mock)
+  - Firebase Realtime Database   # cross-user pheromone (= MSW で fetch mock)
+  - Sentry ingest endpoint       # error送信 (= sentry-config.js 経由・MSW で noop mock 可)
+  - Vercel deployment            # 本番 deploy 経路
+
+absolute_rules:
+  - id: R_no_gps_straight_line
+    description: GPS 直線距離での課金禁止・道路ジオメトリ沿いのみ
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/daikome/distance-m-no-gps-line.yml
+    property_test: tests/property/distance-m-update-paths.test.js
+
+  - id: R_distance_m_immutable
+    description: distance_m への書込は 5 経路 (L393/L462/L824/L842/L1172) のみ
+    property_test: tests/property/distance-m-update-paths.test.js (C1)
+
+  - id: R_isstationary_no_increase
+    description: isStationary=true で distance_m 増加禁止
+    property_test: tests/property/isstationary-no-increase.test.js
+    e2e_test: tests/e2e/stationary-no-increase.spec.js
+
+  - id: R_running_guard_business_distance
+    description: business_distance_m は state.running===true のみ加算
+    property_test: tests/property/distance-m-update-paths.test.js
+
+  - id: R_console_error_not_dlog
+    description: console.error は本番出力前提・dlog 置換禁止
+    eslint_rule: '"no-console": ["error", { "allow": ["error"] }]'
+
+  - id: R_ios_android_dual_check
+    description: iOS / Android 両 OS 経路を必ず確認
+    e2e_test: tests/e2e/platform-ios.spec.js + platform-android.spec.js
+
+  - id: R_offline_47pref_cache
+    description: 全 47 県 cache + offline 業務継続 (sw.js PRECACHE 変更禁止)
+    lighthouse_audit: service-worker + installable-manifest
+
+test_thresholds:
+  stryker:
+    high: 80
+    low: 60
+    break: null
+    mutate_target: ['scripts/zeroact-test-commons/property-test-helpers.js']
+  lighthouse:
+    performance: 0.7
+    accessibility: 0.9
+    best-practices: 0.8
+    seo: 0.9
+    installable-manifest: 0.9
+    service-worker: 0.9
+  knip:
+    mode: warn-only
+  dep-cruiser:
+    no-circular: error
+    no-orphans: warn
+    no-unresolvable: error
+    no-cross-worker-direct: error
+    no-sw-direct-import: error
+  semgrep:
+    severity: ERROR
+    rules_path: scripts/zeroact-test-commons/semgrep-rules/daikome/
+  fast-check:
+    numRuns: 100
+
+ai_review:
+  enabled: true
+  models:
+    primary: anthropic/claude-haiku-4-5-20251001
+    fallback: anthropic/claude-sonnet-4-5-20250929
+    judge: gemini-2.5-flash
+  trigger_paths:
+    - js/**
+
+observability:
+  sentry:
+    enabled: true
+    dsn_meta: sentry-dsn
+    monthly_event_budget: 5000
+    billing_keywords:
+      - distance_m
+      - business_distance_m
+      - fare_yen
+      - calcFare
+      - mmIncrementM
+  firebase_remote_config:
+    enabled: true
+    parameters:
+      - viterbi_n_ios
+      - fare_display_mode
+      - warmup_retry_count
+  openreplay:
+    enabled: true  # 司さん self-host インフラ準備後に有効化

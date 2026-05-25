@@ -1,0 +1,37 @@
+# Architecture rules (ArchUnitTS / tsarch 配線・2026-05-18 新規)
+#
+# トリガー: pull_request + push to main
+# 内容: scripts/zeroact-test-commons/arch-rules.test.js を vitest で実行
+#       ファイルレベル依存方向ルールを純 JS 対応で verify
+#
+# 既存 workflow との関係:
+#   ・semgrep.yml: taint analysis (= source/sink path 検出)
+#   ・dep-cruiser.yml: 循環依存 / orphan 検出 (= module graph)
+#   ・arch.yml (本ファイル): file-level dependency direction (= 設計ルール)
+#   3 つで相互補完する設計。
+
+name: Arch rules
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    # 2026-05-18: 5 → 10 拡大 (= npm ci cold cache 時の 5m 超過自動 cancel 対策)
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run arch rules
+        run: npm run audit:arch

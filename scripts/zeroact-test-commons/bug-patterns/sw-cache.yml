@@ -1,0 +1,69 @@
+# ============================================================
+# bug-patterns/sw-cache.yml
+# Service Worker cache 破壊・古いコード実行
+# ============================================================
+
+pattern_id: SW-CACHE-001
+title: Service Worker cache 破壊・古いコード実行 (stale code)
+category: pwa-update
+
+description: |
+  PWA / Service Worker 環境で発生する「cache が新しい code に更新されず
+  古い code が実行され続ける」バグ。CACHE_NAME を更新しないと SW は古い
+  cache を返し続けるため、デプロイしたコードが旧版のまま動作する。
+  iOS Safari は特に厳しい cache 戦略のため発覚が遅れがち。
+
+real_world_example:
+  - source: Workbox documentation "Cache versioning strategies" (2020)
+    issue: CACHE_NAME 固定で SW update がトリガーされず stale code 永続化
+    consequence: 修正したはずのバグが実機で再現
+    fix: build hash ベースの CACHE_NAME 動的化
+  - source: PWA Stats "Service Worker activation pitfalls" (2021)
+    issue: SW activate ハンドラで旧 cache を delete せず disk 圧迫
+    consequence: storage quota 超過で SW 起動不可
+  - source: Daikome 開発履歴
+    issue: sw.js の手動 CACHE_NAME 更新漏れ
+    fix: .github/workflows/auto-version.yml で commit SHA から自動更新
+
+how_it_manifests:
+  symptoms:
+    - デプロイ後も古い距離計算ロジック / fare 計算式が動く
+    - "Bug 修正したのに直っていない" 報告が運転手から続く
+    - iOS Safari でのみ古い動作 / Android では新しい動作 (= cache 差)
+    - DevTools "Application" タブで stale CACHE_NAME 確認できる
+  log_indicators:
+    - SW activate イベントで cache delete loop が実行されない
+    - dlog: "[SW] 登録完了" 後の version 表示が古い
+
+daikome_risk:
+  severity: 高 (= 修正の reach が遅延・運転手側で異変)
+  cache_policy:
+    precache:
+      - HTML / JS 全件 + 47 県 roads
+      - sw.js PRECACHE_FILES 配列 (= sw.js 直接変更で更新)
+    swr (stale-while-revalidate):
+      - 県別 poi / hazard 等の補助データ
+      - 次回起動で更新される (= 即時反映不可)
+  existing_protections:
+    - .github/workflows/auto-version.yml で sw.js CACHE_NAME を commit SHA に自動更新
+    - メモリ既記載: "全 47 県一括 cache 戦略は維持 (sw.js PRECACHE 変更禁止)"
+    - SW activate ハンドラで旧 cache delete
+
+detection_method:
+  static_analysis:
+    - sw.js の CACHE_NAME が commit SHA と一致するか CI で確認
+    - workflow: .github/workflows/auto-version.yml
+  e2e_test:
+    - tests/e2e/flow-standard.spec.js (= "[SW] 登録完了" ログ確認)
+  manual:
+    - DevTools Application タブで CACHE_NAME 確認
+    - 司さん CLAUDE.md push 前チェックの一部
+
+test_scenario_ref:
+  - 該当 scenarios 直接対応なし (= deployment 層のバグ)
+
+prevention:
+  - CACHE_NAME を commit SHA で自動更新 (= 既存 workflow)
+  - PRECACHE_FILES の手動編集を絶対ルール「sw.js PRECACHE 変更禁止」で固定
+  - SWR 系は次回起動で更新されることを運用想定に組込
+  - 司さんの「本番 push 後 1 修正→実機確認」運用で即時検知

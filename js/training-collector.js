@@ -36,9 +36,9 @@ const TrainingCollector = (() => {
   const DB_VERSION = 1;
 
   // 収集ウィンドウ仕様 (CarSpeedNet 互換)
-  const WINDOW_SAMPLES = 80;        // 1 サンプル = 80 個の (x,y,z)
-  const TARGET_HZ = 20;              // 20Hz downsample
-  const SAMPLE_INTERVAL_MS = 1000 / TARGET_HZ;  // 50ms ごとに 1 sample
+  const WINDOW_SAMPLES = 80; // 1 サンプル = 80 個の (x,y,z)
+  const TARGET_HZ = 20; // 20Hz downsample
+  const SAMPLE_INTERVAL_MS = 1000 / TARGET_HZ; // 50ms ごとに 1 sample
 
   // 収集条件 (絶対遵守)
   const MIN_ACCURACY_M = 20;
@@ -57,27 +57,32 @@ const TrainingCollector = (() => {
   //   'daikome_training_enabled' 明示値があれば優先
   //   なければ 'daikome_training_consent' 有無で判定 (consent あり = ON / なし = OFF)
   //   未consent (banner pending) は OFF・consent 後に default ON
-  function _initEnabledState(){
+  function _initEnabledState() {
     try {
       const explicit = localStorage.getItem('daikome_training_enabled');
       if (explicit !== null) return explicit === 'true';
       const consent = localStorage.getItem('daikome_training_consent');
-      return consent !== null;   // consent あり = ON / なし = OFF (banner pending)
-    } catch(_) {
+      return consent !== null; // consent あり = ON / なし = OFF (banner pending)
+    } catch (_) {
       return false;
     }
   }
   let _enabled = _initEnabledState();
-  let _accelBuffer = [];   // [{x, y, z}] (sliding window・最大 WINDOW_SAMPLES)
-  let _gyroBuffer = [];    // [{a, b, g}] (任意・最大 WINDOW_SAMPLES)
+  const _accelBuffer = []; // [{x, y, z}] (sliding window・最大 WINDOW_SAMPLES)
+  const _gyroBuffer = []; // [{a, b, g}] (任意・最大 WINDOW_SAMPLES)
   let _lastSampleT = 0;
   let _motionListenerAdded = false;
-  let _stats = {
-    sampled: 0, saved: 0,
-    skipped_disabled: 0, skipped_not_ready: 0,
-    skipped_accuracy: 0, skipped_speed: 0,
-    skipped_stationary: 0, skipped_no_window: 0,
-    evicted: 0, errors: 0,
+  const _stats = {
+    sampled: 0,
+    saved: 0,
+    skipped_disabled: 0,
+    skipped_not_ready: 0,
+    skipped_accuracy: 0,
+    skipped_speed: 0,
+    skipped_stationary: 0,
+    skipped_no_window: 0,
+    evicted: 0,
+    errors: 0,
   };
 
   // 匿名 deviceId (localStorage 永続)
@@ -91,7 +96,7 @@ const TrainingCollector = (() => {
       }
       _deviceId = id;
       return id;
-    } catch(e) {
+    } catch (e) {
       _deviceId = _generateUuid();
       return _deviceId;
     }
@@ -101,28 +106,32 @@ const TrainingCollector = (() => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
   }
 
   // IndexedDB 初期化
   function _openDb() {
-    return new Promise(function(resolve, reject) {
+    return new Promise(function (resolve, reject) {
       if (typeof indexedDB === 'undefined') {
         return reject(new Error('IndexedDB not supported'));
       }
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = function(e) {
+      req.onupgradeneeded = function (e) {
         const db = e.target.result;
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
         }
       };
-      req.onsuccess = function(e) { resolve(e.target.result); };
-      req.onerror = function() { reject(new Error('IndexedDB open err')); };
+      req.onsuccess = function (e) {
+        resolve(e.target.result);
+      };
+      req.onerror = function () {
+        reject(new Error('IndexedDB open err'));
+      };
     });
   }
 
@@ -130,7 +139,7 @@ const TrainingCollector = (() => {
     if (_ready) return Promise.resolve(true);
     _initTime = Date.now();
     return _openDb()
-      .then(function(db) {
+      .then(function (db) {
         _db = db;
         _ready = true;
         _addMotionListener();
@@ -139,7 +148,7 @@ const TrainingCollector = (() => {
         }
         return true;
       })
-      .catch(function(err) {
+      .catch(function (err) {
         _stats.errors++;
         if (typeof dlog === 'function') {
           dlog('[TrainingCollector] init err: ' + err.message);
@@ -178,8 +187,14 @@ const TrainingCollector = (() => {
   // meter.js update() から GPS 更新ごとに呼ばれる
   // 条件を満たせば 1 サンプル保存
   function collectIfEligible(gpsResult) {
-    if (!_enabled) { _stats.skipped_disabled++; return; }
-    if (!_ready || !_db) { _stats.skipped_not_ready++; return; }
+    if (!_enabled) {
+      _stats.skipped_disabled++;
+      return;
+    }
+    if (!_ready || !_db) {
+      _stats.skipped_not_ready++;
+      return;
+    }
     if (!gpsResult || typeof gpsResult.speedKmh !== 'number') return;
     if (gpsResult.accuracy != null && gpsResult.accuracy > MIN_ACCURACY_M) {
       _stats.skipped_accuracy++;
@@ -201,7 +216,7 @@ const TrainingCollector = (() => {
     const accel = new Float32Array(WINDOW_SAMPLES * 3);
     for (let i = 0; i < WINDOW_SAMPLES; i++) {
       const s = _accelBuffer[i];
-      accel[i * 3]     = s.x;
+      accel[i * 3] = s.x;
       accel[i * 3 + 1] = s.y;
       accel[i * 3 + 2] = s.z;
     }
@@ -211,7 +226,7 @@ const TrainingCollector = (() => {
       gyro = new Float32Array(WINDOW_SAMPLES * 3);
       for (let i = 0; i < WINDOW_SAMPLES; i++) {
         const s = _gyroBuffer[i];
-        gyro[i * 3]     = s.a;
+        gyro[i * 3] = s.a;
         gyro[i * 3 + 1] = s.b;
         gyro[i * 3 + 2] = s.g;
       }
@@ -236,15 +251,15 @@ const TrainingCollector = (() => {
       const tx = _db.transaction([STORE_NAME], 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       store.add(sample);
-      tx.oncomplete = function() {
+      tx.oncomplete = function () {
         _stats.saved++;
         // 100 件保存ごとに FIFO eviction チェック
         if (_stats.saved % 100 === 0) _evictOld();
       };
-      tx.onerror = function() {
+      tx.onerror = function () {
         _stats.errors++;
       };
-    } catch(e) {
+    } catch (e) {
       _stats.errors++;
       if (typeof dlog === 'function') {
         dlog('[TrainingCollector] save err: ' + e.message);
@@ -259,13 +274,13 @@ const TrainingCollector = (() => {
       const tx = _db.transaction([STORE_NAME], 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const countReq = store.count();
-      countReq.onsuccess = function() {
+      countReq.onsuccess = function () {
         const total = countReq.result;
         if (total <= SAMPLE_COUNT_LIMIT) return;
         const toDelete = total - SAMPLE_COUNT_LIMIT;
         const cur = store.openCursor();
         let deleted = 0;
-        cur.onsuccess = function(e) {
+        cur.onsuccess = function (e) {
           const c = e.target.result;
           if (!c || deleted >= toDelete) return;
           c.delete();
@@ -274,7 +289,7 @@ const TrainingCollector = (() => {
           c.continue();
         };
       };
-    } catch(e) {
+    } catch (e) {
       _stats.errors++;
     }
   }
@@ -289,13 +304,17 @@ const TrainingCollector = (() => {
   // Phase 3 で設定画面トグルから呼ばれる・localStorage に永続化
   function setEnabled(enabled) {
     _enabled = !!enabled;
-    try { localStorage.setItem('daikome_training_enabled', String(_enabled)); } catch(_){}
+    try {
+      localStorage.setItem('daikome_training_enabled', String(_enabled));
+    } catch (_) {}
     if (typeof dlog === 'function') {
       dlog('[TrainingCollector] enabled=' + _enabled);
     }
   }
 
-  function getEnabled() { return _enabled; }
+  function getEnabled() {
+    return _enabled;
+  }
 
   // Phase 3 (2026-05-10): バナー OK / 設定画面トグル後に呼ばれる
   //   localStorage の最新値で _enabled を再初期化
@@ -308,21 +327,23 @@ const TrainingCollector = (() => {
 
   // 設定画面の「過去データを削除」ボタンから呼ばれる
   function deleteAll() {
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       if (!_db) return resolve();
       try {
         const tx = _db.transaction([STORE_NAME], 'readwrite');
         const store = tx.objectStore(STORE_NAME);
         store.clear();
-        tx.oncomplete = function() {
+        tx.oncomplete = function () {
           _stats.evicted += _stats.saved;
           if (typeof dlog === 'function') {
             dlog('[TrainingCollector] deleteAll OK');
           }
           resolve();
         };
-        tx.onerror = function() { resolve(); };
-      } catch(e) {
+        tx.onerror = function () {
+          resolve();
+        };
+      } catch (e) {
         resolve();
       }
     });
@@ -340,15 +361,19 @@ const TrainingCollector = (() => {
 
   // 蓄積件数を取得 (Promise)
   function getCount() {
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       if (!_db) return resolve(0);
       try {
         const tx = _db.transaction([STORE_NAME], 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const req = store.count();
-        req.onsuccess = function() { resolve(req.result || 0); };
-        req.onerror = function() { resolve(0); };
-      } catch(e) {
+        req.onsuccess = function () {
+          resolve(req.result || 0);
+        };
+        req.onerror = function () {
+          resolve(0);
+        };
+      } catch (e) {
         resolve(0);
       }
     });
@@ -358,14 +383,14 @@ const TrainingCollector = (() => {
   //   maxCount 件まで古い順 (id ascending) に読み出す
   //   id を含めて返す (deleteUpToId で再利用)
   function readBatch(maxCount) {
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       if (!_db) return resolve([]);
       try {
         const tx = _db.transaction([STORE_NAME], 'readonly');
         const store = tx.objectStore(STORE_NAME);
         const samples = [];
         const cur = store.openCursor();
-        cur.onsuccess = function(e) {
+        cur.onsuccess = function (e) {
           const c = e.target.result;
           if (!c || samples.length >= maxCount) {
             resolve(samples);
@@ -374,8 +399,10 @@ const TrainingCollector = (() => {
           samples.push(c.value);
           c.continue();
         };
-        cur.onerror = function() { resolve(samples); };
-      } catch(e) {
+        cur.onerror = function () {
+          resolve(samples);
+        };
+      } catch (e) {
         resolve([]);
       }
     });
@@ -384,7 +411,7 @@ const TrainingCollector = (() => {
   // Phase 2.B (2026-05-10): 送信完了後の削除
   //   id <= maxId のレコードを全削除
   function deleteUpToId(maxId) {
-    return new Promise(function(resolve) {
+    return new Promise(function (resolve) {
       if (!_db) return resolve(0);
       try {
         const tx = _db.transaction([STORE_NAME], 'readwrite');
@@ -392,26 +419,36 @@ const TrainingCollector = (() => {
         const range = IDBKeyRange.upperBound(maxId);
         const cur = store.openCursor(range);
         let deleted = 0;
-        cur.onsuccess = function(e) {
+        cur.onsuccess = function (e) {
           const c = e.target.result;
           if (!c) return;
           c.delete();
           deleted++;
           c.continue();
         };
-        tx.oncomplete = function() { resolve(deleted); };
-        tx.onerror = function() { resolve(deleted); };
-      } catch(e) {
+        tx.oncomplete = function () {
+          resolve(deleted);
+        };
+        tx.onerror = function () {
+          resolve(deleted);
+        };
+      } catch (e) {
         resolve(0);
       }
     });
   }
 
   return {
-    init, collectIfEligible, setEnabled, getEnabled, deleteAll,
-    getStats, getCount,
+    init,
+    collectIfEligible,
+    setEnabled,
+    getEnabled,
+    deleteAll,
+    getStats,
+    getCount,
     // Phase 2.B 用
-    readBatch, deleteUpToId,
+    readBatch,
+    deleteUpToId,
     // Phase 3 用
     refreshEnabledFromStorage,
   };
@@ -421,5 +458,7 @@ const TrainingCollector = (() => {
 //   IndexedDB open は async なので _ready=false のまま collect 呼び出しは silently skip
 //   ロード時の副作用を最小化するため try-catch で完全防御
 if (typeof window !== 'undefined') {
-  try { TrainingCollector.init(); } catch(_) {}
+  try {
+    TrainingCollector.init();
+  } catch (_) {}
 }

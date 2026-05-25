@@ -1,0 +1,68 @@
+# ============================================================
+# scenarios/long-drive.yml
+# 長距離・郊外・20km 超 (= 高単価 trip・高速道路含む可能性)
+# ============================================================
+
+name: long-drive
+title: 長距離走行 (郊外・20km 超)
+description: |
+  繁華街から郊外の自宅まで 20-40km の長距離代行。
+  幹線道路 + 一般道混在・高速走行区間含む。
+  Worker B Viterbi が長時間連続稼働するケース。
+category: long-distance
+
+context:
+  trip_type: long-distance
+  location_type: suburban-or-rural
+  weather: clear
+  time_of_day: night
+  road_type:
+    - 国道・県道 (= 主幹線・速度 50-80km/h)
+    - 高速道路の可能性 (= 100km/h)
+    - 一般道 (= 終端区間)
+  duration_sec: 1800  # 30 分
+  expected_distance_m: 25000
+  expected_fare_yen: 7000  # base 1300 + ceil((25000-1000)/420)*100 = 58*100 = 5800・rounding 10 で 7100→7100
+
+gps_pattern:
+  hz: 1
+  accuracy_m: 3-10  # 郊外は GPS 精度良好
+  speed_kmh_range: [30, 100]
+  characteristics:
+    - 長時間連続走行 (= 停車少ない)
+    - 高速区間で speed_kmh ≈ 80-100
+    - 一般道区間で speed_kmh ≈ 50-60
+
+expected_events:
+  - event: tier1_commit
+    frequency: 全 step の 95%+
+    distance_path: meter.js L393
+  - event: long_continuous_segment
+    frequency: 1 回 (= 高速区間)
+    duration_sec: 1200  # 連続 20 分以上 isStationary=false
+  - event: viterbi_window_full
+    frequency: 起動後すぐ
+    description: Viterbi window (N=15) が満杯になり stable な commit を継続
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit
+  secondary: []
+  rare:
+    - meter.js L824 gap-fill  # 高速トンネル等で稀に発火
+
+verification:
+  invariants:
+    - distance_m は単調非減少
+    - 物理上限 100km/h × 1800sec / 3.6 = 50,000m を超えない
+    - fare_yen 線形増加 (= 420m ごと +¥100)
+  expected_metrics:
+    snap_rate: ">= 90%"
+    distance_source: mm
+    distance_m_min: 15000
+    distance_m_max: 40000
+
+absolute_rules_tested:
+  - "長距離でも distance_m は道路ジオメトリ準拠"
+  - "高速走行でも GPS 直線距離での課金は使われない"
+  - "fare_yen は distance_m の純粋関数 (= 高単価でも整合)"

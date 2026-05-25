@@ -22,25 +22,62 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
 const shapefile = requireGlobal('shapefile');
 
 const PREFS = {
-  hokkaido:  '01',
-  aomori:    '02', iwate:     '03', miyagi:    '04', akita:    '05', yamagata: '06', fukushima: '07',
-  ibaraki:   '08', tochigi:   '09', gunma:     '10',
-  saitama:   '11', chiba:     '12', tokyo:     '13', kanagawa:  '14',
-  niigata:   '15', toyama:    '16', ishikawa:  '17', fukui:     '18',
-  yamanashi: '19', nagano:    '20', gifu:      '21', shizuoka:  '22', aichi:    '23',
-  mie:       '24', shiga:     '25', kyoto:     '26', osaka:     '27',
-  hyogo:     '28', nara:      '29', wakayama:  '30',
-  tottori:   '31', shimane:   '32', okayama:   '33', hiroshima: '34', yamaguchi:'35',
-  tokushima: '36', kagawa:    '37', ehime:     '38', kochi:     '39',
-  fukuoka:   '40', saga:      '41', nagasaki:  '42', kumamoto:  '43',
-  oita:      '44', miyazaki:  '45', kagoshima: '46', okinawa:   '47',
+  hokkaido: '01',
+  aomori: '02',
+  iwate: '03',
+  miyagi: '04',
+  akita: '05',
+  yamagata: '06',
+  fukushima: '07',
+  ibaraki: '08',
+  tochigi: '09',
+  gunma: '10',
+  saitama: '11',
+  chiba: '12',
+  tokyo: '13',
+  kanagawa: '14',
+  niigata: '15',
+  toyama: '16',
+  ishikawa: '17',
+  fukui: '18',
+  yamanashi: '19',
+  nagano: '20',
+  gifu: '21',
+  shizuoka: '22',
+  aichi: '23',
+  mie: '24',
+  shiga: '25',
+  kyoto: '26',
+  osaka: '27',
+  hyogo: '28',
+  nara: '29',
+  wakayama: '30',
+  tottori: '31',
+  shimane: '32',
+  okayama: '33',
+  hiroshima: '34',
+  yamaguchi: '35',
+  tokushima: '36',
+  kagawa: '37',
+  ehime: '38',
+  kochi: '39',
+  fukuoka: '40',
+  saga: '41',
+  nagasaki: '42',
+  kumamoto: '43',
+  oita: '44',
+  miyazaki: '45',
+  kagoshima: '46',
+  okinawa: '47',
 };
 
 const PREF = process.argv[2];
@@ -57,9 +94,9 @@ fs.mkdirSync(INPUT_DIR, { recursive: true });
 fs.mkdirSync(RAW_DIR, { recursive: true });
 
 const UA = { 'User-Agent': 'Daikou-app-test/0.1 (zeroact24.729@outlook.com)' };
-const TOLERANCE_M = 30;        // 道路マッチング許容距離
+const TOLERANCE_M = 30; // 道路マッチング許容距離
 const PRECISION = 1e5;
-const GRID_INT = 1000;         // grid cell = 0.01 deg
+const GRID_INT = 1000; // grid cell = 0.01 deg
 
 async function fetchBuffer(url, timeoutMs = 600000, init) {
   const ctrl = new AbortController();
@@ -68,13 +105,18 @@ async function fetchBuffer(url, timeoutMs = 600000, init) {
     const res = await fetch(url, { signal: ctrl.signal, headers: UA, ...init });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return Buffer.from(await res.arrayBuffer());
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 function unzipTo(zipPath, dir) {
   fs.mkdirSync(dir, { recursive: true });
-  try { execSync(`unzip -o "${zipPath}" -d "${dir}"`, { stdio: 'pipe' }); }
-  catch (e) { if (e.status > 1) throw e; }
+  try {
+    execSync(`unzip -o "${zipPath}" -d "${dir}"`, { stdio: 'pipe' });
+  } catch (e) {
+    if (e.status > 1) throw e;
+  }
 }
 
 function findFiles(dir, pattern) {
@@ -97,9 +139,9 @@ async function fetchN10() {
     console.log(`  DL: ${url}`);
     const buf = await fetchBuffer(url);
     fs.writeFileSync(zipPath, buf);
-    console.log(`  saved (${(buf.length/1024).toFixed(1)} KB)`);
+    console.log(`  saved (${(buf.length / 1024).toFixed(1)} KB)`);
   } else {
-    console.log(`  cache: ${fname} (${(fs.statSync(zipPath).size/1024).toFixed(1)} KB)`);
+    console.log(`  cache: ${fname} (${(fs.statSync(zipPath).size / 1024).toFixed(1)} KB)`);
   }
   const extractDir = path.join(RAW_DIR, `N10-24_${PCODE}_GML`);
   unzipTo(zipPath, extractDir);
@@ -126,7 +168,7 @@ async function fetchN10() {
 // ─── Step 2: Overpass hazard=school_zone ────────────────────────────
 async function fetchSchoolZones(bbox) {
   // bbox は roads-{pref}.js の bbox (1e5 int) → 度に変換
-  const [minLat, minLng, maxLat, maxLng] = bbox.map(v => v / PRECISION);
+  const [minLat, minLng, maxLat, maxLng] = bbox.map((v) => v / PRECISION);
   // hazard=school_zone と zone:traffic=school 両方拾う (OSM タグ揺れ対策)
   const q = `[out:json][timeout:180];
 (
@@ -165,7 +207,7 @@ function osmToFeatures(elements) {
   const features = [];
   for (const e of elements) {
     if (e.type === 'way' && Array.isArray(e.geometry)) {
-      const coords = e.geometry.map(p => [p.lon, p.lat]);
+      const coords = e.geometry.map((p) => [p.lon, p.lat]);
       if (coords.length < 3) continue;
       // first/last が同じなら polygon 扱い、違えば line 扱い
       features.push({
@@ -177,7 +219,7 @@ function osmToFeatures(elements) {
       // 簡易: 各 way member を独立 polygon として追加
       for (const m of e.members) {
         if (m.type !== 'way' || !Array.isArray(m.geometry)) continue;
-        const coords = m.geometry.map(p => [p.lon, p.lat]);
+        const coords = m.geometry.map((p) => [p.lon, p.lat]);
         if (coords.length < 3) continue;
         features.push({
           type: 'Feature',
@@ -192,7 +234,8 @@ function osmToFeatures(elements) {
 
 // ─── Step 3: roads-{pref}.js decoder ────────────────────────────────
 function readVarint(buf, pos) {
-  let n = 0, shift = 0;
+  let n = 0,
+    shift = 0;
   while (true) {
     const b = buf[pos++];
     n |= (b & 0x7f) << shift;
@@ -201,7 +244,9 @@ function readVarint(buf, pos) {
   }
   return [n, pos];
 }
-function zigzagDecode(n) { return (n >>> 1) ^ -(n & 1); }
+function zigzagDecode(n) {
+  return (n >>> 1) ^ -(n & 1);
+}
 function readSignedVarint(buf, pos) {
   const [n, p] = readVarint(buf, pos);
   return [zigzagDecode(n), p];
@@ -214,24 +259,34 @@ function decodeRoadsJs(jsPath) {
   if (!m) throw new Error(`window.X = {...}; パターン抽出失敗: ${jsPath}`);
   // 評価 (JS としての文字列連結含む)
   // eslint-disable-next-line no-new-func
-  const obj = (new Function(`"use strict"; return ${m[1]};`))();
+  const obj = new Function(`"use strict"; return ${m[1]};`)();
   const buf = Buffer.from(obj.roadsB64, 'base64');
   const numRoads = obj.numRoads;
   let pos = 0;
   const roads = new Array(numRoads);
   for (let i = 0; i < numRoads; i++) {
-    const bitmap = buf.readUInt16LE(pos); pos += 2;
-    let n; [n, pos] = readVarint(buf, pos);
+    const bitmap = buf.readUInt16LE(pos);
+    pos += 2;
+    let n;
+    [n, pos] = readVarint(buf, pos);
     const numPts = n;
     const points = new Array(numPts);
-    if (numPts === 0) { roads[i] = { idx: i, bitmap, points }; continue; }
-    let [lat, p1] = readSignedVarint(buf, pos); pos = p1;
-    let [lng, p2] = readSignedVarint(buf, pos); pos = p2;
+    if (numPts === 0) {
+      roads[i] = { idx: i, bitmap, points };
+      continue;
+    }
+    let [lat, p1] = readSignedVarint(buf, pos);
+    pos = p1;
+    let [lng, p2] = readSignedVarint(buf, pos);
+    pos = p2;
     points[0] = [lat, lng];
     for (let j = 1; j < numPts; j++) {
-      let [dLat, q1] = readSignedVarint(buf, pos); pos = q1;
-      let [dLng, q2] = readSignedVarint(buf, pos); pos = q2;
-      lat += dLat; lng += dLng;
+      let [dLat, q1] = readSignedVarint(buf, pos);
+      pos = q1;
+      let [dLng, q2] = readSignedVarint(buf, pos);
+      pos = q2;
+      lat += dLat;
+      lng += dLng;
       points[j] = [lat, lng];
     }
     roads[i] = { idx: i, bitmap, points };
@@ -244,7 +299,10 @@ function buildRoadGrid(roads) {
   const grid = new Map();
   function add(key, idx) {
     let arr = grid.get(key);
-    if (!arr) { arr = []; grid.set(key, arr); }
+    if (!arr) {
+      arr = [];
+      grid.set(key, arr);
+    }
     arr.push(idx);
   }
   for (const r of roads) {
@@ -255,9 +313,9 @@ function buildRoadGrid(roads) {
       const gx = Math.floor(pts[i][1] / GRID_INT);
       seen.add(gy + '_' + gx);
       if (i < pts.length - 1) {
-        const dy = pts[i+1][0] - pts[i][0];
-        const dx = pts[i+1][1] - pts[i][1];
-        const dist = Math.sqrt(dy*dy + dx*dx);
+        const dy = pts[i + 1][0] - pts[i][0];
+        const dx = pts[i + 1][1] - pts[i][1];
+        const dist = Math.sqrt(dy * dy + dx * dx);
         const numSamples = Math.ceil(dist / (GRID_INT / 4));
         for (let s = 1; s < numSamples; s++) {
           const t = s / numSamples;
@@ -276,17 +334,22 @@ function buildRoadGrid(roads) {
 
 // 1e5 整数座標での点-線分距離 2 乗 (近似 Euclid)
 function ptSegDist2(px, py, ax, ay, bx, by) {
-  const dx = bx - ax, dy = by - ay;
-  const len2 = dx*dx + dy*dy;
+  const dx = bx - ax,
+    dy = by - ay;
+  const len2 = dx * dx + dy * dy;
   if (len2 === 0) {
-    const ex = px - ax, ey = py - ay;
-    return ex*ex + ey*ey;
+    const ex = px - ax,
+      ey = py - ay;
+    return ex * ex + ey * ey;
   }
   let t = ((px - ax) * dx + (py - ay) * dy) / len2;
-  if (t < 0) t = 0; else if (t > 1) t = 1;
-  const cx = ax + dx * t, cy = ay + dy * t;
-  const ex = px - cx, ey = py - cy;
-  return ex*ex + ey*ey;
+  if (t < 0) t = 0;
+  else if (t > 1) t = 1;
+  const cx = ax + dx * t,
+    cy = ay + dy * t;
+  const ex = px - cx,
+    ey = py - cy;
+  return ex * ex + ey * ey;
 }
 
 // 1e5 整数距離平方 → メートル
@@ -305,20 +368,23 @@ function intDist2ToM(d2, latI) {
 function ptSegDist2LatLng(latP, lngP, latA, lngA, latB, lngB, cosLat) {
   // 1e5 int → 度 → m へ. latI = lat * 1e5 → lat度. m差分: dy_m = (lat - latRef)*1e5_unit → 1e5 unit = 0.00001 deg = 1.11m
   // 簡易: 1 int unit = 1.11 m (lat方向), 1.11*cosLat m (lng方向). m^2 で扱う.
-  const M_PER_INT_LAT = 1.11;             // 1 int (=0.00001 deg) ≈ 1.11 m
+  const M_PER_INT_LAT = 1.11; // 1 int (=0.00001 deg) ≈ 1.11 m
   const M_PER_INT_LNG = 1.11 * cosLat;
   const ax = (lngA - lngP) * M_PER_INT_LNG;
   const ay = (latA - latP) * M_PER_INT_LAT;
   const bx = (lngB - lngP) * M_PER_INT_LNG;
   const by = (latB - latP) * M_PER_INT_LAT;
   // 点 P を原点とした座標系で線分 (A,B) との距離 2 乗
-  const dx = bx - ax, dy = by - ay;
-  const len2 = dx*dx + dy*dy;
-  if (len2 === 0) return ax*ax + ay*ay;
+  const dx = bx - ax,
+    dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return ax * ax + ay * ay;
   let t = (-ax * dx - ay * dy) / len2;
-  if (t < 0) t = 0; else if (t > 1) t = 1;
-  const cx = ax + dx * t, cy = ay + dy * t;
-  return cx*cx + cy*cy;
+  if (t < 0) t = 0;
+  else if (t > 1) t = 1;
+  const cx = ax + dx * t,
+    cy = ay + dy * t;
+  return cx * cx + cy * cy;
 }
 
 function nearestRoadsForLine(coords, grid, roads, toleranceM) {
@@ -329,7 +395,7 @@ function nearestRoadsForLine(coords, grid, roads, toleranceM) {
   for (let i = 0; i < coords.length; i++) {
     const [lng1, lat1] = coords[i];
     const next = coords[i + 1];
-    const cosLat = Math.cos(lat1 * Math.PI / 180);
+    const cosLat = Math.cos((lat1 * Math.PI) / 180);
     const lat1I = Math.round(lat1 * PRECISION);
     const lng1I = Math.round(lng1 * PRECISION);
     samplePoint(lat1I, lng1I, cosLat);
@@ -339,11 +405,11 @@ function nearestRoadsForLine(coords, grid, roads, toleranceM) {
       const lng2I = Math.round(lng2 * PRECISION);
       const dy = lat2I - lat1I;
       const dx = lng2I - lng1I;
-      const dist = Math.sqrt(dy*dy + dx*dx);
+      const dist = Math.sqrt(dy * dy + dx * dx);
       const numSamples = Math.ceil(dist / (GRID_INT / 4));
       for (let s = 1; s < numSamples; s++) {
         const t = s / numSamples;
-        samplePoint(Math.round(lat1I + dy*t), Math.round(lng1I + dx*t), cosLat);
+        samplePoint(Math.round(lat1I + dy * t), Math.round(lng1I + dx * t), cosLat);
       }
     }
   }
@@ -353,7 +419,7 @@ function nearestRoadsForLine(coords, grid, roads, toleranceM) {
     const candidates = new Set();
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
-        const cell = grid.get((gy + dy) + '_' + (gx + dx));
+        const cell = grid.get(gy + dy + '_' + (gx + dx));
         if (cell) for (const idx of cell) candidates.add(idx);
       }
     }
@@ -363,7 +429,15 @@ function nearestRoadsForLine(coords, grid, roads, toleranceM) {
       const pts = r.points;
       let minD2 = Infinity;
       for (let i = 0; i < pts.length - 1; i++) {
-        const d2 = ptSegDist2LatLng(latI, lngI, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1], cosLat);
+        const d2 = ptSegDist2LatLng(
+          latI,
+          lngI,
+          pts[i][0],
+          pts[i][1],
+          pts[i + 1][0],
+          pts[i + 1][1],
+          cosLat
+        );
         if (d2 < minD2) minD2 = d2;
         if (minD2 <= tol2) break;
       }
@@ -433,7 +507,9 @@ function nearestRoadsForPolygon(rings, grid, roads, toleranceM) {
       }
     }
   }
-  console.log(`  emergency matched: ${emergencyIdx.size} / ${decoded.roads.length} (${(Date.now()-tStart)/1000|0}s)`);
+  console.log(
+    `  emergency matched: ${emergencyIdx.size} / ${decoded.roads.length} (${((Date.now() - tStart) / 1000) | 0}s)`
+  );
 
   const schoolIdx = new Set();
   for (const f of schoolFeatures) {
@@ -453,19 +529,31 @@ function nearestRoadsForPolygon(rings, grid, roads, toleranceM) {
   // ⑤ output GeoJSON with roadIndices
   const emergencyOut = {
     type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: { roadIndices: [...emergencyIdx].sort((a,b) => a-b), source: 'KSJ N10-24', count: emergencyIdx.size },
-      geometry: { type: 'GeometryCollection', geometries: [] },
-    }],
+    features: [
+      {
+        type: 'Feature',
+        properties: {
+          roadIndices: [...emergencyIdx].sort((a, b) => a - b),
+          source: 'KSJ N10-24',
+          count: emergencyIdx.size,
+        },
+        geometry: { type: 'GeometryCollection', geometries: [] },
+      },
+    ],
   };
   const schoolOut = {
     type: 'FeatureCollection',
-    features: [{
-      type: 'Feature',
-      properties: { roadIndices: [...schoolIdx].sort((a,b) => a-b), source: 'OSM hazard=school_zone', count: schoolIdx.size },
-      geometry: { type: 'GeometryCollection', geometries: [] },
-    }],
+    features: [
+      {
+        type: 'Feature',
+        properties: {
+          roadIndices: [...schoolIdx].sort((a, b) => a - b),
+          source: 'OSM hazard=school_zone',
+          count: schoolIdx.size,
+        },
+        geometry: { type: 'GeometryCollection', geometries: [] },
+      },
+    ],
   };
   const emergencyPath = path.join(INPUT_DIR, 'emergency.geojson');
   const schoolPath = path.join(INPUT_DIR, 'school.geojson');
@@ -474,8 +562,13 @@ function nearestRoadsForPolygon(rings, grid, roads, toleranceM) {
 
   // ⑥ build-road-attrs.js を呼ぶ
   console.log('[6/6] build-road-attrs.js 呼出');
-  execSync(`node "${path.join(__dirname, 'build-road-attrs.js')}" ${PREF} "${emergencyPath}" "${schoolPath}"`,
-    { stdio: 'inherit' });
+  execSync(
+    `node "${path.join(__dirname, 'build-road-attrs.js')}" ${PREF} "${emergencyPath}" "${schoolPath}"`,
+    { stdio: 'inherit' }
+  );
 
-  console.log(`✅ ${PREF} 完了 (${((Date.now()-t0)/1000).toFixed(1)}s)`);
-})().catch(e => { console.error('FATAL:', e.stack || e); process.exit(1); });
+  console.log(`✅ ${PREF} 完了 (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+})().catch((e) => {
+  console.error('FATAL:', e.stack || e);
+  process.exit(1);
+});

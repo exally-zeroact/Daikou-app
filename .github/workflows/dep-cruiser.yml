@@ -1,0 +1,27 @@
+# Dependency Cruiser (2026-05-17 新規・Stage 1 Step E)
+# 循環依存 / 解決不能 import / 孤立モジュール を CI で検出
+# 設定: dependency-cruiser.config.mjs
+name: Dependency Cruiser
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  dep-cruiser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run dependency-cruiser
+        run: npx dependency-cruiser --config dependency-cruiser.config.mjs js/ scripts/zeroact-test-commons/

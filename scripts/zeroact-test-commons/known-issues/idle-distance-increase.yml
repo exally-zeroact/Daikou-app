@@ -1,0 +1,60 @@
+# ============================================================
+# known-issues/idle-distance-increase.yml
+# idle 中 business_distance_m 増加事象
+# ============================================================
+
+issue_id: KI-004
+title: idle (空車・代行未受託) 中の business_distance_m 増加
+category: state-machine
+
+discovered_date: 2026-05-17
+commit_fixed: cd68ecd6 (= warmup retry timing bug + idle 中 business_distance_m 増加修正)
+status: 解消済
+
+root_cause:
+  description: |
+    state.running === false (= 空車・待機中) でも
+    各 distance 加算経路で business_distance_m が更新されていた。
+    GPS jitter (= 数 cm) も累積され「動かしていないのに業務距離が増える」事象。
+  detailed_path_analysis:
+    - meter.js L392 Tier1 commit: business_distance_m += m.mmIncrementM
+      → 旧設計では state.running 問わず加算
+    - meter.js L460 retroactive: business_distance_m += _haverAccumSinceLastCommit
+      → 旧設計では同上
+    - meter.js L821 gap fill: business_distance_m += filled
+      → 旧設計では同上
+    - meter.js L839 Off-Road: business_distance_m += inc
+      → 旧設計では同上
+  why_undetected:
+    - distance_m (= 課金根拠) は元から running ガード適用済で気付かれず
+    - business_distance_m は内部表示用で運転手が普段見ない
+    - GPS jitter は数 cm レベルで気付きにくい
+
+impact:
+  severity: 中 (= 課金には影響しないが業務集計が信頼不能)
+  symptoms:
+    - 待機中なのに business_distance_m が 10-100m 累積
+    - 1 夜の終わりに「実際の走行距離より多い」業務距離が記録
+    - 統計分析時のノイズ (= AI 学習データ汚染リスク)
+  business_consequence:
+    - 業務距離ベースの分析が不正確
+    - 「空車中も距離が増える」運転手の不信感
+
+how_detected:
+  detection_method: 実車テスト + 司さん観察
+  symptoms_observed:
+    - 業務開始 (= running=false 状態) でアプリ起動・5 分待機
+    - business_distance_m が 0 ではなく数十 m に到達
+
+prevention:
+  fix_applied:
+    - 全 5 経路 (L392/L460/L821/L839 + L1181 setBusinessDistance) に
+      `if (state.running)` ガード追加 (commit cd68ecd6・2026-05-17)
+    - ★設計変更宣言として明示 (= 旧 / 新 動作の差を comment 記載)
+  regression_protection:
+    - tests/property/distance-m-update-paths.test.js C1 (= 5 経路 verify)
+    - Semgrep rule (= distance-m-no-gps-line.yml) は distance_m のみ対象だが
+      同等の business_distance_m 用 rule を追加検討 (将来)
+  references:
+    - bug-patterns/billing-guard.yml (BILL-GUARD-001)
+    - memory: distance_m 更新 5 経路 verified line numbers

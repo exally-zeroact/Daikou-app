@@ -18,7 +18,9 @@ const { execSync } = require('child_process');
 const u = require('./bundle-utils.js');
 
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
@@ -29,19 +31,19 @@ const PROJECT_ROOT = path.join(__dirname, '..');
 const TMP = path.join(PROJECT_ROOT, 'tmp');
 const OUT = path.join(PROJECT_ROOT, 'data', 'coastline-jp.js');
 
-const REGIONS = ['hokkaido','tohoku','kanto','chubu','kansai','chugoku','shikoku','kyushu'];
+const REGIONS = ['hokkaido', 'tohoku', 'kanto', 'chubu', 'kansai', 'chugoku', 'shikoku', 'kyushu'];
 
 // Overpass フォールバック用 bbox [south, west, north, east]
 // Geofabrik 地方区分を概ねカバー。重複は wayId で重複排除する。
 const REGION_BBOX = {
-  hokkaido: [41.30, 139.30, 45.70, 146.10],
-  tohoku:   [36.70, 138.70, 41.65, 142.20],
-  kanto:    [34.50, 138.40, 37.30, 141.10],
-  chubu:    [33.40, 135.50, 38.40, 140.00],
-  kansai:   [33.30, 133.90, 36.50, 136.80],
-  chugoku:  [33.60, 130.70, 36.00, 134.60],
-  shikoku:  [32.50, 131.90, 34.80, 134.90],
-  kyushu:   [24.00, 122.80, 34.90, 132.40], // 沖縄含む
+  hokkaido: [41.3, 139.3, 45.7, 146.1],
+  tohoku: [36.7, 138.7, 41.65, 142.2],
+  kanto: [34.5, 138.4, 37.3, 141.1],
+  chubu: [33.4, 135.5, 38.4, 140.0],
+  kansai: [33.3, 133.9, 36.5, 136.8],
+  chugoku: [33.6, 130.7, 36.0, 134.6],
+  shikoku: [32.5, 131.9, 34.8, 134.9],
+  kyushu: [24.0, 122.8, 34.9, 132.4], // 沖縄含む
 };
 
 const PBF_OK_BYTES = 50 * 1024 * 1024; // <50MB なら部分DLとみなしフォールバック
@@ -54,21 +56,31 @@ const OVERPASS_ENDPOINTS = [
 
 // ---- Douglas-Peucker ----
 function pointLineDist(p, a, b) {
-  const dx = b[0] - a[0], dy = b[1] - a[1];
-  if (dx === 0 && dy === 0) return Math.hypot(p[0]-a[0], p[1]-a[1]);
-  const t = Math.max(0, Math.min(1, ((p[0]-a[0])*dx + (p[1]-a[1])*dy) / (dx*dx + dy*dy)));
-  return Math.hypot(p[0]-(a[0]+t*dx), p[1]-(a[1]+t*dy));
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  if (dx === 0 && dy === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  const t = Math.max(
+    0,
+    Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy))
+  );
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 function douglasPeucker(pts, tol) {
   if (pts.length < 3) return pts;
-  let maxD = 0, maxIdx = 0;
-  const a = pts[0], b = pts[pts.length-1];
+  let maxD = 0,
+    maxIdx = 0;
+  const a = pts[0],
+    b = pts[pts.length - 1];
   for (let i = 1; i < pts.length - 1; i++) {
     const d = pointLineDist(pts[i], a, b);
-    if (d > maxD) { maxD = d; maxIdx = i; }
+    if (d > maxD) {
+      maxD = d;
+      maxIdx = i;
+    }
   }
   if (maxD > tol) {
-    return douglasPeucker(pts.slice(0, maxIdx+1), tol).slice(0,-1)
+    return douglasPeucker(pts.slice(0, maxIdx + 1), tol)
+      .slice(0, -1)
       .concat(douglasPeucker(pts.slice(maxIdx), tol));
   }
   return [a, b];
@@ -84,15 +96,20 @@ async function extractFromPbf(pbfPath) {
   await new Promise((resolve, reject) => {
     fs.createReadStream(pbfPath)
       .pipe(parseOsmPbf())
-      .pipe(through.obj((items, _enc, next) => {
-        for (const item of items) {
-          if (item.type === 'way' && item.tags && item.tags.natural === 'coastline') {
-            coastlineWays.push({ id: item.id, refs: item.refs });
-            for (const id of item.refs) neededNodes.add(id);
-          }
-        }
-        next();
-      }, () => resolve()))
+      .pipe(
+        through.obj(
+          (items, _enc, next) => {
+            for (const item of items) {
+              if (item.type === 'way' && item.tags && item.tags.natural === 'coastline') {
+                coastlineWays.push({ id: item.id, refs: item.refs });
+                for (const id of item.refs) neededNodes.add(id);
+              }
+            }
+            next();
+          },
+          () => resolve()
+        )
+      )
       .on('error', reject);
   });
 
@@ -103,14 +120,19 @@ async function extractFromPbf(pbfPath) {
   await new Promise((resolve, reject) => {
     fs.createReadStream(pbfPath)
       .pipe(parseOsmPbf())
-      .pipe(through.obj((items, _enc, next) => {
-        for (const item of items) {
-          if (item.type === 'node' && neededNodes.has(item.id)) {
-            nodeMap.set(item.id, [item.lon, item.lat]);
-          }
-        }
-        next();
-      }, () => resolve()))
+      .pipe(
+        through.obj(
+          (items, _enc, next) => {
+            for (const item of items) {
+              if (item.type === 'node' && neededNodes.has(item.id)) {
+                nodeMap.set(item.id, [item.lon, item.lat]);
+              }
+            }
+            next();
+          },
+          () => resolve()
+        )
+      )
       .on('error', reject);
   });
 
@@ -142,13 +164,18 @@ async function fetchOverpass(bbox) {
         const res = await fetch(ep, {
           method: 'POST',
           signal: ctrl.signal,
-          headers: { 'User-Agent': 'Daikou-app-test/0.1', 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            'User-Agent': 'Daikou-app-test/0.1',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
           body: 'data=' + encodeURIComponent(query),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
         const json = await res.json();
         return json;
-      } finally { clearTimeout(t); }
+      } finally {
+        clearTimeout(t);
+      }
     } catch (err) {
       console.log(`    overpass ${ep} 失敗: ${err.message}, 次のミラーへ`);
       lastErr = err;
@@ -160,21 +187,23 @@ async function fetchOverpass(bbox) {
 async function extractFromOverpass(region, bbox) {
   const cachePath = path.join(TMP, `coastline-overpass-${region}.json`);
   let json;
-  if (fs.existsSync(cachePath) && (Date.now() - fs.statSync(cachePath).mtimeMs) < 7 * 86400000) {
+  if (fs.existsSync(cachePath) && Date.now() - fs.statSync(cachePath).mtimeMs < 7 * 86400000) {
     console.log(`    overpass cache: ${path.basename(cachePath)}`);
     json = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
   } else {
     console.log(`    overpass query: bbox=[${bbox.join(',')}]`);
     const t0 = Date.now();
     json = await fetchOverpass(bbox);
-    console.log(`    overpass got ${(json.elements || []).length} elements / ${((Date.now()-t0)/1000).toFixed(1)}s`);
+    console.log(
+      `    overpass got ${(json.elements || []).length} elements / ${((Date.now() - t0) / 1000).toFixed(1)}s`
+    );
     fs.mkdirSync(TMP, { recursive: true });
     fs.writeFileSync(cachePath, JSON.stringify(json));
   }
   const ways = [];
-  for (const el of (json.elements || [])) {
+  for (const el of json.elements || []) {
     if (el.type !== 'way' || !el.geometry) continue;
-    const coords = el.geometry.map(g => [g.lon, g.lat]);
+    const coords = el.geometry.map((g) => [g.lon, g.lat]);
     if (coords.length >= 2) ways.push({ id: el.id, coords });
   }
   return ways;
@@ -194,9 +223,11 @@ async function extractFromOverpass(region, bbox) {
     if (hasPbf) {
       try {
         const t0 = Date.now();
-        console.log(`  PBF parse (${(fs.statSync(pbfPath).size/1024/1024).toFixed(1)} MB)`);
+        console.log(`  PBF parse (${(fs.statSync(pbfPath).size / 1024 / 1024).toFixed(1)} MB)`);
         ways = await extractFromPbf(pbfPath);
-        console.log(`  PBF: ${ways.length} coastline ways / ${((Date.now()-t0)/1000).toFixed(1)}s`);
+        console.log(
+          `  PBF: ${ways.length} coastline ways / ${((Date.now() - t0) / 1000).toFixed(1)}s`
+        );
       } catch (err) {
         console.log(`  PBF parse 失敗: ${err.message}, Overpass フォールバック`);
         ways = [];
@@ -214,18 +245,28 @@ async function extractFromOverpass(region, bbox) {
       }
     }
 
-    let totalBefore = 0, totalAfter = 0, dup = 0;
+    let totalBefore = 0,
+      totalAfter = 0,
+      dup = 0;
     for (const w of ways) {
-      if (seenWayIds.has(w.id)) { dup++; continue; }
+      if (seenWayIds.has(w.id)) {
+        dup++;
+        continue;
+      }
       seenWayIds.add(w.id);
       totalBefore += w.coords.length;
       const simp = douglasPeucker(w.coords, TOL_DEG);
       totalAfter += simp.length;
-      const intPts = simp.map(([lng, lat]) => [Math.round(lat*u.PRECISION), Math.round(lng*u.PRECISION)]);
+      const intPts = simp.map(([lng, lat]) => [
+        Math.round(lat * u.PRECISION),
+        Math.round(lng * u.PRECISION),
+      ]);
       allLines.push(intPts);
     }
     if (ways.length) {
-      console.log(`  pts: ${totalBefore.toLocaleString()} → ${totalAfter.toLocaleString()} (削減 ${(100-(100*totalAfter/Math.max(1,totalBefore))).toFixed(1)}% / 重複way ${dup})`);
+      console.log(
+        `  pts: ${totalBefore.toLocaleString()} → ${totalAfter.toLocaleString()} (削減 ${(100 - (100 * totalAfter) / Math.max(1, totalBefore)).toFixed(1)}% / 重複way ${dup})`
+      );
     }
   }
 
@@ -238,17 +279,20 @@ async function extractFromOverpass(region, bbox) {
 
   const grid = {};
   const linesB64 = allLines.map((pts, idx) => {
-    const mid = pts[Math.floor(pts.length/2)];
+    const mid = pts[Math.floor(pts.length / 2)];
     const k = u.gridKey(mid[0], mid[1]);
     (grid[k] ||= []).push(idx);
     return u.encodeLineB64(pts);
   });
 
   let bbox = [Infinity, Infinity, -Infinity, -Infinity];
-  for (const pts of allLines) for (const [lat, lng] of pts) {
-    if (lat<bbox[0]) bbox[0]=lat; if (lng<bbox[1]) bbox[1]=lng;
-    if (lat>bbox[2]) bbox[2]=lat; if (lng>bbox[3]) bbox[3]=lng;
-  }
+  for (const pts of allLines)
+    for (const [lat, lng] of pts) {
+      if (lat < bbox[0]) bbox[0] = lat;
+      if (lng < bbox[1]) bbox[1] = lng;
+      if (lat > bbox[2]) bbox[2] = lat;
+      if (lng > bbox[3]) bbox[3] = lng;
+    }
 
   const data = {
     v: 1,
@@ -266,5 +310,8 @@ async function extractFromOverpass(region, bbox) {
     `// PBF（Geofabrik / openstreetmap.fr）＋ Overpass API・Douglas-Peucker 50m 簡略化`,
     `// 全国 ${allLines.length} ライン`,
   ]);
-  console.log(`✅ ${OUT}  lines=${allLines.length} size=${(size/1024).toFixed(2)} KB`);
-})().catch(e => { console.error('FATAL:', e); process.exit(1); });
+  console.log(`✅ ${OUT}  lines=${allLines.length} size=${(size / 1024).toFixed(2)} KB`);
+})().catch((e) => {
+  console.error('FATAL:', e);
+  process.exit(1);
+});

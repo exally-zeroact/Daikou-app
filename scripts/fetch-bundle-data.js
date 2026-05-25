@@ -16,25 +16,25 @@ const { execFileSync } = require('child_process');
 const PROJECT_ROOT = path.join(__dirname, '..');
 const SCRIPTS = [
   // [スクリプトファイル名, 出力ファイル, ティア]
-  ['build-bundle-misc-jp.js',              'misc-jp.js',              'Tier1'],
-  ['build-bundle-coarse-jp.js',            'coarse-jp.js',            'Tier1'],
-  ['build-bundle-pref-borders-jp.js',      'pref-borders-jp.js',      'Tier1'],
-  ['build-bundle-shelters-jp.js',          'shelters-jp.js',          'Tier1'],
+  ['build-bundle-misc-jp.js', 'misc-jp.js', 'Tier1'],
+  ['build-bundle-coarse-jp.js', 'coarse-jp.js', 'Tier1'],
+  ['build-bundle-pref-borders-jp.js', 'pref-borders-jp.js', 'Tier1'],
+  ['build-bundle-shelters-jp.js', 'shelters-jp.js', 'Tier1'],
   ['build-bundle-emergency-medical-jp.js', 'emergency-medical-jp.js', 'Tier1'],
-  ['build-bundle-highways-jp.js',          'highways-jp.js',          'Tier1'],
-  ['build-bundle-stations-jp.js',          'stations-jp.js',          'Tier1'],
-  ['build-bundle-faults-jp.js',            'faults-jp.js',            'Tier2'],
-  ['build-bundle-night-clinics-jp.js',     'night-clinics-jp.js',     'Tier2'],
-  ['build-bundle-airports-jp.js',          'airports-jp.js',          'Tier2'],
-  ['build-bundle-michinoeki-jp.js',        'michinoeki-jp.js',        'Tier2'],
-  ['build-bundle-coastline-jp.js',         'coastline-jp.js',         'Tier2'],
-  ['build-bundle-ports-jp.js',             'ports-jp.js',             'Tier2'],
+  ['build-bundle-highways-jp.js', 'highways-jp.js', 'Tier1'],
+  ['build-bundle-stations-jp.js', 'stations-jp.js', 'Tier1'],
+  ['build-bundle-faults-jp.js', 'faults-jp.js', 'Tier2'],
+  ['build-bundle-night-clinics-jp.js', 'night-clinics-jp.js', 'Tier2'],
+  ['build-bundle-airports-jp.js', 'airports-jp.js', 'Tier2'],
+  ['build-bundle-michinoeki-jp.js', 'michinoeki-jp.js', 'Tier2'],
+  ['build-bundle-coastline-jp.js', 'coastline-jp.js', 'Tier2'],
+  ['build-bundle-ports-jp.js', 'ports-jp.js', 'Tier2'],
 ];
 
 // CLI オプション
 const args = process.argv.slice(2);
 const skipCoarse = args.includes('--skip-coarse');
-const onlyArg = args.find(a => a.startsWith('--only='));
+const onlyArg = args.find((a) => a.startsWith('--only='));
 const only = onlyArg ? onlyArg.slice(7).split(',') : null;
 
 console.log('=========================================');
@@ -51,7 +51,7 @@ for (const [script, outputFile, tier] of SCRIPTS) {
     console.log(`\n⏭️  ${script}（--skip-coarse でスキップ）`);
     continue;
   }
-  if (only && !only.some(name => script.includes(name) || outputFile.includes(name))) {
+  if (only && !only.some((name) => script.includes(name) || outputFile.includes(name))) {
     continue;
   }
 
@@ -59,7 +59,9 @@ for (const [script, outputFile, tier] of SCRIPTS) {
   const t0 = Date.now();
   try {
     const stdout = execFileSync('node', [path.join(__dirname, script)], {
-      cwd: PROJECT_ROOT, encoding: 'utf8', maxBuffer: 50 * 1024 * 1024,
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+      maxBuffer: 50 * 1024 * 1024,
     });
     process.stdout.write(stdout);
     const outPath = path.join(PROJECT_ROOT, 'data', outputFile);
@@ -69,11 +71,27 @@ for (const [script, outputFile, tier] of SCRIPTS) {
       results.push({ script, output: outputFile, tier, size, elapsed, ok: true });
       totalKB += size / 1024;
     } else {
-      results.push({ script, output: outputFile, tier, size: 0, elapsed: '?', ok: false, reason: 'no output' });
+      results.push({
+        script,
+        output: outputFile,
+        tier,
+        size: 0,
+        elapsed: '?',
+        ok: false,
+        reason: 'no output',
+      });
     }
   } catch (e) {
     console.error(`❌ ${script} 失敗: ${e.message}`);
-    results.push({ script, output: outputFile, tier, size: 0, elapsed: '?', ok: false, reason: e.message });
+    results.push({
+      script,
+      output: outputFile,
+      tier,
+      size: 0,
+      elapsed: '?',
+      ok: false,
+      reason: e.message,
+    });
   }
 }
 
@@ -89,9 +107,11 @@ console.log('Tier  | File                          | Size       | Elapsed | Stat
 console.log('------+-------------------------------+------------+---------+--------');
 for (const r of results) {
   const st = r.ok ? '✅' : '❌';
-  const sz = r.size ? `${(r.size/1024).toFixed(1)} KB` : '0';
-  console.log(`${r.tier.padEnd(5)} | ${r.output.padEnd(29)} | ${sz.padStart(10)} | ${r.elapsed.padStart(6)}s | ${st}`);
+  const sz = r.size ? `${(r.size / 1024).toFixed(1)} KB` : '0';
+  console.log(
+    `${r.tier.padEnd(5)} | ${r.output.padEnd(29)} | ${sz.padStart(10)} | ${r.elapsed.padStart(6)}s | ${st}`
+  );
 }
 console.log('------+-------------------------------+------------+---------+--------');
-console.log(`合計サイズ: ${(totalKB/1024).toFixed(2)} MB`);
-console.log(`成功: ${results.filter(r => r.ok).length} / ${results.length}`);
+console.log(`合計サイズ: ${(totalKB / 1024).toFixed(2)} MB`);
+console.log(`成功: ${results.filter((r) => r.ok).length} / ${results.length}`);

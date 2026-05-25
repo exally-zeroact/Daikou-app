@@ -1,0 +1,59 @@
+# ============================================================
+# known-issues/region-loader-dead.yml
+# RegionLoader 欠落・Tier 3 dead code 化
+# ============================================================
+
+issue_id: KI-005
+title: RegionLoader 永続的 undefined・Tier 3 inline snap dead code
+category: dead-code
+
+discovered_date: 2026-05 中旬 (Stage 0 構造診断で発見)
+commit_fixed: 2d3eae9a (= RegionLoader 完全撤去・Tier 3 廃止・calculateGapFill 簡素化)
+status: 解消済 (= 235 行削除)
+
+root_cause:
+  description: |
+    RegionLoader (= 47 県 roads の lazy load layer・region-loader.js) が
+    別 Phase で撤去予定だったが、meter.js / index.html 側の参照が残っていた。
+    `typeof RegionLoader !== 'undefined'` のガードで safe にはなっていたが
+    永続的に false 評価 (= undefined) で `Tier 3 inline snap` 経路が dead code。
+    calculateGapFill 内の tunnel/bridge ポリライン距離考慮も dead。
+  detailed_dead_paths:
+    - Tier 3 inline snap (= mmHealthy=false 時の fallback)
+      → mmHealthy 必ず true 評価で永遠に走らない
+    - calculateGapFill の RegionLoader.findTunnelByPosition / findNearestBridge
+      → typeof undefined ガードで永遠に else 分岐
+    - prevSnap 初期化用の _inlineSnapAndIncrement
+      → 初回 GPS step での呼出経路あったが no-op で素通し
+  detection_lag: 数週間 (= RegionLoader 関連 commit から発見まで)
+
+impact:
+  severity: 低 (= 機能影響なし・但しコード重量増)
+  symptoms:
+    - 235 行の dead code が meter.js / index.html に残存
+    - 新規開発者が「Tier 3 が何か」分からなくなる読解負荷
+    - 静的解析ツール (= knip) が大量 warn を出力
+  business_consequence:
+    - なし (= 機能には影響しない)
+    - 但しコード理解の妨げ・将来バグ温床
+
+how_detected:
+  detection_method: Stage 0 構造診断 (= 読込専用調査)
+  symptoms_observed:
+    - typeof RegionLoader !== 'undefined' のガード後ブロックが grep で多数 hit
+    - 該当ブロックが実機で実行されている形跡なし (= dlog 出力ゼロ)
+    - audit:knip で関連関数が orphan 報告
+
+prevention:
+  fix_applied:
+    - RegionLoader 全参照削除 (= meter.js / index.html / mm-data-pipeline.js)
+    - Tier 3 inline snap 経路完全撤去
+    - calculateGapFill 簡素化 (= prevLat/prevLng/compassHeading 引数削除)
+    - ★設計変更宣言として comment 記載 (= meter.js L800 / L849 / L856)
+  regression_protection:
+    - tests/property/distance-m-update-paths.test.js C1 (= 5 経路のみ verify)
+    - 削除によって distance_m 更新経路が増えていない (= drift 検知)
+    - tests/replay-mm.js baseline DER < 0.5% 維持確認済
+  references:
+    - bug-patterns/worker-race.yml (= 関連 dead handler 群)
+    - memory: 「Tier 3 廃止 (2d3eae9a)」確定設計事項

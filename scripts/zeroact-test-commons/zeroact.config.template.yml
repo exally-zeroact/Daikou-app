@@ -1,0 +1,145 @@
+# ============================================================
+# zeroact.config.<project>.yml テンプレート (2026-05-18 新規)
+#
+# 用途:
+#   ZEROact 合同会社の全プロジェクト (daikome / exally / imabari-ai / 新規) で
+#   テスト基盤の PJ 固有設定を表現する標準フォーマット。
+#
+# 使用方法:
+#   1. 本ファイルをコピー: cp zeroact.config.template.yml zeroact.config.<project>.yml
+#   2. project セクション + critical_* セクションを実プロジェクトに合わせて編集
+#   3. node scripts/zeroact-test-commons/init-project.js
+#      --config zeroact.config.<project>.yml --apply
+#
+# 配置場所:
+#   ダイコメ実体: プロジェクト root (= zeroact.config.daikome.yml)
+#   他 PJ 雛形:  scripts/zeroact-test-commons/configs/zeroact.config.<project>.yml
+#
+# 関連ファイル:
+#   audit-handlers.config.js (Stage 0): postMessage 接続 audit 専用 (= 別役割・併存)
+#   glossary.yml (Stage 2):              用語集 + 概念定義 (= 人間/AI 用・併存)
+# ============================================================
+
+project:
+  name: ""           # 例: daikome / exally / imabari-ai
+  language: ""       # javascript / typescript
+  type: ""           # pwa / nextjs / vanilla-js / nodejs / mobile / cli / library
+                     # → scripts/zeroact-test-commons/configs/project-types.yml で定義
+
+# ─── critical_variables (= テスト対象の中核・絶対不可侵な値) ──────
+
+critical_variables:
+  # PJ ごとに「これが壊れたら業務が止まる」値を列挙する
+  #
+  # 例 ダイコメ:
+  #   - name: distance_m
+  #     role: 課金根拠
+  #     forbidden_modification: 5 経路以外での書込
+  # 例 Exally:
+  #   - name: HyperFormula._hf
+  #     role: 数式エンジン instance
+  #     forbidden_modification: re-init せず内容書換
+  # 例 今治AI:
+  #   - name: llm_response_validated
+  #     role: zod schema 検証済 LLM 応答
+  #     forbidden_modification: schema 検証 bypass
+
+# ─── dangerous_sources (= 直接呼ぶと絶対ルール違反候補) ────────────
+
+dangerous_sources:
+  # taint analysis (= Semgrep rule) の source として登録する関数 / pattern
+  #
+  # 例 ダイコメ:
+  #   - GPS.calcDistance / GPS.calcDistance3D (= GPS 直線距離・道路ジオメトリ非依存)
+  # 例 Exally:
+  #   - eval / new Function / new RegExp(user_input) (= 動的コード評価)
+  # 例 今治AI:
+  #   - Anthropic / OpenAI API response (= zod 検証なし使用)
+  #   - process.env.*_API_KEY (= client bundle 流入)
+
+# ─── critical_paths (= テスト対象の重要ファイル列挙) ──────────────
+
+critical_paths:
+  # 「ここのコードを触る時は必ず関連テストが走る」ファイル群
+  #
+  # 例 ダイコメ:
+  #   - js/meter.js (= distance_m 5 経路)
+  #   - js/gps.js (= dangerous_sources 含む)
+  #   - js/gps-worker.js (= Worker A)
+  #   - js/map-matcher.js (= Worker B)
+  # 例 Exally:
+  #   - book.html (= canvas-grid + inline canvas-formula-engine)
+  #   - exally-formula.js (= 96 関数独自実装)
+  #   - api/claude.js (= Vercel Function)
+  # 例 今治AI:
+  #   - src/api/**/*.ts
+  #   - src/llm-client/**/*.ts
+
+# ─── external_io_boundaries (= E2E mock すべき外部境界) ───────────
+
+external_io_boundaries:
+  # property/e2e test で実 fetch / 実 API を呼ばず mock する境界
+  # MSW handler で stub する対象
+  #
+  # 例 ダイコメ:
+  #   - navigator.geolocation (= GPS chain 入口)
+  #   - Firebase Realtime Database (= pheromone データ)
+  # 例 Exally:
+  #   - fetch('/api/claude') (= Vercel Function 呼出)
+  #   - localStorage (= 数式 / シート保存)
+  # 例 今治AI:
+  #   - fetch('/api/llm') (= Vercel Function)
+  #   - 認証 endpoint
+
+# ─── absolute_rules (= PJ 固有絶対ルール・Semgrep rule と連動) ───
+
+absolute_rules:
+  # ルール ID と Semgrep yml ファイルの対応
+  # 例:
+  #   - id: R_no_gps_straight_line
+  #     description: GPS 直線距離での課金禁止
+  #     semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/<project>/distance-m-no-gps-line.yml
+  #   - id: R_no_eval
+  #     description: eval / new Function 禁止
+  #     semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/<project>/cell-no-eval.yml
+  #   - id: R_llm_schema_validate
+  #     description: LLM 応答は必ず zod schema 検証
+  #     semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/<project>/llm-response-schema-validate.yml
+
+# ─── test_thresholds (= 各ツールの推奨閾値・PJ ごとに調整可) ──────
+
+test_thresholds:
+  stryker:
+    high: 80          # mutation score 高評価ライン (%)
+    low: 60           # mutation score 低評価ライン (%)
+    break: null       # 数値設定で score 下回り CI fail (= 厳格化したい時)
+  lighthouse:
+    performance: 0.7   # warn 閾値 (= 70%)
+    accessibility: 0.9
+    best-practices: 0.8
+    seo: 0.9
+    pwa-installable: 0.9   # categories:pwa 廃止後の individual audit
+    pwa-service-worker: 0.9
+  knip:
+    mode: warn-only    # 'error' (= 未使用 export で CI fail) or 'warn-only'
+  dep-cruiser:
+    no-circular: error
+    no-orphans: warn
+    no-unresolvable: error
+  semgrep:
+    severity: ERROR    # 全 rule の default severity (= rule 内で override 可)
+  fast-check:
+    numRuns: 100       # property test の random input 数 (= 多いほど厳格)
+
+# ─── ai_review (= AI 駆動レビュー設定) ───────────────────────────
+
+ai_review:
+  enabled: true
+  models:
+    primary: "anthropic/claude-haiku-4-5-20251001"
+    fallback: "anthropic/claude-sonnet-4-5-20250929"
+    judge: "gemini-2.5-flash"   # llm-as-judge 用
+  trigger_paths:                # ai-review.yml の paths filter
+    - "js/**"                   # 例 ダイコメ
+    # - "src/**"                # 例 nextjs / vanilla-js
+    # - "**/*.ts"               # 例 typescript

@@ -1,0 +1,129 @@
+# Nightly chaos test (= 全 E2E + 全 property を schedule で連続実行)
+# Stage 5 (2026-05-18 新規)
+#
+# トリガー: schedule daily 0 時 JST (= UTC 15:00 前日)
+# 内容:
+#   ・npm run test:e2e (= 全 14 e2e spec・--retries=2 で flaky 吸収)
+#   ・npm run test:property (= 全 property test)
+#   ・結果を GitHub Actions Summary に出力
+
+name: Chaos test
+
+on:
+  schedule:
+    # 毎日 JST 0:00 (= UTC 15:00 前日)
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+
+jobs:
+  chaos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run property tests
+        id: property
+        run: |
+          npm run test:property 2>&1 | tee property.log
+          echo "property_status=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Run E2E tests
+        id: e2e
+        run: |
+          npx playwright test --retries=2 2>&1 | tee e2e.log
+          echo "e2e_status=$?" >> "$GITHUB_OUTPUT"
+        env:
+          CI: true
+        continue-on-error: true
+
+      - name: Write summary
+        if: always()
+        run: |
+          {
+            echo "## 🌙 Nightly Chaos Test Summary"
+            echo ""
+            echo "**Property tests:** \`${{ steps.property.outcome }}\`"
+            echo ""
+            echo "**E2E tests:** \`${{ steps.e2e.outcome }}\`"
+            echo ""
+            echo "### Property output (tail)"
+            echo '```'
+            tail -40 property.log 2>/dev/null || echo "(no output)"
+            echo '```'
+            echo ""
+            echo "### E2E output (tail)"
+            echo '```'
+            tail -40 e2e.log 2>/dev/null || echo "(no output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ─── P14 (2026-05-18): llm-as-judge.js を呼出して仕様合致判定 ──
+      # property tests + replay-mm の結果を Gemini Flash に判定させる。
+      # GEMINI_API_KEY 未設定時は llm-as-judge.js が exit 1 で skip (= continue-on-error)
+      - name: Run replay-mm for judge input
+        id: replay
+        run: |
+          npm run test:replay 2>&1 | tee replay.log
+        continue-on-error: true
+
+      - name: Run LLM as judge
+        id: judge
+        if: steps.replay.outcome == 'success'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TEST_RESULT_PATH: data/test-results/latest.json
+        run: node scripts/zeroact-test-commons/ai/llm-as-judge.js
+        continue-on-error: true
+
+      - name: Append judge summary
+        if: always() && steps.judge.conclusion != 'skipped'
+        run: |
+          if [ -f judge_result.json ]; then
+            {
+              echo ""
+              echo "## 🧑‍⚖️ LLM as Judge"
+              echo ""
+              echo "**Outcome:** \`${{ steps.judge.outcome }}\`"
+              echo ""
+              echo '```json'
+              cat judge_result.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo ""
+              echo "## 🧑‍⚖️ LLM as Judge"
+              echo "judge_result.json was not produced (= GEMINI_API_KEY 未設定 or fetch fail)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaos-artifacts
+          path: |
+            property.log
+            e2e.log
+            replay.log
+            judge_result.json
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Fail if any failed
+        if: steps.property.outcome != 'success' || steps.e2e.outcome != 'success'
+        run: exit 1

@@ -1,0 +1,84 @@
+# ============================================================
+# scenarios/mountain-road.yml
+# 山道・低速・急カーブ (= snap miss 多発・Off-Road Mode 起動可能性)
+# ============================================================
+
+name: mountain-road
+title: 山道走行 (低速・急カーブ・snap miss 多発)
+description: |
+  山間部の private road / 林道 / 旧道など OSM 整備不十分な区間。
+  Worker B Viterbi snap miss が連続発生し Off-Road Mode が起動するケース。
+  ★絶対ルール適用外区間として GPS polyline 積み上げで課金続行。
+category: offroad-test
+
+context:
+  trip_type: snap-miss-test
+  location_type: mountain-rural
+  weather: clear
+  time_of_day: night
+  road_type:
+    - 山道 (= OSM 未整備な区間混在)
+    - 急カーブ (= R=30m 未満)
+    - 私道・林道 (= OSM 不在 → snap miss)
+  duration_sec: 900  # 15 分
+  expected_distance_m: 8000
+
+gps_pattern:
+  hz: 1
+  accuracy_m: 8-25  # 山間は GPS 精度低下傾向
+  speed_kmh_range: [10, 50]
+  characteristics:
+    - 急カーブで speed_kmh ≈ 15-25 (= ハンドル切り増し)
+    - 直線部で speed_kmh ≈ 40-50
+    - OSM 不整備区間で snap miss 連続
+
+expected_events:
+  - event: snap_miss_start
+    timing: 60-120 sec (= 私道進入)
+    description: Worker B Viterbi が snap 失敗
+  - event: consecutive_snap_miss_5
+    timing: 65-125 sec
+    threshold: OFFROAD_SNAP_MISS_THRESHOLD=5
+    consequence: _offRoadActive = true (meter.js L450)
+  - event: offroad_retroactive_fire
+    timing: 125 sec (= Off-Road 起動瞬間)
+    distance_path: meter.js L462
+    formula: state.distance_m += _haverAccumSinceLastCommit (起動前 buffer)
+    sanitizer: ★絶対ルール適用外区間（retroactive）
+  - event: offroad_incremental_continuous
+    timing: 125-300 sec
+    distance_path: meter.js L842
+    formula: state.distance_m += _calculateOffRoadIncrement (GPS polyline)
+    sanitizer: ★絶対ルール適用外区間（明示宣言）
+    constraints:
+      - isStationary=true で加算しない
+      - accuracy > 50m で加算しない
+      - 160 km/h × dtSec + 5m を超えたら skip
+  - event: snap_recovery
+    timing: 300-900 sec
+    description: OSM 整備区間に戻る → snap 復帰 → Tier1 commit 再開
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit       (= snap 成功区間)
+    - meter.js L842 offroad-incremental (= snap miss 区間)
+  secondary:
+    - meter.js L462 offroad-retroactive (= Off-Road 起動瞬間に 1 回)
+  not_expected: []
+
+verification:
+  invariants:
+    - distance_m は単調非減少
+    - Off-Road 区間の加算は ★絶対ルール適用外区間 sanitizer 通過のみ
+    - distanceSource が時系列で mm → offroad → mm に遷移
+  expected_metrics:
+    snap_rate: "60-80%"  # snap miss あり
+    offroad_count: ">= 1"
+    distance_source_distribution:
+      mm: 65%
+      offroad: 35%
+
+absolute_rules_tested:
+  - "OSM 不整備区間でも課金継続 (= 業務継続性最優先)"
+  - "Off-Road は ★絶対ルール適用外区間 sanitizer で明示宣言済"
+  - "GPS polyline 積み上げ (= 短区間 haversine) は GPS 直線距離 (出発→到着) とは異なる"

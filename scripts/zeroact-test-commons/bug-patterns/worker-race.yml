@@ -1,0 +1,77 @@
+# ============================================================
+# bug-patterns/worker-race.yml
+# Worker 競合状態・postMessage 順序依存バグ
+# ============================================================
+
+pattern_id: WORKER-RACE-001
+title: Web Worker postMessage 順序依存・dead handler / orphan sender バグ
+category: concurrency
+
+description: |
+  Web Worker と main thread / Worker 同士の postMessage における
+  メッセージ順序依存・handler 未配線 (dead) / 送信元未実装 (orphan) バグ。
+  Daikome のような 2-Worker 構成 (Worker A = GPS / Worker B = MapMatcher) では
+  並列メッセージ受信の順序が結果に影響する可能性が常に存在。
+
+real_world_example:
+  - source: V8 / Chrome blog "Off-main-thread events" (2019)
+    issue: 複数 Worker からの postMessage が main thread の event loop で
+            想定外順序になり state machine が崩れる
+    consequence: race condition によるデータ不整合
+  - source: Stripe Engineering "Idempotency for distributed messaging" (2021)
+    issue: postMessage 経由の payment confirmation 順序が決済結果と逆転
+    consequence: 二重請求事故
+    fix: idempotency key + sequence number ベースの順序保証
+  - source: Daikome 内部レポート (Stage 0)
+    issue: configPlatform handler が Worker B に存在するが main 送信なし
+    consequence: iOS でも N=15 起動 (= 本来 N=10) で初回 commit ラグ 16 秒
+    fix: index.html L4502 で _mmWorker.postMessage 追加 (2026-05-18・commit 6b0eab5e)
+
+how_it_manifests:
+  symptoms:
+    - Worker 起動初期に commit が走らない (= 初期化メッセージ未受信)
+    - 期待 message を受信しないまま timeout
+    - 再起動後に handler 失効 (= addEventListener 漏れ)
+    - 「動くときと動かないときがある」(= timing 依存の flaky test)
+  log_indicators:
+    - "[MM] worker B 起動・Meter 注入完了" 後に commit が来ない
+    - getMm7Stats response timeout
+    - audit-message-handlers で dead handler / orphan sender 検出
+
+daikome_risk:
+  severity: 中 (= 数秒のラグだが体感悪化)
+  channels:
+    - main → Worker B (mm-worker-b): meter.js / index.html / mm-data-pipeline.js
+    - main → Worker A (gps-worker-a): gps.js
+  existing_protections:
+    - audit-message-handlers.js で send / receive set 差分検証 (= 自動 audit)
+    - audit-handlers.config.js で allowDeadHandlers 一覧管理
+    - Worker B 再起動時に Meter.setMapMatcher 再注入 (= state 引継ぎ)
+  known_dead_handlers:
+    - configDebug   (= 実機 dlog ON/OFF 切替未配線・動作影響なし)
+    - configOsrm    (= OSRM endpoint 動的切替未実装)
+    - loadEmergencyAttrs (= D3 緊急輸送道路未配線)
+    - updateCrossUserPheromone (= Firebase 由来・呼出経路なし)
+  past_fixes:
+    - configPlatform: 2026-05-18 commit 6b0eab5e で配線完了
+
+detection_method:
+  static_analysis:
+    - audit-message-handlers.js (= scripts/zeroact-test-commons/)
+    - command: npm run audit:handlers
+    - exit 0: dead/orphan 0 件 or allowlist 内
+    - exit 1: 想定外 dead/orphan 検出
+  property_test:
+    - 該当なし (= concurrency は静的解析向き)
+  monitoring:
+    - dlog: "[MM] worker B {init/再起動}・Meter 注入完了"
+    - getMm7Stats response 観測
+
+test_scenario_ref:
+  - scenarios/multi-trip.yml  (= Worker B 再起動と trip 跨ぎの整合性)
+
+prevention:
+  - audit:handlers を CI で常時実行 (= 新規 dead/orphan 検出)
+  - postMessage の type フィールドを正規表現で grep 可能な形に統一
+  - dynamic msgType (= entry.msgType 等) は extraSenders に明示登録
+  - Worker init / 再起動 の両経路で必須 setup を実行 (= configPlatform 例)

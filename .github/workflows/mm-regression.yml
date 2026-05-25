@@ -113,32 +113,11 @@ jobs:
               });
             }
 
-      - name: Commit updated latest.json (push to main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add data/test-results/latest.json data/test-results/history.json
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "chore(test-results): update from CI [skip ci]"
-          # auto-version.yml が並走して sw.js を先に push してくる race を吸収する
-          # rebase + retry 3 回で競合を解消する (本 commit は data/test-results/ のみ
-          # 触るため auto-version.yml の sw.js commit と衝突しない)
-          # 同じ test 結果 JSON を別 run が先に push した場合の conflict は
-          # CI 側 (本 run) の新しい値を採用する: --strategy-option=theirs
-          # (rebase 中の "theirs" = rebase されている側 = 本 run の commit)
-          for i in 1 2 3; do
-            if git pull --rebase --strategy-option=theirs origin main && git push; then
-              echo "push ok on attempt $i"
-              exit 0
-            fi
-            echo "attempt $i failed, retrying after backoff..."
-            # rebase が壊れたまま終わった場合は abort して clean state に戻す
-            git rebase --abort 2>/dev/null || true
-            sleep $((5 * i))
-          done
-          echo "push failed after 3 attempts"
-          exit 1
+      # ★設計変更宣言 (2026-05-22・X3・test-results auto-commit 廃止):
+      #   旧: data/test-results/{latest,history}.json を・main に force-commit + push
+      #   問題: .gitignore line 50 で除外しているのに・CI が・force-commit するため
+      #         ローカル push と・CI auto-commit が・race (= 本 セッションで X1/X2 push
+      #         共に・1 回ずつ reject + merge 必要だった)
+      #   修正: commit step 削除・artifact (= 上記 Upload latest.json artifact step) のみで・retain
+      #   影響なし: compare-baseline.js / generate-pr-report.js は・同 run 内・新生成
+      #             latest.json を読む (= main repo 過去版 を・読む箇所 ゼロ)

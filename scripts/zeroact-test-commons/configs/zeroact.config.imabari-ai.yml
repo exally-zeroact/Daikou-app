@@ -1,0 +1,128 @@
+# ============================================================
+# zeroact.config.imabari-ai.yml (2026-05-18 新規・雛形)
+#
+# 今治AI (地域 AI サービス) の設定雛形。
+# 開発開始予定: 2027〜 (= memory 既記載・構想段階)
+#
+# 想定構成 (= 現時点では未確定・着手時に実コードベースで再設計):
+#   ・TypeScript + Next.js App Router (= Vercel デプロイ)
+#   ・src/api/**/*.ts (= Vercel Functions + AI SDK Gateway)
+#   ・src/llm-client/**/*.ts (= Claude / Gemini クライアント)
+#   ・zod schema 検証必須 (= LLM 応答の信頼性確保)
+#   ・region data (= 愛媛・今治の地域知識)
+# ============================================================
+
+project:
+  name: imabari-ai
+  language: typescript
+  type: nextjs
+
+critical_variables:
+  - name: llm_response_validated
+    role: zod schema 検証済 LLM 応答
+    forbidden_modification: schema 検証 bypass で raw response を使用
+
+  - name: api_response_schema (zod schema)
+    role: 全 API 応答の型保証
+    forbidden_modification: schema 緩和 (= optional 化やfallback default 値)
+
+  - name: user_session
+    role: 認証済セッション
+    forbidden_modification: server side 検証なしで信頼
+
+  - name: process.env.ANTHROPIC_API_KEY / GEMINI_API_KEY
+    role: LLM API key (= server side)
+    forbidden_modification: client bundle ('use client') への流入
+
+dangerous_sources:
+  - name: anthropic.messages.create / openai.chat.completions.create
+    description: LLM API 応答 (= 未検証で使うと hallucination / 想定外形式)
+    sanitizer: zod schema parse / validateResponse() 経由
+
+  - name: process.env.*_API_KEY
+    description: API key の client bundle 流入
+    forbidden_use: 'use client' file 内で参照
+
+  - name: user_input string
+    description: PII / プロンプトインジェクション源
+    sanitizer: PII 検出 + sanitize 経由でのみ LLM input に流す
+
+  - name: fs.readFile (region data)
+    description: 地域 data ファイル読込
+    forbidden_use: client side からの fs API 直接呼出
+
+critical_paths:
+  - src/api/**/*.ts
+  - src/llm-client/**/*.ts
+  - src/region/**/*.ts
+  - src/schemas/**/*.ts
+  - vercel.json or vercel.ts
+  - package.json
+
+external_io_boundaries:
+  - fetch('/api/llm')
+  - fetch to api.anthropic.com / generativelanguage.googleapis.com
+  - Vercel Functions
+  - Supabase / Vercel Postgres (= 認証 + 地域 data)
+
+absolute_rules:
+  - id: R_llm_schema_validate
+    description: 全 LLM 応答は zod schema parse 必須・raw response 使用禁止
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/imabari-ai/llm-response-schema-validate.yml
+    rationale: hallucination + 想定外形式での downstream 障害を防ぐ
+
+  - id: R_no_pii_to_llm
+    description: PII (個人情報) を LLM input に渡す前に sanitize 必須
+    rationale: 個人情報保護法 + LLM 学習データ漏洩リスク
+
+  - id: R_no_api_key_in_client
+    description: process.env.*_API_KEY を 'use client' 内で参照禁止
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/imabari-ai/no-api-key-in-client.yml (将来追加)
+
+  - id: R_server_side_session_validation
+    description: user_session は必ず server side で検証 (= client 信頼禁止)
+    rationale: 認証 bypass による不正アクセス防止
+
+test_thresholds:
+  stryker:
+    high: 80
+    low: 60
+    break: null
+    mutate_target: ['src/llm-client/**/*.ts', 'src/schemas/**/*.ts']
+  lighthouse:
+    performance: 0.8
+    accessibility: 0.9
+    best-practices: 0.9
+    seo: 0.9
+  knip:
+    mode: warn-only
+  dep-cruiser:
+    no-circular: error
+    no-orphans: warn
+    no-unresolvable: error
+  semgrep:
+    severity: ERROR
+    rules_path: scripts/zeroact-test-commons/semgrep-rules/imabari-ai/
+  fast-check:
+    numRuns: 100
+
+ai_review:
+  enabled: true
+  models:
+    primary: anthropic/claude-haiku-4-5-20251001
+    fallback: anthropic/claude-sonnet-4-5-20250929
+    judge: gemini-2.5-flash
+  trigger_paths:
+    - "src/**"
+    - "*.ts"
+    - "vercel.ts"
+
+observability:
+  sentry:
+    enabled: true
+    monthly_event_budget: 5000
+    billing_keywords:
+      - llm_response_validation_failed
+      - api_key_leaked
+      - pii_detected
+      - session_invalid

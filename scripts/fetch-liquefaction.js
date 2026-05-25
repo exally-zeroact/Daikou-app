@@ -29,30 +29,67 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 function requireGlobal(name) {
-  try { return require(name); } catch {}
+  try {
+    return require(name);
+  } catch {}
   const root = execSync('npm root -g', { encoding: 'utf8' }).trim();
   return require(path.join(root, name));
 }
 const pngjs = requireGlobal('pngjs');
 
 const PREFS = {
-  hokkaido:  '01',
-  aomori:    '02', iwate:     '03', miyagi:    '04', akita:    '05', yamagata: '06', fukushima: '07',
-  ibaraki:   '08', tochigi:   '09', gunma:     '10',
-  saitama:   '11', chiba:     '12', tokyo:     '13', kanagawa:  '14',
-  niigata:   '15', toyama:    '16', ishikawa:  '17', fukui:     '18',
-  yamanashi: '19', nagano:    '20', gifu:      '21', shizuoka:  '22', aichi:    '23',
-  mie:       '24', shiga:     '25', kyoto:     '26', osaka:     '27',
-  hyogo:     '28', nara:      '29', wakayama:  '30',
-  tottori:   '31', shimane:   '32', okayama:   '33', hiroshima: '34', yamaguchi:'35',
-  tokushima: '36', kagawa:    '37', ehime:     '38', kochi:     '39',
-  fukuoka:   '40', saga:      '41', nagasaki:  '42', kumamoto:  '43',
-  oita:      '44', miyazaki:  '45', kagoshima: '46', okinawa:   '47',
+  hokkaido: '01',
+  aomori: '02',
+  iwate: '03',
+  miyagi: '04',
+  akita: '05',
+  yamagata: '06',
+  fukushima: '07',
+  ibaraki: '08',
+  tochigi: '09',
+  gunma: '10',
+  saitama: '11',
+  chiba: '12',
+  tokyo: '13',
+  kanagawa: '14',
+  niigata: '15',
+  toyama: '16',
+  ishikawa: '17',
+  fukui: '18',
+  yamanashi: '19',
+  nagano: '20',
+  gifu: '21',
+  shizuoka: '22',
+  aichi: '23',
+  mie: '24',
+  shiga: '25',
+  kyoto: '26',
+  osaka: '27',
+  hyogo: '28',
+  nara: '29',
+  wakayama: '30',
+  tottori: '31',
+  shimane: '32',
+  okayama: '33',
+  hiroshima: '34',
+  yamaguchi: '35',
+  tokushima: '36',
+  kagawa: '37',
+  ehime: '38',
+  kochi: '39',
+  fukuoka: '40',
+  saga: '41',
+  nagasaki: '42',
+  kumamoto: '43',
+  oita: '44',
+  miyazaki: '45',
+  kagoshima: '46',
+  okinawa: '47',
 };
 
 const args = process.argv.slice(2);
 const PREF = args[0];
-const zoomArg = args.find(a => a.startsWith('--zoom='));
+const zoomArg = args.find((a) => a.startsWith('--zoom='));
 const ZOOM = zoomArg ? parseInt(zoomArg.slice(7), 10) : 12;
 
 if (!PREF || !PREFS[PREF]) {
@@ -78,20 +115,24 @@ function loadPrefBbox() {
   const text = fs.readFileSync(fp, 'utf8');
   const m = text.match(/"bbox":\[([^\]]+)\]/);
   if (!m) throw new Error('bbox 抽出失敗');
-  const [latMin, lngMin, latMax, lngMax] = m[1].split(',').map(s => parseInt(s, 10) / 1e5);
+  const [latMin, lngMin, latMax, lngMax] = m[1].split(',').map((s) => parseInt(s, 10) / 1e5);
   return { latMin, lngMin, latMax, lngMax };
 }
 
 // ─── tile <-> lat/lng (Mercator) ───────────────────────────────────
-function lng2tx(lng, z) { return (lng + 180) / 360 * Math.pow(2, z); }
-function lat2ty(lat, z) {
-  const r = lat * Math.PI / 180;
-  return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+function lng2tx(lng, z) {
+  return ((lng + 180) / 360) * Math.pow(2, z);
 }
-function tx2lng(tx, z) { return tx / Math.pow(2, z) * 360 - 180; }
+function lat2ty(lat, z) {
+  const r = (lat * Math.PI) / 180;
+  return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * Math.pow(2, z);
+}
+function tx2lng(tx, z) {
+  return (tx / Math.pow(2, z)) * 360 - 180;
+}
 function ty2lat(ty, z) {
-  const n = Math.PI - 2 * Math.PI * ty / Math.pow(2, z);
-  return Math.atan(Math.sinh(n)) * 180 / Math.PI;
+  const n = Math.PI - (2 * Math.PI * ty) / Math.pow(2, z);
+  return (Math.atan(Math.sinh(n)) * 180) / Math.PI;
 }
 
 // ─── 色 → rank ────────────────────────────────────────────────────
@@ -99,10 +140,10 @@ function classifyColor(r, g, b, a) {
   if (a < 200) return -1; // transparent / anti-aliased fade → skip
   // 主要色を寛容にマッチ (PNG anti-aliasing 吸収)
   const dist = (a, b, c, d, e, f) => Math.abs(a - d) + Math.abs(b - e) + Math.abs(c - f);
-  if (dist(r, g, b, 200, 0, 255)   < 30) return 3; // 紫 極めて高い
-  if (dist(r, g, b, 255, 40, 0)    < 30) return 2; // 赤 高い
-  if (dist(r, g, b, 255, 170, 0)   < 30) return 1; // 橙 やや高い
-  if (dist(r, g, b, 255, 245, 0)   < 30) return 0; // 黄 低い
+  if (dist(r, g, b, 200, 0, 255) < 30) return 3; // 紫 極めて高い
+  if (dist(r, g, b, 255, 40, 0) < 30) return 2; // 赤 高い
+  if (dist(r, g, b, 255, 170, 0) < 30) return 1; // 橙 やや高い
+  if (dist(r, g, b, 255, 245, 0) < 30) return 0; // 黄 低い
   // 灰 (対象外) は skip
   return -1;
 }
@@ -110,7 +151,7 @@ function classifyColor(r, g, b, a) {
 // ─── タイル DL (キャッシュあり) ─────────────────────────────────────
 async function fetchTile(z, x, y) {
   const cachePath = path.join(TILE_CACHE, `${x}_${y}.png`);
-  const missMark  = path.join(TILE_CACHE, `${x}_${y}.miss`);
+  const missMark = path.join(TILE_CACHE, `${x}_${y}.miss`);
   if (fs.existsSync(cachePath)) {
     return fs.readFileSync(cachePath);
   }
@@ -130,7 +171,9 @@ async function fetchTile(z, x, y) {
     const buf = Buffer.from(await res.arrayBuffer());
     fs.writeFileSync(cachePath, buf);
     return buf;
-  } finally { clearTimeout(t); }
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 // ─── ピクセル分類 + row-run-length 矩形抽出 ──────────────────────
@@ -138,26 +181,28 @@ async function fetchTile(z, x, y) {
 // 出力: { ranks: [{ rank, rect: [tlPx, tlPy, brPx, brPy] }] } in タイル相対 px
 function extractRectangles(pngBuffer) {
   const png = pngjs.PNG.sync.read(pngBuffer);
-  const W = png.width, H = png.height;
+  const W = png.width,
+    H = png.height;
   // ピクセル → rank マトリクス (-1 = skip)
   const m = new Int8Array(W * H);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 4;
-      m[y * W + x] = classifyColor(png.data[i], png.data[i+1], png.data[i+2], png.data[i+3]);
+      m[y * W + x] = classifyColor(png.data[i], png.data[i + 1], png.data[i + 2], png.data[i + 3]);
     }
   }
   // 行ごとに run-length → 矩形列
   const rects = [];
   for (let y = 0; y < H; y++) {
-    let runStart = -1, runRank = -1;
+    let runStart = -1,
+      runRank = -1;
     for (let x = 0; x <= W; x++) {
-      const r = (x < W) ? m[y * W + x] : -2;
+      const r = x < W ? m[y * W + x] : -2;
       if (r !== runRank) {
         if (runRank >= 0 && runStart >= 0) {
           rects.push({ rank: runRank, x0: runStart, y0: y, x1: x, y1: y + 1 });
         }
-        runStart = (r >= 0) ? x : -1;
+        runStart = r >= 0 ? x : -1;
         runRank = r;
       }
     }
@@ -172,11 +217,13 @@ function extractRectangles(pngBuffer) {
     const cur = rects[i];
     let y1 = cur.y1;
     let j = i + 1;
-    while (j < rects.length &&
-           rects[j].rank === cur.rank &&
-           rects[j].x0 === cur.x0 &&
-           rects[j].x1 === cur.x1 &&
-           rects[j].y0 === y1) {
+    while (
+      j < rects.length &&
+      rects[j].rank === cur.rank &&
+      rects[j].x0 === cur.x0 &&
+      rects[j].x1 === cur.x1 &&
+      rects[j].y0 === y1
+    ) {
       y1 = rects[j].y1;
       j++;
     }
@@ -203,17 +250,23 @@ function extractRectangles(pngBuffer) {
 
   const features = [];
   const counts = [0, 0, 0, 0];
-  let dl = 0, miss = 0, withData = 0;
+  let dl = 0,
+    miss = 0,
+    withData = 0;
   for (let tx = tx0; tx <= tx1; tx++) {
     for (let ty = ty0; ty <= ty1; ty++) {
       const buf = await fetchTile(ZOOM, tx, ty);
-      if (!buf) { miss++; continue; }
+      if (!buf) {
+        miss++;
+        continue;
+      }
       dl++;
       const rects = extractRectangles(buf);
       if (rects.length === 0) continue;
       withData++;
       // 各矩形を lat/lng polygon に変換
-      const W = 256, H = 256;
+      const W = 256,
+        H = 256;
       for (const rec of rects) {
         // タイル相対 px → 世界 px → lng/lat
         const wx0 = tx * W + rec.x0;
@@ -232,9 +285,15 @@ function extractRectangles(pngBuffer) {
           properties: { rank: rec.rank, _src: '08_03_ekijoka_zenkoku' },
           geometry: {
             type: 'Polygon',
-            coordinates: [[
-              [lng0, lat0], [lng1, lat0], [lng1, lat1], [lng0, lat1], [lng0, lat0],
-            ]],
+            coordinates: [
+              [
+                [lng0, lat0],
+                [lng1, lat0],
+                [lng1, lat1],
+                [lng0, lat1],
+                [lng0, lat0],
+              ],
+            ],
           },
         });
         counts[rec.rank]++;
@@ -242,8 +301,10 @@ function extractRectangles(pngBuffer) {
     }
   }
   const tDL = Date.now() - t0;
-  console.log(`  DL: ok=${dl}  404=${miss}  withData=${withData}  (${(tDL/1000).toFixed(1)}s)`);
-  console.log(`  rect counts: rank0=${counts[0]} rank1=${counts[1]} rank2=${counts[2]} rank3=${counts[3]}  total=${features.length}`);
+  console.log(`  DL: ok=${dl}  404=${miss}  withData=${withData}  (${(tDL / 1000).toFixed(1)}s)`);
+  console.log(
+    `  rect counts: rank0=${counts[0]} rank1=${counts[1]} rank2=${counts[2]} rank3=${counts[3]}  total=${features.length}`
+  );
 
   // GeoJSON 出力
   const outGj = path.join(INPUT_DIR, 'liquefaction.geojson');
@@ -258,8 +319,12 @@ function extractRectangles(pngBuffer) {
   // ─ build-hazard.js 呼出 ─
   // build-hazard.js は liquefaction 型で properties.rank を直接読み, 属性 {r: rank} を保存する.
   console.log('  build-hazard.js liquefaction 呼出');
-  execSync(`node "${path.join(__dirname, 'build-hazard.js')}" liquefaction "${outGj}" ${PREF}`,
-    { stdio: 'inherit' });
+  execSync(`node "${path.join(__dirname, 'build-hazard.js')}" liquefaction "${outGj}" ${PREF}`, {
+    stdio: 'inherit',
+  });
 
-  console.log(`✅ ${PREF} 完了 (${((Date.now()-t0)/1000).toFixed(1)}s)`);
-})().catch(e => { console.error('FATAL:', e.stack || e); process.exit(1); });
+  console.log(`✅ ${PREF} 完了 (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+})().catch((e) => {
+  console.error('FATAL:', e.stack || e);
+  process.exit(1);
+});

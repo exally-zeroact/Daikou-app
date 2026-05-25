@@ -1,0 +1,31 @@
+# Lighthouse CI (2026-05-17 新規・Stage 1 Step E)
+# PWA / Performance / Accessibility / SEO のスコア閾値ガード
+# 設定: lighthouserc.js (warn-only・閾値違反でも fail させない・初期計測フェーズ)
+name: Lighthouse CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install chrome
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Lighthouse CI
+        run: npx @lhci/cli@0.15.x autorun
+        continue-on-error: true

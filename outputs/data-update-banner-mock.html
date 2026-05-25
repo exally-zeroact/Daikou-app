@@ -1,231 +1,387 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<meta name="theme-color" content="#007AFF">
-<title>データ更新バナー モック (ダイコメ・業務開始画面)</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-/* ============================================================
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+    <meta name="theme-color" content="#007AFF" />
+    <title>データ更新バナー モック (ダイコメ・業務開始画面)</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=DM+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ============================================================
    ダイコメ データ更新バナー モック
    - 表示画面: screenBusinessStart (= 1 日の始まり画面)
    - 業務開始ボタンを押す前にバナー表示・WiFi 接続中に更新を促す
    - フロー要素なので業務開始ボタン・appbar・時刻・bottom-nav 全て見える
    - 何も隠さない・コンテンツが自然にレイアウトされる
    ============================================================ */
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{height:100%;background:#fff;font-family:'Noto Sans JP',sans-serif;color:#1c1c1e;}
-body{display:flex;flex-direction:column;overflow:hidden;}
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        height: 100%;
+        background: #fff;
+        font-family: 'Noto Sans JP', sans-serif;
+        color: #1c1c1e;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
 
-/* appbar */
-.appbar{background:#007AFF;padding:7px 14px;padding-top:max(7px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
-.appbar-title{color:#fff;font-size:17px;font-weight:700;letter-spacing:1px;font-family:'DM Mono',monospace;}
-.appbar-gps{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.2);border-radius:20px;padding:4px 10px;color:#fff;font-size:12px;}
+      /* appbar */
+      .appbar {
+        background: #007aff;
+        padding: 7px 14px;
+        padding-top: max(7px, env(safe-area-inset-top));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+      .appbar-title {
+        color: #fff;
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        font-family: 'DM Mono', monospace;
+      }
+      .appbar-gps {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 4px 10px;
+        color: #fff;
+        font-size: 12px;
+      }
 
-/* ============================================================
+      /* ============================================================
    ★ データ更新バナー (フロー要素・appbar 直下)
    ============================================================ */
-.data-update-banner-wrap{
-  flex-shrink:0;
-  max-height:0;
-  overflow:hidden;
-  transition:max-height 0.35s ease-out;
-}
-.data-update-banner-wrap.show{
-  max-height:120px;
-}
-.data-update-banner{
-  margin:8px 12px;
-  background:#E8F4FD;
-  border:1px solid #B8D9FF;
-  border-left:4px solid #007AFF;
-  border-radius:10px;
-  padding:10px 12px;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-family:'Noto Sans JP',sans-serif;
-  font-size:13px;
-  line-height:1.5;
-  color:#1c1c1e;
-  box-shadow:0 1px 4px rgba(0,122,255,0.08);
-}
-.data-update-banner .icon{
-  font-size:18px;flex-shrink:0;color:#007AFF;line-height:1;
-}
-.data-update-banner .text{
-  flex:1;font-weight:500;color:#1c1c1e;
-}
-.data-update-banner .text strong{color:#0056B3;font-weight:700;}
-.data-update-banner .close-btn{
-  width:32px;height:32px;
-  display:flex;align-items:center;justify-content:center;
-  background:none;border:none;color:#0056B3;
-  font-size:18px;font-weight:700;cursor:pointer;border-radius:50%;
-  flex-shrink:0;-webkit-tap-highlight-color:transparent;
-}
-.data-update-banner .close-btn:active{background:rgba(0,122,255,0.08);}
-.data-update-banner.downloading .icon{animation:spin 1.2s linear infinite;display:inline-block;}
-@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
-.data-update-banner.downloading .close-btn{display:none;}
-.data-update-banner .progress-text{
-  font-family:'DM Mono',monospace;font-size:11px;color:#0056B3;font-weight:600;
-}
+      .data-update-banner-wrap {
+        flex-shrink: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.35s ease-out;
+      }
+      .data-update-banner-wrap.show {
+        max-height: 120px;
+      }
+      .data-update-banner {
+        margin: 8px 12px;
+        background: #e8f4fd;
+        border: 1px solid #b8d9ff;
+        border-left: 4px solid #007aff;
+        border-radius: 10px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #1c1c1e;
+        box-shadow: 0 1px 4px rgba(0, 122, 255, 0.08);
+      }
+      .data-update-banner .icon {
+        font-size: 18px;
+        flex-shrink: 0;
+        color: #007aff;
+        line-height: 1;
+      }
+      .data-update-banner .text {
+        flex: 1;
+        font-weight: 500;
+        color: #1c1c1e;
+      }
+      .data-update-banner .text strong {
+        color: #0056b3;
+        font-weight: 700;
+      }
+      .data-update-banner .close-btn {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: #0056b3;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        border-radius: 50%;
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .data-update-banner .close-btn:active {
+        background: rgba(0, 122, 255, 0.08);
+      }
+      .data-update-banner.downloading .icon {
+        animation: spin 1.2s linear infinite;
+        display: inline-block;
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .data-update-banner.downloading .close-btn {
+        display: none;
+      }
+      .data-update-banner .progress-text {
+        font-family: 'DM Mono', monospace;
+        font-size: 11px;
+        color: #0056b3;
+        font-weight: 600;
+      }
 
-/* ============================================================
+      /* ============================================================
    screenBusinessStart の内容 (1 日の始まり画面)
    - 日時 / [業務開始] 大ボタン / MM準備インジケータ (非表示) を中央配置
    ============================================================ */
-.screen-business-start{
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  gap:24px;
-  padding:16px;
-  padding-bottom:80px;
-  min-height:0;
-  overflow-y:auto;
-}
-.idle-datetime-line{
-  text-align:center;
-  font-size:18px;
-  color:#1c1c1e;
-  font-family:'DM Mono',monospace;
-  font-weight:600;
-}
-.btn-business-start{
-  width:80%;max-width:300px;padding:14px;
-  background:#007AFF;border:none;border-radius:12px;
-  color:#fff;font-size:15px;font-weight:700;letter-spacing:2px;
-  font-family:'Noto Sans JP',sans-serif;cursor:pointer;
-}
-.btn-business-start:active{filter:brightness(0.9);}
+      .screen-business-start {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 24px;
+        padding: 16px;
+        padding-bottom: 80px;
+        min-height: 0;
+        overflow-y: auto;
+      }
+      .idle-datetime-line {
+        text-align: center;
+        font-size: 18px;
+        color: #1c1c1e;
+        font-family: 'DM Mono', monospace;
+        font-weight: 600;
+      }
+      .btn-business-start {
+        width: 80%;
+        max-width: 300px;
+        padding: 14px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+      }
+      .btn-business-start:active {
+        filter: brightness(0.9);
+      }
 
-/* bottom-nav */
-.bottom-nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #C6C6C8;display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:100;}
-.bottom-nav .nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px;cursor:pointer;background:none;border:none;font-family:'Noto Sans JP',sans-serif;color:#8E8E93;}
-.bottom-nav .nav-item.active{color:#007AFF;}
-.bottom-nav .nav-icon{font-size:20px;line-height:1;margin-bottom:3px;font-weight:700;}
-.bottom-nav .nav-label{font-size:11px;font-weight:700;letter-spacing:0.5px;}
+      /* bottom-nav */
+      .bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #fff;
+        border-top: 1px solid #c6c6c8;
+        display: flex;
+        padding-bottom: env(safe-area-inset-bottom);
+        z-index: 100;
+      }
+      .bottom-nav .nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        cursor: pointer;
+        background: none;
+        border: none;
+        font-family: 'Noto Sans JP', sans-serif;
+        color: #8e8e93;
+      }
+      .bottom-nav .nav-item.active {
+        color: #007aff;
+      }
+      .bottom-nav .nav-icon {
+        font-size: 20px;
+        line-height: 1;
+        margin-bottom: 3px;
+        font-weight: 700;
+      }
+      .bottom-nav .nav-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
 
-/* DEMO controls (右上・小さい・控えめ) */
-.demo-controls{
-  position:fixed;
-  right:8px;top:calc(env(safe-area-inset-top) + 56px);
-  background:#fff;
-  border:1px dashed #B8D9FF;
-  border-radius:8px;
-  padding:6px;
-  font-size:10px;
-  color:#1c1c1e;
-  z-index:200;
-  display:flex;flex-direction:column;gap:3px;
-  box-shadow:0 2px 6px rgba(0,0,0,0.08);
-  opacity:0.85;
-}
-.demo-controls h3{font-size:9px;color:#0056B3;font-family:'DM Mono',monospace;letter-spacing:0.5px;margin-bottom:2px;}
-.demo-controls button{padding:4px 8px;background:#E8F4FD;border:1px solid #B8D9FF;color:#0056B3;border-radius:5px;font-size:10px;cursor:pointer;font-family:'Noto Sans JP',sans-serif;font-weight:600;text-align:left;}
-.demo-controls button:active{background:#B8D9FF;}
-</style>
-</head>
-<body>
+      /* DEMO controls (右上・小さい・控えめ) */
+      .demo-controls {
+        position: fixed;
+        right: 8px;
+        top: calc(env(safe-area-inset-top) + 56px);
+        background: #fff;
+        border: 1px dashed #b8d9ff;
+        border-radius: 8px;
+        padding: 6px;
+        font-size: 10px;
+        color: #1c1c1e;
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        opacity: 0.85;
+      }
+      .demo-controls h3 {
+        font-size: 9px;
+        color: #0056b3;
+        font-family: 'DM Mono', monospace;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+      }
+      .demo-controls button {
+        padding: 4px 8px;
+        background: #e8f4fd;
+        border: 1px solid #b8d9ff;
+        color: #0056b3;
+        border-radius: 5px;
+        font-size: 10px;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-weight: 600;
+        text-align: left;
+      }
+      .demo-controls button:active {
+        background: #b8d9ff;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- appbar -->
+    <div class="appbar">
+      <div class="appbar-title">ダイコメ</div>
+      <div class="appbar-gps">● GPS待機</div>
+    </div>
 
-<!-- appbar -->
-<div class="appbar">
-  <div class="appbar-title">ダイコメ</div>
-  <div class="appbar-gps">● GPS待機</div>
-</div>
+    <!-- ★ データ更新バナー (1 日の始まり画面で表示・appbar 直下のフロー要素) -->
+    <div class="data-update-banner-wrap show" id="bannerWrap">
+      <div class="data-update-banner" id="dataUpdateBanner" role="alert">
+        <span class="icon">📡</span>
+        <div class="text">
+          道路データが古くなっています。<strong>WiFi に繋いで</strong>更新してください。
+        </div>
+        <button class="close-btn" id="bannerClose" aria-label="閉じる">×</button>
+      </div>
+    </div>
 
-<!-- ★ データ更新バナー (1 日の始まり画面で表示・appbar 直下のフロー要素) -->
-<div class="data-update-banner-wrap show" id="bannerWrap">
-  <div class="data-update-banner" id="dataUpdateBanner" role="alert">
-    <span class="icon">📡</span>
-    <div class="text">道路データが古くなっています。<strong>WiFi に繋いで</strong>更新してください。</div>
-    <button class="close-btn" id="bannerClose" aria-label="閉じる">×</button>
-  </div>
-</div>
+    <!-- screenBusinessStart 内容 (1 日の始まり) -->
+    <div class="screen-business-start">
+      <div class="idle-datetime-line">2026年5月11日（月） 15:30</div>
+      <button class="btn-business-start">業務開始</button>
+    </div>
 
-<!-- screenBusinessStart 内容 (1 日の始まり) -->
-<div class="screen-business-start">
-  <div class="idle-datetime-line">2026年5月11日（月） 15:30</div>
-  <button class="btn-business-start">業務開始</button>
-</div>
+    <!-- DEMO controls -->
+    <div class="demo-controls">
+      <h3>DEMO</h3>
+      <button onclick="showBanner()">表示</button>
+      <button onclick="hideBanner()">閉じる</button>
+      <button onclick="startDownload()">WiFi → DL</button>
+      <button onclick="finishDownload()">完了</button>
+    </div>
 
-<!-- DEMO controls -->
-<div class="demo-controls">
-  <h3>DEMO</h3>
-  <button onclick="showBanner()">表示</button>
-  <button onclick="hideBanner()">閉じる</button>
-  <button onclick="startDownload()">WiFi → DL</button>
-  <button onclick="finishDownload()">完了</button>
-</div>
+    <!-- bottom-nav -->
+    <nav class="bottom-nav">
+      <button class="nav-item active">
+        <span class="nav-icon">●</span><span class="nav-label">業務</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">≡</span><span class="nav-label">履歴</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">?</span><span class="nav-label">使い方</span>
+      </button>
+      <button class="nav-item">
+        <span class="nav-icon">⚙</span><span class="nav-label">設定</span>
+      </button>
+    </nav>
 
-<!-- bottom-nav -->
-<nav class="bottom-nav">
-  <button class="nav-item active"><span class="nav-icon">●</span><span class="nav-label">業務</span></button>
-  <button class="nav-item"><span class="nav-icon">≡</span><span class="nav-label">履歴</span></button>
-  <button class="nav-item"><span class="nav-icon">?</span><span class="nav-label">使い方</span></button>
-  <button class="nav-item"><span class="nav-icon">⚙</span><span class="nav-label">設定</span></button>
-</nav>
+    <script>
+      // データ更新バナー JS (本実装時の雛形)
+      // 表示条件: screenBusinessStart 表示中 AND 道路データが 7 日以上古い AND snooze 中でない
+      //
+      // 実装フロー:
+      // 1. アプリ起動時・businessStart 画面表示時にチェック
+      // 2. IndexedDB から各 pref の timestamp を取得・最古値を計算
+      // 3. (現在時刻 - 最古値) > 7 日 なら表示
+      // 4. WiFi 接続検出 (navigator.connection.type === 'wifi') → 自動 DL
+      // 5. × タップ → 24h スヌーズ
+      // 6. DL 完了 → 完了表示 → 1.8 秒後 fade-out
+      // 7. 業務開始ボタン押下後 (= idle/driving 画面) では非表示推奨
 
-<script>
-// データ更新バナー JS (本実装時の雛形)
-// 表示条件: screenBusinessStart 表示中 AND 道路データが 7 日以上古い AND snooze 中でない
-//
-// 実装フロー:
-// 1. アプリ起動時・businessStart 画面表示時にチェック
-// 2. IndexedDB から各 pref の timestamp を取得・最古値を計算
-// 3. (現在時刻 - 最古値) > 7 日 なら表示
-// 4. WiFi 接続検出 (navigator.connection.type === 'wifi') → 自動 DL
-// 5. × タップ → 24h スヌーズ
-// 6. DL 完了 → 完了表示 → 1.8 秒後 fade-out
-// 7. 業務開始ボタン押下後 (= idle/driving 画面) では非表示推奨
+      const wrap = document.getElementById('bannerWrap');
+      const banner = document.getElementById('dataUpdateBanner');
+      const closeBtn = document.getElementById('bannerClose');
+      const txtEl = banner.querySelector('.text');
+      const iconEl = banner.querySelector('.icon');
 
-const wrap = document.getElementById('bannerWrap');
-const banner = document.getElementById('dataUpdateBanner');
-const closeBtn = document.getElementById('bannerClose');
-const txtEl = banner.querySelector('.text');
-const iconEl = banner.querySelector('.icon');
+      const SNOOZE_KEY = 'daikou_update_snooze';
+      const SNOOZE_MS = 24 * 60 * 60 * 1000;
+      const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 
-const SNOOZE_KEY = 'daikou_update_snooze';
-const SNOOZE_MS = 24 * 60 * 60 * 1000;
-const STALE_MS  =  7 * 24 * 60 * 60 * 1000;
+      function showBanner() {
+        banner.classList.remove('downloading');
+        iconEl.textContent = '📡';
+        txtEl.innerHTML =
+          '道路データが古くなっています。<strong>WiFi に繋いで</strong>更新してください。';
+        wrap.classList.add('show');
+      }
+      function hideBanner() {
+        wrap.classList.remove('show');
+        localStorage.setItem(SNOOZE_KEY, Date.now().toString());
+      }
+      closeBtn.addEventListener('click', hideBanner);
 
-function showBanner(){
-  banner.classList.remove('downloading');
-  iconEl.textContent = '📡';
-  txtEl.innerHTML = '道路データが古くなっています。<strong>WiFi に繋いで</strong>更新してください。';
-  wrap.classList.add('show');
-}
-function hideBanner(){
-  wrap.classList.remove('show');
-  localStorage.setItem(SNOOZE_KEY, Date.now().toString());
-}
-closeBtn.addEventListener('click', hideBanner);
-
-function startDownload(){
-  wrap.classList.add('show');
-  banner.classList.add('downloading');
-  iconEl.textContent = '⟳';
-  txtEl.innerHTML = '<strong>地図データ更新中</strong> <span class="progress-text">0/47 県</span>';
-  let n = 0;
-  const sim = setInterval(() => {
-    n += 3;
-    if(n > 47) n = 47;
-    txtEl.innerHTML = '<strong>地図データ更新中</strong> <span class="progress-text">' + n + '/47 県</span>';
-    if(n >= 47){ clearInterval(sim); finishDownload(); }
-  }, 200);
-}
-function finishDownload(){
-  banner.classList.remove('downloading');
-  iconEl.textContent = '✅';
-  txtEl.innerHTML = '<strong>地図データを更新しました</strong>';
-  setTimeout(() => { wrap.classList.remove('show'); }, 1800);
-}
-</script>
-
-</body>
+      function startDownload() {
+        wrap.classList.add('show');
+        banner.classList.add('downloading');
+        iconEl.textContent = '⟳';
+        txtEl.innerHTML =
+          '<strong>地図データ更新中</strong> <span class="progress-text">0/47 県</span>';
+        let n = 0;
+        const sim = setInterval(() => {
+          n += 3;
+          if (n > 47) n = 47;
+          txtEl.innerHTML =
+            '<strong>地図データ更新中</strong> <span class="progress-text">' + n + '/47 県</span>';
+          if (n >= 47) {
+            clearInterval(sim);
+            finishDownload();
+          }
+        }, 200);
+      }
+      function finishDownload() {
+        banner.classList.remove('downloading');
+        iconEl.textContent = '✅';
+        txtEl.innerHTML = '<strong>地図データを更新しました</strong>';
+        setTimeout(() => {
+          wrap.classList.remove('show');
+        }, 1800);
+      }
+    </script>
+  </body>
 </html>

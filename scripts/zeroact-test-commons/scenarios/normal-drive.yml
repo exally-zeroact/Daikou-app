@@ -1,0 +1,69 @@
+# ============================================================
+# scenarios/normal-drive.yml
+# 通常走行・市街地・5km 程度 (= 最も典型的な代行 trip)
+# ============================================================
+
+name: normal-drive
+title: 通常走行 (市街地・5km)
+description: |
+  飲食店から自宅までの典型的な代行業務。
+  市街地の信号待ち・右左折を含む 5km 程度の走行。
+  Worker B Viterbi commit が主経路で安定加算する基本ケース。
+category: typical
+
+context:
+  trip_type: business-as-usual
+  location_type: urban
+  weather: clear
+  time_of_day: night
+  road_type:
+    - 都市計画道路 (= 主に 2-4 車線)
+    - 生活道路 (= 1-2 車線・住宅地内)
+  duration_sec: 600  # 10 分
+  expected_distance_m: 5000
+  expected_fare_yen: 2300  # base 1300 + add ceil((5000-1000)/420)*100 = 10*100 = 1000
+
+gps_pattern:
+  hz: 1
+  accuracy_m: 5-15
+  speed_kmh_range: [0, 50]
+  characteristics:
+    - 信号待ちで複数回 isStationary=true (= 5-30 秒停車)
+    - 右左折で speed_kmh 急変
+    - 連続走行区間で speed_kmh ≈ 40km/h
+
+expected_events:
+  - event: tier1_commit
+    frequency: ほぼ全 step (= Worker B Viterbi が安定 snap)
+    distance_path: meter.js L393
+  - event: tier2_tentative
+    frequency: 毎 step (= preview)
+    distance_path: 表示のみ (distance_m 加算なし)
+  - event: stationary_zero
+    frequency: 信号待ち時 (= 5-10 回 / trip)
+    behavior: mmIncrementM=0 / business_distance_m 加算停止
+
+expected_distance_paths:
+  primary:
+    - meter.js L393 tier1-commit  # 全 distance_m の 95%+
+  secondary: []
+  not_expected:
+    - meter.js L462 offroad-retroactive  # Off-Road 起動しない
+    - meter.js L824 gap-fill              # GPS 消失なし
+    - meter.js L842 offroad-incremental   # Off-Road 起動しない
+
+verification:
+  invariants:
+    - distance_m は単調非減少
+    - distance_m === sum of all m.mmIncrementM
+    - fare_yen === calcFare(distance_m)
+    - isStationary=true 区間で distance_m 不変
+  expected_metrics:
+    snap_rate: ">= 95%"
+    distance_source: mm
+    consecutive_snap_miss_max: "< 3"
+
+absolute_rules_tested:
+  - "距離計算は道路ジオメトリ準拠 (= GPS 直線非依存)"
+  - "isStationary=true で distance_m 増加しない"
+  - "fare_yen は distance_m の純粋関数"

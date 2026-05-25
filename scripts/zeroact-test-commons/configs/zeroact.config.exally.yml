@@ -1,0 +1,132 @@
+# ============================================================
+# zeroact.config.exally.yml (2026-05-18 新規・雛形)
+#
+# Exally (Excel 代替 SaaS) の実プロジェクト設定。
+# 実コード照合済 (= C:\Users\zeroa\Exally-test 構成 確認 2026-05-18)。
+#
+# 構成: Vanilla JS + 巨大 HTML inline (= Next.js / React 不使用)
+#       HyperFormula SDK + exally-formula.js (96 関数独自実装)
+#       api/claude.js (Vercel Function・Anthropic SDK)
+#       Vercel デプロイ + URL rewrites
+# ============================================================
+
+project:
+  name: exally
+  language: javascript
+  type: vanilla-js   # = Vanilla JS フラット構成 (= src/ なし)
+
+critical_variables:
+  - name: _hf (HyperFormula instance)
+    role: 数式エンジン instance
+    file: exally-formula.js L25
+    forbidden_modification: initExallyFormula() 以外で再代入
+
+  - name: cell data state (book.html inline closure)
+    role: グリッドの cell 値 / 数式の真実
+    forbidden_modification: 直接 mutation・必ず setCellFormula() 経由
+
+  - name: calculation cache
+    role: HyperFormula 計算結果 cache
+    forbidden_modification: 手動 invalidate (= HyperFormula の lifecycle に任せる)
+
+  - name: process.env.ANTHROPIC_API_KEY
+    role: Claude API key (= server side)
+    forbidden_modification: client bundle (book.html 等) への流入
+
+dangerous_sources:
+  - name: eval
+    description: 動的コード評価 (= ユーザー入力数式の解釈で誤用しがち)
+    forbidden_use: HyperFormula 外で eval を呼ぶこと
+    sanitizer: HyperFormula の setCellContents 経由 (= 内部 lexer で安全 parse)
+
+  - name: new Function
+    description: 動的関数生成 (= eval 同等のリスク)
+    forbidden_use: ユーザー入力を引数に渡す
+
+  - name: new RegExp(user_input)
+    description: ReDoS 攻撃源
+    forbidden_use: ユーザー入力 string を直接 RegExp 化
+
+  - name: process.env.*_API_KEY
+    description: API key の client bundle 流入
+    forbidden_use: book.html / chat.html 等 client 側で参照
+
+critical_paths:
+  - book.html              # canvas-grid + inline canvas-formula-engine (5998 lines)
+  - exally-formula.js      # 96 関数独自実装ラッパー (680 lines)
+  - hyperformula.full.min.js  # HyperFormula SDK (基盤・触らない)
+  - api/claude.js          # Vercel Function (Anthropic Claude 連携)
+  - chat.html              # チャット UI
+  - kyuuryoumeisai.html    # 給料明細テンプレート
+  - mitsumoriyo.html       # 見積書テンプレート
+  - seikyusyo.html         # 請求書テンプレート
+
+external_io_boundaries:
+  - fetch('/api/claude')   # client → Vercel Function 呼出
+  - api/claude.js → api.anthropic.com   # server → Anthropic API
+  - localStorage           # 数式 / シート保存
+  - window.postMessage     # iframe 統合時の通信境界 (= 将来用)
+
+absolute_rules:
+  - id: R_no_eval_in_canvas
+    description: book.html canvas-grid で eval / new Function / new RegExp(user_input) 禁止
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/exally/cell-no-eval.yml
+    rationale: ユーザー入力数式は HyperFormula の lexer で必ず parse・直接 eval は禁止
+
+  - id: R_no_api_key_in_client
+    description: process.env.*_API_KEY を 'use client' bundle / book.html 等で参照禁止
+    semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/exally/no-api-key-in-client.yml (将来追加)
+
+  - id: R_hyperformula_lifecycle
+    description: HyperFormula instance (_hf) は initExallyFormula() 経由でのみ代入
+    rationale: 再 init による cache 破壊 / 状態不整合を防ぐ
+
+  - id: R_canvas_grid_perf
+    description: setCell + recalcSheet をキー入力ごとに呼ばない (= debounce 150ms)
+    rationale: パフォーマンス・IME 変換中の不要再計算回避 (CLAUDE.md 既記載)
+
+  - id: R_no_smart_quotes
+    description: ASCII 文字のみ使用 (= スマートクォート / Unicode 省略記号禁止)
+    rationale: Cloudflare 汚染 + JS パース error 回避
+
+test_thresholds:
+  stryker:
+    high: 80
+    low: 60
+    break: null
+    mutate_target: ['exally-formula.js']   # = 96 関数独自実装の網羅性測定
+  lighthouse:
+    performance: 0.7    # canvas-grid + 巨大 HTML のため緩め
+    accessibility: 0.9
+    best-practices: 0.8
+    seo: 0.9
+  knip:
+    mode: warn-only
+  dep-cruiser:
+    no-circular: error
+    no-orphans: warn
+    no-unresolvable: error
+  semgrep:
+    severity: ERROR
+    rules_path: scripts/zeroact-test-commons/semgrep-rules/exally/
+  fast-check:
+    numRuns: 100
+
+ai_review:
+  enabled: true
+  models:
+    primary: anthropic/claude-haiku-4-5-20251001
+    fallback: anthropic/claude-sonnet-4-5-20250929
+  trigger_paths:
+    - "*.html"
+    - "*.js"
+    - "api/**"
+
+observability:
+  sentry:
+    enabled: true
+    monthly_event_budget: 5000
+    billing_keywords:
+      - cell_value
+      - formula_error
+      - api_call_failed

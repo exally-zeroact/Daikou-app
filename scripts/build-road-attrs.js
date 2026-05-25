@@ -34,7 +34,8 @@ function collectIndices(filePath) {
   const geo = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   if (!geo.features) throw new Error(`Invalid GeoJSON: ${filePath}`);
   const indices = new Set();
-  let withSpec = 0, withoutSpec = 0;
+  let withSpec = 0,
+    withoutSpec = 0;
   for (const f of geo.features) {
     const props = f.properties || {};
     if (Array.isArray(props.roadIndices)) {
@@ -47,7 +48,9 @@ function collectIndices(filePath) {
       withoutSpec++;
     }
   }
-  console.log(`  ${path.basename(filePath)}: features=${geo.features.length} (with-roadIndices=${withSpec}, without=${withoutSpec}) → unique idx=${indices.size}`);
+  console.log(
+    `  ${path.basename(filePath)}: features=${geo.features.length} (with-roadIndices=${withSpec}, without=${withoutSpec}) → unique idx=${indices.size}`
+  );
   return [...indices];
 }
 
@@ -64,19 +67,21 @@ if (fs.existsSync(roadsPath)) {
 console.log(`  roads-${PREF}.js numRoads=${numRoads}`);
 
 const emergency = collectIndices(EMERGENCY_PATH);
-const school    = collectIndices(SCHOOL_PATH);
+const school = collectIndices(SCHOOL_PATH);
 
 // 範囲外チェック
 function clamp(arr, label) {
   if (numRoads === 0) return arr;
-  const filtered = arr.filter(i => i >= 0 && i < numRoads);
+  const filtered = arr.filter((i) => i >= 0 && i < numRoads);
   if (filtered.length !== arr.length) {
-    console.warn(`  ⚠️ ${label}: 範囲外 ${arr.length - filtered.length} 件をスキップ（numRoads=${numRoads}）`);
+    console.warn(
+      `  ⚠️ ${label}: 範囲外 ${arr.length - filtered.length} 件をスキップ（numRoads=${numRoads}）`
+    );
   }
   return filtered;
 }
 const emergencyClean = clamp(emergency, 'emergency');
-const schoolClean    = clamp(school, 'school');
+const schoolClean = clamp(school, 'school');
 
 const out = {
   v: 1,
@@ -85,7 +90,7 @@ const out = {
   generated: new Date().toISOString(),
   numRoads: numRoads,
   emergencyRouteB64: encodeIndexListB64(emergencyClean),
-  schoolZoneB64:     encodeIndexListB64(schoolClean),
+  schoolZoneB64: encodeIndexListB64(schoolClean),
   counts: { emergency: emergencyClean.length, school: schoolClean.length },
 };
 
@@ -96,11 +101,13 @@ const header = [
   `// Generated: ${out.generated}`,
   `// 形式: emergencyRouteB64 / schoolZoneB64 = sorted roadIdx 列を delta-varint-base64`,
   `window.${VAR} = ${JSON.stringify(out)};`,
-  ''
+  '',
 ].join('\n');
 
 const outPath = path.join(__dirname, '..', 'data', `road-attrs-${PREF}.js`);
 fs.writeFileSync(outPath, header);
 const size = fs.statSync(outPath).size;
 console.log(`✅ ${outPath}`);
-console.log(`  emergency=${emergencyClean.length} / school=${schoolClean.length} / size=${(size/1024).toFixed(2)} KB`);
+console.log(
+  `  emergency=${emergencyClean.length} / school=${schoolClean.length} / size=${(size / 1024).toFixed(2)} KB`
+);
