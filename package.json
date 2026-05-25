@@ -45,7 +45,7 @@
     "@vitest/browser": "^4.1.6",
     "@vitest/coverage-v8": "^4.1.6",
     "@vitest/web-worker": "^4.1.6",
-    "dependency-cruiser": "^17.4.0",
+    "dependency-cruiser": "^17.4.2",
     "eslint": "^8.57.1",
     "fast-check": "^4.8.0",
     "http-server": "^14.1.1",
