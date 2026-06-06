@@ -1,10 +1,10 @@
 {
   "region": "kansai",
-  "generated": "2026-05-30T19:25:39.706Z",
+  "generated": "2026-06-06T19:33:39.827Z",
   "prefectures": {
     "mie": {
-      "numRoads": 121312,
-      "sizeBytes": 3797260,
+      "numRoads": 121316,
+      "sizeBytes": 3797386,
       "bbox": [
         3410088,
         13609826,
@@ -12,11 +12,11 @@
         13698732
       ],
       "attrCounts": {
-        "oneway": 3551,
+        "oneway": 3553,
         "incline": 4,
-        "lanes": 14771,
+        "lanes": 14778,
         "width": 32,
-        "layer": 7866,
+        "layer": 7872,
         "access": 84,
         "maxspeed": 1459,
         "track": 0,
@@ -25,8 +25,8 @@
       }
     },
     "shiga": {
-      "numRoads": 105697,
-      "sizeBytes": 3364628,
+      "numRoads": 105686,
+      "sizeBytes": 3364086,
       "bbox": [
         3469030,
         13581110,
@@ -34,7 +34,7 @@
         13666834
       ],
       "attrCounts": {
-        "oneway": 2885,
+        "oneway": 2886,
         "incline": 4,
         "lanes": 14810,
         "width": 182,
@@ -47,8 +47,8 @@
       }
     },
     "kyoto": {
-      "numRoads": 69348,
-      "sizeBytes": 2235929,
+      "numRoads": 69359,
+      "sizeBytes": 2236163,
       "bbox": [
         3482823,
         13513347,
@@ -56,21 +56,21 @@
         13597211
       ],
       "attrCounts": {
-        "oneway": 5045,
+        "oneway": 5073,
         "incline": 73,
-        "lanes": 11871,
+        "lanes": 11882,
         "width": 78,
-        "layer": 4635,
-        "access": 147,
-        "maxspeed": 4391,
+        "layer": 4641,
+        "access": 144,
+        "maxspeed": 4402,
         "track": 0,
         "inclineFromOSM": 73,
         "inclineFromDem": 0
       }
     },
     "osaka": {
-      "numRoads": 276233,
-      "sizeBytes": 8463044,
+      "numRoads": 276174,
+      "sizeBytes": 8461687,
       "bbox": [
         3419367,
         13479984,
@@ -78,21 +78,21 @@
         13584254
       ],
       "attrCounts": {
-        "oneway": 29750,
+        "oneway": 29769,
         "incline": 219,
-        "lanes": 27456,
+        "lanes": 27504,
         "width": 637,
-        "layer": 13026,
+        "layer": 13047,
         "access": 378,
-        "maxspeed": 15419,
+        "maxspeed": 15442,
         "track": 0,
         "inclineFromOSM": 219,
         "inclineFromDem": 0
       }
     },
     "hyogo": {
-      "numRoads": 184898,
-      "sizeBytes": 6226250,
+      "numRoads": 184939,
+      "sizeBytes": 6227352,
       "bbox": [
         3419221,
         13425205,
@@ -100,21 +100,21 @@
         13533426
       ],
       "attrCounts": {
-        "oneway": 7557,
+        "oneway": 7575,
         "incline": 23,
-        "lanes": 18137,
+        "lanes": 18155,
         "width": 691,
-        "layer": 12437,
+        "layer": 12443,
         "access": 248,
-        "maxspeed": 9662,
+        "maxspeed": 9680,
         "track": 0,
         "inclineFromOSM": 23,
         "inclineFromDem": 0
       }
     },
     "nara": {
-      "numRoads": 70028,
-      "sizeBytes": 2374839,
+      "numRoads": 70092,
+      "sizeBytes": 2377261,
       "bbox": [
         3387027,
         13543502,
@@ -122,21 +122,21 @@
         13626893
       ],
       "attrCounts": {
-        "oneway": 2225,
+        "oneway": 2234,
         "incline": 14,
-        "lanes": 7592,
+        "lanes": 7860,
         "width": 66,
-        "layer": 5636,
-        "access": 56,
-        "maxspeed": 1338,
+        "layer": 5662,
+        "access": 57,
+        "maxspeed": 1343,
         "track": 0,
         "inclineFromOSM": 14,
         "inclineFromDem": 0
       }
     },
     "wakayama": {
-      "numRoads": 38582,
-      "sizeBytes": 1539928,
+      "numRoads": 38595,
+      "sizeBytes": 1540560,
       "bbox": [
         3343731,
         13481466,
@@ -146,9 +146,9 @@
       "attrCounts": {
         "oneway": 957,
         "incline": 30,
-        "lanes": 4022,
+        "lanes": 4021,
         "width": 285,
-        "layer": 3787,
+        "layer": 3788,
         "access": 48,
         "maxspeed": 228,
         "track": 0,
