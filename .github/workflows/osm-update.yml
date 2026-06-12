@@ -54,7 +54,7 @@ jobs:
           sudo apt-get install -y -qq osmium-tool
 
       - name: Node.jsセットアップ
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
 
