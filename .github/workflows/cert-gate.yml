@@ -3,8 +3,10 @@
 # ★認定 (国交省 GPS ソフトメーター) 物差し★ を CI に常時配線する:
 #   1) gate-snap   = 実機3台 fixture を実エンジン(Worker B)に流し snap 配線健全 (committed=0 で FAIL)
 #   2) sim-cert    = 実 pipeline GPS-feed Monte-Carlo。never-over/coast配線/単調/latch を hard-fail。
-#                    認定バンド −4%〜0% 未達 (= over-fill 過大課金・A1 未根治) は CERT-GAP として
-#                    report のみ (= 非ブロック)。A1 land 後に sim を --cert-strict へ切替で hard gate 化。
+#                    ★2026-06-12 訂正: ±band は dense-proxy 比較 (物理真値でない・dense が平滑でカーブ
+#                    過少化 → 偽過大)。∴ band は情報表示のみ・hard-fail しない。実過大の hard-gate は
+#                    下記 3) truedist-kp / 8) cert-3env (実RTK真値・既に hard-fail+緑)。--cert-strict でも
+#                    band 非ブロック (構造不変条件=物理 never-over のみ hard-fail)。
 # 重いため (~6min) 専用 job・timeout 20min。distance_m/calcFare は read-only 観測のみ・不変。
 name: cert-gate
 
@@ -47,5 +49,47 @@ jobs:
       - name: Snap-accuracy wiring gate (committed=0 で FAIL)
         run: npm run test:gate-snap
 
-      - name: Full-pipeline certification gate (never-over/coast/単調/latch hard-fail・認定バンドは CERT-GAP report)
+      - name: Full-pipeline certification gate (構造不変条件=物理never-over/coast/単調/latch hard-fail・±bandはproxy情報表示)
         run: npm run test:sim-cert
+
+      # ── 真距離KP採点ゲート (truedist-kp-gate・2026-06-12 配線) ──
+      # 0610b-Android(KP38-49全12点通過・OBD有)を eps=0(過大1mも不可)で採点。
+      # 過大(error>0)が1業務でも出たら hard-fail。3台朝traceはKP回廊外=ここでは使わない(空緑回避)。
+      - name: True-distance KP gate (0610b-Android・eps=0 過大ゼロ hard-fail)
+        run: npm run test:gate-kp
+
+      # ── OBD実エンジン発火ゲート (truedist-obd-engine-gate) ──
+      # 実Meter+map-matcher worker に OBD車速を流し obdSegs 発火＋δ OFF/ON 真距離採点。
+      - name: OBD-main engine gate (obdSegs発火・δ真距離採点 hard-fail)
+        run: npm run test:obd-engine
+
+      # ── Doppler棄却配線ゲート (gate-realdevice-doppler-rej) ──
+      - name: Doppler rejection wiring gate
+        run: npm run test:gate-doppler
+
+      # ── 端末間収束(spread)ゲート ── ★現状RED(spread790m=未解決の⑤)★
+      # 過大ゼロ+spread<420m を測る。⑤seam収束が未実装ゆえ現状FAIL。
+      # 修正land まで continue-on-error で「可視化only(非ブロック)」。fix後にこの行を外して hard-fail化。
+      - name: Device-spread gate (★RED可視化・⑤seam未実装まで非ブロック★)
+        run: npm run test:gate-spread
+        continue-on-error: true
+
+      # ── 認定二段公差ゲート (cert-3env-gate・別表2 ≤1km:-40〜0m / >1km:-4〜0%) ──
+      # 0610b-Android で現状PASS(緑)→ hard-fail で配線。負例runは --negraw でメタ検証。
+      - name: Cert two-tier tolerance gate (別表2二段公差 hard-fail)
+        run: npm run test:gate-cert3env
+
+      # ── トンネル連続性ゲート ── ★現状RED(出口ドン=未解決の④)★ 非ブロック可視化
+      - name: Tunnel-continuity gate (★RED可視化・④トンネル本体未修正まで非ブロック★)
+        run: npm run test:gate-tunnel
+        continue-on-error: true
+
+      # ── 画面ロック凍結→resume一括計上ゲート ── ★現状RED(未解決)★ 非ブロック可視化
+      - name: Background-freeze resume gate (★RED可視化・lifecycle本体未修正まで非ブロック★)
+        run: npm run test:gate-bg-freeze
+        continue-on-error: true
+
+      # ── GNSS不安定(生弦+10%膨張)never-overゲート ── ★現状RED(欠陥検出)★ 非ブロック可視化
+      - name: GNSS-degraded never-over gate (★RED可視化・本体未修正まで非ブロック★)
+        run: npm run test:gate-gnss-degraded
+        continue-on-error: true

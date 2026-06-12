@@ -222,6 +222,19 @@ const DEFAULTS = {
   //     実走トンネル trace で過大ゼロを実証してから flip する (機構はテスト温存)。
   boundaryGapFill: false, // 両端アンカー(台形)穴埋め。既定OFF=従来 入口速度×dt (過大ゼロ安全)。
 
+  // ★★STEP B: トンネル出口アンカー道路 routing 充填 (2026-06-12・長トンネル過少 -1.25% 回収)★★
+  //   長穴 (トンネル) は両端 GPS が tunnel entrance/exit でロード上にある。両端の ★生座標★ を道路 snap し
+  //   道路網 routing の ★道なり弧長★ で穴を埋める。幾何: chord ≤ 道路中心線弧 ≤ 実走経路 → never-over。
+  //   実証 (shimanami): iPhone13 +411m / Android +390m / SE +132m。出口アンカー routing は文献/特許/
+  //   認定メーターで距離回収の正解 (memory: copyable_research)。発火は dt>smoothGapSec の長穴のみ。
+  //   ★never-over 多段サニティ (下記 stepDistance 参照)★: rawChord×0.9 ≤ routed ≤
+  //     rawChord×routingAcceptMaxRatio(2.5) かつ routed ≤ tunnelRouteMaxM かつ routed ≤ spd×dt×routingMaxRatio。
+  //   どれか外れたら従来の boundary/doppler fill に落ちる (純加算回収=安全)。OFF で 1byte 不変。
+  //   ★batch(computeDistance)/tracker(createDistanceTracker) は同一 stepDistance を通るため parity 構造保証★。
+  tunnelRouteFill: true, // 長穴を出口アンカー道路 routing で充填 (既定 ON・never-over サニティ付き)。
+  tunnelRouteMaxStraightM: 3000, // rawChord がこれ超の長穴は routing せず従来 fill (遠距離=道路網外れ防止)。
+  tunnelRouteMaxM: 3500, // routing 結果がこれ超なら採用しない (絶対上限・過大暴走遮断)。
+
   // ★★確定方式: GPS精度で2択 適応モード (2026-06-09・実トレース実証)★★
   //   司さん確定方針(2026-06-08「GPS良時=生GPS弦、悪時/穴=速度×時間、止まれば数えない」)を
   //   今日の実車2業務(タイヤ6.73/17.71・トンネル含む)で実証し実装。平滑/map-matching は廃止。
@@ -1122,6 +1135,7 @@ function _prepareBatch(samples, decoder, opts) {
     dopplerM: 0,
     gapGuardSkippedM: 0,
     gapGuardFillM: 0,
+    tunnelRouteM: 0, // ★STEP B: トンネル出口アンカー routing 充填の回収距離 (監査用・固定形状)
     stationarySkipped: 0,
   };
   const stats = {
@@ -1132,6 +1146,7 @@ function _prepareBatch(samples, decoder, opts) {
     routedSegs: 0,
     straightSegs: 0,
     dopplerSegs: 0,
+    tunnelRouteSegs: 0, // ★STEP B: トンネル routing 充填が発火した区間数 (監査用・固定形状)
     routingFallbacks: 0,
   };
 
@@ -1163,6 +1178,15 @@ function _prepareBatch(samples, decoder, opts) {
       }
       if (stationary) {
         bd.stationarySkipped++;
+        // ★coastSpdMps 更新 (tracker L1905-1915 と同一・長トンネル parity)★:
+        //   高信頼停止は 0 クリア (creep防止)・低信頼 (bad-acc/dt<=0) は保持し穴中減衰のみ (穴明け走行を殺さない)。
+        const _accCurStat = typeof cur.acc === 'number' && cur.acc >= 0 ? cur.acc : -1;
+        const _dtCurStat = ((cur.t || 0) - (state.prev.t || 0)) / 1000;
+        const _lowConfidenceStop =
+          (cfg.gapGuardAccM != null && _accCurStat > cfg.gapGuardAccM) || _dtCurStat <= 0;
+        if (spd >= 0) state.coastSpdMps = spd;
+        else if (!_lowConfidenceStop) state.coastSpdMps = 0;
+        else if (state.coastSpdMps >= 0) state.coastSpdMps = state.coastSpdMps * 0.97;
         // 加算せず prev/prevSnap だけ更新
         state.prev = cur;
         state.prevSnap = snap;
@@ -1180,9 +1204,17 @@ function _prepareBatch(samples, decoder, opts) {
         cfg,
         bd,
         stats,
-        -1 // batch (computeDistance) は coast 状態を持たない → 従来 (haversine) 挙動を維持
+        state.coastSpdMps // ★tracker と同一の coastSpdMps を渡す (更新前=因果順序保持・長トンネル parity)★
       );
       if (added > 0) state.distance_m += added;
+      // ★coastSpdMps 更新 (tracker L1969-1977 と同一)★: spd 判明=snap成功で再確立/snap無は減速側のみ即反映、
+      //   spd 不明 (穴中) は ×0.97 減衰で保守側へ。synthetic 分岐は batch に合成点が来ないため不要。
+      if (spd >= 0) {
+        if (snap) state.coastSpdMps = spd;
+        else if (state.coastSpdMps < 0 || spd < state.coastSpdMps) state.coastSpdMps = spd;
+      } else if (state.coastSpdMps >= 0) {
+        state.coastSpdMps = state.coastSpdMps * 0.97;
+      }
     }
 
     state.prev = cur;
@@ -1203,6 +1235,7 @@ function _finishBatch(distance_m, bd, stats) {
       gapGuardSkippedM: +(bd.gapGuardSkippedM || 0).toFixed(2),
       gapGuardFillM: +(bd.gapGuardFillM || 0).toFixed(2),
       smoothedM: +(bd.smoothedM || 0).toFixed(2),
+      tunnelRouteM: +(bd.tunnelRouteM || 0).toFixed(2),
       stationarySkipped: bd.stationarySkipped,
     },
     stats: stats,
@@ -1216,7 +1249,9 @@ function _finishBatch(distance_m, bd, stats) {
 
 function computeDistance(samples, decoder, opts) {
   const prep = _prepareBatch(samples, decoder, opts);
-  const state = { distance_m: 0, prev: null, prevSnap: null };
+  // ★coastSpdMps を batch も保持 (2026-06-12・長トンネル parity 根治)★: gap-guard が参照する
+  //   coastSpdMps を tracker と同一の状態機械で更新し、bad-acc 穴の fill/skip 判定を一致させる。
+  const state = { distance_m: 0, prev: null, prevSnap: null, coastSpdMps: -1 };
   for (let p = 0; p < prep.pts.length; p++) {
     prep.processPoint(state, prep.pts[p]);
   }
@@ -1428,6 +1463,49 @@ function stepDistance(
     //   そこで穴は ★状態を持たない決定的ルール★ で埋める: spd 判明 → Doppler(spd×dt・never-over cap)、
     //   spd 不明 → 平滑弦 straight (角切り・稀=99%は spd 有り)。両経路で batch==tracker を保証。
     if (_dtS > 0 && _dtS < 120 && spd >= 0) {
+      // ★★STEP B: トンネル出口アンカー道路 routing 充填 (2026-06-12・長トンネル過少回収)★★:
+      //   長穴は両端 GPS が tunnel entrance/exit でロード上。両端の ★生座標 (_rawLat/_rawLng)★ を
+      //   道路 snap → 道路網 routing の道なり弧長で埋める。chord ≤ 道路弧 ≤ 実走 = 幾何 never-over。
+      //   ★生座標を使う理由★: 平滑弦 (prev/cur.lat) は穴境界で窓が片側に偏り off-road へ寄りうる。
+      //   発火しなければ (flag OFF / snap 失敗 / サニティ外) 下の従来 boundary/doppler fill に落ちる。
+      //   ★parity★: batch/tracker とも同一 _smoothOnePoint で _rawLat/_rawLng を持ち同一 stepDistance を
+      //   通るため、snap/routeDistance は決定的 (道路データのみに依存) で batch==tracker を保つ。
+      if (
+        cfg.tunnelRouteFill === true &&
+        router &&
+        decoder &&
+        typeof decoder.snapToNearestRoad === 'function'
+      ) {
+        const _rpLat = typeof prev._rawLat === 'number' ? prev._rawLat : prev.lat;
+        const _rpLng = typeof prev._rawLng === 'number' ? prev._rawLng : prev.lng;
+        const _rcLat = typeof cur._rawLat === 'number' ? cur._rawLat : cur.lat;
+        const _rcLng = typeof cur._rawLng === 'number' ? cur._rawLng : cur.lng;
+        const _rawChord = haversineM(_rpLat, _rpLng, _rcLat, _rcLng);
+        // 遠距離 (道路網外れ=真の gap) は routing せず従来 fill。微小弦も snap ノイズで除外。
+        if (_rawChord > 1 && _rawChord <= cfg.tunnelRouteMaxStraightM) {
+          const _snapA = decoder.snapToNearestRoad(_rpLat, _rpLng, { maxDistM: cfg.snapMaxDistM });
+          const _snapB = decoder.snapToNearestRoad(_rcLat, _rcLng, { maxDistM: cfg.snapMaxDistM });
+          if (_snapA && _snapB) {
+            const _routed = router.routeDistance(_snapA, _snapB);
+            // ── never-over 多段サニティ (どれか外れたら従来 fill へ落とす=純加算回収) ──
+            //   (1) routed ≥ rawChord×0.9 : 弦より極端に短い routing は snap 誤り → 不採用。
+            //   (2) routed ≤ rawChord×routingAcceptMaxRatio(2.5) : 過大な迂回 (flip 検出済の閾) を弾く。
+            //   (3) routed ≤ tunnelRouteMaxM : 絶対上限 (暴走遮断)。
+            //   (4) routed ≤ spd×dt×routingMaxRatio : 出口速度由来の物理上限を併用 (過大ゼロ保険)。
+            if (
+              _routed != null &&
+              _routed >= _rawChord * 0.9 &&
+              _routed <= _rawChord * cfg.routingAcceptMaxRatio &&
+              _routed <= cfg.tunnelRouteMaxM &&
+              _routed <= spd * _dtS * cfg.routingMaxRatio
+            ) {
+              stats.tunnelRouteSegs = (stats.tunnelRouteSegs || 0) + 1;
+              bd.tunnelRouteM = (bd.tunnelRouteM || 0) + _routed;
+              return _routed;
+            }
+          }
+        }
+      }
       // ★両端速度台形補間(公知) 穴埋め★: 穴は (入口GPS, 出口GPS) の両端に拘束。
       //   spd = 出口点速度 (gpsSpeedProvider(cur) = cur.spd)。prev.spd = 入口点速度。
       //   両端速度が揃えば 1区間両端拘束の最小加速度解 = 台形積分 (v0+v1)/2 × dt を採用し、
@@ -1648,6 +1726,7 @@ function createDistanceTracker(decoder, opts) {
       gapGuardSkippedM: 0,
       gapGuardFillM: 0,
       smoothedM: 0, // ★生GPS平滑距離 (smoothedRawMode・監査 MAJOR-4)
+      tunnelRouteM: 0, // ★STEP B: トンネル出口アンカー routing 充填の回収距離 (監査用・固定形状)
       stationarySkipped: 0,
       arcRecoverM: 0, // ★地力 de-bias: 同一道路 arc 回収で増えた距離 (監査用)
       obdM: 0, // ★OBD メイン: ∫v(OBD) で加算した距離 (監査用・δ自己キャリブ適用後)
@@ -1663,6 +1742,7 @@ function createDistanceTracker(decoder, opts) {
       dopplerSegs: 0,
       coastSegs: 0,
       routingFallbacks: 0,
+      tunnelRouteSegs: 0, // ★STEP B: トンネル routing 充填が発火した区間数 (監査用・固定形状)
       gapGuardSkipped: 0,
       gapGuardFilled: 0,
       arcRecovered: 0, // ★地力 de-bias: arc 回収が発火した区間数 (監査用)

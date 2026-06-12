@@ -1,0 +1,15 @@
+{
+  "_doc": "★bg-freeze 合成 fixture (画面ロック/background タイマー凍結→resume一括計上 再現)★ — gate-bg-freeze.js 専用。背景: 全パイプラインは gps.js _gapTick (setInterval) 駆動で穴埋めする。画面ロック/アプリ background では OS が setInterval を凍結し tick が止まる(=穴中の合成 coast が出ない)。復帰(resume)時に setInterval は ★1回だけ★ 発火し、その単フレの timestamp 差分 = 凍結中の経過時間(ここでは 9s・obdMaxDtS=10s 直下)になる。現状 pipeline-distance.js coast 枝は dt<=obdMaxDtS なら spd×dt を ★そのまま★ 計上するため、単フレで 9s 分(20m/s×9s=180m)が ★ドンと一括計上★ される(=tick サイズ予算を持たない)。これは認定メーターの『穴中も連続前進・復帰で一括しない』契約に反する。本 fixture は実 GPS 走行確立 2 点 → resume 単一合成フレ(synthetic・位置据え置き・dt=9s)→ 実 GPS 復帰点、の最小列。tag フィールドは gate がフレ役割を識別する用(pipeline は読まない)。spd は m/s(gpsSpeedProvider 準拠)。",
+  "_meta": {
+    "freezeSec": 9,
+    "speedMps": 20,
+    "tickMs": 150,
+    "note": "freezeSec(9) は obdMaxDtS(10) 直下に置き『dt 上限で全捨てされる長穴』ではなく『単フレで一括計上される中穴』を狙う。resume 単フレ予算 = spd×tick×capRatio 級(≈4.5m)であるべきだが、現状は spd×9s=180m が乗る = RED。"
+  },
+  "samples": [
+    { "tag": "drive", "lat": 34.0, "lng": 133.0, "t": 1700000000000, "acc": 5, "spd": 20 },
+    { "tag": "drive", "lat": 34.0, "lng": 133.00021533933048, "t": 1700000001000, "acc": 5, "spd": 20 },
+    { "tag": "resume_synthetic", "lat": 34.0, "lng": 133.00021533933048, "t": 1700000010000, "acc": 30, "spd": 20, "synthetic": true },
+    { "tag": "gps_exit", "lat": 34.0, "lng": 133.00215339330479, "t": 1700000010150, "acc": 5, "spd": 20 }
+  ]
+}

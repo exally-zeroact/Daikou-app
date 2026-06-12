@@ -922,12 +922,21 @@ if (overAttrib.length) {
 }
 
 // ── CI ゲート (--gate / --cert-strict) ─────────────────────────────────────
-//   ★A5: 「緑のまま壊れる」を塞ぐ★。デフォルト --gate は ★N/seed 非依存の構造不変条件★
-//   だけを hard-fail にする (= 今は全部成立・誰かが never-over を壊す/coast を配線断する/
-//   表示を非単調にした瞬間に赤)。+58% over-fill の認定バンド (国交省 −4〜0%) は ★現状未根治
-//   (A1 待ち)★ なので・hard-fail にすると main CI が恒常赤になる → ★CERT-GAP として明示 report★
-//   に留め、exit には影響させない。A1 (over-fill 根治) が land したら CI を --cert-strict に
-//   切替えてバンドを hard gate 化する (assert 自体は下に実装済・いつでも有効化可)。
+//   ★A5: 「緑のまま壊れる」を塞ぐ★。--gate / --cert-strict とも ★N/seed 非依存の構造不変条件★
+//   (never-over・coast 配線・display 単調・latch・stop-in-hole freeze) を hard-fail にする
+//   (= 誰かが never-over を壊す/coast を配線断する/表示を非単調にした瞬間に赤)。
+//
+//   ★★2026-06-12 訂正: 認定バンド (±%) は ★dense-proxy 比較★ であり ★物理真値ではない★★★
+//   本 sim の「真値」= 同じ trace を穴なしで本物の pipeline に流した dense distance。だが dense 自身
+//   smoothedRawMode(平滑窓3)で ★カーブを内側に削り過少化★ する。ゆえに穴あり holed が dense を
+//   上回る (= 見かけ上の「過大 +3.85%」) のは ★proxy の過少バイアス★ であって ★物理真値への過大では
+//   ない★ (幾何学: 2点間の直線弦 ≤ 実走経路長)。実際 司さん指定[D]の実 196号 KP RTK 真値で本番を
+//   照合すると −0.29% / −2.42% = ★過大ゼロ・バンド内★ (truedist-kp-gate.js)。
+//   ∴ ★実過大の hard-gate は truedist-kp-gate / cert-3env-gate (実RTK真値・既に hard-fail+緑)★。
+//   ここの ±band は ★穴ハンドリングの robustness ドリフト指標 (proxy)★ として ★情報表示のみ★ とし、
+//   ★--cert-strict でも band を hard-fail にしない★ (proxy で偽過大 → main 恒常赤を防ぐ)。
+//   band を hard gate にしたい場合は ★物理真値を持つ trace (KP/tire)★ に対して採点すること
+//   (= truedist-kp-gate が既に担当)。
 //   ・distance_m / calcFare には一切触れない (read-only 観測のみ)。
 const GATE = process.argv.includes('--gate') || process.argv.includes('--cert-strict');
 const CERT_STRICT = process.argv.includes('--cert-strict');
@@ -952,11 +961,11 @@ if (GATE) {
   ];
   const invFails = invariants.filter(([, ok]) => !ok);
 
-  // ② 認定バンド (国交省 GPS ソフトメーター 片公差 −4%〜0%・過大推計不可)
-  //    = 過大側ゼロ (overMax ≤ 0) かつ 過少側 ≥ −4%。現状 +58% over で未達 = A1 で根治予定。
-  const certOverOk = overMax <= 0.0001; // 過大ゼロ (= 過大請求根絶=司さん哲学)
-  const certUnderOk = underMin >= -4.0;
-  const certOk = certOverOk && certUnderOk;
+  // ② robustness ドリフト指標 (★dense-proxy 比較・物理真値ではない・情報表示のみ★)
+  //    過大側 (holed > dense) は proxy の過少バイアス由来であり物理真値への過大ではない (上の訂正参照)。
+  //    実過大の hard-gate は truedist-kp-gate / cert-3env-gate (実RTK真値)。ここは ★hard-fail しない★。
+  const certOverOk = overMax <= 0.0001; // (info) proxy 上の過大ドリフト
+  const certUnderOk = underMin >= -4.0; // (info) proxy 上の過少ドリフト (穴ハンドリング堅牢性)
 
   console.log('\n============================================================');
   console.log('A5 認定ゲート (--gate)');
@@ -969,19 +978,18 @@ if (GATE) {
       N +
       ' (0 でも可・密ネットワークは routing 埋め=正常)'
   );
-  console.log('--- ② 認定バンド −4%〜0% (国交省ソフトメーター片公差) ---');
+  console.log('--- ② robustness ドリフト指標 (★dense-proxy・情報表示のみ・物理真値はKP gate★) ---');
   console.log(
-    '  過大側 max=+' +
+    '  過大ドリフト max=+' +
       overMax.toFixed(2) +
-      '% (target ≤0%) ' +
-      (certOverOk ? '✓' : '✗') +
-      ' / 過少側 min=' +
+      '% / 過少ドリフト min=' +
       underMin.toFixed(2) +
-      '% (target ≥−4%) ' +
-      (certUnderOk ? '✓' : '✗') +
-      ' / 過大中央値=+' +
+      '% / 過大中央値=+' +
       overMedian.toFixed(2) +
-      '%'
+      '%  (注: dense は平滑でカーブ過少化 → これは物理真値への過大/過少ではない)'
+  );
+  console.log(
+    '  ★実過大の hard-gate = truedist-kp-gate / cert-3env-gate (実RTK真値・別job)。本 sim は構造不変条件のみ hard-fail。'
   );
 
   if (invFails.length) {
@@ -990,22 +998,20 @@ if (GATE) {
     );
     process.exit(1);
   }
-  if (!certOk) {
-    if (CERT_STRICT) {
-      console.log(
-        '\nRESULT: ★FAIL (--cert-strict)★ — 認定バンド −4%〜0% 未達 (over-fill 過大課金)。'
-      );
-      process.exit(1);
-    }
+  // ★--cert-strict でも band は hard-fail しない★ (proxy・物理真値ではない)。構造不変条件 (= 物理的
+  //   never-over・配線生存) が全 PASS なら PASS。実過大は KP/cert-3env gate が実RTK真値で別途 hard-fail。
+  if (!certOverOk || !certUnderOk) {
     console.log(
-      '\n★CERT-GAP★: 認定バンド −4%〜0% 未達 (過大 +' +
+      '\n(info) proxy band ドリフト: 過大+' +
         overMax.toFixed(2) +
-        '%)。= ★A1 (穴中 coast over-fill 根治) 待ち★。' +
-        '\n  構造不変条件は全 PASS = 配線健全・never-over 鉄壁。A1 land 後に CI を --cert-strict へ切替で hard gate 化。'
+        '% / 過少' +
+        underMin.toFixed(2) +
+        '% (dense 平滑バイアス由来・物理真値はKP gate 参照)。'
     );
-    console.log('RESULT: PASS (構造不変条件・CERT-GAP は既知の A1 未根治として非ブロック)');
-    process.exit(0);
   }
-  console.log('\nRESULT: ★PASS★ — 構造不変条件 + 認定バンド −4%〜0% 双方クリア。');
+  console.log(
+    '\nRESULT: ★PASS★ — 構造不変条件 (物理 never-over・配線) 全クリア。' +
+      (CERT_STRICT ? ' (--cert-strict: band は proxy のため非hard-fail・実過大はKP gate)' : '')
+  );
   process.exit(0);
 }

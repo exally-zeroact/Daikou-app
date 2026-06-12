@@ -133,6 +133,10 @@ function runIncrementalVsBatchParity(computeDistance, createDistanceTracker, dec
     lastTotal = res.totalM;
     reasonCounts[res.reason] = (reasonCounts[res.reason] || 0) + 1;
   }
+  // ★flush 必須★: 末尾 h 点 (前方窓が未到着の tail) を片側窓で確定する。batch は配列末尾を
+  //   片側窓で処理済みなので、tracker も flush しないと末尾区間が未計上のまま (gpstrace で 3.13m
+  //   過少) になり parity が崩れる。本番 (map-matcher/meter) も業務終了で flush を呼ぶ契約 (L2153)。
+  tk.flush();
   const incMs = Date.now() - incT0;
   const incTotal = tk.totalM();
 
@@ -140,6 +144,7 @@ function runIncrementalVsBatchParity(computeDistance, createDistanceTracker, dec
   tk.reset();
   const afterReset = tk.totalM();
   for (let i = 0; i < ordered.length; i++) tk.ingest(ordered[i]);
+  tk.flush(); // ★incTotal と同条件で比較するため再 ingest 後も flush
   const afterResetReingest = tk.totalM();
 
   const diff = Math.abs(incTotal - batch.distance_m);
@@ -218,6 +223,7 @@ function runNonFiniteRejection(computeDistance, createDistanceTracker, dec, seg1
       ingestTotalFinite = false;
     }
   }
+  tk.flush(); // ★tail 確定 (batch baseline と同条件)・汚染点除去後の totalM == baseline を測る
   const ingestTotal = tk.totalM();
   const ingestMatchesBaseline = Math.abs(ingestTotal - baseline.distance_m) < 0.01;
 
@@ -264,6 +270,7 @@ function runOutOfOrderGuard(computeDistance, createDistanceTracker, dec, seg1) {
   for (let i = 0; i < swapped.length; i++) {
     if (tkSwap.ingest(swapped[i]).reason === 'out_of_order') swapDropped++;
   }
+  tkSwap.flush(); // ★tail 確定 (batch と同条件)
   const swapTotal = tkSwap.totalM();
 
   // (3) stale 遅延到着: clean 列の合間に「過去 frame の再送」を挿入。
@@ -283,6 +290,7 @@ function runOutOfOrderGuard(computeDistance, createDistanceTracker, dec, seg1) {
   for (let i = 0; i < withStale.length; i++) {
     if (tkStale.ingest(withStale[i]).reason === 'out_of_order') staleDropped++;
   }
+  tkStale.flush(); // ★tail 確定 (batch と同条件)・stale 除去後 batch と完全一致を測る
   const staleTotal = tkStale.totalM();
   const staleDiff = Math.abs(staleTotal - batch.distance_m);
 
