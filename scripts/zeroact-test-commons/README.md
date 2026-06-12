@@ -219,7 +219,7 @@ scripts/zeroact-test-commons/
 
 ### daikome (= PWA + GPS + Worker)
 - GPS 直線距離での課金禁止 (= 道路ジオメトリ準拠)
-- distance_m への書込は 5 経路のみ (L393/L462/L824/L842/L1172)
+- distance_m への書込は 5 経路のみ (L551/L661/L1168/L1190/L1691)
 - isStationary=true で distance_m 増加禁止
 - iOS / Android 両 OS 経路確認
 

@@ -116,7 +116,7 @@ ${bugPatterns}
 絶対ルール (要約):
 - distance_m は課金根拠・絶対不可侵
 - GPS 直線距離での課金は禁止 (適用外区間 sanitizer 除く)
-- distance_m 更新経路は 5 つのみ (L393/L462/L824/L842/L1172)
+- distance_m 更新経路は 5 つのみ (L551/L661/L1168/L1190/L1691)
 - isStationary=true で distance_m 増加禁止
 - business_distance_m は running=true のみ
 

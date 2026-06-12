@@ -43,17 +43,17 @@ expected_events:
   - event: occasional_offroad_activation
     frequency: 5-15% probability
     distance_path:
-      - meter.js L462 offroad-retroactive (= 起動瞬間)
-      - meter.js L842 offroad-incremental (= 継続)
+      - meter.js L661 offroad-retroactive (= 起動瞬間)
+      - meter.js L1190 offroad-incremental (= 継続)
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit       (= 70-85%)
+    - meter.js L551 tier1-commit       (= 70-85%)
   secondary:
-    - meter.js L842 offroad-incremental (= 0-30%)
-    - meter.js L462 offroad-retroactive (= 0-1 回)
+    - meter.js L1190 offroad-incremental (= 0-30%)
+    - meter.js L661 offroad-retroactive (= 0-1 回)
   not_expected:
-    - meter.js L824 gap-fill              # GPS 消失ではなく精度低下
+    - meter.js L1168 gap-fill              # GPS 消失ではなく精度低下
 
 verification:
   invariants:

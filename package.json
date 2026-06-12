@@ -4,6 +4,7 @@
   },
   "scripts": {
     "prepare": "husky",
+    "dev": "vite --port 5174 --host",
     "lint": "eslint '**/*.js' --fix",
     "format": "prettier --write '**/*.{js,css,html}'",
     "stylelint": "stylelint '**/*.{css,html}' --fix",
@@ -21,9 +22,15 @@
     "test:property": "vitest run tests/property",
     "test:stryker": "stryker run",
     "test:replay": "node tests/replay-mm.js",
+    "test:replay-display": "node tests/verify-display-smoothness.js",
+    "test:verify-9677": "node tests/verify-new-meter-9677.js",
+    "test:mm-priority": "node tests/meter-mm-priority.js",
+    "test:gate-snap": "node tests/gate-snap-accuracy.js",
+    "test:sim-cert": "node tests/sim-fullpipeline-montecarlo.js 30 --gate",
+    "test:cert": "npm run test:gate-snap && npm run test:sim-cert",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "check:logic": "npm run test && npm run test:replay",
+    "check:logic": "npm run test && npm run test:replay && npm run test:replay-display && npm run test:mm-priority",
     "check:all": "npm run check && npm run check:logic"
   },
   "lint-staged": {
@@ -58,6 +65,7 @@
     "stylelint": "^17.11.0",
     "stylelint-config-standard": "^40.0.0",
     "tsarch": "^5.4.1",
+    "vite": "^8.0.16",
     "vitest": "^4.1.6"
   }
 }

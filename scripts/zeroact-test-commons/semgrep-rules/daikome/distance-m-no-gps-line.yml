@@ -12,18 +12,24 @@
 #
 # sanitizer (適用外区間):
 #   ・_trackHaversineBetweenGps  : Off-Road 起動時の retroactive 加算用 buffer
-#                                  (= L257 GPS.calcDistance を使うが
-#                                   L462 で ★絶対ルール適用外区間（retroactive） として加算)
+#                                  (= L355 GPS.calcDistance を使うが
+#                                   L661 で ★絶対ルール適用外区間（retroactive） として加算)
 #   ・_calculateOffRoadIncrement : Phase 1.C Off-Road Mode 内
 #                                  (= L295 ★絶対ルール適用外区間（明示宣言） /
-#                                   L305 GPS.calcDistance を使い L842 で加算)
+#                                   L445 GPS.calcDistance を使い L1190 で加算)
 #
-# verified line numbers (2026-05-17):
-#   L393  Tier1 Worker B Viterbi commit   = source 非該当 (Worker B 出力経由)
-#   L462  retroactive                     = _trackHaversineBetweenGps が sanitizer
-#   L824  gap fill (GPS 消失検出)          = source 非該当 (calculateGapFill = speed × time)
-#   L842  Off-Road incremental            = _calculateOffRoadIncrement が sanitizer
-#   L1172 setDistance (外部 API)          = source 非該当 (引数経由)
+# verified line numbers (2026-05-28・STEP0 診断追加後・drift-static C1 で ±10 動的監視中):
+#   L551  Tier1 Worker B Viterbi commit   = source 非該当 (Worker B 出力経由)
+#   L661  retroactive                     = _trackHaversineBetweenGps が sanitizer
+#   L1168 gap fill (GPS 消失検出)          = source 非該当 (calculateGapFill = speed × time・Phase2-a 道路 routing 拡張)
+#   L1190 Off-Road incremental            = _calculateOffRoadIncrement が sanitizer
+#   L1691 setDistance (外部 API)          = source 非該当 (引数経由)
+# sanitizer 関数 (= GPS.calcDistance 使うが distance_m 流入を許可):
+#   _trackHaversineBetweenGps  (meter.js L348 周辺)
+#   _calculateOffRoadIncrement (meter.js L440 周辺・★絶対ルール適用外区間 明示宣言済)
+# 適用外でない call_sites (= distance_m に流入させない):
+#   _isBusinessZuptMicroMotion (meter.js L405・★道路 snap 構成 ZUPT helper・2026-05-24 追加・business_distance_m 専用)
+#   gps_predictive_distance_m  (meter.js L1120・表示用 trip 単位・連続点累積は絶対ルール許可)
 #
 # 期待結果: 既存 HEAD コードで全 PASS。将来「適用外区間以外の GPS 直線」
 #          を distance_m に流入させる新規コードがあれば ERROR で検出。

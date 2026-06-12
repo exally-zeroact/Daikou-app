@@ -20,7 +20,7 @@
 //   ✅ 業務中に急にバージョン変わらない（安全）
 // ===========================================
 
-const CACHE_NAME = 'daikome-daceaef';
+const CACHE_NAME = 'daikome-be59456';
 // ★設計変更宣言 (2026-05-13): 47県データを固定名 cache に分離
 //   旧: アプリコード CACHE_NAME が hash で毎デプロイ更新 → 旧 cache 全削除 →
 //       47県データ (/data/roads-*.js) も全削除 → 全欠落・204MB 再 DL
@@ -129,9 +129,13 @@ self.addEventListener('activate', function (e) {
               try {
                 const res = await oldCache.match(req);
                 if (res) await newRoadsCache.put(req, res);
-              } catch (_) {}
+              } catch (_) {
+                /* ignore */
+              }
             }
-          } catch (_) {}
+          } catch (_) {
+            /* ignore */
+          }
         }
         // migrate 後に旧 cache (CACHE_NAME / CACHE_NAME_ROADS 以外) を削除
         await Promise.all(
@@ -139,7 +143,9 @@ self.addEventListener('activate', function (e) {
             .filter((k) => k !== CACHE_NAME && k !== CACHE_NAME_ROADS)
             .map((k) => caches.delete(k).catch(function () {}))
         );
-      } catch (_) {}
+      } catch (_) {
+        /* ignore */
+      }
       await self.clients.claim();
     })()
   );
@@ -163,7 +169,9 @@ function staleWhileRevalidate(request, cacheName) {
       const normalizedUrl = new URL(request.url);
       normalizedUrl.search = '';
       cacheKey = new Request(normalizedUrl.toString(), { headers: request.headers });
-    } catch (_) {}
+    } catch (_) {
+      /* ignore */
+    }
   }
   return caches.open(cacheName).then(function (cache) {
     return cache.match(cacheKey).then(function (cached) {
@@ -184,7 +192,9 @@ function staleWhileRevalidate(request, cacheName) {
                     for (let i = 0; i < clients.length; i++) {
                       try {
                         clients[i].postMessage({ type: 'cachePutFailed', url: request.url });
-                      } catch (_) {}
+                      } catch (_) {
+                        /* ignore */
+                      }
                     }
                   })
                   .catch(function () {});
@@ -368,7 +378,37 @@ function _notifyClientsTrainingUpload() {
     for (const c of clients) {
       try {
         c.postMessage({ type: 'TRAINING_UPLOAD_TRIGGER' });
-      } catch (_) {}
+      } catch (_) {
+        /* ignore */
+      }
     }
   });
 }
+
+// ★設計変更宣言 (2026-05-29 PM rev3・CACHE_NAME 表示 API):
+//   司さん指示「CACHE_NAME どこ？」 で設定画面表示 UI が未実装と判明・即追加。
+//   client から { type: 'GET_CACHE_NAME' } を受信 → CACHE_NAME と CACHE_NAME_ROADS を返答。
+//   MessageChannel (= e.ports[0]) と broadcast (= e.source.postMessage) の両対応。
+self.addEventListener('message', function (e) {
+  if (!e || !e.data || e.data.type !== 'GET_CACHE_NAME') return;
+  const payload = {
+    type: 'CACHE_NAME',
+    value: CACHE_NAME,
+    roads: CACHE_NAME_ROADS,
+  };
+  try {
+    if (e.ports && e.ports[0]) {
+      e.ports[0].postMessage(payload);
+      return;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  try {
+    if (e.source && typeof e.source.postMessage === 'function') {
+      e.source.postMessage(payload);
+    }
+  } catch (_) {
+    /* ignore */
+  }
+});

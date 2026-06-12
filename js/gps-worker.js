@@ -13,6 +13,32 @@ let debug = false;
 function wlog() {
   if (debug) console.log.apply(console, arguments);
 }
+// ★STEP0 診断 (2026-05-28): GPS層の値を main 経由で Eruda に出す (read-only・throttle)。
+//   worker の console.log(wlog) は Eruda に届かないため postMessage で main に送り dlog させる。
+//   speedKmh源/isStationary/accuracy/accLimit/reject理由 を・丸め signature 変化時のみ送信。
+//   ★accept/reject/距離ロジックには一切影響しない (純診断・判定後に撤去)★。
+let _gpsDbgSig = '';
+function _postGpsDbg(o) {
+  try {
+    const sig =
+      (o.rej || 'ok') +
+      '|' +
+      Math.round(o.spd || 0) +
+      '|' +
+      Math.round(o.acc || 0) +
+      '|' +
+      (o.lim || 0) +
+      '|' +
+      (o.stat ? 1 : 0) +
+      '|' +
+      (o.src || '');
+    if (sig === _gpsDbgSig) return;
+    _gpsDbgSig = sig;
+    self.postMessage({ type: 'gpsDbg', data: o });
+  } catch (_) {
+    /* noop - 診断のみ */
+  }
+}
 
 // ─── CONFIG（メインと同じ値・初期化メッセージで上書き可能） ───
 let CONFIG = {
@@ -38,11 +64,69 @@ let CONFIG = {
   accel_motion_threshold: 0.5, // m/s²・|平均|a|-9.8| の閾値・実機調整
   accel_motion_window_ms: 5000, // 直近5秒のサンプルで計算
   accel_motion_min_samples: 5, // この件数未満なら判定不能（null返す）
+  // ★Fix① (2026-05-28・★設計変更宣言★): 静止判定を加速度variance主体に作り直す。
+  //   GPS速度(A3合成/Dopplerノイズ)を静止判定の主信号にしない。
+  //   この速度以上は「確実に移動」(driftでは到達しない速度) として静止解除し、
+  //   定速走行で加速度varidanceが低くても under-count しないための backstop。
+  //   観測値: A3 静止 drift 速度 ≈ 3.1km/h → これを上回り・かつ実走行を拾う 10km/h。
+  stationary_moving_speed_kmh: 10,
+  // ★Fix② (2026-05-28): accuracy cap deadlock 手当て。移動時(直前frame非静止)のみ
+  //   この値まで accuracy 上限を緩和し屋内/低速 deadlock(全reject→凍結)を回避。
+  //   静止時は緩和せず(=base のまま厳格) drift を計上しない。観測: SE 屋内 acc 12-17m。
+  // ★設計変更宣言 (2026-06-04・bypass化D): 距離経路は「点を消さない」方針へ。移動時 accuracy
+  //   天井を accuracy_moving_max_m(=20) から accuracy_moving_extreme_m(=35) へ引き上げ、
+  //   「真に使い物にならない極端値」のみ硬棄却する (= SAGE_HUSA_R_MAX_M=35 と同期)。20〜35m の
+  //   中程度誤差点は受理し Worker B(Viterbi snap) に外れ値吸収を委ねる。静止時は base のまま厳格を
+  //   維持し creep を計上しない (= creep 保険)。
+  accuracy_moving_max_m: 20,
+  accuracy_moving_extreme_m: 35,
+  // ★設計変更宣言 (2026-06-06・監査 wf_1cd1ef59・SE屋内徐行の過小根治)★:
+  //   低速徐行が加速度variance小で isStationary=true に誤分類されると accuracy上限が厳格 base(~10m)に
+  //   なり、SE屋内の acc10-17m の ★実走行点★ が棄却され距離が過小化する(SE t2 -0.98%)。
+  //   ★地力 de-bias (一律係数でない)★: 生GPSが継続前進(直近 disp_window 点の正味変位 > disp_net_m)
+  //   していれば「徐行=移動」とみなし accuracy を移動時上限(35m)に緩和する。真静止は独立ジッタで net が
+  //   伸びず厳格を維持 → 屋内ゴミ点は従来通り排除(過大保険温存)。creep は MM の spd ゲートが別途死守。
+  //   ★accuracy 緩和の判定だけをピンポイント拡張 = 他端末/他経路(停止表示/ZUPT/診断)は 1byte 不変★。
+  //   実測最良: window=4・net=6m (徐行1秒変位≈1.1m/s では k=3 で net 到達不足のため k=4 必須)。
+  disp_window: 4,
+  disp_net_m: 6,
+  // ★Fix① v2 (2026-05-28・★設計変更宣言★・dwell time 業界標準準拠):
+  //   速度 spike (1 step) で静止判定が defeat されないよう・連続 N step で
+  //   speedKmh >= stationary_moving_speed_kmh を観測した時のみ高速ガード発火。
+  //   = ArduPilot EKF_GLITCH_RAD「persistent then accept」 + Vehicle Stationary
+  //     Detection 論文 (PMC4170787) dwell time 3 秒 (MM併用相当) と整合。
+  //   = Linux CI で偽速度 spike 11.68km/h (1 step) が 10km/h backstop を defeat し
+  //     creep 33m を出した事象 (run 26553931113 で観測) を遮断。
+  //   3 step = 1Hz 端末で 3 秒・5Hz 端末で 0.6 秒。実走行(持続)は通過・spike は遮断。
+  high_speed_dwell_steps: 3,
+  // ★Fix④ (2026-05-31・★設計変更宣言★・過少の根治・billing-critical):
+  //   実機分析: iPhoneSE/iPhone13 で Doppler 速度が 49m/s(176km/h・実 13m/s)の嘘を返し、
+  //   jump/doppler ゲートが ★acc 2m の良い位置 fix★ を「速度が異常」を理由に丸ごと棄却 →
+  //   良いfixが消え距離が過少化(SE −3.2/−13.9%)。Android は Doppler 安定で GPSREJ 0 = 正確。
+  //   根治: ★位置 fix と速度成分を分離★。jump/doppler ゲートは「Doppler 速度の嘘」を検出するが
+  //   位置 fix の精度(accuracy)が良ければ ★位置は信頼できる★ → 位置は受理し、速度成分だけ無効化。
+  //   この accuracy 以下の fix は jump/doppler ゲートで ★棄却しない★ (= lastPosition を更新)。
+  //   業界準拠: GNSS の擬似距離(位置)と Doppler(速度)は独立観測量・片方の異常で他方を捨てない。
+  //   never-over: 良いfixを受理 → 過少が真値へ回復(増える方向)。位置精度が悪い時のみ従来通り棄却。
+  //   観測 acc: 良fix < 10m / 移動中緩和上限 20m → 15m を「位置信頼境界」とする(両者の間)。
+  trust_position_acc_m: 15,
 };
 
 // ─── 状態変数（Worker内で保持） ───
 let lastPosition = null;
+// ★設計変更宣言 (2026-06-04・bypass化E修正・真テレポート天井の正常化):
+//   jump gate (= >50m/s 物理テレポート天井) は ★生の前回観測位置★ に対して測るべき物理量。
+//   従来は lastPosition (= Kalman 平滑後) に対して測っていたため、加速時の filter lag (約40m) が
+//   偽テレポート (50m/1s) を量産し、棄却で anchor が固まり cascade で良点を大量喪失していた
+//   (= full-chain 過少・SE reject 62% の主機序)。実測: 生-生では 3台とも teleport は 0〜1 点のみ。
+//   そこで jump 判定専用に生位置を別保持し、真の物理移動でテレポートを測る (= 過大ゼロ保険は維持)。
+let lastRawPosition = null;
+// ★監査 wf_1cd1ef59: 生GPS変位継続性ゲート用・直近 disp_window 点の生位置(accept時のみ更新)。
+//   徐行(継続前進)か真静止(独立ジッタ)かを net 変位で区別し accuracy 緩和を判定する。
+let __rawDispBuf = [];
 let lowSpeedStart = null;
+let _posStillStart = null; // ★Fix① (2026-05-28): 速度非依存の位置半径静止判定 anchor (accel不能時fallback)
+let _highSpeedConsecCount = 0; // ★Fix① v2 (2026-05-28): 高速ガード dwell time カウンタ (連続 N step で fire)
 let isStationary = false;
 let trafficJamSince = null;
 let isTrafficJam = false;
@@ -90,8 +174,8 @@ function _getDynamicBaseQ() {
 //   理由: layer (v6 attribute) + tunnels-{pref}.js データで道路属性ベースに代替
 //   利点: iOS Safari/PWA でも同等動作・接続不安定時の偽陽性なし
 //   詳細: map-matcher.js の _computeLayerScore で prevLayer 連続性 boost に置換
-
-let _prevAccuracy = null;
+// 2026-05-30 (§4 死コード一掃): _prevAccuracy は write-only (= 参照 0・grep 実証済) で
+//   除去。accuracy は processPosition 内 local + lastPosition に保持され差分には未使用。
 
 // ─── Kalmanフィルター（案D・2026/04/27） ───
 // ★設計変更宣言 Phase 1.ZUPT (2026-05-10): Zero Velocity Update
@@ -104,6 +188,17 @@ let _prevAccuracy = null;
 //   起動条件: 直前 frame の isStationary 判定 (3 点 AND: GPS+C-1+C-2)
 //   停車終了で自動的に通常 Q に復帰 (Off-Road Mode 中の慣性誤差累積も抑える効果)
 const ZUPT_Q = 0.01;
+// ★設計変更宣言 Phase A-5 (2026-05-26・案 N: R-only Sage-Husa Adaptive R):
+//   観測残差 (innovation) を直近 N=10 step 蓄積し RMS を取って R̂ を推定。
+//   effectiveAccuracy = max(報告 accuracy, R̂) で chip の accuracy 過小報告 (= multipath で
+//   誤って小値を吐くケース) を補正。R̂ は SAGE_HUSA_R_MAX_M で上限 clamp し過剰 filter を防止。
+//   buffer N<5 は既存 accuracy をそのまま使用 (fallback)。
+//   絶対ルール準拠:
+//     ・Q 3 系統 (= ZUPT / コンパス融合 / T5 typeCode 連動): 1byte 不変
+//     ・calcFare / distance_m 加算 5 経路 / running gate / Worker B: 1byte 不変
+const SAGE_HUSA_BUFFER_N = 10;
+const SAGE_HUSA_MIN_SAMPLES = 5;
+const SAGE_HUSA_R_MAX_M = 35; // R̂ 上限 (= getDynamicAccuracyLimit 最大値と同期)
 class KalmanGPS {
   constructor() {
     this._lat = null;
@@ -111,6 +206,8 @@ class KalmanGPS {
     this._accuracy = 0;
     this._timestamp = null;
     this._zuptActive = false; // Phase 1.ZUPT: 停車中フラグ
+    this._innovBuffer = []; // Phase A-5: 観測残差距離 (m) 直近 N=10 step
+    this._adaptiveR = null; // Phase A-5: 推定 R̂ (m)・buffer N>=5 で更新
   }
   reset() {
     this._lat = null;
@@ -118,6 +215,8 @@ class KalmanGPS {
     this._accuracy = 0;
     this._timestamp = null;
     this._zuptActive = false;
+    this._innovBuffer = []; // Phase A-5: buffer もリセット
+    this._adaptiveR = null;
   }
   // Phase 1.ZUPT: 停車検出に応じて ZUPT モードを切替
   setZuptActive(active) {
@@ -150,10 +249,39 @@ class KalmanGPS {
     } else {
       Q = _getDynamicBaseQ();
     }
+    // Phase A-5 (案 N): R adaptive 補正
+    //   buffer N>=5 で R̂ 有・effectiveAccuracy = max(報告 accuracy, R̂)。
+    //   buffer N<5 は fallback で報告 accuracy をそのまま使用。
+    let effectiveAccuracy = accuracy;
+    if (this._adaptiveR != null && this._innovBuffer.length >= SAGE_HUSA_MIN_SAMPLES) {
+      effectiveAccuracy = Math.max(accuracy, this._adaptiveR);
+    }
     const decayed = Math.sqrt(this._accuracy * this._accuracy + Q * Q * dt * dt);
-    const K = (decayed * decayed) / (decayed * decayed + accuracy * accuracy);
-    this._lat = this._lat + K * (lat - this._lat);
-    this._lng = this._lng + K * (lng - this._lng);
+    const K = (decayed * decayed) / (decayed * decayed + effectiveAccuracy * effectiveAccuracy);
+    // Phase A-5: innovation 距離 (m) 計算・buffer 蓄積・R̂ 推定
+    //   観測残差 = (lat - this._lat) ・(lng - this._lng) を meter 換算
+    //   buffer push + N>10 で shift・N>=5 で RMS から R̂ 更新
+    //   R̂ は SAGE_HUSA_R_MAX_M で上限 clamp (= 過剰 filter 防止)
+    const innovLat = lat - this._lat;
+    const innovLng = lng - this._lng;
+    const meterPerDegLat = 111000;
+    const meterPerDegLng = 111000 * Math.cos((this._lat * Math.PI) / 180);
+    const innovDistM = Math.sqrt(
+      innovLat * meterPerDegLat * (innovLat * meterPerDegLat) +
+        innovLng * meterPerDegLng * (innovLng * meterPerDegLng)
+    );
+    this._innovBuffer.push(innovDistM);
+    if (this._innovBuffer.length > SAGE_HUSA_BUFFER_N) this._innovBuffer.shift();
+    if (this._innovBuffer.length >= SAGE_HUSA_MIN_SAMPLES) {
+      let sumSq = 0;
+      for (let i = 0; i < this._innovBuffer.length; i++) {
+        sumSq += this._innovBuffer[i] * this._innovBuffer[i];
+      }
+      const rms = Math.sqrt(sumSq / this._innovBuffer.length);
+      this._adaptiveR = Math.min(rms, SAGE_HUSA_R_MAX_M);
+    }
+    this._lat = this._lat + K * innovLat;
+    this._lng = this._lng + K * innovLng;
     this._accuracy = Math.sqrt((1 - K) * decayed * decayed);
     this._timestamp = timestamp;
     if (!isFinite(this._lat) || !isFinite(this._lng)) {
@@ -246,69 +374,12 @@ function calcAccelVariance(accelSamples, now) {
   return variance;
 }
 
-// ─── MM-5 (2026-05-08): 加速度路面セマンティクス検出 ─────────
-// vibration_index = std(|a|) を 1Hz で算出し、橋進入時の急上下 G impulse を検出
-// accelLayerHint: 'bridge' | 'normal'
-//   - 'bridge': 直近 5 秒で max(|a|) - min(|a|) > 4 m/s² の impulse を観測
-//   - 'normal': デフォルト・上記閾値未満
-// トンネルは accel から検出困難なため normal のまま（cellular hint で補完）
-//
-// 戻り値: { hint, vibrationIndex, magRange, sampleCount } | null
-const ACCEL_LAYER_WINDOW_MS = 5000;
-const ACCEL_LAYER_MIN_SAMPLES = 8;
-const ACCEL_BRIDGE_RANGE_THRESHOLD = 4.0; // m/s² 急上下 G の検出閾値
-const ACCEL_BRIDGE_VARIANCE_THRESHOLD = 0.8; // 高 vibration の検出閾値
-
-function _calcAccelLayerHint(accelSamples, now) {
-  if (!accelSamples || !Array.isArray(accelSamples)) return null;
-  if (accelSamples.length < ACCEL_LAYER_MIN_SAMPLES) return null;
-
-  const recent = accelSamples.filter(
-    (s) => s && typeof s.t === 'number' && now - s.t < ACCEL_LAYER_WINDOW_MS
-  );
-  if (recent.length < ACCEL_LAYER_MIN_SAMPLES) return null;
-
-  // 各サンプルの |a| = √(x² + y² + z²) を算出
-  let maxMag = -Infinity,
-    minMag = Infinity,
-    sumMag = 0;
-  const mags = new Array(recent.length);
-  for (let i = 0; i < recent.length; i++) {
-    const s = recent[i];
-    const m = Math.sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
-    mags[i] = m;
-    if (m > maxMag) maxMag = m;
-    if (m < minMag) minMag = m;
-    sumMag += m;
-  }
-  const mean = sumMag / recent.length;
-
-  // 標準偏差 (vibration_index)
-  let variance = 0;
-  for (let i = 0; i < mags.length; i++) {
-    const d = mags[i] - mean;
-    variance += d * d;
-  }
-  variance /= mags.length;
-  const vibrationIndex = Math.sqrt(variance);
-
-  // 急上下 G の range（最大 - 最小）
-  const magRange = maxMag - minMag;
-
-  let hint = 'normal';
-  // 橋進入: range が大きい（伸縮継ぎ目を踏んだ瞬間の vertical G impulse）
-  // または vibration_index が高い（橋面の不整・段差）
-  if (magRange > ACCEL_BRIDGE_RANGE_THRESHOLD || vibrationIndex > ACCEL_BRIDGE_VARIANCE_THRESHOLD) {
-    hint = 'bridge';
-  }
-
-  return {
-    hint: hint,
-    vibrationIndex: vibrationIndex,
-    magRange: magRange,
-    sampleCount: recent.length,
-  };
-}
+// 2026-05-09 (P4/P5 廃止) + 2026-05-30 (§4 死コード一掃):
+//   旧 MM-5 加速度路面セマンティクス検出 (_calcAccelLayerHint・accelLayerHint='bridge'/'normal'
+//   と ACCEL_LAYER_*/ACCEL_BRIDGE_* 定数) は除去。
+//   理由: layer (v6 attribute) + bridges-/tunnels-{pref}.js データで道路属性ベースに代替済で
+//         本関数は呼出 0 件 (= grep 実証済・dead)。橋/トンネル判定は map-matcher の
+//         _computeLayerScore (prevLayer 連続性 boost) が担う。
 
 // ─── C-2：加速度合算ベクトル動き判定（2026/04/30追加） ───
 // 直近のサンプルから |a|=√(x²+y²+z²) の平均を計算し、9.8（重力）からの偏差を返す
@@ -395,6 +466,10 @@ function _inertialGapCorrection(prevPos, accelSamples, currLat, currLng, dt) {
   return { driftDist: driftDist };
 }
 
+// ★Fix① (2026-05-28): 旧 speed ベース静止判定。GPS速度(A3/Doppler)が主信号のため creep を招き、
+//   主経路からは外した(= checkPositionStationary + accel 主体に置換)。但し関数自体は
+//   単体テスト契約 + 実機検証中の即時 rollback 余地として保持する(= 意図的に未使用)。
+// eslint-disable-next-line no-unused-vars
 function checkStationary(speedKmh, lat, lng, now) {
   if (isStationary && speedKmh >= CONFIG.resume_speed_kmh) {
     lowSpeedStart = null;
@@ -413,6 +488,25 @@ function checkStationary(speedKmh, lat, lng, now) {
   }
   lowSpeedStart = null;
   return false;
+}
+
+// ★Fix① (2026-05-28): 速度に依存しない位置半径のみの静止判定。
+//   A3合成速度/Dopplerノイズに左右されず・accel 判定不能(iOS権限拒否等)時の fallback。
+//   半径超で move = anchor 再設定し非静止 / 半径内 stationary_sec 継続で静止。
+function checkPositionStationary(lat, lng, now) {
+  if (!_posStillStart) {
+    _posStillStart = { time: now, lat, lng };
+    return isStationary;
+  }
+  const elapsedSec = (now - _posStillStart.time) / 1000;
+  const movedM = calcDistance(_posStillStart.lat, _posStillStart.lng, lat, lng);
+  const radius = isTrafficJam ? CONFIG.stationary_radius_jam_m : CONFIG.stationary_radius_m;
+  if (movedM >= radius) {
+    _posStillStart = { time: now, lat, lng }; // 半径超 = 移動 → anchor 再設定し非静止
+    return false;
+  }
+  if (elapsedSec >= CONFIG.stationary_sec) return true; // radius 内で継続 = 静止
+  return isStationary;
 }
 
 // ─── Vincenty公式（WGS84楕円体） ───
@@ -481,13 +575,8 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(aa), Math.sqrt(1 - aa));
 }
 
-function _calcDistance3D(lat1, lng1, alt1, lat2, lng2, alt2) {
-  const flat = calcDistance(lat1, lng1, lat2, lng2);
-  if (alt1 == null || alt2 == null) return flat;
-  const altDiff = alt2 - alt1;
-  if (Math.abs(altDiff) > 100) return flat;
-  return Math.sqrt(flat * flat + altDiff * altDiff);
-}
+// ★cleanup (2026-06-04): 旧 _calcDistance3D (高度差込み距離) を削除。worker 内呼出 0・self 非公開
+//   (= grep 実証済の dead)。3D 距離は gps.js 側 calcDistance3D (GPS public API・別生存) が担う。
 
 // ─── メイン処理（GPS座標を受け取って計算） ───
 function processPosition(data) {
@@ -504,17 +593,102 @@ function processPosition(data) {
     accelSamples,
     gyroData,
     gyroSamples,
+    speedSrc, // ★STEP0 診断: gps.js が付与 (= 'dop'=Doppler / 'hav'=A3 haversine代用)
   } = data;
 
   // ① 動的accuracy閾値
-  const accLimit = getDynamicAccuracyLimit(speedKmh, now);
-  if (accuracy > accLimit) return null;
+  // ★Fix② (2026-05-28): 静止時(直前frame)は base のまま厳格(drift計上しない)・
+  //   移動時は base を下限に accuracy_moving_max_m まで緩和(屋内/低速で全reject→凍結→jump を回避)。
+  //   isStationary は直前frame の値(本frame判定は後段) = Fix① で信頼できる。安全側=過少。
+  // ★設計変更宣言 (2026-06-04・bypass化D): 移動時は accuracy_moving_extreme_m(=35m) まで受理し
+  //   (= 中程度誤差点を消さず Worker B に委任)、その超過のみ「真に使い物にならない極端値」として
+  //   硬棄却する (= 過大ゼロ保険・巨大誤差点が Worker B 入力を汚さない)。静止時は base のまま厳格。
+  const _accLimitBase = getDynamicAccuracyLimit(speedKmh, now);
+  // ★監査 wf_1cd1ef59 + 司さん指摘(端末非依存・全端末で発火): 生GPS変位継続性で accuracy 緩和を判定。
+  //   ★バッファは accept 点だけでなく ★全点の生位置★ で更新する★ — そうしないと屋内棄却で始まる業務で
+  //   buffer が 4 点に届かずゲートが永久に発火しない(SE実機で bl=2 固着を実測)。GPS の軌跡は点の
+  //   accept/reject に依らず移動しているため、軌跡(全点)で「徐行か真静止か」を判定するのが正しい。
+  //   どの端末でも屋内徐行という ★条件★ で発火する(端末別ロジックではない)。
+  __rawDispBuf.push({ lat, lng });
+  if (__rawDispBuf.length > CONFIG.disp_window) __rawDispBuf.shift();
+  //   isStationary 誤判定で厳格化された徐行点を、直近 disp_window 点の正味変位 > disp_net_m なら救う。
+  const __movingByDisp =
+    __rawDispBuf.length >= CONFIG.disp_window &&
+    calcDistance(
+      __rawDispBuf[0].lat,
+      __rawDispBuf[0].lng,
+      __rawDispBuf[__rawDispBuf.length - 1].lat,
+      __rawDispBuf[__rawDispBuf.length - 1].lng
+    ) > CONFIG.disp_net_m;
+  const __relaxAcc = !isStationary || __movingByDisp;
+  const accLimit = __relaxAcc
+    ? Math.max(_accLimitBase, CONFIG.accuracy_moving_extreme_m)
+    : _accLimitBase;
+  if (accuracy > accLimit) {
+    _postGpsDbg({
+      rej: 'accuracy',
+      spd: speedKmh,
+      src: speedSrc,
+      acc: accuracy,
+      lim: accLimit,
+      stat: isStationary,
+    });
+    return null;
+  }
 
-  // ② ジャンプ判定
-  if (lastPosition) {
-    const jump = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
-    const timeDiff = (now - lastPosition.timestamp) / 1000;
-    if (timeDiff > 0 && jump / timeDiff > CONFIG.jump_limit_m_per_s) return null;
+  // ② ジャンプ判定 (= 真の物理テレポート天井・過大ゼロ保険)
+  //   ★設計変更宣言 (2026-06-04・bypass化E修正): jump は ★生の前回観測位置 (lastRawPosition)★ に
+  //     対して測る。従来は lastPosition (= Kalman 平滑後) 比較だったため加速時の filter lag が偽
+  //     テレポートを量産し anchor が固着→good点を cascade 棄却 (= 過少の主機序) していた。生-生で
+  //     測れば真の >50m/s テレポート (= multipath 大 outlier・計量法的にあり得ない移動) のみが残り
+  //     (実測 3台 0〜1点)、それだけを硬棄却する。jump_limit_m_per_s=50 (= 物理天井) は 1byte 不変。
+  if (lastRawPosition) {
+    const jump = calcDistance(lastRawPosition.lat, lastRawPosition.lng, lat, lng);
+    const timeDiff = (now - lastRawPosition.timestamp) / 1000;
+    if (timeDiff > 0 && jump / timeDiff > CONFIG.jump_limit_m_per_s) {
+      _postGpsDbg({
+        rej: 'jump',
+        spd: speedKmh,
+        src: speedSrc,
+        acc: accuracy,
+        lim: accLimit,
+        stat: isStationary,
+      });
+      return null;
+    }
+  }
+
+  // ②-1 Doppler-Speed Sanity Gate (= Phase A-4・2026-05-26):
+  //   Doppler 速度 (= 衛星受信機 GPS chip 由来・gps.js L456 で speedKmh に変換) と
+  //   haversine 速度 (= 直線距離 / 経過時間) の整合性検証。
+  //   speedKmh <= 0 (= speed null fallback in gps.js L456) または dtSec >= 5 は skip。
+  //   |dopplerMs - haverMs| > 10 m/s (= 36 km/h 差) で異常 GPS 点と判定し reject。
+  //   絶対ルール準拠: distance_m 加算 5 経路 / calcFare / Worker B: 1byte 不変。
+  //   後退検出 (= Phase A-3) との整合: 後退中 Doppler は符号なし・絶対値で出力されるため
+  //   haversine と同等値・diff < 10 m/s で通過 (= 後退距離加算は維持される)。
+  if (lastPosition && speedKmh > 0) {
+    const dtSec = (now - lastPosition.timestamp) / 1000;
+    if (dtSec > 0 && dtSec < 5) {
+      const haverDist = calcDistance(lastPosition.lat, lastPosition.lng, lat, lng);
+      const haverMs = haverDist / dtSec;
+      const dopplerMs = speedKmh / 3.6;
+      const speedDiff = Math.abs(dopplerMs - haverMs);
+      if (speedDiff > 10) {
+        // ★設計変更宣言 (2026-06-04・bypass化A・距離入力全点化): Doppler 速度の嘘 (49m/s 等) を
+        //   検出しても ★位置は一切棄却しない★。Doppler は速度観測の異常であって位置 fix とは独立
+        //   (擬似距離=位置 と Doppler=速度 は別観測量) のため、acc の良否に関わらず位置を受理し
+        //   Worker B(Viterbi snap) に届ける。旧 Fix④ の acc>trust_position_acc_m での return null
+        //   (= 良い位置を Doppler の嘘で捨てる過少の主犯) を全廃。位置精度は ①accuracy 天井 (極端値の
+        //   み硬棄却) と ②jump 天井 (>50m/s) で別途担保し、外れ snap は Worker B の Mahalanobis
+        //   emission + 候補距離上限 (MM_MAX_SNAP_DIST_M) が委任吸収する。速度成分は後段の静止判定が
+        //   accel 主体で GPS 速度を主信号にしないため触らずとも distance に Doppler が主源化しない。
+        wlog(
+          '[GPS] Doppler-haversine 速度不整合 diff=' +
+            speedDiff.toFixed(1) +
+            'm/s→位置受理(速度成分のみ distrust・Worker B 委任)'
+        );
+      }
+    }
   }
 
   // ②-2 加速度異常判定（案Z）
@@ -524,8 +698,22 @@ function processPosition(data) {
       const dvMs = (speedKmh - lastPosition.speedKmh) / 3.6;
       const acceleration = dvMs / dt;
       if (Math.abs(acceleration) > CONFIG.max_acceleration_ms2) {
-        wlog('[GPS] 加速度異常: ' + acceleration.toFixed(1) + 'm/s²・スキップ');
-        return null;
+        // ★設計変更宣言 (2026-06-04・bypass化B・距離入力全点化): 加速度異常は ★速度成分の異常★で
+        //   あって位置 fix の棄却理由にしない (doppler 同思想)。旧 return null を全廃し位置を Worker B
+        //   へ届ける。診断 (_postGpsDbg rej:accel) は効果測定のため残置するが棄却はしない。
+        wlog(
+          '[GPS] 加速度異常: ' +
+            acceleration.toFixed(1) +
+            'm/s²・位置受理(速度異常のみ・Worker B 委任)'
+        );
+        _postGpsDbg({
+          rej: 'accel',
+          spd: speedKmh,
+          src: speedSrc,
+          acc: accuracy,
+          lim: accLimit,
+          stat: isStationary,
+        });
       }
     }
   }
@@ -543,14 +731,46 @@ function processPosition(data) {
     if (movedDistance >= CONFIG.heading_check_min_distance_m) {
       const movementBearing = calcBearing(lastPosition.lat, lastPosition.lng, lat, lng);
       const diff = angleDiff(effectiveHeading, movementBearing);
-      if (diff > CONFIG.heading_diff_threshold_deg) {
+      // ★設計変更宣言 Phase A-3 (2026-05-26・後退検出・タクシーメーター標準準拠):
+      //   後退駐車中 (= diff ≈ 180°・低速 0.5〜10 km/h) は・GPS 点を・reject せず採用。
+      //   後退距離は・既存 Worker B route distance / Off-Road retroactive で・distance_m に正常加算。
+      //   高速時 (= speedKmh >= 10) で・diff ≈ 180° は・「真の異常 GPS」 (= multipath 等) と・判定し reject 維持。
+      //   絶対ルール準拠:
+      //     ・calcFare / distance_m 加算 5 経路: 1 byte 不変 (= 既存救済機構で距離反映)
+      //     ・Worker B: 1 byte 不変
+      //     ・既存コンパス融合 Q (= L558-573) は・isReverse 時も・matchRatio 負値で Q 大 (= GPS 信頼) と・妥当動作
+      //   誤検出リスク:
+      //     ・スマホ逆向き設置 + 低速走行のみ・誤加算量 数 m (= 低速時・許容)
+      const isReverse = Math.abs(diff - 180) < 30 && speedKmh >= 0.5 && speedKmh < 10;
+      if (!isReverse && diff > CONFIG.heading_diff_threshold_deg) {
+        // ★設計変更宣言 (2026-06-04・bypass化C・距離入力全点化): 進行方向の不整合は ★位置を棄却
+        //   しない★。方向の外れは Worker B の Mahalanobis emission + heading β + Viterbi transition が
+        //   委任処理する (snap で正す)。旧 return null を全廃し位置を Worker B へ届ける。診断
+        //   (_postGpsDbg rej:heading) は効果測定のため残置。isReverse 採用ロジックとコンパス融合 Q は
+        //   下記でそのまま生かす。
         wlog(
           '[GPS] 方向不整合: ' +
             diff.toFixed(0) +
-            '°・スキップ' +
+            '°・位置受理(Viterbi 委任)' +
             (compassHeading != null ? '（コンパス）' : '（GPS）')
         );
-        return null;
+        _postGpsDbg({
+          rej: 'heading',
+          spd: speedKmh,
+          src: speedSrc,
+          acc: accuracy,
+          lim: accLimit,
+          stat: isStationary,
+        });
+      }
+      if (isReverse) {
+        wlog(
+          '[GPS] 後退検出: diff=' +
+            diff.toFixed(0) +
+            '° speed=' +
+            speedKmh.toFixed(1) +
+            'km/h・GPS 点採用 (= 後退距離加算)'
+        );
       }
       // コンパスとGPS移動方向の一致度でKalman_Qを動的調整
       // 一致（diff小）→ Q小さく（より強くフィルター・ノイズ除去）
@@ -585,29 +805,54 @@ function processPosition(data) {
   const filtered = kalman.update(lat, lng, accuracy, now, CONFIG._kalman_Q_override);
   CONFIG._kalman_Q_override = null; // 使い捨て
 
-  // ⑤ 静止判定（C-1+C-2：加速度variance + 動き判定強化・2026/04/30）
-  // 既存GPS判定 AND C-1（分散小） AND NOT C-2（|a|-9.8 大） で「確実に静止」
-  // 加速度なし時は GPS判定のみ（後方互換）
-  const gpsStationary = checkStationary(speedKmh, filtered.lat, filtered.lng, now);
+  // ⑤ 静止判定（★Fix① 2026-05-28・★設計変更宣言★：加速度variance主体に作り直し）
+  //   旧: finalStationary = gpsStationary && c1Stationary && !c2Moving (3点AND)。
+  //       gpsStationary = checkStationary(speedKmh,...) が GPS速度<3 を必須としたため、
+  //       A3合成速度/Dopplerノイズの偽速度(観測 3.1km/h)で gpsStationary=false に落ち、
+  //       accel が「静止」と言っても 3点AND が非静止 → 空車中 drift を計上(creep)。
+  //   新: GPS速度(A3/Doppler)を静止判定の主信号にしない。
+  //       (a) 高速(>=stationary_moving_speed_kmh)は確実に移動 → 静止解除(定速走行 under-count防止)
+  //       (b) 低速域は accel(物理的な動き)を主信号: C-1静止 かつ C-2動きなし → 静止
+  //       (c) accel 判定不能(iOS権限拒否等)は位置半径のみ(checkPositionStationary)に fallback
+  //           (= A3速度ではなく位置で判定)
+  //   安全側=過少(過大課金NG): accel が「静止」と言えば停止扱い(drift を計上しない)。
   const accelVariance = calcAccelVariance(accelSamples, now);
   const accelDeviation = calcAccelMagnitudeDeviation(accelSamples, now);
+  // 位置半径のみの静止判定 (速度非依存・accel不能時 fallback / 診断比較用・毎frame維持)
+  const posStationary = checkPositionStationary(filtered.lat, filtered.lng, now);
+
+  // ★Fix① v2 (2026-05-28・dwell time 業界標準準拠):
+  //   speedKmh >= stationary_moving_speed_kmh を ★連続 high_speed_dwell_steps step★ 観測した時のみ
+  //   高速ガード発火。1 step の偽速度 spike (= A3 drift 由来) は dwell 未達で accel 判定に落とし
+  //   creep を遮断。Linux CI run 26553931113 で spd=11.68km/h 1 step spike が backstop を defeat した
+  //   事象 → 本 dwell time で遮断。ArduPilot EKF_GLITCH_RAD「persistent then accept」と整合。
+  let highSpeedFire = false;
+  if (speedKmh >= CONFIG.stationary_moving_speed_kmh) {
+    _highSpeedConsecCount++;
+    if (_highSpeedConsecCount >= CONFIG.high_speed_dwell_steps) {
+      highSpeedFire = true;
+    }
+  } else {
+    _highSpeedConsecCount = 0;
+  }
 
   let finalStationary;
-  if (accelVariance === null && accelDeviation === null) {
-    // 加速度判定不能（センサーなし／サンプル不足）→ GPS判定のみ（後方互換）
-    finalStationary = gpsStationary;
+  if (highSpeedFire) {
+    // (a) ★連続 N step★ で高速 → 確実に移動 (drift spike では達しない) → 計上
+    finalStationary = false;
+  } else if (accelVariance === null && accelDeviation === null) {
+    // (c) 加速度判定不能 → 位置半径のみ (A3/Doppler 速度に依存しない fallback)
+    finalStationary = posStationary;
   } else {
-    // C-1：分散による静止判定（小さいほど静止）
+    // (b) accel 主体: C-1（分散小=静止）かつ NOT C-2（合算ベクトル大=動き）→ 物理的に静止
     const c1Stationary = accelVariance === null || accelVariance < CONFIG.accel_variance_threshold;
-    // C-2：合算ベクトルによる動き判定（大きいほど動き）
     const c2Moving = accelDeviation !== null && accelDeviation > CONFIG.accel_motion_threshold;
 
-    // チューニング用ログ：3つの判定が一致しない時のみ出力
-    const allAgree = gpsStationary === c1Stationary && gpsStationary === !c2Moving;
-    if (!allAgree) {
+    // チューニング用ログ：accel 主体判定と位置半径判定が食い違う時のみ出力
+    if ((c1Stationary && !c2Moving) !== posStationary) {
       wlog(
-        '[C-1+C-2] 判定不一致 GPS=' +
-          gpsStationary +
+        '[C-1+C-2] 判定不一致 pos=' +
+          posStationary +
           ' C1=' +
           c1Stationary +
           ' C2_moving=' +
@@ -622,9 +867,8 @@ function processPosition(data) {
       );
     }
 
-    // 3点AND：GPS静止 AND C-1静止 AND C-2動きなし → 確実に静止
-    // 1つでも動きを示す → 距離計測続行（保守的・代行業務向き）
-    finalStationary = gpsStationary && c1Stationary && !c2Moving;
+    // ★accel が物理的静止を示せば停止扱い (GPS速度は参照しない = A3/Doppler 偽速度を無視)
+    finalStationary = c1Stationary && !c2Moving;
   }
   isStationary = finalStationary;
   // Phase 1.ZUPT (2026-05-10): 次 frame の Kalman 用に判定を carry
@@ -668,16 +912,42 @@ function processPosition(data) {
     speedKmh: clampedSpeedKmh,
     altitude,
   };
+  // ★設計変更宣言 (2026-06-04・bypass化E修正): jump (真テレポート) 判定用に ★生の観測位置★ を
+  //   別保持する。Kalman 平滑後 (lastPosition) ではなく生 lat/lng を anchor にすることで、加速時の
+  //   filter lag を偽テレポートと誤検知しない。真テレポート (= 棄却済 = ここに到達しない) は anchor に
+  //   採らないため、teleport が新基準点になって連鎖する事故も起きない。
+  lastRawPosition = { lat, lng, timestamp: now };
 
-  _prevAccuracy = accuracy;
+  // ★STEP0 診断: accept 時の最終値 (speedKmh源/isStationary/accuracy/accLimit) を出力
+  _postGpsDbg({
+    rej: null,
+    spd: clampedSpeedKmh,
+    src: speedSrc,
+    acc: accuracy,
+    lim: accLimit,
+    stat: isStationary,
+  });
   // 2026-05-09 (P4/P5): cellularLayerHint / accelLayerHint 廃止
   //   layer (v6 attribute) + tunnels-/bridges-{pref}.js データで完全代替
+  // ★設計変更宣言 (2026-06-04・bypass化・距離は生位置→Worker B):
+  //   距離経路 (= Meter→Worker B Viterbi snap) に渡す位置は ★生の観測 lat/lng★ とする。
+  //   従来は Kalman 平滑後 (filtered) を渡していたが、Viterbi も平滑器であるため二重平滑となり
+  //   コーナーを削り経路長を約15%過少化していた (= full-chain がタイヤから −12〜−18% 乖離した残差の
+  //   主因)。生位置を Worker B に渡すと bypass (raw→Worker B) と一致し 3台がタイヤに収束 (実測
+  //   業務1 −2〜−3%/業務2 −0〜−4%・spread<120m・過大ゼロ)。Kalman は速度/静止判定/連続性のため
+  //   内部 (lastPosition・checkPositionStationary) で従来通り稼働させ filtered を使うが、★外へ出す
+  //   距離用位置だけ生に切替える★。これが「点を消さず・全点を Worker B に届ける」bypass 化の本体。
   return {
-    lat: filtered.lat,
-    lng: filtered.lng,
+    lat,
+    lng,
     altitude,
     accuracy,
     speedKmh: clampedSpeedKmh,
+    // ★speedSrc 貫通 (2026-06-07)★: gps.js が付与した速度源 ('dop'=本物 Doppler / 'hav'=haversine
+    //   代用) を echo する。エンジン (pipeline-distance) の gap 補完/never-over cap は本物の
+    //   Doppler のみ速度として使う契約 (hav は -1=不明 → straight 補完)。echo しないと worker B が
+    //   代用速度を Doppler と誤認し gap 跨ぎ距離を微速×dt で潰す (0606night SE 業務1 -64m 実測)。
+    speedSrc: typeof speedSrc === 'string' ? speedSrc : null,
     isStationary,
     timestamp: now,
     compassHeading: compassHeading != null ? compassHeading : null,
@@ -702,7 +972,11 @@ self.onmessage = function (e) {
     if (data.debug !== undefined) debug = data.debug;
     kalman = new KalmanGPS();
     lastPosition = null;
+    lastRawPosition = null; // ★bypass化E (2026-06-04): 生位置 anchor リセット
+    __rawDispBuf = []; // ★監査 wf_1cd1ef59: 変位継続性バッファもリセット
     lowSpeedStart = null;
+    _posStillStart = null; // ★Fix① (2026-05-28): 位置半径 anchor リセット
+    _highSpeedConsecCount = 0; // ★Fix① v2 (2026-05-28): 高速ガード dwell time カウンタリセット
     isStationary = false;
     trafficJamSince = null;
     isTrafficJam = false;
@@ -716,7 +990,11 @@ self.onmessage = function (e) {
     // stop()時にリセット
     if (kalman) kalman.reset();
     lastPosition = null;
+    lastRawPosition = null; // ★bypass化E (2026-06-04): 生位置 anchor リセット
+    __rawDispBuf = []; // ★監査 wf_1cd1ef59: 変位継続性バッファもリセット
     lowSpeedStart = null;
+    _posStillStart = null; // ★Fix① (2026-05-28): 位置半径 anchor リセット
+    _highSpeedConsecCount = 0; // ★Fix① v2 (2026-05-28): 高速ガード dwell time カウンタリセット
     isStationary = false;
     trafficJamSince = null;
     isTrafficJam = false;

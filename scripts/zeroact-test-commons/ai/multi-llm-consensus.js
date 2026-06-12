@@ -45,7 +45,7 @@ const REVIEW_PROMPT = `あなたはダイコメ (代行運転 PWA メーター) 
 2. GPS 直線距離 (GPS.calcDistance / GPS.calcDistance3D) の課金流入は禁止
    (= 適用外区間 _trackHaversineBetweenGps / _calculateOffRoadIncrement のみ許可)
 3. distance_m 更新経路は 5 つのみ
-   (L393 Tier1 / L462 retroactive / L824 gap fill / L842 Off-Road / L1172 setDistance)
+   (L551 Tier1 / L661 retroactive / L1168 gap fill / L1190 Off-Road / L1691 setDistance)
 4. isStationary=true で distance_m 増加禁止
 5. business_distance_m は state.running===true のときのみ加算
 6. console.error は dlog 置換禁止 (= 本番出力前提)

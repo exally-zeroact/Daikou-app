@@ -104,11 +104,14 @@ test('sensor-edge: accuracy>50m の GPS で gap fill 経路が動作・他経路
     return { afterStep1, afterStep2, afterStep3 };
   });
 
-  // 全 step で gap fill 未発火 (= dtSec<5)・Worker B 不在で Tier1 commit なし
-  // → distance_m は 0 のまま (= GPS 直線が混入していない保証)
+  // E2E は実 mmWorker あり・道路未ロード (roadsLoading) のため loadfill (2026-06-07 新設) が
+  // dtSec=1 でも speed×時間 (60km/h×1s≈16.7m) を計上する。★加算は speed×時間のみで
+  // GPS 直線 (haversine) は混入しない保証は不変★ (accuracy=60 でも速度由来のみ)。
   expect(result.afterStep1).toBe(0);
-  expect(result.afterStep2).toBe(0);
-  expect(result.afterStep3).toBe(0);
+  expect(result.afterStep2).toBeGreaterThan(10);
+  expect(result.afterStep2).toBeLessThan(25);
+  expect(result.afterStep3).toBeGreaterThan(25);
+  expect(result.afterStep3).toBeLessThan(45);
 
   await teardownPage(page);
 });
@@ -146,9 +149,11 @@ test('sensor-edge: GPS jump (物理速度上限超過) で haversine buffer に�
     return { afterJump };
   });
 
-  // distance_m は 0 維持 (= ジャンプ直線が混入していない)
-  // Worker B 不在で Tier1 commit なし・gap fill は dtSec=1 で発火せず
-  expect(result.afterJump).toBe(0);
+  // ★500m ジャンプ直線が混入していないことが本質★ (= 加算は speed×時間のみ)。
+  // E2E は roadsLoading のため loadfill が speed×時間 (60km/h×1s≈16.7m) を計上する
+  // (2026-06-07 新設)。ジャンプ由来の ~500m が乗らないことを上限 50m で保証。
+  expect(result.afterJump).toBeGreaterThan(10);
+  expect(result.afterJump).toBeLessThan(50);
 
   await teardownPage(page);
 });
@@ -189,7 +194,8 @@ test('sensor-edge: GPS 空白 5 秒以上で gap fill 発火・distance_m 増加
   // 60 km/h × 10 sec = 166.7m (= 物理上限 clamp 内)
   expect(result.afterGap).toBeGreaterThan(100);
   expect(result.afterGap).toBeLessThan(500);
-  expect(result.distanceSource).toBe('gap');
+  // E2E は実 mmWorker あり・道路未ロード (roadsLoading) のため 'loadfill' (2026-06-07 新設)
+  expect(result.distanceSource).toBe('loadfill');
 
   await teardownPage(page);
 });

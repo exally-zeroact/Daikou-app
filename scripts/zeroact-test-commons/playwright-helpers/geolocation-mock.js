@@ -10,7 +10,7 @@
 //   ・今治AI: 将来の位置情報サービス検証
 //
 // ★ isStationary 強制条件 (重要):
-//   gps-worker.js L596-598 救済で「加速度サンプル null なら GPS 判定のみで final 確定」。
+//   gps-worker.js L800-807 (Fix① 新構造・accel-null は checkPositionStationary fallback) 救済で「加速度サンプル null なら GPS 判定のみで final 確定」。
 //   Playwright で DeviceMotionEvent を dispatch しない限り加速度は null になる。
 //   そのため同座標を 1Hz で 6 秒以上 (6+ 点) 流せば isStationary=true 確定。
 //
@@ -62,7 +62,7 @@ async function simulateDriving(context, opts) {
 /**
  * 停車シミュレーション (= 同座標を 1Hz で N 秒流す)
  * gps-worker isStationary 判定 (= 速度<3 + elapsedSec>=5 + movedM<3) を満たす。
- * 加速度未模擬で gps-worker.js L596-598 救済を経由して GPS 単独で確定。
+ * 加速度未模擬で gps-worker.js L800-807 (Fix① 新構造・accel-null は checkPositionStationary fallback) 救済を経由して GPS 単独で確定。
  *
  * @param {import('@playwright/test').BrowserContext} context
  * @param {object} opts
@@ -84,7 +84,7 @@ async function simulateStationary(context, opts) {
 
 /**
  * GPS 消失シミュレーション (= dtSec >= 5 秒の空白)
- * meter.js L812 GAP_THRESHOLD_SEC=5 以上で L824 distance_m += filled (gap fill) が発火。
+ * meter.js (gap-fill threshold・drift-static C1) GAP_THRESHOLD_SEC=5 以上で L1168 distance_m += filled (gap fill) が発火。
  *
  * @param {import('@playwright/test').BrowserContext} context
  * @param {object} opts

@@ -374,12 +374,15 @@ describe('Phase 8 Batch 2: L728-729 stop() elapsed 確定加算', () => {
     Meter.reset();
   });
 
-  it('start→stop→start→stop で elapsed_accumulated_sec が単調非減少 (= 全 stop で確定加算)', () => {
+  // ★2026-05-28 PM flaky 安定化 (= memory 既知・Linux CI で 0ms 終了で acc2=0 → FAIL):
+  //   busy loop (= Math.sqrt 50 回) は Linux CI で 0ms 内終了し・elapsed_accumulated_sec += 0
+  //   になる。明示的 setTimeout で確実な elapsed 進行を保証。it() async 化。
+  it('start→stop→start→stop で elapsed_accumulated_sec が単調非減少 (= 全 stop で確定加算)', async () => {
     const { Meter } = setupMeter();
     Meter.stop();
     const acc1 = Meter.getState().elapsed_accumulated_sec;
     Meter.start();
-    for (let i = 0; i < 50; i++) Math.sqrt(i + 1);
+    await new Promise((r) => setTimeout(r, 50));
     Meter.stop();
     const acc2 = Meter.getState().elapsed_accumulated_sec;
     expect(acc2).toBeGreaterThanOrEqual(acc1); // 2 回目分が加算 (= 単調非減少)

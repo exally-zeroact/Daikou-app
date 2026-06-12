@@ -588,6 +588,55 @@
       };
     }
 
+    // ★設計変更宣言 (2026-06-05・★Worker B 再起動時の roads 再 forward・しまなみ SE 距離フリーズ根治★):
+    //   Worker B は iOS で画面ロック/バックグラウンドにより suspend され、visibility ping watchdog が
+    //   ★新しい Worker に作り直す★ことがある。だが旧実装は新 Worker に ★道路データを再 load しない★ため
+    //   (loaded=0県/0本)、全 snap が失敗し distance が永久フリーズ (実機 SE: 34km 走行で 1.6km しか計上=−95%)。
+    //   本 method = 新 Worker に、これまで load 済の ★全 worker-target データ (global + _loadedPrefs の県別
+    //   roads/pois/aux)★ を ★cache から★再送する (= 高速・オフラインでも cache 内なら成功)。
+    //   絶対ルール準拠: 既存 _loadOne の postMessage 経路をそのまま使う・distance_m / calcFare / Viterbi
+    //   本体は 1 byte 不変・新 Worker の状態を ★元の Worker と同一に戻すだけ★。
+    async reforwardToWorker(newWorker) {
+      if (!newWorker) return;
+      this.worker = newWorker; // 以降の priority/background load も新 Worker へ向ける
+      this._loadedWorkerPrefs = new Set(); // 新 Worker は roadsLoaded 未受信状態
+      const tasks = [];
+      try {
+        // (1) 全国共通の worker-target データ (backbone / DEM 等)
+        const g = global.DataRegistry && global.DataRegistry.DATA_REGISTRY;
+        if (g && Array.isArray(g.global)) {
+          for (const e of g.global) {
+            if (e && e.target === 'worker') tasks.push(e);
+          }
+        }
+      } catch (_) {
+        /* registry 未 load → 県別のみ再送 */
+      }
+      // (2) これまで load 済の全県の worker-target entries (roads/pois/conditionalRestrictions/aux)
+      for (const pref of Array.from(this._loadedPrefs)) {
+        const entries = this._getPrefEntries(pref);
+        for (const e of entries) {
+          if (e && e.target === 'worker') tasks.push(e);
+        }
+      }
+      if (typeof dlog === 'function') {
+        dlog(
+          '[Pipeline] reforwardToWorker 開始: ' +
+            tasks.length +
+            ' entries / ' +
+            this._loadedPrefs.size +
+            '県 (Worker 再起動 recovery)'
+        );
+      }
+      // optional=true で送る (= 1 件失敗しても他を止めない・業務継続性最優先)。並列度は控えめ。
+      const results = await this._loadParallel(tasks, DEFAULT_CONCURRENCY, 'reforward');
+      const ok = results.filter((r) => r.ok).length;
+      if (typeof dlog === 'function') {
+        dlog('[Pipeline] reforwardToWorker 完了: ok=' + ok + '/' + tasks.length);
+      }
+      return { ok, total: tasks.length };
+    }
+
     async warmup() {
       // ★設計変更宣言 (2026-05-13): warmup 多重起動ガード
       //   visibility 復帰 / bfcache / 想定外の再呼出で warmup が再実行される事故を防ぐ。

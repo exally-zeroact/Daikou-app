@@ -32,6 +32,13 @@ export default defineConfig({
       //   stryker run では本 group を除外する (= 通常 vitest run は include で厳格度完全保持)。
       //   通常 vitest.config.js は本 dir を include する (= 既存 'tests/**/*.test.js' で自動)。
       'tests/drift-static/**',
+      // ★Phase2-a (2026-05-27): address-*-build テストは data/addresses-{chiban,rsdt,street}-ehime.js
+      //   (各 171MB 級・gitignore + stryker ignorePatterns data/** で sandbox 除外) を load する。
+      //   sandbox にデータが無く + 巨大 load で sandbox worker が OOM → dry-run 失敗 (他テストへ cascade)。
+      //   これらは scripts/build-address.js の検証で・stryker mutate 対象 (js/meter.js / map-matcher.js /
+      //   gps-worker.js) を 1 つも通らない (= mutation coverage 寄与ゼロ)。drift-static 除外と同じ
+      //   「sandbox 非互換」理由で stryker run のみ除外。通常 vitest.config.js では include で実行・検証完全保持。
+      'tests/integration/address-*-build.test.js',
     ],
     coverage: {
       provider: 'v8',

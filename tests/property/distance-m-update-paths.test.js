@@ -64,16 +64,47 @@ describe('ZEROact 共通テスト基盤: distance_m 更新経路の不変条件 
   //   理由: Stryker instrumentation で行シフト → false-fail。byte 不変で別 file 化し
   //         通常 vitest run では同 ±10 厳格度で実行・stryker では exclude する設計。
 
-  it('C2: sanitizer マーカー 2 種が meter.js に存在', () => {
+  it('C2: 白紙書き直し後 meter.js は距離駆動が pipeline delta 単一経路 (= GPS 直線課金経路ゼロ)', () => {
+    // ★白紙書き直し (2026-05-30・clean-rebuild-pipeline・新挙動へ更新)★
+    //   旧: Off-Road / retroactive の「絶対ルール適用外区間」sanitizer マーカー 2 種の存在を検証。
+    //       これらは GPS 連続点 haversine 累積を distance_m に流す ★旧経路★ の安全注記だった。
+    //   新: distance_m は pipeline-distance エンジンの delta のみで駆動し、meter.js 内に
+    //       GPS 直線距離を distance_m へ流す経路は存在しない (= sanitizer 区間も不要)。
+    //       よって本 test は「距離加算は += delta 経路のみ・GPS.calcDistance 呼出ゼロ」を検証する。
     const source = loadMeterSource();
-    if (!source.includes('★絶対ルール適用外区間（retroactive）')) {
+    const lines = source.split('\n');
+    // distance_m += は 2 経路 (2026-06-09・随伴車別k校正を反映): cal (= pipeline delta × k) +
+    //   gapCal (= Worker B 不在時 gap補完 gapM × k・速度×時間=認定メーター方式)。
+    //   k は ★同一 delta/gapM へのスカラー器差★であり GPS 直線(haversine)課金ではない。
+    //   (setDistance の = v は別カウント)。
+    const addPaths = lines.filter((l) => /^\s*state\.distance_m\s*\+=\s*/.test(l));
+    if (addPaths.length !== 2) {
       throw new Error(
-        'sanitizer マーカー欠落: ★絶対ルール適用外区間（retroactive） が meter.js に存在しない'
+        '白紙書き直し違反: state.distance_m += は 2 経路 (= pipeline delta×k cal + gap補完×k gapCal) のはず。実検出 ' +
+          addPaths.length +
+          ' 件・' +
+          JSON.stringify(addPaths.map((l) => l.trim()))
       );
     }
-    if (!source.includes('★絶対ルール適用外区間（明示宣言）')) {
+    if (!/\+=\s*cal\b/.test(addPaths[0]) || !/\+=\s*gapCal\b/.test(addPaths[1])) {
       throw new Error(
-        'sanitizer マーカー欠落: ★絶対ルール適用外区間（明示宣言） が meter.js に存在しない'
+        '白紙書き直し違反: distance_m 加算は #1 += cal (pipelineDeltaM×k) / #2 += gapCal (gap補完×k) のはず。実検出: ' +
+          JSON.stringify(addPaths.map((l) => l.trim()))
+      );
+    }
+    // ★単一源不変の強化★: cal/gapCal は pipeline delta / gapM の随伴車k倍であり別距離源でない事を検証。
+    if (
+      !/const\s+cal\s*=\s*delta\s*\*\s*_activeVehicleK\b/.test(source) ||
+      !/const\s+gapCal\s*=\s*gapM\s*\*\s*_activeVehicleK\b/.test(source)
+    ) {
+      throw new Error(
+        '白紙書き直し違反: cal/gapCal は delta×_activeVehicleK / gapM×_activeVehicleK のはず (= 単一pipeline源のk校正)'
+      );
+    }
+    // meter.js 内 GPS.calcDistance は 0 件 (= GPS 直線課金経路の混入なし)。
+    if (/GPS\.calcDistance\(/.test(source)) {
+      throw new Error(
+        '白紙書き直し違反: meter.js 内に GPS.calcDistance 呼出が混入 (= 直線課金懸念)'
       );
     }
   });

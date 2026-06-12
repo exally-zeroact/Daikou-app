@@ -10,10 +10,16 @@
 //   1. rAF 関数定義あり (= _rafDisplayTick / startRafDisplay / stopRafDisplay)
 //   2. startUiTimer 内で・startRafDisplay 呼出
 //   3. uiTimer clearInterval 周辺で・stopRafDisplay 呼出
-//   4. rAF 内・textContent 比較で・無駄 DOM 書込 防止
-//   5. rAF 内・getState 予測補間 利用 (= display_distance_m 採用)
+//   4. 読み出し共通関数 _renderMeterReadout 内・textContent 比較で・無駄 DOM 書込 防止
+//   5. 読み出し共通関数 内・getState 予測補間 利用 (= display_distance_m 採用)
 //   6. 既存 setInterval (= 100ms) は・1 byte 不変・並行更新で・二重実行
 //   7. 不可侵境界: js/meter.js / js/business.js / 距離計算ロジック・1 byte 不変
+//
+// ★白紙書き直し (2026-05-30・clean-rebuild-pipeline)★
+//   距離/料金/業務総走行の読み出しは rAF と setInterval の双方から呼ばれる共通関数
+//   _renderMeterReadout() に一本化した (= 旧 _rafDisplayTick インライン body を抽出)。
+//   並列残骸 pipelineDist 表示は白紙版で削除済。本テストの 4/5/7 は読み出し本体である
+//   _renderMeterReadout() block を grep 対象にする。
 
 'use strict';
 
@@ -71,51 +77,66 @@ describe('3. uiTimer stop 周辺・rAF stop 配線', () => {
   });
 });
 
-describe('4. textContent 比較・無駄 DOM 書込 防止', () => {
-  let rafTickBlock;
+describe('4. textContent 比較・無駄 DOM 書込 防止 (= _renderMeterReadout 内)', () => {
+  let readoutBlock;
   beforeAll(() => {
-    const m = html.match(/function _rafDisplayTick\(\)\s*\{[\s\S]*?\n\s\s\s\s\s\s\}/);
-    rafTickBlock = m ? m[0] : '';
+    const m = html.match(/function _renderMeterReadout\([^)]*\)\s*\{[\s\S]*?\n\s\s\s\s\s\s\}/);
+    readoutBlock = m ? m[0] : '';
   });
 
   it('_lastDriveDistKm 比較 (= 前回値・同じなら skip)', () => {
-    expect(rafTickBlock).toMatch(/distKm !== _lastDriveDistKm/);
-    expect(rafTickBlock).toMatch(/_lastDriveDistKm = distKm/);
+    expect(readoutBlock).toMatch(/distKm !== _lastDriveDistKm/);
+    expect(readoutBlock).toMatch(/_lastDriveDistKm = distKm/);
   });
 
   it('_lastDriveFareYen 比較', () => {
-    expect(rafTickBlock).toMatch(/fareStr !== _lastDriveFareYen/);
-    expect(rafTickBlock).toMatch(/_lastDriveFareYen = fareStr/);
+    expect(readoutBlock).toMatch(/fareStr !== _lastDriveFareYen/);
+    expect(readoutBlock).toMatch(/_lastDriveFareYen = fareStr/);
   });
 
   it('_lastTotalDistKm 比較', () => {
-    expect(rafTickBlock).toMatch(/totalDistKm !== _lastTotalDistKm/);
-    expect(rafTickBlock).toMatch(/_lastTotalDistKm = totalDistKm/);
+    expect(readoutBlock).toMatch(/totalDistKm !== _lastTotalDistKm/);
+    expect(readoutBlock).toMatch(/_lastTotalDistKm = totalDistKm/);
   });
 });
 
-describe('5. rAF 内・getState 予測補間 利用 (= display_distance_m 採用)', () => {
-  let rafTickBlock;
+describe('5. 読み出し共通関数・getState 予測補間 利用 (= display_distance_m 採用)', () => {
+  let readoutBlock;
   beforeAll(() => {
+    const m = html.match(/function _renderMeterReadout\([^)]*\)\s*\{[\s\S]*?\n\s\s\s\s\s\s\}/);
+    readoutBlock = m ? m[0] : '';
+  });
+
+  it('_renderMeterReadout 関数定義あり', () => {
+    expect(readoutBlock).not.toBe('');
+  });
+
+  it('rAF tick は _renderMeterReadout を呼ぶ (= 読み出し一本化)', () => {
     const m = html.match(/function _rafDisplayTick\(\)\s*\{[\s\S]*?\n\s\s\s\s\s\s\}/);
-    rafTickBlock = m ? m[0] : '';
+    expect(m).not.toBeNull();
+    expect(m[0]).toMatch(/_renderMeterReadout\([^)]*\)/);
   });
 
   it('Meter.getState() 呼出', () => {
-    expect(rafTickBlock).toMatch(/Meter\.getState\(\)/);
+    expect(readoutBlock).toMatch(/Meter\.getState\(\)/);
   });
 
   it('s.display_distance_m 採用 (= 予測補間値)', () => {
-    expect(rafTickBlock).toMatch(/s\.display_distance_m/);
+    expect(readoutBlock).toMatch(/s\.display_distance_m/);
   });
 
   it('Meter.calcFare 呼出 (= 料金 表示用再計算)', () => {
-    expect(rafTickBlock).toMatch(/Meter\.calcFare\(displayDistM\)/);
+    expect(readoutBlock).toMatch(/Meter\.calcFare\(displayDistM\)/);
   });
 
   it('Business.getReport 呼出 (= totalDist 用・preview 込み)', () => {
-    expect(rafTickBlock).toMatch(/Business\.getReport\(\)/);
-    expect(rafTickBlock).toMatch(/r\.total_distance_m/);
+    expect(readoutBlock).toMatch(/Business\.getReport\(\)/);
+    expect(readoutBlock).toMatch(/r\.total_distance_m/);
+  });
+
+  it('並列残骸 pipelineDist 表示が削除済 (= 白紙版に存在しない)', () => {
+    expect(html).not.toMatch(/getElementById\(['"]pipelineDist['"]\)/);
+    expect(html).not.toMatch(/pipeline_distance_m/);
   });
 });
 
@@ -140,8 +161,8 @@ describe('7. 不可侵境界 verify (= 距離計算ロジック 1 byte 不変)',
     expect(true).toBe(true); // = この test は・実 git diff verify は外部
   });
 
-  it('rAF 関数内・state.distance_m / business_distance_m に・write しない', () => {
-    const m = html.match(/function _rafDisplayTick\(\)\s*\{[\s\S]*?\n\s\s\s\s\s\s\}/);
+  it('読み出し関数内・state.distance_m / business_distance_m に・write しない', () => {
+    const m = html.match(/function _renderMeterReadout\([^)]*\)\s*\{[\s\S]*?\n\s\s\s\s\s\s\}/);
     expect(m).not.toBeNull();
     const block = m[0];
     // read は・OK (= s.display_distance_m / s.distance_m)・write は・ない

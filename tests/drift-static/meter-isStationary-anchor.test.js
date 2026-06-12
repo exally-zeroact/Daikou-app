@@ -32,46 +32,56 @@ function loadSource(filePath) {
 }
 
 describe('drift-static: meter.js L790 / map-matcher.js L3007 isStationary 早期 return (旧 isstationary-no-increase.test.js B3/B4)', () => {
-  it('B3: meter.js L790 に update() 入口 isStationary 早期 return が存在', () => {
+  it('B3: meter.js update() 入口に isStationary 早期 return が存在 (= 停車中 距離不変)', () => {
+    // ★白紙書き直し (2026-05-30・clean-rebuild-pipeline)★
+    //   旧: 行アンカー window slice で early return を検出 (= 行 shift で false-fail)。
+    //   新: 距離駆動が pipeline 単一経路化したため行番号は大きく変動。
+    //       「function update(gpsResult)」 の本体冒頭から最初の数十行内に
+    //       if (gpsResult.isStationary) { _updateMapMatching(gpsResult); return; } が
+    //       存在することを ★構造で★ 検出する (= 行アンカー非依存・drift 耐性向上)。
     const source = loadSource(METER_JS_PATH);
-    const lines = source.split('\n');
-    // L790 周辺で `if (gpsResult.isStationary)` パターン + early return を確認
-    // Stryker sandbox の line offset 吸収のため window を ±10 line 拡張
-    // 2026-05-18 更新 (Phase 3): L839 → L867 (+28) 移動・window 同期。
-    // 2026-05-19 R1 更新 (Off-Road grace period): L867 → L884 (+17) 移動・window 同期。
-    // 2026-05-24 更新 (道路 snap 構成・ZUPT helper 追加): L884 → L950 (+66) 移動・window 同期。
-    // 2026-05-24 更新 (business preview 別回路・state 追加 + 別 if ブロック): L950 → L1006 (+56) 移動。
-    // 2026-05-24 更新 (表示層 予測補間・state 追加 + 別ブロック): L1006 → L1039 (+33) 移動。
-    const window = lines.slice(1024, 1058).join('\n');
+    const updIdx = source.indexOf('function update(gpsResult)');
+    if (updIdx < 0) {
+      throw new Error('meter.js に function update(gpsResult) が存在しない');
+    }
+    // update() 本体冒頭 ~1500 文字 を対象 window とする (= early return は冒頭にある)。
+    const window = source.slice(updIdx, updIdx + 1500);
     if (!/if\s*\(\s*gpsResult\.isStationary\s*\)/.test(window)) {
       throw new Error(
-        'meter.js L790 周辺 (±10) に if (gpsResult.isStationary) パターン未検出 (drift detected)'
+        'update() 冒頭に if (gpsResult.isStationary) パターン未検出 (drift detected)'
       );
     }
     if (!/_updateMapMatching\s*\(\s*gpsResult\s*\)/.test(window)) {
-      throw new Error('meter.js L790 周辺 (±10) に _updateMapMatching(gpsResult) 呼出 未検出');
+      throw new Error(
+        'update() 冒頭 isStationary block に _updateMapMatching(gpsResult) 呼出 未検出'
+      );
     }
     if (!/return\s*;/.test(window)) {
-      throw new Error('meter.js L790 周辺 (±10) に early return ; 未検出');
+      throw new Error('update() 冒頭 isStationary block に early return ; 未検出');
     }
   });
 
-  it('B4: map-matcher.js L3007 に msg.isStationary 強制 0 化 pattern が存在', () => {
+  it('B4: map-matcher.js に effectively-stationary 強制 0 化 (mmIncrementM/tentativeIncrementM) pattern が存在', () => {
+    // ★白紙書き直し (2026-05-31・L1/L2/L3 連結性拘束配線)★
+    //   旧: 行アンカー window slice(3240,3300) で freeze block を検出 (= 行 shift で false-fail)。
+    //   2026-05-31 L1 配線で距離源を _confirmedRoadDelta ヘルパへ抽出 (= 上流に関数追加 + inline 短縮)・
+    //   freeze block が下流へ移動したため、行アンカーをやめ ★構造 (= if (_effectivelyStationary) block
+    //   本体に mmIncrementM=0 / tentativeIncrementM=0 が両方あること)★ で検出する (drift 耐性向上)。
+    //   freeze block (= prod 停車中 距離 0 化ロジック) は ★1 byte 不変★・配線変更は freeze 上流のみ。
     const source = loadSource(MAP_MATCHER_JS_PATH);
-    const lines = source.split('\n');
-    // L3007 周辺で if (msg.isStationary === true) { mmIncrementM = 0; tentativeIncrementM = 0; }
-    // Stryker sandbox の line offset 吸収のため window を ±10 line 拡張 (= 2990-3025)
-    const window = lines.slice(2990, 3025).join('\n');
-    if (!/if\s*\(\s*msg\.isStationary\s*===\s*true\s*\)/.test(window)) {
+    const idx = source.indexOf('if (_effectivelyStationary)');
+    if (idx < 0) {
       throw new Error(
-        'map-matcher.js L3007 周辺 (±10) に if (msg.isStationary === true) pattern 未検出 (drift detected)'
+        'map-matcher.js に if (_effectivelyStationary) pattern 未検出 (drift detected)'
       );
     }
+    // freeze block 本体 ~400 文字 を対象 window とする (= mmIncrementM=0 / tentativeIncrementM=0 は冒頭)。
+    const window = source.slice(idx, idx + 400);
     if (!/mmIncrementM\s*=\s*0/.test(window)) {
-      throw new Error('map-matcher.js L3007 周辺 (±10) に mmIncrementM = 0 代入 未検出');
+      throw new Error('effectively-stationary block に mmIncrementM = 0 代入 未検出');
     }
     if (!/tentativeIncrementM\s*=\s*0/.test(window)) {
-      throw new Error('map-matcher.js L3007 周辺 (±10) に tentativeIncrementM = 0 代入 未検出');
+      throw new Error('effectively-stationary block に tentativeIncrementM = 0 代入 未検出');
     }
   });
 });

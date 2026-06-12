@@ -7,8 +7,9 @@ name: tunnel
 title: トンネル内 GPS 消失 (gap fill 発火)
 description: |
   走行中にトンネル進入で GPS 信号が途絶える典型ケース。
-  meter.js L812 GAP_THRESHOLD_SEC=5 を超えると L824 gap fill (= speed × time) で
-  distance_m 補完。GPS 復帰後は通常 Tier1 commit に戻る。
+  meter.js GAP_THRESHOLD_SEC=5 を超えると gap fill (L1168・speed × time + Phase2-a 道路 routing 拡張) で
+  distance_m 補完。GPS 復帰後は通常 Tier1 commit (L551) に戻る。
+  ※line refs は 2026-05-28 verified・drift-static C1 で ±10 動的監視中。
 category: gps-loss
 
 context:
@@ -35,28 +36,29 @@ gps_pattern:
 expected_events:
   - event: tier1_commit_pre_tunnel
     timing: 0-60 sec
-    distance_path: meter.js L393
+    distance_path: meter.js L551 (tier1-commit・2026-05-28 verified)
   - event: gps_silence_5sec_threshold
     timing: 65 sec (= GAP_THRESHOLD_SEC=5 を超えた瞬間)
-    description: meter.js L812 dtSec >= 5 判定 true
+    description: meter.js gap-fill threshold check (drift-static C1 で監視)
   - event: gap_fill_fire
     timing: 150 sec (= GPS 復帰時)
-    distance_path: meter.js L824
-    formula: state.last_speed_kmh (60) / 3.6 × dtSec (90) = 1500m
+    distance_path: meter.js L1168 (gap-fill・Phase2-a 道路 routing 拡張済)
+    formula: state.last_speed_kmh (60) / 3.6 × dtSec (90) = 1500m (= 直線推定)・Phase2-a で道路 routing 化
     distance_source: gap
     constraints:
       - lastSpeedKmh > 0 (= 0 なら null 返却で加算停止)
       - 物理上限 160 km/h × dtSec で clamp
+      - Phase2-a: GAP_ROUTE_MAX_SEC(=60s) 以下なら OSRM 道路 routing で補正
   - event: tier1_commit_post_tunnel
     timing: 150-300 sec
-    distance_path: meter.js L393
+    distance_path: meter.js L551 (tier1-commit)
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit (= トンネル前後)
-    - meter.js L824 gap-fill      (= トンネル区間)
+    - meter.js L551  tier1-commit (= トンネル前後)
+    - meter.js L1168 gap-fill     (= トンネル区間・Phase2-a 道路 routing 拡張)
   not_expected:
-    - meter.js L842 offroad-incremental  # Off-Road 起動条件 (snap miss 5 連続) 満たさない
+    - meter.js L1190 offroad-incremental  # Off-Road 起動条件 (snap miss 5 連続) 満たさない
 
 verification:
   invariants:

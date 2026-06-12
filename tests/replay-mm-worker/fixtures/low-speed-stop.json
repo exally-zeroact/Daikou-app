@@ -1,16 +1,57 @@
 {
   "meta": {
     "name": "low-speed-stop-74m",
-    "description": "ehime road 22203 (= 411m unclassified) の seg 4 (= 73.9m) を低速 (= 6.7km/h・徐行)で走行・中央 20 step は停車 (= isStationary=true・speedKmh=0 強制)。司さん命名「low-speed-stop-50m」は概数 (= 実態 74m を 60 step・走行+停車+走行)。並走 25m に road 22235 (= 競合並走) あり。GPS noise は実機相当 default (= 停車中も position σ 3m で drift あり)。stationary_step_indices: 20-39 (= 中央 20 step)。狙い: 停車中に distance_m が増えないこと (= iOS speed=0 noise 由来の phantom 距離が出ないか) を Worker B の isStationary gate (= map-matcher.js T12 + meter.js _isStationary) が抑止する prod 経路で検証。低速ゆえ post-warmup 50 step は warmup 償却に十分。",
+    "description": "ehime road 22201 (= 411m unclassified) の seg 4 (= 73.9m) を低速 (= 6.7km/h・徐行)で走行・中央 20 step は停車 (= isStationary=true・speedKmh=0 強制)。司さん命名「low-speed-stop-50m」は概数 (= 実態 74m を 60 step・走行+停車+走行)。並走 25m に road 22233 (= 競合並走) あり。GPS noise は実機相当 default (= 停車中も position σ 3m で drift あり)。stationary_step_indices: 20-39 (= 中央 20 step)。狙い: 停車中に distance_m が増えないこと (= iOS speed=0 noise 由来の phantom 距離が出ないか) を Worker B の isStationary gate (= map-matcher.js T12 + meter.js _isStationary) が抑止する prod 経路で検証。低速ゆえ post-warmup 50 step は warmup 償却に十分。",
     "prefecture": "ehime",
     "true_speed_kmh": 6.7,
     "ground_truth_segments": [
-      { "roadIndex": 22203, "segmentIndex": 4, "t_start": 0.0, "t_end": 0.5, "num_samples": 20 },
-      { "roadIndex": 22203, "segmentIndex": 4, "t_start": 0.5, "t_end": 0.5, "num_samples": 20 },
-      { "roadIndex": 22203, "segmentIndex": 4, "t_start": 0.5, "t_end": 1.0, "num_samples": 20 }
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 4,
+        "t_start": 0,
+        "t_end": 0.5,
+        "num_samples": 20
+      },
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 4,
+        "t_start": 0.5,
+        "t_end": 0.5,
+        "num_samples": 20
+      },
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 4,
+        "t_start": 0.5,
+        "t_end": 1,
+        "num_samples": 20
+      }
     ],
-    "stationary_step_indices": [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39],
-    "competing_road_indices": [22235],
+    "stationary_step_indices": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "competing_road_indices": [
+      22233
+    ],
     "noise_model": {
       "seed": 48,
       "accuracy_mean_m": 10,

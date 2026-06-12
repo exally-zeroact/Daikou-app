@@ -30,11 +30,32 @@
 
 importScripts('roads-decoder.js');
 importScripts('osrm-client.js'); // MM-6: OSRM /match クライアント
+// ★白紙書き直し (2026-05-30・新距離エンジン = 距離駆動の唯一源):
+//   js/pipeline-distance.js を Worker B に読み込み、createDistanceTracker を
+//   GPS 受信毎に ingest して道路 snap 道なり増分を算出する。
+//   その増分を mmResult.pipelineDeltaM として main に送り、meter は running gate 内で
+//   state.distance_m += pipelineDeltaM を実行する (= 距離駆動の単一経路)。
+//   既存の mmIncrementM / tentativeIncrementM / tentativeDistanceM は 1 byte 不変。
+//   self.PipelineDistance.createDistanceTracker(decoder, opts) を使用 (browser global 公開済)。
+//   ★課金安全: importScripts 失敗 (404/fetch error) で worker 全死 → MM/課金距離 全滅を防ぐため
+//     try/catch で包む。失敗時は self.PipelineDistance 未定義のまま → 並列 tracker は no-op (L157 guard)。
+//     既存 Viterbi mmIncrementM 経路は影響ゼロで生存。
+try {
+  importScripts('pipeline-distance.js');
+} catch (_pdErr) {
+  // pipeline-distance.js のロード失敗は並列計測の無効化のみ (課金経路に一切伝播させない)
+}
 
 // 既存定数（MM-1 と同一・挙動互換のため不変）
 const MM_MAX_SNAP_DIST_M = 50; // snap 単独の上限（fallback）
 const MM_MAX_SEGMENT_DIST_M = 1000; // T9 (2026-05-09): 単純 skip ではなく「明らかな jump」判定の閾値として使用
 const MM_GAP_RESET_SEC = 5;
+// ★Phase2-a (2026-05-27): gap 道路 routing 上限。MM_GAP_RESET_SEC < dtSec <= GAP_ROUTE_MAX_SEC の
+//   gap は道路 routing で埋める (OSRM 流)。>GAP_ROUTE_MAX_SEC は split/skip → meter.js 速度×時間 fallback。
+//   ★meter.js の同名定数と必ず一致させること★ (= 二重計上回避の同期境界)。
+const GAP_ROUTE_MAX_SEC = 60;
+// gap routing の誤 snap 過大ガード: 道路距離 / 直線距離 がこれ超は遠回り誤 snap として棄却 (過大課金防止)。
+const GAP_MAX_DETOUR_RATIO = 3.0;
 
 // T4 (2026-05-09): turn:restriction 違反 transition のペナルティ
 //   _violatesOneway と同じ ×0.05 (事実上除外だが完全 0 にはしない)
@@ -131,6 +152,172 @@ function _maybeAdjustViterbiN() {
 // 県別 RoadDecoder
 const decoders = new Map();
 const loadedPrefs = new Set();
+
+// ★古スマホ対応 ① (2026-05-30・decoder メモリ LRU・OOM 最優先対策):
+//   旧: decoders Map に eviction が一切なく、load した県の RoadDecoder (bytes ×0.75 + grid +
+//       offsetTable) が永久常駐 → 少 RAM 端末 (iOS 300〜450MB / 2〜3GB Android) で
+//       ページクラッシュ (Jetsam kill / WebKit 65% strict) の現実的危険。
+//   新: 常駐県数を LRU で上限 cap (既定 4)。eviction 時に RoadDecoder の bytes/grid/offsetTable
+//       を null 化し GC 解放・loadedPrefs から除外・対応する pipeline tracker も破棄。
+//       県跨ぎは既存 enqueueRetry / loadRoads on-demand 再 load で救済 (代行は同一エリア移動が大半)。
+//   ★距離不変★: decode 結果・snap 判定・routing 発火条件・弧長計算は一切変えない。
+//       変えるのは「何県を RAM に常駐させるか」だけ。再 load された decoder は同一バイト列から
+//       同一結果を再構築する。tracker は per-tick deltaM (累積 total は truth でない・meter が
+//       state.distance_m に積算) のため、再 load 後の初 ingest が 1 回 deltaM=0 ('first') に
+//       なるのみ (= snap-miss gap と同等・許容)。
+const DECODER_LRU_CAP = 4;
+const _decoderRecency = []; // pref を LRU 順 (末尾 = 直近使用)
+function _touchDecoder(pref) {
+  const i = _decoderRecency.indexOf(pref);
+  if (i >= 0) _decoderRecency.splice(i, 1);
+  _decoderRecency.push(pref);
+}
+function _evictDecoderLRU() {
+  while (_decoderRecency.length > DECODER_LRU_CAP) {
+    const victim = _decoderRecency.shift();
+    if (victim == null) break;
+    const dec = decoders.get(victim);
+    if (dec) {
+      // GC 解放のため重量フィールドを明示的に null 化 (bytes/grid/offsetTable)。
+      dec.bytes = null;
+      dec.grid = null;
+      dec.offsetTable = null;
+    }
+    decoders.delete(victim);
+    loadedPrefs.delete(victim);
+    // 対応する pipeline tracker を破棄 (= 次回 _getPipelineTracker で再生成・距離 truth は meter 側)。
+    const tk = _pipelineTrackers.get(victim);
+    if (tk) _pipelineTrackers.delete(victim);
+  }
+}
+function _setDecoderLRU(pref, dec) {
+  decoders.set(pref, dec);
+  loadedPrefs.add(pref);
+  _touchDecoder(pref);
+  _evictDecoderLRU();
+}
+
+// ★白紙書き直し 第四弾 (2026-05-30・新距離エンジン並列トラッカ):
+//   pipeline-distance.js の createDistanceTracker を県別に lazy 生成し、GPS 受信毎に
+//   ingest して道路 snap 道なり増分 (= ingest().deltaM) を算出する。これが新 meter の
+//   ★距離駆動 delta★ (= mmResult.pipelineDeltaM) の唯一の供給源。
+//   - 県別トラッカ: tracker が decoder を構築時に束縛する (RoadGraphRouter/SnapCache)。
+//     県跨ぎ trip は各県トラッカが自県分を加算する。
+//   - reset (業務リセット) で全トラッカ reset。
+//   - pipeline-distance 未ロード / decoder 未ロード時は no-op (= deltaM=0・既存挙動完全不変)。
+const _pipelineTrackers = new Map(); // pref → tracker
+
+// ★smoothedRawMode 判定 (2026-06-07)★: tracker は opts {} で生成 = DEFAULTS が支配する。
+//   worker 側の「実質停止で pipelineDeltaM 0 化」二重保険は平滑モードでは時間軸がズレる
+//   (delta が h サンプル遅れて確定) ため、この判定で分岐する。lazy 評価 (importScripts 順非依存)。
+function _pdSmoothed() {
+  try {
+    return !!(
+      self.PipelineDistance &&
+      self.PipelineDistance.DEFAULTS &&
+      self.PipelineDistance.DEFAULTS.smoothedRawMode === true
+    );
+  } catch (_) {
+    return false;
+  }
+}
+function _getPipelineTracker(pref) {
+  if (typeof self.PipelineDistance === 'undefined' || !self.PipelineDistance.createDistanceTracker)
+    return null;
+  if (!pref) return null;
+  const dec = decoders.get(pref);
+  if (!dec) return null;
+  // ★① LRU touch: 走行中の現在地県を「直近使用」に更新し eviction 対象から外す。
+  _touchDecoder(pref);
+  let tk = _pipelineTrackers.get(pref);
+  if (!tk) {
+    try {
+      tk = self.PipelineDistance.createDistanceTracker(dec, {});
+      _pipelineTrackers.set(pref, tk);
+    } catch (_) {
+      return null; // 生成失敗は no-op (= 既存距離パスに影響させない)
+    }
+  }
+  return tk;
+}
+function _resetPipelineTrackers() {
+  for (const tk of _pipelineTrackers.values()) {
+    try {
+      tk.reset();
+    } catch (_) {
+      /* noop */
+    }
+  }
+  // インスタンスごと破棄して trip 単位の完全初期化を保証 (reset() も内部再生成するが二重保険)。
+  _pipelineTrackers.clear();
+}
+
+// ★L1 配線ヘルパ (2026-05-31): 1 GPS 点の「確定道路読み取り」道なり弧長 delta を返す。★
+//   = state.distance_m を駆動する距離源 (= mmResult.pipelineDeltaM の供給元)。
+//   pipeline-distance.createDistanceTracker.ingest を呼ぶが、その stepDistance には
+//   ★L2 連結性ハード拘束★ が入っており、別道路への偽 flip (繋がってない道) は棄却され
+//   前道路へ投影し直した道なり弧長になる (= 余計な弦が距離に入らない)。
+//   = Viterbi/HMM の「繋がってない道へ遷移しない」拘束を距離計算へ接続したもの。
+//   prefecture は outSnap の県を優先・無ければ最寄り道路を持つ県を解決 (加算ではなく県特定のみ)。
+//   未ロード / ingest 失敗 / 静止は 0 (= no-op・既存挙動不変)。
+function _confirmedRoadDelta(msg, outSnap) {
+  try {
+    let pref = outSnap && outSnap.prefecture ? outSnap.prefecture : null;
+    if (!pref && loadedPrefs.size > 0) {
+      const fb = _snapAcrossPrefs(msg.lat, msg.lng);
+      pref = fb && fb.prefecture ? fb.prefecture : loadedPrefs.values().next().value;
+    }
+    const tk = _getPipelineTracker(pref);
+    if (!tk) return 0;
+    // ★L1 配線 (2026-05-31): 距離源を Viterbi 確定経路 (= outSnap = bestEmit) へ一本化する。
+    //   outSnap は emission scoring + Viterbi 窓 transition で選ばれた ★HMM の確定 snap★。
+    //   これを sample.snap として ingest に渡すと、pipeline は greedy 最近傍 SnapCache.snap を
+    //   ★呼ばず★ Viterbi 確定 snap で道なり弧長 (L2 連結性ハード拘束付き stepDistance) を算出する。
+    //   = 「Viterbi が繋がってない道へ遷移しない」拘束を距離計算へ直接接続 (= (c) greedy 残存ゼロ)。
+    //   outSnap 不足 (roadIndex/snapLat/snapLng 欠落) 時のみ ingest 内部で従来 snap に退避。
+    const _vitSnap =
+      outSnap &&
+      Number.isFinite(outSnap.roadIndex) &&
+      Number.isFinite(outSnap.snapLat) &&
+      Number.isFinite(outSnap.snapLng)
+        ? {
+            roadIndex: outSnap.roadIndex,
+            segmentIndex: outSnap.segmentIndex,
+            t: outSnap.t,
+            snapLat: outSnap.snapLat,
+            snapLng: outSnap.snapLng,
+            distanceM: outSnap.distanceM,
+            typeCode: outSnap.typeCode,
+          }
+        : null;
+    // ★speedSrc 貫通 (2026-06-07)★: エンジンの sample.spd は ★本物の Doppler ('dop') のみ★。
+    //   gps.js の haversine 代用 ('hav') は -1 (=不明) で渡す: gap 補完が straight に正しく落ち、
+    //   never-over cap も不適用 (= エンジン検証 fixture の生 Doppler 契約と完全一致)。
+    //   'hav' を既知速度として渡すと gap 跨ぎ距離が微速×dt で潰れ過小化する (0606night SE -64m)。
+    //   speedSrc 未付与 (旧経路/後方互換) は従来通り speedKmh を採用。
+    const _spdMps =
+      msg.speedSrc === 'hav' ? -1 : typeof msg.speedKmh === 'number' ? msg.speedKmh / 3.6 : -1;
+    const res = tk.ingest({
+      lat: msg.lat,
+      lng: msg.lng,
+      t: msg.timestamp,
+      acc: msg.accuracy,
+      spd: _spdMps, // km/h → m/s ('hav'/欠落は -1 = 不明)
+      snap: _vitSnap, // ★Viterbi 確定 snap (= 距離源)。null なら ingest 内で従来 snap 退避。
+      // ★OBD メインモード: 速度源が OBD 車輪速度なら ∫v(OBD) で距離駆動する印 (gps.js が speedSrc 付与)。
+      //   未設定/'dop'/'hav' は従来の道路 map-matching (byte 不変)。
+      obd: msg.speedSrc === 'obd',
+      // ★合成タイマー連続前進: GPS stale 中の coast 穴埋め点 (gps.js _gapTick・位置据え置き+速度既知)。
+      //   平滑バッファをバイパスして即 _core で speed×dt 前進させる印 (トンネル一括ドン根治)。
+      synthetic: msg.isSynthetic === true,
+    });
+    // 確定道路読み取り (連結性拘束済) の道なり区間増分。正値のみ採用。
+    const confirmedDeltaM = res && typeof res.deltaM === 'number' ? res.deltaM : 0;
+    return confirmedDeltaM > 0 ? confirmedDeltaM : 0;
+  } catch (_) {
+    return 0; // 例外は既存距離パスに一切影響させない
+  }
+}
 
 // D3 (2026-05-09): 緊急輸送道路指定 道路の Set (pref → Set<roadIdx>)
 //   road-attrs-{pref}.js の emergencyRouteB64 を main 側で decode → forward
@@ -682,6 +869,20 @@ const ROUTE_CACHE_SIZE = 100;
 
 // MM-3: 確定済み（commit 済み）snap・main 側の prev に相当
 let lastCommittedSnap = null;
+// ★Phase B (R-A2・2026-05-26・表示スコープ): tentativeDistanceM の表示用平滑値 (hysteresis)。
+//   候補 flip 由来の上方 spike を物理上限/step で抑制 (減少は自由=自己補正)。
+//   ★commit 候補 (bestEmit/mmIncrementM) 選定には一切不干渉★。
+let _displayTentativeM = 0;
+// ★設計変更宣言 (2026-05-29・real-trace 解析・creep 真因解消):
+//   司さん iPhone13 trace (Firebase RTDB 取得・990 sample・5.35km・16.5min・停車中 298 sample)
+//   で観測した停車中 creep の真因 = isStationary=true でも tentativeDistanceM (= snapshot 弧長)
+//   が更新され続け・main の business_tier2_pending_m SET (= meter.js L646) 経由で display +44.8m。
+//   freeze: isStationary=true 期間中は・前回 isStationary=false 時の値で固定して出力する。
+//   走行再開時 (= isStationary=false 復帰) には通常 snapshot 計算に戻り、停車中累積した drift を
+//   一気に表示しないため・「飛ぶ」事象 (= display jump) も同時解消。
+//   絶対ルール準拠: distance_m / business_distance_m 加算経路は 1 byte 不変。
+let _frozenTentativeDistanceM = null;
+const TENTATIVE_MAX_STEP_M = 60; // Phase B: tentative の 1 step 上方変化上限 (= 候補 flip spike 抑制)
 // MM-1/2 互換用 prevSnap（Viterbi 不在時の fallback 経路で使用）
 let prevSnap = null;
 
@@ -1221,6 +1422,7 @@ function _scoreCandidates(
     //       Viterbi 比較は log 値で行う・c.emission は表示/diagnostic 用に exp で復元
     //   各 score が 0 に近い場合は -Infinity 回避のため LOG_FLOOR で clamp
     const LOG_FLOOR = -50; // exp(-50) ≈ 1.9e-22 で Float64 安全圏
+    // eslint-disable-next-line no-inner-declarations -- 既存 inner helper (lint-only・機能不変)
     function _safeLog(x) {
       return x <= 0 ? LOG_FLOOR : Math.max(LOG_FLOOR, Math.log(x));
     }
@@ -1453,6 +1655,7 @@ BinaryHeap.prototype.pop = function () {
     items[0] = last;
     let i = 0;
     const len = items.length;
+    // eslint-disable-next-line no-constant-condition -- 既存 heap sift loop (lint-only・機能不変)
     while (true) {
       const left = 2 * i + 1;
       const right = 2 * i + 2;
@@ -1896,7 +2099,9 @@ function _savePheromoneAll() {
         for (const [pref, arr] of _pheromoneByPref) {
           store.put({ pref: pref, data: arr.buffer });
         }
-      } catch (e) {}
+      } catch (e) {
+        /* noop - intentionally empty */
+      }
     })
     .catch(function () {});
 }
@@ -1950,7 +2155,9 @@ function _saveGridBiasIncremental() {
         for (const [key, arr] of _gridBias) {
           store.put({ k: key, d: arr.buffer });
         }
-      } catch (e) {}
+      } catch (e) {
+        /* noop - intentionally empty */
+      }
     })
     .catch(function () {});
 }
@@ -1997,10 +2204,14 @@ const PERSIST_INTERVAL_MS = 5 * 60 * 1000;
 setInterval(function () {
   try {
     _savePheromoneAll();
-  } catch (_) {}
+  } catch (_) {
+    /* noop - intentionally empty */
+  }
   try {
     _saveGridBiasIncremental();
-  } catch (_) {}
+  } catch (_) {
+    /* noop - intentionally empty */
+  }
 }, PERSIST_INTERVAL_MS);
 
 // ─── MM-6: OSRM 教師信号 helpers ────────────────────────────────
@@ -2306,7 +2517,9 @@ function _dbg() {
   for (let i = 0; i < arguments.length; i++) args.push(arguments[i]);
   try {
     console.log.apply(console, args);
-  } catch (_) {}
+  } catch (_) {
+    /* noop - intentionally empty */
+  }
 }
 
 // ★設計変更宣言 (2026-05-13・大改修 C5): 全国共通 coarse data (粗粒度 POI/地形)
@@ -2376,6 +2589,8 @@ self.onmessage = function (e) {
   if (msg.type === 'loadRoads') {
     try {
       if (loadedPrefs.has(msg.pref)) {
+        // ★① 既 load 済でも recency を touch (再要求された県を eviction 対象から外す)。
+        _touchDecoder(msg.pref);
         self.postMessage({
           type: 'roadsLoaded',
           pref: msg.pref,
@@ -2387,8 +2602,8 @@ self.onmessage = function (e) {
       }
       const dec = new self.RoadDecoder(msg.roadsData);
       dec.buildOffsetTable();
-      decoders.set(msg.pref, dec);
-      loadedPrefs.add(msg.pref);
+      // ★① LRU 登録 (= decoders.set + loadedPrefs.add + recency touch + 上限 eviction)。
+      _setDecoderLRU(msg.pref, dec);
       self.postMessage({
         type: 'roadsLoaded',
         pref: msg.pref,
@@ -2532,6 +2747,34 @@ self.onmessage = function (e) {
       worker_lat_samples: _workerLatCount,
       loaded_prefs_count: loadedPrefs.size,
       loaded_roads_total: _loadedRoadsTotal,
+    });
+    return;
+  }
+
+  // ★L1 配線監査用 (2026-05-31・診断専用・距離計算に一切影響しない):
+  //   距離源 = Viterbi 確定 snap で駆動する pipeline tracker の breakdown / stats を返す。
+  //   gate-road-distance.js が「余計な弦 (straightFallbackM/straightSegs) = 0」「viterbiSnaps>0
+  //   (= greedy SnapCache を距離に使っていない)」を実コードの実値で検証するためのフック。
+  if (msg.type === 'getPipelineBreakdown') {
+    let bd = null;
+    let st = null;
+    let pref = msg.pref || null;
+    if (!pref) {
+      // 直近 ingest した tracker (= loaded 県の先頭) を採用
+      const it = _pipelineTrackers.keys().next();
+      if (!it.done) pref = it.value;
+    }
+    const tk = pref ? _pipelineTrackers.get(pref) : null;
+    if (tk && typeof tk._breakdown === 'function') {
+      bd = tk._breakdown();
+      st = tk._stats();
+    }
+    self.postMessage({
+      type: 'pipelineBreakdown',
+      pref: pref,
+      totalM: tk && typeof tk.totalM === 'function' ? tk.totalM() : null,
+      breakdown: bd,
+      stats: st,
     });
     return;
   }
@@ -2728,6 +2971,43 @@ self.onmessage = function (e) {
       });
     }
     viterbi.reset();
+    // ★smoothedRawMode flush (2026-06-07・出荷有効化)★: 遅延バッファ末尾 (未確定 h 点) を
+    //   片側窓で確定し、tracker 破棄前に最終 pipelineDeltaM として post する (= 末尾取りこぼし回収・
+    //   実測 0〜12.9m 過小方向)。★課金 gate (running/business_active) は main 側で不可侵★:
+    //   実フローでは businessEnd が gate を閉じてから 'reset' を送るため本 delta は課金に入らない
+    //   (= 過大方向リスク ゼロ)。非 smoothed では tracker.flush() は no-op (deltaM=0) で何も出ない。
+    //   回帰: tests/integration/smoothed-flush-on-reset.test.js
+    {
+      let _pipelineFlushM = 0;
+      for (const tk of _pipelineTrackers.values()) {
+        try {
+          if (tk && typeof tk.flush === 'function') {
+            const fr = tk.flush();
+            if (fr && typeof fr.deltaM === 'number' && fr.deltaM > 0) _pipelineFlushM += fr.deltaM;
+          }
+        } catch (_) {
+          /* 例外は既存 reset 経路に影響させない */
+        }
+      }
+      if (_pipelineFlushM > 0) {
+        self.postMessage({
+          type: 'mmResult',
+          mmIncrementM: 0,
+          snap: null,
+          confidence: 1.0,
+          snapped: 0,
+          skipped: 0,
+          latencyMs: 0,
+          candidatesCount: 0,
+          windowSize: 0,
+          committed: true,
+          pipelineDeltaM: _pipelineFlushM,
+          _reason: 'pipeline flush before reset',
+        });
+      }
+    }
+    // ★白紙書き直し 第四弾 (2026-05-30): 業務リセットで新距離エンジンも完全初期化 (= trip 単位)。
+    _resetPipelineTrackers();
     lastCommittedSnap = null;
     prevSnap = null;
     _gpsBuffer.length = 0;
@@ -2758,16 +3038,10 @@ self.onmessage = function (e) {
     return;
   }
 
-  // Phase 1.C (2026-05-10): Off-Road Mode の境界制御
-  //   meter.js の Off-Road 起動 / 終了で送信される
-  //   起動時: Off-Road 中に Worker B が古い lastCommittedSnap を起点に
-  //           大きな mmIncrement を出すのを防ぐため null 化
-  //   終了時: Off-Road でカバー済の commit を「再起点化」するため null 化
-  //   Viterbi 窓は維持 (snap 候補蓄積を継続)・pheromone/grid bias も維持
-  if (msg.type === 'resetCommittedSnap') {
-    lastCommittedSnap = null;
-    return;
-  }
+  // ★白紙書き直し (2026-05-30・clean-rebuild-pipeline): 旧 Off-Road Mode の境界制御
+  //   message 'resetCommittedSnap' は廃止。新メーターは Off-Road 経路を持たず
+  //   (= 距離は pipeline-distance エンジンが gap/off-road を内部処理する) 送信されない。
+  //   handler を削除し dead handler 化を防ぐ (= clean 統合)。
 
   // B6 (2026-05-09): 停車検出時の hint
   //   main 側で停車検知したら _gpsBuffer をクリアして
@@ -2810,6 +3084,9 @@ self.onmessage = function (e) {
     // ★設計変更宣言 (2026-05-16・Tier 2 リードインジケータ): preview 用 単 step 道路距離
     //   通常 commit (mmIncrementM > 0) とは独立。main で tier2_pending_m に加算される。
     let tentativeIncrementM = 0;
+    // ★Phase A (R-A2・2026-05-26): 最終 commit 点→現 bestEmit の snapshot 道路距離 (= 連続射影弧長)。
+    //   main で tier2_pending_m に SET → dm+t2 を連続化し commit を無音化。post-commit で算出 (二重計上回避)。
+    let tentativeDistanceM = 0;
     let snapped = 0,
       skipped = 0;
     let outSnap = null;
@@ -2825,6 +3102,26 @@ self.onmessage = function (e) {
       if (candCount === 0) {
         // 候補ゼロ = snap miss（窓状態は維持・skip カウントなし）
         reason = 'no candidates';
+        // ★設計変更宣言 (2026-05-29・partial commit 早期化・display 動き出す遅い 真因対処):
+        //   候補ゼロ (= accuracy 悪化 / 道路から遠い) でも・raw GPS 連続点 haversine で
+        //   preview 用 tentativeIncrementM を出力。main 側で tier2_pending_m に SET され
+        //   display = distance_m + tier2_pending_m で・display target が進む。
+        //   絶対ルール準拠:
+        //     ・課金 distance_m には影響しない (= preview のみ・GPS 直線課金禁止維持)
+        //     ・連続点 polyline 累積 = memory「連続点 haversine 累積 = 許可」 と整合
+        //     ・accuracy > 50m は加算しない (= 既存 _trackHaversineBetweenGps と同基準)
+        //     ・物理上限 200m/step (= 既存と同基準)
+        if (msg.accuracy != null && msg.accuracy <= 50 && _recentGpsBuf.length >= 2) {
+          const _prevGps = _recentGpsBuf[_recentGpsBuf.length - 2];
+          const _currGps = _recentGpsBuf[_recentGpsBuf.length - 1];
+          const _dtRaw = (_currGps.t - _prevGps.t) / 1000;
+          if (_dtRaw > 0 && _dtRaw <= 30) {
+            const _rawHaver = _haversine(_prevGps.lat, _prevGps.lng, _currGps.lat, _currGps.lng);
+            if (_rawHaver > 0 && _rawHaver <= 200) {
+              tentativeIncrementM = _rawHaver;
+            }
+          }
+        }
       } else {
         // ② emission scoring（直前 commit 済 snap の type bucket / layer を prev として渡す）
         const prevBucket =
@@ -2898,6 +3195,32 @@ self.onmessage = function (e) {
             }
           }
         }
+        // ★設計変更宣言 (2026-05-29・partial commit 早期化・初回 GPS / prevSnap=null 対応):
+        //   bestEmit はあるが prevSnap=null (= 初回 GPS / softReset 直後) で
+        //   tentativeIncrementM=0 のまま display が動かない問題への対処。
+        //   raw GPS 連続点 haversine で early tentative 出力。
+        //   絶対ルール準拠: preview のみ・課金 distance_m 不変・連続点累積許可。
+        if (
+          tentativeIncrementM === 0 &&
+          msg.accuracy != null &&
+          msg.accuracy <= 50 &&
+          _recentGpsBuf.length >= 2
+        ) {
+          const _prevGps2 = _recentGpsBuf[_recentGpsBuf.length - 2];
+          const _currGps2 = _recentGpsBuf[_recentGpsBuf.length - 1];
+          const _dtRaw2 = (_currGps2.t - _prevGps2.t) / 1000;
+          if (_dtRaw2 > 0 && _dtRaw2 <= 30) {
+            const _rawHaver2 = _haversine(
+              _prevGps2.lat,
+              _prevGps2.lng,
+              _currGps2.lat,
+              _currGps2.lng
+            );
+            if (_rawHaver2 > 0 && _rawHaver2 <= 200) {
+              tentativeIncrementM = _rawHaver2;
+            }
+          }
+        }
         // M6 (2026-05-09): bestEmit のタイルを持続 pin (eviction 防止)
         _setActivePinnedTile(bestEmit.prefecture, bestEmit.snapLat, bestEmit.snapLng);
         if (_mmDebug)
@@ -2934,11 +3257,49 @@ self.onmessage = function (e) {
             const prevObsT = lastCommittedSnap.observationTimestamp;
             const currObsT = newCommitted.observationTimestamp;
             const dtSec = prevObsT != null && currObsT != null ? (currObsT - prevObsT) / 1000 : 0;
-            if (dtSec > MM_GAP_RESET_SEC) {
-              reason = 'gap reset between commits';
+            if (dtSec > GAP_ROUTE_MAX_SEC) {
+              // ★Phase2-a (2026-05-27): >GAP_ROUTE_MAX_SEC の大 gap は道路 routing 不可 (OSRM 流 split)。
+              //   meter.js が速度×時間で fallback (= mmWorker 有 + dtSec>GAP_ROUTE_MAX_SEC で fill)。
+              reason = 'gap reset between commits (>' + GAP_ROUTE_MAX_SEC + 's)';
             } else {
               const r = _routeDistance(lastCommittedSnap, newCommitted);
-              if (r && typeof r.distanceM === 'number' && r.distanceM >= 0) {
+              // ★Phase2-a (2026-05-27): MM_GAP_RESET_SEC<dtSec<=GAP_ROUTE_MAX_SEC の gap は道路 routing で埋める。
+              //   誤 snap 過大課金を防ぐ guard (OSRM の transition/confidence 相当):
+              //     ① 同一道路 polyline 経路 (_via==='polyline') = 高信頼のみ採用 (別道路 tile 経路は見送り)
+              //     ② 直線距離比 route/great-circle <= GAP_MAX_DETOUR_RATIO (遠回り誤 snap を棄却)
+              //   guard 不通過 → skipped=1 (mmIncrementM=0)。meter.js も fill しない (dtSec<=60s+mmWorker) =
+              //   過少 (安全側・過大課金回避)・persistent miss は Off-Road が捕捉。distance_m 加算経路は不変。
+              if (
+                dtSec > MM_GAP_RESET_SEC &&
+                r &&
+                typeof r.distanceM === 'number' &&
+                r.distanceM >= 0
+              ) {
+                const _gcGap = _haversine(
+                  lastCommittedSnap.snapLat,
+                  lastCommittedSnap.snapLng,
+                  newCommitted.snapLat,
+                  newCommitted.snapLng
+                );
+                const _viaOk = r._via === 'polyline';
+                const _detourOk = _gcGap > 0 && r.distanceM / _gcGap <= GAP_MAX_DETOUR_RATIO;
+                if (!_viaOk || !_detourOk) {
+                  skipped = 1;
+                  // ★計器 (2026-05-29): skip 区間長 (gap=直線, route=routing結果) を併記。
+                  //   「skip 回数 × 平均区間長」 で gap非加算の過少量を定量するため。診断専用。
+                  reason =
+                    'gap not routable (via=' +
+                    r._via +
+                    ' ratio=' +
+                    (_gcGap > 0 ? (r.distanceM / _gcGap).toFixed(2) : 'NA') +
+                    ' gap=' +
+                    (_gcGap || 0).toFixed(0) +
+                    'm route=' +
+                    (typeof r.distanceM === 'number' ? r.distanceM.toFixed(0) : 'NA') +
+                    'm) → meter.js は fill せず (過少安全側)';
+                }
+              }
+              if (!skipped && r && typeof r.distanceM === 'number' && r.distanceM >= 0) {
                 // T9 (2026-05-09): 旧 MM_MAX_SEGMENT_DIST_M=1000 の単純 skip を廃止
                 //   ・ 短時間に 1km 超過は通常 ありえないが、120km/h 高速道路なら 30 秒で 1km
                 //     普通車でも実 13.3m/s × dtSec 程度は妥当
@@ -2984,6 +3345,26 @@ self.onmessage = function (e) {
           _updateCurvatureFromCommit(newCommitted);
         }
 
+        // ★Phase A (R-A2): tentative を「本 step commit 後の lastCommittedSnap → 現 bestEmit」の
+        //   snapshot 道路距離に。★commit 後に算出★することで commit 区間の二重計上を回避
+        //   (= main で dm += mmIncrementM と tier2 = snapshot が同 message でも和が連続)。
+        //   絶対ルール: mmIncrementM (= 課金 commit) は上の ④ で確定済・本ブロックは触れない。
+        if (lastCommittedSnap && bestEmit) {
+          try {
+            const _sd = _routeDistance(lastCommittedSnap, bestEmit);
+            if (_sd && typeof _sd.distanceM === 'number' && _sd.distanceM >= 0) {
+              // Phase B (表示スコープ hysteresis): 上方変化のみ上限 clamp・減少は自由 (自己補正)
+              _displayTentativeM =
+                _sd.distanceM > _displayTentativeM + TENTATIVE_MAX_STEP_M
+                  ? _displayTentativeM + TENTATIVE_MAX_STEP_M
+                  : _sd.distanceM;
+              tentativeDistanceM = _displayTentativeM;
+            }
+          } catch (_) {
+            /* noop - preview 不要・課金に影響しない */
+          }
+        }
+
         // MM-2 互換 prevSnap も更新（Viterbi 不在時 fallback 経路用に維持）
         prevSnap = Object.assign({}, bestEmit, { timestamp: msg.timestamp });
       }
@@ -3004,9 +3385,61 @@ self.onmessage = function (e) {
     //     ・Worker B 出力値の制御で結果として停車中加算ゼロを実現
     //   Viterbi window / pheromone / grid bias 学習は通常通り進める (= 停車後の再走行時に
     //   学習履歴が連続する利点を維持)。出力値だけ 0 にする。
-    if (msg.isStationary === true) {
+    // ★設計変更宣言 (2026-05-29・real-trace 解析・tentativeDistanceM freeze 追加):
+    //   旧: isStationary=true 中・mmIncrementM=0 / tentativeIncrementM=0 化のみで・
+    //       tentativeDistanceM (= snapshot 弧長) は更新継続 → main 側 business_tier2_pending_m
+    //       SET 経由で display creep + 走行再開時 display jump (= 「飛ぶ」) を発生させていた。
+    //   新: isStationary=true 中・tentativeDistanceM も freeze 値 (= 前回 isStationary=false 時の
+    //       値) で出力する。isStationary=false 期間中は・freeze 値を最新値で更新し続ける。
+    //   絶対ルール準拠: distance_m / business_distance_m 加算経路は 1 byte 不変。
+    // ★設計変更宣言 (2026-05-29 PM・real-trace 38ed5e46 後 残存 creep 解析・freeze 条件拡張):
+    //   旧: msg.isStationary === true のみで freeze
+    //   問題: 司さん iPhone13・spd=0.5km/h で 3m radius 超える drift → isStationary=false →
+    //         freeze 抜ける → main SET 流入 → 残存 creep 21.7m / 7 分間
+    //   新: effectively stationary 判定で freeze 拡張
+    //       = msg.isStationary === true OR (msg.speedKmh != null && msg.speedKmh < 2)
+    //   2 km/h 未満は・物理的に「実質停止」(= 業界標準・矢崎/二葉/GO・歩行慣性的にも停止扱い)・
+    //   走行 skip risk なし。msg.speedKmh が null (= iOS Safari 速度欠落) は freeze せず通常。
+    //   mmResult.isStationary を effectively stationary で echo back し・main 側 SET ガードと同期。
+    //   絶対ルール準拠: distance_m / business_distance_m 加算経路は 1 byte 不変。
+    // ★白紙書き直し 第四弾 (2026-05-30・新距離エンジン並列 ingest):
+    //   ★既存の mmIncrementM / tentativeIncrementM / tentativeDistanceM 算出は上で完了済・1 byte 不変★。
+    //   ここで新エンジン (pipeline-distance) に同じ GPS 点を ingest し、新距離を別計上する。
+    //   ★この block は下の isStationary freeze / postMessage の構造には一切干渉しない (= 並列)★。
+    //   prefecture は bestEmit (= outSnap) の県を優先・無ければ loaded 県を探索 fallback。
+    //   ingest 失敗 / 未ロードは no-op。例外は握りつぶし既存距離パスに一切影響させない。
+    // ★L1 配線 (2026-05-31・clean-rebuild-pipeline・距離源を「確定道路読み取り」へ一本化):
+    //   司さん核心:「通った道の正確な距離を出せ」。過大の正体 = greedy snap の別道路 flip (余計な弦)。
+    //   新 meter.js は state.distance_m を ★確定道路読み取りの道なり弧長 delta★ で駆動する。
+    //   この delta は pipeline-distance の ★L2 連結性ハード拘束付き stepDistance★ が算出する:
+    //     - 同一道路       → calcRoadDistance の polyline 弧長 (= L3 道なり距離・既存・正確)。
+    //     - 別道路 (連結)  → 道路網 routing で道なり距離 (= 正当な交差点/分岐通過)。
+    //     - 別道路 (非連結 = 偽 flip) → ★棄却★ し前道路へ投影し直した道なり弧長 (= 余計な弦を距離に入れない)。
+    //   = Worker B の Viterbi/HMM が transition で行う「繋がってない道へ遷移しない」拘束を距離計算に接続。
+    //   worker は確定 delta を mmResult.pipelineDeltaM として返し、main(meter) は running gate 内で
+    //   state.distance_m += pipelineDeltaM を実行する (= 単一経路・道路 snap 道なり)。
+    //   ★(c) 配線完全性: 距離源は greedy per-point snap 生値ではなく・連結性拘束を通した確定道路読み取り★。
+    let _pipelineDeltaM_now = 0;
+    {
+      const _confirmed = _confirmedRoadDelta(msg, outSnap);
+      if (_confirmed > 0) _pipelineDeltaM_now = _confirmed;
+    }
+
+    const _lowSpeed = msg.speedKmh != null && msg.speedKmh < 2;
+    const _effectivelyStationary = msg.isStationary === true || _lowSpeed;
+    if (_effectivelyStationary) {
       mmIncrementM = 0;
       tentativeIncrementM = 0;
+      // ★白紙書き直し (2026-05-30): effectively stationary 時は新 meter 距離駆動 delta も 0 (= creep 防止二重保険)。
+      // ★smoothedRawMode 補正 (2026-06-07)★: 平滑は delta が h サンプル遅れて確定するため現在時刻での
+      //   0 化は直前走行 delta を握り潰す (時間軸ズレ・市街地で系統過小)。creep はエンジン側 ZUPT+cap が
+      //   中心点 spd の正しい時間軸で担保 (_pdSmoothed 定義コメント・smoothed-flush-on-reset.test.js 参照)。
+      if (!_pdSmoothed()) _pipelineDeltaM_now = 0;
+      if (_frozenTentativeDistanceM !== null) {
+        tentativeDistanceM = _frozenTentativeDistanceM;
+      }
+    } else {
+      _frozenTentativeDistanceM = tentativeDistanceM;
     }
 
     const t1 =
@@ -3031,6 +3464,8 @@ self.onmessage = function (e) {
       //   commit (mmIncrementM) を待たない preview 用の単 step 道路距離。
       //   main 側で state.tier2_pending_m に加算し、commit で 0 リセットされる。
       tentativeIncrementM: tentativeIncrementM,
+      tentativeDistanceM: tentativeDistanceM, // ★Phase A: commit点→現射影 snapshot 弧長 (main で tier2 SET)
+      isStationary: _effectivelyStationary, // ★2026-05-29 PM real-trace 残存 creep: effectively stationary (= isStationary OR speedKmh<2) を echo・main SET ガード同期
       snap: outSnap,
       confidence: pickedEmission > 0 ? Math.min(1.0, pickedEmission) : 1.0,
       windowSize: viterbi.size(),
@@ -3042,6 +3477,11 @@ self.onmessage = function (e) {
       candidatesCount: candCount,
       pickedEmission: pickedEmission,
       _reason: reason,
+      // ★白紙書き直し (2026-05-30・clean-rebuild-pipeline): 新 meter の距離駆動 delta。
+      //   新 meter.js は running gate 内で state.distance_m += pipelineDeltaM を実行する。
+      //   isStationary (= effectively stationary) freeze 時は ingest 側 ZUPT が deltaM=0 を返すため
+      //   別途 0 化不要だが・freeze と整合させるため下の effectivelyStationary block で 0 に念押しする。
+      pipelineDeltaM: _pipelineDeltaM_now,
     });
   }
 };

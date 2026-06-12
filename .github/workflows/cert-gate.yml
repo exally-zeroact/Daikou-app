@@ -1,0 +1,51 @@
+# ダイコメ 認定ゲート CI (A5・2026-06-01)
+# 「緑のまま壊れる」を塞ぐ専用 gate。test.yml (軽量ユニット) / mm-regression.yml (MM 回帰) とは別建てで
+# ★認定 (国交省 GPS ソフトメーター) 物差し★ を CI に常時配線する:
+#   1) gate-snap   = 実機3台 fixture を実エンジン(Worker B)に流し snap 配線健全 (committed=0 で FAIL)
+#   2) sim-cert    = 実 pipeline GPS-feed Monte-Carlo。never-over/coast配線/単調/latch を hard-fail。
+#                    認定バンド −4%〜0% 未達 (= over-fill 過大課金・A1 未根治) は CERT-GAP として
+#                    report のみ (= 非ブロック)。A1 land 後に sim を --cert-strict へ切替で hard gate 化。
+# 重いため (~6min) 専用 job・timeout 20min。distance_m/calcFare は read-only 観測のみ・不変。
+name: cert-gate
+
+# paths: 距離/エンジン/テストに関わる変更時のみ実行。
+#   auto-version ボットの sw.js CACHE_NAME-only commit 等では ~6min sim を回さない (= 計算節約)。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'js/**'
+      - 'tests/**'
+      - 'data/roads-*.js'
+      - 'package.json'
+      - '.github/workflows/cert-gate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'js/**'
+      - 'tests/**'
+      - 'data/roads-*.js'
+      - 'package.json'
+      - '.github/workflows/cert-gate.yml'
+
+jobs:
+  certification-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Snap-accuracy wiring gate (committed=0 で FAIL)
+        run: npm run test:gate-snap
+
+      - name: Full-pipeline certification gate (never-over/coast/単調/latch hard-fail・認定バンドは CERT-GAP report)
+        run: npm run test:sim-cert

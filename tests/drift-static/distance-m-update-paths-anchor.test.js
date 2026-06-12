@@ -1,17 +1,17 @@
 // tests/drift-static/distance-m-update-paths-anchor.test.js
 //
-// ★設計変更宣言 Phase 6-7 (2026-05-21・(M) 分離・司さん採択):
-//   旧: tests/property/distance-m-update-paths.test.js 内に・行アンカー線 ±10 の
-//       静的 expectedLines 検証 (C1 / C3) が混在。
-//   新: 本 file へ切出し・通常 vitest では実行 (= ±10 LINE_TOLERANCE 完全保持)・
-//       Stryker run では exclude。
+// ★白紙書き直し (2026-05-30・clean-rebuild-pipeline・新挙動へ更新)★
+//   旧: distance_m += は 5 経路 (mm commit / retro Off-Road / gap fill / Off-Road incremental /
+//       setDistance)・GPS.calcDistance は 5 箇所、という ★旧 accrual 内部★ を行アンカーで検証。
+//   新: distance_m は ★pipeline-distance エンジンの delta 1 経路★ で駆動する。
+//       meter.js 内の state.distance_m 書込は ★2 経路のみ★:
+//         (1) _onMmWorkerMessage: state.distance_m += delta  (= pipelineDeltaM・running gate)
+//         (2) setDistance:        state.distance_m = v        (= 復元用 外部代入)
+//       GPS.calcDistance / haversine は meter.js から ★消滅★ (= pipeline-distance.js /
+//       map-matcher.js 内に集約)。よって meter.js 内の GPS.calcDistance 呼出は 0 件。
 //
-//   block コードは旧 file から **byte 不変** で移動。
-//
-//   旧 file 由来 (= tests/property/distance-m-update-paths.test.js):
-//     C1 (state.distance_m += 5 経路 line anchor) → 本 file の it 'C1'
-//     C3 (GPS.calcDistance 3 経路 line anchor) → 本 file の it 'C3'
-//     C2 (sanitizer marker・線アンカーなし) は旧 file に残す (= 行シフトの影響なし)
+//   この test は「白紙の単一駆動経路」を構造的に固定し、将来の継ぎ足し
+//   (= 旧 5 経路 tangle / GPS 直線課金の再混入) を即座に検出する。
 
 'use strict';
 
@@ -24,8 +24,8 @@ function loadMeterSource() {
   return fs.readFileSync(METER_JS_PATH, 'utf8');
 }
 
-describe('drift-static: meter.js distance_m += 5 経路 / GPS.calcDistance 3 経路 line anchor (旧 distance-m-update-paths.test.js C1/C3)', () => {
-  it('C1: state.distance_m への代入/加算は meter.js 内で 5 経路のみ', () => {
+describe('drift-static: meter.js 距離駆動は pipeline delta 単一経路 (白紙書き直し・clean-rebuild-pipeline)', () => {
+  it('C1: state.distance_m への代入/加算は meter.js 内で 3 経路のみ (= += delta / += gapM / = v)', () => {
     const source = loadMeterSource();
     const lines = source.split('\n');
     const matchedLines = [];
@@ -35,62 +35,53 @@ describe('drift-static: meter.js distance_m += 5 経路 / GPS.calcDistance 3 経
         matchedLines.push({ lineNo: i + 1, content: lines[i].trim() });
       }
     }
-    if (matchedLines.length !== 5) {
+    // ★白紙書き直し後 distance_m 書込経路は 3 経路 (2026-06-09・随伴車別k校正を反映):
+    //   #1 += cal    : pipeline delta の随伴車別k校正 (cal = delta × _activeVehicleK・道なり区間増分)
+    //   #2 += gapCal : gap補完の随伴車別k校正 (gapCal = gapM × _activeVehicleK・速度×時間)
+    //   #3 = v       : setDistance 復元代入
+    //   いずれも GPS 直線 (haversine) 課金ではない (C3 で GPS.calcDistance 0 を別途保証)。
+    //   ★k は ★同一 pipeline delta / gapM に対するスカラー器差★ であり新規距離源ではない
+    //     (cal/gapCal の定義が delta×k / gapM×k であることを下で検証=単一源不変を強化)。
+    if (matchedLines.length !== 3) {
       throw new Error(
-        '述語 C 違反: distance_m 書込経路 5 経路 (L496/L576/L1043/L1064/L1461) を逸脱。検出: ' +
+        '述語 C 違反: 白紙書き直し後 distance_m 書込経路は 3 経路 ' +
+          '(= += cal + += gapCal + = v) のはず。検出: ' +
           JSON.stringify(matchedLines, null, 2)
       );
     }
-    // 2026-05-18 更新 (Phase 3): GPS predictive + Reconciliation 追加で更に shift。
-    // 旧 (Phase 2 後): [415, 484, 874, 893, 1239]
-    // 旧 (Phase 3 後): [427, 496, 917, 936, 1315]
-    // 2026-05-19 更新 (business_distance_m 完全分離): 4 加算経路から business 削除で shift。
-    // 旧: [428, 495, 927, 945, 1324]
-    // 2026-05-19 R1 更新 (Off-Road grace period): _offRoadGraceUntil 追加で shift。
-    // 旧: [440, 514, 948, 966, 1345]
-    // 2026-05-19 haversine 更新 (業務単位連続点累積): GPS.calcDistance 呼出追加で shift。
-    // 旧: [440, 514, 955, 973, 1352]
-    // 2026-05-20 室内停車中誤加算 bug 修正: state.last_gps accuracy 追加 + gap fill isStationary gate 追加で shift。
-    // 旧: [440, 514, 961, 979, 1365]
-    // 2026-05-24 道路 snap 構成 (= 司さん採用指示): business_active gate 並記 + ZUPT helper 追加で shift。
-    // 旧: [496, 576, 1043, 1064, 1461]
-    // 2026-05-24 business preview 別回路 (= business_tier2_pending_m): state 追加 + 別 if ブロック 2 件で shift。
-    // 旧: [506, 622, 1099, 1120, 1517]
-    // 2026-05-24 表示層 予測補間 (= business_display_distance_m + _target_velocity_mps state 追加) で shift。
-    // 新: [519, 635, 1132, 1153, 1625]
-    const expectedLines = [519, 635, 1132, 1153, 1625];
-    // Stryker sandbox は project files をコピーする際に line offset を作る可能性あり。
-    // 完全一致ではなく ±10 line 許容で drift 検出する (= 大幅 drift は捕捉・微小 offset は許容)。
-    const LINE_TOLERANCE = 10;
-    for (let i = 0; i < 5; i++) {
-      const diff = Math.abs(matchedLines[i].lineNo - expectedLines[i]);
-      if (diff > LINE_TOLERANCE) {
-        throw new Error(
-          '述語 C 違反: 経路 #' +
-            (i + 1) +
-            ' 期待 L' +
-            expectedLines[i] +
-            ' ±' +
-            LINE_TOLERANCE +
-            ' 実検出 L' +
-            matchedLines[i].lineNo +
-            ' (drift=' +
-            diff +
-            ' line・memory 更新が必要)'
-        );
-      }
+    // 経路 #1 は pipeline delta の k 校正加算 (= 道路 snap 道なり区間増分・running gate 内)
+    if (!/\+=\s*cal\b/.test(matchedLines[0].content)) {
+      throw new Error(
+        '述語 C 違反: 経路 #1 は state.distance_m += cal (= pipelineDeltaM×k) のはず。実検出: ' +
+          matchedLines[0].content
+      );
+    }
+    // 経路 #2 は gap補完の k 校正 (= Worker B 不在時・速度×時間×k)
+    if (!/\+=\s*gapCal\b/.test(matchedLines[1].content)) {
+      throw new Error(
+        '述語 C 違反: 経路 #2 は state.distance_m += gapCal (= gap補完 gapM×k) のはず。実検出: ' +
+          matchedLines[1].content
+      );
+    }
+    // 経路 #3 は setDistance の復元代入
+    if (!/=\s*v\b/.test(matchedLines[2].content)) {
+      throw new Error(
+        '述語 C 違反: 経路 #3 は state.distance_m = v (= setDistance 復元) のはず。実検出: ' +
+          matchedLines[2].content
+      );
+    }
+    // ★単一源不変の強化★: cal/gapCal は ★pipeline delta / gapM の k 倍★ であり、別距離源でない事を検証。
+    if (!/const\s+cal\s*=\s*delta\s*\*\s*_activeVehicleK\b/.test(source)) {
+      throw new Error(
+        '述語 C 違反: cal は `delta * _activeVehicleK` (pipeline deltaのk校正) のはず'
+      );
+    }
+    if (!/const\s+gapCal\s*=\s*gapM\s*\*\s*_activeVehicleK\b/.test(source)) {
+      throw new Error('述語 C 違反: gapCal は `gapM * _activeVehicleK` (gap補完のk校正) のはず');
     }
   });
 
-  it('C3: dangerous_sources (GPS.calcDistance) は 4 箇所・うち 2 箇所 sanitizer 内 + 1 箇所 ZUPT helper + 1 箇所 gps_predictive (= 連続点許可済)', () => {
-    // ★設計変更宣言 (2026-05-19・業務単位を haversine 連続点累積に移行):
-    //   業界標準 (= Strava / Garmin / 米国タクシー特許) と整合・iOS speedKmh ノイズ免疫。
-    //   ★絶対ルール「連続点 polyline 累積 = 許可」(meter.js L106-108) と完全整合。
-    //   distance_m 加算経路には触れない (= 課金根拠不可侵維持)。
-    // ★設計変更宣言 (2026-05-24・道路 snap 構成・ZUPT helper 追加):
-    //   business_distance_m の・Off-Road incremental 屋内対策で・連続点 ZUPT 判定用に
-    //   GPS.calcDistance 呼出 1 箇所追加 (= _isBusinessZuptMicroMotion 内)。
-    //   gps_predictive_distance_m の・連続点 haversine も維持 (= 表示用・trip 単位)。
+  it('C3: meter.js 内に GPS.calcDistance / GPS 直線課金は存在しない (= haversine は pipeline へ集約)', () => {
     const source = loadMeterSource();
     const lines = source.split('\n');
     const calls = [];
@@ -99,37 +90,13 @@ describe('drift-static: meter.js distance_m += 5 経路 / GPS.calcDistance 3 経
         calls.push({ lineNo: i + 1, content: lines[i].trim() });
       }
     }
-    if (calls.length !== 4) {
+    if (calls.length !== 0) {
       throw new Error(
-        'GPS.calcDistance 呼出件数違反: 期待 4 件 (L323 sanitizer / L373 ZUPT helper / L413 sanitizer / L1093 gps_predictive) 実検出 ' +
+        '白紙書き直し違反: meter.js 内 GPS.calcDistance 呼出は 0 件のはず (= 距離は pipeline-distance 駆動)。実検出 ' +
           calls.length +
           ' 件・' +
           JSON.stringify(calls)
       );
-    }
-    // L323 は _trackHaversineBetweenGps 内 (sanitizer)
-    // L373 は _isBusinessZuptMicroMotion 内 (ZUPT helper・道路 snap 構成屋内対策)
-    // L413 は _calculateOffRoadIncrement 内 (sanitizer)
-    // L1093 は gps_predictive_distance_m 連続点累積 (= 表示用・trip 単位・連続点累積は絶対ルール許可)
-    const expectedLines = [323, 373, 413, 1093];
-    const LINE_TOLERANCE = 10;
-    for (let i = 0; i < 4; i++) {
-      const diff = Math.abs(calls[i].lineNo - expectedLines[i]);
-      if (diff > LINE_TOLERANCE) {
-        throw new Error(
-          'GPS.calcDistance 呼出 #' +
-            (i + 1) +
-            ' 期待 L' +
-            expectedLines[i] +
-            ' ±' +
-            LINE_TOLERANCE +
-            ' 実検出 L' +
-            calls[i].lineNo +
-            ' (drift=' +
-            diff +
-            ' line)'
-        );
-      }
     }
   });
 });

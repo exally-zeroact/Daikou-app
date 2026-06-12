@@ -36,7 +36,7 @@ gps_pattern:
 expected_events:
   - event: tier1_commit
     frequency: 全 step の 95%+
-    distance_path: meter.js L393
+    distance_path: meter.js L551
   - event: long_continuous_segment
     frequency: 1 回 (= 高速区間)
     duration_sec: 1200  # 連続 20 分以上 isStationary=false
@@ -46,10 +46,10 @@ expected_events:
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit
+    - meter.js L551 tier1-commit
   secondary: []
   rare:
-    - meter.js L824 gap-fill  # 高速トンネル等で稀に発火
+    - meter.js L1168 gap-fill  # 高速トンネル等で稀に発火
 
 verification:
   invariants:

@@ -12,7 +12,9 @@ Biome は JSON 仕様 (`$schema` 制約) で設定にコメント不可、
 ### `state.distance_m` / `state.fare_yen` への直接代入
 
 絶対ルール: distance_m は課金根拠・更新元は 5 経路のみ
-  L393 / L462 / L824 / L842 / L1172 (meter.js verified)
+  L551 / L661 / L1168 / L1190 / L1691 (meter.js verified 2026-05-28・★STEP0 診断追加後・drift-static C1 で ±10 監視中)
+  ※5経路の役割: Tier1 commit / Off-Road retroactive / gap fill (Phase2-a 道路 routing) / Off-Road incremental / setDistance
+  ※業務距離 business_distance_m は ★2026-05-24 ★設計変更★ で business_active gate へ★ (旧 running gate ではない)
 
 Biome は組込み rule のみで「特定変数への代入」を検出する custom rule を
 自作できない (= Semgrep / fast-check property test で代替済)。

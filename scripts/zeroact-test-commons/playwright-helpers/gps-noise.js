@@ -114,7 +114,7 @@ async function injectGpsDrift(context, opts) {
 
 /**
  * GPS 空白を注入する (= 一定時間 setGeolocation 呼出を停止)。
- * meter.js L812 GAP_THRESHOLD_SEC=5 以上で gap fill 発火 (= L824 distance_m += filled)。
+ * meter.js (gap-fill threshold・drift-static C1) GAP_THRESHOLD_SEC=5 以上で gap fill 発火 (= L1168 distance_m += filled)。
  *
  * @param {import('@playwright/test').BrowserContext} context
  * @param {object} opts

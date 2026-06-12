@@ -58,8 +58,12 @@ jobs:
           fi
           
           git add sw.js
-          # [skip ci] でこのワークフロー自身の連鎖実行を防止
-          git commit -m "chore: auto-update CACHE_NAME to daikome-${{ steps.sha.outputs.short_sha }} [skip ci]"
+          # ★設計変更宣言 (2026-05-29 PM・[skip ci] 削除):
+          #   旧: [skip ci] でこのワークフロー自身の連鎖実行を防止
+          #   問題: 司さん「反映遅くなった」 真因 = Vercel も [skip ci] を解釈して deploy skip
+          #         → auto-update CACHE_NAME bump 後の sw.js が Vercel に反映されない事象。
+          #   新: [skip ci] 削除。workflow 連鎖は paths-ignore: 'sw.js' (= L8) で既に防止済 (= 冗長)。
+          git commit -m "chore: auto-update CACHE_NAME to daikome-${{ steps.sha.outputs.short_sha }}"
           # 連続 push との race 対策: 失敗時に rebase してリトライ (最大 3 回)
           for attempt in 1 2 3; do
             if git push; then

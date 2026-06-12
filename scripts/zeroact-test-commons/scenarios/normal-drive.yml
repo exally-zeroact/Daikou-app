@@ -35,7 +35,7 @@ gps_pattern:
 expected_events:
   - event: tier1_commit
     frequency: ほぼ全 step (= Worker B Viterbi が安定 snap)
-    distance_path: meter.js L393
+    distance_path: meter.js L551
   - event: tier2_tentative
     frequency: 毎 step (= preview)
     distance_path: 表示のみ (distance_m 加算なし)
@@ -45,12 +45,12 @@ expected_events:
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit  # 全 distance_m の 95%+
+    - meter.js L551 tier1-commit  # 全 distance_m の 95%+
   secondary: []
   not_expected:
-    - meter.js L462 offroad-retroactive  # Off-Road 起動しない
-    - meter.js L824 gap-fill              # GPS 消失なし
-    - meter.js L842 offroad-incremental   # Off-Road 起動しない
+    - meter.js L661 offroad-retroactive  # Off-Road 起動しない
+    - meter.js L1168 gap-fill              # GPS 消失なし
+    - meter.js L1190 offroad-incremental   # Off-Road 起動しない
 
 verification:
   invariants:

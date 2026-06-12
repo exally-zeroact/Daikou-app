@@ -94,8 +94,9 @@ test('gap-fill: dtSec >= 5 秒の GPS 空白で gap fill 発火・distance_m 増
   expect(result.afterStep2).toBeGreaterThan(100);
   expect(result.afterStep2).toBeLessThan(500);
 
-  // distanceSource は 'gap' になるべき (L826: state.distanceSource = 'gap')
-  expect(result.distanceSource).toBe('gap');
+  // distanceSource: E2E は実 mmWorker あり・道路未ロード (roadsLoading) のため 'loadfill'
+  // (= 2026-06-07 loadfill 新設・worker 完全不在時のみ 'gap'。計上量の式は同一 speed×時間)
+  expect(result.distanceSource).toBe('loadfill');
 
   // 業務終了
   page.once('dialog', (d) => d.accept());

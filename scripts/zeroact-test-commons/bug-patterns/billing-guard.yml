@@ -38,31 +38,44 @@ how_it_manifests:
 
 daikome_risk:
   severity: 高 (= 旅客 / 運転手双方からの苦情リスク)
-  absolute_rule_referenced: "実装済みの機能は必ず全て課金・業務フローに接続"
+  absolute_rule_referenced: "distance_m 不可侵 (5加算経路) + 全加算タクシー方式 + 道路ジオメトリ必須・GPS 直線禁止"
+  # ★verified 2026-05-28 (drift-static C1 で ±10 line tolerance で動的監視中)
   affected_paths:
-    - meter.js L391-396  Tier1 commit (running ガード適用済)
-    - meter.js L459-466  retroactive (running ガード適用済・2026-05-17 ★設計変更)
-    - meter.js L820-828  gap fill (running ガード適用済)
-    - meter.js L838-846  Off-Road (running ガード適用済)
+    - meter.js L551   Tier1 commit (state.running ガード適用済)
+    - meter.js L661   retroactive (running ガード・★絶対ルール適用外区間 sanitizer 通過)
+    - meter.js L1168  gap fill (running ガード適用済・Phase2-a 道路 routing 拡張)
+    - meter.js L1190  Off-Road incremental (running ガード・★適用外区間 sanitizer 通過)
+    - meter.js L1691  setDistance (外部 API・タスクキル復元用)
   existing_protections:
-    - 全 5 経路に `if (state.running)` ガード追加済 (= commit cd68ecd6)
-    - business_distance_m も running ガード対象 (= 2026-05-17 ★設計変更)
-    - update() 入口で isStationary 早期 return (L790)
-    - Worker B 出力強制 0 化 (L3007)
-    - wait_sec も running=true のみ加算 (L863)
+    - distance_m 5 加算経路全てに `if (state.running)` ガード適用済
+    - ★business_distance_m は business_active gate★ (= 2026-05-24 ★設計変更宣言・running gate から移行★)
+      ・空車中も業務単位累積が伸びる設計 (= 2026-05-17 旧 running gate で「空車中累積停止」 を訂正)
+      ・道路 snap 5 経路全てで `if (state.business_active)` 並記 (meter.js L556 等)
+    - update() 入口で gpsResult.isStationary 早期 return (= _trackHaversineBetweenGps L351)
+    - Worker B 出力強制 0 化 (map-matcher.js: msg.isStationary=true で mmIncrementM=0)
+    - ★Fix① 2026-05-28: 静止判定を加速度 variance 主体に作り直し (gps-worker.js L800-834)
+      旧 3点AND (= GPS速度<3 必須) で A3 偽速度 3.1km/h により creep していた問題を構造的に解消
+    - ★Fix② 2026-05-28: accuracy cap 移動時緩和 (max 20m)・静止時厳格・isStationary と coupled
   unprotected_scenarios:
     - 短時間 running=true ↔ false トグルでの race (= state 観測順序問題)
     - setDistance API 経由の外部書込 (= タスクキル復元用・但し意図的)
+    - ★Fix① の高速ガード 10km/h 超の A3 偽速度 spike (= 屋内 σ>0.8m drift) → 想定外の創発で creep の余地★
 
 detection_method:
   static_analysis:
     - 静的解析で `state.distance_m\s*[+]?=` の前後 5 行に `state.running` チェック存在を確認
-    - 既存 test: tests/property/distance-m-update-paths.test.js (C1 5 経路 verify)
+    - 既存 test: tests/drift-static/distance-m-update-paths-anchor.test.js (= ★Phase 6-7 2026-05-21 で property から移動済★・C1 5 経路 / C3 4 GPS.calcDistance verify)
   property_test:
-    - tests/property/isstationary-no-increase.test.js (B1: 任意 distance_m + isStationary で不変)
+    - tests/property/isstationary-no-increase.test.js (B1/B2: 任意 distance_m + isStationary で不変)
   e2e_test:
-    - tests/e2e/stationary-no-increase.spec.js (= 停車中 distance_m=500 維持)
+    - tests/e2e/stationary-no-increase.spec.js (= 停車中 distance_m=500 維持・isStationary 注入型)
+    - ★tests/e2e/stationary-real-pipeline.spec.js (= 2026-05-28 新規・setGeolocation で実 GPS層を駆動・注入なし)
     - tests/e2e/trip-cancel シナリオ (= scenarios/trip-cancel.yml)
+  worker_decision_test:
+    - ★tests/integration/stationary-baseline-watchdog.test.js (= 2026-05-28 ★新構造対応 全面書換★・
+      実 gps-worker.js 経由・A3偽速度/iOS拒否/屋内 poor acc/Android 5Hz の 9 シナリオ・Fix①②検証)
+    - ★tests/replay-mm-worker/pipeline-gate.test.js (= 2026-05-28 新規・useGpsWorker:true で実 worker
+      経由・creep/freeze/runaway 閾値 FAIL ゲート)
 
 test_scenario_ref:
   - scenarios/trip-cancel.yml      (= 短時間 trip 整合性)

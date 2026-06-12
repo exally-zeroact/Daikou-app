@@ -1,242 +1,415 @@
 // tests/integration/stationary-baseline-watchdog.test.js
 //
-// ★設計変更宣言 (2026-05-23・Phase 1・静止判定 baseline watchdog):
-//   今後 Phase 2-3 で・isStationary 判定 (= gps.js radius / gps-worker.js 3点AND/閾値) を・
-//   司さん専決で・改修する時の・「片方直して片方壊す」検知用 baseline test。
+// ★設計変更宣言 (2026-05-28・新構造対応 全面書換):
+//   旧: 自前の `simulateStationaryFallback` (= speedKmh<3 + radius<3m/5s) で
+//       「現状 baseline = 屋内 0% 等」 を記録するだけの自己完結 sim だった。
+//       実 gps-worker.js を一切呼ばず・Fix① (= 加速度variance主体) を全く検証していなかった。
+//       「新構造を偽って緑」 になっていた。
+//   新: 実 js/gps-worker.js を tests/worker/gps-worker-sim.js の vm context で実走させ・
+//       tests/replay-mm-worker/gps-layer-pipeline.js を経由して
+//       実 meter.js (= state.business_distance_m) まで通して挙動を assert する。
+//       A3偽速度 / iOS accel拒否 / 屋内 poor accuracy / 5Hz / iOS×Android matrix を
+//       parametrize して全通し検証する。
 //
-//   ★ 現状 baseline の・記録 ★ (= 2026-05-23 時点):
-//     ・gps.js checkStationaryFallback: radius 3m + 5秒継続 + speedKmh<3 km/h
-//     ・gps-worker.js: 3点AND (= gpsStationary && c1Stationary && !c2Moving)
-//     ・速度 speedKmh<0.5 補助 = 撤去 (= 2026-05-16 b22efbaa)
-//     ・屋内 sigma 7m + radius 3m → isStationary true 率 ~0% (= シミュ実証)
-//
-//   ★ この test の・目的 ★:
-//     1. 現状 baseline の・記録 (= 「壊れてる事実」を・固定化)
-//     2. Phase 2-3 で・isStationary が・改善された時の・regression 防止
-//     3. 走行中 isStationary false 維持率 = 100% を・保証 (= 走行中誤静止 検知)
-//
-//   ★ 絶対ルール準拠 ★:
-//     ✓ distance_m / isStationary / 触らないファイル: 1 byte 不変 (= test 追加のみ)
-//     ✓ 距離挙動 影響なし (= 純粋 シミュレーション + verify only)
-//     ✓ 司さん家 fixture で・案 C 既存 PIP verify と・整合 (= regression なし)
+//   ★絶対ルール準拠:
+//     ・distance_m / calcFare / running gate / 5加算経路 / isStationary 判定本体: 1 byte 不変
+//     ・本 file は test 追加のみ・本番 js/*.js は触らない
+//     ・既存 section 3-5 (= 司さん家 PIP / banner 削除 watchdog) は1byte 不変で保持
 
 'use strict';
 
 const path = require('path');
 const fs = require('fs');
 
-// ─── ガウシアン noise 生成 (= 屋内/屋外 GPS ドリフト simulate) ───
-function gauss() {
-  let u = 0;
-  let v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-}
+const { runGpsLayerPipeline } = require('../replay-mm-worker/gps-layer-pipeline');
+const {
+  generateGpsTrace,
+  staticTrueTrace,
+  linearTrueTrace,
+  defaultConfigIndoor,
+} = require('../replay-mm-worker/noise-model');
 
-function metersPerDegLat() {
-  return 111000;
-}
-function metersPerDegLng(lat) {
-  return 111000 * Math.cos((lat * Math.PI) / 180);
-}
+// ─── 1. Fix① 静止判定 watchdog (★実 gps-worker.js 経由・新構造) ────────
+//
+// 検証する不変: 「物理的に静止している(=加速度平坦)端末は・GPS 偽速度や drift が
+//   あっても worker が isStationary=true を返し・business_distance_m は増えない」
+// シナリオは parametrized matrix:
+//   静止/低速/高速 × iOS(hav)/Android(dop) × accel 有/無 × accuracy 普通/屋内poor
+describe('Fix① 静止判定 watchdog (実 gps-worker.js 経由・★新構造)', () => {
+  const N = 40; // 各シナリオ step 数 (= 40 秒 1Hz 相当)
+  const BASE_LAT = 33.84;
+  const BASE_LNG = 132.7656;
 
-function haversineM(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const T = Math.PI / 180;
-  const dLat = (lat2 - lat1) * T;
-  const dLng = (lng2 - lng1) * T;
-  const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * T) * Math.cos(lat2 * T) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
+  // 共通 helper: シナリオを走らせ summary 計算
+  function runScenario(genCfg, opts) {
+    const trace = genCfg.linear
+      ? generateGpsTrace(
+          linearTrueTrace(
+            BASE_LAT,
+            BASE_LNG,
+            N,
+            genCfg.linear.speedKmh,
+            genCfg.interval_ms || 1000,
+            genCfg.linear.bearingDeg || 90
+          ),
+          genCfg
+        )
+      : generateGpsTrace(staticTrueTrace(BASE_LAT, BASE_LNG, N), genCfg);
+    return {
+      trace,
+      result: runGpsLayerPipeline(trace, opts),
+    };
+  }
 
-// ─── 現状 gps.js checkStationaryFallback (= L621-639) を・simulate ───
-// CONFIG: speed_limit_kmh=3 / stationary_sec=5 / stationary_radius_m=3
-function simulateStationaryFallback({
-  sigma,
-  radiusM,
-  speedKmh,
-  durationSec,
-  sampleHz,
-  baseLat,
-  baseLng,
-}) {
-  const samples = durationSec * sampleHz;
-  let lowSpeedStart = null;
-  let isStat = false;
-  let trueCount = 0;
-  for (let i = 0; i < samples; i++) {
-    const t = (i * 1000) / sampleHz;
-    const dLat = (gauss() * sigma) / metersPerDegLat();
-    const dLng = (gauss() * sigma) / metersPerDegLng(baseLat);
-    const lat = baseLat + dLat;
-    const lng = baseLng + dLng;
-    // gps.js checkStationaryFallback 模倣 (= L621-639):
-    //   speedKmh < 3 km/h かつ・lowSpeedStart 起点から・5 秒継続 + radius m 内
-    if (speedKmh < 3) {
-      if (!lowSpeedStart) {
-        lowSpeedStart = { time: t, lat, lng };
-      } else {
-        const e = (t - lowSpeedStart.time) / 1000;
-        const m = haversineM(lowSpeedStart.lat, lowSpeedStart.lng, lat, lng);
-        if (e >= 5 && m < radiusM) {
-          isStat = true;
-        } else if (m >= radiusM) {
-          // 起点から離脱 → 再起点・isStat false
-          lowSpeedStart = { time: t, lat, lng };
-          isStat = false;
+  const SCENARIOS_FIX1 = [
+    {
+      name: '①-1 iPhone13 iOS A3偽速度 静止 + accel平坦 → isStationary=true 維持・creep=0',
+      gen: {
+        seed: 7,
+        position_noise_stddev_m: 0.6, // 実機 A3 ≈ 3km/h 相当 (1Hz σ0.6 → mean 3-4km/h)
+        accuracy_mean_m: 8,
+        accuracy_stddev_m: 1.5,
+        outlier_rate: 0,
+        speed_mode: 'hav', // ★A3 = coords.speed null → 連続 noisy 点 haversine 代用
+        interval_ms: 1000,
+        accel_mode: 'stationary',
+      },
+      opts: { businessActive: true, running: false },
+      expect: {
+        statTrueRatio_min: 0.85,
+        biz_max_m: 1,
+        emit_ratio_min: 0.7,
+      },
+    },
+    {
+      name: '①-2 iOS accel権限拒否 (位置半径fallback) → isStationary=true 維持・creep=0',
+      gen: {
+        seed: 7,
+        position_noise_stddev_m: 0.6,
+        accuracy_mean_m: 8,
+        accuracy_stddev_m: 1.5,
+        outlier_rate: 0,
+        speed_mode: 'hav',
+        interval_ms: 1000,
+        accel_mode: 'none', // ★accel 無 = iOS DeviceMotion 拒否相当・位置半径 fallback 経路
+      },
+      opts: { businessActive: true, running: false },
+      expect: {
+        statTrueRatio_min: 0.6, // fallback は anchor warmup あり (5秒)・閾値緩め
+        biz_max_m: 1,
+        emit_ratio_min: 0.7,
+      },
+    },
+    {
+      name: '①-3 Android Doppler 静止 (speed=0 dop) + accel平坦 → creep=0',
+      gen: {
+        seed: 11,
+        position_noise_stddev_m: 0.6,
+        accuracy_mean_m: 8,
+        accuracy_stddev_m: 1.5,
+        outlier_rate: 0,
+        speed_mode: 'dop', // ★Android = Doppler あり
+        interval_ms: 1000,
+        accel_mode: 'stationary',
+        speed_noise_kmh: 0.3,
+      },
+      opts: { businessActive: true, running: false },
+      expect: {
+        statTrueRatio_min: 0.85,
+        biz_max_m: 1,
+        emit_ratio_min: 0.7,
+      },
+    },
+    {
+      name: '①-4 屋内 poor accuracy (12-17m) 静止 + accel平坦 → creep=0 (Fix①②協調)',
+      gen: Object.assign(defaultConfigIndoor(), {
+        seed: 13,
+        position_noise_stddev_m: 1.0,
+        outlier_rate: 0,
+        speed_mode: 'hav',
+        interval_ms: 1000,
+        accel_mode: 'stationary',
+      }),
+      opts: { businessActive: true, running: false },
+      expect: {
+        statTrueRatio_min: 0.5, // 静止確定後 cap=base(10)で多く reject → emit 少だが creep 出ない
+        biz_max_m: 1,
+        emit_ratio_min: 0.02, // 最初の数frame は accept (= Fix① が即静止確定)
+      },
+    },
+    {
+      name: '①-5 高速走行 40km/h Doppler + accel motion → isStationary=false 100%',
+      gen: {
+        seed: 17,
+        position_noise_stddev_m: 1.0,
+        accuracy_mean_m: 8,
+        accuracy_stddev_m: 1.5,
+        outlier_rate: 0,
+        speed_mode: 'dop',
+        interval_ms: 1000,
+        accel_mode: 'moving',
+        speed_noise_kmh: 1,
+        heading_noise_deg: 3,
+        linear: { speedKmh: 40, bearingDeg: 90 },
+      },
+      opts: { businessActive: true, running: true },
+      expect: {
+        // 走行中は isStationary=false 100% 期待 (= 課金 distance 増加保証)
+        statTrueRatio_max: 0,
+      },
+    },
+    {
+      name: '①-6 Android 5Hz 静止 + accel平坦 → 高レートでも creep=0',
+      gen: {
+        seed: 19,
+        position_noise_stddev_m: 0.6,
+        accuracy_mean_m: 8,
+        accuracy_stddev_m: 1.5,
+        outlier_rate: 0,
+        speed_mode: 'dop',
+        interval_ms: 200, // ★5Hz
+        accel_mode: 'stationary',
+        speed_noise_kmh: 0.3,
+      },
+      opts: { businessActive: true, running: false },
+      expect: {
+        statTrueRatio_min: 0.5, // 5Hz だと最初の数frame accel window 不足あり・最終的に stationary
+        biz_max_m: 1,
+      },
+    },
+    {
+      // ★設計変更宣言 (2026-05-28・実機 Android iPhone13 屋内 Doppler creep 真因再現):
+      //   司さん iPhone13/Android 実機で・屋内静止中に・Doppler 偽速度 0.6-0.8km/h が継続出力 +
+      //   accel ノイズで Fix① 静止判定が時々 moving に振れる + GPS dropout で・[Meter] GPS消失補完
+      //   (mm/retro/gap 経路) が発火 → business_distance_m が 70m/7 分で creep する現象を再現。
+      //   この fixture は・ZUPT 並記 (= 4 経路に _isBusinessZuptMicroMotion 並記) ★前は FAIL★・
+      //   並記後は緑 (= mirror アーキ完成) で・修正の効果を assertion で担保する。
+      name: '①-7 Android Doppler 屋内偽速度 0.6km/h 継続 + accel ノイズ → business creep ≤ 1m (★ZUPT 全 4 経路並記 検証)',
+      gen: {
+        seed: 23,
+        position_noise_stddev_m: 1.0,
+        accuracy_mean_m: 8,
+        accuracy_stddev_m: 2,
+        outlier_rate: 0,
+        speed_mode: 'dop',
+        speed_bias_kmh: 0.6, // ★屋内 Doppler 偽速度 mean=0.6km/h 継続出力 (= 司さん実機 Eruda log 観測値)
+        speed_noise_kmh: 0.2,
+        interval_ms: 1000,
+        accel_mode: 'moving', // ★屋内 accel ノイズで・Fix① 判定が時々 moving に振れる (= 実機現象)
+      },
+      opts: { businessActive: true, running: false },
+      expect: {
+        biz_max_m: 1, // ★ZUPT 並記 前は FAIL・並記後は緑 (= mirror アーキ完成)
+      },
+    },
+  ];
+
+  for (const s of SCENARIOS_FIX1) {
+    it(s.name, () => {
+      const { result } = runScenario(s.gen, s.opts);
+      const emitRatio = result.workerEmittedCount / result.totalSteps;
+      const statTrueRatio =
+        result.workerEmittedCount > 0 ? result.stationaryTrueCount / result.workerEmittedCount : 0;
+      const biz = result.finalState.business_distance_m || 0;
+      const ctx =
+        `emit=${result.workerEmittedCount}/${result.totalSteps}(${emitRatio.toFixed(2)}) ` +
+        `statTrue=${result.stationaryTrueCount}(${statTrueRatio.toFixed(2)}) biz=${biz.toFixed(2)}m`;
+      if (s.expect.emit_ratio_min != null) {
+        if (emitRatio < s.expect.emit_ratio_min) {
+          throw new Error(
+            `${s.name}: emit_ratio ${emitRatio.toFixed(2)} < ${s.expect.emit_ratio_min} | ${ctx}`
+          );
         }
       }
-    } else {
-      lowSpeedStart = null;
-      isStat = false;
-    }
-    if (isStat) trueCount++;
+      if (s.expect.statTrueRatio_min != null) {
+        if (statTrueRatio < s.expect.statTrueRatio_min) {
+          throw new Error(
+            `${s.name}: statTrueRatio ${statTrueRatio.toFixed(2)} < ${s.expect.statTrueRatio_min} | ${ctx}`
+          );
+        }
+      }
+      if (s.expect.statTrueRatio_max != null) {
+        if (statTrueRatio > s.expect.statTrueRatio_max) {
+          throw new Error(
+            `${s.name}: statTrueRatio ${statTrueRatio.toFixed(2)} > ${s.expect.statTrueRatio_max} | ${ctx}`
+          );
+        }
+      }
+      if (s.expect.biz_max_m != null) {
+        if (biz > s.expect.biz_max_m) {
+          throw new Error(
+            `${s.name}: business_distance_m ${biz.toFixed(2)} > ${s.expect.biz_max_m} | ${ctx}`
+          );
+        }
+      }
+    });
   }
-  return trueCount / samples;
-}
+});
 
-// ─── 1. 屋内 ドリフト baseline (= 現状 0% の・固定化) ───
-describe('静止判定 baseline watchdog: 屋内 (sigma 3-10m) で・現状 radius 3m', () => {
-  const TRIALS = 50;
-  const DURATION = 300; // 5 分
-  const HZ = 1;
-  const CURRENT_RADIUS = 3; // m (= gps.js stationary_radius_m 現状値)
+// ─── 2. Fix② accuracy cap watchdog (★実 gps-worker.js 経由・新構造) ────
+//
+// 検証する不変:
+//   ・移動時は屋内 poor accuracy (12-17m) を accept (= 全 reject 凍結を回避)
+//   ・静止時は厳格 cap (= drift を計上しない)
+//   ・本当に悪い accuracy (>25m) は移動時でも reject (= ゲート機能維持)
+describe('Fix② accuracy cap watchdog (実 gps-worker.js 経由・★新構造)', () => {
+  const N = 40;
+  const BASE_LAT = 33.84;
+  const BASE_LNG = 132.7656;
 
-  it('★ sigma 5m radius 3m → isStationary true 率 < 5% (= 現状 baseline)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 5,
-        radiusM: CURRENT_RADIUS,
-        speedKmh: 0,
-        durationSec: DURATION,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
+  it('②-1 屋内 12-17m + 移動 15km/h → emit 多 (= 凍結なし・Fix② で accept)', () => {
+    const cfg = Object.assign(defaultConfigIndoor(), {
+      seed: 23,
+      position_noise_stddev_m: 1.5,
+      outlier_rate: 0,
+      speed_mode: 'dop',
+      interval_ms: 1000,
+      accel_mode: 'moving',
+      heading_noise_deg: 5,
+      speed_noise_kmh: 1,
+    });
+    const trace = generateGpsTrace(linearTrueTrace(BASE_LAT, BASE_LNG, N, 15, 1000, 90), cfg);
+    const result = runGpsLayerPipeline(trace, { businessActive: true, running: true });
+    const emitRatio = result.workerEmittedCount / result.totalSteps;
+    // 旧 cap10 なら全 reject (emit=0) → 凍結。Fix② 移動時 cap=20 → 半数以上 accept。
+    if (emitRatio < 0.35) {
+      throw new Error(
+        `②-1: 屋内移動で emit_ratio ${emitRatio.toFixed(2)} < 0.35 (凍結検知) emit=${result.workerEmittedCount}/${result.totalSteps}`
+      );
     }
-    const rate = total / TRIALS;
-    // 現状 baseline = ほぼ 0%・5% 未満 = 「屋内防御 機能していない」事実 を・固定
-    expect(rate).toBeLessThan(0.05);
   });
 
-  it('★ sigma 7m radius 3m → isStationary true 率 < 1% (= 屋内 完全機能停止)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 7,
-        radiusM: CURRENT_RADIUS,
-        speedKmh: 0,
-        durationSec: DURATION,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
+  // ★設計変更宣言 (2026-06-04・bypass化D): 移動時 accuracy 天井を 20m → accuracy_moving_extreme_m
+  //   (=35m) へ引き上げ「真に使い物にならない極端値のみ硬棄却」へ。中程度誤差 (acc 30m) は受理し
+  //   Worker B(Viterbi) に外れ値吸収を委ねる (= 点を消さない bypass 化)。よって本ゲートは検査軸を
+  //   「acc 30m は受理 (= 過少回復)」かつ「acc 45m (= 35m 天井超の極端値) は硬棄却 (= 過大ゼロ保険)」
+  //   の 2 点に更新する。
+  it('②-2 acc 30m + 移動 → emit 多 (= bypass化D で 35m 天井まで受理・点を消さない)', () => {
+    const cfg = {
+      seed: 29,
+      position_noise_stddev_m: 2,
+      accuracy_mean_m: 30, // ★accuracy_moving_extreme_m=35 未満 → 受理されるべき
+      accuracy_stddev_m: 3,
+      outlier_rate: 0,
+      speed_mode: 'dop',
+      interval_ms: 1000,
+      accel_mode: 'moving',
+      heading_noise_deg: 5,
+      speed_noise_kmh: 1,
+    };
+    const trace = generateGpsTrace(linearTrueTrace(BASE_LAT, BASE_LNG, N, 40, 1000, 90), cfg);
+    const result = runGpsLayerPipeline(trace, { businessActive: true, running: true });
+    const emitRatio = result.workerEmittedCount / result.totalSteps;
+    // 30m mean < 35m 天井 → 大半 accept (= 点を消さず Worker B 委任)。
+    if (emitRatio < 0.6) {
+      throw new Error(
+        `②-2: acc 30m (35m 天井未満) なのに emit_ratio ${emitRatio.toFixed(2)} < 0.6 (過剰棄却) emit=${result.workerEmittedCount}/${result.totalSteps}`
+      );
     }
-    const rate = total / TRIALS;
-    // sigma 7m (= 司iPhone 屋内 想定) で・現状 isStationary ほぼ・true にならない
-    expect(rate).toBeLessThan(0.01);
   });
 
-  it('★ sigma 3m radius 3m → isStationary true 率 < 10% (= 屋外 良好 GPS でも・限定的)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 3,
-        radiusM: CURRENT_RADIUS,
-        speedKmh: 0,
-        durationSec: DURATION,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
+  it('②-2b acc 45m + 移動 → emit 低 (= bypass化D の極端値硬棄却・過大ゼロ保険・35m 天井)', () => {
+    const cfg = {
+      seed: 31,
+      position_noise_stddev_m: 2,
+      accuracy_mean_m: 45, // ★accuracy_moving_extreme_m=35 を確実に超える極端値
+      accuracy_stddev_m: 3,
+      outlier_rate: 0,
+      speed_mode: 'dop',
+      interval_ms: 1000,
+      accel_mode: 'moving',
+      heading_noise_deg: 5,
+      speed_noise_kmh: 1,
+    };
+    const trace = generateGpsTrace(linearTrueTrace(BASE_LAT, BASE_LNG, N, 40, 1000, 90), cfg);
+    const result = runGpsLayerPipeline(trace, { businessActive: true, running: true });
+    const emitRatio = result.workerEmittedCount / result.totalSteps;
+    // 45m mean > 35m 天井 → 大半 reject (= 使い物にならない極端値は距離前に硬棄却)
+    if (emitRatio > 0.3) {
+      throw new Error(
+        `②-2b: 極端 accuracy 45m で emit_ratio ${emitRatio.toFixed(2)} > 0.3 (天井ゆるすぎ) emit=${result.workerEmittedCount}/${result.totalSteps}`
+      );
     }
-    const rate = total / TRIALS;
-    // 屋外 sigma 3m でも・現状 radius 3m は・10% 未満
-    expect(rate).toBeLessThan(0.1);
   });
 
-  it('★ sigma 1m radius 3m → isStationary true 率 > 50% (= 開発機・高精度 GPS で・機能する)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 1,
-        radiusM: CURRENT_RADIUS,
-        speedKmh: 0,
-        durationSec: DURATION,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
+  // ★②-3 (2026-05-28・★Fix① v2 dwell time で復活):
+  //   旧 Fix① で Linux CI で偽速度 spike 11.68km/h (1 step) が 10km/h backstop を defeat し
+  //   biz=33.23m creep が発生 (run 26553931113 で diagnostic 確認)。
+  //   Fix① v2 (dwell time=3 step) で・1 step spike では highSpeedFire しない → accel branch
+  //   → c1&&!c2=true → finalStationary=true 維持 → biz=0 を期待。
+  //   diagnostic 版は CI ログで Linux 環境の挙動を比較確認するため保持。
+  it('②-3 屋内 12-17m + 静止 + accel平坦 → biz=0 (= 静止時は drift 計上しない)', () => {
+    const cfg = Object.assign(defaultConfigIndoor(), {
+      seed: 31,
+      position_noise_stddev_m: 1.0,
+      outlier_rate: 0,
+      speed_mode: 'hav',
+      interval_ms: 1000,
+      accel_mode: 'stationary',
+    });
+    const trace = generateGpsTrace(staticTrueTrace(BASE_LAT, BASE_LNG, N), cfg);
+    const result = runGpsLayerPipeline(trace, { businessActive: true, running: false });
+    const biz = result.finalState.business_distance_m || 0;
+    if (biz > 1) {
+      throw new Error(`②-3: 屋内静止で biz=${biz.toFixed(2)} > 1m (creep 検知)`);
     }
-    const rate = total / TRIALS;
-    // 高精度 GPS (= sigma 1m) なら・現状 radius 3m でも・50% 以上 true
-    expect(rate).toBeGreaterThan(0.5);
+  });
+
+  // ★②-3 diagnostic (2026-05-28・★Linux 環境差調査★・assertion なし・常に PASS):
+  //   ②-3 と同じシナリオを CI で実行し・per-step の (emit/isStat/dDist/dBiz/accuracy/speedKmh) を
+  //   console.log で吐く。CI ログから・どの step で biz が伸びたか・何が Linux 特有挙動か特定する。
+  it('②-3 diagnostic: CI per-step ダンプ (assertion なし・★ローカル/CI 差調査用)', () => {
+    const cfg = Object.assign(defaultConfigIndoor(), {
+      seed: 31,
+      position_noise_stddev_m: 1.0,
+      outlier_rate: 0,
+      speed_mode: 'hav',
+      interval_ms: 1000,
+      accel_mode: 'stationary',
+    });
+    const trace = generateGpsTrace(staticTrueTrace(BASE_LAT, BASE_LNG, N), cfg);
+    const result = runGpsLayerPipeline(trace, { businessActive: true, running: false });
+    const biz = result.finalState.business_distance_m || 0;
+    const env = `node=${process.version} platform=${process.platform} arch=${process.arch}`;
+    // ★dump (CI ログ抽出用)
+    // eslint-disable-next-line no-console
+    console.log(`[DIAG-②-3] env: ${env}`);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[DIAG-②-3] final: biz=${biz.toFixed(4)} dist=${result.finalState.distance_m.toFixed(4)} emit=${result.workerEmittedCount}/${result.totalSteps} statT=${result.stationaryTrueCount}`
+    );
+    // eslint-disable-next-line no-console
+    console.log(
+      `[DIAG-②-3] trace first 5: ` +
+        trace
+          .slice(0, 5)
+          .map(
+            (t, i) =>
+              `s${i}{spd=${t.speedKmh.toFixed(2)} src=${t.speedSrc} acc=${t.accuracy.toFixed(2)} lat=${t.lat.toFixed(6)} lng=${t.lng.toFixed(6)}}`
+          )
+          .join(' | ')
+    );
+    // per-step (dDist > 0 or dBiz > 0 の step のみ・creep が起きた所だけ抽出)
+    const significant = result.perStep.filter((p) => p.dDist > 0 || p.dBiz > 0);
+    // eslint-disable-next-line no-console
+    console.log(
+      `[DIAG-②-3] significant steps (dDist>0 or dBiz>0): ` +
+        (significant.length === 0
+          ? '(none)'
+          : significant
+              .slice(0, 10)
+              .map(
+                (p) =>
+                  `s${p.step}{emit=${p.emitted} stat=${p.isStationary} acc=${p.accuracy.toFixed(2)} spd=${p.speedKmh.toFixed(2)} dDist=${p.dDist} dBiz=${p.dBiz}}`
+              )
+              .join(' | '))
+    );
+    // assertion なし (= 常に PASS・CI ログ採取に専念)
+    if (biz < 0) throw new Error('unreachable');
   });
 });
 
-// ─── 2. 走行中 isStationary false 維持 (= 距離過少 防止 watchdog) ───
-describe('静止判定 baseline watchdog: 走行中 (speedKmh > 3) で・isStationary false 維持', () => {
-  const TRIALS = 50;
-  const DURATION = 60;
-  const HZ = 1;
-
-  it('★ 走行中 20km/h speedKmh > 3 km/h なので・isStationary false 維持 (= 100%)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 3,
-        radiusM: 3,
-        speedKmh: 20, // 走行中
-        durationSec: DURATION,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
-    }
-    const rate = total / TRIALS;
-    // 走行中は・isStationary 0% (= 全 false) 期待・★ Phase 2-3 で・regress すれば・即検知 ★
-    expect(rate).toBe(0);
-  });
-
-  it('★ 走行中 60km/h speedKmh > 3 km/h なので・isStationary false 維持 (= 100%)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 3,
-        radiusM: 3,
-        speedKmh: 60,
-        durationSec: DURATION,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
-    }
-    expect(total / TRIALS).toBe(0);
-  });
-
-  it('★ 徐行 (speedKmh = 1, < 3 km/h) でも・sigma > radius なら・isStationary 不安定 (= 現状 baseline)', () => {
-    let total = 0;
-    for (let i = 0; i < TRIALS; i++) {
-      total += simulateStationaryFallback({
-        sigma: 5,
-        radiusM: 3,
-        speedKmh: 1, // 徐行・speed_limit 内
-        durationSec: 60,
-        sampleHz: HZ,
-        baseLat: 34.077806599,
-        baseLng: 132.996956368,
-      });
-    }
-    const rate = total / TRIALS;
-    // 徐行 + sigma 5m + radius 3m → ほぼ true にならず (= 現状 baseline・走行扱い)
-    expect(rate).toBeLessThan(0.1);
-  });
-});
-
-// ─── 3. 司さん家 fixture (= 案 C 既存 regression と統合・距離挙動 verify) ───
+// ─── 3. 司さん家 fixture (= 案 C 既存 PIP regression と統合・距離挙動 verify) ───
 describe('司さん家 baseline (= 案 C 既存 PIP regression と整合)', () => {
   let ehimeBundle;
   let Business;

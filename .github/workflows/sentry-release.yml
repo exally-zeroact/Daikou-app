@@ -60,7 +60,12 @@ jobs:
           VERSION="daikome@${{ github.sha }}"
           npx @sentry/cli releases new "$VERSION"
           # --ignore-missing: 初回 release で previous SHA がない場合に skip (= 全 commits 含めて新規作成)
-          npx @sentry/cli releases set-commits "$VERSION" --auto --ignore-missing
+          # ★2026-06-06: set-commits --auto は Sentry の GitHub 連携 API に依存し、一時的に
+          #   非JSON応答 (not a JSON response) を返すことがある。release 本体は上で作成済で
+          #   commit 紐づけは付帯メタデータに過ぎないため、失敗しても run 全体を落とさない
+          #   (= 失敗メール抑止)。Sentry 健全時は従来通り紐づく。
+          npx @sentry/cli releases set-commits "$VERSION" --auto --ignore-missing \
+            || echo "::warning::set-commits skipped (Sentry API 一時エラー) — リリース本体は作成済"
 
       - name: Upload sources to Sentry
         if: steps.check.outputs.available == 'true'
@@ -78,7 +83,8 @@ jobs:
             --url-prefix '~/js' \
             --no-rewrite \
             --ext js \
-            js/
+            js/ \
+            || echo "::warning::sourcemaps upload skipped (Sentry API 一時エラー)"
 
       - name: Finalize release
         if: steps.check.outputs.available == 'true'
@@ -88,5 +94,7 @@ jobs:
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         run: |
           VERSION="daikome@${{ github.sha }}"
-          npx @sentry/cli releases finalize "$VERSION"
-          npx @sentry/cli releases deploys "$VERSION" new -e production
+          npx @sentry/cli releases finalize "$VERSION" \
+            || echo "::warning::finalize skipped (Sentry API 一時エラー)"
+          npx @sentry/cli releases deploys "$VERSION" new -e production \
+            || echo "::warning::deploys new skipped (Sentry API 一時エラー)"

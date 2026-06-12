@@ -1,16 +1,42 @@
 {
   "meta": {
     "name": "uturn-274m",
-    "description": "ehime road 22203 (= 正解・411m unclassified) の seg 2 (= 53.6m) + seg 3 (= 83.7m) を東進し・seg 3 終端で U-turn (= 180度反転) して seg 3 (逆方向) + seg 2 (逆方向) を西進する fixture。往復距離 274.6m。司さん命名「uturn-150m」は片道目安 (= 実態 274m はラベル=実態)。並走 25m に road 22235 (= 競合並走) あり。GPS noise は実機相当 default。runner.js の t_start>t_end で逆方向 heading 自動反転。狙い: 全加算ルール = U-turn でも距離加算が正 (= 減算しない・タクシー方式)・反転後も走行 road 22203 上に snap + 距離 accrue されることを確認・反対車線並走 22235 への誤 snap 抑制。60 step / warmup 10 + post-warmup 50。",
+    "description": "ehime road 22201 (= 正解・411m unclassified) の seg 2 (= 53.6m) + seg 3 (= 83.7m) を東進し・seg 3 終端で U-turn (= 180度反転) して seg 3 (逆方向) + seg 2 (逆方向) を西進する fixture。往復距離 274.6m。司さん命名「uturn-150m」は片道目安 (= 実態 274m はラベル=実態)。並走 25m に road 22233 (= 競合並走) あり。GPS noise は実機相当 default。runner.js の t_start>t_end で逆方向 heading 自動反転。狙い: 全加算ルール = U-turn でも距離加算が正 (= 減算しない・タクシー方式)・反転後も走行 road 22201 上に snap + 距離 accrue されることを確認・反対車線並走 22235 への誤 snap 抑制。60 step / warmup 10 + post-warmup 50。",
     "prefecture": "ehime",
     "true_speed_kmh": 20,
     "ground_truth_segments": [
-      { "roadIndex": 22203, "segmentIndex": 2, "t_start": 0.0, "t_end": 1.0, "num_samples": 15 },
-      { "roadIndex": 22203, "segmentIndex": 3, "t_start": 0.0, "t_end": 1.0, "num_samples": 15 },
-      { "roadIndex": 22203, "segmentIndex": 3, "t_start": 1.0, "t_end": 0.0, "num_samples": 15 },
-      { "roadIndex": 22203, "segmentIndex": 2, "t_start": 1.0, "t_end": 0.0, "num_samples": 15 }
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 2,
+        "t_start": 0,
+        "t_end": 1,
+        "num_samples": 15
+      },
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 3,
+        "t_start": 0,
+        "t_end": 1,
+        "num_samples": 15
+      },
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 3,
+        "t_start": 1,
+        "t_end": 0,
+        "num_samples": 15
+      },
+      {
+        "roadIndex": 22201,
+        "segmentIndex": 2,
+        "t_start": 1,
+        "t_end": 0,
+        "num_samples": 15
+      }
     ],
-    "competing_road_indices": [22235],
+    "competing_road_indices": [
+      22233
+    ],
     "noise_model": {
       "seed": 46,
       "accuracy_mean_m": 10,

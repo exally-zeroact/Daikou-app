@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-06-07T02:57:01.186Z",
+  "proxyNotice": "PROXY metric only — no ground-truth road labels. True accuracy = real device / tire meter / human labels.",
+  "results": [
+    {
+      "fixture": "realdevice-iphone13-noisy.json",
+      "headingSource": "gps-course",
+      "totalSteps": 1485,
+      "mmResultSteps": 1485,
+      "snappedCount": 1485,
+      "committedCount": 1466,
+      "headingSuppliedSteps": 1410,
+      "distance_m": 9333.447710946577,
+      "proxy": {
+        "headingAlign": {
+          "n": 1401,
+          "meanDeg": 6.17,
+          "medianDeg": 0.98,
+          "p90Deg": 19.42,
+          "maxDeg": 89.19
+        },
+        "snapResidual": {
+          "n": 1466,
+          "medianM": 2.31,
+          "p90M": 4.79,
+          "maxM": 92.87
+        },
+        "flipFlops": 0,
+        "bearingJumpSteps": 4
+      },
+      "label": "iPhone13 (noisy)"
+    },
+    {
+      "fixture": "realdevice-iphonese.json",
+      "headingSource": "gps-course",
+      "totalSteps": 1770,
+      "mmResultSteps": 1770,
+      "snappedCount": 1770,
+      "committedCount": 1751,
+      "headingSuppliedSteps": 1740,
+      "distance_m": 9384.089417744968,
+      "proxy": {
+        "headingAlign": {
+          "n": 1729,
+          "meanDeg": 24.18,
+          "medianDeg": 2.29,
+          "p90Deg": 80.86,
+          "maxDeg": 89.08
+        },
+        "snapResidual": {
+          "n": 1751,
+          "medianM": 1.89,
+          "p90M": 4.07,
+          "maxM": 20.01
+        },
+        "flipFlops": 0,
+        "bearingJumpSteps": 0
+      },
+      "label": "iPhone SE"
+    },
+    {
+      "fixture": "realdevice-android.json",
+      "headingSource": "gps-course",
+      "totalSteps": 1791,
+      "mmResultSteps": 1791,
+      "snappedCount": 1791,
+      "committedCount": 1772,
+      "headingSuppliedSteps": 1155,
+      "distance_m": 10090.346407516721,
+      "proxy": {
+        "headingAlign": {
+          "n": 1136,
+          "meanDeg": 5.79,
+          "medianDeg": 1.83,
+          "p90Deg": 15.82,
+          "maxDeg": 88.14
+        },
+        "snapResidual": {
+          "n": 1772,
+          "medianM": 2.45,
+          "p90M": 3.82,
+          "maxM": 22.58
+        },
+        "flipFlops": 0,
+        "bearingJumpSteps": 0
+      },
+      "label": "Android"
+    }
+  ]
+}

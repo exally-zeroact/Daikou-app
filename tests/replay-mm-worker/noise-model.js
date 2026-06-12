@@ -158,6 +158,168 @@ function generateAccelSamples(timestampMs, prng, config, windowSec) {
   return samples;
 }
 
+// ──────────────────────────────────────────────────────────────
+// ★新構造対応 拡張 (2026-05-28): 実機 GPS層を通すための raw GPS トレース生成
+//   目的: gps.js/gps-worker.js (Fix①②③) を実コードで動かすため・実機相当の生 GPS を生成。
+//   追加軸:
+//     ・A3偽速度 (speed_mode='hav'): coords.speed=null 時に gps.js が連続 raw 点から
+//       haversine 速度を代用する挙動を再現 (= 静止 drift が偽速度に化ける creep の駆動源)。
+//     ・Doppler (speed_mode='dop'): coords.speed あり (= SE 等)・真速度 + 小 noise。
+//     ・屋内 poor accuracy (defaultConfigIndoor): 12-17m (= SE 凍結 deadlock の駆動源)。
+//     ・5Hz (interval_ms=200): Android 高レート (= over-count 暴走の駆動源)。
+//     ・accel 有無 (accel_mode='stationary'|'moving'|'none'): iOS 権限拒否 fallback の検証。
+// ──────────────────────────────────────────────────────────────
+
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const tr = Math.PI / 180;
+  const dLat = (lat2 - lat1) * tr;
+  const dLng = (lng2 - lng1) * tr;
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * tr) * Math.cos(lat2 * tr) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// gps.js L512-518 の A3 代用速度を忠実に再現 (= 連続 raw noisy 点から haversine 速度・物理上限 clamp)
+function haversineSpeedKmh(lat1, lng1, lat2, lng2, dtMs, capKmh) {
+  if (dtMs <= 0 || dtMs >= 10000) return 0; // gps.js: dt 範囲外 (<=0 / >=10s) は代用せず 0
+  const d = haversineMeters(lat1, lng1, lat2, lng2);
+  const kmh = (d / (dtMs / 1000)) * 3.6;
+  if (!isFinite(kmh) || kmh <= 0) return 0;
+  return Math.min(kmh, capKmh || 180);
+}
+
+// 屋内 poor accuracy 想定 (= SE 屋内実測 12-17m・低速 cap 10m を超える deadlock 駆動)
+function defaultConfigIndoor() {
+  return {
+    seed: 42,
+    accuracy_mean_m: 14, // 12-17m レンジの中央
+    accuracy_stddev_m: 2,
+    position_noise_stddev_m: 5, // 屋内 multipath で大きめ drift
+    heading_noise_deg: 15,
+    outlier_rate: 0.05,
+    outlier_offset_m: 25,
+  };
+}
+
+// ★ raw GPS トレース生成 (= GPS層入口に流す生サンプル列)
+//   trueTrace: [{ trueLat, trueLng, trueHeadingDeg, trueSpeedKmh }]
+//   config:
+//     seed, position_noise_stddev_m, accuracy_*  (applyNoise 互換)
+//     speed_mode: 'hav'(A3) | 'dop'(Doppler) | 'static'
+//     true_speed_kmh: trueTrace に無い時の既定速度
+//     speed_noise_kmh: dop の速度 noise σ
+//     interval_ms: 1000(1Hz) | 200(5Hz)
+//     start_ts, accel_mode: 'stationary' | 'moving' | 'none'
+//     haver_speed_cap_kmh: A3 物理上限 (= gps.js 180)
+//   戻り: [{ lat, lng, accuracy, speedKmh, speedSrc, headingDeg, accelSamples|null, timestamp, _isOutlier }]
+function generateGpsTrace(trueTrace, config) {
+  config = Object.assign({}, defaultConfig(), config || {});
+  const seed = config.seed != null ? config.seed : 42;
+  const prng = createPrng(seed);
+  const accelPrng = createPrng(seed + 1000);
+  const speedPrng = createPrng(seed + 2000);
+  const intervalMs = config.interval_ms || 1000;
+  const startTs = config.start_ts || 1714000000000;
+  const speedMode = config.speed_mode || 'static';
+  const accelMode = config.accel_mode || 'none';
+  const capKmh = config.haver_speed_cap_kmh || 180;
+  const out = [];
+  let prevNoisy = null;
+  for (let i = 0; i < trueTrace.length; i++) {
+    const tp = trueTrace[i];
+    const trueSpeed = tp.trueSpeedKmh != null ? tp.trueSpeedKmh : config.true_speed_kmh || 0;
+    const ns = applyNoise(
+      {
+        trueLat: tp.trueLat,
+        trueLng: tp.trueLng,
+        trueHeadingDeg: tp.trueHeadingDeg != null ? tp.trueHeadingDeg : 0,
+        trueSpeedKmh: trueSpeed,
+      },
+      prng,
+      config
+    );
+    const ts = startTs + i * intervalMs;
+    let speedKmh;
+    let speedSrc;
+    if (speedMode === 'hav') {
+      // A3: coords.speed=null → 連続 noisy 点から haversine 速度 (= 静止 drift が偽速度に)
+      speedKmh = prevNoisy
+        ? haversineSpeedKmh(prevNoisy.lat, prevNoisy.lng, ns.lat, ns.lng, intervalMs, capKmh)
+        : 0;
+      speedSrc = 'hav';
+    } else if (speedMode === 'dop') {
+      // Doppler: coords.speed あり = 真速度 + bias + 小 noise (>=0 clamp)
+      // ★設計変更宣言 (2026-05-28・Android 屋内 Doppler 偽速度継続出力 再現):
+      //   屋内 GPS multipath で・真実 0km/h なのに Doppler が 0.6-0.8km/h を継続出力する
+      //   現象を再現するため・speed_bias_kmh を加算 (= 司さん実機 Eruda log 観測値)。
+      //   これにより Fix① の static 判定が moving に振れた瞬間に 5 経路で creep する現象を再現可能。
+      const speedBias = config.speed_bias_kmh || 0;
+      speedKmh = Math.max(
+        0,
+        trueSpeed + speedBias + gaussian(speedPrng, 0, config.speed_noise_kmh || 0.5)
+      );
+      speedSrc = 'dop';
+    } else {
+      speedKmh = trueSpeed;
+      speedSrc = 'dop';
+    }
+    let accelSamples = null;
+    if (accelMode === 'stationary') {
+      accelSamples = generateAccelSamples(ts, accelPrng, defaultAccelConfigStationary(), 5);
+    } else if (accelMode === 'moving') {
+      accelSamples = generateAccelSamples(ts, accelPrng, defaultAccelConfigMoving(), 5);
+    }
+    // accelMode 'none' → accelSamples=null (= iOS DeviceMotion 権限拒否 相当)
+    out.push({
+      lat: ns.lat,
+      lng: ns.lng,
+      accuracy: ns.accuracy,
+      speedKmh,
+      speedSrc,
+      headingDeg: ns.headingDeg,
+      accelSamples,
+      timestamp: ts,
+      _isOutlier: ns._isOutlier,
+    });
+    prevNoisy = { lat: ns.lat, lng: ns.lng };
+  }
+  return out;
+}
+
+// 固定 1 点を N step 繰り返す true trace (= 静止シナリオ用)
+function staticTrueTrace(lat, lng, n, headingDeg) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push({ trueLat: lat, trueLng: lng, trueHeadingDeg: headingDeg || 0, trueSpeedKmh: 0 });
+  }
+  return out;
+}
+
+// 直線 true trace (= 移動シナリオ用・bearing 一定・速度から step 距離算出)
+function linearTrueTrace(lat, lng, n, speedKmh, intervalMs, bearingDeg) {
+  const out = [];
+  const tr = Math.PI / 180;
+  const stepM = (speedKmh / 3.6) * ((intervalMs || 1000) / 1000);
+  const brg = (bearingDeg || 0) * tr;
+  let curLat = lat;
+  let curLng = lng;
+  const mPerDegLat = 111132.954;
+  for (let i = 0; i < n; i++) {
+    out.push({
+      trueLat: curLat,
+      trueLng: curLng,
+      trueHeadingDeg: bearingDeg || 0,
+      trueSpeedKmh: speedKmh,
+    });
+    const dN = stepM * Math.cos(brg);
+    const dE = stepM * Math.sin(brg);
+    curLat += dN / mPerDegLat;
+    curLng += dE / (111319.488 * Math.cos(curLat * tr) || 1);
+  }
+  return out;
+}
+
 module.exports = {
   createPrng,
   gaussian,
@@ -167,4 +329,11 @@ module.exports = {
   defaultAccelConfigStationary,
   defaultAccelConfigMoving,
   generateAccelSamples,
+  // ★新構造対応 拡張 (2026-05-28)
+  haversineMeters,
+  haversineSpeedKmh,
+  defaultConfigIndoor,
+  generateGpsTrace,
+  staticTrueTrace,
+  linearTrueTrace,
 };

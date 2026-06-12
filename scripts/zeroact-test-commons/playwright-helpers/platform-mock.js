@@ -9,7 +9,7 @@
 //
 // ★ 加速度センサーについて:
 //    Playwright は DeviceMotionEvent dispatch を公式サポートしない。
-//    本 helper は加速度を mock しない = gps-worker.js L596-598 救済 path
+//    本 helper は加速度を mock しない = gps-worker.js L800-807 (Fix① 新構造・accel-null は checkPositionStationary fallback) 救済 path
 //    (= 加速度 null 時 GPS 単独で finalStationary 確定) を通す前提。
 
 const USER_AGENT_IOS =

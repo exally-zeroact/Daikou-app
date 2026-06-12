@@ -40,9 +40,9 @@ daikome_risk:
   severity: 致命 (= 課金訴訟リスク)
   absolute_rule_referenced: "GPS 直線距離での課金は禁止 / 道路ジオメトリ準拠"
   affected_paths:
-    - meter.js L257 / L305 GPS.calcDistance 呼出箇所 (= sanitizer 関数内のみ許可)
-    - meter.js L393 Tier1 commit (= Worker B から受け取る mmIncrementM が直線になっていたら)
-    - meter.js L824 gap fill (= speed × time なら OK・GPS 弦長混入なら NG)
+    - meter.js L355 / L405 / L445 GPS.calcDistance 呼出箇所 (= sanitizer 関数内のみ許可)
+    - meter.js L551 Tier1 commit (= Worker B から受け取る mmIncrementM が直線になっていたら)
+    - meter.js L1168 gap fill (= speed × time なら OK・GPS 弦長混入なら NG)
   existing_protections:
     - Semgrep taint rule (distance-m-no-gps-line.yml) で sink 流入禁止
     - sanitizer 関数 (_trackHaversineBetweenGps / _calculateOffRoadIncrement) のみ許可

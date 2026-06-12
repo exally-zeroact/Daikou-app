@@ -137,76 +137,73 @@ function gpsAt(stepIdx, baseLat = 34.0658, baseLng = 132.997) {
   };
 }
 
-console.log('\n[case1] MM healthy → distance_m は MM 由来で増える');
+// ★白紙書き直し (2026-05-30・clean-rebuild-pipeline・新挙動へ更新)★
+//   距離駆動は pipeline-distance エンジンの delta (= mmResult.pipelineDeltaM) のみ。
+//   distanceSource = 'pipeline' 固定。GPS 直線課金は meter.js に存在しない。
+//   tier2 preview / mmIncrementM 累積 / distanceSource='mm'/'gps' は廃止。
+
+console.log('\n[case1] pipeline delta → distance_m は道路 snap 道なり累積で増える');
 {
   Meter.reset();
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
   Meter.start();
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
-  // 仕様: 起動直後は MM がまだ何も返していない (lastMmUsefulAt=0) ため
-  //       最初の GPS 入力は GPS-fallback で課金される。これは正しい挙動。
-  //       「MM 健全状態からスタート」を再現するには事前に mmResult を 1 回 dispatch する。
-  w._dispatch({ type: 'mmResult', mmIncrementM: 0.0001, snapped: 1 }); // 健全プライム
-  // ステップ 0 で last_gps 確定 (距離は加算されない・直前の GPS 比較対象がないため)
-  // ステップ 1,2 で GPS 投入 + MM が 90m を返す → distance_m は ~180m + プライム分
+  // 道路ロード完了を明示 (= loadfill 非発火・ロード完了後は pipeline delta 単一経路の契約)
+  w._dispatch({ type: 'roadsLoaded', ok: true, pref: 'ehime' });
+  // ステップ 0 で last_gps 確定。ステップ 1,2 で worker が 90m delta を返す → distance_m ~180m
   for (let i = 0; i < 3; i++) {
     Meter.update(gpsAt(i));
-    if (i > 0) w._dispatch({ type: 'mmResult', mmIncrementM: 90, snapped: 1 });
+    if (i > 0) w._dispatch({ type: 'mmResult', pipelineDeltaM: 90, snapped: 1, committed: true });
   }
   const s = Meter.getState();
-  assertNear(s.distance_m, 180.0001, 0.01, 'distance_m に MM mmIncrementM が累積');
-  assert(s.distanceSource === 'mm', `distanceSource = 'mm' (got '${s.distanceSource}')`);
+  assertNear(s.distance_m, 180, 0.01, 'distance_m に pipeline delta が累積');
+  assert(
+    s.distanceSource === 'pipeline',
+    `distanceSource = 'pipeline' (got '${s.distanceSource}')`
+  );
   Meter.stop();
 }
 
-console.log('\n[case1b] 絶対ルール: MM プライムなしでも GPS 直線距離は使われない');
+console.log('\n[case1b] 絶対ルール: pipeline delta のみで加算 (GPS 直線課金は使われない)');
 {
   Meter.reset();
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
   Meter.start();
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
-  // プライムなし → step 1 では mmHealthy=false だが、roads が無ければ
-  // inline road-snap も snap miss → distance_m は加算されない (絶対ルール)
-  // step 1 の mmResult 受信で MM 健全に切替・以後は MM 由来で加算
+  w._dispatch({ type: 'roadsLoaded', ok: true, pref: 'ehime' });
   for (let i = 0; i < 3; i++) {
     Meter.update(gpsAt(i));
-    if (i > 0) w._dispatch({ type: 'mmResult', mmIncrementM: 90, snapped: 1 });
+    if (i > 0) w._dispatch({ type: 'mmResult', pipelineDeltaM: 90, snapped: 1, committed: true });
   }
   const s = Meter.getState();
-  // step 1: MM silent + RegionLoader 未定義 → 加算なし。mmResult で +90m
-  // step 2: mmResult で +90m → 計 180m
-  assertNear(s.distance_m, 180, 0.01, 'MM 経由のみで ~180m (GPS 直線は使わない)');
-  assert(s.distanceSource === 'mm', '最終 source = mm');
+  assertNear(s.distance_m, 180, 0.01, 'pipeline delta のみで ~180m (GPS 直線は使わない)');
+  assert(s.distanceSource === 'pipeline', '最終 source = pipeline');
   Meter.stop();
 }
 
-console.log('\n[case2] 絶対ルール: MM 沈黙でも GPS 直線距離での課金は発生しない');
+console.log('\n[case2] 絶対ルール: pipeline delta が来ない間は distance_m が動かない');
 {
   Meter.reset();
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
   Meter.start();
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
+  w._dispatch({ type: 'roadsLoaded', ok: true, pref: 'ehime' });
   Meter.update(gpsAt(0));
   Meter.update(gpsAt(1));
-  w._dispatch({ type: 'mmResult', mmIncrementM: 90 });
+  w._dispatch({ type: 'mmResult', pipelineDeltaM: 90, snapped: 1, committed: true });
   const after1 = Meter.getState();
-  assert(after1.distanceSource === 'mm', 'step 1: source = mm');
-  // 6 秒待って MM 沈黙状態にし、normal-dt な GPS step を投入
-  // RegionLoader が未定義なので inline snap も不可 → distance_m 据え置き
-  const realNow = Date.now;
-  const fakeBase = realNow();
-  Date.now = () => fakeBase + 6000;
+  assert(after1.distanceSource === 'pipeline', 'step 1: source = pipeline');
+  // delta が来ない GPS step → distance_m 据え置き (= GPS 直線課金禁止)
   Meter.update(gpsAt(2));
-  Date.now = realNow;
   const after2 = Meter.getState();
   assertNear(
     after2.distance_m,
     after1.distance_m,
     0.01,
-    'MM 沈黙中は distance_m が動かない (絶対ルール: GPS 直線課金禁止)'
+    'pipeline delta 不在中は distance_m が動かない (絶対ルール: GPS 直線課金禁止)'
   );
   Meter.stop();
 }
@@ -226,33 +223,30 @@ console.log('\n[case3] 絶対ルール: Worker null + roads 未 load → distanc
     'roads データ無 + Worker 無 → 加算ゼロ (GPS 直線課金は絶対不可)'
   );
   assert(
-    s.distanceSource === 'gps',
-    `distanceSource 初期値 'gps' のまま (got '${s.distanceSource}')`
+    s.distanceSource === 'pipeline',
+    `distanceSource 初期値 'pipeline' のまま (got '${s.distanceSource}')`
   );
   Meter.stop();
 }
 
-console.log('\n[case4] MM 沈黙 → 復帰 → distance_m は MM 復帰分のみ追加');
+console.log('\n[case4] delta 不在 → 復帰 → distance_m は復帰分のみ追加');
 {
   Meter.reset();
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
   Meter.start();
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
+  w._dispatch({ type: 'roadsLoaded', ok: true, pref: 'ehime' });
   Meter.update(gpsAt(0));
-  // 6 秒経過 → MM 沈黙中の GPS step (加算なし)
-  const realNow = Date.now;
-  const fakeBase = realNow();
-  Date.now = () => fakeBase + 6000;
+  // delta なしの GPS step (加算なし)
   Meter.update(gpsAt(1));
-  Date.now = realNow;
   const s1 = Meter.getState();
-  assertNear(s1.distance_m, 0, 0.01, 'silent 中は 0 据え置き');
-  // MM 復帰 → mmResult で 90m 加算
-  w._dispatch({ type: 'mmResult', mmIncrementM: 90 });
+  assertNear(s1.distance_m, 0, 0.01, 'delta 不在中は 0 据え置き');
+  // 復帰 → pipeline delta で 90m 加算
+  w._dispatch({ type: 'mmResult', pipelineDeltaM: 90, snapped: 1, committed: true });
   const s2 = Meter.getState();
-  assert(s2.distanceSource === 'mm', 'MM 復帰: mm に切替');
-  assertNear(s2.distance_m - s1.distance_m, 90, 0.01, 'MM 由来で 90m 追加');
+  assert(s2.distanceSource === 'pipeline', '復帰: source = pipeline');
+  assertNear(s2.distance_m - s1.distance_m, 90, 0.01, 'pipeline delta 由来で 90m 追加');
   Meter.stop();
 }
 
@@ -275,186 +269,72 @@ console.log('\n[case6] ROAD_FACTOR が削除され Meter 内に未参照');
   assert(src.indexOf('* ROAD_FACTOR') === -1, '* ROAD_FACTOR の乗算が消えている');
 }
 
-// ─── case7 (2026-05-16): Tier 2 リードインジケータ Worker B 経由 + commit リセット ───
-//   ★設計変更宣言 (2026-05-16・選択肢 P2 採用):
-//     旧仕様: main 側 _inlineSnapAndIncrement (RegionLoader.snapToNearestRoad) で道路距離を計算し
-//             cutoffTs で commit との重複を削除する設計だったが、RegionLoader が main thread に
-//             未定義のため実機で Tier 2 が動かなかった (2026-05-15 報告)。
-//     新仕様: Worker B が mmResult.tentativeIncrementM フィールドで毎 GPS step 道路距離を返し、
-//             main は単純に tier2_pending_m に累積。commit (mmIncrementM>0) で 0 リセット。
-//     本テストは fakeWorker で mmResult を直接 dispatch する方式に変更。
-//     RegionLoader モックは不要 (main 側で snap を計算しない設計に変わった)。
-//     state.last_speed_kmh で停車判定 (case 内で gpsAt 経由で 36 km/h を保証)。
-console.log('\n[case7] Tier2 Worker B 経由: tentativeIncrementM 累積 + commit リセット');
+// ─── case7 (白紙書き直し): tier2 preview 回路廃止 → tentativeDistanceM 受信でも tier2 は 0 ─
+console.log('\n[case7] tier2 preview 廃止: tentativeDistanceM 受信でも tier2_pending_m=0');
 {
   Meter.reset();
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
   Meter.start();
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
-  // 停車判定回避: state.last_speed_kmh を 36 km/h に設定するため GPS step を 1 回投入
   Meter.update(gpsAt(0));
-
-  // mmResult を 3 回 dispatch (tentativeIncrementM=90 ずつ・mmIncrementM=0 = preview)
-  for (let i = 0; i < 3; i++) {
-    w._dispatch({
-      type: 'mmResult',
-      mmIncrementM: 0,
-      tentativeIncrementM: 90,
-      snapped: 1,
-      committed: false,
-    });
-  }
-  let s = Meter.getState();
-  assertNear(s.tier2_pending_m, 270, 0.01, 'tier2_pending_m に 3 step × 90m = 270m が蓄積');
-  assertNear(s.distance_m, 0, 0.01, 'state.distance_m は commit 待ちで未加算 (= 0)');
-  assertNear(
-    s.distance_m + s.tier2_pending_m,
-    270,
-    0.01,
-    '表示式 (distance_m + tier2_pending_m) = 270m で即時反映'
-  );
-
-  // ★設計変更宣言 (2026-05-16・commit で 0 リセット → 差分減算に変更):
-  //   通常 commit を dispatch (mmIncrementM=200・tier2_pending_m -= 200 with 0 下限)
-  //   270 - 200 = 70 が残り、表示式 (distance_m + tier2_pending_m) = 270 で表示後退しない
+  // 旧 tier2 preview は廃止: tentativeDistanceM を送っても tier2 は 0 のまま・距離は delta のみ
   w._dispatch({
     type: 'mmResult',
-    mmIncrementM: 200,
-    tentativeIncrementM: 0,
-    snapped: 1,
-    committed: true,
-    snap: {
-      observationTimestamp: gpsAt(2).timestamp,
-      typeCode: 0,
-      prefecture: 'ehime',
-      roadIndex: 1,
-    },
-  });
-  s = Meter.getState();
-  assertNear(s.distance_m, 200, 0.01, 'commit 後 state.distance_m に MM 200m が加算');
-  assertNear(
-    s.tier2_pending_m,
-    70,
-    0.01,
-    'commit で tier2_pending_m が 270-200=70m に差分減算 (表示後退防止)'
-  );
-  assertNear(
-    s.distance_m + s.tier2_pending_m,
-    270,
-    0.01,
-    '表示式 (distance_m + tier2_pending_m) = 270m で commit 前と同値 (= 単調増加維持)'
-  );
-
-  // 次の tentativeIncrement → 90m を tier2 に積む (70 + 90 = 160m)
-  w._dispatch({
-    type: 'mmResult',
-    mmIncrementM: 0,
-    tentativeIncrementM: 90,
+    pipelineDeltaM: 0,
+    tentativeDistanceM: 270,
+    tentativeIncrementM: 30,
     snapped: 1,
     committed: false,
   });
+  let s = Meter.getState();
+  assertNear(s.tier2_pending_m, 0, 0.01, 'tier2_pending_m は廃止 (= 0 のまま)');
+  assertNear(s.distance_m, 0, 0.01, 'delta 不在で distance_m は 0');
+  // pipeline delta 受信で distance_m が加算される
+  w._dispatch({ type: 'mmResult', pipelineDeltaM: 200, snapped: 1, committed: true });
   s = Meter.getState();
-  assertNear(s.tier2_pending_m, 160, 0.01, '次 step で tier2_pending_m が 70→160m');
-  assertNear(
-    s.distance_m + s.tier2_pending_m,
-    360,
-    0.01,
-    '表示式 (distance_m + tier2_pending_m) = 360m (単調増加・270→360)'
-  );
-
-  // ★追加テスト: mmIncrementM > tier2_pending_m のときも下限 0 で clamp される
-  w._dispatch({
-    type: 'mmResult',
-    mmIncrementM: 500,
-    tentativeIncrementM: 0,
-    snapped: 1,
-    committed: true,
-    snap: {
-      observationTimestamp: gpsAt(3).timestamp,
-      typeCode: 0,
-      prefecture: 'ehime',
-      roadIndex: 1,
-    },
-  });
-  s = Meter.getState();
-  assertNear(s.distance_m, 700, 0.01, 'distance_m が 500m 加算 (200+500=700)');
-  assertNear(
-    s.tier2_pending_m,
-    0,
-    0.01,
-    'tier2_pending_m=160 から 500 減算 → 下限 0 clamp'
-  );
-
+  assertNear(s.distance_m, 200, 0.01, 'pipeline delta 200m で distance_m=200');
+  assertNear(s.tier2_pending_m, 0, 0.01, 'tier2_pending_m 依然 0 (= 廃止)');
   Meter.stop();
 }
 
-// ─── case8 (2026-05-16): Tier 2 absolute rule 準拠 + 停車判定 ───
-console.log('\n[case8] Tier2 Worker B 経由: tentative=0 / 停車中 / off-road で加算ゼロ');
+// ─── case8 (白紙書き直し): business preview 回路廃止 ─
+console.log('\n[case8] business preview 廃止: tentativeDistanceM 受信でも business_tier2=0');
 {
+  Meter.businessEnd();
   Meter.reset();
+  Meter.setBusinessDistance(0);
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
+  Meter.setBusinessActive(true);
   Meter.start();
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
-  // 走行中状態をセット (36 km/h)
   Meter.update(gpsAt(0));
-
-  // (a) tentativeIncrementM = 0 → 加算なし
   w._dispatch({
     type: 'mmResult',
-    mmIncrementM: 0,
-    tentativeIncrementM: 0,
-    snapped: 0,
+    pipelineDeltaM: 0,
+    tentativeDistanceM: 90,
+    snapped: 1,
     committed: false,
   });
   let s = Meter.getState();
-  assertNear(s.tier2_pending_m, 0, 0.01, 'tentativeIncrementM=0 なら tier2 加算なし');
-
-  // (b) tentativeIncrementM > 0 + state.last_speed_kmh = 36 (走行中・新閾値 0.5 以上) → 90m 加算
-  w._dispatch({
-    type: 'mmResult',
-    mmIncrementM: 0,
-    tentativeIncrementM: 90,
-    snapped: 1,
-    committed: false,
-  });
+  assertNear(s.business_tier2_pending_m, 0, 0.01, 'business_tier2_pending_m は廃止 (= 0)');
+  // pipeline delta は business_active gate で business_distance_m に加算
+  w._dispatch({ type: 'mmResult', pipelineDeltaM: 90, snapped: 1, committed: true });
   s = Meter.getState();
-  assertNear(s.tier2_pending_m, 90, 0.01, '走行中 (36 km/h・> 0.5) なら tier2_pending_m=90 加算');
-
-  // (c) ★設計変更宣言 (2026-05-16・Step4): Worker B 側で msg.isStationary=true 時に
-  //     tentativeIncrementM=0 を返す設計に移行したため、main 側のスキップは撤去済。
-  //     テストでは fakeWorker が「Worker B が 0 化した結果」を直接 dispatch する。
-  //     停車中の Worker B 出力 = mmIncrementM=0 + tentativeIncrementM=0 を確認。
-  // ★設計変更宣言 (2026-05-16・補助 speedKmh 閾値撤去): _isStationary() は
-  //     state.last_isStationary === true のみ判定するため、テストで isStationary: true を明示。
-  const slowGps = Object.assign({}, gpsAt(1), { speedKmh: 0.3, isStationary: true });
-  Meter.update(slowGps);
-  // Worker B 側で 0 化されたあとの結果を dispatch (= 停車中シナリオ)
-  w._dispatch({
-    type: 'mmResult',
-    mmIncrementM: 0,
-    tentativeIncrementM: 0,
-    snapped: 1,
-    committed: false,
-  });
-  s = Meter.getState();
-  assertNear(
-    s.tier2_pending_m,
-    90,
-    0.01,
-    '停車中シナリオ (Worker B 出力 0) で tier2_pending_m 不変 (前回 90m のまま)'
-  );
-
+  assertNear(s.business_distance_m, 90, 0.01, 'business_distance_m に pipeline delta 90m 加算');
+  assertNear(s.business_tier2_pending_m, 0, 0.01, 'business_tier2_pending_m 依然 0');
+  Meter.businessEnd();
   Meter.stop();
 }
 
 // ─── case9 (2026-05-16・Step4 で仕様変更): 停車中は Worker B 側で出力 0 化 ───
 console.log('\n[case9] Step4: 停車中は Worker B 出力 = 0 → main 加算ゼロ');
 {
-  // ★business_distance_m は per-trip reset しない (= case 間で累積) ため businessEnd で 0 化してから開始
+  // ★business_distance_m は per-trip reset しない (= case 間で累積) ため明示 0 化してから開始
   Meter.businessEnd();
   Meter.reset();
+  Meter.setBusinessDistance(0);
   const w = makeFakeWorker();
   Meter.setMapMatcher(w);
   Meter.start();
@@ -471,10 +351,10 @@ console.log('\n[case9] Step4: 停車中は Worker B 出力 = 0 → main 加算�
   //   main 側のスキップ判定は撤去済 (= 無条件加算) なので 0 を送れば結果も 0 になる。
   w._dispatch({
     type: 'mmResult',
-    mmIncrementM: 0,
-    tentativeIncrementM: 0,
+    pipelineDeltaM: 0,
     snapped: 1,
     committed: true,
+    isStationary: true,
     snap: {
       observationTimestamp: slowGps.timestamp,
       typeCode: 0,
@@ -483,7 +363,7 @@ console.log('\n[case9] Step4: 停車中は Worker B 出力 = 0 → main 加算�
     },
   });
   const s = Meter.getState();
-  // Worker B 0 化により distance_m と business_distance_m が両者整合
+  // 停車中は worker が pipelineDeltaM=0 → distance_m と business_distance_m が両者整合
   assertNear(s.distance_m, 0, 0.01, '停車中 Worker B 出力 0 → distance_m 加算ゼロ');
   assertNear(
     s.business_distance_m,

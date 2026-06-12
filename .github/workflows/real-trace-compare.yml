@@ -1,0 +1,50 @@
+name: Real Trace Compare
+
+# 実機 debug trace を自動取得し、実走 / ダイコメ / OSRM / Google 道なり距離を突き合わせる。
+# 手動操作ゼロ: 毎日 cron + 手動 dispatch。REAL_TRACE_KEY を渡せば特定 trace を検証可。
+
+on:
+  schedule:
+    # 毎日 09:00 JST (= 00:00 UTC) に最新 trace を自動検証
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      trace_key:
+        description: '特定 trace key (空なら最新 GPS trace を自動選択)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-trace-compare-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    name: Real Trace Distance Compare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Compare real trace vs Google / OSRM
+        env:
+          GOOGLE_DIRECTIONS_API_KEY: ${{ secrets.GOOGLE_DIRECTIONS_API_KEY }}
+          OSRM_ENDPOINT: ${{ secrets.OSRM_ENDPOINT }}
+          OSRM_PROFILE: ${{ secrets.OSRM_PROFILE }}
+          REAL_TRACE_KEY: ${{ github.event.inputs.trace_key }}
+        run: node tests/real-trace-compare.js
+
+      - name: Upload comparison result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-trace-compare-${{ github.sha }}
+          path: data/test-results/real-trace-latest.json
+          if-no-files-found: ignore

@@ -26,23 +26,24 @@ variables:
       - 更新元は 5 経路のみ (= verified line numbers)
       - GPS 直線距離 (GPS.calcDistance) は適用外区間以外で sink に流入禁止
     update_paths:
-      - line: meter.js L393
+      # ★verified 2026-05-28 (STEP0 診断追加後): drift-static C1 が ±10 line tolerance で動的監視中
+      - line: meter.js L551
         name: tier1-commit
         source: Worker B Viterbi commit (m.mmIncrementM)
         billing: ✅
-      - line: meter.js L462
+      - line: meter.js L661
         name: offroad-retroactive
         source: _trackHaversineBetweenGps が積算した _haverAccumSinceLastCommit
         billing: ✅ (★絶対ルール適用外区間 sanitizer 通過)
-      - line: meter.js L824
+      - line: meter.js L1168
         name: gap-fill
-        source: calculateGapFill (= speed × time・GPS 直線非依存)
+        source: calculateGapFill (= speed × time・GPS 直線非依存) + Phase2-a 道路 routing 拡張済
         billing: ✅
-      - line: meter.js L842
+      - line: meter.js L1190
         name: offroad-incremental
         source: _calculateOffRoadIncrement (= GPS polyline 積み上げ)
         billing: ✅ (★絶対ルール適用外区間 sanitizer 通過)
-      - line: meter.js L1172
+      - line: meter.js L1691
         name: setDistance
         source: 外部 API 引数 (= タスクキル復元用)
         billing: 外部復元用 (= source 経由しない)
@@ -53,9 +54,11 @@ variables:
     category: cumulative-distance
     description: 業務単位 (= 業務開始から終了) の総走行距離・空車区間も累積
     invariants:
-      - state.running===true のときのみ更新 (= 2026-05-17 ★設計変更)
-      - 距離源は distance_m と同じ 5 経路 (= 並行加算)
-    related: [distance_m]
+      - state.business_active===true のときのみ更新 (= 2026-05-24 ★設計変更・running gate から business_active gate へ★)
+      - 距離源は distance_m と同じ 5 経路 (= 並行加算・道路 snap 構成)
+      - isStationary=true のとき増加しない (= meter.js L351 _trackHaversineBetweenGps 内 gate)
+      - business_tier2_pending_m と分離 (= 課金 tier2 完全非共有・走行中ラグ 0 化)
+    related: [distance_m, business_tier2_pending_m]
 
   fare_yen:
     role: derived
@@ -83,12 +86,17 @@ variables:
     category: gps-straight-line
     description: GPS 2 点間の直線距離 (Vincenty 公式)・道路ジオメトリ非考慮
     forbidden_sink: state.distance_m
+    # ★verified 2026-05-28 (drift-static C3 で ±10 line tolerance で動的監視中・計4箇所)
     sanitizers:
-      - 関数 _trackHaversineBetweenGps 内 (meter.js L257)
-      - 関数 _calculateOffRoadIncrement 内 (meter.js L305)
+      - 関数 _trackHaversineBetweenGps 内 (meter.js L355)
+      - 関数 _isBusinessZuptMicroMotion 内 (meter.js L405・★道路 snap 構成 ZUPT helper・2026-05-24 追加)
+      - 関数 _calculateOffRoadIncrement 内 (meter.js L445)
+      - gps_predictive_distance_m 連続点累積 (meter.js L1120・表示用 trip 単位・連続点累積は絶対ルール許可)
     call_sites:
-      - meter.js L257
-      - meter.js L305
+      - meter.js L355
+      - meter.js L405
+      - meter.js L445
+      - meter.js L1120
     semgrep_rule: scripts/zeroact-test-commons/semgrep-rules/daikome/distance-m-no-gps-line.yml
 
   GPS.calcDistance3D:
@@ -120,7 +128,7 @@ concepts:
   gap_fill:
     layer: gap-fill
     description: GPS 5 秒以上空白 (トンネル等) 時の補完・速度×時間で推定
-    trigger: meter.js L812 dtSec >= GAP_THRESHOLD_SEC (=5)
+    trigger: meter.js (gap-fill threshold・drift-static C1) dtSec >= GAP_THRESHOLD_SEC (=5)
     distance_basis: state.last_speed_kmh × dtSec (= タイヤ回転由来概算)
     constraint: lastSpeedKmh<=0 で null 返却 (= GPS 直線流入遮断維持)
     billing: ✅
@@ -148,24 +156,40 @@ concepts:
     billing: ✅ (= 起動直前の snap miss 区間の課金漏れ防止)
 
   isStationary:
-    description: 停車判定フラグ・gps-worker.js が 3-AND 条件で確定
-    judgment_rule: gps-worker.js L627 finalStationary = gpsStationary && c1Stationary && !c2Moving
+    description: 停車判定フラグ・gps-worker.js が ★Fix① (2026-05-28) 設計変更★ で加速度variance主体に書き換え
+    judgment_rule: |
+      gps-worker.js L800-834 (★Fix① 新構造・2026-05-28・★設計変更宣言★):
+        (a) speedKmh >= stationary_moving_speed_kmh(=10km/h) → finalStationary=false
+            (= 確実に移動・定速走行 under-count 防止 backstop)
+        (b) 低速 + accel 判定可 → finalStationary = c1Stationary && !c2Moving
+            (= 物理静止を accel が直接示せば停車・GPS 速度は参照しない)
+        (c) 低速 + accel 判定不能 (iOS DeviceMotion 拒否等) → finalStationary = posStationary
+            (= checkPositionStationary・位置半径のみ・速度非依存)
+      旧 3点AND (= gpsStationary && c1Stationary && !c2Moving) は廃止 (= L479 checkStationary 関数自体は
+      rollback 余地として保持・eslint-disable で未使用宣言)
     components:
-      gpsStationary:
-        condition: speedKmh<3 km/h AND elapsedSec>=5 sec AND movedM<3 m
-        source: GPS layer (= 5 秒継続低速 + 3m 半径以内)
+      high_speed_guard:
+        condition: speedKmh >= 10 km/h (= CONFIG.stationary_moving_speed_kmh)
+        rationale: A3 drift の偽速度 (実機観測 3.1km/h) では到達しない速度・確実に移動
       c1_accelVariance:
-        condition: 加速度 variance < 0.1 m²/s⁴
+        condition: 加速度 variance < 0.1 m²/s⁴ (= CONFIG.accel_variance_threshold)
         source: 加速度センサー (DeviceMotionEvent)
+        role: Fix① 新構造で ★主信号★ (旧 3点AND では補助だった)
       c2_accelMotion:
-        condition: 加速度ベクトル偏差 > 0.5 m/s² (= !c2Moving が true なら静止扱い)
+        condition: 加速度ベクトル偏差 > 0.5 m/s² (= CONFIG.accel_motion_threshold・!c2Moving が true なら静止扱い)
         source: 加速度センサー
-      fallback:
-        condition: 加速度サンプル null (gps-worker.js L596-598)
-        behavior: GPS 単独で final 確定 (= 後方互換)
+      posStationary_fallback:
+        condition: accel 判定不能時の checkPositionStationary 経路 (gps-worker.js L502-516)
+        behavior: 位置半径 < CONFIG.stationary_radius_m(=3m) で stationary_sec(=5s) 継続 → stationary=true
+        rationale: iOS DeviceMotion 権限拒否時に A3 偽速度ではなく位置半径で判定 (= 速度非依存 fallback)
     force_zero_paths:
-      - meter.js L790 update() 入口早期 return
-      - map-matcher.js L3007 Worker B 出力強制 0 化 (mmIncrementM=0 / tentativeIncrementM=0)
+      - meter.js update() 入口早期 return (= gpsResult.isStationary で _trackHaversineBetweenGps が return)
+      - map-matcher.js Worker B 出力強制 0 化 (msg.isStationary=true で mmIncrementM=0 / tentativeIncrementM=0)
+    accuracy_gate_coupled:
+      description: ★Fix② (2026-05-28) で isStationary と coupled★
+      rule: |
+        gps-worker.js L585-593 accLimit = isStationary(直前frame) ? base : max(base, accuracy_moving_max_m=20)
+        移動時のみ屋内 acc 12-17m を accept (= SE 凍結 deadlock 回避)・静止時は厳格 (= drift 不計上)
 
   snap_miss:
     description: Worker B Viterbi snap 失敗 (= 道路マッチング不能)
@@ -205,7 +229,7 @@ concepts:
         to: map-matcher.js Worker B (Viterbi)
       - step: 5
         from: map-matcher.js postMessage
-        to: meter.js _onMmWorkerMessage → state.distance_m += mmIncrementM (L393)
+        to: meter.js _onMmWorkerMessage → state.distance_m += mmIncrementM (L551)
     constraint: Worker A → Worker B の直接通信なし (= main thread 必須経由)
 
   sanitizer_marker:
@@ -213,10 +237,10 @@ concepts:
     instances:
       - file: meter.js L458
         marker: ★絶対ルール適用外区間（retroactive）
-        scope: L462 retroactive 加算を許可
+        scope: L661 retroactive 加算を許可
       - file: meter.js L295
         marker: ★絶対ルール適用外区間（明示宣言）
-        scope: _calculateOffRoadIncrement 関数全体 (= L305 GPS.calcDistance → L842 加算)
+        scope: _calculateOffRoadIncrement 関数全体 (= L445 GPS.calcDistance → L1190 加算)
 
 # ─── 業界用語 (= 代行運転業界の文脈) ─────────────────────────────────
 
@@ -286,7 +310,9 @@ industry:
     description: 顧客降車後・次 trip 待ち or 次現場移動中の状態
     state: state.running===false
     fare: 課金しない (= state.distance_m / fare_yen 更新停止)
-    business_distance: 加算しない (= 2026-05-17 ★設計変更)
+    business_distance: ★加算する★ (= 2026-05-24 ★設計変更宣言・business_active gate 化★)
+      旧 (2026-05-17): running gate で 空車中加算しない → 業務単位累積が伸びない事象発生
+      新 (2026-05-24): business_active gate で 業務中常時加算・道路 snap 5 経路 並記 (meter.js L556)
 
   実車:
     description: 顧客乗車中・課金走行中の状態

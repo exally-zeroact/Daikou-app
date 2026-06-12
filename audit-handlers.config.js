@@ -64,6 +64,11 @@ module.exports = {
         'configOsrm',
         // loadEmergencyAttrs: D3 緊急輸送道路・登録ロジックあるが呼出なし
         'loadEmergencyAttrs',
+        // ★getPipelineBreakdown (2026-05-31): 距離源 (Viterbi 確定 snap 駆動 pipeline tracker) の
+        //   breakdown/stats を返す ★テスト/監査専用★ 診断 handler。prod (index.html/meter.js) は
+        //   送信せず・tests/gate-road-distance.js が「余計な弦=0 / Viterbi 駆動」検証に使う。
+        //   距離計算には一切影響しない読み取り専用フック。
+        'getPipelineBreakdown',
       ],
       allowOrphanSenders: [],
     },

@@ -20,7 +20,7 @@ real_world_example:
     issue: iOS Safari は permission flow が complex で
             DeviceMotionEvent 取得失敗が頻発
     consequence: 加速度ベースの静止判定が機能せず GPS jitter で誤加算
-  - source: Daikome 開発履歴 (gps-worker.js L596-598)
+  - source: Daikome 開発履歴 (gps-worker.js L800-807 (Fix① 新構造・accel-null は checkPositionStationary fallback))
     issue: 加速度サンプル null 時の C-1+C-2 判定不能
     fix: 加速度 null 時は GPS 判定のみで finalStationary 確定 (= 救済 path)
 
@@ -42,7 +42,7 @@ daikome_risk:
     - gps-worker.js checkStationary (= GPS 単独 fallback)
     - meter.js calculateGapFill (= lastSpeedKmh=0 で null)
   existing_protections:
-    - 加速度サンプル null 時の GPS 単独 fallback (gps-worker.js L596-598)
+    - 加速度サンプル null 時の GPS 単独 fallback (gps-worker.js L800-807 (Fix① 新構造・accel-null は checkPositionStationary fallback))
     - calculateGapFill の lastSpeedKmh<=0 null 返却
     - GPS 精度低下時の haversine skip (= accuracy>50m gating)
     - permission 拒否時の dlog 出力で原因切分け可能

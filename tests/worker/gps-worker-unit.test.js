@@ -370,8 +370,12 @@ describe('Phase 4: gps-worker.js 実走シナリオ (vm.runInContext 経由・dr
     expect(results.length).toBe(1);
   });
 
-  // ─── シナリオ ③: 加速度異常 (= 案 Z) で skip ───────────────
-  it('シナリオ ③: 加速度 > 8 m/s² で skip (= 0→100km/h を 1 秒で = 27.8m/s²)', () => {
+  // ─── シナリオ ③: 加速度異常は ★位置を棄却しない★ (= bypass化B・2026-06-04) ───────────────
+  //   ★設計変更宣言 (2026-06-04・bypass化B): 加速度異常 (>8m/s²) は「速度成分の異常」であって
+  //     位置 fix の棄却理由にしない。旧設計は 2 点目を skip (length=1) したが、bypass 化で位置は
+  //     emit され Worker B(Viterbi snap) が外れ値を委任吸収する。よって 2 点目も result に載る
+  //     (length=2)。診断 (_postGpsDbg rej:accel) は残るが棄却はしない。
+  it('シナリオ ③: 加速度 > 8 m/s² でも位置は受理 (= bypass化B・Worker B 委任・27.8m/s²)', () => {
     const w = initWorker();
     const t0 = 1700000000000;
     w.sendMessage({
@@ -399,8 +403,8 @@ describe('Phase 4: gps-worker.js 実走シナリオ (vm.runInContext 経由・dr
       },
     });
     const results = w.getResults();
-    // 1 点目 OK・2 点目は加速度異常で skip
-    expect(results.length).toBe(1);
+    // 1 点目 OK・2 点目も加速度異常でも ★位置受理★ (= bypass化B・棄却しない) → length=2
+    expect(results.length).toBe(2);
   });
 
   // ─── シナリオ ④: 停車 5 重 gate + ZUPT (= 5 秒継続) ─────────
@@ -566,8 +570,8 @@ describe('Phase 4: gps-worker.js 実走シナリオ (vm.runInContext 経由・dr
       },
     });
     const results = w.getResults();
-    // 急減速 (= 11m/s²) は・加速度異常 (= 8m/s² 超) で skip される設計 → 4 点目は記録なし
-    // 3 点まで成功・4 点目は skip
+    // ★bypass化B (2026-06-04): 急減速 (= 11m/s²) でも加速度異常は位置を棄却しない設計に変更。
+    //   4 点目も result に載る (= 全 4 点)。hardBrake clamp は速度成分にのみ作用し位置は emit される。
     expect(results.length).toBeGreaterThanOrEqual(3);
     // hardBrake field が・各 result で boolean 値として返る
     for (const r of results) {

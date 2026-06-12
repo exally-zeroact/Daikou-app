@@ -36,8 +36,8 @@ how_it_manifests:
 daikome_risk:
   severity: 高
   affected_paths:
-    - meter.js L257 _trackHaversineBetweenGps (= _haverAccumSinceLastCommit 累積)
-    - meter.js L305 _calculateOffRoadIncrement (= Off-Road polyline 加算)
+    - meter.js L355 _trackHaversineBetweenGps (= _haverAccumSinceLastCommit 累積)
+    - meter.js L445 _calculateOffRoadIncrement (= Off-Road polyline 加算)
   existing_protections:
     - accuracy > 50m で _trackHaversineBetweenGps return (meter.js L254-255)
     - accuracy > 50m で _calculateOffRoadIncrement return 0 (meter.js L302-303)

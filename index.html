@@ -59,7 +59,13 @@
         font-family: 'Noto Sans JP', sans-serif;
         background: #fff;
         color: #111;
+        /* ★設計変更宣言 (2026-06-06・司さん指示・Android下部ボタン見切れ根治):
+           100vh は Android のシステムナビバー(◀●■)の ★下まで★ 含むため、body 末尾の .btn-area
+           (追加料金/確定) がナビバーに隠れて見切れていた。100dvh(可視領域だけの動的ビューポート高)に
+           統一し可視領域内に収める(横画面 landscape は既に 100dvh 併用済・縦も統一)。
+           dvh 非対応の古ブラウザは直前の 100vh に fallback。 */
         height: 100vh;
+        height: 100dvh;
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -100,21 +106,79 @@
       /* AppBar */
       .appbar {
         background: #007aff;
-        padding: 7px 14px;
-        padding-top: max(7px, env(safe-area-inset-top));
+        padding: 6px 12px;
+        padding-top: max(6px, env(safe-area-inset-top));
         display: flex;
         align-items: center;
         justify-content: space-between;
         flex-shrink: 0;
         position: sticky;
         top: 0;
-        z-index: 50;
+        /* ★2026-06-05: ナビ統合・overlay(z80) より上に出して 使い方/設定 表示中もタブ切替可能に */
+        z-index: 120;
+      }
+      /* ★左グループ: 状態(空車/代行中)チップ + GPS精度ピル + 割増 */
+      .appbar-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
       }
       .appbar-title {
-        font-size: 18px;
+        font-size: 14px;
         font-weight: 700;
         color: #fff;
-        letter-spacing: 2px;
+        letter-spacing: 1px;
+        background: rgba(255, 255, 255, 0.22);
+        border-radius: 13px;
+        padding: 4px 12px;
+        white-space: nowrap;
+      }
+      /* ★右グループ: 業務/使い方/設定 ナビ (青バー内・ラベルのみ・active は白+下線) */
+      .appbar-nav {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-shrink: 0;
+      }
+      .appbar-nav .nav-item {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        padding: 4px 2px;
+        position: relative;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .appbar-nav .nav-icon {
+        display: none; /* 青バーはラベルのみでスリムに */
+      }
+      .appbar-nav .nav-label {
+        font-size: 14px;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.72);
+        letter-spacing: 0.5px;
+      }
+      .appbar-nav .nav-item.active .nav-label {
+        color: #fff;
+      }
+      .appbar-nav .nav-item.active::after {
+        content: '';
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        bottom: -1px;
+        height: 2.5px;
+        border-radius: 2px;
+        background: #fff;
+      }
+      .appbar-nav .nav-item:active {
+        opacity: 0.6;
+      }
+      /* ★代行中/料金 画面は運転中ナビ不要・誤タップ防止でナビ非表示 (司さん指示準拠) */
+      body.screen-driving .appbar-nav,
+      body.screen-fare .appbar-nav {
+        display: none;
       }
       .appbar-right {
         display: flex;
@@ -139,6 +203,20 @@
       .gps-dot.ok {
         opacity: 1;
         background: #4ade80;
+      }
+      /* ★OBD接続チップ (2026-06-11・最小化スッキリ rev)★: 絵文字/緑ベタ塗り/速度重複を廃止し
+         GPSピルと同じ「ドット + OBD」の小ピルに統一。接続状態は #obdDot の色だけで示す
+         (.gps-dot.ok=緑=接続済 / 既定=半透明白=未接続)。状態色はJSが classList で切替(inline style廃止)。 */
+      .obd-chip {
+        border: none;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-weight: 700;
+        color: #fff;
+      }
+      .obd-chip.is-disabled {
+        opacity: 0.45;
+        cursor: default;
       }
       /* PWAインストール促進バナー */
       .pwa-banner {
@@ -677,7 +755,21 @@
         z-index: 80;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: calc(60px + env(safe-area-inset-bottom));
+        /* ★2026-06-05: ナビ統合・appbar(z120) がオーバレイの上に出るので、上に appbar 分の余白を確保。
+           下フッタ撤去のため padding-bottom は safe-area のみ。 */
+        padding-top: calc(40px + env(safe-area-inset-top));
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      /* ★2026-06-06 司さん指示「青バーは統一して無くせ」: 全 overlay の自前 appbar(二重目の青バー)を
+         統一非表示。常駐青バー(z120)が overlay(z80) の上に出るので、戻るは常駐青バーの「業務」タブで実現
+         (.spa-overlay は padding-top:40px で常駐バー分の余白を確保済=中身は潜らない)。
+         ★旧判断「履歴/料金 は独自 back が要るので自前 appbar を維持」は司さんの統一指示で撤回し、履歴/料金も追加。★
+         後段の各 overlay 個別 appbar の display flex 既存ルールを確実に上書きするため !important。 */
+      #overlayHelp .appbar,
+      #overlaySettings .appbar,
+      #overlayHistory .appbar,
+      #overlayFare .appbar {
+        display: none !important;
       }
       /* ★設計変更宣言 (2026-05-14・MA-4-FIX overlay スクロール修正):
    旧: .spa-overlay.show{display:flex;flex-direction:column;}
@@ -1642,9 +1734,10 @@
         font-weight: 700;
         letter-spacing: 0.5px;
       }
-      /* 縦画面：下端固定 + body padding */
+      /* ★2026-06-05: bottom-nav 撤去・ナビは appbar(上) へ。下フッタ分の余白は不要。
+         home indicator 回避の safe-area のみ残す。 */
       body {
-        padding-bottom: calc(60px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
       }
       /* ★設計変更宣言 (2026-05-23・ナビ再設計・横画面サイドレール 64px・overlay 連動):
          司さんとモック合意済の最終方針。
@@ -1659,7 +1752,7 @@
       @media (orientation: landscape) {
         body:has(.spa-overlay.show) {
           padding-bottom: 0;
-          padding-left: 64px;
+          padding-left: 0; /* ★2026-06-05: 左サイドレール撤去・余白不要 */
         }
         body:has(.spa-overlay.show) .bottom-nav {
           display: flex !important;
@@ -1691,9 +1784,9 @@
           background: #007aff;
           border-radius: 0 2px 2px 0;
         }
-        /* overlay 自身の・左端を・レール分ずらす (= 重なり防止) */
+        /* ★2026-06-05: 左サイドレール撤去・overlay の左ずらしも不要 */
         body:has(.spa-overlay.show) .spa-overlay.show {
-          left: 64px;
+          left: 0;
         }
         /* ★設計変更宣言 (2026-05-24・空車 + 業務開始 横画面・サイドレール拡張):
            司さん承認 (= 選択肢 A 採用)・screenIdle / screenBusinessStart 横画面でも・サイドレール表示。
@@ -1704,7 +1797,7 @@
         body.screen-idle,
         body.screen-businessstart {
           padding-bottom: 0;
-          padding-left: 64px;
+          padding-left: 0; /* ★2026-06-05: 左サイドレール撤去・余白不要 */
         }
         body.screen-idle .bottom-nav,
         body.screen-businessstart .bottom-nav {
@@ -1967,19 +2060,23 @@
       /* 業務終了画面（日報） */
       .report-title {
         text-align: center;
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 900;
         color: #111;
-        padding: 14px 0 8px;
+        padding: 6px 0 4px;
       }
       .report-card {
         background: #f5f5f5;
         border-radius: 12px;
-        padding: 16px;
-        margin: 0 16px 12px;
+        padding: 12px 16px;
+        margin: 0 16px 8px;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
+      }
+      /* ★2026-06-05: 業務報告を SE/Android で 1 画面に収める縦詰め(報告画面のみ scope) */
+      #screenBusinessReport .idle-datetime-line {
+        padding: 6px 0 4px;
       }
       .report-row {
         display: flex;
@@ -2012,7 +2109,7 @@
       .btn-business-resume {
         width: calc(100% - 32px);
         margin: 8px 16px 0;
-        padding: 18px;
+        padding: 15px;
         background: #007aff;
         border: none;
         border-radius: 12px;
@@ -2032,8 +2129,8 @@
          新: margin-top 40px で十分な余白確保 (= 業務報告以外の主要画面と同等の安全間隔) */
       .btn-business-confirm {
         width: calc(100% - 32px);
-        margin: 40px 16px 8px;
-        padding: 18px;
+        margin: 16px 16px 8px;
+        padding: 15px;
         background: #fff;
         border: 1.5px solid #ff3b30;
         border-radius: 12px;
@@ -2058,8 +2155,8 @@
         font-size: 12px;
         color: #666666;
         font-weight: 700;
-        padding: 6px 16px;
-        line-height: 1.4;
+        padding: 3px 16px;
+        line-height: 1.3;
       }
 
       /* DRIVING */
@@ -2362,7 +2459,12 @@
 
       /* ボタンエリア（固定） */
       .btn-area {
-        padding: 10px 16px 40px;
+        /* ★設計変更宣言 (2026-06-06・司さん指示・Android下部ボタン見切れ根治):
+           viewport-fit=cover では body が下部システムバー(Android 3ボタン ◀●■ / iOS ホーム
+           インジケータ)の下まで広がるため、末尾の追加料金/確定ボタンがバーに隠れて見切れていた。
+           下 padding にシステムバー高 env(safe-area-inset-bottom) を加算し可視領域内へ押し上げる
+           (Android=ナビバー高/iOS=ホームインジケータ高・非対応端末は 0 で従来 40px のまま)。 */
+        padding: 10px 16px calc(40px + env(safe-area-inset-bottom));
         flex-shrink: 0;
         display: flex;
         flex-direction: column;
@@ -3549,6 +3651,206 @@
         window._daikomeTabId = TAB_ID;
       })();
 
+      // ━━ DataReadyGate (2026-05-26): 初回データ DL 完了まで業務開始系ボタン disabled ━━
+      //   司さん指摘 (2026-05-26 実機): dlOverlay は X4 方式 E で Phase A 完了で hide されるが
+      //   background load (= 47 県 roads + 282 件 aux) は 33 秒継続する。
+      //   その間に「センサーを許可」「業務開始」「代行開始」 が押せると
+      //   不完全データで業務開始 → 住所取得失敗 / MM 失敗 リスク。
+      //
+      //   対応:
+      //     ・起動時 marker (= localStorage daikome_warmup_v1) 確認・あれば即 active (= 2 回目以降)
+      //     ・なし (= 初回) → 全 5 ボタン disabled + 進捗 hint 表示
+      //     ・window._mmPipeline._bgLoadDone を 1 秒 polling
+      //     ・完了で 全 5 ボタン active + 「準備完了」 3 秒表示 → fade out
+      //
+      //   絶対ルール準拠:
+      //     ・mm-data-pipeline.js / sw.js: 1byte 不変 (= 既存 _bgLoadDone field 参照のみ)
+      //     ・calcFare / distance_m / running gate / Worker B: 1byte 不変
+      //     ・お節介バナー禁止: 機能要件 (= 必須表示) で抵触なし
+      //     ・JS コメント内バッククォート: 禁止遵守 (= シングルクォートのみ)
+      //
+      //   既存 TabGuard (= L3478) と同じ disabled パターン (= disabled 属性 + opacity 0.4 + pointer-events none)
+      //   既存 dlOverlay と同じく timeout なし (= オフライン哲学: 初回 DL は通信前提・既存 enqueueRetry で救済)
+      (function setupDataReadyGate() {
+        const STORAGE_KEY = 'daikome_warmup_v1';
+        const POLL_INTERVAL_MS = 1000;
+        const TOTAL_FILES = 47 + 282; // 47 県 roads + 282 件 aux (= mm-data-pipeline.js 仕様)
+        let _gateActive = false;
+        let _pollTimer = null;
+
+        function _applyDisabled(el, disabled) {
+          if (!el) return;
+          if (disabled) {
+            el.disabled = true;
+            el.style.opacity = '0.4';
+            el.style.pointerEvents = 'none';
+          } else {
+            el.disabled = false;
+            el.style.opacity = '';
+            el.style.pointerEvents = '';
+          }
+        }
+
+        function _setButtonGate(disabled) {
+          // 個別 id: btnSensorPermission / btnResumeFromStart / btnMain (= landscape 代行開始)
+          const ids = ['btnSensorPermission', 'btnResumeFromStart', 'btnMain'];
+          // class: .btn-business-start (= 業務開始) / .btn-main-idle-portrait (= portrait 代行開始)
+          const sels = ['.btn-business-start', '.btn-main-idle-portrait'];
+          ids.forEach(function (id) {
+            _applyDisabled(document.getElementById(id), disabled);
+          });
+          sels.forEach(function (sel) {
+            const list = document.querySelectorAll(sel);
+            for (let i = 0; i < list.length; i++) _applyDisabled(list[i], disabled);
+          });
+        }
+
+        function _setHint(text, kind) {
+          const el = document.getElementById('dataReadyHint');
+          if (!el) return;
+          if (!text) {
+            el.style.display = 'none';
+            return;
+          }
+          el.textContent = text;
+          el.style.display = 'block';
+          // kind: 'progress' (青) / 'complete' (緑)
+          if (kind === 'complete') {
+            el.style.color = '#34c759';
+            el.style.background = 'rgba(52, 199, 89, 0.1)';
+          } else {
+            el.style.color = '#007aff';
+            el.style.background = 'rgba(0, 122, 255, 0.08)';
+          }
+        }
+
+        function _calcProgress() {
+          try {
+            if (!window._mmPipeline || !window._mmPipeline.stats) return null;
+            const s = window._mmPipeline.stats;
+            const done = (s.roadsOk || 0) + (s.auxOk || 0);
+            const pct = Math.min(100, Math.round((done / TOTAL_FILES) * 100));
+            return { done: done, total: TOTAL_FILES, pct: pct };
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function _checkBgLoadDone() {
+          try {
+            return !!(window._mmPipeline && window._mmPipeline._bgLoadDone === true);
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function _markerOk() {
+          try {
+            const m = localStorage.getItem(STORAGE_KEY);
+            if (!m) return false;
+            const p = JSON.parse(m);
+            const expected = (window.DataRegistry && window.DataRegistry.VERSION) || '0';
+            return !!(p && p.version === expected);
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function _isStandalone() {
+          try {
+            return (
+              window.navigator.standalone === true ||
+              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+            );
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function _updateProgress() {
+          const p = _calcProgress();
+          if (p) {
+            _setHint(
+              '📥 初回データ準備中 ' + p.pct + '% (' + p.done + '/' + p.total + ')',
+              'progress'
+            );
+          } else {
+            _setHint('📥 初回データ準備中...', 'progress');
+          }
+        }
+
+        function _releaseGate() {
+          if (!_gateActive) return;
+          _gateActive = false;
+          if (_pollTimer) {
+            clearInterval(_pollTimer);
+            _pollTimer = null;
+          }
+          _setButtonGate(false);
+          _setHint('✅ 準備完了', 'complete');
+          setTimeout(function () {
+            _setHint(null);
+          }, 3000);
+          if (typeof dlog === 'function')
+            dlog('[DataReadyGate] 全データ準備完了・ボタン active 化');
+        }
+
+        function _engageGate() {
+          if (_gateActive) return;
+          _gateActive = true;
+          _setButtonGate(true);
+          _updateProgress();
+          if (typeof dlog === 'function') dlog('[DataReadyGate] 初回 DL 中・ボタン disabled');
+          _pollTimer = setInterval(function () {
+            if (_checkBgLoadDone()) {
+              _releaseGate();
+            } else {
+              _updateProgress();
+            }
+          }, POLL_INTERVAL_MS);
+        }
+
+        function _init() {
+          // 非 PWA (= ブラウザ閲覧) は・dlOverlay と同じく gate skip (= 業務しない前提)
+          if (!_isStandalone()) {
+            if (typeof dlog === 'function') dlog('[DataReadyGate] 非 standalone・gate skip');
+            return;
+          }
+          // 2 回目以降 (= marker あり) は・gate skip (= 起動最速化 方式 E ec61fff4 と整合)
+          if (_markerOk()) {
+            if (typeof dlog === 'function')
+              dlog('[DataReadyGate] marker あり・gate skip (2 回目以降)');
+            return;
+          }
+          // 既に bg load 完了している場合 (= race 救済) も skip
+          if (_checkBgLoadDone()) {
+            if (typeof dlog === 'function') dlog('[DataReadyGate] 既に bg 完了・gate skip');
+            return;
+          }
+          // 初回 DL 中: gate engage
+          _engageGate();
+        }
+
+        // _mmPipeline は・index.html L5496 で・window._mmPipeline = new MMDataPipeline(...) で初期化
+        // _init は・DOM 構築済 + _mmPipeline 初期化済 の・両方を待つ必要あり
+        function _scheduleInit() {
+          let _tries = 0;
+          const _waitTimer = setInterval(function () {
+            _tries++;
+            if (window._mmPipeline || _tries > 30) {
+              clearInterval(_waitTimer);
+              _init();
+            }
+          }, 500);
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', _scheduleInit);
+        } else {
+          _scheduleInit();
+        }
+      })();
+
       // ━━ S2 業務開始忘れ警告: 2026-05-23 Phase 1 で・お節介ルール適用・完全削除 ━━
       //   旧仕様 (2026-05-10): GPS 5km/h+ 10 秒継続 + 業務外 で・「業務開始していますか?」問いかけ表示
       //   削除理由: 「お節介バナー全面禁止」恒久ルール (= 2026-05-23 制定) 該当
@@ -3727,13 +4029,26 @@
 
     <!-- AppBar -->
 
+    <!-- ★設計変更宣言 (2026-06-05・ナビを青バーに統合・下フッタ/左レール撤去・rev2):
+         左: 状態(空車/代行中)チップ + GPS精度ピル + 割増。 右: 業務/使い方/設定 ナビ。
+         ナビは bottom-nav と同じ onclick(hideAllOverlays/showOverlay)。appbar の z-index を
+         overlay より上に上げ overlay は padding-top で本バーを避けるため、使い方/設定 を開いた
+         ままでもこのナビでタブ切替可能(従来 bottom-nav の役割)。代行中/料金 では誤タップ防止で非表示。 -->
     <div class="appbar" id="appbar">
-      <div class="appbar-title" id="appbarTitle">空　車</div>
-      <div class="appbar-right">
+      <div class="appbar-left">
+        <div class="appbar-title" id="appbarTitle">空　車</div>
         <div class="gps-pill">
           <div class="gps-dot" id="gpsDot"></div>
-          <span class="gps-acc" id="gpsAcc">GPS待機</span>
+          <span class="gps-acc" id="gpsAcc">GPS</span>
         </div>
+        <!-- ★OBD 接続チップ (2026-06-11・最小化スッキリ rev・青バー常駐・全画面で見える&押せる)★:
+             GPSピルと同じ「ドット + OBD」の小ピル。接続状態は #obdDot の色だけ(緑=接続済 / 半透明白=未接続)。
+             絵文字/緑ベタ塗り/速度重複は廃止(車速はメーター本体に表示)。タップで接続/接続中タップで切断。
+             業務開始→走行と画面が遷移しても常駐。Web Bluetooth 非対応(iPhone)は .is-disabled。bindObdUI が 500ms 毎に更新。 -->
+        <button id="obdChip" type="button" class="gps-pill obd-chip">
+          <span class="gps-dot" id="obdDot"></span>
+          <span id="obdChipLabel">OBD</span>
+        </button>
         <div
           class="surcharge-badge"
           id="surchargeBadge"
@@ -3742,10 +4057,18 @@
         >
           <span id="surchargeLabel">割増 ON</span>
         </div>
-        <!-- ★設計変更宣言 (2026-05-15・修正1): 業務画面右上ハンバーガーメニュー (≡ menuBtn) 削除。
-             下部ナビ (bottom-nav) に設定タブが常時表示されているため機能的に重複・冗長。
-             onMenuClick() 関数定義 (L6536) と .menu-btn CSS (L1614,1635,2470) も合わせて削除。 -->
       </div>
+      <nav class="appbar-nav" id="appbarNav">
+        <button class="nav-item active" type="button" onclick="window.hideAllOverlays()">
+          <span class="nav-icon">●</span><span class="nav-label">ホーム</span>
+        </button>
+        <button class="nav-item" type="button" onclick="window.showOverlay('help')">
+          <span class="nav-icon">?</span><span class="nav-label">使い方</span>
+        </button>
+        <button class="nav-item" type="button" onclick="window.showOverlay('settings')">
+          <span class="nav-icon">⚙</span><span class="nav-label">設定</span>
+        </button>
+      </nav>
     </div>
 
     <!-- fareConfig v2 (2026-05-10): 手動 surcharge ボタン群 + 倍率表示 -->
@@ -4145,6 +4468,30 @@
       >
         <!-- 日時（全画面共通） -->
         <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+        <!-- ★設計変更宣言 (2026-05-26・初回データ DL ガード):
+             dlOverlay は X4 方式 E で Phase A 完了時に hide されるが・
+             background load (= 47 県 roads + 282 件 aux) は 33 秒継続する。
+             その間に・「センサーを許可」 → 「業務開始」 → 「代行開始」 が押せると
+             不完全データで業務開始リスク (= 司さん 2026-05-26 実機指摘)。
+             対応: window._mmPipeline._bgLoadDone を polling し・完了まで全 5 ボタン disabled。
+             マーカー (= localStorage daikome_warmup_v1) あり = 2 回目以降は即 active。
+             お節介バナー禁止ルール 抵触なし (= 機能要件・必須表示)。 -->
+        <div
+          id="dataReadyHint"
+          style="
+            display: none;
+            text-align: center;
+            font-size: 13px;
+            color: #007aff;
+            font-weight: 600;
+            padding: 10px 18px;
+            margin: 0 24px;
+            background: rgba(0, 122, 255, 0.08);
+            border-radius: 10px;
+            line-height: 1.5;
+            max-width: 320px;
+          "
+        ></div>
         <!-- ★設計変更宣言 (2026-05-10): センサー許可明示ボタン -->
         <!-- iOS PWA 未許可時のみ表示・押下で DeviceMotionEvent.requestPermission() を user gesture 経由で発火 -->
         <button
@@ -4184,6 +4531,9 @@
         </div>
         <!-- 業務開始ボタン（中央配置・大ボタン） -->
         <button class="btn-business-start" onclick="onBusinessStart()">業務開始</button>
+        <!-- ★OBD 接続は青バー(全画面常駐 #obdChip)に移設 (2026-06-08)★:
+             業務開始→走行へ画面遷移しても消えず・どの画面からでも接続/状態確認できる。
+             業務開始画面に置くと遷移で押せなくなる問題(司さん指摘)を解消。 -->
         <!-- P6 (2026-05-09): MM 準備状況インジケータ -->
         <!-- ★設計変更宣言 (2026-05-10): 初期 display:none・JS が真の異常時のみ block にする -->
         <div
@@ -4222,6 +4572,12 @@
 
       <!-- BUSINESS REPORT（業務終了画面・日報・2026/05/01追加） -->
 
+      <!-- ★設計変更宣言 (2026-06-05・司さん報告 端末で終了ボタンが見切れる根治・rev2):
+           真因: 画面下に固定の bottom-nav(業務/使い方/設定) があり、その ★裏に「終了」ボタンが
+                 隠れて★いた(画面に nav 分の下余白が無かった)→ スクロールしないと出てこなかった。
+           修正: スクロール構造にはせず(司さん指示)、自然な並びのまま画面に ★bottom-nav 分の
+                 下余白(padding-bottom 60px+safe-area)★ を確保 → 続ける/終了 が nav の上に出て、
+                 スクロール不要で全体が 1 画面に収まる(自然なバランス維持)。 -->
       <div
         id="screenBusinessReport"
         style="
@@ -4231,6 +4587,7 @@
           min-height: 0;
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
+          padding-bottom: env(safe-area-inset-bottom);
         "
       >
         <!-- 日時（全画面共通） -->
@@ -4241,8 +4598,7 @@
         </div>
         <!-- ★設計変更宣言 (2026-05-20・司さん指示・案 D・但し書き 続ける の上に移動 + グレー化):
              旧: 続ける → note (赤) → 終了 で・終了ボタン (赤枠) と混同リスク。
-             新: note (グレー) → 続ける → 終了 で・「続ける前に読む注記」として自然位置。
-             終了との距離が広がり混同完全排除。 -->
+             新: note (グレー) → 続ける → 終了 で・「続ける前に読む注記」として自然位置。 -->
         <div class="report-note">※「続ける」でいつでも業務を再開できます</div>
         <button class="btn-business-resume" onclick="onBusinessResume()">続ける</button>
         <button class="btn-business-confirm" onclick="onBusinessConfirm()">終了</button>
@@ -4266,6 +4622,22 @@
             <div class="meter-label">走行距離</div>
             <div class="meter-value">
               <span id="driveDist">0.00</span><span class="meter-unit">km</span>
+            </div>
+            <!-- ★OBD 距離源バッジ (2026-06-08・走行中に一目で計測源が分かる)★:
+                 🟢 OBD(車輪速度) = ∫v(OBD) で距離計測中 / 📡 GPS = GPS距離(OBD未接続)。
+                 bindObdUI が 500ms 毎に更新。OBD未接続端末では常に 📡 GPS。 -->
+            <div
+              id="obdDriveBadge"
+              style="
+                text-align: center;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                margin-top: 4px;
+                color: #007aff;
+              "
+            >
+              📡 GPS
             </div>
           </div>
           <!-- ★設計変更宣言 (2026-05-15・経由地点 + 住所表示機能・waypointCard):
@@ -4695,6 +5067,11 @@
     <script src="js/region-helper.js"></script>
     <script src="js/mm-data-pipeline.js"></script>
 
+    <!-- ★OBD-II 速度源 (2026-06-05・obd ブランチ): Web Bluetooth(Android) → ELM327 → 車速PID。
+         gps.js が window.OBDClient.getSpeed() を実行時参照するため gps.js より前に load。
+         既定 OFF (window.OBD_DRIVE_DISTANCE 未設定)・未接続なら GPS 経路は完全不変。 -->
+    <script src="js/obd-client.js"></script>
+
     <script src="js/gps.js"></script>
 
     <!-- Phase 2.A (2026-05-10): 訓練データ収集 (将来 AI 推論用蓄積)・gps.js の後に load -->
@@ -4734,6 +5111,11 @@
     <!-- ★page-lifecycle.js：Phase A-1（2026-05-20追加）iOS PWA freeze/kill 時の distance_m 永続化補完 -->
 
     <script src="js/debug-trace.js"></script>
+    <!-- ★debug-log-uploader.js: Eruda console を Firebase RTDB 自動 push (2026-05-29 追加・解析側 Claude 並行参照用)
+         feature flag・既定 ON (テストビルド) / OFF (本番)・?debuglog=on/off で切替・debug-trace.js と device_id 共有 -->
+    <script src="js/debug-log-uploader.js"></script>
+    <!-- ★設計変更宣言 (2026-05-24・端末ライセンス台数ロック): 既存 DAIKOME_DEVICE_ID 流用・debug-trace.js 後に load -->
+    <script src="js/license.js"></script>
 
     <!-- ★debug-trace.js：較正用 GPS trace 収集 (2026-05-21・noise model 較正タスク用)
          feature flag OFF default・URL ?trace=on で activate・他端末ではサイレント
@@ -5049,6 +5431,18 @@
       let _lastDriveDistKm = null;
       let _lastDriveFareYen = null;
       let _lastTotalDistKm = null;
+      // ★古スマホ対応 ⑤ (2026-05-30・display refresh 適応間引き・CPU/発熱低減):
+      //   rAF は最大 60Hz で _renderMeterReadout (= getState 予測補間 + textContent 比較) を呼ぶ。
+      //   速度変化が小さい (= 定速 / 停車) 局面では 2〜4Hz で十分滑らか。差分が小さい frame は
+      //   描画を間引き、加減速 (= 速度変化大) の局面だけ高頻度描画する。
+      //   ★絶対不可侵★: 本間引きは ★表示読み出し層のみ★。GPS 実測点の ingest / distance_m /
+      //     calcFare には一切触れない (= 距離 1 byte 不変)。getState 予測補間は now ベースのため
+      //     frame を skip しても次回描画で時間差を吸収し連続表示になる。
+      const _DISP_THROTTLE_MS = 250; // 定速時の最小描画間隔 (= 4Hz)
+      const _DISP_VEL_EPS_KMH = 1.5; // 速度変化がこの kmh 未満なら「変化小」とみなす
+      let _dispLastRenderMs = 0;
+      let _dispLastDistKmNum = 0;
+      let _dispLastVelKmh = 0;
       let vehicleId = 'v1';
 
       // GPS 状態 (旧 line 2254-2257)
@@ -5233,6 +5627,28 @@
         window._mmWorker = _mmWorker;
         if (typeof dlog === 'function') {
           dlog('[MM] worker B ' + (reason === 'init' ? '起動' : '再起動') + '・Meter 注入完了');
+        }
+        // ★設計変更宣言 (2026-06-05・★Worker 再起動時の roads 再 forward・しまなみ SE 距離フリーズ根治★):
+        //   init 以外 (= visibility ping 応答なし / error 等で Worker を作り直した場合)、新 Worker は
+        //   道路データ 0 件で起動する (旧実装は再 load しない → 全 snap 失敗で distance 永久フリーズ。
+        //   実機 SE: 34km 走行で 1.6km=−95%)。MMDataPipeline に load 済データの再送を依頼する。
+        //   絶対ルール準拠: pipeline の既存 load 経路を呼ぶだけ・distance_m / calcFare は 1 byte 不変。
+        if (
+          reason !== 'init' &&
+          window._mmPipeline &&
+          typeof window._mmPipeline.reforwardToWorker === 'function'
+        ) {
+          try {
+            window._mmPipeline.reforwardToWorker(_mmWorker).catch(function (e) {
+              if (typeof dlog === 'function') {
+                dlog('[MM] roads 再 forward 失敗: ' + (e && e.message));
+              }
+            });
+          } catch (e) {
+            if (typeof dlog === 'function') {
+              dlog('[MM] roads 再 forward 例外: ' + (e && e.message));
+            }
+          }
         }
       }
 
@@ -5704,6 +6120,27 @@
       // mm_distance_m / p99_latency_ms を更新
       (function _initMmStatsBadge() {
         if (typeof DEBUG === 'undefined' || !DEBUG.enabled) return;
+        // ★設計変更宣言 (2026-06-06・司さん指示「計測データが代行開始で出るのが邪魔」):
+        //   開発用 HUD 3 種 (右下ステータスバッジ / mmEventLog / Worker B RAM パネル) は
+        //   既定で完全非表示にする。テスト機でも司さんには見えない。
+        //   自分(開発)が必要な時だけ ?hud=1 で表示 (localStorage に永続・?hud=0 で解除)。
+        //   ★Firebase debug-trace のアップロードは本 gate と無関係に継続 = 実機 trace は従来通り取得可。
+        const _hudEnabled = (function () {
+          try {
+            if (location.search.includes('hud=1')) {
+              localStorage.setItem('daikome_show_hud', '1');
+              return true;
+            }
+            if (location.search.includes('hud=0')) {
+              localStorage.removeItem('daikome_show_hud');
+              return false;
+            }
+            return localStorage.getItem('daikome_show_hud') === '1';
+          } catch (_) {
+            return false;
+          }
+        })();
+        if (!_hudEnabled) return;
         const badge = document.createElement('div');
         badge.id = 'mmStatsBadge';
         badge.style.cssText =
@@ -5714,9 +6151,11 @@
         badge.textContent = 'MM init...';
         document.body.appendChild(badge);
         setInterval(function () {
-          // ★設計変更宣言 (2026-05-13): 業務中 (Meter.state.running) のみ表示
+          // ★設計変更宣言 (2026-05-13): 業務中 (Meter.getState().running) のみ表示
           badge.style.display =
-            typeof Meter !== 'undefined' && Meter.state && Meter.state.running ? '' : 'none';
+            typeof Meter !== 'undefined' && Meter.getState && Meter.getState().running
+              ? ''
+              : 'none';
           if (typeof Meter === 'undefined' || !Meter.getMMStats) return;
           const s = Meter.getMMStats();
           const snapPct = (s.snap_rate * 100).toFixed(0);
@@ -5808,9 +6247,11 @@
         // Worker 再起動時に再 attach (window._mmWorker が変わったら検知)
         let _mmEventLogWorkerRef = window._mmWorker;
         setInterval(function () {
-          // ★設計変更宣言 (2026-05-13): 業務中 (Meter.state.running) のみ表示
+          // ★設計変更宣言 (2026-05-13): 業務中 (Meter.getState().running) のみ表示
           mmLog.style.display =
-            typeof Meter !== 'undefined' && Meter.state && Meter.state.running ? '' : 'none';
+            typeof Meter !== 'undefined' && Meter.getState && Meter.getState().running
+              ? ''
+              : 'none';
           if (window._mmWorker !== _mmEventLogWorkerRef) {
             _mmEventLogWorkerRef = window._mmWorker;
             _attachMmEventLog();
@@ -5952,6 +6393,8 @@
           appState = 'driving';
           Meter.start();
           Meter.setDistance(saved.distance_m);
+          // ★復元時 latch: 確定済み実距離なので display を即一致 (= 0→target crawl 回避・overshoot なし)。
+          if (typeof Meter.latchDisplay === 'function') Meter.latchDisplay();
           // ★設計変更宣言 (2026-05-19・B-3・代行中タスクキル elapsed_sec 復元):
           //   Meter.start() で elapsed_accumulated_sec=0 化される直後に・saved 値で再 prime。
           //   タスクキル前の経過時間が連続して継続される (= 業務継続性向上)。
@@ -6227,18 +6670,28 @@
       //   完全に dead code (内部の _forwardRoadsToMmWorker は C11 で削除済のため呼出時に
       //   ReferenceError も内包していた)。
 
-      // ─── 古い履歴キー自動削除（今日以外は不要） ───
+      // ─── 古い履歴キー自動削除（保持期間超過分のみ） ───
+      // ★設計変更宣言 (2026-06-06・司さん指示「履歴は全業務記録しとかないかん・20回でも30回でも」):
+      //   旧: 「今日以外の daikou_history_<日付> を全削除」。
+      //       → 代行は深夜営業で日付をまたぐため、22時開始の業務が翌0時以降のアプリ起動で
+      //         「昨日のキー」として消され、前夜分の履歴が永久消失していた(実機 2026-06-06 で再現)。
+      //   新: business.js (daikou_business_history) と同じ ★30 日 retention★ に統一。
+      //       直近 30 日のキーは保持(= 日跨ぎの今夜分も当然残る)・30 日超過 or 日付パース不能のみ削除。
+      //   ※保存・dedup ロジック(_historyDedupeUpsert)は 1 byte も触らない。
       function cleanOldHistoryKeys() {
-        const today = 'daikou_history_' + new Date().toDateString();
+        const PREFIX = 'daikou_history_';
+        const RETENTION_DAYS = 30;
+        const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
         const toDelete = [];
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
-          if (key && key.startsWith('daikou_history_') && key !== today) {
-            toDelete.push(key);
-          }
+          if (!key || !key.startsWith(PREFIX)) continue;
+          const t = Date.parse(key.slice(PREFIX.length)); // "Thu Jun 05 2026" → ms
+          // パース不能(壊れたキー) or retention 超過(古い) のみ削除。直近は保持。
+          if (!Number.isFinite(t) || t < cutoff) toDelete.push(key);
         }
         toDelete.forEach((k) => localStorage.removeItem(k));
-        if (toDelete.length > 0) dlog('[Cleanup] 古い履歴キー削除:', toDelete.length + '件');
+        if (toDelete.length > 0) dlog('[Cleanup] 期限切れ履歴キー削除:', toDelete.length + '件');
       }
 
       // ★設計変更宣言 (2026-05-14): autoResetCheck / setInterval / visibilitychange 全削除
@@ -6385,8 +6838,12 @@
               }
               const dot = document.getElementById('gpsDot');
               dot.className = 'gps-dot ok';
-              document.getElementById('gpsAcc').textContent =
-                '精度' + parseFloat(g.accuracy).toFixed(0) + 'm';
+              dot.title = 'GPS 精度 ' + parseFloat(g.accuracy).toFixed(0) + 'm';
+              // ★精度数字は表示しない(司さん指示・繋がってるかはドット色だけ)。
+              //   精度値は debug パネル用に dot の data 属性に保持。gpsAcc ラベルは「GPS」固定。
+              dot.dataset.acc = parseFloat(g.accuracy).toFixed(0);
+              const _gpsAccEl = document.getElementById('gpsAcc');
+              if (_gpsAccEl) _gpsAccEl.textContent = 'GPS';
               // 起動時warm up（2026/04/30追加）：常にGPSをMeterに渡す
               // 代行開始前でもlastWarmupGpsを保持・押した瞬間に即時計測開始
               if (typeof Meter.updateGpsOnly === 'function') Meter.updateGpsOnly(g);
@@ -6475,16 +6932,20 @@
       (function () {
         if (typeof GPS === 'undefined' || !GPS.onStatusChange) return;
         GPS.onStatusChange(function (s) {
-          const el = document.getElementById('gpsAcc');
-          if (!el || !s || !s.state) return;
-          if (s.state === 'denied') {
-            el.textContent = 'GPS拒否';
-          } else if (s.state === 'unavailable') {
-            el.textContent = 'GPS信号弱';
-          } else if (s.state === 'timeout') {
-            el.textContent = 'GPS待機中';
+          // ★繋がってるかはドット色だけで示す(司さん指示・精度数字/エラー文言は出さない)。
+          //   エラー時はドットを淡色(gps-dot=未接続)に戻し、理由は title(長押しヒント)に持たせる。
+          const dot = document.getElementById('gpsDot');
+          if (!dot || !s || !s.state) return;
+          if (s.state === 'denied' || s.state === 'unavailable' || s.state === 'timeout') {
+            dot.className = 'gps-dot'; // 淡色=未接続/不良
+            dot.title =
+              s.state === 'denied'
+                ? 'GPS拒否'
+                : s.state === 'unavailable'
+                  ? 'GPS信号弱'
+                  : 'GPS待機中';
           }
-          // granted: 既存 callback が「精度Xm」に上書きするので何もしない
+          // granted: 既存 callback が dot を 'gps-dot ok'(緑)+ title 精度 に更新するので何もしない
         });
       })();
 
@@ -6508,56 +6969,125 @@
         }
       }
 
-      // ─── rAF 描画ループ (= 2026-05-24・案 B・60Hz 滑らか化) ───
-      //   毎 frame: Meter.getState() → driveDist/driveFare/totalDist 更新 (= textContent 比較で・無駄 skip)
-      //   getState 内・予測補間は・now=Date.now() ベース・rAF 高頻度でも・滑らか連続加算
-      //   業務画面以外で・display 不変 → textContent 比較で・DOM 書込ゼロ・無駄なし
-      //   ★ 実距離値・課金経路・予測補間ロジック: 1 byte 不変 ★
+      // ═══════════════════════════════════════════════════════════════════
+      //  距離 / 料金メーター読み出し部 (白紙書き直し・2026-05-30・clean-rebuild-pipeline)
+      // ───────────────────────────────────────────────────────────────────
+      //  ★表示契約 (= getState() を唯一の信源とする)★
+      //    driveDist  = Meter.getState().display_distance_m  (滑らか 10m 先取り表示)
+      //    driveFare  = Meter.calcFare(display_distance_m) + surcharge + extras
+      //    totalDist  = Business.getReport().total_distance_m
+      //                 (= Meter.business_display_distance_m を信源とする業務滑らか総走行)
+      //  ★絶対不可侵★ display は表示専用。本読み出し部は distance_m (課金値) を一切
+      //    読み替えず・課金経路にも一切書き込まない (= read-only)。display_distance_m は
+      //    getState 内の予測補間で distance_m を最大 10m 滑らかに先取りする (= 採択済の
+      //    「10m 先取り」契約・project_daikome_display_interp.md)。最終課金額は
+      //    calcFare(distance_m) で確定し distance_m は不可侵。
+      //  ★並列統合フェーズの参照表示 (= 旧「新計測」span) は本白紙版に存在しない★
+      //
+      //  _renderMeterReadout(): driveDist / driveFare / totalDist を 1 回読み出す共通関数。
+      //    textContent 前回値比較で無駄 DOM 書込を skip する。rAF (60Hz) と
+      //    setInterval (100ms) の双方から呼ぶが、比較 skip で二重書込のコストはゼロ。
+      // cachedState: 呼出側 (_rafDisplayTick) が同一 tick で既に取得済の getState 戻り値。
+      //   渡された場合は再取得しない (= getState の二重呼出 / 補間二重前進を防ぐ・値は完全同一)。
+      function _renderMeterReadout(cachedState) {
+        if (typeof Meter === 'undefined' || typeof Meter.getState !== 'function') return;
+        const s = cachedState || Meter.getState();
+
+        // 表示距離 = catch-up display (= distance_m へ「下から」滑らかに追従・★実距離を超えない★)。
+        // ★司さん確定方針 (2026-05-30)★: display ≤ distance_m (overshoot ゼロ)。停車/確定で
+        //   latch し display = distance_m に一致。課金は calcFare(display) だが display ≤ 実距離
+        //   ゆえ過大請求は起きず、latch により支払時 メーター=実距離=料金 が一致する。
+        // ここでの fallback (|| s.distance_m) は getState が display を未算出の極初期のみ。
+        const displayDistM = s.display_distance_m || s.distance_m || 0;
+
+        // driveDist
+        const distKm = (displayDistM / 1000).toFixed(2);
+        if (distKm !== _lastDriveDistKm) {
+          const elDist = document.getElementById('driveDist');
+          if (elDist) elDist.textContent = distKm;
+          _lastDriveDistKm = distKm;
+        }
+
+        // driveFare = calcFare(display) + surcharge + extras (= 表示専用再計算・calcFare 不変)
+        let fare = Meter.calcFare(displayDistM);
+        if (typeof surchargeOn !== 'undefined' && surchargeOn) {
+          fare = Math.round(fare * surchargeRate);
+        }
+        const extraTotal =
+          typeof extras !== 'undefined' && Array.isArray(extras)
+            ? extras.reduce((a, b) => a + b.amount, 0)
+            : 0;
+        const fareStr = (fare + extraTotal).toLocaleString();
+        if (fareStr !== _lastDriveFareYen) {
+          const elFare = document.getElementById('driveFare');
+          if (elFare) elFare.textContent = fareStr;
+          _lastDriveFareYen = fareStr;
+        }
+
+        // totalDist = 業務総走行 (= business_display_distance_m 信源・getReport 経由)
+        if (typeof Business !== 'undefined' && typeof Business.getReport === 'function') {
+          try {
+            const r = Business.getReport();
+            const totalDistKm = ((r.total_distance_m || 0) / 1000).toFixed(2);
+            if (totalDistKm !== _lastTotalDistKm) {
+              const elTotal = document.getElementById('totalDist');
+              if (elTotal) elTotal.textContent = totalDistKm;
+              _lastTotalDistKm = totalDistKm;
+            }
+          } catch (_) {
+            /* Business.getReport 失敗・graceful skip */
+          }
+        }
+      }
+
+      // ─── rAF 描画ループ (= 60Hz 滑らか化・読み出しは _renderMeterReadout 一本化) ───
+      //   getState 内予測補間は now=Date.now() ベースで rAF 高頻度でも滑らか連続。
+      //   表示不変時は textContent 比較で DOM 書込ゼロ。★課金経路 1 byte 不変★
       function _rafDisplayTick() {
         try {
-          if (typeof Meter === 'undefined' || typeof Meter.getState !== 'function') {
-            // Meter 未 load 時・graceful skip・次 frame 再 schedule
-            _rafDisplayId = requestAnimationFrame(_rafDisplayTick);
-            return;
-          }
-          const s = Meter.getState();
-          // driveDist (= 課金 display)
-          const displayDistM = s.display_distance_m || s.distance_m || 0;
-          const distKm = (displayDistM / 1000).toFixed(2);
-          if (distKm !== _lastDriveDistKm) {
-            const elDist = document.getElementById('driveDist');
-            if (elDist) elDist.textContent = distKm;
-            _lastDriveDistKm = distKm;
-          }
-          // driveFare (= 料金・surchargeOn + extras 反映)
-          let fare = Meter.calcFare(displayDistM);
-          if (typeof surchargeOn !== 'undefined' && surchargeOn) {
-            fare = Math.round(fare * surchargeRate);
-          }
-          const extraTotal =
-            typeof extras !== 'undefined' && Array.isArray(extras)
-              ? extras.reduce((a, b) => a + b.amount, 0)
+          // ★⑤ 適応間引き★: 速度変化が小さい局面は最大 4Hz に間引く (= CPU/発熱低減)。
+          //   加減速 (= 速度変化大) の局面は full rate (60Hz) 描画で滑らかさを保つ。
+          //   ★距離値・getState には skip frame で一切触れない (= 表示読み出し層のみ・CPU 節約)。
+          //   getState 予測補間は now ベースのため frame skip しても次描画で時間差を吸収し連続表示。
+          const nowMs = Date.now();
+          const sinceMs = nowMs - _dispLastRenderMs;
+          // ★走行中 (running=true) は間引き無効 = full rAF 60Hz★ (2026-05-30・「止まって動いて」
+          //   脈動の根治): 等速ペース catch-up で display が 1 秒かけて滑らかに進むため、4Hz 間引き
+          //   は連続移動を階段化 (= 脈動増幅) する。走行中は毎 frame 描画して滑らかさを最優先する。
+          //   間引き (CPU/発熱低減) は ★停車中 / 省電力 (= running=false)★ の時だけ適用する。
+          //   ★距離値・getState・calcFare には一切触れない (= 表示読み出し頻度のみの変更)★。
+          // ★getState は本 tick で 1 回だけ取得★ (2026-05-30・MINOR 省電力修正): running 判定と
+          //   描画 (_renderMeterReadout) で同一戻り値を共有し二重呼出を排除 (render frame で従来 2 回
+          //   → 1 回)。getState 内補間は now ベースで 1 tick = 1 回前進ゆえ値・表示は完全不変
+          //   (= 検証済 bit/overshoot/脈動 結果に影響なし・純粋な無駄呼出削減)。
+          const st =
+            typeof Meter !== 'undefined' && typeof Meter.getState === 'function'
+              ? Meter.getState()
+              : null;
+          const isRunning = !!(st && st.running);
+          // 直近 ★描画 frame★ の表示距離から proxy 速度 (km/h) を算出し、その変化で間引き判定。
+          const dtH = sinceMs / 3600000;
+          // _renderMeterReadout が更新する _lastDriveDistKm (= 文字列 km) を数値化して使う。
+          const curDistKmNum = _lastDriveDistKm != null ? parseFloat(_lastDriveDistKm) || 0 : 0;
+          const velKmh =
+            dtH > 0 && _dispLastRenderMs > 0
+              ? Math.abs(curDistKmNum - _dispLastDistKmNum) / dtH
               : 0;
-          const total = fare + extraTotal;
-          const fareStr = total.toLocaleString();
-          if (fareStr !== _lastDriveFareYen) {
-            const elFare = document.getElementById('driveFare');
-            if (elFare) elFare.textContent = fareStr;
-            _lastDriveFareYen = fareStr;
-          }
-          // totalDist (= 業務総走行・Business.getReport 経由・preview 込み)
-          if (typeof Business !== 'undefined' && typeof Business.getReport === 'function') {
-            try {
-              const r = Business.getReport();
-              const totalDistKm = ((r.total_distance_m || 0) / 1000).toFixed(2);
-              if (totalDistKm !== _lastTotalDistKm) {
-                const elTotal = document.getElementById('totalDist');
-                if (elTotal) elTotal.textContent = totalDistKm;
-                _lastTotalDistKm = totalDistKm;
-              }
-            } catch (_) {
-              /* Business.getReport 失敗・graceful skip */
-            }
+          const velChange = Math.abs(velKmh - _dispLastVelKmh);
+          // 走行中以外で・速度変化が小さく・直近描画から _DISP_THROTTLE_MS 未満なら本 frame は間引く。
+          if (
+            !isRunning &&
+            _dispLastRenderMs > 0 &&
+            velChange < _DISP_VEL_EPS_KMH &&
+            sinceMs < _DISP_THROTTLE_MS
+          ) {
+            // skip: 本 frame は描画しない (= DOM 書込/calcFare を省く)。次 frame で再判定。
+            //   getState は running 判定で 1 回呼んだのみ (= 従来同等・補間 1 回前進)。
+          } else {
+            _renderMeterReadout(st);
+            _dispLastVelKmh = velKmh;
+            _dispLastDistKmNum = _lastDriveDistKm != null ? parseFloat(_lastDriveDistKm) || 0 : 0;
+            _dispLastRenderMs = nowMs;
           }
         } catch (_) {
           /* rAF tick エラー・graceful skip・次 frame 継続 */
@@ -6597,32 +7127,19 @@
         startRafDisplay();
         uiTimer = setInterval(() => {
           const s = Meter.getState();
-          // ★設計変更宣言 (2026-05-16・Step1・driveFare ラグ解消):
-          //   旧: let fare = s.fare_yen (= calcFare(distance_m) のみ・Tier 1 commit ラグ込み)
-          //   新: let fare = Meter.calcFare(distance_m + tier2_pending_m) で表示用に再計算
-          //   効果: driveDist (= distance_m + tier2_pending_m) と driveFare が同期し
-          //         「1.5km 走行中なのに料金 ¥1,300 のまま」事象を解消。
-          //   絶対ルール準拠:
-          //     ・state.distance_m / state.fare_yen / calcFare ロジックは完全不変
-          //     ・表示用変数 fare を再計算するだけ・課金経路には触れない
-          //     ・tier2_pending_m は差分減算で単調増加保証・表示後退なし
-          //     ・calcFare は単調非減少関数 → 表示料金も単調増加
-          //   iOS/Android 共通 (platform 分岐なし・state.tier2_pending_m は両 OS で同等)。
-          // ★ Phase 3: display_distance_m を採用
+          // ★クラッシュ修正 (2026-05-30・Sentry DAIKOME-4 "Can't find variable: total")★:
+          //   _renderMeterReadout 一本化時に fare/extraTotal/total の算出ブロックが消え、
+          //   下記 6947/6948/6953/6969/6981 の参照だけが残り走行中 ReferenceError。算出を復元。
+          //   ★課金経路不変: calcFare(display) は表示・FB送信・localStorage 用で従来同一式★。
           let fare = Meter.calcFare(s.display_distance_m || s.distance_m || 0);
           if (surchargeOn) fare = Math.round(fare * surchargeRate);
-          let extraTotal = extras.reduce((a, b) => a + b.amount, 0);
-          let total = fare + extraTotal;
-
-          // ★設計変更宣言 (2026-05-15・Tier 2 リードインジケータ・走行距離表示ラグ解消):
-          //   表示は state.distance_m (Tier 1 commit-authoritative・課金距離) +
-          //   state.tier2_pending_m (Tier 2 inline 道路 snap 先行値・道路ジオメトリ距離) の和。
-          //   commit ラグ (Android 3s / iOS 10s) を Tier 2 並走で 0.2s/1.0s まで短縮する。
-          //   driveFare (= 課金額) は s.fare_yen のまま (= calcFare(state.distance_m) の結果)。
-          // ★ Phase 3: display_distance_m (= GPS predictive + Reconciliation 同期値) 採用
-          const displayDistM = s.display_distance_m || s.distance_m || 0;
-          document.getElementById('driveDist').textContent = (displayDistM / 1000).toFixed(2);
-          document.getElementById('driveFare').textContent = total.toLocaleString();
+          const extraTotal = extras.reduce((a, b) => a + b.amount, 0);
+          const total = fare + extraTotal;
+          // 距離 / 料金 / 業務総走行の読み出しは rAF と共通の _renderMeterReadout() に一本化
+          // (= driveDist=display_distance_m 滑らか・driveFare=calcFare(display)+surcharge+extras・
+          //    totalDist=Business.getReport().total_distance_m)。textContent 比較で二重書込なし。
+          // ★課金経路・calcFare・distance_m は 1 byte 不変・display は表示専用 (最大 10m 先取り)★
+          _renderMeterReadout();
           // ★設計変更宣言 (2026-05-15・住所取得 retry UI 自動追従):
           //   addresses-fine-jp.js 24.6MB の defer load 完了前に押された経由地点は
           //   Business 側の _scheduleAddressRetry が 1〜5 秒後に解決する。本タイマで
@@ -7010,6 +7527,30 @@
         if (window._tabReadOnly) {
           showToast('別のタブで業務中です');
           return;
+        }
+        // ★設計変更宣言 (2026-05-24・端末ライセンス台数 gate):
+        //   js/license.js の・LicenseGate で・cache 期限内 / grace 中なら・allowed
+        //   未登録 / expired 時は・showLicenseGate で・ゲート画面表示・業務開始 block
+        //   絶対ルール準拠: distance_m / 課金距離ロジックには・触れない
+        try {
+          if (
+            typeof window.License !== 'undefined' &&
+            typeof window.License.checkBeforeBusinessStart === 'function'
+          ) {
+            const _lic = window.License.checkBeforeBusinessStart();
+            if (!_lic.allowed) {
+              if (typeof window.showLicenseGate === 'function') {
+                window.showLicenseGate(_lic);
+              } else {
+                showToast(_lic.message || 'ライセンス認証エラー');
+              }
+              if (typeof dlog === 'function')
+                dlog('[Business] start blocked: license ' + _lic.state);
+              return;
+            }
+          }
+        } catch (_) {
+          // License module 未 load 等の・致命傷ではない・graceful skip (= 既存挙動維持)
         }
         // ★設計変更宣言 (2026-05-12): 全 OS で PWA standalone 必須化
         //   理由: 非 PWA (iOS Safari ブラウザ・Android Chrome ブラウザ) では
@@ -7833,13 +8374,12 @@
             if ((s.wait_sec || 0) >= 60) {
               _lines.push(`待機: ${Math.floor(s.wait_sec / 60)}分`);
             }
-            // GPS 精度 (#gpsAcc DOM text "精度Xm" から parse・"GPS待機"等は skip)
+            // GPS 精度 (#gpsDot の data-acc から取得・表示は「GPS」固定にしたので dot data 属性が真値源)
             try {
-              const _gpsAccEl = document.getElementById('gpsAcc');
-              const _accText = _gpsAccEl ? _gpsAccEl.textContent || '' : '';
-              const _accMatch = _accText.match(/精度(\d+)m/);
-              if (_accMatch) {
-                _lines.push(`GPS精度: ${_accMatch[1]}m`);
+              const _dot = document.getElementById('gpsDot');
+              const _acc = _dot ? _dot.dataset.acc : '';
+              if (_acc) {
+                _lines.push(`GPS精度: ${_acc}m`);
               }
             } catch (_) {}
             // センサー有無 (常時表示・compass + motion 両方許可で「あり」)
@@ -7950,6 +8490,11 @@
           // Driving中に確定を押したら → 確定画面へ（カウントは継続）
           appState = 'fare';
           histSaved = false;
+          // ★支払タイミング latch (2026-05-30・司さん方針「支払時点 メーター=実距離=料金 厳密一致」)★:
+          //   確定画面の料金は calcFare(display) で算出する。catch-up 途中だと display<実距離
+          //   (= 過少方向・過大請求は出ないが厳密一致せず)。確定の瞬間に display=distance_m へ latch し
+          //   メーター=実距離=料金 を一致させる。distance_m/calcFare 式は不変 (display 層のみ)。
+          if (typeof Meter.latchDisplay === 'function') Meter.latchDisplay();
           const s = Meter.getState();
           // ★設計変更宣言 (2026-05-16・Step2・renderFare 計算式を startUiTimer と統一):
           //   旧: let fare = s.fare_yen (= state.fare_yen ・Tier 1 commit ベース)
@@ -8401,9 +8946,37 @@
               const _t = document.getElementById('appbarTitle');
               if (_t) _t.textContent = '空　車';
             }
-            // ★設計変更宣言 (2026-05-10): 自動 startGPS() を削除
-            //   旧: startGPS();  ← bs.active 復元時の自動発火
-            //   新: btnSensorPermission 押下時のみ GPS 起動 (user gesture 必須)
+            // ★Android GPS「待機中」固定 根治 (2026-06-05・司さん報告)★:
+            //   業務 active 復元時、iOS は下の sensor banner / btnSensorPermission 経由で GPS が
+            //   起動するが、★Android はセンサー許可バナー自体が出ない設計★のため startGPS が永久に
+            //   呼ばれず GPS が「待機中」で固定される (司さん: 毎回「業務終了→最初→業務開始」で復帰
+            //   させる手間が発生)。Android(非iOS)は geolocation/sensor 権限が永続かつ user gesture
+            //   不要なので、業務 active 復元時に ★自動で startGPS()★ する。
+            //   ・gpsStarted guard で二重起動防止 ・iOS は従来通り banner 経由 (挙動不変)
+            //   ・driving/fare は checkDrivingRestore が既に startGPS 済 (二重は guard で無害)
+            try {
+              const _isIOSrestore = /iPad|iPhone|iPod/.test(navigator.userAgent);
+              if (!_isIOSrestore) {
+                startGPS();
+                // ★画面が暗くなる/消える 根治 (2026-06-05・司さん報告)★:
+                //   業務中タスクキル→コールド再起動では visibilitychange の hidden→visible 遷移が
+                //   起きないため L5271 の WakeLock 再取得が発火せず、★画面が OS のタイムアウトで消える★。
+                //   (dimTimer は空車5時間なので別)。Android は user gesture 不要で WakeLock 取得可能なので
+                //   復元時に即 acquireWakeLock() し、業務中の画面常時 ON を復活させる。
+                try {
+                  acquireWakeLock();
+                } catch (_) {}
+                if (typeof dlog === 'function')
+                  dlog(
+                    '[Business] active 復元: Android 自動 startGPS + WakeLock (待機固定/画面消え 根治)'
+                  );
+              }
+            } catch (_) {
+              /* startGPS 失敗は致命ではない・既存 banner/業務開始 経路で復帰可能 */
+            }
+            // ★設計変更宣言 (2026-05-10): 自動 startGPS() を削除 (iOS は user gesture 必須のため)
+            //   旧: startGPS();  ← bs.active 復元時の自動発火 (全OS)
+            //   新: iOS は btnSensorPermission 押下時のみ・Android は上で自動 startGPS
             // ★設計変更宣言 (2026-05-10): 業務復元時は iOS PWA で permission lost の
             //   可能性が高い (タスクキルで失効) → orange banner を強制 overlay 表示し
             //   ユーザーに「センサー再起動」の導線を明示
@@ -9542,7 +10115,8 @@
         const _NAV_INDEX = { help: 1, settings: 2 };
 
         function _setNavActive(idx) {
-          const items = document.querySelectorAll('.bottom-nav .nav-item');
+          // ★2026-06-05: ナビを appbar に移設したため selector を .appbar-nav に変更
+          const items = document.querySelectorAll('.appbar-nav .nav-item');
           items.forEach(function (btn, i) {
             if (i === idx) btn.classList.add('active');
             else btn.classList.remove('active');
@@ -9601,6 +10175,46 @@
           _setNavActive(0); // 業務ボタンに active を戻す
           if (typeof dlog === 'function') dlog('[SPA] hideAllOverlays');
         };
+
+        // ★設計変更宣言 (2026-05-24・端末ライセンス未登録ゲート画面 開閉):
+        //   spa-overlay 機構を流用 (= 既存 history/help/settings と同方式)・但し _OVERLAYS には登録しない
+        //   (= nav 連動なし・独立 overlay)。
+        //   showLicenseGate(info): info.message + device_id を表示・overlay show
+        //   hideLicenseGate(): overlay hide
+        window.showLicenseGate = function (info) {
+          const el = document.getElementById('overlayLicenseGate');
+          if (!el) return;
+          const msgEl = document.getElementById('licenseGateMessage');
+          if (msgEl && info && info.message) msgEl.textContent = info.message;
+          const idEl = document.getElementById('licenseGateDeviceId');
+          if (
+            idEl &&
+            typeof window.License !== 'undefined' &&
+            typeof window.License.getDeviceId === 'function'
+          ) {
+            idEl.textContent = window.License.getDeviceId();
+          }
+          el.classList.add('show');
+          el.setAttribute('aria-hidden', 'false');
+        };
+
+        window.hideLicenseGate = function () {
+          const el = document.getElementById('overlayLicenseGate');
+          if (!el) return;
+          el.classList.remove('show');
+          el.setAttribute('aria-hidden', 'true');
+        };
+
+        // 起動時・License 初期化 (= 非 block・promise・cache 更新のみ)
+        //   ・WiFi 接続あれば・RTDB 問い合わせ・cache 更新
+        //   ・オフライン・network 失敗時は・既存 cache 利用 (= 業務開始時に gate 判定)
+        if (typeof window.License !== 'undefined' && typeof window.License.init === 'function') {
+          try {
+            window.License.init();
+          } catch (_) {
+            /* graceful skip */
+          }
+        }
 
         // ★設計変更宣言 (2026-05-15・Phase E・ESC ハンドラ追加):
         //   ESC キー押下で現在 .spa-overlay.show 状態のオーバーレイを閉じる。
@@ -9801,6 +10415,37 @@
               resolve(0);
             }
           });
+        }
+
+        // ★設計変更宣言 (2026-05-29 PM rev3・アプリ バージョン表示):
+        //   司さん指示「CACHE_NAME どこ？」 で・設定画面に SW CACHE_NAME を表示。
+        //   sw.js の message handler ({ type: 'GET_CACHE_NAME' }) に MessageChannel で問合せ。
+        //   SW 未登録 (= 開発環境 / 初回 install 直後) は「(SW 未登録)」 表示で fallback。
+        function _loadAppVersion() {
+          const el = document.getElementById('_st_appVersionLine');
+          if (!el) return;
+          if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+            el.textContent = '(SW 未登録)';
+            return;
+          }
+          let received = false;
+          try {
+            const ch = new MessageChannel();
+            ch.port1.onmessage = function (ev) {
+              received = true;
+              if (ev && ev.data && ev.data.type === 'CACHE_NAME' && ev.data.value) {
+                el.textContent = ev.data.value;
+              } else {
+                el.textContent = '(取得失敗)';
+              }
+            };
+            navigator.serviceWorker.controller.postMessage({ type: 'GET_CACHE_NAME' }, [ch.port2]);
+            setTimeout(function () {
+              if (!received) el.textContent = '(応答なし)';
+            }, 2000);
+          } catch (_) {
+            el.textContent = '(取得失敗)';
+          }
         }
 
         async function _loadDlStatus() {
@@ -10022,6 +10667,7 @@
           // ★設計変更宣言 (2026-05-14): resetTime restore 撤去 (時刻ベース廃止)
           _refreshTrainingToggleUI();
           _loadDlStatus();
+          _loadAppVersion();
         }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', _init);
@@ -10050,42 +10696,63 @@
           });
           emptyMsg.style.display = 'flex';
 
-          let rides = [];
+          // ★設計変更宣言 (2026-06-06・司さん指示「全業務記録」・日跨ぎ対応):
+          //   旧: 今日の daikou_history_<日付> キー 1 つだけ読み込み → 日付をまたぐと前夜分が見えなかった。
+          //   新: 保持中の全 daikou_history_<日付> キーをマージし、日付セクション(新しい日が上・各日内は
+          //       保存順=時系列)で表示。上部 summary は表示中の全 ride を合算。
+          let buckets = [];
           try {
-            const today = new Date();
-            const key = 'daikou_history_' + today.toDateString();
-            rides = JSON.parse(localStorage.getItem(key) || '[]');
+            const PREFIX = 'daikou_history_';
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (!k || !k.startsWith(PREFIX)) continue;
+              let arr = [];
+              try {
+                arr = JSON.parse(localStorage.getItem(k) || '[]');
+              } catch (_) {
+                arr = [];
+              }
+              if (!Array.isArray(arr) || arr.length === 0) continue;
+              const ds = k.slice(PREFIX.length);
+              const t = Date.parse(ds);
+              buckets.push({ dateStr: ds, t: Number.isFinite(t) ? t : 0, rides: arr });
+            }
           } catch (e) {
             if (typeof dlog === 'function')
               dlog('[History] localStorage 読込エラー: ' + (e && e.message));
             return;
           }
-          if (!rides || rides.length === 0) return;
+          if (buckets.length === 0) return;
+          buckets.sort(function (a, b) {
+            return b.t - a.t;
+          }); // 新しい日が上
 
           emptyMsg.style.display = 'none';
 
-          // 日付ヘッダー
-          const today = new Date();
           const days = ['日', '月', '火', '水', '木', '金', '土'];
-          const dateStr =
-            today.getFullYear() +
-            '年' +
-            (today.getMonth() + 1) +
-            '月' +
-            today.getDate() +
-            '日（' +
-            days[today.getDay()] +
-            '）';
-          const dateHeader = document.createElement('div');
-          dateHeader.className = 'date-header';
-          dateHeader.textContent = dateStr;
-          wrap.appendChild(dateHeader);
+          function _fmtDateHeader(t, fallback) {
+            const d = Number.isFinite(t) && t > 0 ? new Date(t) : null;
+            if (!d) return fallback || '';
+            return (
+              d.getFullYear() +
+              '年' +
+              (d.getMonth() + 1) +
+              '月' +
+              d.getDate() +
+              '日（' +
+              days[d.getDay()] +
+              '）'
+            );
+          }
 
-          // サマリー計算
-          const totalDist = rides.reduce(function (a, b) {
+          // 上部 summary: 表示中の全 ride 合算
+          const allRides = buckets.reduce(function (acc, b) {
+            return acc.concat(b.rides);
+          }, []);
+          const totalDist = allRides.reduce(function (a, b) {
             return a + (b.distance_m || 0);
           }, 0);
-          const totalFare = rides.reduce(function (a, b) {
+          const totalFare = allRides.reduce(function (a, b) {
             return a + (b.fare || 0);
           }, 0);
           const summary = document.createElement('div');
@@ -10094,7 +10761,7 @@
             '<div class="summary-item">' +
             '<div class="summary-label">走行回数</div>' +
             '<div class="summary-value">' +
-            rides.length +
+            allRides.length +
             '<span class="summary-unit">回</span></div>' +
             '</div>' +
             '<div class="summary-item">' +
@@ -10111,9 +10778,6 @@
             '</div>';
           wrap.appendChild(summary);
 
-          // 走行リスト
-          const list = document.createElement('div');
-          list.className = 'ride-list';
           // ★設計変更宣言 (2026-05-16・履歴画面 経路表示):
           //   ride.start_address / end_address / waypoints[] が記録されている ride のみ
           //   ride-left 内に経路行を追加表示 (「南江戸町 → 道後温泉 → 三津浜」形式)。
@@ -10146,42 +10810,51 @@
               '</div>'
             );
           }
-          rides.forEach(function (ride, i) {
-            const item = document.createElement('div');
-            item.className = 'ride-item';
-            let extrasText = '';
-            if (ride.extras && ride.extras.length > 0) {
-              extrasText = ride.extras
-                .map(function (e) {
-                  return e.name + ' +¥' + (e.amount || 0).toLocaleString();
-                })
-                .join('　');
-            }
-            if (ride.surcharge) extrasText = (extrasText ? extrasText + '　' : '') + '割増あり';
-            const routeHtml = _buildRouteHtml(ride);
-            item.innerHTML =
-              '<div class="ride-left">' +
-              '<div class="ride-num">' +
-              (i + 1) +
-              '回目</div>' +
-              '<div class="ride-time">' +
-              (ride.time || '') +
-              '</div>' +
-              '<div class="ride-dist">' +
-              ((ride.distance_m || 0) / 1000).toFixed(2) +
-              'km</div>' +
-              (extrasText ? '<div class="ride-extras">' + extrasText + '</div>' : '') +
-              routeHtml +
-              '</div>' +
-              '<div class="ride-right">' +
-              '<div class="ride-fare">¥' +
-              (ride.fare || 0).toLocaleString() +
-              '</div>' +
-              '</div>';
-            list.appendChild(item);
+          buckets.forEach(function (bucket) {
+            const dateHeader = document.createElement('div');
+            dateHeader.className = 'date-header';
+            dateHeader.textContent = _fmtDateHeader(bucket.t, bucket.dateStr);
+            wrap.appendChild(dateHeader);
+            const list = document.createElement('div');
+            list.className = 'ride-list';
+            bucket.rides.forEach(function (ride, i) {
+              const item = document.createElement('div');
+              item.className = 'ride-item';
+              let extrasText = '';
+              if (ride.extras && ride.extras.length > 0) {
+                extrasText = ride.extras
+                  .map(function (e) {
+                    return e.name + ' +¥' + (e.amount || 0).toLocaleString();
+                  })
+                  .join('　');
+              }
+              if (ride.surcharge) extrasText = (extrasText ? extrasText + '　' : '') + '割増あり';
+              const routeHtml = _buildRouteHtml(ride);
+              item.innerHTML =
+                '<div class="ride-left">' +
+                '<div class="ride-num">' +
+                (i + 1) +
+                '回目</div>' +
+                '<div class="ride-time">' +
+                (ride.time || '') +
+                '</div>' +
+                '<div class="ride-dist">' +
+                ((ride.distance_m || 0) / 1000).toFixed(2) +
+                'km</div>' +
+                (extrasText ? '<div class="ride-extras">' + extrasText + '</div>' : '') +
+                routeHtml +
+                '</div>' +
+                '<div class="ride-right">' +
+                '<div class="ride-fare">¥' +
+                (ride.fare || 0).toLocaleString() +
+                '</div>' +
+                '</div>';
+              list.appendChild(item);
+            });
+            wrap.appendChild(list);
           });
-          wrap.appendChild(list);
-          if (typeof dlog === 'function') dlog('[History] render: ' + rides.length + ' rides');
+          if (typeof dlog === 'function')
+            dlog('[History] render: ' + allRides.length + ' rides / ' + buckets.length + ' days');
         }
         window._hist_render = _hist_render;
       })();
@@ -11222,6 +11895,104 @@
      目的: MPA タブ遷移 (location.href) で起きていた watchPosition / MM Worker B /
           sensor listener / WakeLock 全停止 = 走行距離取りこぼし を完全解消する。
      業務 workflow (index.html JS) を常駐させたまま履歴/設定/使い方を viewing する。 -->
+    <!-- ★設計変更宣言 (2026-05-24・端末ライセンス未登録ゲート画面):
+         license.js の・checkBeforeBusinessStart が・allowed=false 時に表示。
+         お節介バナーではなく機能ゲート (= 業務開始 block・device_id 表示 + 司さん登録案内)。
+         spa-overlay 機構を流用 (= 既存 history/help/settings と同 z-index 80・全面 overlay)。
+         閉じる button あり (= 司さんが・device_id をメモして・閉じて・Firebase Console 登録後・再起動) -->
+    <div id="overlayLicenseGate" class="spa-overlay" aria-hidden="true" style="z-index: 200">
+      <div
+        style="
+          padding: 32px 24px;
+          max-width: 480px;
+          margin: 0 auto;
+          font-family: 'Noto Sans JP', sans-serif;
+        "
+      >
+        <h2 style="font-size: 20px; font-weight: 800; color: #1d4ed8; margin: 0 0 16px">
+          🔒 端末ライセンス
+        </h2>
+        <div
+          id="licenseGateMessage"
+          style="
+            font-size: 14px;
+            color: #1c1c1e;
+            line-height: 1.6;
+            margin: 0 0 24px;
+            padding: 12px 16px;
+            background: #f0f7ff;
+            border-radius: 8px;
+            border: 1px solid #b8d9ff;
+          "
+        >
+          この端末は未登録です
+        </div>
+        <div style="font-size: 13px; font-weight: 700; color: #8e8e93; margin: 0 0 6px">
+          端末 ID (= 司さんに伝えて登録してもらう)
+        </div>
+        <div
+          id="licenseGateDeviceId"
+          style="
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px 12px;
+            background: #fff;
+            border: 1px solid #c6c6c8;
+            border-radius: 6px;
+            word-break: break-all;
+            user-select: all;
+            -webkit-user-select: all;
+            margin: 0 0 16px;
+          "
+        >
+          (loading...)
+        </div>
+        <button
+          type="button"
+          onclick="
+            window.License &&
+              window.License.refresh().then(function () {
+                window.hideLicenseGate && window.hideLicenseGate();
+              })
+          "
+          style="
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: #007aff;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 0 0 12px;
+            font-family: 'Noto Sans JP', sans-serif;
+          "
+        >
+          再認証する (WiFi 接続後)
+        </button>
+        <button
+          type="button"
+          onclick="window.hideLicenseGate && window.hideLicenseGate()"
+          style="
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: none;
+            color: #8e8e93;
+            border: 1px solid #c6c6c8;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Noto Sans JP', sans-serif;
+          "
+        >
+          閉じる
+        </button>
+      </div>
+    </div>
     <div id="overlayHistory" class="spa-overlay" aria-hidden="true">
       <!-- ★設計変更宣言 (2026-05-14・MA-5 history.html の本体を #overlayHistory に移植):
        元 history.html (204 行) の appbar + wrap を移植。
@@ -11272,6 +12043,16 @@
               料金設定（追加料金・基本・段階・割増・自動・車種・待機・区間・確認）
             </div>
             <div style="color: #8e8e93; font-size: 13px">›</div>
+          </div>
+        </div>
+
+        <!-- ★設計変更宣言 (2026-05-29 PM rev3・アプリ バージョン表示): 司さん指示「CACHE_NAME どこ？」で追加 -->
+        <div class="section">
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">アプリ バージョン</div>
+            <div id="_st_appVersionLine" style="color: #1c1c1e; font-size: 14px; font-weight: 600">
+              確認中...
+            </div>
           </div>
         </div>
 
@@ -11487,6 +12268,245 @@
               min-height: 18px;
             "
           ></div>
+        </div>
+
+        <!-- ★OBD 車速計 (2026-06-05・obd ブランチ・実験機能):
+             BLE(Android Chrome のみ)で ELM327 OBD-II アダプターに接続し、車輪由来の車速を取得。
+             接続して速度が表示できるかの実機確認用。距離計算への反映は別途 flag で制御 (既定 OFF)。 -->
+        <div class="section" id="obdSection">
+          <div class="section-title">OBD 車速計 (実験)</div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">状態</div>
+            <div id="obdStatus" style="font-weight: 600; color: #8e8e93">未接続</div>
+          </div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">OBD 車速</div>
+            <div id="obdSpeed" style="font-weight: 600; font-family: monospace">— km/h</div>
+          </div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">距離の計測源</div>
+            <div id="obdSource" style="font-weight: 700; color: #007aff">📡 GPS</div>
+          </div>
+          <div class="row" style="justify-content: center; padding-top: 12px; gap: 10px">
+            <button
+              id="btnObdConnect"
+              style="
+                padding: 10px 20px;
+                background: #34c759;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                cursor: pointer;
+              "
+            >
+              📟 OBD 接続
+            </button>
+            <button
+              id="btnObdDisconnect"
+              style="
+                padding: 10px 16px;
+                background: #8e8e93;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+              "
+            >
+              切断
+            </button>
+          </div>
+          <div
+            id="obdNote"
+            style="
+              text-align: center;
+              font-size: 12px;
+              color: #8e8e93;
+              margin-top: 8px;
+              min-height: 16px;
+            "
+          ></div>
+
+          <!-- ★随伴車情報 + OBD距離能力 (2026-06-09・固定随伴車のVIN紐付け・Tier判定)★
+               VIN/メーカー/距離能力は接続プローブで自動取得。車種/型式/タイヤは車検証/側面から手入力(固定車1回)。
+               VINキーで localStorage 保存。タイヤは認定の管理項目(交換→再較正)。 -->
+          <div
+            id="obdVehicleCard"
+            style="
+              margin-top: 14px;
+              padding: 12px;
+              background: #f2f2f7;
+              border-radius: 10px;
+              font-size: 13px;
+            "
+          >
+            <div style="font-weight: 700; margin-bottom: 8px; color: #1c1c1e">
+              🚗 随伴車情報 (固定1台・一度登録すれば恒久)
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">VIN(自動)</span>
+              <span id="vehVin" style="font-family: monospace; font-size: 11px"
+                >接続で自動取得</span
+              >
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">メーカー/年式(自動)</span>
+              <span id="vehMaker">—</span>
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">車種</span>
+              <input
+                id="vehModel"
+                type="text"
+                placeholder="例: プリウス"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 13px;
+                "
+              />
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">型式(車検証)</span>
+              <input
+                id="vehKatashiki"
+                type="text"
+                placeholder="例: DAA-ZVW50"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 13px;
+                "
+              />
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">タイヤ(側面/ドア)</span>
+              <input
+                id="vehTire"
+                type="text"
+                placeholder="例: 195/65R15"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 13px;
+                "
+              />
+            </div>
+            <div style="font-size: 11px; color: #ff9500; margin: 4px 0 8px">
+              ※タイヤは認定の管理項目。交換したら「保存」し直す(摩耗で過大化を防ぐ較正対象)。
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">OBD距離能力</span>
+              <span id="vehObdCap" style="font-weight: 700">接続で判定</span>
+            </div>
+
+            <!-- ★随伴車別 k(メーター定数/器差調整)校正★ -->
+            <div
+              style="
+                border-top: 1px solid #e5e5ea;
+                margin-top: 8px;
+                padding-top: 8px;
+                font-size: 12px;
+                color: #8e8e93;
+              "
+            >
+              <b style="color: #1c1c1e">認定メーター較正 (k)</b><br />
+              業務終了後、随伴車の認定メーター(料金メーター)の距離を入れると、この端末×この車の器差を学習して
+              −0.5〜−1% 帯へ寄せます(過大ゼロは死守)。<br />
+              ※入れるのは「その1業務で認定メーターが示した実距離」。過大値・1業務5%超の急変は自動で弾きます。
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">現在の k</span>
+              <span id="vehKValue" style="font-weight: 700">1.000</span>
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">直近業務のダイコメ距離</span>
+              <span id="vehLastBusinessDistM" style="font-weight: 700">—</span>
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">認定メーター読み(km)</span>
+              <input
+                id="vehCertMeterReadM"
+                type="number"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="例: 8.42"
+                style="
+                  width: 45%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 13px;
+                "
+              />
+            </div>
+            <div class="row" style="justify-content: center; padding-top: 6px">
+              <button
+                id="btnVehCalibrate"
+                style="
+                  padding: 7px 20px;
+                  background: #34c759;
+                  color: #fff;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                "
+              >
+                🎯 この読みで k を較正
+              </button>
+            </div>
+            <div
+              id="vehCalibrateNote"
+              style="text-align: center; font-size: 11px; color: #8e8e93; padding: 4px 0 0"
+            ></div>
+
+            <div class="row" style="justify-content: center; padding-top: 10px">
+              <button
+                id="btnVehSave"
+                style="
+                  padding: 8px 24px;
+                  background: #007aff;
+                  color: #fff;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 14px;
+                  cursor: pointer;
+                "
+              >
+                💾 この随伴車を保存(VIN紐付け)
+              </button>
+            </div>
+            <div
+              id="vehSaveNote"
+              style="
+                text-align: center;
+                font-size: 11px;
+                color: #8e8e93;
+                margin-top: 6px;
+                min-height: 14px;
+              "
+            ></div>
+          </div>
         </div>
 
         <div
@@ -12098,23 +13118,392 @@
        設定 → window.showOverlay('settings')  (#overlaySettings)
      active class は showOverlay/hideAllOverlays 内部の _setNavActive(idx) が制御。
      dual state は MA-7 で旧 html を redirect 化するまで維持 (直 URL 叩き対策)。 -->
-    <!-- ★設計変更宣言 (2026-05-23・ナビ再設計・3 タブ均等):
-         司さんとモック合意済の最終方針: 履歴タブを縦横とも削除・履歴は独立画面として残す。
-         3 タブ均等配置: [0]業務 / [1]使い方 / [2]設定。
-         履歴アクセス導線は・screenIdle 内 .btn-history (= 縦画面) /
-         .btn-history-landscape-idle (= 横画面) で確保 (= 業務終了後の振り返り運用)。
-         代行中 (= screenDriving) / 料金 (= screenFare) は・運転中ナビ不要 (= 2026-05-19 司さん指示準拠)。
-         横画面 overlay 表示時 (= 履歴/使い方/設定) は・左サイドレール 64px に切替 (= 後段 CSS @media)。 -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" type="button" onclick="window.hideAllOverlays()">
-        <span class="nav-icon">●</span><span class="nav-label">業務</span>
-      </button>
-      <button class="nav-item" type="button" onclick="window.showOverlay('help')">
-        <span class="nav-icon">?</span><span class="nav-label">使い方</span>
-      </button>
-      <button class="nav-item" type="button" onclick="window.showOverlay('settings')">
-        <span class="nav-icon">⚙</span><span class="nav-label">設定</span>
-      </button>
-    </nav>
+    <!-- ★設計変更宣言 (2026-06-05・bottom-nav 撤去): ナビ(業務/使い方/設定)は appbar(青バー)へ移設済。
+         下フッタ(bottom-nav)と横画面の左サイドレールは廃止。アクティブ制御は _setNavActive が
+         .appbar-nav .nav-item に対して行う。履歴導線は screenIdle 内の .btn-history で従来通り。 -->
+
+    <!-- ★OBD UI 配線 (2026-06-05・obd ブランチ): obd-client.js(DOM非依存)と分離し、ここで設定画面の
+         OBD 接続/切断ボタン + 状態/速度表示を bind する。OBDClient 未 load / 要素不在は安全に no-op。 -->
+    <script>
+      (function () {
+        'use strict';
+        function bindObdUI() {
+          // ★L-2 監査修正: 二重 bind / setInterval 多重起動を防ぐ再入ガード
+          if (window.__obdUiBound) return;
+          window.__obdUiBound = true;
+          var statusEl = document.getElementById('obdStatus');
+          var speedEl = document.getElementById('obdSpeed');
+          var sourceEl = document.getElementById('obdSource');
+          var noteEl = document.getElementById('obdNote');
+          var btnC = document.getElementById('btnObdConnect');
+          var btnD = document.getElementById('btnObdDisconnect');
+          // ★青バー常駐 OBD チップ + 走行中 距離源バッジ (2026-06-08)★
+          var obdChip = document.getElementById('obdChip');
+          var chipLabel = document.getElementById('obdChipLabel');
+          var driveBadge = document.getElementById('obdDriveBadge');
+          // ★随伴車情報カード (2026-06-09・VIN紐付け・固定1台)★
+          var vehVinEl = document.getElementById('vehVin');
+          var vehMakerEl = document.getElementById('vehMaker');
+          var vehModelEl = document.getElementById('vehModel');
+          var vehKatashikiEl = document.getElementById('vehKatashiki');
+          var vehTireEl = document.getElementById('vehTire');
+          var vehObdCapEl = document.getElementById('vehObdCap');
+          var btnVehSave = document.getElementById('btnVehSave');
+          var vehSaveNoteEl = document.getElementById('vehSaveNote');
+          // ★随伴車別 k(メーター定数)校正UI (2026-06-09)★
+          var vehKValueEl = document.getElementById('vehKValue');
+          var vehCertMeterReadEl = document.getElementById('vehCertMeterReadM');
+          var vehLastBusinessDistEl = document.getElementById('vehLastBusinessDistM');
+          var btnVehCalibrate = document.getElementById('btnVehCalibrate');
+          var vehCalibrateNoteEl = document.getElementById('vehCalibrateNote');
+          var _curVin = ''; // 接続中随伴車のVIN(保存キー)
+          function _renderVehK() {
+            try {
+              var p = JSON.parse(localStorage.getItem('dk_veh_active') || 'null');
+              var k = p && typeof p.k === 'number' ? p.k : 1.0;
+              if (vehKValueEl) vehKValueEl.textContent = k.toFixed(3);
+              if (vehLastBusinessDistEl) {
+                var bd =
+                  typeof Meter !== 'undefined' && Meter.getState
+                    ? Meter.getState().business_distance_m || 0
+                    : 0;
+                vehLastBusinessDistEl.textContent =
+                  bd > 0 ? (bd / 1000).toFixed(2) + ' km' : '—(業務終了後に表示)';
+              }
+            } catch (_) {
+              /* ignore */
+            }
+          }
+          // ELM327 0902(VIN)生応答 → 17桁ASCII VIN を抽出
+          function _parseVin(raw) {
+            if (!raw) return '';
+            var c = String(raw).replace(/[\s>]/g, '').toUpperCase();
+            var out = '';
+            var i = 0;
+            // "4902" 区切りの後ろのバイト列を ASCII 化(印字可能のみ)
+            while ((i = c.indexOf('4902', i)) >= 0) {
+              var seg = c.substr(i + 4);
+              for (var j = 0; j + 1 < seg.length; j += 2) {
+                var b = seg.substr(j, 2);
+                if (!/^[0-9A-F]{2}$/.test(b)) break;
+                var code = parseInt(b, 16);
+                if (code >= 0x20 && code <= 0x7e) {
+                  var ch = String.fromCharCode(code);
+                  if (/[A-HJ-NPR-Z0-9]/.test(ch)) out += ch; // VINは I/O/Q 不使用
+                }
+                if (out.length >= 17) break;
+              }
+              if (out.length >= 17) break;
+              i += 4;
+            }
+            return out.slice(0, 17);
+          }
+          // VIN WMI(先頭3桁) → メーカー/年式(簡易・日本車中心)
+          function _vinInfo(vin) {
+            if (!vin || vin.length < 11) return { maker: '', year: '' };
+            var wmi = vin.substr(0, 3);
+            var map = {
+              JT: 'トヨタ',
+              JF: 'スバル',
+              JH: 'ホンダ',
+              JN: '日産',
+              JM: 'マツダ',
+              JS: 'スズキ',
+              JD: 'ダイハツ',
+              JY: 'ヤマハ',
+              JL: 'いすゞ',
+              JT2: 'トヨタ',
+              JTM: 'トヨタ',
+              JTD: 'トヨタ',
+              JTE: 'トヨタ',
+              JTN: 'トヨタ',
+              JHM: 'ホンダ',
+              JHL: 'ホンダ',
+              JN1: '日産',
+              JN8: '日産',
+              JN6: '日産',
+              JM1: 'マツダ',
+              JM3: 'マツダ',
+              JF1: 'スバル',
+              JF2: 'スバル',
+            };
+            var maker = map[wmi] || map[wmi.substr(0, 2)] || wmi;
+            // ★10桁目=年式コード (ISO 3779 標準・決まった30年周期=DB/更新不要で新年式に自動対応)★
+            //   コード順 (I/O/Q/U/Z と 0 は不使用) を index 化し 2010+index。2010〜2039 を恒久カバー
+            //   (30年周期ゆえ以降も同アルゴリズムで継続)。旧ハードコード(2026頭打ち)を置換。
+            var yc = vin.charAt(9);
+            var YEAR_CODES = 'ABCDEFGHJKLMNPRSTVWXY123456789'; // 30コード
+            var yi = YEAR_CODES.indexOf(yc);
+            var year = yi >= 0 ? String(2010 + yi) : '';
+            return { maker: maker, year: year };
+          }
+          if (btnVehSave) {
+            btnVehSave.addEventListener('click', function () {
+              // ★VINは必須にしない (クローンELM327で多フレームVINが取れない事が多い)★。
+              //   固定随伴車なので「手動登録」を主キーにし、VINは取れたらボーナスで併記。
+              try {
+                var info = _curVin ? _vinInfo(_curVin) : { maker: '', year: '' };
+                // ★学習済 k を保存で消さない★: 既存 profile から k と較正メタを継承。
+                var _prev = JSON.parse(localStorage.getItem('dk_veh_active') || 'null');
+                var prof = {
+                  vin: _curVin || '',
+                  maker: info.maker,
+                  year: info.year,
+                  model: vehModelEl ? vehModelEl.value.trim() : '',
+                  katashiki: vehKatashikiEl ? vehKatashikiEl.value.trim() : '',
+                  tire: vehTireEl ? vehTireEl.value.trim() : '',
+                  k: _prev && typeof _prev.k === 'number' ? _prev.k : 1.0,
+                  k_samples: _prev && _prev.k_samples ? _prev.k_samples : 0,
+                  savedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+                };
+                if (!prof.model && !prof.katashiki) {
+                  if (vehSaveNoteEl)
+                    vehSaveNoteEl.textContent = '車種か型式を入力してから保存してください';
+                  return;
+                }
+                // ★主キー= dk_veh_active(固定随伴車の現役登録)。VINがあれば dk_veh_<VIN> にも保存。★
+                localStorage.setItem('dk_veh_active', JSON.stringify(prof));
+                if (_curVin) localStorage.setItem('dk_veh_' + _curVin, JSON.stringify(prof));
+                // ★trace に焼く + ログ出力 (型式別解析用・VIN無くても効く)★
+                window.DK_VEHICLE_PROFILE = prof;
+                try {
+                  // eslint-disable-next-line no-console
+                  console.log('[OBD-VEHICLE] ' + JSON.stringify(prof));
+                } catch (_) {
+                  /* ignore */
+                }
+                if (vehSaveNoteEl)
+                  vehSaveNoteEl.textContent =
+                    '✓ 保存しました(随伴車登録・恒久・trace焼込' +
+                    (_curVin ? '・VIN併記' : '・VINは後で自動付与') +
+                    ')';
+              } catch (e) {
+                if (vehSaveNoteEl)
+                  vehSaveNoteEl.textContent = '保存失敗: ' + ((e && e.message) || e);
+              }
+            });
+          }
+          // ★認定メーター読みで k を較正 (随伴車別器差・業務終了後)★
+          if (btnVehCalibrate) {
+            btnVehCalibrate.addEventListener('click', function () {
+              try {
+                if (typeof Meter === 'undefined' || !Meter.calibrateVehicleK) {
+                  if (vehCalibrateNoteEl) vehCalibrateNoteEl.textContent = 'メーター未初期化';
+                  return;
+                }
+                var km = vehCertMeterReadEl ? parseFloat(vehCertMeterReadEl.value) : NaN;
+                if (!(km > 0)) {
+                  if (vehCalibrateNoteEl)
+                    vehCalibrateNoteEl.textContent = '認定メーターの距離(km)を入力してください';
+                  return;
+                }
+                var r = Meter.calibrateVehicleK(km * 1000); // km→m
+                if (r && r.ok) {
+                  if (vehCalibrateNoteEl)
+                    vehCalibrateNoteEl.textContent =
+                      '✓ k=' +
+                      r.k.toFixed(4) +
+                      ' に較正(' +
+                      (r.sampleCount || 1) +
+                      '回目・過大ゼロ維持)';
+                  _renderVehK();
+                } else {
+                  var why =
+                    r && r.reason === 'business_too_short'
+                      ? '業務距離が短すぎ(1km未満)'
+                      : r && r.reason === 'outlier_jump'
+                        ? '1業務で5%超の急変=反映せず(誤入力/異常走行)'
+                        : '較正できず(' + ((r && r.reason) || '不明') + ')';
+                  if (vehCalibrateNoteEl) vehCalibrateNoteEl.textContent = '✗ ' + why;
+                }
+              } catch (e) {
+                if (vehCalibrateNoteEl)
+                  vehCalibrateNoteEl.textContent = '較正失敗: ' + ((e && e.message) || e);
+              }
+            });
+          }
+          _renderVehK();
+          // ★起動時: 登録済の現役随伴車を復元 → フィールド表示 + trace に焼く★
+          //   VIN/OBD が無くても(iPhone・OBD未接続でも)全 trace に車両タグが付く=型式別解析が常に成立。
+          (function _loadActiveVehicle() {
+            try {
+              var p = JSON.parse(localStorage.getItem('dk_veh_active') || 'null');
+              if (p) {
+                if (vehModelEl && !vehModelEl.value) vehModelEl.value = p.model || '';
+                if (vehKatashikiEl && !vehKatashikiEl.value)
+                  vehKatashikiEl.value = p.katashiki || '';
+                if (vehTireEl && !vehTireEl.value) vehTireEl.value = p.tire || '';
+                window.DK_VEHICLE_PROFILE = p;
+                if (vehSaveNoteEl)
+                  vehSaveNoteEl.textContent =
+                    '登録済の随伴車を読込 (' + (p.model || p.katashiki || '') + ')';
+              }
+            } catch (_) {
+              /* ignore */
+            }
+          })();
+          if (typeof window.OBDClient === 'undefined') {
+            // OBDClient 未 load → 何もしない (要素は静的初期表示のまま)
+            if (noteEl) noteEl.textContent = 'OBD モジュール未ロード';
+            return;
+          }
+          var O = window.OBDClient;
+          var _obdConnected = false; // 接続状態 (ホームピルのトグル判定用)
+          var JA = {
+            idle: '未接続',
+            connecting: '接続中…',
+            connected: '接続済み',
+            disconnected: '切断されました',
+            error: 'エラー',
+          };
+          if (!O.isSupported()) {
+            if (noteEl)
+              noteEl.textContent =
+                'この端末は Web Bluetooth 非対応 (Android Chrome で開いてください)';
+            if (btnC) {
+              btnC.disabled = true;
+              btnC.style.opacity = '0.5';
+            }
+            // 青バーチップも非対応表示 (iPhone 等)
+            if (chipLabel) chipLabel.textContent = 'OBD';
+            if (obdChip) {
+              obdChip.classList.add('is-disabled');
+              obdChip.title = 'OBDはAndroid Chromeのみ対応';
+            }
+          }
+          O.on('status', function (s) {
+            if (statusEl) statusEl.textContent = JA[s] || s;
+            _obdConnected = s === 'connected';
+            // ★★OBD メイン距離源 (2026-06-10・司さん裁定)★★:
+            //   OBD = 車輪回転距離 = タクシー認定の基準ローラーが測る量。接続中は OBD を ★メイン距離源★
+            //   にする (∫v(OBD)×k)。トンネルも車輪速度で連続・滑らか (GPS 不要)。未接続/鮮度切れ/iPhone は
+            //   GPS(smoothedRawMode)へ自然フォールバック。
+            //   ★k 補正 (車別)★: OBD 生∫v(k=1) は実車で系統過小。今日(0610b)の真距離(国交省RTKキロ
+            //   ポスト)採点で OBD∫v=業務1 -2.07% / 業務2 -2.50% と確定 → この随伴車の校正 k≈1.02
+            //   (自動推定 1.0212 / 1.0257・真距離校正値。★暫定 1.04 は過大方向に外していたので撤回★)。
+            //   ★k=1.02 の適用は OBD が距離源の区間に限定する (= 条件付き)★: OBD∫v は系統過小ゆえ
+            //   ×1.02 で真値以下に収まる (業務1 -0.12% / 業務2 -0.55%・truedist-kp-gate.js 実証)。一方
+            //   GPS フォールバック区間 (鮮度切れ/トンネル出口/iPhone) は既に ≒0% (生GPS +0.07%/-0.48%) で、
+            //   ここに ×1.02 を掛けると過大化し ★never-over 違反★ になる。よって meter の単一 _activeVehicleK
+            //   (全 rawDelta に一律乗算) に 1.02 を ★直接ハードコードしない★。OBD 源別 k は距離コア (map-matcher
+            //   /pipeline-distance) が OBD 駆動区間フラグを mmResult に surface した後に条件付き適用する設計
+            //   (距離コア=GPS班 担当・本班は非衝突で触らない)。それまで本番 k は安全側 1.0 を維持し、
+            //   1.02 は ★truedist-kp-gate.js の校正基準値★ と本コメントの根拠として確定保持する。
+            //   meter の VK_MAX=1.01 ハードクランプは GPS/OBD 双方の ★過大ゼロ天井★ として不変。
+            //   raw ∫v(k=1) も並行記録される (pipeline bd.obdRawM・精度突合用)。
+            window.OBD_DRIVE_DISTANCE = _obdConnected === true;
+          });
+          O.on('error', function (msg) {
+            if (noteEl) noteEl.textContent = 'エラー: ' + msg;
+          });
+          // ★OBD距離能力プローブ結果 (2026-06-09・随伴車Tier判定)★:
+          //   接続時に1回、この車が高分解能オドメーター(01A6)を出すか等を判定し現地表示。
+          //   生応答は console.log('[OBD-PROBE]...') で debug-log-uploader が Firebase へ上げる。
+          O.on('probe', function (res) {
+            try {
+              var d = (res && res.decoded) || {};
+              var msg;
+              if (d.odometer_supported === true) {
+                msg =
+                  '🎯 この車: 標準オドメーター対応! ' +
+                  (d.odometer_km != null ? d.odometer_km.toFixed(1) + 'km ' : '') +
+                  '→ OBDで距離直結可(メーター級)';
+              } else if (d.odometer_supported === false) {
+                msg = '📡 標準オドメーター(01A6)は非対応';
+                if (d.dist_since_clear_km != null)
+                  msg += ' / 0131距離=' + d.dist_since_clear_km + 'km(1km粗い)';
+                msg += ' → 距離はGPS';
+              } else {
+                msg = 'OBD距離能力プローブ完了 (結果はログに記録)';
+              }
+              if (noteEl) noteEl.textContent = msg + ' ※詳細はログ送信で解析';
+              // ── 随伴車カードに反映 (VIN/メーカー/距離能力 + 保存プロファイル読込) ──
+              var q = (res && res.queries) || {};
+              var vin = q.vin_0902 ? _parseVin(q.vin_0902.raw) : '';
+              _curVin = vin;
+              if (vehVinEl) vehVinEl.textContent = vin || '(VIN取得できず)';
+              if (vin) {
+                var info = _vinInfo(vin);
+                if (vehMakerEl)
+                  vehMakerEl.textContent =
+                    (info.maker || '?') + (info.year ? ' / ' + info.year : '');
+                // ★登録済(手動の車種/型式/タイヤ)を保持したまま VIN/メーカー/OBD能力を ★マージ★ する。
+                //   (clobber しない=ユーザーが入れた登録を消さない)。VIN無しでも登録は trace に乗る。
+                var base = window.DK_VEHICLE_PROFILE || {};
+                base.vin = vin;
+                base.maker = info.maker || base.maker;
+                base.year = info.year || base.year;
+                base.obdOdoSupported = d.odometer_supported === true;
+                base.obdOdoKm = d.odometer_km != null ? d.odometer_km : null;
+                window.DK_VEHICLE_PROFILE = base;
+                // VINが取れたら VINキーにも保存(将来の自動復元用)。active も最新化。
+                try {
+                  localStorage.setItem('dk_veh_active', JSON.stringify(base));
+                  if (vin) localStorage.setItem('dk_veh_' + vin, JSON.stringify(base));
+                } catch (_) {
+                  /* ignore */
+                }
+              }
+              if (vehObdCapEl) {
+                if (d.odometer_supported === true)
+                  vehObdCapEl.textContent = '🎯 Tier1 オドメーター直結可';
+                else if (d.dist_since_clear_km != null)
+                  vehObdCapEl.textContent = '📡 Tier3 (0131 1km/速度のみ)→GPS';
+                else vehObdCapEl.textContent = '📡 Tier3 (010D速度のみ)→GPS';
+              }
+            } catch (_) {
+              /* 表示失敗は無視 (ログには残っている) */
+            }
+          });
+          function doConnect() {
+            if (noteEl) noteEl.textContent = '';
+            O.connect().catch(function () {
+              /* status/error は on() 経由で表示済 */
+            });
+          }
+          if (btnC) {
+            btnC.addEventListener('click', doConnect);
+          }
+          if (btnD) {
+            btnD.addEventListener('click', function () {
+              O.disconnect();
+            });
+          }
+          // ★青バーチップ: タップで接続 / 接続中タップで切断 (トグル)。Web Bluetooth は
+          //   user gesture 起点必須 → チップ click から requestDevice が走る。
+          if (obdChip && O.isSupported()) {
+            obdChip.addEventListener('click', function () {
+              if (_obdConnected) O.disconnect();
+              else doConnect();
+            });
+          }
+          // 速度表示 + 距離源インジケータを 500ms 毎に更新 (鮮度切れは GPS 扱い)
+          setInterval(function () {
+            var sp = O.getSpeed();
+            if (speedEl) speedEl.textContent = sp.valid ? sp.kmh + ' km/h' : '— km/h';
+            // 実際に距離を駆動しているのは「flag ON かつ OBD鮮度OK」の時だけ(=gps.jsの判定と一致)
+            var obdDriving = window.OBD_DRIVE_DISTANCE === true && sp.valid;
+            if (sourceEl) {
+              sourceEl.textContent = obdDriving ? '🟢 OBD (車輪速度)' : '📡 GPS';
+              sourceEl.style.color = obdDriving ? '#34c759' : '#007aff';
+            }
+            // ★青バーチップ: 接続状態は #obdDot の色だけで示す (緑=接続済 / 半透明白=未接続)★
+            //   ラベルは常に「OBD」固定 (速度はメーター本体に表示・ここでは重複させない)。
+            var obdDot = document.getElementById('obdDot');
+            if (obdDot) obdDot.className = _obdConnected ? 'gps-dot ok' : 'gps-dot';
+            // ★走行中バッジ: 計測源を一目で★
+            if (driveBadge) {
+              driveBadge.textContent = obdDriving ? '🟢 OBD(車輪速度)' : '📡 GPS';
+              driveBadge.style.color = obdDriving ? '#34c759' : '#007aff';
+            }
+          }, 500);
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', bindObdUI);
+        } else {
+          bindObdUI();
+        }
+      })();
+    </script>
   </body>
 </html>

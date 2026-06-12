@@ -73,13 +73,13 @@ expected_events:
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit  (各 trip 内)
+    - meter.js L551 tier1-commit  (各 trip 内)
   reset_paths:
     - 各 trip 開始時に distance_m = 0 (= Meter.start() reset)
   not_expected:
-    - meter.js L824 gap-fill
-    - meter.js L842 offroad-incremental
-    - meter.js L462 offroad-retroactive
+    - meter.js L1168 gap-fill
+    - meter.js L1190 offroad-incremental
+    - meter.js L661 offroad-retroactive
 
 verification:
   invariants:

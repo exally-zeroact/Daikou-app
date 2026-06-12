@@ -37,7 +37,7 @@ expected_events:
   - event: stationary_force_zero
     frequency: 15-30 回 / trip
     paths:
-      - meter.js L790 (= update() 入口早期 return)
+      - meter.js update() entry (isStationary 早期 return・drift-static 監視) (= update() 入口早期 return)
       - map-matcher.js L3007 (= Worker B 出力強制 0 化)
   - event: traffic_jam_mode_activation
     description: jam_speed_max_kmh=10 / jam_duration_sec=60 で isTrafficJam=true
@@ -48,11 +48,11 @@ expected_events:
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit
+    - meter.js L551 tier1-commit
   not_expected:
-    - meter.js L462 offroad-retroactive
-    - meter.js L824 gap-fill              # 停車中は dtSec カウントされるが lastSpeedKmh<=0 で null
-    - meter.js L842 offroad-incremental
+    - meter.js L661 offroad-retroactive
+    - meter.js L1168 gap-fill              # 停車中は dtSec カウントされるが lastSpeedKmh<=0 で null
+    - meter.js L1190 offroad-incremental
 
 verification:
   invariants:

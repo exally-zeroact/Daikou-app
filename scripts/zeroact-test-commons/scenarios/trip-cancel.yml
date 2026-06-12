@@ -43,11 +43,11 @@ expected_events:
 expected_distance_paths:
   primary: []  # 距離はほぼ 0
   edge:
-    - meter.js L393 tier1-commit (= もし 1-2m 動いたら)
+    - meter.js L551 tier1-commit (= もし 1-2m 動いたら)
   not_expected:
-    - meter.js L824 gap-fill              # 30 秒以内なので未到達
-    - meter.js L842 offroad-incremental
-    - meter.js L462 offroad-retroactive
+    - meter.js L1168 gap-fill              # 30 秒以内なので未到達
+    - meter.js L1190 offroad-incremental
+    - meter.js L661 offroad-retroactive
 
 verification:
   invariants:

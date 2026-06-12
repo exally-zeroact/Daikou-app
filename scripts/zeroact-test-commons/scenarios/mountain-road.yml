@@ -42,12 +42,12 @@ expected_events:
     consequence: _offRoadActive = true (meter.js L450)
   - event: offroad_retroactive_fire
     timing: 125 sec (= Off-Road 起動瞬間)
-    distance_path: meter.js L462
+    distance_path: meter.js L661
     formula: state.distance_m += _haverAccumSinceLastCommit (起動前 buffer)
     sanitizer: ★絶対ルール適用外区間（retroactive）
   - event: offroad_incremental_continuous
     timing: 125-300 sec
-    distance_path: meter.js L842
+    distance_path: meter.js L1190
     formula: state.distance_m += _calculateOffRoadIncrement (GPS polyline)
     sanitizer: ★絶対ルール適用外区間（明示宣言）
     constraints:
@@ -60,10 +60,10 @@ expected_events:
 
 expected_distance_paths:
   primary:
-    - meter.js L393 tier1-commit       (= snap 成功区間)
-    - meter.js L842 offroad-incremental (= snap miss 区間)
+    - meter.js L551 tier1-commit       (= snap 成功区間)
+    - meter.js L1190 offroad-incremental (= snap miss 区間)
   secondary:
-    - meter.js L462 offroad-retroactive (= Off-Road 起動瞬間に 1 回)
+    - meter.js L661 offroad-retroactive (= Off-Road 起動瞬間に 1 回)
   not_expected: []
 
 verification:

@@ -33,9 +33,10 @@ test('flow-overlay: 設定タブ → overlaySettings 表示・URL 不変・閉�
   });
   const startUrl = page.url();
 
-  // bottom-nav 設定タブ (index 2) をタップ
-  //   ★2026-05-23・ナビ再設計: 履歴タブ削除で nav-item index 詰まり [0]業務/[1]使い方/[2]設定。
-  const navSettings = page.locator('.bottom-nav .nav-item').nth(2);
+  // appbar-nav 設定タブ (index 2) をタップ
+  //   ★2026-06-05・ナビを青バー(appbar)へ統合: bottom-nav 撤去・.appbar-nav に移設。
+  //   index は [0]業務/[1]使い方/[2]設定。
+  const navSettings = page.locator('.appbar-nav .nav-item').nth(2);
   await navSettings.waitFor({ state: 'visible', timeout: 10000 });
   await navSettings.click();
 
@@ -55,7 +56,7 @@ test('flow-overlay: 設定タブ → overlaySettings 表示・URL 不変・閉�
   const stillShown = await overlay.evaluate((el) => el.classList.contains('show'));
   if (stillShown) {
     // ESC で閉じなければ業務タブで閉じる (= MA-6 設計)
-    await page.locator('.bottom-nav .nav-item').nth(0).click();
+    await page.locator('.appbar-nav .nav-item').nth(0).click();
   }
   await expect(overlay).not.toHaveClass(/\bshow\b/, { timeout: 5000 });
 });

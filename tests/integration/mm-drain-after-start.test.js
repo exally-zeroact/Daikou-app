@@ -75,11 +75,14 @@ function makeFakeWorker() {
   };
 }
 
-function mkMmResult(mmIncrementM, opts) {
+// ★白紙書き直し (2026-05-30・clean-rebuild-pipeline): 距離駆動は pipelineDeltaM に移行。
+//   drain window 仕様 (= start 直後 500ms は加算 skip・stats のみ更新) は不変。
+//   引数 incrementM を pipelineDeltaM として渡す (= 旧 mmIncrementM 駆動と同じ意味論)。
+function mkMmResult(incrementM, opts) {
   opts = opts || {};
   return {
     type: 'mmResult',
-    mmIncrementM,
+    pipelineDeltaM: incrementM,
     tentativeIncrementM: opts.tentativeIncrementM || 0,
     snapped: opts.snapped !== false,
     committed: opts.committed !== false,

@@ -8,7 +8,6 @@
   "display": "standalone",
   "background_color": "#007AFF",
   "theme_color": "#007AFF",
-  "orientation": "portrait",
   "lang": "ja",
   "categories": ["business", "productivity", "utilities"],
   "prefer_related_applications": false,

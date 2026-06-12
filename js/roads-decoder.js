@@ -55,6 +55,7 @@
   function readVarint(bytes, offset) {
     let result = 0,
       shift = 0;
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const b = bytes[offset++];
       result |= (b & 0x7f) << shift;
@@ -66,7 +67,9 @@
 
   // varint スキップ（値読まずバイトだけ進める・高速）
   function skipVarint(bytes, offset) {
-    while (bytes[offset++] & 0x80) {}
+    while (bytes[offset++] & 0x80) {
+      /* continuation bit 立っている間バイトを進めるだけ (本体なし) */
+    }
     return offset;
   }
 
@@ -160,7 +163,13 @@
     if (!roadsData || roadsData.v < 4 || roadsData.v > 7) {
       throw new Error('[RoadDecoder] 未対応フォーマット v=' + (roadsData && roadsData.v));
     }
-    this.data = roadsData;
+    // ★古スマホ対応 ② (2026-05-30・this.data 二重保持の解消・メモリ削減):
+    //   旧: this.data = roadsData で roadsData (= roadsB64 含む UTF-16 文字列・ファイル長×2) を
+    //       this.bytes (decode 済×0.75) と二重保持していた → 1 県で数十 MB 膨張・OOM の一因。
+    //   新: 必要フィールド (grid/gridSize/precision/types/numRoads/restrictions 等) を個別コピーし、
+    //       this.bytes 生成後に roadsData 参照を一切保持しない → roadsB64 文字列を GC 可能化。
+    //   ★this.data は本ファイル/全 js から read されないことを確認済 (= 撤去で挙動不変)★。
+    //   ★decode 結果は完全不変★: bytes/grid/precision/gridSize/numRoads/version は同値をコピー。
     this.version = roadsData.v;
     // headerSize: v4/v5=1, v6=2, v7=3
     this.headerSize = this.version >= 7 ? 3 : this.version >= 6 ? 2 : 1;
@@ -182,6 +191,8 @@
         }
       }
     }
+    // ★roadsData (= roadsB64 含む) への参照を最後に明示的に断つ (GC 解放のため・this.data 非保持)。
+    roadsData = null;
   }
   // T4: 指定 from→to の transition が禁止されているか
   RoadDecoder.prototype.isRestrictedTransition = function (fromRoadIdx, toRoadIdx) {

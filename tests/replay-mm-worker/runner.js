@@ -270,6 +270,20 @@ async function runReplay(fixture, prefRoadsData, options) {
   //    ★ phase 分離: gps phase (= Meter.update 経由)・flush phase (= Meter.businessEnd 経由)
   //    Worker B reset で発火する 追加 mmResult は flush phase に振り分け・gt との照合からは除外。
   //    distance は Meter.state.distance_m に集約されるため scoring からは抜けない。
+  //
+  // ★設計変更宣言 (2026-05-28・新構造対応): options.useGpsWorker=true で実 gps-worker.js を
+  //   挿入し isStationary を「runner 側 speedKmh<3 注入」 → 「実 worker (Fix① accel主体) 判定」 に
+  //   置換する。worker reject 時は Meter.update を呼ばない (= 実機 gps.js が onUpdateCallback を
+  //   呼ばないのと同じ・凍結を再現)。既定 false で既存 index.test.js は不変。
+  let gpsWorker = null;
+  if (options.useGpsWorker) {
+    const { createGpsWorker } = require('../worker/gps-worker-sim');
+    gpsWorker = createGpsWorker({ debug: !!options.debug });
+    gpsWorker.sendMessage({
+      type: 'init',
+      data: { config: options.gpsWorkerConfig || {}, debug: !!options.debug },
+    });
+  }
   const worker = createMapMatcherWorker({ debug: !!options.debug });
   let currentPhase = 'init'; // init / gps / flush
   const mmResults = []; // gps phase の mmResult のみ
@@ -360,17 +374,64 @@ async function runReplay(fixture, prefRoadsData, options) {
     const g = gpsSamples[stepIdx];
     const before = options.captureStateSnapshots ? _readState() : null;
     const mmCountBefore = mmResults.length;
-    Meter.update({
-      lat: g.lat,
-      lng: g.lng,
-      accuracy: g.accuracy,
-      speedKmh: g.speedKmh,
-      headingDeg: g.headingDeg,
-      altitude: 0,
-      timestamp: g.timestamp,
-      isStationary: g.isStationary,
-      accelSamples: g.accelSamples || null, // Phase 4 fidelity (= 3-AND gate を実機相当で)
-    });
+    // ★useGpsWorker (2026-05-28・新構造): 実 gps-worker.js を挿入し isStationary を実判定に置換
+    let meterInput;
+    let workerRejected = false;
+    if (gpsWorker) {
+      const nBefore = gpsWorker.getResults().length;
+      gpsWorker.sendMessage({
+        type: 'position',
+        data: {
+          lat: g.lat,
+          lng: g.lng,
+          accuracy: g.accuracy,
+          speedKmh: g.speedKmh,
+          heading: g.headingDeg != null ? g.headingDeg : null,
+          altitude: 0,
+          now: g.timestamp,
+          compassHeading: null,
+          accelData: null,
+          accelSamples: g.accelSamples || [],
+          gyroData: null,
+          gyroSamples: [],
+          speedSrc: g.speedSrc || 'dop',
+        },
+      });
+      const results = gpsWorker.getResults();
+      if (results.length > nBefore) {
+        const wOut = results[results.length - 1];
+        meterInput = {
+          lat: wOut.lat,
+          lng: wOut.lng,
+          accuracy: wOut.accuracy != null ? wOut.accuracy : g.accuracy,
+          speedKmh: wOut.speedKmh != null ? wOut.speedKmh : g.speedKmh,
+          headingDeg: g.headingDeg,
+          altitude: 0,
+          timestamp: g.timestamp,
+          isStationary: wOut.isStationary, // ★実 Fix① 判定結果
+          accelSamples: g.accelSamples || null,
+        };
+      } else {
+        // gps-worker が reject (= accuracy/jump/accel/Doppler-sanity ゲートで弾く)
+        // → Meter.update を呼ばない (= 実機 gps.js が onUpdateCallback を呼ばないのと同じ)
+        workerRejected = true;
+      }
+    } else {
+      meterInput = {
+        lat: g.lat,
+        lng: g.lng,
+        accuracy: g.accuracy,
+        speedKmh: g.speedKmh,
+        headingDeg: g.headingDeg,
+        altitude: 0,
+        timestamp: g.timestamp,
+        isStationary: g.isStationary,
+        accelSamples: g.accelSamples || null,
+      };
+    }
+    if (!workerRejected) {
+      Meter.update(meterInput);
+    }
     // step ごとに・mmResult が増えていれば最新の committed snap を採用・なければ null
     if (mmResults.length > mmCountBefore) {
       const m = mmResults[mmResults.length - 1];

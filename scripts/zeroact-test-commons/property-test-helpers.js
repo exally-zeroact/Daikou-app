@@ -124,7 +124,7 @@ function propertyAssert(property, options) {
 // ─── ダイコメ Step C 用追加 arbitrary (2026-05-17・Stage 1) ──────────
 
 // 停車中 GPS シーケンス (= isStationary:true 確定の 6 点 1Hz 同座標)
-// gps-worker.js L596-598 救済で加速度 null 時 GPS 判定のみで final 確定するため
+// gps-worker.js L800-807 (Fix① 新構造・accel-null は checkPositionStationary fallback) 救済で加速度 null 時 GPS 判定のみで final 確定するため
 // Playwright/Vitest で確実に isStationary=true を強制できる。
 function stationaryGpsArb(opts) {
   opts = opts || {};
@@ -146,7 +146,7 @@ function stationaryGpsArb(opts) {
 }
 
 // Worker B 出力 mock (= map-matcher.js mmResult message 相当)
-// 経路 1 (L393 Tier1 commit) と経路 2 (L3007 isStationary force 0) の両方を模擬
+// 経路 1 (L551 Tier1 commit) と経路 2 (L3007 isStationary force 0) の両方を模擬
 function mmResultArb() {
   return fc.record({
     type: fc.constant('mmResult'),
@@ -160,7 +160,7 @@ function mmResultArb() {
 }
 
 // GPS 消失検出 (gap fill 発火) 用シーケンス: dtSec>=5 秒の空白を作る
-// meter.js L812 GAP_THRESHOLD_SEC=5 以上で L824 distance_m += filled 発火
+// meter.js (gap-fill threshold・drift-static C1) GAP_THRESHOLD_SEC=5 以上で L1168 distance_m += filled 発火
 function gpsGapSequenceArb(opts) {
   opts = opts || {};
   return fc.record({
