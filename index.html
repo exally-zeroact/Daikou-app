@@ -107,10 +107,17 @@
       .appbar {
         background: #007aff;
         padding: 6px 12px;
+        /* ★横画面ノッチ対策: 左右も safe-area を確保 (OBDチップ/ナビが切れない) */
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
         padding-top: max(6px, env(safe-area-inset-top));
         display: flex;
         align-items: center;
         justify-content: space-between;
+        /* ★どんな画面でも重ならない (2026-06-15)★: 最小10px間隔を保証し、狭くて入らなければ
+           ナビを次行へ折り返す (= OBDチップとホームが重なるのを構造的に防止)。広い画面では space-between。 */
+        flex-wrap: wrap;
+        gap: 6px 10px;
         flex-shrink: 0;
         position: sticky;
         top: 0;
@@ -123,6 +130,7 @@
         align-items: center;
         gap: 8px;
         min-width: 0;
+        flex-shrink: 1; /* 狭い時は左グループが先に縮む(ナビは flex-shrink:0 で死守) */
       }
       .appbar-title {
         font-size: 14px;
@@ -5071,6 +5079,8 @@
          gps.js が window.OBDClient.getSpeed() を実行時参照するため gps.js より前に load。
          既定 OFF (window.OBD_DRIVE_DISTANCE 未設定)・未接続なら GPS 経路は完全不変。 -->
     <script src="js/obd-client.js"></script>
+    <script src="js/obd-wheelspeed-map.js"></script>
+    <script src="js/obd-wheelspeed-identify.js"></script>
 
     <script src="js/gps.js"></script>
 
@@ -5110,6 +5120,9 @@
 
     <!-- ★page-lifecycle.js：Phase A-1（2026-05-20追加）iOS PWA freeze/kill 時の distance_m 永続化補完 -->
 
+    <!-- ★trace-outbox.js: trace/log のオフライン永続送信キュー(IndexedDB)。両uploaderより前にload。
+         オフライン走行→閉じても消えず・オンライン/次回起動で自動送信(取りこぼしゼロ)。距離コア非関与 (2026-06-16) -->
+    <script src="js/trace-outbox.js"></script>
     <script src="js/debug-trace.js"></script>
     <!-- ★debug-log-uploader.js: Eruda console を Firebase RTDB 自動 push (2026-05-29 追加・解析側 Claude 並行参照用)
          feature flag・既定 ON (テストビルド) / OFF (本番)・?debuglog=on/off で切替・debug-trace.js と device_id 共有 -->
@@ -6586,6 +6599,14 @@
             });
           }
         }
+        // ★代行距離係数(DM Light−0.2%着地)をシステム固定値で自動適用 (2026-06-18)★:
+        //   距離計算式に乗算し distance_m を DM−0.2% に着地→料金/表示/総走行が追従。料金には係数を掛けない。
+        //   値=1.011: 2026-06-17実走 実車1(画面11.28/DM11.43)がDM−0.2%ピタリ・実車2(6.64/6.77)もDM以下。
+        //   テストツール tests/tools/daiko-dm-target-gate.js で実画面値較正(PASS)。操作者は触らない。
+        //   ★タクシー認定運用は 1.0(過大ゼロ法要件)へ=この行を1.0に=コード/管理者変更★。
+        if (typeof Meter !== 'undefined' && typeof Meter.setDaikouDistanceFactor === 'function') {
+          Meter.setDaikouDistanceFactor(1.011);
+        }
         const td = localStorage.getItem('daikou_today');
         if (td) {
           const obj = JSON.parse(td);
@@ -7131,6 +7152,7 @@
           //   _renderMeterReadout 一本化時に fare/extraTotal/total の算出ブロックが消え、
           //   下記 6947/6948/6953/6969/6981 の参照だけが残り走行中 ReferenceError。算出を復元。
           //   ★課金経路不変: calcFare(display) は表示・FB送信・localStorage 用で従来同一式★。
+
           let fare = Meter.calcFare(s.display_distance_m || s.distance_m || 0);
           if (surchargeOn) fare = Math.round(fare * surchargeRate);
           const extraTotal = extras.reduce((a, b) => a + b.amount, 0);
@@ -12394,7 +12416,7 @@
               class="row"
               style="justify-content: space-between; padding: 3px 0; align-items: center"
             >
-              <span style="color: #8e8e93">タイヤ(側面/ドア)</span>
+              <span style="color: #8e8e93">工場タイヤ(ドアのステッカー)</span>
               <input
                 id="vehTire"
                 type="text"
@@ -12405,11 +12427,41 @@
                   border: 1px solid #d1d1d6;
                   border-radius: 6px;
                   font-size: 13px;
+                  height: 30px;
+                  box-sizing: border-box;
+                  -webkit-appearance: none;
+                  appearance: none;
                 "
               />
             </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">今のタイヤ(交換した場合のみ)</span>
+              <input
+                id="vehTireCurrent"
+                type="text"
+                placeholder="未交換なら空欄"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 13px;
+                  height: 30px;
+                  box-sizing: border-box;
+                  -webkit-appearance: none;
+                  appearance: none;
+                "
+              />
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">タイヤ距離補正</span>
+              <span id="vehTireRatioDisp" style="font-weight: 700; color: #34c759">×1.000</span>
+            </div>
             <div style="font-size: 11px; color: #ff9500; margin: 4px 0 8px">
-              ※タイヤは認定の管理項目。交換したら「保存」し直す(摩耗で過大化を防ぐ較正対象)。
+              ※工場タイヤ＝ドア内側のステッカー(初回1回・以後ロック)。タイヤを替えたら「今のタイヤ」に実サイズを入れて保存。円周比で距離を自動補正(過大ゼロ維持)。
             </div>
             <div class="row" style="justify-content: space-between; padding: 3px 0">
               <span style="color: #8e8e93">OBD距離能力</span>
@@ -12426,10 +12478,13 @@
                 color: #8e8e93;
               "
             >
-              <b style="color: #1c1c1e">認定メーター較正 (k)</b><br />
-              業務終了後、随伴車の認定メーター(料金メーター)の距離を入れると、この端末×この車の器差を学習して
-              −0.5〜−1% 帯へ寄せます(過大ゼロは死守)。<br />
-              ※入れるのは「その1業務で認定メーターが示した実距離」。過大値・1業務5%超の急変は自動で弾きます。
+              <b style="color: #1c1c1e">k 校正 (真距離基準)</b><br />
+              業務終了後、その業務の<b>真距離</b>(国道196号KP /
+              基準巻尺など)を入れると、この端末×この車の 器差(タイヤ補正値 k)を学習して −0.5〜−1%
+              帯へ寄せます(過大ゼロは死守)。<br />
+              ※入れるのは「その1業務の<b>真距離</b>」。随伴車メーター(DM
+              Light)は認定でなく長めに出るため
+              非推奨(入れると過大化リスク=随伴車合わせ込みであり認定校正ではない)。過大値・5%超急変は自動で弾く。
             </div>
             <div class="row" style="justify-content: space-between; padding: 3px 0">
               <span style="color: #8e8e93">現在の k</span>
@@ -12443,13 +12498,13 @@
               class="row"
               style="justify-content: space-between; padding: 3px 0; align-items: center"
             >
-              <span style="color: #8e8e93">認定メーター読み(km)</span>
+              <span style="color: #8e8e93">真距離(km)</span>
               <input
                 id="vehCertMeterReadM"
                 type="number"
                 step="0.01"
                 inputmode="decimal"
-                placeholder="例: 8.42"
+                placeholder="例: 9.00 (真距離)"
                 style="
                   width: 45%;
                   padding: 4px 8px;
@@ -12479,6 +12534,24 @@
               id="vehCalibrateNote"
               style="text-align: center; font-size: 11px; color: #8e8e93; padding: 4px 0 0"
             ></div>
+
+            <!-- ★ABS輪速 自動検出ステータス(read-only・ユーザー操作なし・距離未配線)★ -->
+            <div
+              style="
+                border-top: 1px solid #e5e5ea;
+                margin-top: 10px;
+                padding-top: 8px;
+                font-size: 12px;
+                color: #8e8e93;
+              "
+            >
+              <b style="color: #1c1c1e">高精度モード (ABS輪速)</b><br />
+              普段の走行中にアプリが<b>自動で</b>この車のABS輪速(010Dより18〜200倍細かい)を検出し、floor量子化(-2%)を測定ゼロで消します。<b>ユーザー操作は不要</b>です。
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">輪速検出</span>
+              <span id="wheelSpeedStatus" style="font-weight: 700">—</span>
+            </div>
 
             <div class="row" style="justify-content: center; padding-top: 10px">
               <button
@@ -13147,8 +13220,82 @@
           var vehModelEl = document.getElementById('vehModel');
           var vehKatashikiEl = document.getElementById('vehKatashiki');
           var vehTireEl = document.getElementById('vehTire');
+          var vehTireCurrentEl = document.getElementById('vehTireCurrent');
+          var vehTireRatioDispEl = document.getElementById('vehTireRatioDisp');
           var vehObdCapEl = document.getElementById('vehObdCap');
           var btnVehSave = document.getElementById('btnVehSave');
+          // ★タイヤ円周比ヘルパ (2026-06-17)★: OBD車速はECUが工場タイヤ円周で換算済み=
+          //   真距離 = OBD × (今の円周 ÷ 工場円周)。比 = 今÷工場(タイヤ大→実距離増→比>1で上げる)。
+          //   規格表記 例 195/65R15 → 直径mm = リム×25.4 + 2×幅×(扁平/100)、円周 = 直径×π。
+          function _parseTireSize(s) {
+            if (!s || typeof s !== 'string') return null;
+            var m = s.match(/(\d{2,3})\s*\/\s*(\d{2,3})\s*[Rr]\s*(\d{1,2})/);
+            if (!m) return null;
+            var w = parseInt(m[1], 10),
+              ar = parseInt(m[2], 10),
+              rim = parseInt(m[3], 10);
+            if (!(w > 0) || !(ar > 0) || !(rim > 0)) return null;
+            return { width: w, aspect: ar, rim: rim };
+          }
+          function _tireCircMm(spec) {
+            if (!spec) return 0;
+            var diaMm = spec.rim * 25.4 + 2 * spec.width * (spec.aspect / 100);
+            return diaMm * Math.PI;
+          }
+          // factory/current 両方有効なら 今÷工場、current空なら 1.0。健全域[0.80,1.25]外は 1.0(+警告)。
+          function _computeTireRatio(factoryStr, currentStr) {
+            var fc = _parseTireSize(factoryStr);
+            var cu = _parseTireSize(currentStr);
+            if (!fc) return 1.0; // 工場サイズ未入力=補正なし
+            if (!cu) return 1.0; // 今のサイズ空=未交換=恒等
+            var cf = _tireCircMm(fc),
+              cc = _tireCircMm(cu);
+            if (!(cf > 0) || !(cc > 0)) return 1.0;
+            var r = cc / cf; // ★今÷工場★
+            if (!(r >= 0.8 && r <= 1.25)) {
+              try {
+                // eslint-disable-next-line no-console
+                console.log('[OBD-TIRE] ratio out of band, clamped to 1.0: ' + r);
+              } catch (_) {
+                /* ignore */
+              }
+              return 1.0;
+            }
+            return r;
+          }
+          function _refreshTireRatioDisp() {
+            try {
+              var r = _computeTireRatio(
+                vehTireEl ? vehTireEl.value : '',
+                vehTireCurrentEl ? vehTireCurrentEl.value : ''
+              );
+              if (vehTireRatioDispEl) vehTireRatioDispEl.textContent = '×' + r.toFixed(3);
+            } catch (_) {
+              /* ignore */
+            }
+          }
+          if (vehTireEl) vehTireEl.addEventListener('input', _refreshTireRatioDisp);
+          if (vehTireCurrentEl) vehTireCurrentEl.addEventListener('input', _refreshTireRatioDisp);
+          // ★工場サイズ初回ロック反映 + 今サイズ復元 + 比表示更新★(保存/起動/VIN切替で共通呼出)。
+          function _applyTireProfileToUI(prof) {
+            try {
+              prof = prof || {};
+              if (vehTireEl) {
+                if (prof.tire) {
+                  vehTireEl.value = prof.tire;
+                  vehTireEl.readOnly = true; // 初回確定後ロック(摩耗/誤入力での過大化防止)
+                  vehTireEl.style.background = '#f2f2f7';
+                } else {
+                  vehTireEl.readOnly = false;
+                  vehTireEl.style.background = '';
+                }
+              }
+              if (vehTireCurrentEl) vehTireCurrentEl.value = prof.tireCurrent || '';
+              _refreshTireRatioDisp();
+            } catch (_) {
+              /* ignore */
+            }
+          }
           var vehSaveNoteEl = document.getElementById('vehSaveNote');
           // ★随伴車別 k(メーター定数)校正UI (2026-06-09)★
           var vehKValueEl = document.getElementById('vehKValue');
@@ -13251,11 +13398,17 @@
                   year: info.year,
                   model: vehModelEl ? vehModelEl.value.trim() : '',
                   katashiki: vehKatashikiEl ? vehKatashikiEl.value.trim() : '',
-                  tire: vehTireEl ? vehTireEl.value.trim() : '',
+                  // ★工場タイヤ(=距離補正の基準)は初回1回で確定しロック★(既存k継承と同手法)。
+                  //   _prev.tire があれば継承(上書き禁止)・無ければ今の入力で初回確定。
+                  tire: _prev && _prev.tire ? _prev.tire : vehTireEl ? vehTireEl.value.trim() : '',
+                  // 今のタイヤ(交換した場合のみ・毎回上書き可・空=未交換)
+                  tireCurrent: vehTireCurrentEl ? vehTireCurrentEl.value.trim() : '',
                   k: _prev && typeof _prev.k === 'number' ? _prev.k : 1.0,
                   k_samples: _prev && _prev.k_samples ? _prev.k_samples : 0,
                   savedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
                 };
+                // ★タイヤ円周比(今÷工場)を確定して保存★。pipeline vEff段で乗算され距離を物理補正。
+                prof.tireRatio = _computeTireRatio(prof.tire, prof.tireCurrent);
                 if (!prof.model && !prof.katashiki) {
                   if (vehSaveNoteEl)
                     vehSaveNoteEl.textContent = '車種か型式を入力してから保存してください';
@@ -13266,6 +13419,7 @@
                 if (_curVin) localStorage.setItem('dk_veh_' + _curVin, JSON.stringify(prof));
                 // ★trace に焼く + ログ出力 (型式別解析用・VIN無くても効く)★
                 window.DK_VEHICLE_PROFILE = prof;
+                _applyTireProfileToUI(prof); // 工場サイズロック + 比表示更新(worker反映は次の業務開始で)
                 try {
                   // eslint-disable-next-line no-console
                   console.log('[OBD-VEHICLE] ' + JSON.stringify(prof));
@@ -13283,7 +13437,7 @@
               }
             });
           }
-          // ★認定メーター読みで k を較正 (随伴車別器差・業務終了後)★
+          // ★真距離(196号KP/基準巻尺)で k を較正 (随伴車別器差・業務終了後・DM Lightは非推奨)★
           if (btnVehCalibrate) {
             btnVehCalibrate.addEventListener('click', function () {
               try {
@@ -13294,7 +13448,7 @@
                 var km = vehCertMeterReadEl ? parseFloat(vehCertMeterReadEl.value) : NaN;
                 if (!(km > 0)) {
                   if (vehCalibrateNoteEl)
-                    vehCalibrateNoteEl.textContent = '認定メーターの距離(km)を入力してください';
+                    vehCalibrateNoteEl.textContent = '真距離(km)を入力してください';
                   return;
                 }
                 var r = Meter.calibrateVehicleK(km * 1000); // km→m
@@ -13322,6 +13476,85 @@
               }
             });
           }
+          // ★ABS輪速 自動検出ステータス(read-only・ユーザー操作なし・距離未配線)★:
+          //   普段の走行中に obd-client が自動でABS輪速を傍受(_wsAuto)。検出結果(probeイベント)を
+          //   ここで表示するだけ。ユーザーは何もしない。実ID/分解能の確定はログ送信後のオフライン解析。
+          var wheelSpeedStatusEl = document.getElementById('wheelSpeedStatus');
+          if (wheelSpeedStatusEl) {
+            wheelSpeedStatusEl.textContent =
+              window.OBDClient && window.OBDClient.isConnected && window.OBDClient.isConnected()
+                ? '自動検出中…'
+                : '—(OBD接続で開始)';
+            try {
+              if (window.OBDClient && window.OBDClient.on) {
+                window.OBDClient.on('probe', function (p) {
+                  // ★②③確定: 端末内識別が確定 → VIN別にlocalStorage保存(⑤)+状態表示★(距離未配線)
+                  if (p && p.wheelspeedIdentified && p.wheelspeedIdentified.confirmed) {
+                    var m = p.wheelspeedIdentified;
+                    // ★S1/S3: VIN が取れた車だけ保存(active共有フォールバック廃止=別車誤適用を断つ)。
+                    //   マッピングに vin を焼き、復元時に照合する。VIN無し(クローンELM等)はセッション内のみ★
+                    if (_curVin) {
+                      try {
+                        m.vin = _curVin;
+                        localStorage.setItem('dk_wsmap_' + _curVin, JSON.stringify(m));
+                      } catch (_) {
+                        /* ignore */
+                      }
+                    }
+                    var who =
+                      m.seedMatch && m.seedMatch.length ? m.seedMatch.join('/') : '未収録車';
+                    wheelSpeedStatusEl.textContent =
+                      '✓確定 ' +
+                      who +
+                      '(' +
+                      m.id +
+                      ' ' +
+                      Number(m.kmhPerLSB).toFixed(3) +
+                      'km/h刻み R²' +
+                      Number(m.r2).toFixed(3) +
+                      ')';
+                    return;
+                  }
+                  // 捕捉サマリ(途中経過の表示のみ)
+                  var res = p && p.wheelspeed;
+                  if (!res) return;
+                  var ids = res.ids || [];
+                  var seedHit = null;
+                  try {
+                    var M = window.OBDWheelSpeedMap;
+                    if (M && M.lookupById) {
+                      for (var i = 0; i < ids.length; i++) {
+                        var s = M.lookupById(ids[i].id);
+                        if (s) {
+                          seedHit = { id: ids[i].id, makers: s.makers };
+                          break;
+                        }
+                      }
+                    }
+                  } catch (_) {
+                    /* ignore */
+                  }
+                  if (seedHit) {
+                    wheelSpeedStatusEl.textContent =
+                      '検出中 ' + seedHit.makers.join('/') + '(' + seedHit.id + ')…';
+                  } else if ((res.frameCount || 0) > 0) {
+                    wheelSpeedStatusEl.textContent = '検出中(候補ID解析中)';
+                  } else {
+                    wheelSpeedStatusEl.textContent = '標準(010D)・輪速なし';
+                  }
+                });
+                // ★S2: 切断/idle/error で _curVin をリセット(別車誤bind=前車VINキーへ次車を上書き を断つ)★
+                window.OBDClient.on('status', function (st) {
+                  if (st === 'disconnected' || st === 'idle' || st === 'error') {
+                    _curVin = '';
+                    if (wheelSpeedStatusEl) wheelSpeedStatusEl.textContent = '—(OBD接続で開始)';
+                  }
+                });
+              }
+            } catch (_) {
+              /* ignore */
+            }
+          }
           _renderVehK();
           // ★起動時: 登録済の現役随伴車を復元 → フィールド表示 + trace に焼く★
           //   VIN/OBD が無くても(iPhone・OBD未接続でも)全 trace に車両タグが付く=型式別解析が常に成立。
@@ -13334,6 +13567,7 @@
                   vehKatashikiEl.value = p.katashiki || '';
                 if (vehTireEl && !vehTireEl.value) vehTireEl.value = p.tire || '';
                 window.DK_VEHICLE_PROFILE = p;
+                _applyTireProfileToUI(p); // 工場サイズロック表示 + 今サイズ + 比表示を復元
                 if (vehSaveNoteEl)
                   vehSaveNoteEl.textContent =
                     '登録済の随伴車を読込 (' + (p.model || p.katashiki || '') + ')';
@@ -13422,20 +13656,63 @@
               var vin = q.vin_0902 ? _parseVin(q.vin_0902.raw) : '';
               _curVin = vin;
               if (vehVinEl) vehVinEl.textContent = vin || '(VIN取得できず)';
+              // ★⑤ 保存済み輪速マッピングを復元 → applyして再discovery不要(オフライン)★(距離未配線)
+              //   S1/S3: ★VINがある車だけ★(active共有フォールバック廃止)・保存vinと現VIN一致時のみapply(別車誤適用封じ)。
+              try {
+                if (vin && window.OBDClient && window.OBDClient.applyWheelSpeedMapping) {
+                  var savedWs = localStorage.getItem('dk_wsmap_' + vin);
+                  if (savedWs) {
+                    var wsM = JSON.parse(savedWs);
+                    if (
+                      wsM &&
+                      (!wsM.vin || wsM.vin === vin) &&
+                      window.OBDClient.applyWheelSpeedMapping(wsM)
+                    ) {
+                      var wsStatusEl = document.getElementById('wheelSpeedStatus');
+                      if (wsStatusEl)
+                        wsStatusEl.textContent =
+                          '✓登録済 ' +
+                          (wsM.seedMatch && wsM.seedMatch.length
+                            ? wsM.seedMatch.join('/')
+                            : '未収録車') +
+                          '(' +
+                          wsM.id +
+                          ')';
+                    }
+                  }
+                }
+              } catch (_) {
+                /* ignore */
+              }
               if (vin) {
                 var info = _vinInfo(vin);
                 if (vehMakerEl)
                   vehMakerEl.textContent =
                     (info.maker || '?') + (info.year ? ' / ' + info.year : '');
-                // ★登録済(手動の車種/型式/タイヤ)を保持したまま VIN/メーカー/OBD能力を ★マージ★ する。
-                //   (clobber しない=ユーザーが入れた登録を消さない)。VIN無しでも登録は trace に乗る。
-                var base = window.DK_VEHICLE_PROFILE || {};
+                // ★VINゲート (監査①是正・本番阻止級)★: base起点は ★接続中VINに対応するprofile★。
+                //   同一VIN=既存(手動登録/k)を継続。★別VIN=その車のVINキーprofileを復元(無ければ新規=k無し)★。
+                //   こうしないと前車の器差k/k_samplesを新車に継承し、別車の器差Kで距離を焼く=過大ゼロ前提崩壊。
+                var prev = window.DK_VEHICLE_PROFILE || {};
+                var base;
+                if (prev.vin && prev.vin === vin) {
+                  base = prev; // 同一随伴車=登録/較正kを継続
+                } else {
+                  // 別車 or 初回: その車のVINキーprofileを復元(=その車のk)。無ければ新規(k無し=未較正=自動)。
+                  base = {};
+                  try {
+                    var savedVeh = localStorage.getItem('dk_veh_' + vin);
+                    if (savedVeh) base = JSON.parse(savedVeh) || {};
+                  } catch (_) {
+                    base = {};
+                  }
+                }
                 base.vin = vin;
                 base.maker = info.maker || base.maker;
                 base.year = info.year || base.year;
                 base.obdOdoSupported = d.odometer_supported === true;
                 base.obdOdoKm = d.odometer_km != null ? d.odometer_km : null;
                 window.DK_VEHICLE_PROFILE = base;
+                _applyTireProfileToUI(base); // ★VIN別の工場タイヤ/比に切替(各車のロック独立)★
                 // VINが取れたら VINキーにも保存(将来の自動復元用)。active も最新化。
                 try {
                   localStorage.setItem('dk_veh_active', JSON.stringify(base));
@@ -13475,6 +13752,14 @@
             obdChip.addEventListener('click', function () {
               if (_obdConnected) O.disconnect();
               else doConnect();
+            });
+          }
+          // ★起動時 自動接続 (2026-06-18・司さん要望「1回繋いだら自動で繋がる」)★:
+          //   前回ペアリング済みデバイスへ navigator.bluetooth.getDevices() で選択ダイアログ無しに自動接続。
+          //   切れても自動再接続(obd-client内 _scheduleReconnect)。Android Chromeのみ・失敗は静かにidle(手動connect可)。
+          if (O.isSupported() && typeof O.tryAutoConnect === 'function') {
+            O.tryAutoConnect().catch(function () {
+              /* 自動接続不可は手動 connect で */
             });
           }
           // 速度表示 + 距離源インジケータを 500ms 毎に更新 (鮮度切れは GPS 扱い)

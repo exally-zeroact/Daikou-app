@@ -159,7 +159,7 @@ function hitFor(i0, i1, kpNum) {
 //   obdDeltaCalib は worker の PipelineDistance.DEFAULTS を実行時に差し替えて ON/OFF する
 //   (本番 flip と同じ設定面。createDistanceTracker(dec,{}) が DEFAULTS を読むため反映される)。
 // ============================================================================
-function runEngine(obdDeltaCalib) {
+function runEngine(obdDeltaCalib, vehicleK, quantMps) {
   const worker = createMapMatcherWorker({ debug: false });
   let roadsLoaded = false;
   worker.on((e) => {
@@ -173,13 +173,22 @@ function runEngine(obdDeltaCalib) {
   //   tracker 生成は最初の GPS ingest 時 lazy なので、ここ(GPS 流す前)で差し替えれば確実に反映。
   try {
     const PD = worker.ctx && worker.ctx.self && worker.ctx.self.PipelineDistance;
-    if (PD && PD.DEFAULTS) PD.DEFAULTS.obdDeltaCalib = obdDeltaCalib === true;
+    if (PD && PD.DEFAULTS) {
+      PD.DEFAULTS.obdDeltaCalib = obdDeltaCalib === true;
+      // ★OBD量子化補正 (+半量子・1km/h floor回収) 注入★: quantMps 指定時のみ上書き(未指定=DEFAULTS既定)。
+      if (typeof quantMps === 'number') PD.DEFAULTS.obdQuantCorrectMps = quantMps;
+    }
   } catch (_) {
     /* 反映不可は下流 obdSegs / cfg 確認で露見させる */
   }
 
   const roadsData = loadPrefRoadsData('ehime');
-  const Meter = loadMeter({ debug: false });
+  // ★随伴車別 k 注入 (vehicleK 指定時)★: meter は業務開始ロックで window.DK_VEHICLE_PROFILE.k を読む。
+  //   k=1.0 / 未指定 は profile 不在 = 恒等(byte 不変)。VK_MAX clamp は meter 側で効く(=テストが実態を反映)。
+  const Meter = loadMeter({
+    debug: false,
+    vehicleProfile: vehicleK ? { k: vehicleK, k_samples: 1, vin: 'TESTK' } : undefined,
+  });
   Meter.setFareConfig(FARE);
   Meter.reset();
 
@@ -523,6 +532,166 @@ console.log(
   '※obdDeltaCalib flip 判断は ①obdSegs>0(実発火) ②過大ゼロ維持 ③誤差改善 の3点を本出力で確認すること。'
 );
 console.log('===========================================================');
+
+// ============================================================================
+// ★--k-neverover★ : OBD+センサーメイン・アーキ検証 (テスト先行・2026-06-12)
+//   司さん確定アーキ(memory: obd_sensor_main_architecture): OBD接続中は OBD∫v×手動k で距離・
+//   GPSベースδは二重補正になるので OFF。これを ★196号KP RTK真値★ で過大ゼロ検証する:
+//     (1) δ-OFF + k=1.02 → 全業務 ★-1%以内 かつ 過大ゼロ(≤真値)★ (本命・実装前REDの想定)
+//     (2) δ-ON  + k=1.02 → ★二重補正で過大★ になることを可視化(=δ-OFF を採る根拠)
+//   ★実装前(VK_MAX=1.01でkが1.01にclampされる)は (1)が -1.13%級で「-1%以内」を満たさず RED。
+//     VK_MAX→1.02(source-aware・OBD駆動のみ)実装後に GREEN。★ フラグ無し時はCI現行と完全に不変。
+// ============================================================================
+const K_NEVEROVER = process.argv.slice(2).includes('--k-neverover');
+if (K_NEVEROVER) {
+  console.log('\n===========================================================');
+  console.log('★--k-neverover : OBD∫v×手動k 過大ゼロ&-1%以内 検証 (RTK真値)★');
+  console.log('===========================================================');
+  let kFail = false;
+  const K = 1.02;
+  // ★手動k と quant(+0.5km/h) は ★択一の補正戦略★ (k=車別手動 / quant=全車普遍・k不要)で、
+  //   両方を重ねると二重補正で過大化する(=quant既定ON下で k=1.02 を足すと +0.34% 過大)。
+  //   本ゲートは「手動k 単独」を分離検証するので quant=0 で実行する。実運用も既定 k=1.0(無較正)で非スタック。
+  const Q_OFF = 0;
+  // (1) 本命: δ-OFF + k (quant無しで手動k単独を検証)
+  let eOff;
+  try {
+    eOff = runEngine(false, K, Q_OFF);
+  } catch (e) {
+    console.log('δ-OFF+k ENGINE ERROR: ' + e.message);
+    process.exit(1);
+  }
+  const scOff = scoreRun(eOff);
+  console.log(
+    '【δ-OFF + k=' + K + ' (本命: OBD∫v×手動k・GPSベースδ無し)】 obdSegs=' + eOff.obdSegs
+  );
+  for (const r of scOff.rows) {
+    if (!r.scored) {
+      console.log('  ' + r.label.padEnd(14) + ' 採点スキップ(' + r.reason + ')');
+      continue;
+    }
+    const withinTarget = r.errPct >= -1.0 && r.errPct <= EPS; // -1%以内 かつ 過大ゼロ
+    if (!withinTarget) kFail = true;
+    console.log(
+      '  ' +
+        r.label.padEnd(14) +
+        ' 真距離' +
+        r.trueKm.toFixed(1) +
+        'km vs ' +
+        r.engKm.toFixed(3) +
+        'km = ' +
+        fmtPct(r.errPct).padStart(8) +
+        '  → ' +
+        (r.errPct > EPS
+          ? '★過大(FAIL)★'
+          : r.errPct < -1.0
+            ? '★-1%未達(FAIL)★'
+            : '✓ -1%以内&過大ゼロ')
+    );
+  }
+  // (2) 負例: δ-ON + k = 二重補正の過大を可視化
+  let eOn;
+  try {
+    eOn = runEngine(true, K, Q_OFF);
+  } catch (e) {
+    eOn = null;
+  }
+  if (eOn) {
+    const scOn = scoreRun(eOn);
+    const anyOverOn = scOn.rows.some((r) => r.scored && r.errPct > EPS);
+    console.log('【δ-ON + k=' + K + ' (負例: δとkの二重補正)】');
+    for (const r of scOn.rows) {
+      if (!r.scored) continue;
+      console.log(
+        '  ' +
+          r.label.padEnd(14) +
+          ' = ' +
+          fmtPct(r.errPct).padStart(8) +
+          (r.errPct > EPS ? ' ★過大=二重補正の証拠(δ-OFFを採る根拠)★' : '')
+      );
+    }
+    console.log(
+      '  → δ-ON+k 過大あり: ' +
+        (anyOverOn ? 'YES(=δとkを重ねるな・OBD車はδ-OFF)' : 'NO(clampで未到達)')
+    );
+  }
+  console.log('───────────────────────────────────────────────────────────');
+  console.log(
+    kFail
+      ? '★K-GATE FAIL★ — δ-OFF+k で -1%以内&過大ゼロ 未達 (実装前の想定RED or 実装後の回帰)。exit 1。'
+      : '★K-GATE PASS★ — δ-OFF+k で全業務 -1%以内 かつ 過大ゼロ(≤RTK真値)。'
+  );
+  console.log('===========================================================');
+  if (JSON_OUT) console.log('\n' + JSON.stringify(report, null, 2));
+  process.exit(kFail ? 1 : gateFail ? 1 : 0);
+}
+
+// ============================================================================
+// ★--quant★ : OBD∫v 量子化補正(+0.5km/h floor回収・全車自動・manual k不要) 検証 (テスト先行・2026-06-13)
+//   OBD車速は1km/h刻みで切り捨て(floor)→ ∫v が systematically 過少(-2.5%級)。真の速度は[v,v+1)で
+//   平均 v+0.5 → ∫v に +0.5km/h 足せば ★車によらず普遍的に★ floor過少を回収(δ/manual k 不要)。
+//   実証(196号KP RTK・業務2): ∫v生-2.50% → +0.5km/h -1.32% (改善・過大ゼロ側)。残差(タイヤ器差)は別。
+//   ★実装前(engine が obdQuantCorrectMps 未読)は quant ON=OFF で改善せず RED。実装後 GREEN。★
+//   フラグ無し時はCI現行と完全不変。
+// ============================================================================
+const QUANT = process.argv.slice(2).includes('--quant');
+if (QUANT) {
+  console.log('\n===========================================================');
+  console.log('★--quant : OBD∫v 量子化補正(+0.5km/h floor回収) 改善&過大ゼロ 検証 (RTK真値)★');
+  console.log('===========================================================');
+  let qFail = false;
+  const QMPS = 0.5 / 3.6; // +0.5km/h = 半量子(truncation補正)
+  let eOff, eOn;
+  try {
+    eOff = runEngine(false, undefined, 0); // 補正なし
+    eOn = runEngine(false, undefined, QMPS); // +0.5km/h
+  } catch (e) {
+    console.log('quant ENGINE ERROR: ' + e.message);
+    process.exit(1);
+  }
+  const scOff = scoreRun(eOff),
+    scOn = scoreRun(eOn);
+  const offByTc = {},
+    onByTc = {};
+  for (const r of scOff.rows) if (r.scored) offByTc[r.tc] = r;
+  for (const r of scOn.rows) if (r.scored) onByTc[r.tc] = r;
+  const tcs = Object.keys(offByTc);
+  if (!tcs.length) {
+    console.log('  ★採点KP通過業務なし=検証不能(fixture/KP窓要確認)★');
+    qFail = true;
+  }
+  for (const tc of tcs) {
+    const o = offByTc[tc],
+      n = onByTc[tc];
+    if (!n) continue;
+    const improved = n.errPct > o.errPct + 0.1; // +0.5km/h で真値へ寄った(0.1pt超)
+    const overZero = n.errPct <= EPS; // 過大ゼロ維持
+    if (!improved || !overZero) qFail = true;
+    console.log(
+      '  業務(tc' +
+        tc +
+        ') 真距離' +
+        o.trueKm.toFixed(1) +
+        'km: 補正なし ' +
+        fmtPct(o.errPct) +
+        ' → +0.5km/h ' +
+        fmtPct(n.errPct) +
+        '  (' +
+        (improved ? '改善✓' : '改善せず✗') +
+        ' / 過大ゼロ' +
+        (overZero ? '維持✓' : '違反✗') +
+        ')'
+    );
+  }
+  console.log('───────────────────────────────────────────────────────────');
+  console.log(
+    qFail
+      ? '★QUANT-GATE FAIL★ — +0.5km/h で改善せず or 過大化 (実装前の想定RED or 回帰)。exit 1。'
+      : '★QUANT-GATE PASS★ — +0.5km/h量子化補正で全車自動改善・過大ゼロ維持(≤RTK真値)。'
+  );
+  console.log('===========================================================');
+  process.exit(qFail ? 1 : gateFail ? 1 : 0);
+}
 
 if (JSON_OUT) console.log('\n' + JSON.stringify(report, null, 2));
 

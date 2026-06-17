@@ -1,12 +1,12 @@
 {
   "meta": {
     "name": "reverse-oneway-200m",
-    "description": "ehime road 66853 (= 正解・tc 4 tertiary・oneway 東向き・941m) を **逆走 = 西方向**で trace。司さん命名「reverse-oneway-100m」は概数 (= 実態 200m を 50 step で 4m/step・市街地徐行 14km/h)。junction (= 33.82173, 132.76549) で・反対車線 oneway 西向き road 122 (= tc 4) が並走・他 64104 (= 南直交)・66856 (= 北直交) 競合あり。trace は 66855 seg 0 の t=0.30→0.00 (= 逆方向 200m) を 50 step。GPS heading は逆方向 (= 270度) で生成 (= runner.js の t_start>t_end で自動反転)。狙い: 全加算ルール = oneway 逆走でも距離加算が正・但し Worker B の oneway penalty (= LANE_PENALTY 0.05) で・**正解 66855 の確信度が低下** → 近傍 122 (= 反対車線・順方向 oneway) や別 road への誤 snap 確率上昇。正解 = 物理的に走ってる 66855 であることを確認。",
+    "description": "ehime road 66851 (= 正解・tc 4 tertiary・oneway 東向き・941m) を **逆走 = 西方向**で trace。司さん命名「reverse-oneway-100m」は概数 (= 実態 200m を 50 step で 4m/step・市街地徐行 14km/h)。junction (= 33.82173, 132.76549) で・反対車線 oneway 西向き road 122 (= tc 4) が並走・他 64104 (= 南直交)・66856 (= 北直交) 競合あり。trace は 66855 seg 0 の t=0.30→0.00 (= 逆方向 200m) を 50 step。GPS heading は逆方向 (= 270度) で生成 (= runner.js の t_start>t_end で自動反転)。狙い: 全加算ルール = oneway 逆走でも距離加算が正・但し Worker B の oneway penalty (= LANE_PENALTY 0.05) で・**正解 66855 の確信度が低下** → 近傍 122 (= 反対車線・順方向 oneway) や別 road への誤 snap 確率上昇。正解 = 物理的に走ってる 66855 であることを確認。",
     "prefecture": "ehime",
     "true_speed_kmh": 14.4,
     "ground_truth_segments": [
       {
-        "roadIndex": 66853,
+        "roadIndex": 66851,
         "segmentIndex": 0,
         "t_start": 0.3,
         "t_end": 0,
@@ -15,8 +15,8 @@
     ],
     "competing_road_indices": [
       122,
-      64102,
-      66854
+      64100,
+      66852
     ],
     "noise_model": {
       "seed": 47,

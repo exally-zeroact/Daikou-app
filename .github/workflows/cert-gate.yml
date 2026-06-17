@@ -63,6 +63,18 @@ jobs:
       - name: OBD-main engine gate (obdSegs発火・δ真距離採点 hard-fail)
         run: npm run test:obd-engine
 
+      # ── (retired 2026-06-13) source-aware k never-over gate ──
+      # 手動k(meter ×_activeVehicleK)で OBD∫v を -1%へ回収する旧設計を検証していたが、★per-vehicle k は
+      # pipeline の Doppler自動ラチェット(kNow)へ一本化(司さん裁定A)★= meter手動k廃止(二重適用防止)で本ゲートの
+      # 前提が消滅。後継=ラチェット/天井の過大ゼロは vitest (obd-doppler-ceiling/obd-ratchet/obd-overcount-zero
+      # property) + obd-engine/gate-kp(≤真値)が担保。実Doppler fixture gate は後続TODO。
+
+      # ── OBD量子化補正ゲート (+0.5km/h floor回収・全車普遍・manual k不要・2026-06-13) ──
+      # OBD車速の1km/h floor過少(-2.5%級)を +0.5km/h で回収。196号KP RTK真値で「改善&過大ゼロ」hard-fail。
+      # 既定ON(obdQuantCorrectMps=0.139)。manual k と択一(k はこのゲートで quant 無し単独検証)。
+      - name: OBD quant correction gate (+0.5km/h floor回収・改善&過大ゼロ hard-fail)
+        run: npm run test:quant
+
       # ── Doppler棄却配線ゲート (gate-realdevice-doppler-rej) ──
       - name: Doppler rejection wiring gate
         run: npm run test:gate-doppler

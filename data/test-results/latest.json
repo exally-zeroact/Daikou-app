@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-28T11:17:16.357Z",
+  "generated_at": "2026-06-15T12:02:11.818Z",
   "git_sha": null,
   "git_ref": null,
   "runner": "local",
@@ -58,7 +58,7 @@
       "skip_count": 0,
       "layer_check_count": 0,
       "layer_hit_count": 0,
-      "elapsed_ms": 1,
+      "elapsed_ms": 0,
       "issues": []
     }
   ],

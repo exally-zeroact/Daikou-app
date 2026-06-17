@@ -185,10 +185,7 @@
 
   // ─── flush (= /debug_traces に POST で 1 batch = 1 record 新規) ───
   function _maybeFlush(triggerSource) {
-    if (uploadInflight) return;
     if (buffer.length === 0) return;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-    uploadInflight = true;
     const lines = buffer.splice(0, buffer.length);
     let label = '';
     try {
@@ -215,6 +212,43 @@
       samples: lines,
       writeKey: WRITE_KEY,
     };
+    // ★永続キュー経由(2026-06-16): オフラインでも IndexedDB に残り・オンライン/次回起動で自動送信★。
+    //   outbox 未ロード時のみ従来の直POST(オンライン時)にフォールバック。
+    if (
+      typeof window !== 'undefined' &&
+      window.DaikomeTraceOutbox &&
+      window.DaikomeTraceOutbox.submit
+    ) {
+      window.DaikomeTraceOutbox.submit(body); // 永続化→trim→(online)送信。失敗してもアプリは止めない。
+      // ★S1: hidden/unload は IDB commit 前に kill される窓があるので best-effort sendBeacon も併送
+      //   (online限定・消失より二重がマシ=解析側は session_id+batch_seq で dedup 可能)★
+      if (
+        (triggerSource === 'hidden' || triggerSource === 'beforeunload') &&
+        typeof navigator !== 'undefined' &&
+        typeof navigator.sendBeacon === 'function'
+      ) {
+        try {
+          navigator.sendBeacon(
+            DB_URL + DB_PATH,
+            new Blob([JSON.stringify(body)], { type: 'application/json' })
+          );
+        } catch (_) {
+          /* best-effort */
+        }
+      }
+      return;
+    }
+    if (uploadInflight) {
+      for (let i = lines.length - 1; i >= 0; i--)
+        if (buffer.length < MAX_BUFFER) buffer.unshift(lines[i]);
+      return;
+    }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      for (let i = lines.length - 1; i >= 0; i--)
+        if (buffer.length < MAX_BUFFER) buffer.unshift(lines[i]);
+      return;
+    }
+    uploadInflight = true;
     fetch(DB_URL + DB_PATH, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -225,7 +259,6 @@
         uploadInflight = false;
       })
       .catch(function () {
-        // 失敗時はバッファに戻す (= 先頭挿入で順序保持)
         for (let i = lines.length - 1; i >= 0; i--) {
           if (buffer.length < MAX_BUFFER) buffer.unshift(lines[i]);
         }

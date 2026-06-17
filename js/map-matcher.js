@@ -206,6 +206,14 @@ function _setDecoderLRU(pref, dec) {
 //   - reset (業務リセット) で全トラッカ reset。
 //   - pipeline-distance 未ロード / decoder 未ロード時は no-op (= deltaM=0・既存挙動完全不変)。
 const _pipelineTrackers = new Map(); // pref → tracker
+// ★契約タイヤ由来 cold-start k0 (2026-06-15)★: main から configVehicle で受領し、tracker生成 opts へ注入。
+//   未設定(null)= 既定(0.97・applyNoDop=false)で byte不変。過大ゼロの砦(per-step天井)は不変。
+let _vehicleColdStartK = null; // number | null
+// ★認定据付 測定K (2026-06-15・認定前提)★: calibrateVehicleK が真距離で確定したKを main から受領し、
+//   OBD駆動距離に焼く(Doppler天井バイパス・過大ゼロは測定で保証)。未設定(null)= 従来自動(-1.2%圏)。
+let _vehicleK = null; // number | null (cert-calibrated obdVehicleK)
+let _vehicleKMeasured = false; // true=実測K(タイヤ込み・タイヤ比抑制) / false=factory prior(タイヤ比併用)
+let _vehicleTireRatio = null; // number | null (タイヤ円周比=今÷工場・物理真距離補正・1.0=恒等)
 
 // ★smoothedRawMode 判定 (2026-06-07)★: tracker は opts {} で生成 = DEFAULTS が支配する。
 //   worker 側の「実質停止で pipelineDeltaM 0 化」二重保険は平滑モードでは時間軸がズレる
@@ -232,7 +240,28 @@ function _getPipelineTracker(pref) {
   let tk = _pipelineTrackers.get(pref);
   if (!tk) {
     try {
-      tk = self.PipelineDistance.createDistanceTracker(dec, {});
+      const _tkOpts = {};
+      if (
+        typeof _vehicleColdStartK === 'number' &&
+        _vehicleColdStartK >= 0.97 &&
+        _vehicleColdStartK <= 1.0
+      ) {
+        _tkOpts.obdColdStartK = _vehicleColdStartK;
+        _tkOpts.obdColdStartApplyNoDop = true;
+      }
+      // ★認定据付測定K★: 健全域(0.85〜1.08)のみ採用。OBD駆動距離に焼く(過大ゼロは測定で保証)。
+      if (typeof _vehicleK === 'number' && _vehicleK >= 0.85 && _vehicleK <= 1.08) {
+        _tkOpts.obdVehicleK = _vehicleK;
+        _tkOpts.obdVehicleKMeasured = _vehicleKMeasured === true; // 実測Kならタイヤ比抑制
+      }
+      // ★タイヤ円周比(物理真距離補正・今÷工場)★: 健全域[0.80,1.25]のみ。pipeline vEff段で乗算。
+      if (
+        typeof _vehicleTireRatio === 'number' &&
+        _vehicleTireRatio >= 0.8 &&
+        _vehicleTireRatio <= 1.25
+      )
+        _tkOpts.obdTireRatio = _vehicleTireRatio;
+      tk = self.PipelineDistance.createDistanceTracker(dec, _tkOpts);
       _pipelineTrackers.set(pref, tk);
     } catch (_) {
       return null; // 生成失敗は no-op (= 既存距離パスに影響させない)
@@ -260,7 +289,11 @@ function _resetPipelineTrackers() {
 //   = Viterbi/HMM の「繋がってない道へ遷移しない」拘束を距離計算へ接続したもの。
 //   prefecture は outSnap の県を優先・無ければ最寄り道路を持つ県を解決 (加算ではなく県特定のみ)。
 //   未ロード / ingest 失敗 / 静止は 0 (= no-op・既存挙動不変)。
+//   ★_lastDeltaSrc★: 直近 _confirmedRoadDelta が算出した delta の距離源 ('obd'=∫v(OBD)駆動 / 'gps'=その他)。
+//     呼出側が mmResult.pipelineDeltaSrc として meter へ渡し、source-aware k 適用に使う。
+let _lastDeltaSrc = 'gps';
 function _confirmedRoadDelta(msg, outSnap) {
+  _lastDeltaSrc = 'gps'; // 既定 (ingest 前/失敗/静止 = gps扱い=随伴車k非適用=安全側)
   try {
     let pref = outSnap && outSnap.prefecture ? outSnap.prefecture : null;
     if (!pref && loadedPrefs.size > 0) {
@@ -307,11 +340,17 @@ function _confirmedRoadDelta(msg, outSnap) {
       // ★OBD メインモード: 速度源が OBD 車輪速度なら ∫v(OBD) で距離駆動する印 (gps.js が speedSrc 付与)。
       //   未設定/'dop'/'hav' は従来の道路 map-matching (byte 不変)。
       obd: msg.speedSrc === 'obd',
+      // ★STEP0 (2026-06-13): 生Doppler速度(m/s・-1=無効)を貫通★ = OBDティアの過大ゼロ天井
+      //   (pipeline: obdDelta=min(∫v, dopP25·dt))の独立基準。OBD上書き前に gps.js が温存した搬送波速度。
+      dopMps: typeof msg.dopMps === 'number' ? msg.dopMps : -1,
       // ★合成タイマー連続前進: GPS stale 中の coast 穴埋め点 (gps.js _gapTick・位置据え置き+速度既知)。
       //   平滑バッファをバイパスして即 _core で speed×dt 前進させる印 (トンネル一括ドン根治)。
       synthetic: msg.isSynthetic === true,
     });
     // 確定道路読み取り (連結性拘束済) の道なり区間増分。正値のみ採用。
+    // ★距離源タグ (2026-06-12・OBD+センサーメイン・アーキ)★: この delta が ∫v(OBD) 駆動か否かを
+    //   meter へ伝える (= source-aware k: OBD駆動だけ随伴車k適用・GPS駆動は×1.0で過大ゼロ)。
+    _lastDeltaSrc = res && res.reason === 'obd' ? 'obd' : 'gps';
     const confirmedDeltaM = res && typeof res.deltaM === 'number' ? res.deltaM : 0;
     return confirmedDeltaM > 0 ? confirmedDeltaM : 0;
   } catch (_) {
@@ -2560,6 +2599,37 @@ self.onmessage = function (e) {
     return;
   }
 
+  // ★契約タイヤ由来 cold-start k0 受領 (2026-06-15)★: main が tireSpecToK0(=[0.97,1.0]) を計算して送る。
+  //   Doppler皆無区間の過大ゼロ穴を塞ぐ床。受領後は trackers を作り直して反映。砦(per-step天井)は不変。
+  if (msg.type === 'configVehicle') {
+    // ★各フィールドは「存在する時だけ」更新★ (監査②是正): {vehicleK}単独postで coldStartK を、
+    //   {coldStartK}単独postで vehicleK を ★打ち消さない★。後勝ちclobber防止。健全域外/非数値は null(=OFF)。
+    if ('coldStartK' in msg) {
+      const k0 = typeof msg.coldStartK === 'number' ? msg.coldStartK : null;
+      _vehicleColdStartK = k0 != null && k0 >= 0.97 && k0 <= 1.0 ? k0 : null;
+    }
+    if ('vehicleK' in msg) {
+      const vk = typeof msg.vehicleK === 'number' ? msg.vehicleK : null;
+      _vehicleK = vk != null && vk >= 0.85 && vk <= 1.08 ? vk : null; // 認定据付測定K(健全域のみ)
+    }
+    if ('vehicleKMeasured' in msg) _vehicleKMeasured = msg.vehicleKMeasured === true;
+    // ★タイヤ円周比(今÷工場)★: 健全域[0.80,1.25]外/非数値は null(=恒等1.0)。物理サイズ変更補正。
+    if ('tireRatio' in msg) {
+      const tr = typeof msg.tireRatio === 'number' ? msg.tireRatio : null;
+      _vehicleTireRatio = tr != null && tr >= 0.8 && tr <= 1.25 ? tr : null;
+    }
+    _resetPipelineTrackers();
+    _pipelineTrackers.clear(); // 新 opts で lazy 再生成させる
+    self.postMessage({
+      type: 'vehicleConfigured',
+      coldStartK: _vehicleColdStartK,
+      vehicleK: _vehicleK,
+      vehicleKMeasured: _vehicleKMeasured,
+      tireRatio: _vehicleTireRatio,
+    });
+    return;
+  }
+
   // G6 (2026-05-09): プラットフォーム情報受領 (iOS 検出時に Viterbi N を切替)
   if (msg.type === 'configPlatform') {
     if (msg.isIOS && !_platformIsIOS) {
@@ -3002,6 +3072,7 @@ self.onmessage = function (e) {
           windowSize: 0,
           committed: true,
           pipelineDeltaM: _pipelineFlushM,
+          pipelineDeltaSrc: 'gps', // ★flush は平滑バッファ末尾(OBDはバッファ非経由)=gps扱い=随伴車k非適用★
           _reason: 'pipeline flush before reset',
         });
       }
@@ -3420,9 +3491,13 @@ self.onmessage = function (e) {
     //   state.distance_m += pipelineDeltaM を実行する (= 単一経路・道路 snap 道なり)。
     //   ★(c) 配線完全性: 距離源は greedy per-point snap 生値ではなく・連結性拘束を通した確定道路読み取り★。
     let _pipelineDeltaM_now = 0;
+    let _pipelineDeltaSrc = 'gps'; // ★距離源 ('obd'=∫v(OBD)駆動)・source-aware k 用★
     {
       const _confirmed = _confirmedRoadDelta(msg, outSnap);
-      if (_confirmed > 0) _pipelineDeltaM_now = _confirmed;
+      if (_confirmed > 0) {
+        _pipelineDeltaM_now = _confirmed;
+        _pipelineDeltaSrc = _lastDeltaSrc;
+      }
     }
 
     const _lowSpeed = msg.speedKmh != null && msg.speedKmh < 2;
@@ -3482,6 +3557,7 @@ self.onmessage = function (e) {
       //   isStationary (= effectively stationary) freeze 時は ingest 側 ZUPT が deltaM=0 を返すため
       //   別途 0 化不要だが・freeze と整合させるため下の effectivelyStationary block で 0 に念押しする。
       pipelineDeltaM: _pipelineDeltaM_now,
+      pipelineDeltaSrc: _pipelineDeltaSrc, // ★source-aware k: 'obd'=随伴車k適用 / 'gps'=×1.0★
     });
   }
 };

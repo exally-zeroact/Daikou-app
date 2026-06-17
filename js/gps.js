@@ -605,6 +605,11 @@ const GPS = (() => {
     //     ・物理上限でクランプ (= GPS spike で accuracy 上限を緩めすぎないため)。
     //     ・dt が範囲外 (<=0 or >=10秒) は代用せず 0 (= バックグラウンド復帰等の stale 前点を除外)。
     let speedKmh = speed != null && speed >= 0 ? speed * 3.6 : 0;
+    // ★STEP0 (2026-06-13): 生 GNSS Doppler 速度を OBD 上書き前に温存★ (赤チーム指摘=従来は L632 で
+    //   OBD に潰され下流に届かず、OBDティアの過大ゼロ天井(pipeline: min(∫v, dopP25·dt))の入力が無かった)。
+    //   coords.speed は搬送波 Doppler 由来=タイヤ非経由=過大ゼロの独立基準。haversine 代用(_kmh)は使わない
+    //   (位置ジッタ由来で天井に不適)。null/欠落/無効は -1 (= 天井非適用=従来∫v退避)。距離源は不変。
+    const _dopMps = speed != null && speed >= 0 ? speed : -1;
     if ((speed == null || speed < 0) && _rawPrevPos) {
       const _dtSpeed = (now - _rawPrevPos.t) / 1000;
       if (_dtSpeed > 0 && _dtSpeed < 10) {
@@ -676,6 +681,7 @@ const GPS = (() => {
           gyroData,
           gyroSamples,
           speedSrc: _speedSrc, // ★STEP0 診断
+          dopMps: _dopMps, // ★STEP0: 生Doppler速度(m/s・-1=無効)= OBDティア過大ゼロ天井の独立基準
         },
       });
     } else {

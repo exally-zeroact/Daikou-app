@@ -97,8 +97,10 @@ function makeMockBluetooth(opts) {
     },
   };
   const device = {
+    id: 'mock-obd-1',
     gatt: {
       connect() {
+        connected = true; // ★再接続で connected を復帰 (実機 gatt.connect 相当)★
         return Promise.resolve(server);
       },
       get connected() {
@@ -108,20 +110,32 @@ function makeMockBluetooth(opts) {
     addEventListener(t, h) {
       if (t === 'gattserverdisconnected') disconnectHandler = h;
     },
+    removeEventListener() {},
   };
-  return {
+  let requestDeviceCalls = 0;
+  const ret = {
     bluetooth: {
       requestDevice() {
+        requestDeviceCalls++;
         return Promise.resolve(device);
+      },
+      // ★前回許可済みデバイス取得 (起動時 自動接続用・選択ダイアログ無し)★
+      getDevices() {
+        return Promise.resolve([device]);
       },
     },
     dispatch,
     writes,
+    device,
+    get requestDeviceCalls() {
+      return requestDeviceCalls;
+    },
     fireDisconnect() {
       connected = false;
       if (disconnectHandler) disconnectHandler();
     },
   };
+  return ret;
 }
 
 const tick = (ms) => new Promise((r) => setTimeout(r, ms || 20));
@@ -250,5 +264,42 @@ describe('OBDClient 監査修正の保全 (静的)', () => {
     const m = src.match(/function _onDisconnected[\s\S]*?\n {2}\}/);
     expect(m).toBeTruthy();
     expect(/_pendingResolve\s*=\s*null/.test(m[0])).toBe(true);
+  });
+});
+
+// ★OBD 自動接続/自動再接続 (2026-06-18・司さん要望「1回繋いだら自動で繋がる」)★
+describe('OBDClient 自動接続/自動再接続', () => {
+  it('tryAutoConnect: getDevices経由で選択ダイアログ(requestDevice)なしに接続', async () => {
+    const mock = makeMockBluetooth();
+    const O = loadOBD(mock.bluetooth);
+    const ok = await O.tryAutoConnect();
+    expect(ok).toBe(true);
+    expect(O.isConnected()).toBe(true);
+    expect(mock.requestDeviceCalls).toBe(0); // ★チューザー(requestDevice)を出さず自動接続★
+  });
+
+  it('予期せぬ切断は同一デバイスへ自動再接続(チューザー出さない)', async () => {
+    const mock = makeMockBluetooth();
+    const O = loadOBD(mock.bluetooth);
+    O._setReconnectDelayForTest(10);
+    await O.connect();
+    expect(O.isConnected()).toBe(true);
+    expect(mock.requestDeviceCalls).toBe(1);
+    mock.fireDisconnect(); // 走行中の瞬断
+    expect(O.isConnected()).toBe(false);
+    await tick(80); // 自動再接続待ち
+    expect(O.isConnected()).toBe(true); // ★自動復帰★
+    expect(mock.requestDeviceCalls).toBe(1); // ★再接続でチューザーは出さない(connect時の1回のみ)★
+  });
+
+  it('明示 disconnect() は自動再接続しない', async () => {
+    const mock = makeMockBluetooth();
+    const O = loadOBD(mock.bluetooth);
+    O._setReconnectDelayForTest(10);
+    await O.connect();
+    O.disconnect();
+    await tick(80);
+    expect(O.isConnected()).toBe(false); // 再接続しない
+    expect(O.getStatus()).toBe('idle');
   });
 });

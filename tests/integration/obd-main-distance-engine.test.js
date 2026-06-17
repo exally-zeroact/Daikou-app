@@ -82,7 +82,14 @@ const stubDec = {
   },
 };
 // OBDメイン枝は adaptiveMode!==true で発火(本番 DEFAULTS と同じ)
-const OBD_OPT = { useSnapCache: false, enableRouting: false, adaptiveMode: false };
+// ★obdQuantCorrectMps:0★ = +0.5km/h floor回収(全車普遍補正)を切り、純 ∫v(=spd×dt)の機構を検証する。
+//   量子化補正の改善&過大ゼロは専用ゲート(truedist-obd-engine-gate --quant)で担保。
+const OBD_OPT = {
+  useSnapCache: false,
+  enableRouting: false,
+  adaptiveMode: false,
+  obdQuantCorrectMps: 0,
+};
 const T0 = 1_700_000_000_000;
 
 function load(file) {

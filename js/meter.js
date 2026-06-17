@@ -49,18 +49,82 @@ const Meter = (() => {
   //   ・never-over: 学習基準=認定メーター読み(検定上タイヤ真値以下) → k適用後 ≤ cert ≤ 真値
   //   ・既定 k=1.0 で全乗算が恒等=現行 1byte 不変 (cert-gate/parity 影響ゼロ)
   const VK_MIN = 0.9;
-  const VK_MAX = 1.01;
+  //   ★VK_MAX 1.02 (2026-06-12・source-aware化で安全に引上げ)★: 随伴車k は ★OBD∫v駆動distanceだけ★に
+  //   適用する source-aware 化により、GPS距離が k で過大化する経路を断った。よって OBD車が必要とする
+  //   k≈1.02(196号KP RTH実証: δ-OFF OBD生-2.11%×1.02=-0.16%=真値の下)へ上限を上げても過大ゼロを保つ。
+  //   GPS駆動は常に×1.0(上記 source-aware)なので VK_MAX 引上げの影響を受けない。
+  const VK_MAX = 1.02;
+  // ★cert-K cross-profile 保守マージン (2026-06-15・監査③是正)★: 測定K=真距離/OBD実測 は floor量子化の
+  //   速度依存で 1/rf より僅か上振れ→較正と走行の速度分布が違うと per-step 過大しうる。較正値に ×0.997 を
+  //   掛けて吸収(代表速度較正×無作為走行で 0/10000 過大ゼロ・平均-0.5%実測)。検定は代表速度で行う前提。
+  const CERTK_SAFETY = 0.997;
   let _activeVehicleK = 1.0; // 業務開始でロックされる適用係数
+  // ★代行距離係数 (2026-06-18・司さん確定「DM−0.2%は"距離計算式"に入れる」)★:
+  //   距離増分(cal/gapCal)に乗算し distance_m / business_distance_m を DM−0.2% に着地させる。
+  //   料金=calcFare(distance_m) / display / 総走行 は distance_m に従う(料金に係数は掛けない)。
+  //   ★1.0=byte不変(タクシー認定/テスト/cert-gate)。代行は loadSettings がシステム固定値(≈1.011)を自動適用★。
+  //   操作者は触らない。タクシー認定運用は 1.0(過大ゼロ法要件・distance_m≤真距離)。
+  let _daikouDistFactor = 1.0;
+  function setDaikouDistanceFactor(f) {
+    _daikouDistFactor = typeof f === 'number' && f >= 1.0 && f <= 1.05 ? f : 1.0;
+  }
   function _clampVK(k) {
     return typeof k === 'number' && isFinite(k) ? Math.min(VK_MAX, Math.max(VK_MIN, k)) : 1.0;
   }
+  // ★Factory較正(既存実測データ由来・型式別)★: 据付検定前でも、既に真距離(196号KP RTK)で採点済の
+  //   型式は その測定Kを工場出荷較正として未較正でも適用し精度を出す(=既存データを実機で再採取させない)。
+  //   tire器差は個体差ありで model prior だが、cross-profileマージン込みで過大ゼロ側に倒した保守値。
+  //   ・MG33S(モコ・145/80R13): 196号KP RTK実測 OBD∫v -2.11%/-2.38% → K=1.018(=1.0216×0.997・≤真値両窓)。
+  //   ★ユーザー個体較正(k_samples>0)が有れば そちら優先(個体実測 > model prior)。検定時に上書きされる前提★。
+  const FACTORY_K = { MG33S: 1.018 };
+  function _factoryK(prof) {
+    if (!prof) return 0;
+    const key = prof.katashiki || prof.model || '';
+    const fk = FACTORY_K[key];
+    return typeof fk === 'number' && fk > 0 ? fk : 0;
+  }
+  // ★認定据付測定K を worker(pipeline)へ通知 (2026-06-15・認定前提)★:
+  //   個体較正(k_samples>0)優先 → 無ければ factory較正(既存データ由来・型式別) → 無ければ 0(従来自動)。
+  //   meter は距離に k を乗じない(_kForDelta=1.0・source-aware)→ pipeline obdVehicleK で OBD駆動のみ適用=二重なし。
+  function _postVehicleK() {
+    try {
+      if (!mmWorker || typeof mmWorker.postMessage !== 'function') return;
+      const prof = (typeof window !== 'undefined' && window.DK_VEHICLE_PROFILE) || null;
+      let vk = 0;
+      let vkMeasured = false; // ★実測K(k_samples>0=そのタイヤで真距離測定済)か factory prior か★
+      if (prof) {
+        if (prof.k_samples > 0 && typeof prof.k === 'number') {
+          vk = _clampVK(prof.k); // 個体実測較正(検定/巻尺/KP)優先
+          vkMeasured = true; // 実測K=タイヤ込み較正 → pipeline でタイヤ比を抑制(二重回避)
+        } else {
+          const fk = _factoryK(prof);
+          if (fk > 0) vk = _clampVK(fk); // factory(型式別prior=タイヤ非依存)→ vkMeasured=false でタイヤ比併用
+        }
+      }
+      // ★タイヤ円周比(今÷工場・物理サイズ変更補正)は vk(器差)とは独立フィールド★。
+      //   k無しプロファイルでもタイヤ比は送る(audit②是正: vk分岐の外=サイドバイサイド)。値は index.html ヘルパが確定。
+      let tireRatio = 1.0;
+      if (prof && typeof prof.tireRatio === 'number' && prof.tireRatio > 0)
+        tireRatio = prof.tireRatio;
+      mmWorker.postMessage({
+        type: 'configVehicle',
+        vehicleK: vk,
+        vehicleKMeasured: vkMeasured,
+        tireRatio,
+      });
+    } catch (_) {
+      /* best-effort・課金距離は pipeline 側の健全域クランプで保護 */
+    }
+  }
   function _resolveVK() {
     try {
-      return typeof window !== 'undefined' &&
-        window.DK_VEHICLE_PROFILE &&
-        typeof window.DK_VEHICLE_PROFILE.k === 'number'
-        ? window.DK_VEHICLE_PROFILE.k
-        : 1.0;
+      const prof = (typeof window !== 'undefined' && window.DK_VEHICLE_PROFILE) || null;
+      if (prof) {
+        if (prof.k_samples > 0 && typeof prof.k === 'number') return prof.k; // 個体較正優先
+        const fk = _factoryK(prof);
+        if (fk > 0) return fk; // factory較正
+      }
+      return 1.0;
     } catch (_) {
       return 1.0;
     }
@@ -266,8 +330,16 @@ const Meter = (() => {
       lastMmUsefulAt = Date.now();
       // 参照値 mirror (= 後方互換 stats・mm_distance_m は ★RAW★・校正前監査ベースライン温存)
       state.mm_distance_m += delta;
-      // ★随伴車別 k 校正★: 課金距離/業務距離は raw × _activeVehicleK (k=1.0 で恒等=1byte不変)
-      const cal = delta * _activeVehicleK;
+      // ★OBD per-vehicle k は pipeline ラチェット(kNow)へ一本化 (2026-06-13・司さん裁定A)★:
+      //   旧: meter が OBD delta に手動 _activeVehicleK を乗算(source-aware k)。
+      //   新: pipeline-distance が ★Doppler自動ラチェット(kNow)で per-vehicle スケールを既に適用済★。
+      //   ∴ meter で再度 _activeVehicleK を掛けると ★二重適用=過大課金(過大ゼロ違反)★ になる。
+      //   よって meter は OBD/GPS とも ×1.0(恒等)。手動k UI/永続(_activeVehicleK/calibrateVehicleK)は
+      //   dormant(距離に非作用)。過大ゼロは pipeline の Doppler下側分位天井(min(vEff·dt·k_now, k_p25·dt))が構造保証。
+      const _kForDelta = 1.0;
+      // ★代行距離係数を距離計算式に乗算 → distance_m が DM−0.2% に着地 (料金/表示/総走行は追従)★。
+      //   既定1.0=byte不変。mm_distance_m(L323)は RAW(係数なし)=cert/監査ベースライン温存。
+      const cal = delta * _kForDelta * _daikouDistFactor;
       // 課金距離 (running gate・絶対不可侵経路)
       if (state.running) {
         state.distance_m += cal;
@@ -331,6 +403,7 @@ const Meter = (() => {
     //   業務中 (business_active=true) は ★ロック維持★ (start/resume で再解決しない=業務別不変)。
     if (!state.business_active) {
       _activeVehicleK = _clampVK(_resolveVK());
+      _postVehicleK(); // 業務開始ロック時に較正済測定K を pipeline へ(未較正は0=従来自動)
     }
     const WARMUP_MAX_AGE_MS = 5000;
     const warmupValid =
@@ -577,9 +650,10 @@ const Meter = (() => {
         const spdKmh = Math.min(gpsResult.speedKmh, GAP_FILL_MAX_KMH);
         const gapM = (spdKmh / 3.6) * gapSec;
         if (gapM > 0) {
-          // ★k 校正の穴を塞ぐ★: Worker B 不在 (E2E/startup/loadfill) でも同一 _activeVehicleK を適用。
+          // ★source-aware (2026-06-12)★: gap-fill は GPS速度×時間(loadfill/E2E)= ★OBD∫v駆動でない★
+          //   → 随伴車k 非適用(×1.0)。VK_MAX=1.02 でも GPS由来のgapが過大化しない(過大ゼロ)。
           //   gap_fill_total_m (stat) は RAW 維持。
-          const gapCal = gapM * _activeVehicleK;
+          const gapCal = gapM * _daikouDistFactor; // ★代行距離係数(DM−0.2%着地)。gap_fill_total_m(stat)は RAW★
           state.distance_m += gapCal;
           state.fare_yen = calcFare(state.distance_m);
           state.distanceSource = roadsLoading ? 'loadfill' : 'gap';
@@ -1079,7 +1153,8 @@ const Meter = (() => {
       return { ok: false, reason: 'business_too_short', k: _resolveVK() };
     }
     const kActive = _activeVehicleK > 0 ? _activeVehicleK : 1.0;
-    const sample = kActive * (certMeterMeters / D); // = cert / raw (複利安全)
+    // ★cert-K cross-profile マージン適用★: sample(=cert/raw) に ×0.997 で速度分布差の過大を吸収。
+    const sample = kActive * (certMeterMeters / D) * CERTK_SAFETY; // = cert / raw × 保守マージン
     if (Math.abs(sample / kActive - 1) > 0.05) {
       return { ok: false, reason: 'outlier_jump', k: _resolveVK() };
     }
@@ -1104,6 +1179,7 @@ const Meter = (() => {
     } catch (_) {
       /* persistence best-effort・課金距離には影響しない */
     }
+    _postVehicleK(); // 較正確定 → pipeline へ測定K反映(次業務から距離に焼く)
     return {
       ok: true,
       k: kNew,
@@ -1125,6 +1201,7 @@ const Meter = (() => {
     //     かつ常に _clampVK で ≤VK_MAX のため never-over は再ロックでも不変 (監査確認済 2026-06-09)。
     if (!!active && !state.business_active) {
       _activeVehicleK = _clampVK(_resolveVK());
+      _postVehicleK(); // 業務開始ロック時に較正済測定K を pipeline へ(未較正は0=従来自動)
     }
     state.business_active = !!active;
   }
@@ -1400,6 +1477,7 @@ const Meter = (() => {
     getSurchargeMultiplier,
     setVehicleType,
     getVehicleType,
+    setDaikouDistanceFactor, // ★代行距離係数(DM−0.2%着地)。システムが固定値を loadSettings で適用★
     latchDisplay: _latchDisplay,
     // ★テスト用 escape hatch (prod からは呼ばない)
     _setDrainMmUntil: function (t) {

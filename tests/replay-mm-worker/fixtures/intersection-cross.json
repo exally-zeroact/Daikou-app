@@ -1,12 +1,12 @@
 {
   "meta": {
     "name": "intersection-cross-200m",
-    "description": "ehime road 66853 (= 正解・941m・typeCode 4 tertiary・oneway 東向き・bearing 90度) が junction (= 33.82173, 132.76549) で・road 122 (= 競合・295m・tc 4・oneway 西向き・bearing 270度・反対車線並列)・road 64102 (= 競合・202m・tc 4・南向き・bearing 179度・直交)・road 66854 (= 競合・529m・tc 4・北向き・bearing 358度・直交) と・4 方向直交交差。全 road が同 typeCode 4 (= 自明回避・typeCode boost で差別化不可)。trace は正解 66855 seg 0→1 の 0→0.30 部分 (= 約 200m・進入+交差+退出区間) を 50 step に分割 (= 4m/step・市街地徐行 14.4km/h)・warmup 10 を償却して post-warmup を厚く。GPS noise は実機相当 default (= 10m/3m/2%)。junction 内では・accuracy 10m noise が 122 (反対車線)・64104 (南直交)・66856 (北直交) 寄りに振れる可能性・特に 122 は同一道路 axis 上で oneway 違反となるため Worker B の T10 lane scoring が判別する想定。A-2 検証: GPS heading 約 90度 (= 正解の bearing 一致) → boost on で 66855 が +10% / 122 (= bearing 270 度・無向で 0 度・同じ axis) は同 boost を受ける → 直交 64104/66856 のみ -10% で差別化される角度系 fixture。",
+    "description": "ehime road 66851 (= 正解・941m・typeCode 4 tertiary・oneway 東向き・bearing 90度) が junction (= 33.82173, 132.76549) で・road 122 (= 競合・295m・tc 4・oneway 西向き・bearing 270度・反対車線並列)・road 64100 (= 競合・202m・tc 4・南向き・bearing 179度・直交)・road 66852 (= 競合・529m・tc 4・北向き・bearing 358度・直交) と・4 方向直交交差。全 road が同 typeCode 4 (= 自明回避・typeCode boost で差別化不可)。trace は正解 66855 seg 0→1 の 0→0.30 部分 (= 約 200m・進入+交差+退出区間) を 50 step に分割 (= 4m/step・市街地徐行 14.4km/h)・warmup 10 を償却して post-warmup を厚く。GPS noise は実機相当 default (= 10m/3m/2%)。junction 内では・accuracy 10m noise が 122 (反対車線)・64104 (南直交)・66856 (北直交) 寄りに振れる可能性・特に 122 は同一道路 axis 上で oneway 違反となるため Worker B の T10 lane scoring が判別する想定。A-2 検証: GPS heading 約 90度 (= 正解の bearing 一致) → boost on で 66855 が +10% / 122 (= bearing 270 度・無向で 0 度・同じ axis) は同 boost を受ける → 直交 64104/66856 のみ -10% で差別化される角度系 fixture。",
     "prefecture": "ehime",
     "true_speed_kmh": 14.4,
     "ground_truth_segments": [
       {
-        "roadIndex": 66853,
+        "roadIndex": 66851,
         "segmentIndex": 0,
         "t_start": 0,
         "t_end": 0.3,
@@ -15,8 +15,8 @@
     ],
     "competing_road_indices": [
       122,
-      64102,
-      66854
+      64100,
+      66852
     ],
     "noise_model": {
       "seed": 44,

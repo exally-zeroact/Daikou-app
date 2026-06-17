@@ -72,6 +72,11 @@ function loadMeter(opts) {
   ctx.window = ctx;
   ctx.globalThis = ctx;
   ctx.self = ctx;
+  // ★随伴車別 k 注入 (opt-in・テスト用)★: meter.js は window.DK_VEHICLE_PROFILE.k を _resolveVK で読む。
+  //   opts.vehicleProfile 未指定なら従来通り (profile 不在 → k=1.0 恒等 = byte 不変)。
+  if (opts.vehicleProfile && typeof opts.vehicleProfile === 'object') {
+    ctx.DK_VEHICLE_PROFILE = opts.vehicleProfile;
+  }
   vm.createContext(ctx);
   const meterSrc =
     fs.readFileSync(path.join(JS_DIR, 'meter.js'), 'utf8') + '\n;globalThis.Meter = Meter;\n';

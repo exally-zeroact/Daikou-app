@@ -36,8 +36,8 @@ describe('drift-static: meter.js 距離駆動は pipeline delta 単一経路 (�
       }
     }
     // ★白紙書き直し後 distance_m 書込経路は 3 経路 (2026-06-09・随伴車別k校正を反映):
-    //   #1 += cal    : pipeline delta の随伴車別k校正 (cal = delta × _activeVehicleK・道なり区間増分)
-    //   #2 += gapCal : gap補完の随伴車別k校正 (gapCal = gapM × _activeVehicleK・速度×時間)
+    //   #1 += cal    : pipeline delta の source-aware k校正 (cal = delta × _kForDelta・OBD駆動のみ随伴車k)
+    //   #2 += gapCal : gap補完 (gapCal = gapM × 1.0・GPS速度×時間・k非適用=過大ゼロ)
     //   #3 = v       : setDistance 復元代入
     //   いずれも GPS 直線 (haversine) 課金ではない (C3 で GPS.calcDistance 0 を別途保証)。
     //   ★k は ★同一 pipeline delta / gapM に対するスカラー器差★ であり新規距離源ではない
@@ -70,14 +70,14 @@ describe('drift-static: meter.js 距離駆動は pipeline delta 単一経路 (�
           matchedLines[2].content
       );
     }
-    // ★単一源不変の強化★: cal/gapCal は ★pipeline delta / gapM の k 倍★ であり、別距離源でない事を検証。
-    if (!/const\s+cal\s*=\s*delta\s*\*\s*_activeVehicleK\b/.test(source)) {
-      throw new Error(
-        '述語 C 違反: cal は `delta * _activeVehicleK` (pipeline deltaのk校正) のはず'
-      );
+    // ★単一源不変の強化 (source-aware・2026-06-12)★: cal は pipeline delta × _kForDelta(OBD駆動のみk)
+    //   × _daikouDistFactor、gapCal は gapM × _daikouDistFactor。別距離源(haversine等)でない事を検証。
+    //   ★_daikouDistFactor (2026-06-18・司さん確定): 代行DM−0.2%着地を距離計算式に入れるスカラー(既定1.0=byte不変)★。
+    if (!/const\s+cal\s*=\s*delta\s*\*\s*_kForDelta\s*\*\s*_daikouDistFactor\b/.test(source)) {
+      throw new Error('述語 C 違反: cal は `delta * _kForDelta * _daikouDistFactor` のはず');
     }
-    if (!/const\s+gapCal\s*=\s*gapM\s*\*\s*_activeVehicleK\b/.test(source)) {
-      throw new Error('述語 C 違反: gapCal は `gapM * _activeVehicleK` (gap補完のk校正) のはず');
+    if (!/const\s+gapCal\s*=\s*gapM\s*\*\s*_daikouDistFactor\b/.test(source)) {
+      throw new Error('述語 C 違反: gapCal は `gapM * _daikouDistFactor` のはず');
     }
   });
 

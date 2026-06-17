@@ -24,10 +24,13 @@ const stubDecoder = {
 function newTracker() {
   // ★OBD ∫v 全駆動は adaptiveMode(2026-06-09出荷)では廃止(実機-3.86%悪化)。
   //   本テスト群は rollback 経路(adaptiveMode:false=従来 OBD ∫v)の契約を固定する。★
+  // ★obdQuantCorrectMps:0★ = +0.5km/h floor回収(全車普遍補正)を切り、純 ∫v(=spd×dt)契約を固定する。
+  //   量子化補正の改善&過大ゼロは専用ゲート(truedist-obd-engine-gate --quant)で担保。
   return PD.createDistanceTracker(stubDecoder, {
     useSnapCache: false,
     enableRouting: false,
     adaptiveMode: false,
+    obdQuantCorrectMps: 0,
   });
 }
 

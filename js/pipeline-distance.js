@@ -167,9 +167,73 @@ const DEFAULTS = {
   //     ON -1.12%/-1.51% = 過大ゼロ維持(≤真距離)のまま誤差 ~1pt 改善・obdSegs=2485 実発火。
   //   ★cur.obd===true 区間のみ作用★ = GPS経路(OBD未接続/iPhone)は δ 非作用で byte不変(L1735ゲート)。
   //   OFF へ戻すのはこの 1 行のみ (rollback)。
-  obdDeltaCalib: true, // δ自己キャリブ有効化 (1行ON/OFF・rollback用)
+  // ★★2026-06-12 既定 OFF へ変更 (司さんアーキ: OBD+センサーメイン・GPSを距離から外す)★★:
+  //   δは「良GPS区間で GPS距離−OBD∫v」= ★GPSを距離補正に使う★ → OBDメイン方針と矛盾。さらに
+  //   随伴車別 手動k(真距離校正・source-aware)と ★二重補正★ になり過大化(実証: δ-ON×k1.02=+0.74%過大)。
+  //   ∴ OBD車は ★δ-OFF + OBD∫v×手動k★ に一本化(GPS除去+二重補正回避)。δ-OFF生-2.11%×k1.02=-0.16%(真値下)。
+  //   未校正(k=1.0)時はδ-OFF=-2.11%(バンド内・過大ゼロ)で、手動k校正で-1%以内へ。memory:
+  //   project_daikome_obd_sensor_main_architecture_2026-06-12。ON へ戻すのはこの 1 行のみ。
+  obdDeltaCalib: false, // ★δ自己キャリブ 既定OFF (GPS依存+kと二重補正のため・OBD車はk一本)★
+
   obdDeltaMinMps: -0.139, // δ下限 (-0.5km/h・OBD過大読み端末対策)
   obdDeltaMaxMps: 0.139, // δ上限 (+0.5km/h・floor過小補正の物理上限=never-over)
+  // ★★OBD量子化補正 obdQuantCorrectMps (2026-06-13・全車普遍・manual k/GPS δ 不要)★★:
+  //   OBD車速(PID010D)は1km/h刻みで ★切り捨て(floor)★ → ∫v が systematically 過少(196号KP実測 -2〜-2.5%)。
+  //   真の速度は[v,v+1)km/hで平均 v+0.5 → 各点に +0.5km/h(=0.139m/s) 足せば ★車によらず普遍的に★
+  //   量子化floor過少を回収(GPS基準δも随伴車別manual kも不要・どの車でも自動)。実証(196号KP RTK):
+  //   ∫v -2〜-2.5% → +0.5km/h で -1〜-1.4%(改善・残差はタイヤ器差で別)。★移動中(spd≥stationary)のみ
+  //   適用=停車(OBD≈0)で足すとcreep製造で認定要件破る→非適用。δ-ON時はδが量子化込み補正するので
+  //   二重補正回避でquant非適用(applyDelta時は足さない)。never-over: floor過少≥補正なので真値超えない。
+  //   0 で完全OFF(rollback・1行)。bd.obdRawM(監査raw∫v)は補正前のまま。
+  obdQuantCorrectMps: 0.139, // +0.5km/h 量子化floor補正 (既定ON・全車普遍・rollback=0)
+  // ★★OBDティア 過大ゼロ天井 + 精度ラチェット (2026-06-13・赤チーム致命穴是正)★★:
+  //   OBD∫v は摩耗で過大読みのECU(PID010D)だと真速度を超え、天井ゼロで焼くと過大ゼロ(認定 over=0・法的)を破る。
+  //   車輪非経由の独立速度=GNSS Doppler(cur.dopMps=搬送波由来=タイヤ器差ゼロ)を使うが、★窓に貯めるのは絶対速度でなく
+  //   比 r = Doppler/vEff (=タイヤ器差スケール)★。速度は速く変動するが器差スケールは~一定なので、窓 p25 が
+  //   「保守的な真スケール k_p25」を与える。obdDelta = vEff·dt·min(k_now, k_p25) で過大ゼロ。
+  //   ★絶対速度の窓 p25 を天井にすると変速時に遅い窓値で速い区間を刈り過少暴走する(実走検証で-16%判明)→比方式で是正★。
+  //   Doppler無し区間(トンネル)は k_now 保持(業務内不変=死区間も正確)。0 で完全OFF(rollback)。
+  obdDopplerCeiling: true, // OBD∫v に Doppler由来スケール天井を適用 (過大ゼロ・既定ON)
+  obdDopWinSec: 30, // 比(スケール)窓長(s)
+  obdDopMinN: 5, // この比点数貯まるまで下側分位非適用→cold-start k0 が保護
+  obdDopQuantile: 0.25, // 比の下側分位(p25)=保守的真スケール・上向きスパイク棄却
+  obdRatioMinSpd: 2.8, // 比を取る最低速度(m/s=10km/h・低速の比ノイズ除外)
+  obdRatioMax: 1.1, // 比の上側クランプ(マルチパス上向きスパイクの比爆発を構造遮断)
+  // ★cold-start k0★: Doppler窓が貯まる前(dopMsは来てるが点数不足)の保守スケール。摩耗で過大読みのECUを
+  //   真距離以下に抑える物理上限=1/(1+δ_max)。δ_max≈3%(タイヤサイズ既知での摩耗+空気圧)→k0≈0.97。
+  //   ★dopMs を一度も観測してない区間(旧fixture/GPS皆無)では非適用=既存挙動byte不変(過大ゼロは別経路)★。
+  obdColdStartK: 0.97, // cold-start 保守スケール (1/(1+δ_max))
+  // ★契約タイヤ申告時のみ true★: Doppler を一度も観測してない区間(GPS皆無/長トンネル始端)でも
+  //   cold-start k0 を床に適用し、現状の ×1.0 フォールバック(=過大読みECUがそのまま真値超しうる
+  //   過大ゼロの穴・property honest-limit)を塞ぐ。既定 false で従来 ×1.0 byte不変。
+  //   ★この穴は過大読み車のみ問題(k0<1で刈る)。過少読み車には k0<1 が cold-start で僅か過小化するが
+  //   Doppler確立後はラチェットが回収=実害は始端数秒のみ。契約タイヤ車だけ穴を塞ぐ安全側設定。★
+  obdColdStartApplyNoDop: false,
+  // ★精度ラチェット★: k_now を Doppler観測スケール k_obs=p25/vEff へ★上方向のみ★前進(EWMA平滑)。
+  //   過少読み車(モコ等)の vEff·k_now を真値へ回収。業務内 k は単調増加のみ(後退ゼロ=認定要件)。
+  //   過大ゼロは天井(B)が独立保証。obdKMax(=VK_MAX相当)で一方向ハードクランプ。0/false で OFF(天井のみ)。
+  obdRatchet: true, // 精度ラチェット (既定ON・過大ゼロは天井が独立保証)
+  obdKMax: 1.02, // k_now 一方向上限 (VK_MAX相当・過大ゼロ余地内)
+  // ★★認定据付K (2026-06-15・認定前提・per-vehicle真距離測定値を焼く)★★:
+  //   認定(計量法タイヤパルス)取得時、据付ローラーで実車の真距離を1回測り K=真距離/OBD実測 を確定=法定工程。
+  //   その★測定K★を距離に焼く: >0 のとき obdDelta = (生spd)·dt·obdVehicleK で Doppler天井/ラチェットをバイパス。
+  //   ★盲目の全車一律1.02との違い★: K は測定値なので、過少読み車は K>1(floor回収)・過大読み車は K<1(真値直下)。
+  //     ∴ 過大読み車(摩耗小径)でも K<1 で真値を超えない=過大ゼロが測定で構造保証(盲目1.02は過大読みで違反)。
+  //   量子化補正(+0.5)とは★択一★(K=真距離/OBD実測は floor分を内包)→ obdVehicleK>0 のとき _quantMps=0。
+  //   never-over: K は ≤真値の基準(基準ローラー/巻尺)で較正・VK_MAX(=obdKMax)上限クランプ。
+  //   実測根拠: OBD生∫v -2.11%/-2.38%(196号KP RTK) × K≈1.02 = -0.16%/-0.42%(-1%以内)。
+  //   ★0 で完全OFF(byte不変・rollback)。未較正車は0=従来ラチェット/天井(自動推定・-1.2%圏)。★
+  obdVehicleK: 0, // 認定据付測定K (0=OFF/未較正=従来自動・>0=測定Kを焼く)
+  // ★obdVehicleK が「実測K(k_samples>0=そのタイヤで真距離測定済)」か「factory prior(型式器差推定=タイヤ非依存)」か★
+  //   true=実測K → そのタイヤ込みの較正なのでタイヤ比は二重回避で 1.0 に落とす(タイヤ交換時はK再較正が必要)。
+  //   false=factory prior(既定) → タイヤ非依存の器差priorなので obdTireRatio と★併用OK★(物理サイズ変換は直交)。
+  obdVehicleKMeasured: false,
+  // ★タイヤ円周比(物理的真距離補正・2026-06-17)★: OBD車速はECUが工場タイヤ円周で換算済み=
+  //   真距離 = OBD × (今の円周 ÷ 工場円周)。★比 = 今÷工場★(タイヤが大きい=実距離増→比>1で上げる)。
+  //   1.0=恒等(byte不変・タイヤ未変更/未申告)。★vEff段(Doppler天井の手前)で乗算★するので、
+  //   非K経路では天井が「タイヤ補正後vEff」を独立Doppler速度で再検証=過大方向の誤補正を自動で刈る安全網。
+  //   実測K(obdVehicleKMeasured=true)経路ではタイヤ込み較正のため非適用(=1.0扱い)。
+  obdTireRatio: 1.0,
   calMinWindowS: 30, // この秒数の良GPS移動を貯めて δ を1回確定 (業界標準の dwell)
   calMaxChordRatio: 1.5, // GPS弦 > spd×dt×これ = ジッタ汚染窓 → δ母集団から除外
   calMaxAccM: 30, // 両端 accuracy これ超 = 位置不確か → δ母集団から除外 (良GPS窓のみ学習)
@@ -1683,6 +1747,42 @@ function stepDistance(
 // reason 値: 'first' | 'stationary' | 'sameRoad' | 'routed' | 'straight' | 'doppler'
 //   | 'skip' (無効点) | 'out_of_order' (t 逆転で破棄)
 //   (区間の分類。課金境界差込時のデバッグ/監査用。calcFare は一切呼ばない。)
+
+// ★下側分位 (p25等)★: 配列の q 分位を線形補間で返す (空=-1)。OBDティア過大ゼロ天井で
+//   Doppler窓の保守的真速度推定に使用。p25は上向きマルチパススパイク(上位75%)を構造的に無視する。
+function _lowerQuantile(arr, q) {
+  if (!arr || arr.length === 0) return -1;
+  const s = arr.slice().sort((a, b) => a - b);
+  if (s.length === 1) return s[0];
+  const idx = q * (s.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return s[lo];
+  return s[lo] + (s[hi] - s[lo]) * (idx - lo);
+}
+
+// ★契約タイヤ仕様 → cold-start k0 (2026-06-15・会議生存解②)★
+//   会議結論: 観測(OBD+Doppler)だけでタイヤ器差は取れない(情報理論)。唯一足せる安全な入力=★契約時タイヤ設定★。
+//   cold-start k0(=Doppler窓充足前/Doppler皆無トンネルでの保守スケール床) を、車一律0.97(=1/1.03=δ_max3%最悪
+//   過大読み想定)でなく ★その車のタイヤ申告で δ_max を狭めて床を上げる★。per-step Doppler天井/ラチェット/quantは
+//   一切触らない(過大ゼロの砦は不変)。これは「Doppler不在時の床」であって天井を緩めない。
+//   ★過大ゼロ安全条件★: k0 = 1/(1+δ) ≤ 真スケール s=真/vEff (申告が正なら worst車の s_min=1/(1+δ) と一致)。
+//   ∴ clamp 上限1.0(過大方向禁止)・下限0.97(現状未満禁止)。申告なし/unknown は 0.97(=既定・byte不変)。
+//   honest limit: 申告が虚偽(実際は申告より小径タイヤ)だと cold-start で過大化しうる(認定は現車確認で排除)。
+function tireSpecToK0(spec) {
+  if (!spec || typeof spec !== 'object') return 0.97;
+  // condition: タイヤ摩耗状態 → 最悪過大読みマージンの基底
+  const condMargin = { new: 0.01, normal: 0.018, worn: 0.028, unknown: 0.031 };
+  let delta = condMargin[spec.condition] != null ? condMargin[spec.condition] : 0.031;
+  // sizeDeltaPct: 申告タイヤ円周 vs OEM(%)。負(OEMより小径)=より過大読み→マージン増。正(大径)=過少方向で安全=据置。
+  if (typeof spec.sizeDeltaPct === 'number' && isFinite(spec.sizeDeltaPct) && spec.sizeDeltaPct < 0)
+    delta += Math.min(0.05, -spec.sizeDeltaPct / 100);
+  // 冬タイヤ等の温度/摩耗分散を僅か上乗せ(保守)
+  if (spec.season === 'winter') delta += 0.005;
+  const k0 = 1 / (1 + delta);
+  return Math.max(0.97, Math.min(1.0, k0)); // 下限0.97(現状未満禁止)・上限1.0(cold-startで過大方向禁止)
+}
+
 function createDistanceTracker(decoder, opts) {
   opts = opts || {};
   const cfg = {};
@@ -1714,6 +1814,13 @@ function createDistanceTracker(decoder, opts) {
   let calTimeS = 0; // 同窓の移動時間 累積 (s)
   let obdDeltaMps = 0; // 学習済 δ (m/s)
   let obdDeltaInit = false; // δ を1回でも確定したか
+  // ★OBDティア過大ゼロ天井 状態★: 直近 obdDopWinSec の 比 r=Doppler/vEff (タイヤ器差スケール) を貯め
+  //   下側分位(p25)=保守的真スケール k_p25 を得る。絶対速度でなく比を貯めるのが核(変速で過少暴走しないため)。
+  let kWin = []; // [{t, r(=dop/vEff)}] リングバッファ (窓長 obdDopWinSec)
+  // ★精度ラチェット状態★: k_now=業務内の適用スケール(上方向のみ)・kEwma=観測スケールの平滑値。
+  let kNow = -1; // 業務内ラチェットk (-1=未確定→cold-start k0/従来挙動)
+  let kEwma = 0; // k_obs の EWMA 平滑値
+  let kEwmaInit = false; // kEwma を1回でも確定したか
   // breakdown/stats を区間分類のため保持 (stepDistance が要求する構造)
   let bd, stats;
   function freshAccum() {
@@ -1871,16 +1978,100 @@ function createDistanceTracker(decoder, opts) {
         //   学習ゲート(L1744 spd≥stationarySpdMps)と対称に、適用も移動区間に限定=停車で δ 非作用。
         const applyDelta =
           cfg.obdDeltaCalib === true && obdDeltaInit && spd >= cfg.stationarySpdMps;
-        const vEff = applyDelta ? spd + obdDeltaMps : spd;
-        obdDelta = (vEff > 0 ? vEff : 0) * dtObd;
+        // ★量子化補正 (+半量子・1km/h floor回収・全車普遍・2026-06-13)★: δ非適用かつ移動中(spd≥stationary)
+        //   のみ +0.5km/h。停車(OBD≈0)は creep製造防止で非適用。δ-ON時はδが量子化込み補正=二重回避で非適用。
+        const _quantMps =
+          cfg.obdVehicleK > 0 // 認定据付測定K採用時は量子化と択一(K=真/OBD実測がfloor内包・二重補正回避)→ quant OFF
+            ? 0
+            : !applyDelta && spd >= cfg.stationarySpdMps && cfg.obdQuantCorrectMps > 0
+              ? cfg.obdQuantCorrectMps
+              : 0;
+        // ★タイヤ円周比を vEff 段(=Doppler天井の手前)で乗算 (2026-06-17・blocker①修正)★:
+        //   後段(_kApply の後)で掛けると min(k_now,k_p25) 天井を突き抜け過大ゼロを破る。vEff 段に入れると
+        //   下流の Doppler 天井が「タイヤ補正後の vEff」を独立速度で再検証=過大方向の誤補正を自動で刈る。
+        //   ★実測K(obdVehicleKMeasured)経路はタイヤ込み較正=二重回避で 1.0。factory prior/非K経路は適用★。
+        const _tireR =
+          cfg.obdVehicleK > 0 && cfg.obdVehicleKMeasured === true
+            ? 1.0
+            : cfg.obdTireRatio > 0
+              ? cfg.obdTireRatio
+              : 1.0;
+        const vEff = ((applyDelta ? spd + obdDeltaMps : spd) + _quantMps) * _tireR;
+        // ★★OBDティア 過大ゼロ天井 + 精度ラチェット (比方式・2026-06-13)★★:
+        //   車輪非経由の独立速度 Doppler(cur.dopMps=搬送波由来=タイヤ非経由)と vEff の ★比 r=dop/vEff
+        //   (=タイヤ器差スケール・~一定)★ を窓に貯め、下側分位 p25 = 保守的真スケール k_p25 を得る。
+        //   (A) ★精度ラチェット★: k_now を k_p25 へ★上方向のみ★前進(EWMA平滑・obdKMax上限)→過少読み車を真値回収。
+        //   (B) ★過大ゼロ天井★: k_apply=min(k_now, k_p25) で vEff·dt に乗算。k_p25≤真スケールなので過大ゼロ。
+        //   ★絶対速度の窓p25を天井にすると変速時に遅い窓値が速い区間を刈り過少暴走(実走-16%)→比方式で是正★。
+        //   Doppler無し(トンネル/GPS皆無)は k_now 保持・窓未充足は cold-start k0・dopMs皆無は従来∫v(byte不変)。
+        let _kP25 = -1;
+        if (cfg.obdDopplerCeiling !== false) {
+          const _dop = typeof cur.dopMps === 'number' ? cur.dopMps : -1;
+          if (_dop >= 0 && vEff >= cfg.obdRatioMinSpd) {
+            // 比 r=dop/vEff を上側クランプ(スパイクの比爆発遮断)して窓へ。
+            const _r = Math.min(_dop / vEff, cfg.obdRatioMax);
+            kWin.push({ t: cur.t || 0, r: _r });
+            const _winMs = cfg.obdDopWinSec * 1000;
+            while (kWin.length && (cur.t || 0) - kWin[0].t > _winMs) kWin.shift();
+          }
+          if (kWin.length >= cfg.obdDopMinN) {
+            _kP25 = _lowerQuantile(
+              kWin.map((x) => x.r),
+              cfg.obdDopQuantile
+            );
+          }
+        }
+        // (A) 精度ラチェット: k_p25(≤真スケール) を EWMA 平滑し k_now を上方向のみ更新(obdKMax 一方向クランプ)。
+        if (cfg.obdRatchet !== false && _kP25 >= 0) {
+          const _kObs = Math.min(cfg.obdKMax, _kP25); // ≤ obdKMax
+          kEwma = kEwmaInit ? cfg.calEwmaOld * kEwma + cfg.calEwmaNew * _kObs : _kObs;
+          kEwmaInit = true;
+          const _kBase = kNow > 0 ? kNow : cfg.obdColdStartK > 0 ? cfg.obdColdStartK : 1.0;
+          kNow = Math.max(_kBase, Math.min(cfg.obdKMax, kEwma)); // 後退ゼロ(単調)
+        }
+        // (B) 適用スケール k_apply = min(k_now, k_p25) ≤ 真スケール ⇒ 過大ゼロ。
+        //   Doppler有り: min(k_now, k_p25)で安全クランプ / Doppler無しだが k_now確定: 保持k_now(≤保守スケール) /
+        //   cold-start(Doppler観測済・窓未充足): k0 / dopMs皆無: 1.0(byte不変)。
+        let _kApply;
+        if (cfg.obdVehicleK > 0) {
+          // ★認定据付測定K★: Doppler per-step天井/ラチェットをバイパスし生spd×測定K。
+          //   過大ゼロは「Kが≤真値の基準で較正済」で保証(過少読みK>1/過大読みK<1)。
+          _kApply = cfg.obdVehicleK;
+        } else if (_kP25 >= 0) _kApply = kNow > 0 ? Math.min(kNow, _kP25) : _kP25;
+        else if (kNow > 0) _kApply = kNow;
+        else
+          _kApply =
+            cfg.obdColdStartK > 0 && (kWin.length > 0 || cfg.obdColdStartApplyNoDop)
+              ? cfg.obdColdStartK
+              : 1.0;
+        obdDelta = (vEff > 0 ? vEff : 0) * dtObd * _kApply;
         // ★raw ∫v(OBD)(k=1・δ未適用) 並行記録 (司さん要望)★: distance_m には一切影響させず、
         //   「今の OBD の素の精度」を真距離と突合する監査ベースラインとして bd.obdRawM に別積算する。
         //   k 補正/δ補正を入れる ★前★ の生車輪積分なので、これと真距離の差が補正係数の根拠になる。
         bd.obdRawM = (bd.obdRawM || 0) + (spd > 0 ? spd : 0) * dtObd;
+        // ★診断(距離に焼かない・distance_m不変=過大ゼロ不変)★:
+        //   ① 独立過大ゼロ監視: spike-clamp Doppler を独立基準に積算(≈真値の-2%下)。
+        //   ② ドリフト監視: 走行中 Doppler/OBD 比(=器差スケール)の累積平均→較正Kと乖離=タイヤ変化検知。
+        const _dopD = typeof cur.dopMps === 'number' && cur.dopMps >= 0 ? cur.dopMps : -1;
+        if (_dopD >= 0 && vEff > 0) {
+          bd.dopRefM = (bd.dopRefM || 0) + Math.min(_dopD, vEff * cfg.obdRatioMax) * dtObd;
+          if (vEff >= cfg.obdRatioMinSpd) {
+            bd.liveScaleSum = (bd.liveScaleSum || 0) + Math.min(_dopD / vEff, cfg.obdRatioMax);
+            bd.liveScaleN = (bd.liveScaleN || 0) + 1;
+          }
+        }
       }
       total += obdDelta;
       stats.obdSegs = (stats.obdSegs || 0) + 1;
       bd.obdM = (bd.obdM || 0) + obdDelta;
+      // ★診断警報(距離不変)★: ①OBD駆動距離 が Doppler独立基準×1.02(≈真値上限) を超えたら累積過大mを記録。
+      if (bd.dopRefM > 0 && bd.obdM > bd.dopRefM * 1.02)
+        bd.overcountWarnM = bd.obdM - bd.dopRefM * 1.02;
+      //   ②較正K と liveScale(器差観測) が >3% 乖離(=タイヤ変化/摩耗)→ 再較正促しフラグ。
+      if (cfg.obdVehicleK > 0 && bd.liveScaleN >= 30) {
+        const _live = bd.liveScaleSum / bd.liveScaleN;
+        if (_live > 0 && Math.abs(cfg.obdVehicleK / _live - 1) > 0.03) bd.kDriftWarn = true;
+      }
       coastSpdMps = spd; // 連続性: 次区間のフォールバック用に実速度を保持
       prev = cur;
       prevSnap = snap;
@@ -2185,6 +2376,10 @@ function createDistanceTracker(decoder, opts) {
       calTimeS = 0;
       obdDeltaMps = 0;
       obdDeltaInit = false;
+      kWin = [];
+      kNow = -1;
+      kEwma = 0;
+      kEwmaInit = false;
       smoothBuf = [];
       smoothNext = 0;
       freshAccum();
@@ -2209,6 +2404,7 @@ function createDistanceTracker(decoder, opts) {
   const api = {
     computeDistance: computeDistance,
     createDistanceTracker: createDistanceTracker,
+    tireSpecToK0: tireSpecToK0,
     RoadGraphRouter: RoadGraphRouter,
     SnapCache: SnapCache,
     gpsSpeedProvider: gpsSpeedProvider,

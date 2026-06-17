@@ -406,6 +406,17 @@
         samples: batch,
         writeKey: WRITE_KEY,
       };
+      // ★永続キュー経由(2026-06-16): オフラインでも IndexedDB に残り・オンライン/次回起動で自動送信★。
+      //   outbox 未ロード時のみ従来の直POST(オンライン時のみ)にフォールバック。
+      if (
+        typeof window !== 'undefined' &&
+        window.DaikomeTraceOutbox &&
+        window.DaikomeTraceOutbox.submit
+      ) {
+        window.DaikomeTraceOutbox.submit(body);
+        resolve({ ok: true, queued: true, chunk_seq: seq, sample_count: batch.length });
+        return;
+      }
       fetch(DB_URL + DB_PATH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -556,7 +567,11 @@
         statusEl.textContent = '送信中...';
         window.uploadGpsTrace().then(function (r) {
           btn.disabled = false;
-          if (r.ok) {
+          if (r.ok && r.queued) {
+            // ★N2: 永続キュー経由=オンラインで自動送信。traceId は無いので queued 表記★
+            statusEl.textContent =
+              '✓ 保存しました (オンラインで自動送信・' + (r.sample_count || 0) + '点)';
+          } else if (r.ok) {
             statusEl.textContent = '✓ 送信完了: ' + r.traceId;
           } else {
             statusEl.textContent = '✗ 送信失敗: ' + r.error;
