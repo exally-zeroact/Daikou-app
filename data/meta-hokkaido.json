@@ -1,10 +1,10 @@
 {
   "region": "hokkaido",
-  "generated": "2026-06-13T19:08:56.107Z",
+  "generated": "2026-06-20T19:32:28.800Z",
   "prefectures": {
     "hokkaido": {
-      "numRoads": 306017,
-      "sizeBytes": 11773786,
+      "numRoads": 305982,
+      "sizeBytes": 11771823,
       "bbox": [
         4139781,
         13940729,
@@ -12,15 +12,15 @@
         14581561
       ],
       "attrCounts": {
-        "oneway": 11625,
-        "incline": 167,
-        "lanes": 34870,
+        "oneway": 11624,
+        "incline": 172,
+        "lanes": 34936,
         "width": 698,
-        "layer": 23445,
+        "layer": 23444,
         "access": 192,
-        "maxspeed": 8005,
+        "maxspeed": 8058,
         "track": 0,
-        "inclineFromOSM": 167,
+        "inclineFromOSM": 172,
         "inclineFromDem": 0
       }
     }
