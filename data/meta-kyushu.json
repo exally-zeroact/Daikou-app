@@ -1,10 +1,10 @@
 {
   "region": "kyushu",
-  "generated": "2026-06-20T19:47:50.451Z",
+  "generated": "2026-06-27T19:30:44.492Z",
   "prefectures": {
     "fukuoka": {
-      "numRoads": 194842,
-      "sizeBytes": 6320525,
+      "numRoads": 194835,
+      "sizeBytes": 6320361,
       "bbox": [
         3314794,
         13028841,
@@ -12,11 +12,11 @@
         13117243
       ],
       "attrCounts": {
-        "oneway": 10412,
+        "oneway": 10414,
         "incline": 14,
         "lanes": 11155,
-        "width": 4704,
-        "layer": 10249,
+        "width": 4764,
+        "layer": 10247,
         "access": 80,
         "maxspeed": 5758,
         "track": 0,
@@ -25,8 +25,8 @@
       }
     },
     "saga": {
-      "numRoads": 131366,
-      "sizeBytes": 4447931,
+      "numRoads": 131363,
+      "sizeBytes": 4447629,
       "bbox": [
         3300045,
         12916936,
@@ -34,11 +34,11 @@
         13054828
       ],
       "attrCounts": {
-        "oneway": 2440,
+        "oneway": 2444,
         "incline": 55,
-        "lanes": 5286,
-        "width": 5061,
-        "layer": 15941,
+        "lanes": 5289,
+        "width": 5107,
+        "layer": 15943,
         "access": 119,
         "maxspeed": 2221,
         "track": 0,
@@ -47,8 +47,8 @@
       }
     },
     "nagasaki": {
-      "numRoads": 91322,
-      "sizeBytes": 3345877,
+      "numRoads": 91318,
+      "sizeBytes": 3345753,
       "bbox": [
         3211753,
         12859138,
@@ -60,7 +60,7 @@
         "incline": 3,
         "lanes": 4587,
         "width": 2426,
-        "layer": 5116,
+        "layer": 5118,
         "access": 53,
         "maxspeed": 1343,
         "track": 0,
@@ -69,8 +69,8 @@
       }
     },
     "kumamoto": {
-      "numRoads": 145328,
-      "sizeBytes": 5235069,
+      "numRoads": 145333,
+      "sizeBytes": 5235234,
       "bbox": [
         3204223,
         13012515,
@@ -78,11 +78,11 @@
         13129712
       ],
       "attrCounts": {
-        "oneway": 2604,
+        "oneway": 2608,
         "incline": 9,
-        "lanes": 3991,
+        "lanes": 3995,
         "width": 7,
-        "layer": 7558,
+        "layer": 7562,
         "access": 57,
         "maxspeed": 1864,
         "track": 0,
@@ -91,8 +91,8 @@
       }
     },
     "oita": {
-      "numRoads": 101885,
-      "sizeBytes": 4070067,
+      "numRoads": 101884,
+      "sizeBytes": 4070049,
       "bbox": [
         3257176,
         13091158,
@@ -100,13 +100,13 @@
         13208170
       ],
       "attrCounts": {
-        "oneway": 2829,
+        "oneway": 2827,
         "incline": 17,
-        "lanes": 5636,
-        "width": 175,
+        "lanes": 5634,
+        "width": 173,
         "layer": 6281,
         "access": 35,
-        "maxspeed": 1554,
+        "maxspeed": 1552,
         "track": 0,
         "inclineFromOSM": 17,
         "inclineFromDem": 0
@@ -114,7 +114,7 @@
     },
     "miyazaki": {
       "numRoads": 91856,
-      "sizeBytes": 3425944,
+      "sizeBytes": 3425954,
       "bbox": [
         3136204,
         13074350,
@@ -135,8 +135,8 @@
       }
     },
     "kagoshima": {
-      "numRoads": 145011,
-      "sizeBytes": 5261468,
+      "numRoads": 145106,
+      "sizeBytes": 5264270,
       "bbox": [
         2913576,
         12919463,
@@ -146,9 +146,9 @@
       "attrCounts": {
         "oneway": 3269,
         "incline": 21,
-        "lanes": 8650,
+        "lanes": 8657,
         "width": 485,
-        "layer": 5676,
+        "layer": 5678,
         "access": 102,
         "maxspeed": 9260,
         "track": 0,
@@ -157,8 +157,8 @@
       }
     },
     "okinawa": {
-      "numRoads": 95752,
-      "sizeBytes": 3154051,
+      "numRoads": 96024,
+      "sizeBytes": 3164460,
       "bbox": [
         2404661,
         12293533,
@@ -166,11 +166,11 @@
         13132916
       ],
       "attrCounts": {
-        "oneway": 4584,
+        "oneway": 4581,
         "incline": 164,
         "lanes": 10860,
         "width": 73,
-        "layer": 2825,
+        "layer": 2830,
         "access": 671,
         "maxspeed": 6846,
         "track": 0,

@@ -1,10 +1,10 @@
 {
   "region": "kanto",
-  "generated": "2026-06-20T19:37:02.950Z",
+  "generated": "2026-06-27T19:27:53.431Z",
   "prefectures": {
     "ibaraki": {
-      "numRoads": 118658,
-      "sizeBytes": 4048592,
+      "numRoads": 118959,
+      "sizeBytes": 4057928,
       "bbox": [
         3584021,
         13992266,
@@ -14,9 +14,9 @@
       "attrCounts": {
         "oneway": 6747,
         "incline": 55,
-        "lanes": 18082,
+        "lanes": 18083,
         "width": 55,
-        "layer": 5061,
+        "layer": 5066,
         "access": 18,
         "maxspeed": 10434,
         "track": 0,
@@ -25,8 +25,8 @@
       }
     },
     "tochigi": {
-      "numRoads": 115991,
-      "sizeBytes": 3862690,
+      "numRoads": 115996,
+      "sizeBytes": 3862936,
       "bbox": [
         3617311,
         13938861,
@@ -47,8 +47,8 @@
       }
     },
     "gunma": {
-      "numRoads": 125764,
-      "sizeBytes": 4275378,
+      "numRoads": 125689,
+      "sizeBytes": 4271151,
       "bbox": [
         3586452,
         13838858,
@@ -57,20 +57,20 @@
       ],
       "attrCounts": {
         "oneway": 4404,
-        "incline": 12,
-        "lanes": 11378,
+        "incline": 14,
+        "lanes": 11385,
         "width": 401,
-        "layer": 6839,
-        "access": 142,
-        "maxspeed": 6315,
+        "layer": 6848,
+        "access": 138,
+        "maxspeed": 6317,
         "track": 0,
-        "inclineFromOSM": 12,
+        "inclineFromOSM": 14,
         "inclineFromDem": 0
       }
     },
     "saitama": {
-      "numRoads": 204018,
-      "sizeBytes": 6324824,
+      "numRoads": 203850,
+      "sizeBytes": 6320058,
       "bbox": [
         3564689,
         13891732,
@@ -78,21 +78,21 @@
         13981795
       ],
       "attrCounts": {
-        "oneway": 10290,
+        "oneway": 10291,
         "incline": 7,
-        "lanes": 22538,
-        "width": 1059,
-        "layer": 8119,
+        "lanes": 22548,
+        "width": 1075,
+        "layer": 8149,
         "access": 173,
-        "maxspeed": 12543,
+        "maxspeed": 12552,
         "track": 0,
         "inclineFromOSM": 7,
         "inclineFromDem": 0
       }
     },
     "chiba": {
-      "numRoads": 163348,
-      "sizeBytes": 5417844,
+      "numRoads": 163349,
+      "sizeBytes": 5417488,
       "bbox": [
         2475007,
         13982559,
@@ -100,21 +100,21 @@
         14222236
       ],
       "attrCounts": {
-        "oneway": 7229,
+        "oneway": 7236,
         "incline": 27,
-        "lanes": 11091,
+        "lanes": 11103,
         "width": 118,
-        "layer": 6563,
+        "layer": 6564,
         "access": 119,
-        "maxspeed": 4722,
+        "maxspeed": 4733,
         "track": 0,
         "inclineFromOSM": 27,
         "inclineFromDem": 0
       }
     },
     "tokyo": {
-      "numRoads": 258870,
-      "sizeBytes": 7902248,
+      "numRoads": 259308,
+      "sizeBytes": 7914512,
       "bbox": [
         3530038,
         13944936,
@@ -122,21 +122,21 @@
         14010873
       ],
       "attrCounts": {
-        "oneway": 42186,
+        "oneway": 42213,
         "incline": 503,
-        "lanes": 34147,
+        "lanes": 34177,
         "width": 618,
-        "layer": 9515,
-        "access": 317,
-        "maxspeed": 31566,
+        "layer": 9520,
+        "access": 316,
+        "maxspeed": 31576,
         "track": 0,
         "inclineFromOSM": 503,
         "inclineFromDem": 0
       }
     },
     "kanagawa": {
-      "numRoads": 155644,
-      "sizeBytes": 4926937,
+      "numRoads": 155093,
+      "sizeBytes": 4910080,
       "bbox": [
         3244660,
         13890939,
@@ -144,13 +144,13 @@
         13986860
       ],
       "attrCounts": {
-        "oneway": 12342,
+        "oneway": 12341,
         "incline": 191,
-        "lanes": 17729,
-        "width": 1329,
-        "layer": 7290,
-        "access": 285,
-        "maxspeed": 19252,
+        "lanes": 17726,
+        "width": 1311,
+        "layer": 7280,
+        "access": 283,
+        "maxspeed": 19253,
         "track": 0,
         "inclineFromOSM": 191,
         "inclineFromDem": 0

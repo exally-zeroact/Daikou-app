@@ -1,10 +1,10 @@
 {
   "region": "kansai",
-  "generated": "2026-06-20T19:43:56.894Z",
+  "generated": "2026-06-27T19:29:24.853Z",
   "prefectures": {
     "mie": {
-      "numRoads": 121315,
-      "sizeBytes": 3797341,
+      "numRoads": 121321,
+      "sizeBytes": 3797956,
       "bbox": [
         3410088,
         13609826,
@@ -14,19 +14,19 @@
       "attrCounts": {
         "oneway": 3557,
         "incline": 4,
-        "lanes": 14785,
+        "lanes": 14787,
         "width": 32,
-        "layer": 7876,
+        "layer": 7870,
         "access": 81,
-        "maxspeed": 1461,
+        "maxspeed": 1462,
         "track": 0,
         "inclineFromOSM": 4,
         "inclineFromDem": 0
       }
     },
     "shiga": {
-      "numRoads": 105582,
-      "sizeBytes": 3360569,
+      "numRoads": 105578,
+      "sizeBytes": 3360183,
       "bbox": [
         3469030,
         13581110,
@@ -40,15 +40,15 @@
         "width": 182,
         "layer": 6568,
         "access": 93,
-        "maxspeed": 2461,
+        "maxspeed": 2460,
         "track": 0,
         "inclineFromOSM": 4,
         "inclineFromDem": 0
       }
     },
     "kyoto": {
-      "numRoads": 69371,
-      "sizeBytes": 2236346,
+      "numRoads": 69380,
+      "sizeBytes": 2236560,
       "bbox": [
         3482823,
         13513347,
@@ -56,12 +56,12 @@
         13597211
       ],
       "attrCounts": {
-        "oneway": 5078,
+        "oneway": 5081,
         "incline": 73,
-        "lanes": 11893,
+        "lanes": 11897,
         "width": 78,
-        "layer": 4647,
-        "access": 141,
+        "layer": 4650,
+        "access": 142,
         "maxspeed": 4403,
         "track": 0,
         "inclineFromOSM": 73,
@@ -70,7 +70,7 @@
     },
     "osaka": {
       "numRoads": 276044,
-      "sizeBytes": 8458759,
+      "sizeBytes": 8458814,
       "bbox": [
         3419367,
         13479984,
@@ -78,21 +78,21 @@
         13584254
       ],
       "attrCounts": {
-        "oneway": 29706,
+        "oneway": 29709,
         "incline": 219,
-        "lanes": 27640,
+        "lanes": 27684,
         "width": 637,
-        "layer": 13049,
+        "layer": 13050,
         "access": 382,
-        "maxspeed": 15389,
+        "maxspeed": 15403,
         "track": 0,
         "inclineFromOSM": 219,
         "inclineFromDem": 0
       }
     },
     "hyogo": {
-      "numRoads": 185035,
-      "sizeBytes": 6230061,
+      "numRoads": 185055,
+      "sizeBytes": 6230704,
       "bbox": [
         3419221,
         13425205,
@@ -100,21 +100,21 @@
         13533426
       ],
       "attrCounts": {
-        "oneway": 7592,
+        "oneway": 7594,
         "incline": 23,
-        "lanes": 18175,
+        "lanes": 18178,
         "width": 691,
-        "layer": 12464,
+        "layer": 12465,
         "access": 248,
-        "maxspeed": 9689,
+        "maxspeed": 9690,
         "track": 0,
         "inclineFromOSM": 23,
         "inclineFromDem": 0
       }
     },
     "nara": {
-      "numRoads": 69926,
-      "sizeBytes": 2375220,
+      "numRoads": 69737,
+      "sizeBytes": 2371111,
       "bbox": [
         3387027,
         13543502,
@@ -124,19 +124,19 @@
       "attrCounts": {
         "oneway": 2231,
         "incline": 14,
-        "lanes": 8195,
+        "lanes": 8193,
         "width": 67,
-        "layer": 5686,
-        "access": 63,
-        "maxspeed": 1347,
+        "layer": 5685,
+        "access": 66,
+        "maxspeed": 1333,
         "track": 0,
         "inclineFromOSM": 14,
         "inclineFromDem": 0
       }
     },
     "wakayama": {
-      "numRoads": 38233,
-      "sizeBytes": 1532460,
+      "numRoads": 38117,
+      "sizeBytes": 1531920,
       "bbox": [
         3343731,
         13481466,
@@ -144,13 +144,13 @@
         13609178
       ],
       "attrCounts": {
-        "oneway": 907,
+        "oneway": 891,
         "incline": 30,
-        "lanes": 4166,
-        "width": 285,
-        "layer": 3814,
-        "access": 47,
-        "maxspeed": 222,
+        "lanes": 4693,
+        "width": 280,
+        "layer": 3848,
+        "access": 49,
+        "maxspeed": 218,
         "track": 0,
         "inclineFromOSM": 30,
         "inclineFromDem": 0
