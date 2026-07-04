@@ -1,10 +1,10 @@
 {
   "region": "shikoku",
-  "generated": "2026-06-27T19:30:05.866Z",
+  "generated": "2026-07-04T19:28:28.651Z",
   "prefectures": {
     "tokushima": {
-      "numRoads": 57028,
-      "sizeBytes": 2048395,
+      "numRoads": 57050,
+      "sizeBytes": 2049063,
       "bbox": [
         3324560,
         13392012,
@@ -16,7 +16,7 @@
         "incline": 15,
         "lanes": 5229,
         "width": 9,
-        "layer": 5537,
+        "layer": 5545,
         "access": 38,
         "maxspeed": 1695,
         "track": 0,
@@ -25,8 +25,8 @@
       }
     },
     "kagawa": {
-      "numRoads": 77392,
-      "sizeBytes": 2698570,
+      "numRoads": 77409,
+      "sizeBytes": 2698993,
       "bbox": [
         3381258,
         13352821,
@@ -34,21 +34,21 @@
         13435819
       ],
       "attrCounts": {
-        "oneway": 3206,
+        "oneway": 3223,
         "incline": 72,
-        "lanes": 6904,
+        "lanes": 6920,
         "width": 49,
         "layer": 5404,
         "access": 144,
-        "maxspeed": 4378,
+        "maxspeed": 4396,
         "track": 0,
         "inclineFromOSM": 72,
         "inclineFromDem": 0
       }
     },
     "ehime": {
-      "numRoads": 117516,
-      "sizeBytes": 4608092,
+      "numRoads": 117513,
+      "sizeBytes": 4607911,
       "bbox": [
         3270859,
         13201828,
@@ -60,7 +60,7 @@
         "incline": 7,
         "lanes": 5219,
         "width": 587,
-        "layer": 6205,
+        "layer": 6206,
         "access": 36,
         "maxspeed": 786,
         "track": 0,
@@ -69,8 +69,8 @@
       }
     },
     "kochi": {
-      "numRoads": 56447,
-      "sizeBytes": 2149132,
+      "numRoads": 56443,
+      "sizeBytes": 2148922,
       "bbox": [
         3272272,
         13292826,
@@ -78,11 +78,11 @@
         13412764
       ],
       "attrCounts": {
-        "oneway": 1808,
+        "oneway": 1809,
         "incline": 24,
         "lanes": 4635,
         "width": 6,
-        "layer": 4750,
+        "layer": 4751,
         "access": 45,
         "maxspeed": 1804,
         "track": 0,
