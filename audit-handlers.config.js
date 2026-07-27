@@ -60,8 +60,6 @@ module.exports = {
         // ★2026-05-18 configPlatform 配線完了・index.html L4502 で _setupMmWorker 内送信開始 (削除済)
         // updateCrossUserPheromone: Firebase cross-user pheromone 受信・呼出経路なし
         'updateCrossUserPheromone',
-        // configOsrm: OSRM endpoint 動的切替・osrm-client.js コメントで言及あるが未実装
-        'configOsrm',
         // loadEmergencyAttrs: D3 緊急輸送道路・登録ロジックあるが呼出なし
         'loadEmergencyAttrs',
         // ★getPipelineBreakdown (2026-05-31): 距離源 (Viterbi 確定 snap 駆動 pipeline tracker) の
@@ -69,6 +67,12 @@ module.exports = {
         //   送信せず・tests/gate-road-distance.js が「余計な弦=0 / Viterbi 駆動」検証に使う。
         //   距離計算には一切影響しない読み取り専用フック。
         'getPipelineBreakdown',
+        // ★setForceRouteFactor / getForceRouteStats: routing 強化の利得計測 (B感度ゲート) 専用★
+        //   既定1=本番byte不変・prod (index.html) は送信せず tests/gate-route-gain.js だけが
+        //   worker-sim adapter 経由で送る。距離計算には影響しない検証専用フック。
+        //   (2026-06-20: 既存の未登録 dead-handler 取りこぼしを OSRM廃止commitで併せて整理)
+        'setForceRouteFactor',
+        'getForceRouteStats',
       ],
       allowOrphanSenders: [],
     },

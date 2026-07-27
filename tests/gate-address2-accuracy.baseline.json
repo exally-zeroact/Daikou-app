@@ -1,0 +1,32 @@
+{
+  "generated": "2026-06-18",
+  "agg_correct_pct": 100,
+  "agg_wrong_confident": 0,
+  "agg_evaluable": 3367,
+  "per_fixture": [
+    {
+      "fixture": "real-trace-iphone13-8.39km-tire.json",
+      "evaluable_points": 1035,
+      "M_correct_pct": 100,
+      "M_wrong_confident": 0,
+      "M_chatter": 1,
+      "distance_m": 8313.718
+    },
+    {
+      "fixture": "real-trace-iphoneSE-5km-tire5.0.json",
+      "evaluable_points": 398,
+      "M_correct_pct": 100,
+      "M_wrong_confident": 0,
+      "M_chatter": 0,
+      "distance_m": 5539.773
+    },
+    {
+      "fixture": "0610b-Android.json",
+      "evaluable_points": 1934,
+      "M_correct_pct": 100,
+      "M_wrong_confident": 0,
+      "M_chatter": 2,
+      "distance_m": 20619.973
+    }
+  ]
+}

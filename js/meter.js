@@ -1,9 +1,12 @@
 // ============================================================
 // meter.js  (ダイコメ メーター本体・白紙書き直し・clean-rebuild-pipeline)
 //
-// ★アーキテクチャ (2026-05-30 白紙書き直し)★
-//   距離 distance_m = 「道路 snap 道なり累積」を ★単一エンジン★ で駆動する。
-//     エンジン = js/pipeline-distance.js (createDistanceTracker・実走 9,677m 検証済)。
+// ★アーキテクチャ (2026-05-30 白紙書き直し・2026-07 現状注記)★
+//   距離 distance_m = ★単一エンジン★(js/pipeline-distance.js createDistanceTracker) が返す
+//   pipelineDeltaM を running gate 内で加算するだけ(単一経路)。
+//   ★現状の距離の実体: 既定 smoothedRawMode(平滑生GPS弦)+OBD接続中は ∫v(OBD)×較正K が優先★
+//     (下記「道路snap道なり累積」は旧方式の記述=snapは既定で距離に使わない。意味論は道路snap道なりではない)。
+//     エンジンは実走 9,677m 検証済。
 //     エンジンは Worker B (map-matcher.js) 内で動き、GPS 1 点ごとに ingest して
 //     その区間の道なり増分を mmResult.pipelineDeltaM として main に返す。
 //     meter は running gate 内で state.distance_m += pipelineDeltaM するだけ (= 単一経路)。
@@ -58,11 +61,18 @@ const Meter = (() => {
   //   速度依存で 1/rf より僅か上振れ→較正と走行の速度分布が違うと per-step 過大しうる。較正値に ×0.997 を
   //   掛けて吸収(代表速度較正×無作為走行で 0/10000 過大ゼロ・平均-0.5%実測)。検定は代表速度で行う前提。
   const CERTK_SAFETY = 0.997;
-  let _activeVehicleK = 1.0; // 業務開始でロックされる適用係数
+  // ★注記(2026-07・監査): 以下の車別k機構(_activeVehicleK/_resolveVK/_factoryK/FACTORY_K/_clampVK/
+  //   calibrateVehicleK/CERTK_SAFETY)は「デッド」ではない=タクシー/cert経路で生きてる★:
+  //   ・_postVehicleK(L92)が _factoryK/prof.k を pipeline の obdVehicleK(cert測定K)へ送る(autoCalibK OFF時)。
+  //   ・calibrateVehicleK は export(L1495)=精算時のcert較正で呼ぶ。
+  //   代行(autoCalibK ON)経路では meter の距離乗算は ×1.0(_kForDelta・L355)=この層のkは非作用(dormant)。
+  //   ＝「代行距離には非作用/cert・タクシーでは有効」。削除するとcert経路が壊れる。
+  let _activeVehicleK = 1.0; // 業務開始でロックされる適用係数(cert/タクシー経路の器差k)
   // ★代行距離係数 (2026-06-18・司さん確定「DM−0.2%は"距離計算式"に入れる」)★:
   //   距離増分(cal/gapCal)に乗算し distance_m / business_distance_m を DM−0.2% に着地させる。
   //   料金=calcFare(distance_m) / display / 総走行 は distance_m に従う(料金に係数は掛けない)。
-  //   ★1.0=byte不変(タクシー認定/テスト/cert-gate)。代行は loadSettings がシステム固定値(≈1.011)を自動適用★。
+  //   ★1.0=byte不変(タクシー認定/テスト/cert-gate)。代行は index.html:7064 がシステム固定値(現≈1.0085・
+  //   2026-07-04 autoCalibK経路に再較正・旧1.011/1.013)を自動適用=DM Light基準+0.2%着地★。
   //   操作者は触らない。タクシー認定運用は 1.0(過大ゼロ法要件・distance_m≤真距離)。
   let _daikouDistFactor = 1.0;
   function setDaikouDistanceFactor(f) {
@@ -111,6 +121,16 @@ const Meter = (() => {
         vehicleK: vk,
         vehicleKMeasured: vkMeasured,
         tireRatio,
+        // ★p50モードフラグ (2026-06-22): 代行(係数>1.0)を worker に伝え、K無しOBD車の天井分位を
+        //   p25→p50(真スケール)に切替え全車一致させる。タクシー(係数1.0)は false=p25維持(過大ゼロ)。
+        daikouMode: _daikouDistFactor > 1.0,
+        // ★1km自動較正K (2026-06-26・確定方式)★: window.DK_AUTO_CALIB_K=true で OBD∫v×学習K(GPS長窓比)。
+        //   既定false=従来経路(byte不変)。実機テスト用トグル/URLパラメータで立てる。
+        autoCalibK: typeof self !== 'undefined' && self.DK_AUTO_CALIB_K === true,
+        // ★STEP3 車別K永続 (2026-06-26)★: 選択中の車id+保存Ks を渡す。worker は別車なら共有較正器を
+        //   リセットし、保存Ks(calibKs)を復元=「一度較正→接続/業務開始で即正確・再較正不要」。
+        vehicleId: prof && prof.id ? prof.id : null,
+        restoreKs: prof && Array.isArray(prof.calibKs) ? prof.calibKs : null,
       });
     } catch (_) {
       /* best-effort・課金距離は pipeline 側の健全域クランプで保護 */
@@ -134,6 +154,8 @@ const Meter = (() => {
   //   ★既存キーは消さない (index.html / business.js が読む)。
   let state = {
     running: false, // 代行中 (= 課金 gate)
+    billing_frozen: false, // ★確定(到着)で課金距離を凍結 (= 精算終了/走行に戻る まで distance_m 加算停止)。
+    //   確定後もメーターが動き続けて総額が伸びる過大請求(司さん実機報告2026-07-23)の根治フラグ。
     distance_m: 0, // 課金距離 (= 道路 snap 道なり累積・pipeline delta 駆動・不可侵)
     distanceSource: 'pipeline', // 直近で distance_m を更新したソース ('pipeline' | 'inline')
     fare_yen: 0, // 課金料金
@@ -184,11 +206,17 @@ const Meter = (() => {
   //   旧 predict 先取り (display = target + velocity×経過秒) は overshoot を生むため撤去。
   const DISP_CATCHUP_TAU_S = 0.4; // (旧・指数catch-up 時定数。等速ペース化で未使用・互換のため残置)
   const DISP_LATCH_GAP_M = 0.01; // この残差未満なら target に着地 (= 収束扱い)
-  const DISP_RATE_EMA_ALPHA = 0.5; // 等速ペース rate の EMA 平滑係数 (= 直近瞬時レートの寄与・0<α≤1)
+  const DISP_RATE_EMA_ALPHA = 0.6; // 等速ペース rate の EMA 平滑係数 (= 直近瞬時レートの寄与・0<α≤1。0.5→0.6=速度追従を速め走行中の遅れ縮小・2026-06-24)
   const DISP_RATE_MAX_MPS = 55; // 等速ペース rate の物理上限 (= 198km/h・cold-start/glitch の瞬時値 spike を EMA から除外)
   const DISP_MAX_FRAME_DT_S = 0.4; // dtFrame 上限秒 (= タブ復帰/描画間引きの一撃飛び防止・残差は次フレーム連続収束)
-  const DISP_CLOSE_TAU_S = 3.0; // gap 収束 spring の時定数 (= lump/復帰時に gap を τ 秒で詰める)
-  const DISP_CATCHUP_MAX_MPS = 24; // 追従速度上限 (= 大 lump 復帰の「ドン」抑制・直近走行速度の妥当倍率内)
+  const DISP_CLOSE_TAU_S = 1.0; // gap 収束 spring の時定数 (= lump/復帰時に gap を τ 秒で詰める。3.0→1.0=走行中の遅れを約1/3に・メーターに食らいつく・司さん要望2026-06-24。overshoot/単調/cap不変)
+  // ★2026-07-03: 追従速度上限を"固定24m/s(86km/h)"から"直近走行速度×倍率(floorあり)"の可変に。
+  //   固定24は高速道路/しまなみ(90-150km/h)で画面が実距離に置いていかれる原因だった(司さん実機報告・
+  //   trace で内部距離は正確=表示層のみの遅れと確定)。コメント元の設計意図「直近走行速度の妥当倍率内」を
+  //   正しく実装: cap = max(FLOOR, rate*MULT)。走行速度に追随するのでどんな速度でも遅れず、
+  //   停車/低速の大 lump 復帰は FLOOR(=108km/h)で「ドン」を抑える。distance_m は不変(表示専用)。
+  const DISP_CATCHUP_FLOOR_MPS = 30; // 追従上限の下限 (= 108km/h・低速/停車での lump 復帰ドン抑制)
+  const DISP_CATCHUP_MULT = 1.5; // 追従上限 = 直近走行速度(rate)のこの倍率まで許容 (= 高速でも画面が食らいつく)
   void DISP_CATCHUP_TAU_S; // 等速ペース化で未使用 (= 形維持・lint 黙らせ)
 
   // ─── fareConfig (v2・後方互換維持) ───
@@ -340,14 +368,14 @@ const Meter = (() => {
       // ★代行距離係数を距離計算式に乗算 → distance_m が DM−0.2% に着地 (料金/表示/総走行は追従)★。
       //   既定1.0=byte不変。mm_distance_m(L323)は RAW(係数なし)=cert/監査ベースライン温存。
       const cal = delta * _kForDelta * _daikouDistFactor;
-      // 課金距離 (running gate・絶対不可侵経路)
-      if (state.running) {
+      // 課金距離 (running gate・絶対不可侵経路)。★確定(billing_frozen)後は加算停止=総額を伸ばさない★
+      if (state.running && !state.billing_frozen) {
         state.distance_m += cal;
         state.fare_yen = calcFare(state.distance_m);
         state.distanceSource = 'pipeline';
       }
-      // 業務単位累積 (business_active gate・空車中も加算・後付メーター対等)
-      if (state.business_active) {
+      // 業務単位累積 (business_active gate・空車中も加算・後付メーター対等)。確定後は同様に凍結。
+      if (state.business_active && !state.billing_frozen) {
         state.business_distance_m = (state.business_distance_m || 0) + cal;
       }
     } else if (delta > 0 && Date.now() < _drainMmUntil) {
@@ -414,6 +442,7 @@ const Meter = (() => {
     const prevBusinessDisplay = (state && state.business_display_distance_m) || prevBusinessDist;
     state = {
       running: true,
+      billing_frozen: false, // ★代行開始で凍結解除 (前 trip の凍結を持ち越さない)
       distance_m: 0,
       distanceSource: 'pipeline',
       fare_yen: fareConfig.base_fare,
@@ -520,6 +549,18 @@ const Meter = (() => {
     _latchDisplay();
   }
 
+  // ─── 確定(到着)で課金距離を凍結 ───
+  //   確定後もメーターが動き続けて総額が伸びる過大請求(司さん実機報告2026-07-23)の根治。
+  //   running は維持(待機/経過時間は継続)しつつ distance_m の加算だけ止め、display は実距離に latch。
+  //   走行に戻る(unfreezeBilling)で解除・精算終了(reset)で解除。
+  function freezeBilling() {
+    state.billing_frozen = true;
+    _latchDisplay();
+  }
+  function unfreezeBilling() {
+    state.billing_frozen = false;
+  }
+
   // ─── 業務終了 ───
   function businessEnd() {
     state.running = false;
@@ -555,6 +596,7 @@ const Meter = (() => {
     const prevBusinessDisplay = (state && state.business_display_distance_m) || prevBusinessDist;
     state = {
       running: false,
+      billing_frozen: false, // ★trip reset で凍結解除 (次の代行に持ち越さない)
       distance_m: 0,
       distanceSource: 'pipeline',
       fare_yen: 0,
@@ -624,7 +666,8 @@ const Meter = (() => {
     }
 
     // 待機時間累積 (fareConfig v2): 速度 < 3km/h かつ running で wait_sec を増加。
-    if (state.running && state.last_timestamp) {
+    //   ★確定(billing_frozen)後は待機時間も止める=確定で総額を完全ロック(距離+待機とも凍結)★
+    if (state.running && !state.billing_frozen && state.last_timestamp) {
       const dtSec2 = (gpsResult.timestamp - state.last_timestamp) / 1000;
       if (dtSec2 > 0 && dtSec2 < 60 && (gpsResult.speedKmh || 0) < 3) {
         state.wait_sec += dtSec2;
@@ -639,6 +682,7 @@ const Meter = (() => {
     //   engine 経路 (pipelineDeltaM) とは Worker B 有無で排他のため二重計上しない。
     if (
       state.running &&
+      !state.billing_frozen && // ★確定後は gap補完も停止 (停車中の速度×時間 過大注入を根治)
       state.last_timestamp &&
       !(mmWorker && _workerLoadedPrefs.size > 0) &&
       (gpsResult.speedKmh || 0) > 0
@@ -993,9 +1037,11 @@ const Meter = (() => {
     //   (= 停車時残差 0・収束残差 0)。山 (cap/gain/bleed) は作らない。
     const closeRate = gap / DISP_CLOSE_TAU_S;
     let eff = rate + closeRate; // 実速度ペース + gap 収束 spring (= 永続 lag を残さず target に収束)
-    // ★追従速度上限★: 大 lump 復帰 (穴明け一括加算) を 55m/s 張り付きの「ドン」でなく
-    //   直近走行速度の妥当倍率内で飲む。定速/停車では eff がこの上限を下回るため不発。
-    if (eff > DISP_CATCHUP_MAX_MPS) eff = DISP_CATCHUP_MAX_MPS;
+    // ★追従速度上限 (2026-07-03 可変化)★: 直近走行速度(rate)×MULT まで許容=どんな速度でも画面が
+    //   実距離に食らいつく(150km/hでも遅れない)。低速/停車の大 lump 復帰は FLOOR で「ドン」を抑える。
+    //   定速走行では eff がこの上限を下回るため不発(= 遅れない・overshoot は別の gap clamp で保証)。
+    const _catchupCap = Math.max(DISP_CATCHUP_FLOOR_MPS, rate * DISP_CATCHUP_MULT);
+    if (eff > _catchupCap) eff = _catchupCap;
     let step = eff * dtFrame; // 等速ペース前進量
     if (!(step > 0)) {
       // rate 未確立 (= 最初の数 fix) で gap が残る場合のみ、収束保証のため
@@ -1478,7 +1524,12 @@ const Meter = (() => {
     setVehicleType,
     getVehicleType,
     setDaikouDistanceFactor, // ★代行距離係数(DM−0.2%着地)。システムが固定値を loadSettings で適用★
+    // ★監査P1是正(2026-06-26)★: 車切替/保存/削除時に worker._vehicleId を即同期させるため公開。
+    //   DK_VEHICLE_PROFILE を読み configVehicle(vehicleId/restoreKs 含む)を送る。autoCalibK OFFでは calibStatus=null のまま=byte不変。
+    _postVehicleK,
     latchDisplay: _latchDisplay,
+    freezeBilling, // ★確定(到着)で課金距離を凍結
+    unfreezeBilling, // ★走行に戻るで解除
     // ★テスト用 escape hatch (prod からは呼ばない)
     _setDrainMmUntil: function (t) {
       _drainMmUntil = typeof t === 'number' ? t : 0;

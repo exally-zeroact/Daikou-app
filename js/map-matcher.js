@@ -29,7 +29,6 @@
 // ============================================================
 
 importScripts('roads-decoder.js');
-importScripts('osrm-client.js'); // MM-6: OSRM /match クライアント
 // ★白紙書き直し (2026-05-30・新距離エンジン = 距離駆動の唯一源):
 //   js/pipeline-distance.js を Worker B に読み込み、createDistanceTracker を
 //   GPS 受信毎に ingest して道路 snap 道なり増分を算出する。
@@ -41,6 +40,13 @@ importScripts('osrm-client.js'); // MM-6: OSRM /match クライアント
 //     try/catch で包む。失敗時は self.PipelineDistance 未定義のまま → 並列 tracker は no-op (L157 guard)。
 //     既存 Viterbi mmIncrementM 経路は影響ゼロで生存。
 try {
+  // ★1km自動較正K (autoCalibK)★: pipeline より先に k-calib.js を読み self.KCalib を用意。
+  //   失敗しても pipeline 側が kCalibrator=null → autoCalibK 無効化(従来経路)で安全(課金影響ゼロ)。
+  try {
+    importScripts('k-calib.js');
+  } catch (_kcErr) {
+    /* k-calib ロード失敗 = autoCalibK 無効(従来経路) */
+  }
   importScripts('pipeline-distance.js');
 } catch (_pdErr) {
   // pipeline-distance.js のロード失敗は並列計測の無効化のみ (課金経路に一切伝播させない)
@@ -214,6 +220,11 @@ let _vehicleColdStartK = null; // number | null
 let _vehicleK = null; // number | null (cert-calibrated obdVehicleK)
 let _vehicleKMeasured = false; // true=実測K(タイヤ込み・タイヤ比抑制) / false=factory prior(タイヤ比併用)
 let _vehicleTireRatio = null; // number | null (タイヤ円周比=今÷工場・物理真距離補正・1.0=恒等)
+let _vehicleDaikouMode = false; // ★p50モード (2026-06-22): 代行(係数>1.0)で OBD天井分位 p25→p50=全車一致。タクシー/モコは false。
+let _vehicleAutoCalibK = false; // ★1km自動較正K (2026-06-26・確定方式)★: true で OBD∫v×学習K(GPS長窓比)。configVehicle で受領。
+let _sharedKCalib = null; // ★STEP2: 車単位の共有較正器★ 全県trackerが共有=県跨ぎ/業務resetでKが残る(県跨ぎリセット根治)。autoCalibK時のみ生成・OFFで破棄。
+let _vehicleId = null; // ★STEP3: 選択中の車id★ 別車に変わったら _sharedKCalib をリセット(新車のKをロード)・同一車は保持。
+let _vehicleRestoreKs = null; // ★STEP3: 選択中の車の保存Ks★ _sharedKCalib 生成時に注入=接続/業務開始で「一度較正→ずっと正確」。
 
 // ★smoothedRawMode 判定 (2026-06-07)★: tracker は opts {} で生成 = DEFAULTS が支配する。
 //   worker 側の「実質停止で pipelineDeltaM 0 化」二重保険は平滑モードでは時間軸がズレる
@@ -261,6 +272,30 @@ function _getPipelineTracker(pref) {
         _vehicleTireRatio <= 1.25
       )
         _tkOpts.obdTireRatio = _vehicleTireRatio;
+      // ★p50モード注入 (2026-06-22): 代行のみ obdDaikouMode=true → pipeline で天井分位 p25→p50。
+      if (_vehicleDaikouMode === true) _tkOpts.obdDaikouMode = true;
+      // ★1km自動較正K注入 (2026-06-26・裁定①=代行のp50を学習Kに置換)★: ON時 OBD∫v×学習K。
+      if (_vehicleAutoCalibK === true) {
+        _tkOpts.autoCalibK = true;
+        // ★STEP2: 車単位の共有較正器を1個だけ生成し全県trackerへ注入=県跨ぎ/業務resetでKが残る★
+        if (
+          !_sharedKCalib &&
+          typeof self !== 'undefined' &&
+          self.KCalib &&
+          self.KCalib.createKCalibrator
+        ) {
+          _sharedKCalib = self.KCalib.createKCalibrator({
+            coldStartK:
+              typeof _vehicleColdStartK === 'number' && _vehicleColdStartK > 0
+                ? _vehicleColdStartK
+                : undefined,
+            // ★STEP3: 選択中の車の保存Ksを復元=接続/業務開始で即 confident(再較正不要)★
+            restoreKs: Array.isArray(_vehicleRestoreKs) ? _vehicleRestoreKs : undefined,
+            calibKm: 1.0,
+          });
+        }
+        if (_sharedKCalib) _tkOpts.externalKCalib = _sharedKCalib;
+      }
       tk = self.PipelineDistance.createDistanceTracker(dec, _tkOpts);
       _pipelineTrackers.set(pref, tk);
     } catch (_) {
@@ -292,6 +327,7 @@ function _resetPipelineTrackers() {
 //   ★_lastDeltaSrc★: 直近 _confirmedRoadDelta が算出した delta の距離源 ('obd'=∫v(OBD)駆動 / 'gps'=その他)。
 //     呼出側が mmResult.pipelineDeltaSrc として meter へ渡し、source-aware k 適用に使う。
 let _lastDeltaSrc = 'gps';
+let _lastCalibStatus = null; // ★1km自動較正K の状態(見える化用)★: autoCalibK時のみ非null {K,windows,confident,...}
 function _confirmedRoadDelta(msg, outSnap) {
   _lastDeltaSrc = 'gps'; // 既定 (ingest 前/失敗/静止 = gps扱い=随伴車k非適用=安全側)
   try {
@@ -351,6 +387,15 @@ function _confirmedRoadDelta(msg, outSnap) {
     // ★距離源タグ (2026-06-12・OBD+センサーメイン・アーキ)★: この delta が ∫v(OBD) 駆動か否かを
     //   meter へ伝える (= source-aware k: OBD駆動だけ随伴車k適用・GPS駆動は×1.0で過大ゼロ)。
     _lastDeltaSrc = res && res.reason === 'obd' ? 'obd' : 'gps';
+    // ★較正状態を見える化用に保持(read-only=距離不変)★: autoCalibK時のみ非null。
+    try {
+      _lastCalibStatus = typeof tk.calibStatus === 'function' ? tk.calibStatus() : null;
+      // ★監査P0是正: 「今 worker が較正してる車id」を同梱★=index.htmlが getActiveId でなく
+      //   この id に保存→走行中の車切替で旧車のKを新車に混入させない(cross-vehicle contamination根治)。
+      if (_lastCalibStatus) _lastCalibStatus.vehicleId = _vehicleId;
+    } catch (_) {
+      _lastCalibStatus = null;
+    }
     const confirmedDeltaM = res && typeof res.deltaM === 'number' ? res.deltaM : 0;
     return confirmedDeltaM > 0 ? confirmedDeltaM : 0;
   } catch (_) {
@@ -876,31 +921,12 @@ function _getCrossUserBoost(pref, roadIndex) {
   return boost > CROSS_USER_BOOST_PEAK ? CROSS_USER_BOOST_PEAK : boost;
 }
 
-// ─── MM-6 (2026-05-08): OSRM /match 教師信号 ───────────────────
-// 30 秒分の GPS トレースをバッファし定期的に OSRM /match に送信。
-// 返却される leg distance を「教師信号」として transition score に重み付き反映。
-// オフライン時 / OSRM 失敗時は即スキップして既存処理に fallback。
-const _osrmTraceBuffer = []; // [{lat,lng,timestamp,accuracy}]
-const OSRM_BATCH_INTERVAL_MS = 30000; // 30 秒ごとに 1 回バッチ送信
-const OSRM_MAX_BUFFER_SIZE = 60; // バッファ最大点数（1Hz×60s で安全側）
-const OSRM_MIN_BATCH_POINTS = 5; // バッチ最小点数（短すぎ trace は無効）
-const OSRM_TEACHER_TTL_MS = 60000; // 教師信号の有効期限 60 秒
-const OSRM_BLEND_WEIGHT = 0.7; // 教師信号 0.7 + 自前 routing 0.3 で重み付き融合
-let _lastOsrmBatchAt = 0;
-let _osrmInflight = false; // 並列実行防止
-let _osrmEnabled = true; // false で機能無効化（main から configOsrm で制御）
-
-// 直近の教師信号: trace[i] と trace[i+1] 間の OSRM 計算距離 = legs[i]
-const _osrmTeacher = {
-  trace: [],
-  legs: [],
-  expiresAt: 0,
-  // 統計（diagnostic 用）
-  hits: 0,
-  misses: 0,
-  batches: 0,
-  batchFails: 0,
-};
+// ─── MM-6 (OSRM /match 教師信号) 廃止 (2026-06-20) ───────────────
+//   公開 OSRM (router.project-osrm.org) への顧客生GPS送信を商用 privacy/ToS で全廃。
+//   教師は _transitionScore の routeM 0.7 blend にしか触れず、offline/本番では常に
+//   teacherM=null=寄与ゼロ (cert/replay/3台収束は元々OSRM無しの数字)。∴削除しても
+//   distance_m/課金/snap は 1ビット不変。online blend 機構ごと撤去。
+//   住所② (getCurrentLiveAddress) は snap 由来で OSRM 非依存=影響なし。
 
 // MM-4b: Dijkstra タイムアウト・LRU キャッシュ
 const DIJKSTRA_TIMEOUT_MS = 3;
@@ -1834,9 +1860,34 @@ function _chDijkstra(g, srcNode, dstNode, maxDistM, deadline) {
 }
 
 // ─── Phase B runtime: route 距離計算
+// ★テスト専用: 自前ルーティング強化(B)の利得検出フック (2026-06-18)★
+//   既定1=OFF=byte不変。>1 のとき cross-road(非polyline)の routeDistance を chord×係数 に
+//   強制(=道なり化を模擬)し、transition score 経由で Viterbi snap選定/距離が変わるかを実測する。
+//   ★距離計算の本番経路には載らない: 既定1で wrapper は素通り。setForceRouteFactor で gate のみ発火★。
+let _forceRouteFactor = 1;
+let _forceRouteFireCount = 0; // ★テスト計測: forced 分岐が発火した回数(false-zero 検出用)★
+let _routeCallCount = 0; // ★テスト計測: _routeDistance 総呼び出し回数★
+const _routeViaCount = Object.create(null); // ★テスト計測: _via 別の内訳★
 // 優先順序: 同road=polyline → tile Dijkstra → 既存 graph → backbone → haversine
 // すべて失敗時は haversine 弦距離を返す（業務継続性担保）
 function _routeDistance(a, b) {
+  const r = _routeDistanceCore(a, b);
+  if (_forceRouteFactor !== 1) {
+    _routeCallCount++;
+    const via = r && r._via ? r._via : 'null';
+    _routeViaCount[via] = (_routeViaCount[via] || 0) + 1;
+  }
+  // 利得検出(テスト専用): cross-road を chord×係数 に強制し routing 距離摂動を模擬。polyline(同road)は正確なので不変。
+  if (_forceRouteFactor !== 1 && a && b && r && r._via && r._via !== 'polyline') {
+    const chord = _haversine(a.snapLat, a.snapLng, b.snapLat, b.snapLng);
+    if (chord > 0) {
+      _forceRouteFireCount++;
+      return { distanceM: chord * _forceRouteFactor, onSameRoad: false, _via: 'forced' };
+    }
+  }
+  return r;
+}
+function _routeDistanceCore(a, b) {
   if (!a || !b) return null;
   // 同 road → polyline 沿い距離（既存・最も正確）
   if (a.prefecture === b.prefecture && a.roadIndex === b.roadIndex) {
@@ -2253,103 +2304,13 @@ setInterval(function () {
   }
 }, PERSIST_INTERVAL_MS);
 
-// ─── MM-6: OSRM 教師信号 helpers ────────────────────────────────
-function _addToOsrmBuffer(gps) {
-  if (!_osrmEnabled) return;
-  _osrmTraceBuffer.push({
-    lat: gps.lat,
-    lng: gps.lng,
-    timestamp: gps.timestamp,
-    accuracy: gps.accuracy || 20,
-  });
-  if (_osrmTraceBuffer.length > OSRM_MAX_BUFFER_SIZE) {
-    _osrmTraceBuffer.shift();
-  }
-  const now = Date.now();
-  if (
-    now - _lastOsrmBatchAt >= OSRM_BATCH_INTERVAL_MS &&
-    _osrmTraceBuffer.length >= OSRM_MIN_BATCH_POINTS &&
-    !_osrmInflight
-  ) {
-    _lastOsrmBatchAt = now;
-    _triggerOsrmBatch();
-  }
-}
-
-function _triggerOsrmBatch() {
-  if (_osrmInflight) return;
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    // オフライン → 即スキップ
-    return;
-  }
-  if (typeof self.OsrmClient === 'undefined' || !self.OsrmClient.matchBatch) return;
-  const trace = _osrmTraceBuffer.slice();
-  _osrmInflight = true;
-  self.OsrmClient.matchBatch(trace)
-    .then((result) => {
-      _osrmInflight = false;
-      _osrmTeacher.batches++;
-      if (result && result.ok && result.legs && result.legs.length > 0) {
-        _osrmTeacher.trace = trace;
-        _osrmTeacher.legs = result.legs;
-        _osrmTeacher.expiresAt = Date.now() + OSRM_TEACHER_TTL_MS;
-      } else {
-        _osrmTeacher.batchFails++;
-        // 失敗時は教師信号を更新しない（既存の有効期限内の信号は維持）
-      }
-    })
-    .catch(() => {
-      _osrmInflight = false;
-      _osrmTeacher.batchFails++;
-    });
-}
-
-// 隣接 GPS 観測ペア間の OSRM 教師距離を返す（無ければ null）
-// timestamps を厳密一致でマッチング・連続インデックスのみ返す
-function _osrmTeacherDist(prevGps, currGps) {
-  if (!_osrmTeacher.legs.length) return null;
-  if (Date.now() > _osrmTeacher.expiresAt) return null;
-  const trace = _osrmTeacher.trace;
-  let prevIdx = -1,
-    currIdx = -1;
-  for (let i = 0; i < trace.length; i++) {
-    if (trace[i].timestamp === prevGps.timestamp) prevIdx = i;
-    if (trace[i].timestamp === currGps.timestamp) currIdx = i;
-    if (prevIdx >= 0 && currIdx >= 0) break;
-  }
-  if (prevIdx < 0 || currIdx < 0) {
-    _osrmTeacher.misses++;
-    return null;
-  }
-  // 連続インデックスのみ（leg は隣接ペア間で定義される）
-  if (currIdx - prevIdx !== 1) {
-    _osrmTeacher.misses++;
-    return null;
-  }
-  const legM = _osrmTeacher.legs[prevIdx];
-  if (typeof legM !== 'number' || legM < 0) {
-    _osrmTeacher.misses++;
-    return null;
-  }
-  _osrmTeacher.hits++;
-  return legM;
-}
-
 // ─── MM-3: 遷移確率（HMM transition score） ───────────────────
 // score = exp(-|routeDist - chordDist| / β)・β = 30m
 // oneway 違反は ×0.05 で事実上除外
 function _transitionScore(prevSnapC, currSnapC, prevGps, currGps) {
   const chordM = _haversine(prevGps.lat, prevGps.lng, currGps.lat, currGps.lng);
   const r = _routeDistance(prevSnapC, currSnapC);
-  let routeM = r ? r.distanceM : chordM;
-
-  // MM-6: OSRM 教師信号があれば weighted blend で routing 距離を補正
-  // 教師信号 0.7 + 自前 routing 0.3（OSRM をより信頼）
-  // mm_distance_m への直接代入は禁止・transition score の補正にのみ使用
-  const teacherM = _osrmTeacherDist(prevGps, currGps);
-  if (teacherM != null) {
-    routeM = OSRM_BLEND_WEIGHT * teacherM + (1 - OSRM_BLEND_WEIGHT) * routeM;
-  }
+  const routeM = r ? r.distanceM : chordM;
 
   let score = Math.exp(-Math.abs(routeM - chordM) / TRANSITION_BETA_M);
   if (_violatesOneway(prevSnapC, currSnapC, prevGps, currGps)) {
@@ -2599,6 +2560,31 @@ self.onmessage = function (e) {
     return;
   }
 
+  // ★テスト専用: B(自前ルーティング強化)利得検出フック (2026-06-18)★
+  //   _forceRouteFactor>1 で「道なり化が起きた時にスナップ/距離が変わるか」を計測する。
+  //   既定1=完全byte不変(本番では一切発火しない)。gate-route-gain.js 専用。
+  if (msg.type === 'setForceRouteFactor') {
+    const f = Number(msg.factor);
+    _forceRouteFactor = isFinite(f) && f >= 0.5 && f <= 2 ? f : 1;
+    _forceRouteFireCount = 0;
+    _routeCallCount = 0;
+    for (const k in _routeViaCount) delete _routeViaCount[k];
+    self.postMessage({ type: 'forceRouteFactorSet', factor: _forceRouteFactor });
+    return;
+  }
+
+  // ★テスト計測: forced 分岐の発火統計を取得(gate の false-zero 検出用)★
+  if (msg.type === 'getForceRouteStats') {
+    self.postMessage({
+      type: 'forceRouteStats',
+      factor: _forceRouteFactor,
+      fireCount: _forceRouteFireCount,
+      routeCallCount: _routeCallCount,
+      viaCount: Object.assign({}, _routeViaCount),
+    });
+    return;
+  }
+
   // ★契約タイヤ由来 cold-start k0 受領 (2026-06-15)★: main が tireSpecToK0(=[0.97,1.0]) を計算して送る。
   //   Doppler皆無区間の過大ゼロ穴を塞ぐ床。受領後は trackers を作り直して反映。砦(per-step天井)は不変。
   if (msg.type === 'configVehicle') {
@@ -2613,6 +2599,29 @@ self.onmessage = function (e) {
       _vehicleK = vk != null && vk >= 0.85 && vk <= 1.08 ? vk : null; // 認定据付測定K(健全域のみ)
     }
     if ('vehicleKMeasured' in msg) _vehicleKMeasured = msg.vehicleKMeasured === true;
+    // ★p50モード受信 (2026-06-22): 代行(係数>1.0)で天井分位 p25→p50。存在時のみ更新(後勝ちclobber防止)。
+    if ('daikouMode' in msg) _vehicleDaikouMode = msg.daikouMode === true;
+    // ★1km自動較正K 受信 (2026-06-26・確定方式)★: ON で OBD∫v×学習K。存在時のみ更新。
+    if ('autoCalibK' in msg) {
+      _vehicleAutoCalibK = msg.autoCalibK === true;
+      if (!_vehicleAutoCalibK) _sharedKCalib = null; // ★OFFで共有較正器も破棄=byte不変★
+    }
+    // ★STEP3: 車id受信★: 別車に変わったら共有較正器をリセット(新車のKをロードし直す)・同一車は保持(較正継続)。
+    if ('vehicleId' in msg) {
+      const _newVid = msg.vehicleId || null;
+      if (_newVid !== _vehicleId) {
+        _vehicleId = _newVid;
+        _sharedKCalib = null; // 別車=作り直し→次tracker生成時に restoreKs で新車のKを復元
+      }
+    }
+    // ★STEP3: 選択中の車の保存Ks受信★: 次の _sharedKCalib 生成時に復元。
+    //   ★監査P1是正★: 同一車再選択/遅延受信でも反映するため既存共有較正器を破棄→次tracker生成で新Ks復元。
+    //   configVehicle は業務開始/車操作時のみ送られる(走行中は来ない)=走行中の生Ksを潰さない。
+    //   autoCalibK OFF では _sharedKCalib は元々null=この代入はno-op=byte不変。
+    if ('restoreKs' in msg) {
+      _vehicleRestoreKs = Array.isArray(msg.restoreKs) ? msg.restoreKs : null;
+      _sharedKCalib = null;
+    }
     // ★タイヤ円周比(今÷工場)★: 健全域[0.80,1.25]外/非数値は null(=恒等1.0)。物理サイズ変更補正。
     if ('tireRatio' in msg) {
       const tr = typeof msg.tireRatio === 'number' ? msg.tireRatio : null;
@@ -2626,6 +2635,8 @@ self.onmessage = function (e) {
       vehicleK: _vehicleK,
       vehicleKMeasured: _vehicleKMeasured,
       tireRatio: _vehicleTireRatio,
+      daikouMode: _vehicleDaikouMode,
+      autoCalibK: _vehicleAutoCalibK,
     });
     return;
   }
@@ -2846,50 +2857,6 @@ self.onmessage = function (e) {
       breakdown: bd,
       stats: st,
     });
-    return;
-  }
-
-  // MM-6: OSRM 統計取得（debug 用）
-  if (msg.type === 'getOsrmStats') {
-    self.postMessage({
-      type: 'osrmStats',
-      enabled: _osrmEnabled,
-      endpoint: typeof self.OsrmClient !== 'undefined' ? self.OsrmClient.getEndpoint() : null,
-      bufferSize: _osrmTraceBuffer.length,
-      teacherActive: Date.now() <= _osrmTeacher.expiresAt,
-      teacherLegs: _osrmTeacher.legs.length,
-      hits: _osrmTeacher.hits,
-      misses: _osrmTeacher.misses,
-      batches: _osrmTeacher.batches,
-      batchFails: _osrmTeacher.batchFails,
-      onLine: typeof navigator !== 'undefined' ? navigator.onLine : null,
-    });
-    return;
-  }
-
-  // MM-6: OSRM エンドポイント設定
-  // payload: { endpoint?: string, enabled?: boolean }
-  if (msg.type === 'configOsrm') {
-    try {
-      if (
-        typeof msg.endpoint === 'string' &&
-        msg.endpoint.length > 0 &&
-        typeof self.OsrmClient !== 'undefined'
-      ) {
-        self.OsrmClient.setEndpoint(msg.endpoint);
-      }
-      if (typeof msg.enabled === 'boolean') {
-        _osrmEnabled = msg.enabled;
-      }
-      self.postMessage({
-        type: 'osrmConfigured',
-        ok: true,
-        endpoint: typeof self.OsrmClient !== 'undefined' ? self.OsrmClient.getEndpoint() : null,
-        enabled: _osrmEnabled,
-      });
-    } catch (err) {
-      self.postMessage({ type: 'osrmConfigured', ok: false, error: err.message });
-    }
     return;
   }
 
@@ -3142,14 +3109,6 @@ self.onmessage = function (e) {
     _pushGpsBuffer({ lat: msg.lat, lng: msg.lng, timestamp: msg.timestamp });
     // G1: trajectory 不規則性推定用に直近 GPS 履歴を維持
     _pushRecentGps(msg.lat, msg.lng, msg.timestamp);
-
-    // MM-6: OSRM 教師信号用バッファ追加（30 秒ごとに自動でバッチ送信トリガ）
-    _addToOsrmBuffer({
-      lat: msg.lat,
-      lng: msg.lng,
-      timestamp: msg.timestamp,
-      accuracy: msg.accuracy,
-    });
 
     let mmIncrementM = 0;
     // ★設計変更宣言 (2026-05-16・Tier 2 リードインジケータ): preview 用 単 step 道路距離
@@ -3558,6 +3517,7 @@ self.onmessage = function (e) {
       //   別途 0 化不要だが・freeze と整合させるため下の effectivelyStationary block で 0 に念押しする。
       pipelineDeltaM: _pipelineDeltaM_now,
       pipelineDeltaSrc: _pipelineDeltaSrc, // ★source-aware k: 'obd'=随伴車k適用 / 'gps'=×1.0★
+      calibStatus: _lastCalibStatus, // ★1km自動較正K 見える化用(autoCalibK時のみ非null)★
     });
   }
 };

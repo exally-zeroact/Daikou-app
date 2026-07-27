@@ -46,9 +46,9 @@ function createMapMatcherWorker(opts) {
     setInterval: () => 0,
     clearInterval: () => {},
     performance: { now: () => Date.now() },
-    // Worker context は navigator.onLine だけ参照する箇所がある (osrm-client.js)
-    navigator: { onLine: false }, // 強制 offline で OSRM /match を確実に skip
-    // fetch は Worker 内では呼ばれない設計 (= OSRM /match のみ・上記 navigator.onLine=false で skip)
+    // Worker context は navigator.onLine を一部 codepath で参照する (保険で offline 固定)
+    navigator: { onLine: false },
+    // fetch は Worker 内では呼ばれない設計 (OSRM 教師は 2026-06-20 廃止済)
     fetch: () => Promise.reject(new Error('[worker-sim] fetch disabled')),
   };
   // Worker context では window 未定義・self が global
@@ -92,7 +92,7 @@ function createMapMatcherWorker(opts) {
 
   vm.createContext(ctx);
 
-  // 実 map-matcher.js を load (= 内部で importScripts('roads-decoder.js') / importScripts('osrm-client.js'))
+  // 実 map-matcher.js を load (= 内部で importScripts('roads-decoder.js'))
   const mapMatcherSrc = fs.readFileSync(path.join(JS_DIR, 'map-matcher.js'), 'utf8');
   vm.runInContext(mapMatcherSrc, ctx, { filename: 'js/map-matcher.js' });
 

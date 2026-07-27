@@ -20,7 +20,7 @@
 //   ✅ 業務中に急にバージョン変わらない（安全）
 // ===========================================
 
-const CACHE_NAME = 'daikome-d338fb0';
+const CACHE_NAME = 'daikome-00991dc';
 // ★設計変更宣言 (2026-05-13): 47県データを固定名 cache に分離
 //   旧: アプリコード CACHE_NAME が hash で毎デプロイ更新 → 旧 cache 全削除 →
 //       47県データ (/data/roads-*.js) も全削除 → 全欠落・204MB 再 DL
@@ -81,6 +81,40 @@ const PRECACHE_FILES = [
   '/data/road-graph-backbone-jp.js',
 ];
 
+// ★2026-07-03 Fix A: コアJS(worker/距離コア)を install 時に個別 add で先取りキャッシュ★
+//   背景: アプリJSは PRECACHE 対象外で staleWhileRevalidate 配信だった → インストール済みPWAが
+//   古いビルド(較正K未適用版)のコードを掴んだまま走り、生OBD∫vで過小になる実機事故が発生。
+//   さらに worker の importScripts('k-calib.js'等) がオフラインで404失敗すると autoCalibK が無効化。
+//   → デプロイ毎(CACHE_NAME更新)に最新コードへ確実更新 + オフラインでも importScripts 成功させる。
+//   ★addAll(原子的)には入れない=1個404で全install死を防ぐため、install側で個別 add(...).catch する★。
+const CORE_CODE_FILES = [
+  // worker本体 + importScripts で読む依存(オフラインで importScripts 失敗を防ぐ最重要群)
+  '/js/map-matcher.js',
+  '/js/roads-decoder.js',
+  '/js/k-calib.js',
+  '/js/pipeline-distance.js',
+  '/js/gps-worker.js',
+  // 距離/課金コア
+  '/js/meter.js',
+  '/js/gps.js',
+  '/js/business.js',
+  '/js/veh-registry.js',
+  '/js/obd-client.js',
+  '/js/mm-data-pipeline.js',
+  '/js/obd-wheelspeed-identify.js',
+  '/js/obd-wheelspeed-map.js',
+  // 起動/データロードに必要な主要
+  '/js/data-loader.js',
+  '/js/data-registry.js',
+  '/js/region-helper.js',
+  '/js/page-lifecycle.js',
+  '/js/debug-config.js',
+  '/js/firebase-config.js',
+  '/js/firebase.js',
+  '/js/license.js',
+  '/js/trace-outbox.js',
+];
+
 self.addEventListener('install', function (e) {
   e.waitUntil(
     caches
@@ -92,6 +126,16 @@ self.addEventListener('install', function (e) {
           cache.addAll(
             PRECACHE_FILES.filter(function (p) {
               return p !== '/';
+            })
+          ),
+          // ★2026-07-03 Fix A: コアJSを個別 add(...).catch で耐障害先取り。
+          //   cache:'reload' で HTTP キャッシュの古いコードを掴まず最新取得。
+          //   個別 catch なので 1個404でも他のコア更新と全体 install を壊さない(addAll原子性を回避)。
+          Promise.all(
+            CORE_CODE_FILES.map(function (f) {
+              return cache.add(new Request(f, { cache: 'reload' })).catch(function () {
+                /* 個別失敗許容(将来ファイル改名等でinstall全死させない) */
+              });
             })
           ),
         ]);

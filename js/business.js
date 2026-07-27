@@ -376,22 +376,47 @@ const Business = (function () {
   //     ✓ 新 logic ゼロ (= 既存 4 段 fallback _safeGetNearestAddress を・流用)
   //     ✓ 既存 onTripStart / onWaypoint / setEndAddress 等の・固定住所取得は・1 byte 不変
   //   消費側 (= index.html updateWaypointCardUI) で・既存 500ms timer から・呼び・末尾追記する。
-  function getCurrentLiveAddress() {
-    const now = Date.now();
-    // ① snap fresh → snap 位置で住所
-    if (_lastMMSnap && now - _lastMMSnap.t < _MM_SNAP_FRESH_MS) {
-      return _safeGetNearestAddress(_lastMMSnap.lat, _lastMMSnap.lng, null);
+  // ★現在地フリーズ根治しきい値 (2026-06-20・実機trace 497e5ded で確定)★:
+  //   古い snap が生GPSからこれ以上離れたら「snapが死んで現在地が進んだ」とみなし生GPSへ切替。
+  //   短時間停止のGPS drift(~10-30m)では切替えず snap保持(町名安定)。実機は石井町snapから17.5km離れて凍結。
+  const _LIVE_ADDR_SNAP_DIVERGE_M = 150;
+  function _haversineLiveM(aLat, aLng, bLat, bLng) {
+    const R = 6371000,
+      r = Math.PI / 180;
+    const dLa = (bLat - aLat) * r,
+      dLo = (bLng - aLng) * r;
+    const s =
+      Math.sin(dLa / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s));
+  }
+  // ★住所② 現在地の "位置源" を決める純粋関数 (副作用なし・テスト可能)★:
+  //   ① snap新鮮 → snap / ② snap stale → 生GPSが新鮮かつ古snapから乖離なら ★生GPS(凍結解消)★・近接は snap保持
+  //   / ③ snap無し+生GPS新鮮 → 生GPS / ④ 無し → null。距離/課金には一切関与しない(表示位置の選定のみ)。
+  function _pickLiveAddrPos(o) {
+    const now = o.now;
+    const snap = o.mmSnap,
+      raw = o.rawGps;
+    // ① snap fresh
+    if (snap && now - snap.t < _MM_SNAP_FRESH_MS)
+      return { src: 'snap', lat: snap.lat, lng: snap.lng };
+    // ② snap stale: 生GPSが新鮮 かつ 古snapから大きく離れてたら(=snap死亡・現在地が進んだ)生GPSで追従。
+    //   近接(短時間停止drift)/生GPS不在/生GPS stale は snap保持(従来=町名安定・flicker防止)。
+    if (snap) {
+      if (raw && now - raw.t < _RAW_GPS_FRESH_MS) {
+        if (_haversineLiveM(snap.lat, snap.lng, raw.lat, raw.lng) > _LIVE_ADDR_SNAP_DIVERGE_M)
+          return { src: 'raw', lat: raw.lat, lng: raw.lng };
+      }
+      return { src: 'snap', lat: snap.lat, lng: snap.lng };
     }
-    // ② snap stale + _lastMMSnap あり → 直近 snap 位置で住所 (= 短時間停止・町名不変)
-    if (_lastMMSnap) {
-      return _safeGetNearestAddress(_lastMMSnap.lat, _lastMMSnap.lng, null);
-    }
-    // ③ raw GPS fresh → raw GPS 位置で住所 (= 屋内 drift・snap 1 度も無い時)
-    if (_lastRawGps && now - _lastRawGps.t < _RAW_GPS_FRESH_MS) {
-      return _safeGetNearestAddress(_lastRawGps.lat, _lastRawGps.lng, null);
-    }
-    // ④ 全部無し
+    // ③ raw fresh
+    if (raw && now - raw.t < _RAW_GPS_FRESH_MS) return { src: 'raw', lat: raw.lat, lng: raw.lng };
+    // ④
     return null;
+  }
+  function getCurrentLiveAddress() {
+    const pos = _pickLiveAddrPos({ mmSnap: _lastMMSnap, rawGps: _lastRawGps, now: Date.now() });
+    if (!pos) return null;
+    return _safeGetNearestAddress(pos.lat, pos.lng, null);
   }
 
   // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・(C) 1km grid index lazy build):
@@ -947,8 +972,20 @@ const Business = (function () {
       //   Meter.business_distance_m に逆流させて連続性を確保する。
       //   Meter は新規 load で business_distance_m=0 で起動するため、prime しないと
       //   復元直後の getReport().total_distance_m が 0 にリセットされてしまう。
+      // ★バグ修正 (2026-06-20・「業務終了→(再読込)→再開で総走行距離が 0 に戻る」根治):
+      //   旧: state.active 限定で復元 → 業務終了 (active=false・limbo 状態) の後に
+      //       アプリが再読込/タスクキルされると、再起動時の load() がこの prime を skip し
+      //       Meter.business_distance_m=0 のまま起動する。続く「業務再開」(onBusinessResume /
+      //       onResumeFromStart → Business.resume()) は active を true に戻すだけで距離を
+      //       復元しないため、getReport().total_distance_m=0 → 総走行距離が 0.00 に落ちる事象。
+      //   新: active だけでなく resumable limbo (start_time あり) も復元対象に含める。
+      //       ・「業務再開」すれば前業務の総走行が正しく継続する。
+      //       ・「代行開始」(新規業務) を選んだ場合は start() が setBusinessDistance(0) で
+      //         0 化するため二重化や残留はなく無害。
+      //   ★ business_distance_m は永続化ミラー (state.total_distance_m) からの復元のみで、
+      //     distance_m / 課金 / 過大ゼロ は 1 byte 不変 (= 表示用 業務総走行の連続性復元) ★
       if (
-        state.active &&
+        (state.active || state.start_time) &&
         state.total_distance_m > 0 &&
         typeof Meter !== 'undefined' &&
         typeof Meter.setBusinessDistance === 'function'
@@ -1108,6 +1145,8 @@ const Business = (function () {
     notifyRawGps: notifyRawGps,
     // ★設計変更宣言 (2026-05-23・住所② 現在地ライブ表示・public API)
     getCurrentLiveAddress: getCurrentLiveAddress,
+    // ★現在地フリーズ根治 (2026-06-20): 位置源選定の純粋関数を公開 (ユニット試験 seam・read-only)
+    _pickLiveAddrPos: _pickLiveAddrPos,
   };
 })();
 

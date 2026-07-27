@@ -10,6 +10,8 @@
 //
 //   prod の・距離機構 (= distance_m / calcFare / commit) / 課金経路 / Worker B /
 //   map-matcher は・**1 byte も触らない**。本 file は独立・通常時は何もしない (= 早期 return)。
+//   ★2026-07-03 MANUAL_ONLY=true(L70): 自動flush(点数/時間)+離脱beacon は無効化済=送信は📡ボタン
+//     押下時のみ(オンライン)。watchPosition による収集は継続。以下の auto-flush/beacon 記述は無効経路。
 //
 //   activation:
 //     ★設計変更宣言 (2026-05-23・テストビルド常時 ON 化・noise calibration 30 日収集 加速):
@@ -62,6 +64,12 @@
   //   診断専用・距離/課金は 1 byte も非関与。chunk は device_id+chunk_seq+時刻順で解析側が連結。
   const TIME_FLUSH_MS = 90000; // 90 秒ごとに未送信 buffer を chunk upload (最大損失 ≤90 秒)
   const WATCH_OPTIONS = { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 };
+  // ★2026-07-03 司さん指示「自動trace廃止・オンライン＋ボタン押下時のみ送信」★:
+  //   走行中の自動 chunk 送信 (点数/時間) と離脱時の自動 beacon 送信を全廃し、送信は
+  //   「📡 GPS trace 送信」ボタン押下時のみ (= オンライン時に手動) に限定する。
+  //   watchPosition による収集は継続 (ボタン押下時に送る中身を memory に貯める)。
+  //   ※長時間 (≈83分/MAX_SAMPLES 5000点) を超える先頭分は上限で破棄 (手動運用の許容トレードオフ)。
+  const MANUAL_ONLY = true;
 
   // ─── Feature flag handling (= ?trace=on/off で切替) ────────
   // ★設計変更宣言 (2026-05-23・テストビルド既定 ON):
@@ -230,6 +238,55 @@
       return -1;
     }
   }
+  // ★0131 ECU距離(1km粗・記録専用・距離未配線)★: 業務開始/終了の差=ECUが車速パルスを積算した距離
+  //   =メーター機と同じ物=B(真距離)の基準。01A6非対応の古い車/軽でも多くが0131を出す。
+  function _obd0131Snapshot() {
+    try {
+      if (
+        typeof window === 'undefined' ||
+        !window.OBDClient ||
+        !window.OBDClient.getDistanceSinceClear
+      ) {
+        return -1;
+      }
+      const d = window.OBDClient.getDistanceSinceClear();
+      return d && d.km >= 0 ? d.km : -1;
+    } catch (_) {
+      return -1;
+    }
+  }
+  // ★生OBD∫v(m・faithful・記録専用・距離未配線)★: ポーリングレートで積分した本値=K較正の忠実な分母
+  function _obdIntvSnapshot() {
+    try {
+      if (typeof window === 'undefined' || !window.OBDClient || !window.OBDClient.getObdIntegral) {
+        return -1;
+      }
+      const v = window.OBDClient.getObdIntegral();
+      return v && v.m >= 0 ? v.m : -1;
+    } catch (_) {
+      return -1;
+    }
+  }
+
+  // ★CAN輪速メーター スナップショット (2026-06-24・1B8バースト距離をtraceに確実記録)★:
+  //   console.log([OBD-CANWHEEL])が上がらず分析不能だった根治=GPSサンプルと同経路で確実アップ。
+  //   {dist:積分距離m, on:稼働中, frames, stalls, kmh:直近速度}。passive=getCanWheelMeter読むだけ・距離未配線。
+  function _cwSnapshot() {
+    try {
+      if (
+        typeof window === 'undefined' ||
+        !window.OBDClient ||
+        !window.OBDClient.getCanWheelMeter
+      ) {
+        return null;
+      }
+      const m = window.OBDClient.getCanWheelMeter();
+      if (!m || !m.on) return null; // 非稼働は記録しない(サンプル肥大化防止)
+      return { d: Math.round(m.distM), f: m.frames, s: m.stalls || 0, k: m.lastKmh };
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ★エンジンRPM スナップショット (2026-06-11・RPMギア比学習データ収集)★: passive=OBDClient.getRpm()読むだけ。
   //   RPM(010C・高解像度)+ギア比でOBD車速1km/h floor過小をde-quantする将来法の ★実データ★ を次走行traceに残す。
@@ -327,9 +384,14 @@
       accel: _accelSinceGps.slice(), // この GPS 区間の加速度 [{x,y,z,t}] (= gps.js が worker へ送る batch 相当)
       gyro: _lastGyro, // 直近ジャイロ {a,b,g} or null
       compass: _lastCompass, // 直近コンパス度 (-1=未取得)
-      biz: _bizSnapshot(), // ★後半④rev3: 業務状態{bd:業務距離,dm:総距離,run:代行中,tc:業務回数,act:業務active}=業務別自動分割用
+      biz: _bizSnapshot(), // ★後半④rev3: 業務状態{tc:業務回数,it:代行中(current_trip!=null),act:業務active,end:終了limbo,td:業務開始からの総距離m}=業務別自動分割用
+      om: typeof window !== 'undefined' && window._cumObdM >= 0 ? Math.round(window._cumObdM) : -1, // ★2026-07-04 距離内訳: OBD∫v駆動 累積m(業務窓の差分でGPS漏れ測定)
+      gm: typeof window !== 'undefined' && window._cumGpsM >= 0 ? Math.round(window._cumGpsM) : -1, // ★GPS(その他)駆動 累積m
       obd: _obdSpeedSnapshot(), // ★OBD車速(km/h・-1=未接続/鮮度切れ)。passive: OBDClient を読むだけ・∫v(OBD)オフライン検証用
       obd_odo: _obdOdoSnapshot(), // ★OBDオドメーター(01A6・km・-1=未対応/未取得)。業務開始/終了の差=タイヤ回転距離(メーター級)照合用
+      obd_0131: _obd0131Snapshot(), // ★0131 ECU距離(km・1km粗・-1=未対応/未取得)。業務開始/終了の差=ECU積算距離=B(真距離)基準。01A6非対応の軽/古い車向け
+      obd_intv: _obdIntvSnapshot(), // ★生OBD∫v(m・faithful・ポーリングレート積分・-1=未取得)。1Hz GPS同期の再積分過小を回避しK較正の分母を忠実化
+      cw: _cwSnapshot(), // ★CAN輪速メーター距離(1B8バースト・null=非稼働){d:m,f:frames,s:stalls,k:km/h}。trace直記録で確実アップ(console.log不達根治)
       rpm: _obdRpmSnapshot(), // ★エンジンRPM(010C・-1=未取得)。RPM+ギア比でfloor過小de-quantする法の実データ収集(記録専用・距離未配線)
       // ★OBD-main 発火診断 (2026-06-10・追加のみ・既存 field 不変・passive)★:
       spdsrc: _speedSrcSnapshot(c), // 速度源 'obd'/'dop'/'hav' (gps.js L629 と同条件で評価・null=評価不能)。OBD-main が実際に発火したか
@@ -344,7 +406,8 @@
     if (_lastAutoFlushAt == null) _lastAutoFlushAt = p.timestamp;
     const _dueByCount = samples.length >= AUTO_FLUSH_SAMPLES;
     const _dueByTime = samples.length > 0 && p.timestamp - _lastAutoFlushAt >= TIME_FLUSH_MS;
-    if (_dueByCount || _dueByTime) {
+    if (!MANUAL_ONLY && (_dueByCount || _dueByTime)) {
+      // ★MANUAL_ONLY=true では発火しない (2026-07-03)。送信は手動ボタンのみ。
       _lastAutoFlushAt = p.timestamp;
       _flushTrace(true);
     }
@@ -367,6 +430,30 @@
   // 起動時に・自動 watchPosition 開始 (= 既存 gps.js の watchPosition とは独立・並行 subscribe)
   startWatch();
   _addSensorListeners(); // ★後半④: 加速度/ジャイロ/コンパスも並行 subscribe (gps.js permission に相乗り)
+
+  // ★2026-07-03 自己診断スナップショット★: 実行時にKが実際に乗ってるか・どのビルドかをtraceに焼く。
+  //   今回の事故(Kが黙って乗らず過小課金・何日も原因不明)の再発時に、1本のtraceで即断定するための核。
+  //   passive=window の状態を読むだけ(距離/課金に無関与)。値は数値/文字列のみ(Firebase schema安全)。
+  //     ac  = window.DK_AUTO_CALIB_K (1=有効/0=無効) ← OFFキー診断の核
+  //     act = calibStatus.active (1=学習Kが実際に乗ってる/0=乗ってない/-1=不明)
+  //     deg = calibStatus.degraded (1=較正器ロード失敗/0=正常/-1=不明)
+  //     k   = 適用K値 (-1=不明)   win = 較正窓数 (-1=不明)   sw = SWが掴んでるビルド名(''=不明)
+  function _diagSnapshot() {
+    try {
+      if (typeof window === 'undefined') return null;
+      const cs = window._lastCalibStatus || null;
+      return {
+        ac: window.DK_AUTO_CALIB_K === true ? 1 : 0,
+        act: cs ? (cs.active === true ? 1 : 0) : -1,
+        deg: cs ? (cs.degraded === true ? 1 : 0) : -1,
+        k: cs && typeof cs.K === 'number' ? cs.K : -1,
+        win: cs && typeof cs.windows === 'number' ? cs.windows : -1,
+        sw: (typeof window.DK_SW_CACHE === 'string' && window.DK_SW_CACHE) || '',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
 
   // ─── upload 内部実装 (= 1 chunk batch を POST・auto-flush と手動送信の共通経路) ─
   //   ★設計変更宣言 (2026-06-04・auto-flush): 旧 window.uploadGpsTrace のインライン POST を
@@ -402,6 +489,8 @@
           // ★auto-flush: chunk 連番 + 自動/手動 区別 (= 解析側が device_id でまとめ chunk_seq 順に連結)
           chunk_seq: seq,
           auto_flush: !!isAuto,
+          // ★2026-07-03 自己診断: 実行時のK適用状態を焼く(Kが乗ってるか/どのビルドか=原因確定の核)
+          diag: _diagSnapshot(),
         },
         samples: batch,
         writeKey: WRITE_KEY,
@@ -503,6 +592,8 @@
         chunk_seq: seq,
         auto_flush: true,
         beacon: true,
+        // ★対立監査P1-b是正: 離脱trace(beacon)にも診断を焼く(_postBatchと対等・Kが乗ってたか欠落防止)
+        diag: _diagSnapshot(),
         // ★随伴車別 k 含む車両profile (アプリ離脱trace でも過大ゼロ事後監査可能に・_postBatch と対等)
         vehicle: (typeof window !== 'undefined' && window.DK_VEHICLE_PROFILE) || null,
       },
@@ -522,13 +613,16 @@
     }
   }
   // pagehide (= bfcache/離脱の最終 hook) と visibilitychange(hidden) で beacon flush。
-  try {
-    window.addEventListener('pagehide', _beaconFlush);
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') _beaconFlush();
-    });
-  } catch (_) {
-    /* listener 登録不可 → 静かに無視 (= auto-flush/手動送信のみで運用) */
+  // ★MANUAL_ONLY=true (2026-07-03 司さん指示) では登録しない=離脱時の自動送信を全廃。手動ボタンのみ。
+  if (!MANUAL_ONLY) {
+    try {
+      window.addEventListener('pagehide', _beaconFlush);
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') _beaconFlush();
+      });
+    } catch (_) {
+      /* listener 登録不可 → 静かに無視 (= auto-flush/手動送信のみで運用) */
+    }
   }
 
   // ─── DOM 配線 (= #overlaySettings に挿入された UI element に bind) ─

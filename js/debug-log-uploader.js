@@ -2,7 +2,10 @@
 // js/debug-log-uploader.js
 // Eruda console log を Firebase RTDB に自動 upload するツール (= 2026-05-29)
 //
-// ★設計変更宣言 (= prod 同梱・テストビルド既定 ON):
+// ★2026-07-03 自動trace廃止で既定OFFに変更★: 本 file は ★既定OFF★(?debuglog=on を明示した時のみ有効・
+//   下記「テストビルド既定ON」は旧記述=無効)。有効時のみ console override→30秒/500件でPOST。通常運用では
+//   何もしない(早期return)。
+// ★(旧)設計変更宣言 (= prod 同梱・テストビルド既定 ON):
 //   console.log / console.warn / console.error / dlog を override し・リングバッファに蓄積。
 //   30 秒間隔 or 500 件溜まる毎に Firebase RTDB の debug_traces (= 既存・public read 可)
 //   へ POST。司さんが Eruda Console で見るログを・Claude (= 解析側) も REST で並行参照可能にする。
@@ -18,10 +21,9 @@
 //   prod の・距離機構 (= distance_m / calcFare / commit) / 課金経路 / Worker B /
 //   map-matcher は・**1 byte も触らない**。本 file は独立・通常時は何もしない (= 早期 return)。
 //
-//   activation:
-//     テストビルド (= !DEBUG.isProduction) では・既定 ON で自動 push (= UX 優先・司さん指示)。
-//     本番 (= DEBUG.isProduction === true) では・既定 OFF (= privacy/同意)。
-//     ?debuglog=off で明示 OFF / ?debuglog=on で本番でも明示 ON。
+//   activation (★2026-07-03 更新★):
+//     ★既定 OFF (テスト/本番とも)★。?debuglog=on を明示した時のみ有効(診断セッション限定)。
+//     (旧: テストビルド既定ONで自動push → 自動trace廃止で既定OFFに変更)。
 //
 //   security:
 //     Firebase RTDB の `debug_traces` スコープのみに書込・writeKey 必須・samples 5000 上限
@@ -76,8 +78,10 @@
     } else if (stored === '0') {
       _enabled = false;
     } else {
-      const _isProd = typeof DEBUG !== 'undefined' && DEBUG && DEBUG.isProduction === true;
-      _enabled = !_isProd;
+      // ★2026-07-03 司さん指示「自動trace廃止」★: console log の自動アップロードは
+      //   テストビルドでも既定 OFF。有効化は ?debuglog=on を明示した時のみ (= 診断セッション限定)。
+      //   旧はテストビルドで非本番なら既定 ON (30秒毎に自動 push) にしていたが撤去。
+      _enabled = false;
     }
   } catch (_) {
     _enabled = false;

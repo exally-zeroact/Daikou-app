@@ -3,7 +3,7 @@
 // ★OBD ホーム UI 検証 (2026-06-08)★
 //
 // 検証: ①ホーム(業務開始)画面に OBD 接続ピル #btnObdHome が見える・OBD 文言を出す
-//       ②走行画面に距離源バッジ #obdDriveBadge が見える
+//       ②走行画面の距離源バッジ #obdDriveBadge は非表示(司さん要望2026-06-27)
 //       ③bindObdUI が例外なく完走 (window.__obdUiBound===true) = obd-client.js load + 配線健全
 //       ④headless(Web Bluetooth 非対応)では「Android Chromeのみ」表示にフォールバック(落ちない)
 //
@@ -63,17 +63,17 @@ test('OBD: 青バーチップは走行画面に遷移しても常駐(押せる)'
   await expect(chip).toContainText('OBD');
 });
 
-test('OBD: 走行画面に距離源バッジが見える (初期=GPS)', async ({ page }) => {
+test('OBD: 走行画面の距離源バッジは非表示 (司さん要望2026-06-27)', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => {
     if (typeof showScreen === 'function') showScreen('driving');
     const d = document.getElementById('screenDriving');
     if (d) d.style.display = 'block';
   });
+  // ★距離源バッジ(📡GPS/🟢OBD)は司さん要望で非表示にした(要素とJS更新は残すが display:none)。
+  //   接続状態は青バーのOBDチップ(緑=接続/半透明=未接続)で示す。
   const badge = page.locator('#obdDriveBadge');
-  await expect(badge).toBeVisible();
-  // 未接続(headless)では GPS 表示
-  await expect(badge).toContainText('GPS');
+  await expect(badge).toBeHidden();
 });
 
 test('OBD: Web Bluetooth 非対応端末はフォールバック表示で落ちない', async ({ page }) => {

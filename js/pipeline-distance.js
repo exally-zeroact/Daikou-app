@@ -1,9 +1,14 @@
 // ============================================================
 // pipeline-distance.js  (ダイコメ 距離計算コア・白紙書き直し 第一弾)
 //
-// 確定方式: MM主 + Doppler従 + topology補間ハイブリッド
-//   = 国交省認定ソフトメーター方式。
-//   distance_m の意味論 = 「道路 snap 道なり累積」(GPS 直線課金は禁止)。
+// ★現状の距離方式(2026-07・重要)★:
+//   ① 既定 smoothedRawMode=true = 距離は「平滑生GPS弦」(snapは距離に使わない=下記の道路snapは
+//      OFF経路の旧方式/フォールバック)。② OBD接続中(speedSrc==='obd')は ∫v(OBD)×較正K が
+//      smoothedRawMode より優先(L123・タイヤ直結・認定メーター方式)=距離の実質本線。K凍結(confident後
+//      学習停止)で決定的。GPSはKのスケール較正+OBD欠落穴埋めにのみ使う(距離本線ではない)。
+//   ※以下の「MM主/道路snap道なり累積」は白紙書き直し初期(2026-05)の旧記述=snap経路の説明として残す
+//     (smoothedRawMode/OBD∫vが本線になった今、distance_mの意味論は「道路snap道なり」ではない)。
+//   確定方式(旧): MM主 + Doppler従 + topology補間ハイブリッド = 国交省認定ソフトメーター方式。
 //
 // このモジュールは「距離を算出するだけ」。calcFare 等の課金式は一切呼ばない。
 //
@@ -197,6 +202,8 @@ const DEFAULTS = {
   obdDopWinSec: 30, // 比(スケール)窓長(s)
   obdDopMinN: 5, // この比点数貯まるまで下側分位非適用→cold-start k0 が保護
   obdDopQuantile: 0.25, // 比の下側分位(p25)=保守的真スケール・上向きスパイク棄却
+  obdDaikouMode: false, // ★代行=true で OBD天井分位を p25→p50(中央値=真スケール)に切替=K無し代行車を全車一致させる。
+  //   タクシー/モコ(factory K)は非到達=既定false で byte不変。★DEFAULTS登録必須(L1873汎用ループ依存・未登録でundefined黙死)★
   obdRatioMinSpd: 2.8, // 比を取る最低速度(m/s=10km/h・低速の比ノイズ除外)
   obdRatioMax: 1.1, // 比の上側クランプ(マルチパス上向きスパイクの比爆発を構造遮断)
   // ★cold-start k0★: Doppler窓が貯まる前(dopMsは来てるが点数不足)の保守スケール。摩耗で過大読みのECUを
@@ -234,6 +241,13 @@ const DEFAULTS = {
   //   非K経路では天井が「タイヤ補正後vEff」を独立Doppler速度で再検証=過大方向の誤補正を自動で刈る安全網。
   //   実測K(obdVehicleKMeasured=true)経路ではタイヤ込み較正のため非適用(=1.0扱い)。
   obdTireRatio: 1.0,
+  // ★1km自動較正K (autoCalibK・確定方式 2026-06-26 / 司さん裁定①=代行はp50を学習Kに置換)★:
+  //   true で OBD∫v×学習K(K=良GPS長窓 GPS距離÷OBD∫v・js/k-calib.js)を距離に焼く。floorもタイヤ器差も
+  //   GPS(車非依存)が長窓比でまとめて補正=どの車でも同経路同距離・タイヤ入力はcoldStart初期値。
+  //   ★3窓(≒3km)未満は学習Kを焼かず obdColdStartK(タイヤ入力由来)で運用(過大請求防止・対立監査P0是正)★。
+  //   autoCalibK時は δ/量子化/タイヤ比を中和(学習Kに全部込み=二重計上防止・監査#3)。
+  //   ★false=完全OFF(byte不変・既存p50/ラチェット/測定K経路は一切不変)★。
+  autoCalibK: false,
   calMinWindowS: 30, // この秒数の良GPS移動を貯めて δ を1回確定 (業界標準の dwell)
   calMaxChordRatio: 1.5, // GPS弦 > spd×dt×これ = ジッタ汚染窓 → δ母集団から除外
   calMaxAccM: 30, // 両端 accuracy これ超 = 位置不確か → δ母集団から除外 (良GPS窓のみ学習)
@@ -265,6 +279,10 @@ const DEFAULTS = {
   smoothDopplerCapRatio: 1.5, // ★never-over (監査CRITICAL-3)★: 平滑弦 > spd×dt×これ なら抑制。
   //   微速(停止判定を僅かに外れる0.5〜1m/s)の純ジッタが平滑弦に残り creep 化するのを遮断。通常走行は
   //   平滑弦 ≤ 実路長 ≈ spd×dt なので 1.5 倍までは binding せず無影響 (curve 余裕込み)。
+  // ★cap締め検証(2026-06-25・revert済)★: cap を 1.0(spd×dt) まで締めると gpstrace の +1.88% は
+  //   +0.27% に消えるが、iPhone13/SE fixture(OFFで既に +0.16〜0.58%)は -1.4〜-2.0% へ過小化(never-over違反)。
+  //   過大は走行ごと +0.16〜+1.88% とバラつき、固定cap値では高過大の締めと低過大の非過小化を両立不能。
+  //   ∴ 締めは不採用。現行 1.5 が均衡(fixtureは既に真距離 +0.16〜+0.93% で十分正確)。検証: tests/tools/measure-tighten-cap.js。
 
   // ★★両端速度 台形補間 穴埋め(公知: linear-velocity trapezoid) (2026-06-10・GPS実装班・公知手法)★★:
   //   smoothedRawMode の長dt穴 (dt>smoothGapSec=トンネル/間引き) は従来「入口速度×dt」(片端 Doppler)
@@ -295,6 +313,10 @@ const DEFAULTS = {
   //     rawChord×routingAcceptMaxRatio(2.5) かつ routed ≤ tunnelRouteMaxM かつ routed ≤ spd×dt×routingMaxRatio。
   //   どれか外れたら従来の boundary/doppler fill に落ちる (純加算回収=安全)。OFF で 1byte 不変。
   //   ★batch(computeDistance)/tracker(createDistanceTracker) は同一 stepDistance を通るため parity 構造保証★。
+  //   ★但し書き(2026-07・監査D)★: この parity は ★GPS距離側(stepDistance)のみ★。OBD∫v×K・autoCalibK・
+  //   K凍結・δ/量子化/ラチェットは tracker の _core クロージャ専用で ★batch(computeDistance)には無い★。
+  //   ∴ replay/batch系テストはOBD方式を検証しない=OBD/autoCalibKは ★tracker経由の単体テストで担保★
+  //   (tests/unit/k-freeze-deterministic・k-calib-shared・integration/vehicle-k-meter が autoCalibK+obd:true で検証)。
   tunnelRouteFill: true, // 長穴を出口アンカー道路 routing で充填 (既定 ON・never-over サニティ付き)。
   tunnelRouteMaxStraightM: 3000, // rawChord がこれ超の長穴は routing せず従来 fill (遠距離=道路網外れ防止)。
   tunnelRouteMaxM: 3500, // routing 結果がこれ超なら採用しない (絶対上限・過大暴走遮断)。
@@ -323,6 +345,14 @@ const DEFAULTS = {
   accBadM: 15, // accuracy がこれ超 = GPS劣化(ビル街) → ②速度充填へ
   adaptiveCapRatio: 1.5, // ①の never-over: 3D弦 ≤ spd×dt×これ。走行ジッタ過大を物理上限で叩く
   maxClimbMps: 8, // 3D高度ゲート: |Δalt|/dt がこれ超 = GPS altノイズ → Δalt=0(正ラチェット過大を遮断)
+  // ★★1ステップ物理サニティ クランプ (2026-06-19・実機しまなみ +14,725m/1s 幻デルタ根治)★★:
+  //   GPS飛び(reason=jump)直後に snap が遠い道へ飛ぶと、主経路(snap/routing/straightFallback)が
+  //   1ステップで物理的にあり得ない弦(実機 14,725m を 0.99s で)を無 cap で返し distance_m に焼く。
+  //   OBD∫v(obdMaxDtS=10s)/coast(coastHoleMaxM=600m)には物理上限があるが本主経路だけ欠落していた。
+  //   対策: 共有 stepDistance ラッパーで deltaM ≤ ★physMaxStepAbsMps × dt★ に常時クランプ(過大ゼロ方向)。
+  //   絶対上限のみ=車で不可能な速度。正当な穴埋め(速度×dt 相当)は潰さない。batch/tracker 双方に等しく効き parity 保持。
+  physMaxStepAbsMps: 60, // ★絶対物理上限 60m/s(=216km/h・車であり得ない)★。参照速度が無い(始動直後/穴中)時も
+  //   必ず deltaM ≤ これ×dt で叩く=spd不明+遠snapの焼き付き弦(実機18.5km/1s)を構造的に封じる。
 };
 
 // ─── 幾何ヘルパ ───────────────────────────────────────────────
@@ -1360,7 +1390,58 @@ function _recoverArc(arc, straight, prev, cur, spd, cfg, bd, stats) {
   return recovered;
 }
 
+// ★1ステップ物理サニティ クランプ ラッパー (2026-06-19・しまなみ +14,725m/1s 幻デルタ根治)★:
+//   GPS飛び(reason=jump)直後に snap が遠road へ飛ぶと、stepDistanceCore(主経路/routing/straightFallback)が
+//   1ステップで物理的にあり得ない焼き付き弦(実機 18.5km を 0.99s で)を ★無 cap★ で返し distance_m に焼く。
+//   OBD∫v(obdMaxDtS=10s)/coast(coastHoleMaxM=600m)には物理上限があるが本経路だけ欠落していた。
+//   ★batch(computeDistance)/tracker(createDistanceTracker) 双方が ★この共有 stepDistance★ を通るので、
+//   ここで包めば parity を壊さず両経路に等しく効く★。絶対上限のみ(=車で不可能な速度×dt)で正当な穴埋め
+//   (速度×dt 相当)は潰さない。過大ゼロ方向(距離を増やさない側)・0/false で OFF=従来 byte 不変。
 function stepDistance(
+  decoder,
+  router,
+  prev,
+  cur,
+  prevSnap,
+  snap,
+  spd,
+  cfg,
+  bd,
+  stats,
+  coastSpdMps
+) {
+  const d = stepDistanceCore(
+    decoder,
+    router,
+    prev,
+    cur,
+    prevSnap,
+    snap,
+    spd,
+    cfg,
+    bd,
+    stats,
+    coastSpdMps
+  );
+  if (d > 0 && cfg && cfg.physMaxStepAbsMps > 0) {
+    const _dt = ((cur && cur.t) || 0) - ((prev && prev.t) || 0);
+    if (_dt <= 0) {
+      // ★負dt/ゼロdt + 正delta = 時間が進んでないのに前進=非物理(焼き付き弦)★。距離化しない(過大ゼロ方向)。
+      //   2026-06-19監査指摘: 旧クランプは if(_dt>0) で負dtを素通り→OBDバイパス非ドレイン由来の負dt幻が
+      //   抜けてた。ドレイン修正(本丸)で発生源は断つが、ここも二重保険として負dtを0化する。
+      if (stats) stats.physClampedM = (stats.physClampedM || 0) + d;
+      return 0;
+    }
+    const _cap = cfg.physMaxStepAbsMps * (_dt / 1000); // m/s × s
+    if (d > _cap) {
+      if (stats) stats.physClampedM = (stats.physClampedM || 0) + (d - _cap);
+      return _cap;
+    }
+  }
+  return d;
+}
+
+function stepDistanceCore(
   decoder,
   router,
   prev,
@@ -1821,6 +1902,49 @@ function createDistanceTracker(decoder, opts) {
   let kNow = -1; // 業務内ラチェットk (-1=未確定→cold-start k0/従来挙動)
   let kEwma = 0; // k_obs の EWMA 平滑値
   let kEwmaInit = false; // kEwma を1回でも確定したか
+  // ★1km自動較正K (autoCalibK・確定方式)★: 良GPS長窓で K=GPS距離÷OBD∫v を学習(js/k-calib.js)。
+  //   OFF(既定)では生成せず byte不変。Node=require / browser=self.KCalib(index.htmlで先読み)。
+  let kCalibrator = null;
+  // ★2026-07-03 Fix B: autoCalibK の"元の要求"を保持(fallbackで cfg.autoCalibK が false に潰れても
+  //   「要求したのに効いてない=degraded」を calibStatus で検知可能にするため)。observability専用・距離不変。
+  const _autoCalibKReq = cfg.autoCalibK === true;
+  if (cfg.autoCalibK === true) {
+    // ★STEP2: 車単位の共有較正器(map-matcherから externalKCalib 注入)があればそれを使う★
+    //   =県別tracker全部が同じ較正器を共有→県跨ぎ/業務resetでKが残る(=県跨ぎリセット根治)。
+    if (opts.externalKCalib && typeof opts.externalKCalib.addPair === 'function') {
+      kCalibrator = opts.externalKCalib;
+    } else {
+      let _KC = null;
+      if (typeof self !== 'undefined' && self.KCalib)
+        _KC = self.KCalib; // worker/browser(importScripts)
+      // eslint-disable-next-line no-undef
+      else if (typeof require === 'function') _KC = require('./k-calib.js'); // Node(tests)
+      if (_KC && _KC.createKCalibrator) {
+        kCalibrator = _KC.createKCalibrator({
+          coldStartK: cfg.obdColdStartK > 0 ? cfg.obdColdStartK : undefined,
+          accMax: cfg.calMaxAccM,
+          calibKm: 1.0,
+        });
+      }
+    }
+    // ★k-calib未ロード(importScripts失敗等)なら autoCalibK を無効化し従来経路へ安全フォールバック★
+    //   (autoCalibK=true なのに kCalibrator=null で生∫v(K=1.0)に落ちる過少を防ぐ)。
+    if (!kCalibrator) {
+      cfg.autoCalibK = false;
+      // ★2026-07-03 Fix B: 無音で生∫v(過小)に落ちない。degraded を警告=実機で気付ける★。
+      /* eslint-disable no-console -- degraded を実機ログに必ず出す(無音過小の再発防止・診断) */
+      try {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn(
+            '[pipeline] autoCalibK 要求されたが較正器を生成できず(k-calib未ロード等) → 生OBD∫v(過小)にfallback=degraded'
+          );
+        }
+      } catch (_) {
+        /* best-effort */
+      }
+      /* eslint-enable no-console */
+    }
+  }
   // breakdown/stats を区間分類のため保持 (stepDistance が要求する構造)
   let bd, stats;
   function freshAccum() {
@@ -1936,6 +2060,25 @@ function createDistanceTracker(decoder, opts) {
     //   ② の穴埋め speed源として spd 経由で使う(下流 stepDistance)。よってここは短絡しない。
     if (cur.obd === true && spd >= 0 && cfg.adaptiveMode !== true) {
       const dtObd = ((cur.t || 0) - (prev.t || 0)) / 1000;
+      // ★autoCalibK: 良GPS長窓で K=GPS距離÷OBD∫v を学習 (生spd=OBD車速・GPS弦は位置から)。
+      //   addPair が acc/dt/飛び/異常速度 を内部gate(無効値は-1で渡せば弾く)。距離には未だ影響しない=学習のみ。
+      // ★2026-07-04 K凍結(同経路ブレ根治)★: confident(較正済)になったら学習を止める。
+      //   従来は confident 後も学習し続け median K が業務ごとにドリフト→同経路でも適用Kが変わり距離がブレた
+      //   (実機モコ 生OBD∫vピタリ一致なのに td 0.6%ブレ)。confident後は凍結=距離=生OBD∫v×固定K=決定的。
+      //   =DECIDED「一度較正→ずっと正確・再較正不要」。再較正はタイヤ変更等の明示trigger(別途)でのみ。
+      if (
+        cfg.autoCalibK === true &&
+        kCalibrator &&
+        dtObd > 0 &&
+        !(typeof kCalibrator.confident === 'function' && kCalibrator.confident())
+      ) {
+        kCalibrator.addPair(
+          haversineM(prev.lat, prev.lng, cur.lat, cur.lng),
+          spd >= 0 ? spd : -1,
+          dtObd,
+          typeof cur.acc === 'number' ? cur.acc : -1
+        );
+      }
       // ★δ 自己キャリブ (obdDeltaCalib・floor過小補正)★: 良GPS区間(精度OK+移動中+ジッタ無し)で
       //   GPS位置距離と ∫OBD を貯め、calMinWindowS 秒ごとに δ=(GPS−∫OBD)/移動時間 を確定。
       //   ★短絡 return 前に学習★(監査HIGH#1: δ計算は OBD return より先)。GPS弦は位置のみ使用。
@@ -1977,25 +2120,33 @@ function createDistanceTracker(decoder, opts) {
         //   であり、停車/微速(OBD≈0)区間に δ を足すと creep を製造して認定要件(<10m/30s)を破る。
         //   学習ゲート(L1744 spd≥stationarySpdMps)と対称に、適用も移動区間に限定=停車で δ 非作用。
         const applyDelta =
-          cfg.obdDeltaCalib === true && obdDeltaInit && spd >= cfg.stationarySpdMps;
+          cfg.autoCalibK !== true && // ★学習Kはfloor込み=δと二重→autoCalibK時はδ非適用(監査#3)★
+          cfg.obdDeltaCalib === true &&
+          obdDeltaInit &&
+          spd >= cfg.stationarySpdMps;
         // ★量子化補正 (+半量子・1km/h floor回収・全車普遍・2026-06-13)★: δ非適用かつ移動中(spd≥stationary)
         //   のみ +0.5km/h。停車(OBD≈0)は creep製造防止で非適用。δ-ON時はδが量子化込み補正=二重回避で非適用。
         const _quantMps =
-          cfg.obdVehicleK > 0 // 認定据付測定K採用時は量子化と択一(K=真/OBD実測がfloor内包・二重補正回避)→ quant OFF
+          cfg.autoCalibK === true // ★学習Kはfloor込み=量子化と二重になる→OFF(監査#3二重計上防止)★
             ? 0
-            : !applyDelta && spd >= cfg.stationarySpdMps && cfg.obdQuantCorrectMps > 0
-              ? cfg.obdQuantCorrectMps
-              : 0;
+            : cfg.obdVehicleK > 0 && cfg.obdDaikouMode !== true // 測定K採用時は量子化と択一(二重補正回避)→ quant OFF。
+              ? // ★但し代行(obdDaikouMode)はKを使わず p50 経路=全車共通=quant も全車適用(universal)★
+                0
+              : !applyDelta && spd >= cfg.stationarySpdMps && cfg.obdQuantCorrectMps > 0
+                ? cfg.obdQuantCorrectMps
+                : 0;
         // ★タイヤ円周比を vEff 段(=Doppler天井の手前)で乗算 (2026-06-17・blocker①修正)★:
         //   後段(_kApply の後)で掛けると min(k_now,k_p25) 天井を突き抜け過大ゼロを破る。vEff 段に入れると
         //   下流の Doppler 天井が「タイヤ補正後の vEff」を独立速度で再検証=過大方向の誤補正を自動で刈る。
         //   ★実測K(obdVehicleKMeasured)経路はタイヤ込み較正=二重回避で 1.0。factory prior/非K経路は適用★。
         const _tireR =
-          cfg.obdVehicleK > 0 && cfg.obdVehicleKMeasured === true
+          cfg.autoCalibK === true // ★学習Kはタイヤ器差込み=タイヤ比と二重になる→1.0(監査#3二重計上防止)★
             ? 1.0
-            : cfg.obdTireRatio > 0
-              ? cfg.obdTireRatio
-              : 1.0;
+            : cfg.obdVehicleK > 0 && cfg.obdVehicleKMeasured === true
+              ? 1.0
+              : cfg.obdTireRatio > 0
+                ? cfg.obdTireRatio
+                : 1.0;
         const vEff = ((applyDelta ? spd + obdDeltaMps : spd) + _quantMps) * _tireR;
         // ★★OBDティア 過大ゼロ天井 + 精度ラチェット (比方式・2026-06-13)★★:
         //   車輪非経由の独立速度 Doppler(cur.dopMps=搬送波由来=タイヤ非経由)と vEff の ★比 r=dop/vEff
@@ -2015,9 +2166,14 @@ function createDistanceTracker(decoder, opts) {
             while (kWin.length && (cur.t || 0) - kWin[0].t > _winMs) kWin.shift();
           }
           if (kWin.length >= cfg.obdDopMinN) {
+            // ★p50モードゲート (2026-06-22): 代行(obdDaikouMode)は分位 p25→p50(中央値=真スケール)。
+            //   p25は保守的に真より約1%低い(タクシー過大ゼロ用)=代行ではK無し車を約1%過小にし
+            //   factory K車と不一致にする犯人。代行は過大ゼロ非拘束(DM Light基準)ゆえ p50 で全車を
+            //   同じ真スケールへ揃える。タクシー(obdDaikouMode=false)は p25 維持=過大ゼロ法要件。
+            const _q = cfg.obdDaikouMode === true ? 0.5 : cfg.obdDopQuantile;
             _kP25 = _lowerQuantile(
               kWin.map((x) => x.r),
-              cfg.obdDopQuantile
+              _q
             );
           }
         }
@@ -2033,9 +2189,18 @@ function createDistanceTracker(decoder, opts) {
         //   Doppler有り: min(k_now, k_p25)で安全クランプ / Doppler無しだが k_now確定: 保持k_now(≤保守スケール) /
         //   cold-start(Doppler観測済・窓未充足): k0 / dopMs皆無: 1.0(byte不変)。
         let _kApply;
-        if (cfg.obdVehicleK > 0) {
+        if (cfg.autoCalibK === true) {
+          // ★司さん裁定①(2026-06-26): 代行はp50を学習Kに置換★。
+          //   getK()=3窓以上の窓中央値(確定K) or 未収束はobdColdStartK(タイヤ入力) or null。
+          //   null(coldStartも無)は 1.0(生∫v・byte安全)。★p50には絶対フォールバックしない(失敗方式-5.85%+parity破壊)★。
+          const _lk = kCalibrator ? kCalibrator.getK() : null;
+          _kApply = typeof _lk === 'number' && _lk > 0 ? _lk : 1.0;
+        } else if (cfg.obdVehicleK > 0 && cfg.obdDaikouMode !== true) {
           // ★認定据付測定K★: Doppler per-step天井/ラチェットをバイパスし生spd×測定K。
           //   過大ゼロは「Kが≤真値の基準で較正済」で保証(過少読みK>1/過大読みK<1)。
+          //   ★但し代行(obdDaikouMode)では使わない (2026-06-22): 代行は車種別K表に頼らず
+          //   全車を同じ Doppler自己較正(p50)に乗せて universal に一致させる。モコ等factory K車も
+          //   代行では下の p50 経路を通る=「Kなし対応」。タクシー(過大ゼロ法要件)のみ測定Kを使う。★
           _kApply = cfg.obdVehicleK;
         } else if (_kP25 >= 0) _kApply = kNow > 0 ? Math.min(kNow, _kP25) : _kP25;
         else if (kNow > 0) _kApply = kNow;
@@ -2266,6 +2431,27 @@ function createDistanceTracker(decoder, opts) {
       //   ★adaptiveMode では OBD 全駆動しない(平滑土台+穴埋め)ため、OBD点もバイパスせず平滑経路へ流す
       //     (= 生位置の愛媛ジッタ過大を防ぐ・OBD速度は spd 経由で①cap/②穴埋めに使う)。★
       if (sample.obd === true && cfg.adaptiveMode !== true) {
+        // ★smoothBuf 完全ドレイン (2026-06-19・実機しまなみ+14,725m/trip2+2,320m 幻デルタ根治)★:
+        //   dop→obd 速度源遷移時、平滑バッファに dop 区間の生点が残ったまま OBD バイパスが prev を
+        //   前進させると、後でそれらが ★負dt★ で「prev(前進済)→遠い buffered点」の巨大弦に焼かれる
+        //   (実機 +14,725m / +2,320m)。★synthetic 枝(下記)と同型のドレイン★ で非対称を解消=OBD点で
+        //   prev を進める前にバッファを片側窓で全確定し、buffered点を正しい順序(正dt)で計上する。
+        //   all-OBD 全行程なら smoothBuf は空 → while 不発・byte不変。混在遷移のみ作用(=過大ゼロ方向)。
+        if (cfg.smoothedRawMode === true) {
+          while (smoothNext <= smoothBuf.length - 1) {
+            const smPre = _smoothOnePoint(
+              smoothBuf,
+              smoothNext,
+              smParams.h,
+              smParams.gapMs,
+              smParams.badAcc
+            );
+            _core(smPre);
+            smoothNext++;
+          }
+          smoothBuf = [];
+          smoothNext = 0;
+        }
         if (prev && Number.isFinite(sample.t) && Number.isFinite(prev.t) && sample.t < prev.t) {
           return { deltaM: 0, totalM: total, reason: 'out_of_order' };
         }
@@ -2362,6 +2548,36 @@ function createDistanceTracker(decoder, opts) {
     },
     totalM: function () {
       return total;
+    },
+    // ★1km自動較正K の状態(見える化用・2026-06-26)★: autoCalibK時のみ {K,windows,confident,...}。
+    //   read-only=距離に影響しない。worker→main へ転送し「較正中 n/3 / 較正完了 K=…」を表示する。
+    // ★2026-07-03 Fix B: 無音の「要求したのに効いてない」を検知可能にする★:
+    //   従来は kCalibrator 無しで null を返し「autoCalibK OFF」と「degraded(較正器ロード失敗)」が
+    //   区別不能だった。修正後は autoCalibK要求時は必ずオブジェクトを返し requested/active/degraded を出す。
+    //   requested=元の要求 / active=実際にKが乗る(confident) / degraded=要求したのに較正器無し。
+    //   ※値は observability のみ。距離/課金の数字には一切影響しない。
+    calibStatus: function () {
+      if (kCalibrator) {
+        const snap = kCalibrator.snapshot() || {};
+        snap.requested = _autoCalibKReq;
+        snap.degraded = false;
+        snap.active = snap.confident === true; // confident=実際に学習Kが距離に乗る状態
+        return snap;
+      }
+      // kCalibrator 無し: 要求されてたなら degraded(=無音過小)、未要求なら従来通り null。
+      // ★対立監査P2-①: このオブジェクトに絶対 Ks を入れないこと★。index.html:6080 の保存条件は
+      //   Array.isArray(calibStatus.Ks) で、Ks:[] を足すと保存済みKsを空で上書きしてしまう。Ks は出さない。
+      if (_autoCalibKReq) {
+        return {
+          requested: true,
+          degraded: true,
+          active: false,
+          confident: false,
+          K: null,
+          windows: 0,
+        };
+      }
+      return null;
     },
     reset: function () {
       total = 0;

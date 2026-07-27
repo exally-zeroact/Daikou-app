@@ -80,7 +80,11 @@ describe('gps-worker.js dynamic worker test (⑪)', () => {
     worker.terminate();
   });
 
-  it('Worker 起動 + position message → result 応答受信', { timeout: 15000 }, async () => {
+  // ★timeout 緩和 (2026-06-18)★: 旧 内部10s/it15s は ★CI runnerの低温起動+大容量
+  //   キャッシュDL(~100MB)のI/O競合★で実Worker(gps-worker.js)コンパイルが10sを超えると
+  //   false-red(c9c209c の test 失敗の真因=タイミングflake・コード起因でない)。内部25s/it30sへ
+  //   緩和=真のハングは30sで依然検出しつつ、CI低速の偽陽性を排除。
+  it('Worker 起動 + position message → result 応答受信', { timeout: 30000 }, async () => {
     const workerUrl = new URL('../../js/gps-worker.js', import.meta.url);
     const worker = new Worker(workerUrl);
 
@@ -91,8 +95,8 @@ describe('gps-worker.js dynamic worker test (⑪)', () => {
     const resultPromise = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         worker.terminate();
-        reject(new Error('worker result timeout (10s)'));
-      }, 10000);
+        reject(new Error('worker result timeout (25s)'));
+      }, 25000);
       worker.onmessage = (e) => {
         if (e.data && e.data.type === 'result') {
           clearTimeout(timeout);

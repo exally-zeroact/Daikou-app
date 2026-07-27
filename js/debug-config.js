@@ -257,26 +257,6 @@ if (DEBUG.enabled) {
 }
 
 // ===========================================
-// OSRM endpoint 切替 (P0 Step 4・2026-05-12)
-// ★設計変更宣言: hardcoded URL を全廃し、環境別 endpoint 定数で集中管理
-//   - OSRM_ENDPOINT_PRODUCTION: 自前サーバー用 (Step 5 構築完了後にこの 1 行だけ書き換えれば全体切替可能)
-//   - OSRM_ENDPOINT_DEV       : localhost / *.vercel.app 用 (現時点は同じ暫定値)
-//   - OSRM_ENDPOINT           : location.hostname で自動選択 (この値を全箇所が参照)
-// TODO: Step 5 サーバー構築後に OSRM_ENDPOINT_PRODUCTION を 1 行書き換えるだけで切替可能
-// (例: 'https://osrm.daikome.example.com')
-// ===========================================
-const OSRM_ENDPOINT_PRODUCTION = 'https://router.project-osrm.org'; // 暫定値・Step 5 で書き換え
-const OSRM_ENDPOINT_DEV = 'https://router.project-osrm.org'; // localhost/vercel preview 用 (暫定)
-const OSRM_ENDPOINT = (function () {
-  const h = location.hostname;
-  // localhost / 192.168.* / *.vercel.app は DEV 扱い
-  const isDev =
-    h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.') || h.endsWith('.vercel.app');
-  return isDev ? OSRM_ENDPOINT_DEV : OSRM_ENDPOINT_PRODUCTION;
-})();
-window.OSRM_ENDPOINT = OSRM_ENDPOINT; // 他 inline script からも参照可能
-
-// ===========================================
 // dlog: デバッグログヘルパー（2026/04/26追加）
 // テスト環境でのみ出力・本番では完全に無効
 // ===========================================

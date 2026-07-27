@@ -369,6 +369,15 @@ const GPS = (() => {
   let _gapTimer = null; // 自走タイマー id
   let _coastHoldKmh = 0; // 直近確立速度 (km/h)。穴中の保守ホールドの初速。
   let _coastHoldUpdatedT = null; // _coastHoldKmh の減衰計算用の最終更新時刻
+  // ★OBDメイン切断時の停車保険 (2026-07-25・実機報告: OBD切れ+私有地でメーター暴走 根治)★:
+  //   OBD が真値(車輪速)。OBD が「停車」と言った直後に切断/鮮度切れになった時、保険の GPS が
+  //   ゴミ Doppler 速度で距離を足すのを防ぐ。直前 OBD が停車域なら GPS 点を停車扱い(速度0)にし、
+  //   車が実際に動いたら(park 起点から一定距離離れたら)解除して GPS に任せる。
+  //   ★OBD 未接続(OBD_DRIVE_DISTANCE OFF)なら完全不発=GPS単独端末は1byte不変★。
+  const OBD_PARK_KMH = 3.0; // 直前 OBD 速度がこれ未満 = 「OBD が停車と判定していた」
+  const OBD_PARK_RELEASE_M = 15.0; // GPS が park 起点からこの m 以上離れたら「実際に動いた」= 保険解除
+  let _lastObdKmh = -1; // 直近 valid だった OBD 速度 (km/h・-1=未確立)
+  let _obdParkAnchor = null; // OBD停車→切断 の起点位置 {lat,lng}
   let _lastSyntheticT = null; // 最後の合成送信時刻 (減衰 dt 計算用)
   // ★穴 (synthetic coast) 1回あたりの累積ガード状態★ (実 fix 復帰でリセット)
   let _coastHoleSec = 0; // この穴で合成 coast を積分した累積秒数
@@ -636,13 +645,35 @@ const GPS = (() => {
         if (_obd && _obd.valid && _obd.kmh >= 0) {
           speedKmh = _obd.kmh;
           _speedFromObd = true;
+          _lastObdKmh = _obd.kmh; // ★直近 valid OBD 速度を保持(切断時の停車保険の判断材料)
         }
       }
     } catch (_) {
       /* OBD 不在/例外は無視し GPS 速度を継続 */
     }
     // ★STEP0 診断: speedKmh の源 (obd / Doppler / A3 haversine代用) を worker に伝える (read-only)
-    const _speedSrc = _speedFromObd ? 'obd' : speed != null && speed >= 0 ? 'dop' : 'hav';
+    let _speedSrc = _speedFromObd ? 'obd' : speed != null && speed >= 0 ? 'dop' : 'hav';
+    // ★OBDメイン切断時の停車保険★: OBD が停車と言った直後に切れたら、GPS のゴミ速度を信じない。
+    //   OBD メイン(OBD_DRIVE_DISTANCE)で今 OBD 無効(!obd) かつ 直前 OBD が停車域 → GPS 点を停車扱い(速度0)。
+    //   park 起点から OBD_PARK_RELEASE_M 以上離れたら「実際に動いた」= 解除して GPS に任せる。
+    if (
+      typeof window !== 'undefined' &&
+      window.OBD_DRIVE_DISTANCE &&
+      !_speedFromObd &&
+      _lastObdKmh >= 0 &&
+      _lastObdKmh < OBD_PARK_KMH
+    ) {
+      if (!_obdParkAnchor) _obdParkAnchor = { lat, lng };
+      const _movedM = haversineDistance(_obdParkAnchor.lat, _obdParkAnchor.lng, lat, lng);
+      if (_movedM < OBD_PARK_RELEASE_M) {
+        speedKmh = 0; // 停車扱い → pipeline は spd=0<閾値 で加算0(GPSジッタ距離を足さない)
+        if (_speedSrc === 'hav') _speedSrc = 'dop'; // spd=-1(不明)でなく spd=0(停車)を伝える
+      } else {
+        _obdParkAnchor = null; // 実際に動いた → 保険解除
+      }
+    } else {
+      _obdParkAnchor = null; // OBD 復帰 / 直前 OBD が走行 / OBD 未使用 → 保険不要
+    }
     // ★タイマー連続前進の保守ホールド初速を更新★: 本物 fix の妥当な速度 (Doppler or OBD) を
     //   _coastHoldKmh に確立する。'hav' 代用速度は位置ジッタ由来で過大初速になりうるため除外
     //   (穴中は確かな直近速度のみを減衰ホールド)。穴明けの実 fix で常に再確立される。

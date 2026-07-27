@@ -383,3 +383,92 @@ describe('Business.getReport()', () => {
     expect(r.total_distance_m).toBe(0);
   });
 });
+
+// ★バグ修正回帰 (2026-06-20・「業務終了→再読込→再開で総走行距離が 0 に戻る」根治)
+//   load() の business_distance_m 復元ガードが state.active 限定だったため、
+//   業務終了 (limbo・active=false) の後に再読込/タスクキルすると Meter が 0 で起動し、
+//   再開しても総走行が復元されず 0.00 に落ちる事象。limbo (start_time あり) も復元対象に
+//   含めることで根治。distance_m / 課金は不可侵 (= 表示用 業務総走行ミラーの復元のみ)。
+const STORAGE_KEY = 'daikou_business_state';
+
+function seedLimboState(localStorageMock, overrides = {}) {
+  const limbo = {
+    active: false, // ★業務終了済 (limbo・再開可能)
+    start_time: 1714100000000,
+    end_time: 1714103600000,
+    ended: true,
+    ended_at: 1714103600000,
+    total_distance_m: 5000, // 永続化ミラー (= 前業務の総走行 5.0km)
+    actual_total_m: 4000,
+    fare_total_yen: 8600,
+    trip_count: 3,
+    trips: [],
+    last_meter_distance_m: 0,
+    ...overrides,
+  };
+  localStorageMock.setItem(STORAGE_KEY, JSON.stringify(limbo));
+}
+
+describe('Business.load() — 業務終了→再読込→再開で総走行を復元 (bug 2026-06-20)', () => {
+  it('★limbo (active=false・start_time あり) を load すると Meter.business_distance_m が復元される', () => {
+    // 再読込直後を模擬: Meter は business_distance_m=0 で起動
+    const meter = makeMeterMock(0, 0);
+    const localStorageMock = makeLocalStorage();
+    seedLimboState(localStorageMock);
+    const { Business } = loadBusiness({ meter, localStorageMock });
+    expect(meter.getState().business_distance_m).toBe(0); // load 前は 0
+
+    expect(Business.load()).toBe(true);
+    // ★修正の核心: limbo でも Meter.business_distance_m=5000 に復元される
+    expect(meter.getState().business_distance_m).toBe(5000);
+  });
+
+  it('★復元後に resume() すると getReport().total_distance_m が前業務の値を継続する', () => {
+    const meter = makeMeterMock(0, 0);
+    const localStorageMock = makeLocalStorage();
+    seedLimboState(localStorageMock);
+    const { Business } = loadBusiness({ meter, localStorageMock });
+    Business.load();
+    expect(Business.resume()).toBe(true);
+    expect(Business.getState().active).toBe(true);
+    // 総走行 (= 表示の totalDist 信源) が 0 でなく 5000 に復元されている
+    expect(Business.getReport().total_distance_m).toBe(5000);
+  });
+
+  it('active 業務の復元は従来通り維持される (回帰防止)', () => {
+    const meter = makeMeterMock(0, 0);
+    const localStorageMock = makeLocalStorage();
+    seedLimboState(localStorageMock, {
+      active: true,
+      ended: false,
+      ended_at: null,
+      end_time: null,
+    });
+    const { Business } = loadBusiness({ meter, localStorageMock });
+    Business.load();
+    expect(meter.getState().business_distance_m).toBe(5000);
+  });
+
+  it('業務が一度も無い (start_time=null) なら復元しない (= 0 のまま・誤復元防止)', () => {
+    const meter = makeMeterMock(0, 0);
+    const localStorageMock = makeLocalStorage();
+    seedLimboState(localStorageMock, {
+      active: false,
+      start_time: null,
+      ended: false,
+      total_distance_m: 5000,
+    });
+    const { Business } = loadBusiness({ meter, localStorageMock });
+    Business.load();
+    expect(meter.getState().business_distance_m).toBe(0);
+  });
+
+  it('total_distance_m=0 の limbo は復元呼出しない (= 無意味な prime 回避)', () => {
+    const meter = makeMeterMock(0, 0);
+    const localStorageMock = makeLocalStorage();
+    seedLimboState(localStorageMock, { total_distance_m: 0 });
+    const { Business } = loadBusiness({ meter, localStorageMock });
+    Business.load();
+    expect(meter.getState().business_distance_m).toBe(0);
+  });
+});

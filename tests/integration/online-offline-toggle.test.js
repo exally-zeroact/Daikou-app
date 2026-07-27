@@ -1,17 +1,17 @@
 // tests/integration/online-offline-toggle.test.js
 // ZEROact 共通テスト基盤 (2026-05-18 新規・Step ㉕ / 全32件)
 //
-// 検証対象: navigator.onLine 切替時の firebase.js + osrm-client.js 動作
+// 検証対象: navigator.onLine 切替時の firebase.js 動作
 //   オフライン⇄オンライン連続切替で retry queue 重複防止
+//   ★OSRM (osrm-client.js) は 2026-06-20 廃止済 → S4/S6 削除★
 //
 // 絶対ルール準拠:
-//   js/firebase.js / js/osrm-client.js は触らない absolute・静的 + isolated 検証。
+//   js/firebase.js は触らない absolute・静的 + isolated 検証。
 
 const fs = require('fs');
 const path = require('path');
 
 const FB_PATH = path.join(__dirname, '..', '..', 'js', 'firebase.js');
-const OC_PATH = path.join(__dirname, '..', '..', 'js', 'osrm-client.js');
 
 describe('online/offline 切替動作 (㉕)', () => {
   it('S1: firebase.js に online/offline event listener', () => {
@@ -44,24 +44,10 @@ describe('online/offline 切替動作 (㉕)', () => {
     }
   });
 
-  it('S4: osrm-client.js が navigator.onLine ガードで即スキップ', () => {
-    const src = fs.readFileSync(OC_PATH, 'utf8');
-    if (!/navigator\.onLine\s*===\s*false/.test(src)) {
-      throw new Error('osrm-client navigator.onLine ガード未検出');
-    }
-  });
-
   it('S5: firebase.js _flushInProgress フラグで同時 flush 防止', () => {
     const src = fs.readFileSync(FB_PATH, 'utf8');
     if (!/_flushInProgress/.test(src)) {
       throw new Error('_flushInProgress 同時実行ガード未検出');
-    }
-  });
-
-  it('S6: navigator.onLine === false で OSRM 即 return + reason=offline', () => {
-    const src = fs.readFileSync(OC_PATH, 'utf8');
-    if (!/reason:\s*['"]offline['"]/.test(src)) {
-      throw new Error('osrm-client offline reason 未検出');
     }
   });
 });

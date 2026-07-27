@@ -145,6 +145,30 @@ describe('★STEP0: メーター catch-up + latch invariant (= 過大請求根�
     delete globalThis.GPS;
   });
 
+  // ★2026-07-03 司さん実機(しまなみ・モコ 90-105km/h)報告「高速で画面が遅れ→停車後に追いつく」の根治テスト。
+  //   trace解析で内部距離(distance_m)は正確・高速でも遅れ無しと実証。遅れの正体は"表示層の追従上限"
+  //   (旧 DISP_CATCHUP_MAX_MPS=24m/s=86km/h)が高速で頭打ちになり画面が置いていかれる事。
+  //   可変上限(直近速度×倍率・floor)化で根治。★150km/h持続でも display が target に食らいつく(遅れが発散しない)★を強制。
+  it('高速150km/h持続でも display が target に食らいつく(遅れが溜まって発散しない)', () => {
+    const V = 150 / 3.6; // 41.667 m/s
+    const stepMs = 100;
+    const totalMs = 8000;
+    let target = 0;
+    let maxLagAfterWarmup = 0;
+    for (let elapsed = 0; elapsed < totalMs; elapsed += stepMs) {
+      target += V * (stepMs / 1000);
+      Meter.setDistance(target);
+      const st = pollRAF(() => Meter.getState(), stepMs);
+      const disp = st.display_distance_m || 0;
+      const lag = target - disp;
+      // 助走(rate EMA確立)後の遅れだけ見る
+      if (elapsed > 3000) maxLagAfterWarmup = Math.max(maxLagAfterWarmup, lag);
+    }
+    // 旧実装(cap 24m/s=86km/h)では 150km/h(41.7m/s)で毎秒約17m遅れ→数十mに発散する。
+    // 追従上限を速度追随にすれば、遅れは数フレーム分に収束(<60m)。
+    expect(maxLagAfterWarmup).toBeLessThan(60);
+  });
+
   // 実機 rАF 相当の駆動: GPS は 5s 間隔 (= gap-fill で distance_m 累積)・各 GPS フレーム到着後に
   // 実時間 200ms 経過させてから 1 回 display を読む (= rАF が新フレームを描画するタイミング)。
   // この 1 回読みで・現状 predict が velocity*sinceTarget の先取りを display に乗せる。

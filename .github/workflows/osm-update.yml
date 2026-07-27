@@ -156,13 +156,28 @@ jobs:
             echo "ℹ️ 変更なし（コミットスキップ）"
           fi
 
+      - name: replay fixture を新道路データに自動remap（週次更新に追従・人手ゼロ・C案）
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          # ★OSM更新で道路の並び順(index)がズレると replay fixture の roadIndex が古くなり
+          #   pre-push の replay テストが invalid segment で赤化する。これを毎週手で直すのは下策なので、
+          #   更新と同じパイプラインで自動追従させる(司さん要望C)。
+          #   HEAD = 更新前(=fixtureが現に合うデータ)、working tree = 新データ。geometry完全一致で照合remap。
+          #   幾何自体が変わって完全一致できない(exit 1)場合だけは自動化不能 → warning を出して継続
+          #   (次の人手pushの pre-push で検出され手動remapに回る)。
+          echo "▶ replay fixture roadIndex を新道路データへ remap (基準=HEAD)"
+          node tests/tools/remap-fixture-roads.js HEAD \
+            && echo "✅ fixture remap 完了" \
+            || echo "::warning::fixture の自動remapが完全一致できず(geometry変化の可能性)。手動確認が必要。"
+
       - name: 自動コミット & プッシュ
         if: steps.diff.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/
-          git commit -m "chore(roads): OSM自動更新 $(date -u +'%Y-%m-%d') v4都道府県別 [skip ci]"
+          # data(道路) と remap済 replay fixture を同一コミットに含める(週次更新で常に整合)
+          git add data/ tests/replay-mm-worker/fixtures/
+          git commit -m "chore(roads): OSM自動更新 $(date -u +'%Y-%m-%d') v4都道府県別 + replay fixture remap [skip ci]"
           git push
 
       - name: 失敗時のサマリ
