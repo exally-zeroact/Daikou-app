@@ -18,7 +18,6 @@
 /* eslint-disable no-console */
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { guard } from './sql-guard.mjs';
 

@@ -205,6 +205,37 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
   //   本番配信は直前の正常版のままだったので実害は無かったが、
   //   ★変更が乗っていないのに「push したから直った」と思い込む★一歩手前だった。
   //   説明は office-host/README.md に書く。ここは知らないキーが混ざっていないかを見る。
+  // ★2度目なので設定ファイル全般に広げた (2026-08-03)★
+  //   1度目 vercel.json  … デプロイが丸ごと失敗（配信は前の版のまま＝画面では気づけない）
+  //   2度目 .eslintrc.json … 「ESLint configuration is invalid」で lint が丸ごと動かなくなった
+  //   どちらも「説明を書きたい」から足した _comment。設定JSONにコメントは書けない。
+  //   説明は README か、その設定を作る道具のコメントに書くこと。
+  it('★設定JSONに _comment を書かない（設定ごと拒否されて丸ごと動かなくなる）★', () => {
+    const CONFIGS = [
+      'vercel.json',
+      'office-host/vercel.json',
+      '.eslintrc.json',
+      '.stylelintrc.json',
+    ];
+    const offenders = [];
+    const walk = (o, where) => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) return o.forEach((x, i) => walk(x, `${where}[${i}]`));
+      Object.keys(o).forEach((k) => {
+        if (/^_/.test(k)) offenders.push(`${where}.${k}`);
+        walk(o[k], `${where}.${k}`);
+      });
+    };
+    CONFIGS.forEach((rel) => {
+      const p = path.join(ROOT, ...rel.split('/'));
+      if (!fs.existsSync(p)) return;
+      walk(JSON.parse(fs.readFileSync(p, 'utf8')), rel);
+    });
+    expect(offenders, '設定ごと拒否される（vercel.json / .eslintrc.json で実際に踏んだ）').toEqual(
+      []
+    );
+  });
+
   it('★vercel.json に Vercel が知らないキーを足さない（デプロイが丸ごと失敗する）★', () => {
     const ALLOWED = new Set([
       'rewrites',

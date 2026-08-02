@@ -1,17 +1,37 @@
-# ダイコメ 認定ゲート CI (A5・2026-06-01)
-# 「緑のまま壊れる」を塞ぐ専用 gate。test.yml (軽量ユニット) / mm-regression.yml (MM 回帰) とは別建てで
-# ★認定 (国交省 GPS ソフトメーター) 物差し★ を CI に常時配線する:
-#   1) gate-snap   = 実機3台 fixture を実エンジン(Worker B)に流し snap 配線健全 (committed=0 で FAIL)
-#   2) sim-cert    = 実 pipeline GPS-feed Monte-Carlo。never-over/coast配線/単調/latch を hard-fail。
-#                    ★2026-06-12 訂正: ±band は dense-proxy 比較 (物理真値でない・dense が平滑でカーブ
-#                    過少化 → 偽過大)。∴ band は情報表示のみ・hard-fail しない。実過大の hard-gate は
-#                    下記 3) truedist-kp / 8) cert-3env (実RTK真値・既に hard-fail+緑)。--cert-strict でも
-#                    band 非ブロック (構造不変条件=物理 never-over のみ hard-fail)。
-# 重いため (~6min) 専用 job・timeout 20min。distance_m/calcFare は read-only 観測のみ・不変。
+# ダイコメ 認定ゲート CI
+#
+# ★2026-08-02 作り直し★ — それまで ★直近20回すべて cancelled（一度も完走していない）★ だった。
+#   注記: "The job has exceeded the maximum execution time of 20m0s"
+#   ＝距離＝課金の根幹を守るゲートが、20回のpushで一度も動いていなかった。
+#
+#   実測した内訳（1ジョブの中の各ステップ開始時刻）:
+#     checkout 4分11秒 / gate-snap 1分54秒 / sim-cert 6分19秒 / obd-engine 1分52秒 /
+#     quant 3分42秒 / doppler 実行中のまま → 20分で打ち切り
+#     （gate-spread / cert-3env / tunnel / bg-freeze / gnss-degraded は★走ってすらいなかった★）
+#
+#   直した3点（この順でないと効かない）:
+#     1. ★sparse-checkout★ … repo 3,308MB のうち ★data/ が 3,293.8MB（99.6%）★。
+#        ゲートが実際に読む data は ★data/roads-ehime.js の 4.4MB だけ★（実測）。
+#        road-graph-*(1,138MB) と road-graph-tiles/(1,089MB) は ★どのゲートも読んでいない★
+#        （tests/*.js に road-graph の参照ゼロ・grep で確認）。
+#        ★分割の前提★: 先に checkout を軽くしないと、ジョブ本数ぶん4分が掛かる。
+#     2. ゲートごとにジョブを分けて並列（各ジョブが制限内に収まる）
+#     3. timeout-minutes は 1・2 の後に実測から決める（★単独では上げない＝重いまま隠すことになる★）
+#
+#   ★再発防止★ 20回すり抜けた本当の理由は「遅い」ことではなく、
+#   `cancelled` が緑でも赤でもなく、「緑を確認してから進む」の網に引っかからなかったこと。
+#   → 最後の cert-gate-result ジョブで ★success 以外（cancelled / timed_out 含む）を赤★ にする。
+#
+# 中身（何を守っているか）:
+#   gate-snap   = 実機3台 fixture を実エンジン(Worker B)に流し snap 配線健全 (committed=0 で FAIL)
+#   sim-cert    = 実 pipeline GPS-feed Monte-Carlo。never-over/coast配線/単調/latch を hard-fail。
+#                 ±band は dense-proxy 比較のため情報表示のみ (hard-fail しない)。
+#                 実過大の hard-gate は truedist-kp / cert-3env (実RTK真値)。
+# distance_m / calcFare は read-only 観測のみ・不変。
 name: cert-gate
 
 # paths: 距離/エンジン/テストに関わる変更時のみ実行。
-#   auto-version ボットの sw.js CACHE_NAME-only commit 等では ~6min sim を回さない (= 計算節約)。
+#   auto-version ボットの sw.js CACHE_NAME-only commit 等では重い sim を回さない (= 計算節約)。
 on:
   push:
     branches: [main]
@@ -31,11 +51,68 @@ on:
       - '.github/workflows/cert-gate.yml'
 
 jobs:
-  certification-gate:
+  gate:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false # ★1本落ちても他を最後まで走らせる（どこまで壊れているかを1回で知る）★
+      matrix:
+        include:
+          # ── hard-fail（落ちたら赤）──
+          - name: snap-accuracy
+            cmd: npm run test:gate-snap
+            timeout: 10
+          - name: sim-cert
+            cmd: npm run test:sim-cert
+            timeout: 15 # 実測 6分19秒
+          - name: truedist-kp
+            cmd: npm run test:gate-kp
+            timeout: 10
+          - name: obd-engine
+            cmd: npm run test:obd-engine
+            timeout: 10
+          - name: obd-quant
+            cmd: npm run test:quant
+            timeout: 10 # 実測 3分42秒
+          - name: doppler-rejection
+            cmd: npm run test:gate-doppler
+            timeout: 10
+          # ★ここから下は 20回のCIで一度も走っていない★（20分で打ち切られていたため）
+          - name: cert-3env
+            cmd: npm run test:gate-cert3env
+            timeout: 15
+          # ── 可視化only（★現状REDが分かっている・本体未修正まで非ブロック★）──
+          - name: device-spread
+            cmd: npm run test:gate-spread
+            timeout: 15
+            soft: true # ⑤seam未実装
+          - name: tunnel-continuity
+            cmd: npm run test:gate-tunnel
+            timeout: 15
+            soft: true # ④トンネル本体未修正
+          - name: bg-freeze
+            cmd: npm run test:gate-bg-freeze
+            timeout: 15
+            soft: true # lifecycle本体未修正
+          - name: gnss-degraded
+            cmd: npm run test:gate-gnss-degraded
+            timeout: 15
+            soft: true # 本体未修正
+
     steps:
+      # ★sparse-checkout★ 3,308MB → 約65MB（js/tests/scripts/package* + roads-ehime だけ）
+      #   ゲートが読む物は実測で確定させてある。増やす時は「何を読むか」を測ってから足すこと。
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            js
+            tests
+            scripts
+            package.json
+            package-lock.json
+            data/roads-ehime.js
+          sparse-checkout-cone-mode: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -46,62 +123,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Snap-accuracy wiring gate (committed=0 で FAIL)
-        run: npm run test:gate-snap
+      - name: ${{ matrix.name }}
+        run: ${{ matrix.cmd }}
+        continue-on-error: ${{ matrix.soft == true }}
 
-      - name: Full-pipeline certification gate (構造不変条件=物理never-over/coast/単調/latch hard-fail・±bandはproxy情報表示)
-        run: npm run test:sim-cert
-
-      # ── 真距離KP採点ゲート (truedist-kp-gate・2026-06-12 配線) ──
-      # 0610b-Android(KP38-49全12点通過・OBD有)を eps=0(過大1mも不可)で採点。
-      # 過大(error>0)が1業務でも出たら hard-fail。3台朝traceはKP回廊外=ここでは使わない(空緑回避)。
-      - name: True-distance KP gate (0610b-Android・eps=0 過大ゼロ hard-fail)
-        run: npm run test:gate-kp
-
-      # ── OBD実エンジン発火ゲート (truedist-obd-engine-gate) ──
-      # 実Meter+map-matcher worker に OBD車速を流し obdSegs 発火＋δ OFF/ON 真距離採点。
-      - name: OBD-main engine gate (obdSegs発火・δ真距離採点 hard-fail)
-        run: npm run test:obd-engine
-
-      # ── (retired 2026-06-13) source-aware k never-over gate ──
-      # 手動k(meter ×_activeVehicleK)で OBD∫v を -1%へ回収する旧設計を検証していたが、★per-vehicle k は
-      # pipeline の Doppler自動ラチェット(kNow)へ一本化(司さん裁定A)★= meter手動k廃止(二重適用防止)で本ゲートの
-      # 前提が消滅。後継=ラチェット/天井の過大ゼロは vitest (obd-doppler-ceiling/obd-ratchet/obd-overcount-zero
-      # property) + obd-engine/gate-kp(≤真値)が担保。実Doppler fixture gate は後続TODO。
-
-      # ── OBD量子化補正ゲート (+0.5km/h floor回収・全車普遍・manual k不要・2026-06-13) ──
-      # OBD車速の1km/h floor過少(-2.5%級)を +0.5km/h で回収。196号KP RTK真値で「改善&過大ゼロ」hard-fail。
-      # 既定ON(obdQuantCorrectMps=0.139)。manual k と択一(k はこのゲートで quant 無し単独検証)。
-      - name: OBD quant correction gate (+0.5km/h floor回収・改善&過大ゼロ hard-fail)
-        run: npm run test:quant
-
-      # ── Doppler棄却配線ゲート (gate-realdevice-doppler-rej) ──
-      - name: Doppler rejection wiring gate
-        run: npm run test:gate-doppler
-
-      # ── 端末間収束(spread)ゲート ── ★現状RED(spread790m=未解決の⑤)★
-      # 過大ゼロ+spread<420m を測る。⑤seam収束が未実装ゆえ現状FAIL。
-      # 修正land まで continue-on-error で「可視化only(非ブロック)」。fix後にこの行を外して hard-fail化。
-      - name: Device-spread gate (★RED可視化・⑤seam未実装まで非ブロック★)
-        run: npm run test:gate-spread
-        continue-on-error: true
-
-      # ── 認定二段公差ゲート (cert-3env-gate・別表2 ≤1km:-40〜0m / >1km:-4〜0%) ──
-      # 0610b-Android で現状PASS(緑)→ hard-fail で配線。負例runは --negraw でメタ検証。
-      - name: Cert two-tier tolerance gate (別表2二段公差 hard-fail)
-        run: npm run test:gate-cert3env
-
-      # ── トンネル連続性ゲート ── ★現状RED(出口ドン=未解決の④)★ 非ブロック可視化
-      - name: Tunnel-continuity gate (★RED可視化・④トンネル本体未修正まで非ブロック★)
-        run: npm run test:gate-tunnel
-        continue-on-error: true
-
-      # ── 画面ロック凍結→resume一括計上ゲート ── ★現状RED(未解決)★ 非ブロック可視化
-      - name: Background-freeze resume gate (★RED可視化・lifecycle本体未修正まで非ブロック★)
-        run: npm run test:gate-bg-freeze
-        continue-on-error: true
-
-      # ── GNSS不安定(生弦+10%膨張)never-overゲート ── ★現状RED(欠陥検出)★ 非ブロック可視化
-      - name: GNSS-degraded never-over gate (★RED可視化・本体未修正まで非ブロック★)
-        run: npm run test:gate-gnss-degraded
-        continue-on-error: true
+  # ★★ここが再発防止の本体★★
+  #   `cancelled` は緑でも赤でもないので、「緑を確認してから進む」の網をすり抜ける。
+  #   ここで ★success 以外は全部赤★ にして、打ち切られたら気づけるようにする。
+  cert-gate-result:
+    name: cert-gate 総合結果
+    runs-on: ubuntu-latest
+    needs: gate
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: 結果を確かめる（cancelled / timed_out も失敗として扱う）
+        run: |
+          r="${{ needs.gate.result }}"
+          echo "認定ゲートの結果: $r"
+          if [ "$r" = "success" ]; then
+            echo "cert-gate: 全部の必須ゲートが完走して緑"
+            exit 0
+          fi
+          echo "::error::cert-gate が success ではありません（結果=$r）。"
+          echo "::error::★cancelled / timed_out も「守れていない」として赤にしています★"
+          echo "::error::（2026-08-02以前は cancelled が20回続いても誰も気づけなかった）"
+          exit 1

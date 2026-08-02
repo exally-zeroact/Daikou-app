@@ -1,1 +1,12 @@
 **/*.min.js
+
+# ★生成データは lint しない (2026-08-03)★
+#   data/ は 3.3GB の生成物（地図・住所・道路グラフ）。人が書くコードではない。
+#   除外していなかったため ★npm run lint が JavaScript heap out of memory で落ちていた★
+#   （eslint が addresses-chiban-ehime.js 164MB などを丸ごと読もうとする）。
+#   CIが npm run lint を呼んでいないので、ずっと表に出ていなかった。
+#   同じ lockfile のまま data/ を外すと通ることを実測して、原因をここだと確定させた。
+data/
+.stryker-tmp/
+coverage/
+node_modules/

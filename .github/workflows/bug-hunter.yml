@@ -24,7 +24,19 @@ jobs:
       contents: read
       issues: write
     steps:
+      # ★sparse-checkout (2026-08-03)★ cert-gate と同じ原因で死んでいた。
+      #   実測: 15:49:46 開始 → 16:04:50 終了 ＝ ★きっかり15分で打ち切り(cancelled)★。
+      #   repo 3,308MB のうち data/ が 3,293.8MB（99.6%）。checkout だけで数分持っていかれる。
+      #   この道具が読むのは ★js/meter.js / js/map-matcher.js / js/gps-worker.js の3本と
+      #   .github/workflows/*.yml だけ★（ai-bug-hunter.js の TARGET_FILES で実測）。
+      #   data/ は1バイトも要らない。
       - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            js
+            scripts
+            .github
+          sparse-checkout-cone-mode: false
 
       - uses: actions/setup-node@v4
         with:
@@ -101,3 +113,22 @@ jobs:
               body: body.join('\n'),
               labels: ['ai-bug-hunter', 'weekly-report']
             });
+
+  # ★cancelled を緑扱いしない (2026-08-03)★
+  #   cert-gate が20回すり抜けたのと同じ形。cancelled は緑でも赤でもないので、
+  #   一覧をぱっと見ても「動いていない」ことに気づけない。success 以外は赤にする。
+  bug-hunter-result:
+    name: AI Bug Hunter 総合結果
+    runs-on: ubuntu-latest
+    needs: hunt
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: 結果を確かめる（cancelled / timed_out も失敗として扱う）
+        run: |
+          r="${{ needs.hunt.result }}"
+          echo "AI Bug Hunter の結果: $r"
+          if [ "$r" = "success" ]; then exit 0; fi
+          echo "::error::AI Bug Hunter が success ではありません（結果=$r）。"
+          echo "::error::★cancelled / timed_out も「走っていない」として赤にしています★"
+          exit 1
