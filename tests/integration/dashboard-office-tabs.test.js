@@ -168,12 +168,17 @@ describe('★事務所を別の住所で開いても、ドライバーに配る�
     ).toBe(false);
   });
 
-  it('★事務所に sw.js / index.html を出さない栓がある★', () => {
+  // ★2026-08-02 設計を逆にした（名指しで塞ぐ → 通す物だけ通す）★
+  //   総当たりを置かないので、一覧に無い物は自動で404になる。栓の行は要らない。
+  it('★事務所にメーター専用の物が入っていない（総当たりも無い）★', () => {
     const rw = JSON.parse(read('office-host/vercel.json')).rewrites;
-    ['/sw.js', '/index.html'].forEach((p) => {
-      const r = rw.find((x) => x.source === p);
-      expect(r, `${p} の栓が無い`).toBeTruthy();
-      expect(/^https:/.test(r.destination), `${p} をメーターへ通している`).toBe(false);
+    const src = rw.map((x) => x.source);
+    expect(
+      src.filter((s) => /[:*]/.test(s)),
+      '総当たりが有ると元の穴が戻る'
+    ).toEqual([]);
+    ['/sw.js', '/index.html', '/manifest.json', '/fare.html'].forEach((p) => {
+      expect(src, `${p} が事務所の住所で出る`).not.toContain(p);
     });
   });
 

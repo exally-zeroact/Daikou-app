@@ -41,7 +41,34 @@
 import { HOSTS, sideOf } from './dk-hosts.mjs';
 
 // 事務所で必ず開けなければいけない画面
-export const OFFICE_SCREENS = ['/', '/dashboard.html', '/kyuryo.html', '/uriage.html', '/shukei.html'];
+export const OFFICE_SCREENS = [
+  '/',
+  '/dashboard.html',
+  '/kyuryo.html',
+  '/uriage.html',
+  '/shukei.html',
+];
+
+// ★事務所に絶対に出してはいけない物 (2026-08-02)★
+//   指示役の実測で、これが全部200で出ていた（総当たりproxyの素通り）。
+//   ★manifest.json が一番効く★:
+//     事務所のページが1箇所でも相対参照で読んだ瞬間、
+//     iPhoneのホーム画面に「事務所」の顔でメーターが入る。
+//   ここは「代表として必ず見る物」。本当の守りは
+//   ★通す物だけ通す（office-host/vercel.json に総当たりを置かない）★ 側。
+export const MUST_NOT_LEAK = [
+  '/index.html',
+  '/sw.js',
+  '/manifest.json',
+  '/fare.html',
+  '/settings.html',
+  '/history.html',
+  '/help.html',
+  '/js/meter.js',
+  '/js/gps.js',
+  '/js/map-matcher.js',
+  '/data/coarse-jp.js',
+];
 
 // ------------------------------------------------------------
 // 実際に叩く部分。テストから差し替えられるように外に出してある。
@@ -77,7 +104,7 @@ function appBaseOf(body) {
 // ------------------------------------------------------------
 // 1ホストぶんの判定。★ここが目の本体★（純粋な判定・ネットは probe 経由）
 // ------------------------------------------------------------
-export async function checkHost(host, spec, probe, hosts = HOSTS) {
+export async function checkHost(host, spec, probe, hosts = HOSTS, mustPass = null) {
   const base = 'https://' + host;
   const out = { host, role: spec.role, side: spec.side, codes: {}, ng: [] };
 
@@ -121,15 +148,46 @@ export async function checkHost(host, spec, probe, hosts = HOSTS) {
   }
 
   if (spec.role === 'office') {
-    // 事務所のURLでメーター本体が出ないこと（総当たりproxyの素通り）
-    const idx = await probe.head(base + '/index.html');
-    out.codes['/index.html'] = idx.status;
-    if (idx.status === 200) {
-      out.ng.push('★事務所の /index.html でメーター本体が出る（栓が無い）★');
+    // ★通す物だけ通す＝一覧に無い物が200で出たら赤 (2026-08-02 追加)★
+    //
+    //   それまでは /sw.js と /index.html だけ名指しで塞いでいた。
+    //   実測すると、これが全部200で出ていた:
+    //     fare.html / settings.html / history.html / help.html /
+    //     ★manifest.json★ / js/meter.js / js/gps.js / data/coarse-jp.js
+    //   ＝★新しい画面が増えるたびに塞ぎ忘れる★形（今回の事故そのもの）。
+    //
+    //   特に manifest.json。事務所のページが1箇所でも相対参照で読んだ瞬間、
+    //   ★iPhoneのホーム画面に「事務所」の顔でメーターが入る★。
+    for (const p of MUST_NOT_LEAK) {
+      const r = await probe.head(base + p);
+      out.codes[p] = r.status;
+      if (r.status === 200) {
+        out.ng.push(
+          `★事務所で ${p} が200（メーターの物が事務所の住所で出る）★` +
+            (p === '/manifest.json'
+              ? ' ＝ホーム画面に「事務所」の顔でメーターが入る'
+              : '')
+        );
+      }
     }
     const top = await probe.text(base + '/');
     if (top.body && !/事務所|売上表|月次集計|ログイン/.test(top.body)) {
       out.ng.push('★事務所のトップが事務所の画面でない（メーターが出ている可能性）★');
+    }
+
+    // ★逆向きの確認 (2026-08-02)★
+    //   塞ぎすぎて「通すはずの物まで404」になっていないか。
+    //   ここが抜けると、画面は開くのに js が1本落ちて★押しても何も起きない★になる。
+    //   （通す物の一覧は scripts/office-allow.mjs が HTML から機械で作る）
+    if (mustPass && mustPass.length) {
+      for (const p of mustPass) {
+        if (p === '/') continue;
+        const r = await probe.head(base + p);
+        out.codes[p] = r.status;
+        if (r.status !== 200) {
+          out.ng.push(`★事務所で ${p} が ${r.status}（通すはずの物が出ない＝画面が動かない）★`);
+        }
+      }
     }
   }
 
@@ -195,10 +253,11 @@ export async function checkLoginReturn(host, authBase, probe) {
   };
 }
 
-export async function checkAll(side, probe, hosts = HOSTS) {
+export async function checkAll(side, probe, hosts = HOSTS, mustPass = null) {
   const targets = Object.entries(hosts).filter(([, s]) => !side || s.side === side);
   const out = [];
-  for (const [host, spec] of targets) out.push(await checkHost(host, spec, probe, hosts));
+  for (const [host, spec] of targets)
+    out.push(await checkHost(host, spec, probe, hosts, mustPass));
   return out;
 }
 
@@ -213,7 +272,10 @@ if (isMain) {
   const asJson = argv.includes('--json');
 
   const probe = realProbe();
-  const results = await checkAll(onlySide, probe);
+  // ★通すはずの物の一覧は HTML から機械で作る★（目視で決めない）
+  const { buildAllowList } = await import('./office-allow.mjs');
+  const { allow } = buildAllowList();
+  const results = await checkAll(onlySide, probe, HOSTS, allow);
 
   // ログインの戻り先（メールは送らない）
   const AUTH = 'https://tnfwipbgfgjaymlszeid.supabase.co';

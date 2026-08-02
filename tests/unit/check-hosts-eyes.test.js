@@ -44,9 +44,12 @@ const HOSTS = {
   'daikome-jimusho-test.vercel.app': OFFICE,
 };
 
-// 応答表から偽の probe を作る（表に無いパスは既定値）
+// 応答表から偽の probe を作る
+// ★表に無いパスは 404 が既定 (2026-08-02 変更)★
+//   事務所は「通す物だけ通す」作りになった＝一覧に無い物は404が正しい姿。
+//   既定を200にしていると、テストの書き忘れが★実物より甘い★状態を作ってしまう。
 function fakeProbe(table, defaults = {}) {
-  const d = Object.assign({ status: 200, location: null }, defaults);
+  const d = Object.assign({ status: 404, location: null }, defaults);
   const look = (url) => {
     const u = new URL(url);
     const key = u.host + u.pathname;
@@ -70,6 +73,17 @@ function fakeProbe(table, defaults = {}) {
 
 const OK_CONFIG = "const APP_BASE = 'https://daikou-app-test.vercel.app';";
 const OFFICE_PAGE = '<html>事務所 売上表 月次集計</html>';
+
+// 正しい事務所の姿：4画面は開ける／メーターの物は1つも出ない
+const healthyOffice = {
+  '/': { status: 200, body: OFFICE_PAGE },
+  '/dashboard.html': { status: 200 },
+  '/kyuryo.html': { status: 200 },
+  '/uriage.html': { status: 200 },
+  '/shukei.html': { status: 200 },
+  '/js/dk-config.js': { status: 200, body: OK_CONFIG },
+  // それ以外は表に無い＝404（fakeProbe の既定）
+};
 
 describe('★当時(2026-08-02 21:57)の壊れた状態で赤になること★', () => {
   it('事務所の4画面が全部404なら赤（指示役が実測した状態そのもの）', async () => {
@@ -122,17 +136,6 @@ describe('★当時(2026-08-02 21:57)の壊れた状態で赤になること★'
 });
 
 describe('正しい状態では緑になること（目が過敏すぎないこと）', () => {
-  const healthyOffice = {
-    '/': { status: 200, body: OFFICE_PAGE },
-    '/dashboard.html': { status: 200 },
-    '/kyuryo.html': { status: 200 },
-    '/uriage.html': { status: 200 },
-    '/shukei.html': { status: 200 },
-    '/sw.js': { status: 404 },
-    '/index.html': { status: 404 },
-    '/js/dk-config.js': { status: 200, body: OK_CONFIG },
-  };
-
   it('事務所が全部開けて sw.js が居なければ緑', async () => {
     const r = await CH.checkHost(
       'daikome-jimusho-test.vercel.app',
@@ -256,17 +259,65 @@ describe('★取り違え（一番こわいやつ）★', () => {
   });
 
   it('事務所の /index.html でメーター本体が出たら赤', async () => {
-    const probe = fakeProbe({
-      '/': { status: 200, body: OFFICE_PAGE },
-      '/dashboard.html': { status: 200 },
-      '/kyuryo.html': { status: 200 },
-      '/uriage.html': { status: 200 },
-      '/shukei.html': { status: 200 },
-      '/sw.js': { status: 404 },
-      '/index.html': { status: 200 },
-      '/js/dk-config.js': { status: 200, body: OK_CONFIG },
-    });
-    const r = await CH.checkHost('daikome-jimusho-test.vercel.app', OFFICE, probe, HOSTS);
-    expect(r.ng.join()).toContain('メーター本体が出る');
+    const r = await CH.checkHost(
+      'daikome-jimusho-test.vercel.app',
+      OFFICE,
+      fakeProbe(Object.assign({}, healthyOffice, { '/index.html': { status: 200 } })),
+      HOSTS
+    );
+    expect(r.ng.join()).toContain('/index.html');
+  });
+
+  // ★2026-08-02 指示役の実測で見つかった穴★
+  //   総当たりproxyのせいで、事務所の住所でメーターの物が全部200で出ていた。
+  //   ★manifest.json が一番効く★（ホーム画面に「事務所」の顔でメーターが入る）。
+  it('★事務所で manifest.json が200なら赤（ホーム画面がメーターになる）★', async () => {
+    const r = await CH.checkHost(
+      'daikome-jimusho-test.vercel.app',
+      OFFICE,
+      fakeProbe(Object.assign({}, healthyOffice, { '/manifest.json': { status: 200 } })),
+      HOSTS
+    );
+    expect(r.ng.join()).toContain('manifest.json');
+    expect(r.ng.join()).toContain('ホーム画面');
+  });
+
+  it('★事務所でメーターの画面(fare/settings/history)が200なら赤★', async () => {
+    for (const p of ['/fare.html', '/settings.html', '/history.html', '/js/meter.js']) {
+      const r = await CH.checkHost(
+        'daikome-jimusho-test.vercel.app',
+        OFFICE,
+        fakeProbe(Object.assign({}, healthyOffice, { [p]: { status: 200 } })),
+        HOSTS
+      );
+      expect(r.ng.join(), p + ' が200なのに通ってしまった').toContain(p);
+    }
+  });
+
+  // ★逆向き★ 塞ぎすぎて、通すはずの物まで404になっていないか。
+  //   ここが抜けると「画面は開くのに、押しても何も起きない」になる。
+  it('★通すはずの js が404なら赤（画面が動かない）★', async () => {
+    const mustPass = ['/dashboard.html', '/js/payroll-daily.js'];
+    const r = await CH.checkHost(
+      'daikome-jimusho-test.vercel.app',
+      OFFICE,
+      fakeProbe(healthyOffice), // payroll-daily.js は表に無い＝404
+      HOSTS,
+      mustPass
+    );
+    expect(r.ng.join()).toContain('/js/payroll-daily.js');
+    expect(r.ng.join()).toContain('画面が動かない');
+  });
+
+  it('通すはずの物が全部200なら緑', async () => {
+    const mustPass = ['/dashboard.html', '/js/payroll-daily.js'];
+    const r = await CH.checkHost(
+      'daikome-jimusho-test.vercel.app',
+      OFFICE,
+      fakeProbe(Object.assign({}, healthyOffice, { '/js/payroll-daily.js': { status: 200 } })),
+      HOSTS,
+      mustPass
+    );
+    expect(r.ng).toEqual([]);
   });
 });

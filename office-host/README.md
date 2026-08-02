@@ -89,20 +89,57 @@ should NOT have additional property `_comment`
 なので説明はこの README に書く。`vercel.json` は素の設定だけ。
 知らないキーが混ざっていないかは `tests/unit/dk-config-app-base-host.test.js` が見る。
 
-## 栓の順番
+## ★通す物だけ通す（塞ぎ方を逆にした・2026-08-02）★
 
-`rewrites` の最初の2本は「事務所に出してはいけない物」を止める栓。
+最初は「総当たり `/:path*` で丸ごと通し、`/sw.js` と `/index.html` だけ名指しで塞ぐ」に
+していた。実物を叩いたら、**これが全部200で出ていた**。
 
-| 塞ぐ物         | 塞がないとどうなる                             |
-| -------------- | ---------------------------------------------- |
-| `/sw.js`       | 事務所のURLにサービスワーカーが入れるようになる |
-| `/index.html`  | 事務所のURLでメーター本体が出る                 |
+```
+daikome-jimusho/fare.html      200   ← メーターの画面が事務所の住所で出る
+daikome-jimusho/settings.html  200
+daikome-jimusho/history.html   200
+daikome-jimusho/manifest.json  200   ← ★メーターのマニフェスト★
+daikome-jimusho/js/meter.js    200
+daikome-jimusho/data/coarse-jp.js 200
+```
 
-どちらも司さんが見た「どのURLもメーターに化ける」の元。
-実在しない `/_not-here` へ向けて 404 にしている。
+**名指しで塞ぐやり方は、画面が増えるたびに塞ぎ忘れる。** 今回の事故そのもの。
 
-**順番が命。** 一番下の総当たり `/:path*` より上に無いと効かない。
-（この穴は `scripts/check-hosts.mjs` が実物を叩いて見つけた。設定を書いた時点では気づけていない）
+とくに `manifest.json` が効く。事務所のページが1箇所でも相対参照でこれを読んだ瞬間、
+**iPhoneのホーム画面に「事務所」の顔でメーターが入る**。
+
+だから逆にした。**通す物だけ一覧にして、総当たりを置かない。**
+一覧に無い物は Vercel が勝手に404にする。
+
+### 通す物は目視で決めない
+
+`scripts/office-allow.mjs` が、事務所5画面（dashboard / uriage / kyuryo / shukei / login）の
+HTMLから `src=` `href=` と画面どうしの行き先を**機械で洗い出す**。
+
+```
+node scripts/office-allow.mjs        # 一覧を見る
+```
+
+`tests/unit/office-allow-list.test.js` が
+**一覧とHTMLがズレたら赤**にする（増やし忘れ・減らし忘れの両方）。
+
+- HTMLに新しい js を足して一覧を直し忘れた → 赤
+- 一覧から js を落とした（押しても動かない）→ 赤
+- 総当たりを戻した → 赤
+- `manifest.json` を通した → 赤
+
+### 設定を作り直す手順
+
+```
+node -e "import('./scripts/office-allow.mjs').then(m=>{
+  const {allow}=m.buildAllowList();
+  const rw=m.toRewrites(allow,'https://daikou-app.vercel.app');   // 本番はこちら
+  require('fs').writeFileSync('office-host/vercel.json',JSON.stringify({rewrites:rw},null,2)+'\n');
+})"
+```
+
+`https://daikou-app-test.vercel.app` を渡せばテスト側。
+**間違えるとQRが反対側を指す**ので、必ず `node scripts/check-hosts.mjs` で確かめる。
 
 ## 変える手順
 

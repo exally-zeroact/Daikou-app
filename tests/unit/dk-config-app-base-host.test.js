@@ -182,20 +182,16 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
       });
   });
 
-  // ★この穴は scripts/check-hosts.mjs が実物を叩いて見つけた (2026-08-02)★
-  //   総当たり /:path* がメーターを丸ごと見せるので、栓をしないと
-  //   事務所のURLで sw.js が取れる(＝事務所にサービスワーカーが入る)し、
-  //   /index.html でメーター本体が出る。どちらも「どのURLもメーターに化ける」の元。
-  it('★事務所で sw.js と index.html が取れないように栓がしてある★', () => {
-    const rw = officeRewrites();
-    ['/sw.js', '/index.html'].forEach((p) => {
-      const i = rw.findIndex((r) => r.source === p);
-      expect(i, `${p} の栓が無い`).toBeGreaterThan(-1);
-      expect(/^https:/.test(rw[i].destination), `${p} をメーターへ通している`).toBe(false);
-      // ★順番が命★ 総当たりより上に無いと効かない
-      const catchAll = rw.findIndex((r) => /:path\*/.test(r.source));
-      expect(i, `${p} の栓が総当たりより下にある＝効かない`).toBeLessThan(catchAll);
-    });
+  // ★2026-08-02 設計を逆にした★
+  //   旧: 総当たり /:path* で丸ごと通し、/sw.js と /index.html だけ★名指しで塞ぐ★
+  //       → 実測すると fare/settings/history/help/★manifest.json★/js/meter.js …が
+  //         全部200で出ていた。★画面が増えるたびに塞ぎ忘れる★形。
+  //   新: ★通す物だけ通す★（総当たりを置かない＝一覧に無い物は全部404）
+  //   ここでは「総当たりが戻っていないこと」を見る。
+  //   一覧そのものの正しさは tests/unit/office-allow-list.test.js。
+  it('★総当たりを置かない（置いた瞬間に元の穴が戻る）★', () => {
+    const bad = officeRewrites().filter((r) => /[:*]/.test(r.source));
+    expect(bad, '総当たりが有ると、メーターの画面もmanifestも事務所の住所で出る').toEqual([]);
   });
 
   it('メーター側に /office/ の入口がある（事務所はここを取りに来る）', () => {
@@ -237,16 +233,22 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
     });
   });
 
-  // ★期待を1回直した (2026-08-02)★
-  //   旧: 「office-host/vercel.json に /sw.js の行が1つも無いこと」
-  //   新: 「/sw.js の行は在ってよい。ただし★栓としてだけ★（メーターへ通してはいけない）」
-  //   理由: 総当たり /:path* があるので、行が無いと逆に sw.js が素通りする。
-  //         『書かない』ではなく『塞ぐ』が正しい。実物を叩いて分かった。
-  it('★事務所で sw.js がメーターへ素通りしない★', () => {
-    const rw = readJson('office-host', 'vercel.json').rewrites;
-    const sw = rw.find((r) => r.source === '/sw.js');
-    expect(sw, '/sw.js の栓が無い＝総当たりで素通りする').toBeTruthy();
-    expect(/^https:/.test(sw.destination), 'sw.js をメーターへ通している').toBe(false);
+  // ★期待を2回直した (2026-08-02)★
+  //   1回目 旧: 「/sw.js の行が1つも無いこと」 → 総当たりが有ったので、行が無いと逆に素通りした
+  //   2回目 新: ★総当たりをやめて「通す物だけ通す」にした★ので、
+  //             sw.js は「一覧に入っていない」＝それだけで404になる。栓の行は要らない。
+  it('★事務所にメーター専用の物が1つも入っていない★', () => {
+    const src = readJson('office-host', 'vercel.json').rewrites.map((r) => r.source);
+    [
+      '/sw.js',
+      '/index.html',
+      '/manifest.json',
+      '/fare.html',
+      '/settings.html',
+      '/history.html',
+    ].forEach((p) => {
+      expect(src, `${p} が一覧に入っている＝事務所の住所で出る`).not.toContain(p);
+    });
   });
 });
 

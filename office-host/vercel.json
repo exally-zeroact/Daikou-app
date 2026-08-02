@@ -1,25 +1,72 @@
 {
   "rewrites": [
-    { "source": "/sw.js", "destination": "/_not-here" },
-    { "source": "/index.html", "destination": "/_not-here" },
-
-    { "source": "/", "destination": "https://daikou-app.vercel.app/office/dashboard.html" },
+    {
+      "source": "/",
+      "destination": "https://daikou-app.vercel.app/office/dashboard.html"
+    },
     {
       "source": "/dashboard.html",
       "destination": "https://daikou-app.vercel.app/office/dashboard.html"
+    },
+    {
+      "source": "/icon-192.png",
+      "destination": "https://daikou-app.vercel.app/icon-192.png"
+    },
+    {
+      "source": "/icon-512.png",
+      "destination": "https://daikou-app.vercel.app/icon-512.png"
+    },
+    {
+      "source": "/js/daiko-payroll.js",
+      "destination": "https://daikou-app.vercel.app/js/daiko-payroll.js"
+    },
+    {
+      "source": "/js/dk-config.js",
+      "destination": "https://daikou-app.vercel.app/js/dk-config.js"
+    },
+    {
+      "source": "/js/dk-session.js",
+      "destination": "https://daikou-app.vercel.app/js/dk-session.js"
+    },
+    {
+      "source": "/js/getsuji-agg.js",
+      "destination": "https://daikou-app.vercel.app/js/getsuji-agg.js"
+    },
+    {
+      "source": "/js/payroll-daily.js",
+      "destination": "https://daikou-app.vercel.app/js/payroll-daily.js"
+    },
+    {
+      "source": "/js/payroll-period.js",
+      "destination": "https://daikou-app.vercel.app/js/payroll-period.js"
+    },
+    {
+      "source": "/js/qrcode.min.js",
+      "destination": "https://daikou-app.vercel.app/js/qrcode.min.js"
+    },
+    {
+      "source": "/js/uriage-agg.js",
+      "destination": "https://daikou-app.vercel.app/js/uriage-agg.js"
     },
     {
       "source": "/kyuryo.html",
       "destination": "https://daikou-app.vercel.app/office/kyuryo.html"
     },
     {
-      "source": "/uriage.html",
-      "destination": "https://daikou-app.vercel.app/office/uriage.html"
+      "source": "/login.html",
+      "destination": "https://daikou-app.vercel.app/login.html"
+    },
+    {
+      "source": "/office-manifest.json",
+      "destination": "https://daikou-app.vercel.app/office-manifest.json"
     },
     {
       "source": "/shukei.html",
       "destination": "https://daikou-app.vercel.app/office/shukei.html"
     },
-    { "source": "/:path*", "destination": "https://daikou-app.vercel.app/:path*" }
+    {
+      "source": "/uriage.html",
+      "destination": "https://daikou-app.vercel.app/office/uriage.html"
+    }
   ]
 }

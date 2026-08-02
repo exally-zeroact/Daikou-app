@@ -18,30 +18,12 @@
 //   鍵は %TEMP%\daikome-db-token.json か 環境変数 SUPABASE_ACCESS_TOKEN から読む。
 //   ★画面には出さない★
 // ============================================================
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
 import { HOSTS } from './dk-hosts.mjs';
+// ★鍵の探し場所は scripts/db-token.mjs 1箇所だけ★
+//   ここに自分で書くと必ずズレる（実際にズレて「鍵が無い」と誤診断した）。
+import { readToken, whereWeLooked } from './db-token.mjs';
 
 const PROJECT = 'tnfwipbgfgjaymlszeid';
-
-function readToken() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN;
-  const tmp = process.env.TEMP || os.tmpdir();
-  for (const f of [
-    path.join(tmp, 'daikome-db-token.json'),
-    path.join(os.homedir(), '.supabase-token'),
-  ]) {
-    try {
-      const raw = fs.readFileSync(f, 'utf8').trim();
-      const t = raw.startsWith('{') ? JSON.parse(raw).token : raw;
-      if (t && t.startsWith('sbp_')) return t;
-    } catch {
-      /* 次を見る */
-    }
-  }
-  return null;
-}
 
 // 4ホストぶん、ログインが戻ってくる可能性のある住所
 export function wantedUrls(hosts = HOSTS) {
@@ -69,12 +51,14 @@ export function merge(current, wanted) {
 
 const isMain = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('auth-redirect-allow.mjs');
 if (isMain) {
-  const token = readToken();
-  if (!token) {
-    console.error('鍵が見つかりません（%TEMP%\\daikome-db-token.json か SUPABASE_ACCESS_TOKEN）。');
+  const found = readToken();
+  if (!found) {
+    console.error('鍵が見つかりません。探した場所:');
+    whereWeLooked().forEach((p) => console.error('  ' + p));
     process.exit(2);
   }
-  const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
+  console.log('鍵の出どころ: ' + found.from);
+  const H = { Authorization: 'Bearer ' + found.token, 'Content-Type': 'application/json' };
   const url = `https://api.supabase.com/v1/projects/${PROJECT}/config/auth`;
 
   const cur = await fetch(url, { headers: H }).then((r) => r.json());
@@ -90,12 +74,22 @@ if (isMain) {
   if (!added.length) console.log('  無し（4ホスト全部ある）');
   else added.forEach((u) => console.log('  + ' + u));
 
+  // ★process.exit() を使わない (2026-08-02)★
+  //   まだ開いている通信が有るうちに切ると Windows の node が
+  //   「Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)」で落ち、
+  //   ★中身は正しいのに終了コード 9★ になる（CIが赤と誤解する）。
   if (!process.argv.includes('--apply')) {
     console.log('\n見ただけです。足すなら --apply を付けてください。');
-    process.exit(added.length ? 1 : 0);
+    process.exitCode = added.length ? 1 : 0;
+  } else if (!added.length) {
+    console.log('\n足す物はありません。');
+    process.exitCode = 0;
+  } else {
+    await applyList(url, H, list);
   }
-  if (!added.length) process.exit(0);
+}
 
+async function applyList(url, H, list) {
   const res = await fetch(url, {
     method: 'PATCH',
     headers: H,
@@ -104,7 +98,8 @@ if (isMain) {
   });
   if (!res.ok) {
     console.error('失敗: ' + res.status + ' ' + (await res.text()));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const after = await fetch(url, { headers: H }).then((r) => r.json());
   console.log('\n★足したあと★');
@@ -116,7 +111,8 @@ if (isMain) {
   const still = wantedUrls().filter((u) => !after.uri_allow_list.includes(u));
   if (still.length) {
     console.error('★まだ足りない★ ' + still.join(', '));
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   console.log('4ホスト全部そろいました。');
 }
