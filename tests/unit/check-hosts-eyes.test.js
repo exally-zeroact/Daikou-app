@@ -159,6 +159,67 @@ describe('正しい状態では緑になること（目が過敏すぎないこ�
   });
 });
 
+// ============================================================
+// ★ログインの戻り先 (2026-08-02 実測で見つけた)★
+//   Supabase は戻り先が許可リストに無いと、弾かずに★既定の戻り先へ黙って飛ばす★。
+//   実測: daikome-jimusho-test の戻り先は
+//     https://exally-test.vercel.app/daikou-seikyu.html（★請求書アプリ★）だった。
+//   ＝事務所にログインしたつもりで別のアプリに着く。エラーは出ない。
+//   画面を見ても気づけないので、機械で見るしかない。
+// ============================================================
+describe('★ログインの戻り先が自分の住所であること★', () => {
+  const AUTH = 'https://sb.example.co';
+
+  it('★別のアプリへ飛ばされていたら赤（実測で出た状態そのもの）★', async () => {
+    const probe = {
+      async head() {
+        return {
+          status: 303,
+          location:
+            'https://exally-test.vercel.app/daikou-seikyu.html#error=access_denied&error_code=otp_expired',
+        };
+      },
+      async text() {
+        return { status: 200, body: null };
+      },
+    };
+    const r = await CH.checkLoginReturn('daikome-jimusho-test.vercel.app', AUTH, probe);
+    expect(r.ok).toBe(false);
+    expect(r.ng.join()).toContain('daikou-seikyu.html');
+    expect(r.ng.join()).toContain('別のアプリに着く');
+  });
+
+  it('自分の住所へ戻ってくれば緑', async () => {
+    const probe = {
+      async head() {
+        return {
+          status: 303,
+          location: 'https://daikome-jimusho.vercel.app/dashboard.html#error=access_denied',
+        };
+      },
+      async text() {
+        return { status: 200, body: null };
+      },
+    };
+    const r = await CH.checkLoginReturn('daikome-jimusho.vercel.app', AUTH, probe);
+    expect(r.ok).toBe(true);
+    expect(r.ng).toEqual([]);
+  });
+
+  it('★似た名前に飛ばされていたら赤★（jimusho と jimusho-test の取り違え）', async () => {
+    const probe = {
+      async head() {
+        return { status: 303, location: 'https://daikome-jimusho.vercel.app/dashboard.html' };
+      },
+      async text() {
+        return { status: 200, body: null };
+      },
+    };
+    const r = await CH.checkLoginReturn('daikome-jimusho-test.vercel.app', AUTH, probe);
+    expect(r.ok, '本番の事務所へ戻されているのに通ってしまった').toBe(false);
+  });
+});
+
 describe('★取り違え（一番こわいやつ）★', () => {
   it('事務所が反対側のメーターを見ていたら赤', async () => {
     const probe = fakeProbe({

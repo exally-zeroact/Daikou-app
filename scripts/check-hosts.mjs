@@ -41,13 +41,7 @@
 import { HOSTS, sideOf } from './dk-hosts.mjs';
 
 // 事務所で必ず開けなければいけない画面
-export const OFFICE_SCREENS = [
-  '/',
-  '/dashboard.html',
-  '/kyuryo.html',
-  '/uriage.html',
-  '/shukei.html',
-];
+export const OFFICE_SCREENS = ['/', '/dashboard.html', '/kyuryo.html', '/uriage.html', '/shukei.html'];
 
 // ------------------------------------------------------------
 // 実際に叩く部分。テストから差し替えられるように外に出してある。
@@ -121,8 +115,7 @@ export async function checkHost(host, spec, probe, hosts = HOSTS) {
   out.sw = sw.status;
   out.codes['/sw.js'] = sw.status;
   if (spec.serviceWorker) {
-    if (sw.status !== 200)
-      out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
+    if (sw.status !== 200) out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
   } else if (sw.status === 200) {
     out.ng.push('★事務所に sw.js が居る（どのURLもメーターに化ける事故が戻る）★');
   }
@@ -146,9 +139,7 @@ export async function checkHost(host, spec, probe, hosts = HOSTS) {
     out.dashboard = dash.status;
     out.dashboardTo = dash.location;
     out.codes['/dashboard.html'] = dash.status;
-    const office = Object.entries(hosts).find(
-      ([, h]) => h.role === 'office' && h.side === spec.side
-    );
+    const office = Object.entries(hosts).find(([, h]) => h.role === 'office' && h.side === spec.side);
     const officeHost = office ? office[0] : null;
     if (dash.status !== 308 && dash.status !== 301) {
       out.ng.push(`/dashboard.html が ${dash.status}（事務所へ送っていない）`);
@@ -170,6 +161,40 @@ export async function checkHost(host, spec, probe, hosts = HOSTS) {
   return out;
 }
 
+// ------------------------------------------------------------
+// ★ログインのメールが、その住所へ戻ってこられるか (2026-08-02 追加)★
+//
+//   ダイコメのログインは「メールのリンクを踏んで戻ってくる」方式。
+//   Supabase は戻り先が許可リストに無いと★弾かずに、既定の戻り先へ黙って飛ばす★。
+//   実測すると daikome-jimusho-test の戻り先は
+//     https://exally-test.vercel.app/daikou-seikyu.html（請求書アプリ）
+//   になっていた。＝★事務所にログインしたつもりが別のアプリに着く★。
+//   エラーも出ないので、これは画面を見ても気づけない。だから機械で見る。
+//
+//   ★メールは1通も送らない★ わざと通らないトークンで verify を叩き、
+//   「どこへ返されるか」だけを見る。
+// ------------------------------------------------------------
+export async function checkLoginReturn(host, authBase, probe) {
+  const back = `https://${host}/dashboard.html`;
+  const url =
+    `${authBase}/auth/v1/verify?token=invalid&type=magiclink&redirect_to=` + encodeURIComponent(back);
+  const r = await probe.head(url);
+  const to = r.location || '';
+  const ok = to.startsWith(`https://${host}/`);
+  return {
+    host,
+    returnsTo: to.split('#')[0] || null,
+    ok,
+    ng: ok
+      ? []
+      : [
+          `★ログインの戻り先が ${to.split('#')[0] || '(不明)'} ★` +
+            ' ＝この住所が許可リストに無い。ログインしたつもりで別のアプリに着く。' +
+            ' → node scripts/auth-redirect-allow.mjs --apply',
+        ],
+  };
+}
+
 export async function checkAll(side, probe, hosts = HOSTS) {
   const targets = Object.entries(hosts).filter(([, s]) => !side || s.side === side);
   const out = [];
@@ -187,7 +212,16 @@ if (isMain) {
   const onlySide = i >= 0 ? argv[i + 1] : null;
   const asJson = argv.includes('--json');
 
-  const results = await checkAll(onlySide, realProbe());
+  const probe = realProbe();
+  const results = await checkAll(onlySide, probe);
+
+  // ログインの戻り先（メールは送らない）
+  const AUTH = 'https://tnfwipbgfgjaymlszeid.supabase.co';
+  for (const r of results) {
+    const lr = await checkLoginReturn(r.host, AUTH, probe);
+    r.loginReturnsTo = lr.returnsTo;
+    r.ng.push(...lr.ng);
+  }
 
   if (asJson) {
     console.log(JSON.stringify(results, null, 2));
@@ -202,7 +236,8 @@ if (isMain) {
         `\n${mark} ${r.host}  [${r.role}/${r.side}]` +
           `\n    ${codes}` +
           (r.dashboardTo ? `\n    → ${r.dashboardTo}` : '') +
-          `\n    APP_BASE=${r.appBase}`
+          `\n    APP_BASE=${r.appBase}` +
+          `\n    ログインの戻り先=${r.loginReturnsTo || '-'}`
       );
       r.ng.forEach((n) => console.log('    ! ' + n));
     }
