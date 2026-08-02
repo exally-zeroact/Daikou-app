@@ -37,6 +37,13 @@ const CACHE_NAME_ROADS = 'daikome-roads-v1';
 //   showOverlay() に切替済。旧 html は redirect stub (= index.html へ即遷移) のみとなり
 //   precache する意義がなくなった (オフラインで起動すれば必ず index.html が動く)。
 //   /help.html は元から precache に含まれていなかったため変更なし。
+// ★事務所(社長用)の画面 (2026-08-02)★
+//   これらは別ホスト daikome-jimusho{,-test} に居る。メーター側では ★預からない★。
+//   理由: メーター側の同名URLは 308 で事務所へ送るが、SW がキャッシュから返すと 308 が届かず、
+//         「事務所を開いたのに古い画面が出る／直したのに変わらない」になる。
+//   ドライバーの圏外運用には無関係(メーター本体は今まで通りキャッシュから出る)。
+const OFFICE_PATHS = /^\/(dashboard|kyuryo|uriage|shukei)\.html$/;
+
 const PRECACHE_FILES = [
   '/',
   '/icon-192.png',
@@ -349,6 +356,26 @@ self.addEventListener('fetch', function (e) {
   //   稀にこのパスが SW を経由する報告があり、その場合 staleWhileRevalidate fallback で
   //   旧 sw.js を返してしまうと更新検知が永久に止まる。defense-in-depth として明示 skip。
   if (url.pathname === '/sw.js') return;
+
+  // ★★事務所の画面はメーター側で一切預からない (2026-08-02)★★
+  //   事務所(社長用)は別ホスト daikome-jimusho{,-test} に居る。メーター側の同じ名前のURLは
+  //   vercel.json で 308 で事務所へ送っている。
+  //   ところが SW が横取りしてキャッシュから返すと ★308 が永久に届かない★。
+  //   しかも navigationHandler は cache-first なので、一度でも掴んだら電波があっても古い方が出る。
+  //   → ここで network-only にして、キャッシュに残っている分も消す。
+  //   ※ここに来るのは「メーターのホストで事務所のURLを開いた」時だけ。
+  //     ドライバーの通常操作(メーター本体・圏外運用)には一切かからない。
+  if (OFFICE_PATHS.test(url.pathname)) {
+    e.respondWith(
+      fetch(req).catch(function () {
+        return offlinePage();
+      })
+    );
+    caches.open(CACHE_NAME).then(function (c) {
+      c.delete(req, { ignoreSearch: true }).catch(function () {});
+    });
+    return;
+  }
 
   // [修正4] /api/* は network-only。失敗時も HTML フォールバックせず JSON エラー返却
   //   → 旧コードでは fetch 失敗時 caches.match('/') が HTML を返し、呼び出し側 JSON.parse が落ちていた

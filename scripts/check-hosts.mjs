@@ -1,0 +1,203 @@
+#!/usr/bin/env node
+// ============================================================
+// scripts/check-hosts.mjs
+// ★4ホストの実物を叩いて、表(scripts/dk-hosts.mjs)どおりかを見る★ 2026-08-02
+//
+//   dk-hosts-pairing.test.js は「表が矛盾していないか」しか見ない（ネットに出ない）。
+//   ★表が正しくても、実際に配信されている中身が違えば意味がない★ ので、ここで実物を見る。
+//
+//   ★目が足りていなかった (2026-08-02 22:00 指示役の指摘)★
+//     事務所ホストの `/` しか見ていなかったので、
+//     ★事務所の4画面(売上表・給料・月次集計)が全部404でも通していた★。
+//     実際にその状態が10分ほど起きた:
+//       事務所は「メーターの /office/… 」を見に行く作りだが、その入口は
+//       メーター側のデプロイが vercel.json の _comment で落ちていて★まだ無かった★。
+//       事務所は上流の404をそのまま返していた(X-Vercel-Error: NOT_FOUND が透過)。
+//     → ★開けるべき画面が全部開けること★を目に足した。
+//       この目は tests/unit/check-hosts-eyes.test.js が偽の応答で「赤になること」を固定している。
+//
+//   見る物（読むだけ・1文字も変えない）:
+//     1. / が開くか
+//     2. ★事務所の4画面(dashboard/kyuryo/uriage/shukei)が全部 200 か★
+//     3. js/dk-config.js の APP_BASE が、そのホストに正しい値か
+//        ＝★事務所のQRが「別の側のメーター」を指していないか★（一番こわい取り違え）
+//     4. 事務所に sw.js が居ないか（居ると「どのURLもメーターに化ける」事故が戻る）
+//     5. 事務所の /index.html でメーター本体が出ないか
+//     6. メーターの /dashboard.html が事務所へ 308 で送られているか
+//        ★ただし送り先が開けない時は「308を乗せてはいけない」として赤にする★
+//
+//   使い方:
+//     node scripts/check-hosts.mjs
+//     node scripts/check-hosts.mjs --side prod
+//     node scripts/check-hosts.mjs --json
+//
+//   終了コード: 0=全部一致 / 1=違いあり
+// ============================================================
+import { HOSTS, sideOf } from './dk-hosts.mjs';
+
+// 事務所で必ず開けなければいけない画面
+export const OFFICE_SCREENS = ['/', '/dashboard.html', '/kyuryo.html', '/uriage.html', '/shukei.html'];
+
+// ------------------------------------------------------------
+// 実際に叩く部分。テストから差し替えられるように外に出してある。
+// ------------------------------------------------------------
+export function realProbe() {
+  return {
+    async head(url) {
+      try {
+        const res = await fetch(url, { redirect: 'manual' });
+        return { status: res.status, location: res.headers.get('location') || null };
+      } catch (e) {
+        return { status: 0, error: String((e && e.message) || e) };
+      }
+    },
+    async text(url) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return { status: res.status, body: null };
+        return { status: res.status, body: await res.text() };
+      } catch (e) {
+        return { status: 0, error: String((e && e.message) || e) };
+      }
+    },
+  };
+}
+
+function appBaseOf(body) {
+  if (!body) return null;
+  const m = body.match(/const\s+APP_BASE\s*=\s*'([^']+)'/);
+  return m ? m[1] : null;
+}
+
+// ------------------------------------------------------------
+// 1ホストぶんの判定。★ここが目の本体★（純粋な判定・ネットは probe 経由）
+// ------------------------------------------------------------
+export async function checkHost(host, spec, probe, hosts = HOSTS) {
+  const base = 'https://' + host;
+  const out = { host, role: spec.role, side: spec.side, codes: {}, ng: [] };
+
+  const root = await probe.head(base + '/');
+  out.root = root.status;
+  out.codes['/'] = root.status;
+  if (root.status !== 200) out.ng.push(`/ が ${root.status}（開かない）`);
+
+  // ★事務所は4画面が全部開けること★
+  //   ここが無かったせいで「全部404の事務所」を通していた。
+  if (spec.role === 'office') {
+    for (const p of OFFICE_SCREENS) {
+      if (p === '/') continue;
+      const r = await probe.head(base + p);
+      out.codes[p] = r.status;
+      if (r.status !== 200) {
+        out.ng.push(`★事務所の ${p} が ${r.status}（社長が使う画面が開けない）★`);
+      }
+    }
+  }
+
+  const cfg = await probe.text(base + '/js/dk-config.js');
+  out.appBase = appBaseOf(cfg.body);
+  if (!out.appBase) {
+    out.ng.push(`js/dk-config.js から APP_BASE を読めない（HTTP ${cfg.status}）`);
+  } else if (out.appBase !== spec.appBase) {
+    const other = sideOf(out.appBase.replace('https://', ''));
+    out.ng.push(
+      `★APP_BASE が違う: 実物=${out.appBase} / 表=${spec.appBase}★` +
+        (other && other !== spec.side ? ' ＝★側をまたいでいる。QRが反対側のメーターを指す★' : '')
+    );
+  }
+
+  const sw = await probe.head(base + '/sw.js');
+  out.sw = sw.status;
+  out.codes['/sw.js'] = sw.status;
+  if (spec.serviceWorker) {
+    if (sw.status !== 200) out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
+  } else if (sw.status === 200) {
+    out.ng.push('★事務所に sw.js が居る（どのURLもメーターに化ける事故が戻る）★');
+  }
+
+  if (spec.role === 'office') {
+    // 事務所のURLでメーター本体が出ないこと（総当たりproxyの素通り）
+    const idx = await probe.head(base + '/index.html');
+    out.codes['/index.html'] = idx.status;
+    if (idx.status === 200) {
+      out.ng.push('★事務所の /index.html でメーター本体が出る（栓が無い）★');
+    }
+    const top = await probe.text(base + '/');
+    if (top.body && !/事務所|売上表|月次集計|ログイン/.test(top.body)) {
+      out.ng.push('★事務所のトップが事務所の画面でない（メーターが出ている可能性）★');
+    }
+  }
+
+  // メーターの /dashboard.html は事務所へ送る
+  if (spec.role === 'meter') {
+    const dash = await probe.head(base + '/dashboard.html');
+    out.dashboard = dash.status;
+    out.dashboardTo = dash.location;
+    out.codes['/dashboard.html'] = dash.status;
+    const office = Object.entries(hosts).find(([, h]) => h.role === 'office' && h.side === spec.side);
+    const officeHost = office ? office[0] : null;
+    if (dash.status !== 308 && dash.status !== 301) {
+      out.ng.push(`/dashboard.html が ${dash.status}（事務所へ送っていない）`);
+    } else if (officeHost && !(dash.location || '').includes(officeHost)) {
+      out.ng.push(`/dashboard.html の行き先が ${dash.location}（${officeHost} ではない）`);
+    } else if (officeHost) {
+      // ★送り先が開けないなら、308を乗せてはいけない★
+      //   開けない住所へ飛ばすと「今まで開けていた事務所が開けなくなる」。
+      const there = await probe.head('https://' + officeHost + '/');
+      if (there.status !== 200) {
+        out.ng.push(
+          `★308の送り先 ${officeHost} が ${there.status}（開けない住所へ飛ばしている）★` +
+            ' → 事務所が開けるようになるまで308を外すこと'
+        );
+      }
+    }
+  }
+
+  return out;
+}
+
+export async function checkAll(side, probe, hosts = HOSTS) {
+  const targets = Object.entries(hosts).filter(([, s]) => !side || s.side === side);
+  const out = [];
+  for (const [host, spec] of targets) out.push(await checkHost(host, spec, probe, hosts));
+  return out;
+}
+
+// ------------------------------------------------------------
+// コマンドとして動かした時だけ実行
+// ------------------------------------------------------------
+const isMain = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('check-hosts.mjs');
+if (isMain) {
+  const argv = process.argv.slice(2);
+  const i = argv.indexOf('--side');
+  const onlySide = i >= 0 ? argv[i + 1] : null;
+  const asJson = argv.includes('--json');
+
+  const results = await checkAll(onlySide, realProbe());
+
+  if (asJson) {
+    console.log(JSON.stringify(results, null, 2));
+  } else {
+    console.log('★4ホストの実物を見た結果★');
+    for (const r of results) {
+      const mark = r.ng.length ? '✗' : '✓';
+      const codes = Object.entries(r.codes)
+        .map(([p, c]) => `${p}=${c}`)
+        .join('  ');
+      console.log(
+        `\n${mark} ${r.host}  [${r.role}/${r.side}]` +
+          `\n    ${codes}` +
+          (r.dashboardTo ? `\n    → ${r.dashboardTo}` : '') +
+          `\n    APP_BASE=${r.appBase}`
+      );
+      r.ng.forEach((n) => console.log('    ! ' + n));
+    }
+  }
+
+  const bad = results.filter((r) => r.ng.length);
+  if (bad.length) {
+    console.error(`\n★${bad.length}ホストが表と違います★`);
+    process.exit(1);
+  }
+  console.log('\n全ホストが表どおりです。');
+}

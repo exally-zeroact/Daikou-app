@@ -1,4 +1,32 @@
 {
+  "rewrites": [
+    {
+      "source": "/office/:path*",
+      "destination": "/:path*"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/dashboard.html",
+      "destination": "https://daikome-jimusho.vercel.app/",
+      "permanent": true
+    },
+    {
+      "source": "/kyuryo.html",
+      "destination": "https://daikome-jimusho.vercel.app/kyuryo.html",
+      "permanent": true
+    },
+    {
+      "source": "/uriage.html",
+      "destination": "https://daikome-jimusho.vercel.app/uriage.html",
+      "permanent": true
+    },
+    {
+      "source": "/shukei.html",
+      "destination": "https://daikome-jimusho.vercel.app/shukei.html",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",

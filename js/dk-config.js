@@ -30,7 +30,15 @@
 
   // ▼ダイコメ自身の公開URL(末尾スラッシュなし) -------------------------------
   //   会社URL = APP_BASE + '/?c=' + url_token。本番ドメイン確定時はここを差し替える。
-  const APP_BASE = 'https://daikou-app.vercel.app';
+  //
+  //   ★★ここはrepoごとに値が違う。同期でコピーしてはいけない唯一の場所★★
+  //     テストrepo(Daikou-app-test) → daikou-app-test / daikome-jimusho-test
+  //     本番repo (Daikou-app)      → daikou-app      / daikome-jimusho
+  //   間違えると★本番の事務所が出したQRを読んだ従業員が全員テスト版で走り出す★。
+  //   画面はいつもどおり動くので誰も気づかない。だから tests/unit/dk-config-app-base-host.test.js
+  //   が git の remote(＝同期でコピーされない所)から素性を取って機械で縛っている。
+  const APP_BASE = 'https://daikou-app.vercel.app'; // メーター(ドライバーが使う)
+  const OFFICE_BASE = 'https://daikome-jimusho.vercel.app'; // 事務所(社長が使う)
 
   const api = {
     SB_URL: SB_URL,
@@ -38,6 +46,7 @@
     REST_BASE: SB_URL + '/rest/v1',
     FN_BASE: SB_URL + '/functions/v1',
     APP_BASE: APP_BASE,
+    OFFICE_BASE: OFFICE_BASE,
 
     // Edge Function の URL を名前から組み立てる: fn('dk-issue-license')
     fn: function (name) {

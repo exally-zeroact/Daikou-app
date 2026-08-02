@@ -13664,13 +13664,18 @@
         <!-- ★事務所への入口 (2026-08-01)★
              司さん「どのURLもここにしかいかんけど」= 会社URL(?c=) を開くとメーターが出るのは
              仕様(ドライバーのスマホを使えるようにする物)だが、メーターから事務所へ戻る道が
-             1つも無かった。ここに1つ置く。★UIだけ・メーターの中身には触っていない★ -->
+             1つも無かった。ここに1つ置く。★UIだけ・メーターの中身には触っていない★
+
+             ★2026-08-02 変更★ 行き先を 'dashboard.html'(メーター内) から
+             ★事務所ホスト(OFFICE_BASE)★ へ直す。メーター側の /dashboard.html は
+             サービスワーカーが預かってしまい、旧SWが残っている端末では 308 が効かない。
+             最初から別ホストへ飛ばせば、SWを一度も踏まない。 -->
         <div class="section">
           <div class="section-title">事務所</div>
           <div
             class="row"
             data-office-link="1"
-            onclick="location.href = 'dashboard.html'"
+            onclick="location.href = (window.DKConfig &amp;&amp; window.DKConfig.OFFICE_BASE) || 'dashboard.html'"
             style="cursor: pointer"
           >
             <div class="row-label">
