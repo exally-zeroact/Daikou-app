@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // ============================================================
 // scripts/check-hosts.mjs
 // ★4ホストの実物を叩いて、表(scripts/dk-hosts.mjs)どおりかを見る★ 2026-08-02
@@ -26,6 +25,12 @@
 //     6. メーターの /dashboard.html が事務所へ 308 で送られているか
 //        ★ただし送り先が開けない時は「308を乗せてはいけない」として赤にする★
 //
+//   ★先頭に #!/usr/bin/env node を書かないこと (2026-08-02)★
+//     書くと、この道具を import しているテスト(tests/unit/check-hosts-eyes.test.js)が
+//     「SyntaxError: Invalid or unexpected token」で丸ごと落ちる（# を読めない）。
+//     しかも落ちるのはテストファイルの方なので、原因がここだと分かりにくい。
+//     呼び出しは必ず `node scripts/check-hosts.mjs` なのでシェバンは要らない。
+//
 //   使い方:
 //     node scripts/check-hosts.mjs
 //     node scripts/check-hosts.mjs --side prod
@@ -36,7 +41,13 @@
 import { HOSTS, sideOf } from './dk-hosts.mjs';
 
 // 事務所で必ず開けなければいけない画面
-export const OFFICE_SCREENS = ['/', '/dashboard.html', '/kyuryo.html', '/uriage.html', '/shukei.html'];
+export const OFFICE_SCREENS = [
+  '/',
+  '/dashboard.html',
+  '/kyuryo.html',
+  '/uriage.html',
+  '/shukei.html',
+];
 
 // ------------------------------------------------------------
 // 実際に叩く部分。テストから差し替えられるように外に出してある。
@@ -110,7 +121,8 @@ export async function checkHost(host, spec, probe, hosts = HOSTS) {
   out.sw = sw.status;
   out.codes['/sw.js'] = sw.status;
   if (spec.serviceWorker) {
-    if (sw.status !== 200) out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
+    if (sw.status !== 200)
+      out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
   } else if (sw.status === 200) {
     out.ng.push('★事務所に sw.js が居る（どのURLもメーターに化ける事故が戻る）★');
   }
@@ -134,7 +146,9 @@ export async function checkHost(host, spec, probe, hosts = HOSTS) {
     out.dashboard = dash.status;
     out.dashboardTo = dash.location;
     out.codes['/dashboard.html'] = dash.status;
-    const office = Object.entries(hosts).find(([, h]) => h.role === 'office' && h.side === spec.side);
+    const office = Object.entries(hosts).find(
+      ([, h]) => h.role === 'office' && h.side === spec.side
+    );
     const officeHost = office ? office[0] : null;
     if (dash.status !== 308 && dash.status !== 301) {
       out.ng.push(`/dashboard.html が ${dash.status}（事務所へ送っていない）`);
