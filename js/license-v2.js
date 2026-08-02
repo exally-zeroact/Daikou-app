@@ -20,6 +20,11 @@
   const WARN_DAYS = 7; // 残りこの日数以下で「Wi-Fiのある所で開いて」警告
   const DAY = 24 * 60 * 60 * 1000;
 
+  // ★アプリ同梱 公開鍵 (Ed25519 raw base64url = jwk.x・32byte)。秘密鍵はサーバ(Edge Function
+  //   secret DK_LICENSE_PRIVKEY)のみ。この鍵に対応する秘密鍵で署名した dk-issue-license トークン
+  //   だけが verify を通る。2026-07-27 生成。公開鍵は公開してよい。
+  const PUBLIC_KEY = 'Xcnw1PowYwc4FwPTW40jcsEipF3ZlV4IFziBD9uhaiY';
+
   function evaluateLicense(payload, nowMs, opts) {
     opts = opts || {};
     const running = opts.running === true;
@@ -92,6 +97,27 @@
     return null;
   }
 
+  // tweetnacl(全ブラウザ・iOS Safari含むEd25519純JS実装)を解決。browser=window.nacl(同梱script)/node=require。
+  //   ★これがEd25519検証の主経路。WebCryptoのEd25519は古いiOS Safari(<17)非対応で正規ユーザーがunlicensedになるため★。
+  function _getNacl() {
+    try {
+      if (typeof globalThis !== 'undefined' && globalThis.nacl && globalThis.nacl.sign) {
+        return globalThis.nacl;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      if (typeof require === 'function') {
+        // eslint-disable-next-line no-undef, global-require
+        return require('./tweetnacl.min.js');
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return null;
+  }
+
   function _b64urlToBytes(s) {
     if (typeof s !== 'string' || s.length === 0) return null;
     let b = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -135,23 +161,44 @@
       const sigB64 = token.slice(dot + 1);
       if (!payloadB64 || !sigB64) return fail;
 
-      const subtle = _getSubtle();
-      if (!subtle) return fail; // Ed25519 未対応環境 → 検証不可(安全側で無効扱い)
-
       const rawPub = _b64urlToBytes(publicKeyB64url);
       const sigBytes = _b64urlToBytes(sigB64);
-      if (!rawPub || rawPub.length !== 32 || !sigBytes) return fail;
+      if (!rawPub || rawPub.length !== 32 || !sigBytes || sigBytes.length !== 64) return fail;
       const msg = _utf8ToBytes(payloadB64);
       if (!msg) return fail;
 
-      let pubKey;
-      try {
-        pubKey = await subtle.importKey('raw', rawPub, { name: 'Ed25519' }, false, ['verify']);
-      } catch (_) {
-        return fail; // 公開鍵 import 失敗 = 不正鍵 or 未対応
+      // ★署名検証: tweetnacl(全ブラウザ・iOS Safari<17含む純JS)を優先。無ければ WebCrypto Ed25519。★
+      //   古いiOS SafariはWebCrypto Ed25519非対応=importKeyがthrow→正規ユーザーがunlicensedになるため、
+      //   純JS実装を主経路にして端末非依存で検証する(オフライン・同梱)。
+      let ok = false;
+      const nacl = _getNacl();
+      if (
+        nacl &&
+        nacl.sign &&
+        nacl.sign.detached &&
+        typeof nacl.sign.detached.verify === 'function'
+      ) {
+        try {
+          ok = nacl.sign.detached.verify(msg, sigBytes, rawPub) === true;
+        } catch (_) {
+          ok = false;
+        }
+      } else {
+        const subtle = _getSubtle();
+        if (!subtle) return fail; // どちらの検証手段も無い → 安全側で無効扱い
+        let pubKey;
+        try {
+          pubKey = await subtle.importKey('raw', rawPub, { name: 'Ed25519' }, false, ['verify']);
+        } catch (_) {
+          return fail; // 公開鍵 import 失敗 = 不正鍵 or Ed25519未対応
+        }
+        try {
+          ok = (await subtle.verify({ name: 'Ed25519' }, pubKey, sigBytes, msg)) === true;
+        } catch (_) {
+          ok = false;
+        }
       }
-      const ok = await subtle.verify({ name: 'Ed25519' }, pubKey, sigBytes, msg);
-      if (ok !== true) return fail;
+      if (!ok) return fail;
 
       // 署名OK → payload を復号
       const payloadBytes = _b64urlToBytes(payloadB64);
@@ -171,10 +218,21 @@
     return evaluateLicense(v.valid ? v.payload : null, nowMs, opts);
   }
 
+  // 埋め込み公開鍵(PUBLIC_KEY)を使う版。呼出側は鍵を渡さなくてよい=単一の真実源。
+  function verifyLicenseTokenEmbedded(token) {
+    return verifyLicenseToken(token, PUBLIC_KEY);
+  }
+  function evaluateLicenseTokenEmbedded(token, nowMs, opts) {
+    return evaluateLicenseToken(token, PUBLIC_KEY, nowMs, opts);
+  }
+
   const api = {
     evaluateLicense: evaluateLicense,
     verifyLicenseToken: verifyLicenseToken,
     evaluateLicenseToken: evaluateLicenseToken,
+    verifyLicenseTokenEmbedded: verifyLicenseTokenEmbedded,
+    evaluateLicenseTokenEmbedded: evaluateLicenseTokenEmbedded,
+    PUBLIC_KEY: PUBLIC_KEY,
     WARN_DAYS: WARN_DAYS,
   };
 

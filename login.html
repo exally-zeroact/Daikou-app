@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ ログイン</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>"
+    />
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: linear-gradient(160deg, #e6f0ff 0%, #f2f7ff 55%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 18px;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 400px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 32px 26px;
+        box-shadow: 0 14px 40px rgb(20 36 61 / 12%);
+        text-align: center;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 24px;
+        color: var(--blue-d);
+        margin-bottom: 6px;
+      }
+
+      h1 {
+        font-size: 19px;
+        margin-bottom: 8px;
+      }
+
+      p.sub {
+        font-size: 13.5px;
+        color: var(--muted);
+        line-height: 1.7;
+        margin-bottom: 22px;
+      }
+
+      label {
+        display: block;
+        text-align: left;
+        font-weight: 700;
+        font-size: 13px;
+        margin-bottom: 6px;
+      }
+
+      input {
+        width: 100%;
+        padding: 14px;
+        font-size: 16px;
+        border: 1.5px solid #cddcf2;
+        border-radius: 10px;
+        font-family: inherit;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      .btn {
+        width: 100%;
+        margin-top: 18px;
+        padding: 15px;
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+      }
+
+      .err {
+        color: #c0392b;
+        font-weight: 700;
+        font-size: 13.5px;
+        margin-top: 12px;
+      }
+
+      .sent {
+        display: none;
+        background: #e6f0ff;
+        border: 1px solid var(--blue);
+        border-radius: 14px;
+        padding: 22px;
+        margin-top: 6px;
+      }
+
+      .sent .big {
+        font-size: 34px;
+        margin-bottom: 8px;
+      }
+
+      .sent h2 {
+        font-size: 17px;
+        color: var(--blue-d);
+        margin-bottom: 8px;
+      }
+
+      .sent p {
+        font-size: 13.5px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .foot {
+        margin-top: 20px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .foot a {
+        color: var(--blue-d);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="logo">🚗 ダイコメ</div>
+
+      <div id="form-view">
+        <h1>ログイン / 新規登録</h1>
+        <p class="sub">
+          メールアドレスを入れると、ログイン用のリンクをお送りします。<br />
+          パスワードは要りません。
+        </p>
+        <label for="email">メールアドレス</label>
+        <input id="email" type="email" inputmode="email" placeholder="例）info@example.com" />
+        <button class="btn" id="sendBtn" type="button">ログインリンクを送る</button>
+        <div class="err" id="err" style="display: none"></div>
+      </div>
+
+      <div class="sent" id="sent-view">
+        <div class="big">📩</div>
+        <h2>メールを確認してください</h2>
+        <p>
+          <b id="sentTo"></b> にログイン用のリンクを送りました。<br />
+          メールを開いてリンクを押すと、ログインできます。<br /><br />
+          （届かない時は迷惑メールもご確認ください）
+        </p>
+      </div>
+
+      <div class="foot">はじめての方も、このまま登録できます。</div>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script>
+      (function () {
+        'use strict';
+        // 接続先は js/dk-config.js(単一の真実源)から。ここには書かない。
+        var SB_URL = window.DKConfig.SB_URL;
+        var ANON = window.DKConfig.ANON_KEY;
+        var btn = document.getElementById('sendBtn');
+        var errEl = document.getElementById('err');
+
+        function showErr(m) {
+          errEl.textContent = m;
+          errEl.style.display = 'block';
+        }
+
+        // ★前に入れたメールを覚えておく（入り直しを1タップで済ませる）★
+        //   iPhoneは7日触らないと保存を消すので、消える時は一緒に消える。
+        //   それでも「同じ端末で使い続ける限り打ち直さなくていい」効果はある。
+        var EMAIL_KEY = 'dk_last_email';
+        try {
+          var last = localStorage.getItem(EMAIL_KEY);
+          if (last) document.getElementById('email').value = last;
+        } catch (_) {
+          /* ignore */
+        }
+
+        btn.addEventListener('click', function () {
+          errEl.style.display = 'none';
+          var email = document.getElementById('email').value.trim();
+          if (!email || email.indexOf('@') < 1) {
+            showErr('メールアドレスを正しく入れてください');
+            return;
+          }
+          try {
+            localStorage.setItem(EMAIL_KEY, email);
+          } catch (_) {
+            /* ignore */
+          }
+          btn.disabled = true;
+          btn.textContent = '送信中…';
+          // Supabase Auth: メールのマジックリンク(OTP)を送る。新規は自動でアカウント作成。
+          fetch(SB_URL + '/auth/v1/otp', {
+            method: 'POST',
+            headers: { apikey: ANON, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: email,
+              create_user: true,
+              options: { email_redirect_to: location.origin + '/dashboard.html' },
+            }),
+          })
+            .then(function (r) {
+              return r.ok ? {} : r.json();
+            })
+            .then(function (j) {
+              btn.disabled = false;
+              btn.textContent = 'ログインリンクを送る';
+              if (j && j.error) {
+                showErr('送れませんでした。時間をおいて、もう一度お試しください。');
+                return;
+              }
+              document.getElementById('sentTo').textContent = email;
+              document.getElementById('form-view').style.display = 'none';
+              document.getElementById('sent-view').style.display = 'block';
+            })
+            .catch(function () {
+              btn.disabled = false;
+              btn.textContent = 'ログインリンクを送る';
+              showErr('ネットに繋がる所で、もう一度お試しください。');
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>

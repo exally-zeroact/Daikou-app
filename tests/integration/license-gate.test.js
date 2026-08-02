@@ -207,8 +207,12 @@ describe('5. source 静的 verify (= 既存 device_id 流用・1 byte 不変)', 
     expect(licenseSrc).toMatch(/GRACE_PERIOD_MS\s*=\s*7\s*\*\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
   });
 
-  it('Supabase URL + dk_check_device_license RPC (= Exally倉庫 dk_棚・2026-06-28移行)', () => {
-    expect(licenseSrc).toMatch(/tnfwipbgfgjaymlszeid\.supabase\.co/);
+  it('接続先は dk-config(単一真実源)経由 + dk_check_device_license RPC を叩く', () => {
+    // ★2026-07-31 変更: ダイコメ独立(別Supabaseプロジェクトへ移設)に備え、接続先の直書きを
+    //   js/dk-config.js 1箇所に集約した。よって license.js に URL/anonキーが「無いこと」が正。
+    //   接続先が1箇所であることの保証は tests/unit/dk-config-single-source.test.js が担う。
+    expect(licenseSrc).not.toMatch(/[a-z0-9]{15,}\.supabase\.co/); // 直書き禁止
+    expect(licenseSrc).toMatch(/_cfg\(\)/); // dk-config を解決している
     expect(licenseSrc).toMatch(/dk_check_device_license/);
     // Firebase RTDB は撤去済
     expect(licenseSrc).not.toMatch(/daikou-app-c821a-default-rtdb/);
@@ -249,8 +253,16 @@ describe('6. index.html 配線 verify (= script load + onBusinessStart gate + ov
     expect(html).toMatch(/<script src="js\/license\.js"><\/script>/);
   });
 
-  it('onBusinessStart 内で・window.License.checkBeforeBusinessStart 呼出', () => {
-    expect(html).toMatch(/window\.License\.checkBeforeBusinessStart/);
+  it('onBusinessStart gate = DK_LICENSE_GATE_ON駆動で LicenseActivate.checkBeforeBusinessStart 呼出(STEP3)', () => {
+    // ★STEP3(2026-07-27): 会社URL/署名方式に配線。ゲートは DK_LICENSE_GATE_ON==='1' の端末だけ発動(既定OFF)。
+    expect(html).toMatch(/window\.LicenseActivate\.checkBeforeBusinessStart/);
+    expect(html).toMatch(/getItem\('DK_LICENSE_GATE_ON'\) === '1'/);
+  });
+
+  it('STEP3 script: tweetnacl→license-v2→license-activate を load', () => {
+    expect(html).toMatch(/<script src="js\/tweetnacl\.min\.js"><\/script>/);
+    expect(html).toMatch(/<script src="js\/license-v2\.js"><\/script>/);
+    expect(html).toMatch(/<script src="js\/license-activate\.js"><\/script>/);
   });
 
   it('未登録時・window.showLicenseGate を・呼出', () => {

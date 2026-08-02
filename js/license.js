@@ -37,9 +37,23 @@
   // ★2026-06-28: Firebase RTDB → Supabase(Exally倉庫・ダイコメ専用 dk_棚)へ移行(司さん決定)。
   //   連携先の代行請求アプリが同じExally倉庫に居るため同倉庫・別棚(dk_)。anonキーは公開用
   //   (RLS + SECURITY DEFINER RPC dk_check_device_license でデータ保護=列挙/改ざん不可)。
-  const SUPABASE_URL = 'https://tnfwipbgfgjaymlszeid.supabase.co';
-  const SUPABASE_ANON =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuZndpcGJnZmdqYXltbHN6ZWlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Nzk4MzQsImV4cCI6MjA5NzE1NTgzNH0.zhKPLSlW4zxsdjsXNvqDHvtP3wBqp-EKaxbjqLGW_ek';
+  //   ★接続先は js/dk-config.js(単一の真実源)から取る。ここには書かない(移設漏れ防止・2026-07-31)。★
+  function _cfg() {
+    try {
+      if (typeof window !== 'undefined' && window.DKConfig) return window.DKConfig;
+    } catch (_) {
+      /* ignore */
+    }
+    try {
+      if (typeof require === 'function') {
+        // eslint-disable-next-line no-undef, global-require
+        return require('./dk-config.js');
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return null;
+  }
   const GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // 7 日 grace
   // (削除2026-07: _ONLINE_CHECK_INTERVAL_MS は未参照デッド定数だったため撤去。24h再確認は最終方式license-v2で実装)
 
@@ -87,14 +101,11 @@
   //   POST /rest/v1/rpc/dk_check_device_license { p_device_id }
   //   返り: [] (未登録) または [{ licensed, expires_at, label, tenant_id }]
   function _checkOnline(deviceId) {
-    const url = SUPABASE_URL + '/rest/v1/rpc/dk_check_device_license';
-    return fetch(url, {
+    const cfg = _cfg();
+    if (!cfg) return Promise.reject(new Error('no_config')); // 通信不可扱い(既存のofflineパスへ)
+    return fetch(cfg.rest('rpc/dk_check_device_license'), {
       method: 'POST',
-      headers: {
-        apikey: SUPABASE_ANON,
-        Authorization: 'Bearer ' + SUPABASE_ANON,
-        'Content-Type': 'application/json',
-      },
+      headers: cfg.headers(),
       body: JSON.stringify({ p_device_id: deviceId }),
     })
       .then(function (res) {
@@ -237,13 +248,11 @@
   //   端末IDは内部で取得(ユーザーは触らない)。台数縛り/失効はサーバ側判定。
   Public.activate = function (code, label) {
     const deviceId = _getDeviceId();
-    return fetch(SUPABASE_URL + '/rest/v1/rpc/dk_activate_device', {
+    const cfg = _cfg();
+    if (!cfg) return Promise.resolve({ ok: false, reason: 'network' });
+    return fetch(cfg.rest('rpc/dk_activate_device'), {
       method: 'POST',
-      headers: {
-        apikey: SUPABASE_ANON,
-        Authorization: 'Bearer ' + SUPABASE_ANON,
-        'Content-Type': 'application/json',
-      },
+      headers: cfg.headers(),
       body: JSON.stringify({
         p_code: String(code || '').trim(),
         p_device_id: deviceId,

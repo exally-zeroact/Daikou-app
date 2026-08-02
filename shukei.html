@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 月次集計</title>
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>"
+    />
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+        --danger: #e0483d;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 22px 18px 60px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--blue-d);
+      }
+
+      .top .tag {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 2px 10px;
+        margin-left: 8px;
+      }
+
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .linkbtn {
+        background: none;
+        border: none;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 2px;
+      }
+
+      /* 管理画面の中に出している時は、その画面の上のリンク列を隠す */
+      body.embedded .top,
+      body.embedded .sub {
+        display: none;
+      }
+
+      body.embedded .wrap {
+        padding-top: 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+
+      .monthbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .monthbar .m {
+        font-size: 18px;
+        font-weight: 800;
+        min-width: 7em;
+        text-align: center;
+      }
+
+      .navb {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 6px 14px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--blue-d);
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .btn {
+        background: var(--blue);
+        border: none;
+        border-radius: 10px;
+        padding: 8px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 8px 9px;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        border-bottom: 2px solid var(--line);
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      .zero {
+        color: #c2cede;
+      }
+
+      tr.sum td {
+        font-weight: 800;
+        border-top: 2px solid var(--line);
+        background: #f7fbff;
+      }
+
+      .scroller {
+        overflow-x: auto;
+      }
+
+      .msg {
+        text-align: center;
+        color: var(--muted);
+        padding: 26px 10px;
+        font-size: 14px;
+      }
+
+      .err {
+        color: var(--danger);
+        font-size: 13px;
+        margin-top: 8px;
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+
+      .ttl {
+        font-weight: 800;
+        margin-bottom: 10px;
+      }
+
+      /* 1ヶ月の内訳（大きい数字） */
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+      }
+
+      .kpi {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 14px;
+      }
+
+      .kpi .k {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .kpi .v {
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .kpi.hi {
+        background: #f2f8ff;
+        border-color: #bcd8ff;
+      }
+
+      .yen {
+        width: 8em;
+        text-align: right;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+
+      .yen:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .noprint {
+          display: none !important;
+        }
+
+        .wrap {
+          max-width: none;
+          padding: 0;
+        }
+
+        .card {
+          border: none;
+          padding: 0 0 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top noprint">
+        <div><span class="logo">ダイコメ</span><span class="tag">月次集計</span></div>
+        <div>
+          <button class="linkbtn" onclick="location.href = 'uriage.html'">売上表</button>
+          <button class="linkbtn" onclick="location.href = 'kyuryo.html'">給料</button>
+          <button class="linkbtn" onclick="location.href = 'dashboard.html'">会社設定</button>
+          <button class="linkbtn" id="btnLogout">ログアウト</button>
+        </div>
+      </div>
+      <div class="sub noprint" id="sub">読み込み中…</div>
+
+      <div class="card noprint">
+        <div class="monthbar">
+          <button class="navb" id="prevY">‹ 前の年</button>
+          <div class="m" id="yearLabel">—</div>
+          <button class="navb" id="nextY">次の年 ›</button>
+        </div>
+      </div>
+
+      <div class="err noprint" id="err" style="display: none"></div>
+      <div class="msg noprint" id="msg" style="display: none"></div>
+
+      <div class="card">
+        <div class="ttl">月ごと</div>
+        <div class="scroller">
+          <table id="tbl">
+            <thead id="thead"></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="note">
+          <b>売上</b>＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<b
+            >つかさの車も入ります。</b
+          ><br />
+          <b>給料</b
+          >は払う回ごとに分けて出しています。<b>未収</b>＝請求書＋PayPay（まだ現金になっていない分）。<br />
+          <b>会社に残る分</b>＝売上 − 給料 − 積立金。日ごとに出した分を足した物と一致します。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ttl" id="oneTtl">1ヶ月の内訳</div>
+        <div class="kpis" id="kpis"></div>
+      </div>
+
+      <div class="card noprint">
+        <div class="ttl">PayPay で受け取った分（手入力）</div>
+        <div class="scroller">
+          <table>
+            <thead>
+              <tr>
+                <th>月</th>
+                <th>PayPay</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="ppBody"></tbody>
+          </table>
+        </div>
+        <div class="note">
+          メーターは今「現金」と「請求書」しか分けていません。<b
+            >PayPay で受け取った分はここに入れてください。</b
+          ><br />
+          請求書の分は、実車中に請求書ボタンで会社を選んだ代行から自動で集まります。
+        </div>
+      </div>
+
+      <div class="card noprint">
+        <button class="btn" id="btnPrint">印刷する</button>
+      </div>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script src="js/dk-session.js"></script>
+    <script src="js/uriage-agg.js"></script>
+    <script src="js/daiko-payroll.js"></script>
+    <script src="js/payroll-period.js"></script>
+    <script src="js/payroll-daily.js"></script>
+    <script src="js/getsuji-agg.js"></script>
+    <script>
+      (function () {
+        'use strict';
+
+        // ★管理画面の中に入っている時は、上のリンク列を出さない（1つのアプリに見せる）★
+        //   単体URLで開いた時は今まで通り出る。
+        try {
+          if (window.self !== window.top) document.body.classList.add('embedded');
+        } catch (_) {
+          document.body.classList.add('embedded'); // 読めない = 中に入っている
+        }
+
+        var SESS = null;
+        var COMPANY = null;
+        var YEAR = new Date().getFullYear();
+        var RAW = {
+          shifts: [],
+          edits: [],
+          labels: [],
+          employees: [],
+          workHours: [],
+          manualDays: [],
+          salesSettings: null,
+          payrollSettings: null,
+        };
+        var PAYMENTS = []; // 日ごとの 請求書 / PayPay
+        var PP = {}; // 月ごとの PayPay 手入力（'2026-01' → 円）
+        var CTX = null;
+        var YR = null;
+        var ONE = 0; // 内訳を出す月（0=年間合計）
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+          });
+        }
+        function showErr(m) {
+          $('err').textContent = m || '';
+          $('err').style.display = m ? 'block' : 'none';
+        }
+        function showMsg(m) {
+          $('msg').textContent = m || '';
+          $('msg').style.display = m ? 'block' : 'none';
+        }
+        function yen(v) {
+          if (v === null || v === undefined || !isFinite(v)) return '';
+          return Math.round(v).toLocaleString();
+        }
+        function cell(v) {
+          return v ? yen(v) : '<span class="zero">—</span>';
+        }
+        function num(v) {
+          var x = parseFloat(v);
+          return isFinite(x) ? x : 0;
+        }
+        function ym(m) {
+          return YEAR + '-' + ('0' + m).slice(-2);
+        }
+
+        // ---------- 起動 ----------
+        DKSession.ensure().then(function (s) {
+          if (!s) return DKSession.goLogin();
+          SESS = s;
+          loadCompany();
+        });
+
+        $('btnLogout').onclick = function () {
+          DKSession.logout();
+        };
+        $('btnPrint').onclick = function () {
+          window.print();
+        };
+        $('prevY').onclick = function () {
+          YEAR -= 1;
+          load();
+        };
+        $('nextY').onclick = function () {
+          YEAR += 1;
+          load();
+        };
+
+        function soft(path) {
+          return DKSession.rest(SESS, path)
+            .then(function (x) {
+              return x.ok ? x.json() : [];
+            })
+            .catch(function () {
+              return [];
+            });
+        }
+
+        function loadCompany() {
+          DKSession.rest(SESS, 'dk_companies?select=company_id,name&limit=1')
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (j) {
+              if (!Array.isArray(j) || !j.length) {
+                $('sub').textContent = '会社が登録されていません';
+                showMsg('先に「会社設定」で会社を登録してください。');
+                return;
+              }
+              COMPANY = j[0];
+              $('sub').textContent = COMPANY.name || '';
+              load();
+            })
+            .catch(function () {
+              showErr('会社の読み込みに失敗しました。通信を確認してください。');
+            });
+        }
+
+        function load() {
+          if (!COMPANY) return;
+          showErr('');
+          showMsg('読み込み中…');
+          var from = YEAR + '-01-01T00:00:00+09:00';
+          var to = YEAR + 1 + '-01-01T00:00:00+09:00';
+
+          Promise.all([
+            soft(
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count' +
+                '&started_at=gte.' +
+                encodeURIComponent(from) +
+                '&started_at=lt.' +
+                encodeURIComponent(to) +
+                '&order=started_at.asc&limit=5000'
+            ),
+            soft('dk_shift_edits?select=*&limit=5000'),
+            soft('dk_device_labels?select=*&limit=500'),
+            soft('dk_employees?select=*&order=sort_order.asc&limit=500'),
+            soft(
+              'dk_work_hours?select=*&work_date=gte.' +
+                YEAR +
+                '-01-01&work_date=lte.' +
+                YEAR +
+                '-12-31&limit=5000'
+            ),
+            soft('dk_payroll_settings?select=*&limit=1'),
+            soft('dk_sales_settings?select=*&limit=1'),
+            // 請求書払いの代行（未収のもと）
+            soft(
+              'dk_trips?select=fare_yen,started_at,payment_type&payment_type=eq.invoice' +
+                '&started_at=gte.' +
+                encodeURIComponent(from) +
+                '&started_at=lt.' +
+                encodeURIComponent(to) +
+                '&limit=5000'
+            ),
+            soft('dk_month_extras?select=*&limit=200'),
+            soft(
+              'dk_manual_days?select=*&work_date=gte.' +
+                YEAR +
+                '-01-01&work_date=lte.' +
+                YEAR +
+                '-12-31&limit=5000'
+            ),
+          ]).then(function (res) {
+            RAW.shifts = res[0] || [];
+            RAW.edits = res[1] || [];
+            RAW.labels = res[2] || [];
+            RAW.employees = res[3] || [];
+            RAW.workHours = res[4] || [];
+            RAW.payrollSettings = (res[5] && res[5][0]) || null;
+            RAW.salesSettings = (res[6] && res[6][0]) || null;
+            RAW.manualDays = res[9] || []; // 手で入れた1日分（スマホが無い日も数える）
+
+            // 請求書払いを日ごとにまとめる
+            var byDate = {};
+            (res[7] || []).forEach(function (t) {
+              var d = PayrollDaily.dateOf(t.started_at);
+              if (!d) return;
+              byDate[d] = (byDate[d] || 0) + num(t.fare_yen);
+            });
+            PAYMENTS = Object.keys(byDate).map(function (d) {
+              return { pay_date: d, invoice_yen: byDate[d], paypay_yen: 0 };
+            });
+
+            // PayPay の手入力（月ごと）
+            PP = {};
+            (res[8] || []).forEach(function (r) {
+              if (r && r.ym) PP[r.ym] = num(r.paypay_yen);
+            });
+
+            showMsg('');
+            recalc();
+            render();
+          });
+        }
+
+        function recalc() {
+          CTX = PayrollDaily.buildCtx(RAW);
+          // 月ごとの PayPay 手入力を「その月の1日ぶん」として足す
+          var pays = PAYMENTS.slice();
+          Object.keys(PP).forEach(function (k) {
+            if (k.indexOf(YEAR + '-') !== 0 || !PP[k]) return;
+            pays.push({ pay_date: k + '-01', invoice_yen: 0, paypay_yen: PP[k] });
+          });
+          YR = GetsujiAgg.year(YEAR, CTX, pays);
+        }
+
+        // ---------- 描画 ----------
+        function render() {
+          $('yearLabel').textContent = YEAR + '年';
+          var periods = (YR && YR.total.periods) || [];
+
+          var th =
+            '<tr><th>月</th><th>売上</th>' +
+            periods
+              .map(function (p) {
+                return '<th>' + esc(p.name) + '</th>';
+              })
+              .join('') +
+            '<th>給料 合計</th><th>経費</th><th>積立金</th><th>未収</th><th>現金</th><th>会社に残る分</th></tr>';
+          $('thead').innerHTML = th;
+
+          var html = '';
+          YR.months.forEach(function (m) {
+            var has = m.salesTotal || m.payTotal;
+            html +=
+              '<tr data-m="' +
+              m.month +
+              '"><td>' +
+              m.label +
+              '</td><td>' +
+              cell(m.salesTotal) +
+              '</td>' +
+              periods
+                .map(function (p) {
+                  var mine = (m.periods || []).filter(function (x) {
+                    return x.index === p.index;
+                  })[0];
+                  return '<td>' + cell(mine ? mine.pay : 0) + '</td>';
+                })
+                .join('') +
+              '<td>' +
+              cell(m.payTotal) +
+              '</td><td>' +
+              cell(m.expense) +
+              '</td><td>' +
+              cell(m.reserve) +
+              '</td><td>' +
+              cell(m.unpaid) +
+              '</td><td>' +
+              cell(m.cash) +
+              '</td><td>' +
+              (has ? '<b>' + yen(m.ownerShare) + '</b>' : '<span class="zero">—</span>') +
+              '</td></tr>';
+          });
+
+          var t = YR.total;
+          html +=
+            '<tr class="sum"><td>合計</td><td>' +
+            yen(t.salesTotal) +
+            '</td>' +
+            periods
+              .map(function (p) {
+                return '<td>' + yen(p.pay) + '</td>';
+              })
+              .join('') +
+            '<td>' +
+            yen(t.payTotal) +
+            '</td><td>' +
+            yen(t.expense) +
+            '</td><td>' +
+            yen(t.reserve) +
+            '</td><td>' +
+            yen(t.unpaid) +
+            '</td><td>' +
+            yen(t.cash) +
+            '</td><td>' +
+            yen(t.ownerShare) +
+            '</td></tr>';
+          $('tbody').innerHTML = html;
+
+          Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (tr) {
+            tr.style.cursor = 'pointer';
+            tr.onclick = function () {
+              ONE = parseInt(tr.getAttribute('data-m'), 10) || 0;
+              renderOne();
+            };
+          });
+
+          renderOne();
+          renderPP();
+        }
+
+        function renderOne() {
+          var m = ONE ? YR.months[ONE - 1] : YR.total;
+          $('oneTtl').textContent = ONE
+            ? YEAR + '年 ' + ONE + '月の内訳（月の行を押すと切り替わります）'
+            : YEAR + '年 まるごとの内訳（月の行を押すとその月に切り替わります）';
+          var items = [
+            { k: '売上（実費を引いた後）', v: m.salesTotal, hi: true },
+            { k: 'うち 税抜き', v: m.exTax },
+            { k: 'うち 消費税（内税10%）', v: m.tax },
+            { k: '現金', v: m.cash },
+            { k: '未収（請求書＋PayPay）', v: m.unpaid },
+            { k: '　請求書', v: m.invoice },
+            { k: '　PayPay', v: m.paypay },
+            { k: '給料 合計', v: m.payTotal },
+            { k: '経費（高速・橋など）', v: m.expense },
+            { k: '積立金', v: m.reserve },
+            { k: '会社に残る分', v: m.ownerShare, hi: true },
+          ];
+          $('kpis').innerHTML = items
+            .map(function (i) {
+              return (
+                '<div class="kpi' +
+                (i.hi ? ' hi' : '') +
+                '"><div class="k">' +
+                esc(i.k) +
+                '</div><div class="v">¥' +
+                yen(i.v) +
+                '</div></div>'
+              );
+            })
+            .join('');
+        }
+
+        function renderPP() {
+          var html = '';
+          for (var m = 1; m <= 12; m++) {
+            var key = ym(m);
+            html +=
+              '<tr><td>' +
+              m +
+              '月</td><td><input class="yen" data-pp="' +
+              key +
+              '" value="' +
+              (PP[key] || '') +
+              '"></td><td></td></tr>';
+          }
+          $('ppBody').innerHTML = html;
+          Array.prototype.forEach.call(document.querySelectorAll('[data-pp]'), function (i) {
+            i.onchange = function () {
+              savePP(i.getAttribute('data-pp'), i.value);
+            };
+          });
+        }
+
+        function savePP(key, value) {
+          if (!COMPANY) return;
+          var v = num(value);
+          if (v < 0) v = 0;
+          DKSession.rest(SESS, 'dk_month_extras?on_conflict=company_id,ym', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              ym: key,
+              paypay_yen: v,
+              updated_at: new Date().toISOString(),
+            }),
+          })
+            .then(function (r) {
+              if (!r.ok) return showErr('PayPay の分を保存できませんでした。');
+              showErr('');
+              PP[key] = v;
+              recalc();
+              render();
+            })
+            .catch(function () {
+              showErr('PayPay の分を保存できませんでした。');
+            });
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 事務所</title>
+    <meta name="robots" content="noindex" />
+    <!-- ★ホーム画面に追加できるようにする（2026-08-02）★
+         iPhoneのSafariは「7日そのサイトを触らないと保存を消す」決まりがあり、
+         ログインが消えて毎回入り直しになる。★ホーム画面に追加したアプリはこの対象外★
+         （出典: WebKit公式 "Full Third-Party Cookie Blocking and More"）。 -->
+    <link rel="manifest" href="/office-manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="ダイコメ事務所" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>"
+    />
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+        --danger: #e0483d;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 22px 18px 60px;
+      }
+
+      /* ── 事務所のタブ（売上表 / 給料 / 月次集計）を出している時は幅いっぱい使う ── */
+      body.frame-mode .wrap {
+        max-width: none;
+        padding-bottom: 0;
+      }
+
+      .a2hs {
+        background: #fff8e6;
+        border: 1px solid #ffe0a3;
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin: 12px 0 0;
+      }
+
+      .a2hs-t {
+        font-weight: 800;
+        font-size: 14px;
+        margin-bottom: 4px;
+      }
+
+      .a2hs-d {
+        font-size: 12.5px;
+        color: #6b5836;
+        line-height: 1.7;
+      }
+
+      .a2hs-x {
+        margin-top: 8px;
+        background: #fff;
+        border: 1px solid #ffe0a3;
+        color: #8a6d3b;
+        padding: 5px 14px;
+        font-size: 12.5px;
+      }
+
+      .otabs {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 14px 0 4px;
+      }
+
+      .otab {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .otab.on {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
+
+      .oframe {
+        width: 100%;
+        border: 0;
+        display: block;
+        background: var(--bg);
+        height: 70vh;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--blue-d);
+      }
+
+      .top .tag {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .who {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 12.5px;
+        color: var(--muted);
+        margin: 2px 0 14px;
+      }
+
+      .who .mail {
+        word-break: break-all;
+      }
+
+      .logout {
+        flex: 0 0 auto;
+        background: #fff;
+        color: var(--blue-d);
+        border: 1.5px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 12px;
+        font-size: 12.5px;
+        font-weight: 700;
+      }
+
+      h1.co {
+        font-size: 22px;
+        margin: 6px 0 20px;
+        word-break: break-all;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px 18px;
+        margin-bottom: 16px;
+      }
+
+      .card h2 {
+        font-size: 15px;
+        color: var(--blue-d);
+        margin-bottom: 4px;
+      }
+
+      .card .desc {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 14px;
+      }
+
+      .url-box {
+        background: var(--bg);
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        padding: 11px 12px;
+        font-size: 13px;
+        word-break: break-all;
+        user-select: all;
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+        font-weight: 700;
+      }
+
+      .btn {
+        background: var(--blue-d);
+        color: #fff;
+        padding: 9px 16px;
+        font-size: 13px;
+      }
+
+      .btn.ghost {
+        background: #fff;
+        color: var(--blue-d);
+        border: 1.5px solid var(--blue);
+      }
+
+      #qr {
+        margin: 14px auto 0;
+        width: 170px;
+      }
+
+      #qr svg,
+      #qr img {
+        width: 170px;
+        height: 170px;
+      }
+
+      /* seat bar */
+      .seat-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+
+      .seat-num {
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .seat-num b {
+        font-size: 26px;
+        color: var(--blue);
+      }
+
+      .bar {
+        height: 12px;
+        border-radius: 999px;
+        background: #e3ecfb;
+        overflow: hidden;
+      }
+
+      .bar > span {
+        display: block;
+        height: 100%;
+        background: var(--blue);
+        border-radius: 999px;
+        transition: width 0.3s;
+      }
+
+      /* device list */
+      .dev {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .dev:first-of-type {
+        border-top: none;
+      }
+
+      .dev .id {
+        font-family: monospace;
+        font-size: 13px;
+        word-break: break-all;
+      }
+
+      .dev .sub {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .dev .rm {
+        background: #fff;
+        color: var(--danger);
+        border: 1.5px solid var(--danger);
+        padding: 7px 14px;
+        font-size: 13px;
+        flex: 0 0 auto;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+        padding: 12px 0;
+      }
+
+      .status-off {
+        background: #fdecea;
+        color: var(--danger);
+        border: 1px solid #f5c6c2;
+        border-radius: 10px;
+        padding: 12px;
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+
+      /* register form (会社がまだ無い時)。初期非表示は inline style で(show()は display='' で戻すため) */
+      #register .lead {
+        font-size: 14px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+
+      #register label {
+        display: block;
+        font-weight: 700;
+        font-size: 14px;
+        margin: 16px 0 6px;
+      }
+
+      #register .hint {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+
+      #register input {
+        width: 100%;
+        padding: 13px 14px;
+        font-size: 16px;
+        border: 1.5px solid #cddcf2;
+        border-radius: 10px;
+        font-family: inherit;
+      }
+
+      #register input:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      .submit {
+        width: 100%;
+        margin-top: 22px;
+        padding: 15px;
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .submit:disabled {
+        opacity: 0.6;
+      }
+
+      .err {
+        color: var(--danger);
+        font-weight: 700;
+        font-size: 13.5px;
+        margin-top: 12px;
+        display: none;
+      }
+
+      #loading {
+        text-align: center;
+        color: var(--muted);
+        padding: 60px 0;
+        font-size: 15px;
+      }
+
+      .foot {
+        text-align: center;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="logo">🚗 ダイコメ</div>
+        <div class="tag">事務所</div>
+      </div>
+      <div class="who" id="who" style="display: none">
+        <span class="mail" id="whoMail"></span>
+        <button class="logout" id="logout" type="button">ログアウト</button>
+      </div>
+
+      <!-- ★ホーム画面に追加のすすめ（ログインが消えないように）★ -->
+      <div class="a2hs" id="a2hs" style="display: none">
+        <div class="a2hs-t">📱 ホーム画面に追加してください</div>
+        <div class="a2hs-d">
+          そのままだと
+          <b>iPhoneが7日でログインを消します</b>（毎回ログインし直しになります）。<br />
+          ホーム画面に追加すると<b>消えなくなります</b>。<br />
+          下の <b>［共有］</b> → <b>「ホーム画面に追加」</b> を押してください。
+        </div>
+        <button class="a2hs-x" id="a2hsClose" type="button">閉じる</button>
+      </div>
+
+      <!-- ★事務所の入口をここ1つにまとめる（会社が登録できてから出す）★ -->
+      <div class="otabs" id="otabs" style="display: none">
+        <button class="otab on" data-otab="dash" type="button">会社の設定</button>
+        <button class="otab" data-otab="uriage" type="button">売上表</button>
+        <button class="otab" data-otab="kyuryo" type="button">給料</button>
+        <button class="otab" data-otab="shukei" type="button">月次集計</button>
+        <button class="otab" data-otab="seikyu" type="button">請求書 ↗</button>
+      </div>
+
+      <!-- 売上表 / 給料 / 月次集計 をここに出す（それぞれ単体URLでも今まで通り開ける） -->
+      <iframe class="oframe" id="oframe" title="事務所の画面" style="display: none"></iframe>
+
+      <div id="loading">読み込み中…</div>
+
+      <!-- 会社がまだ無い時: 登録フォーム -->
+      <div id="register" class="card" style="display: none">
+        <h2 style="font-size: 18px; color: var(--ink)">はじめに、会社を登録</h2>
+        <p class="lead">登録すると、ドライバーに配る専用URL／QRがこの画面に出ます。</p>
+        <label>会社名<input id="fName" maxlength="100" placeholder="例）〇〇運転代行" /></label>
+        <label
+          >連絡先 <span class="hint">（任意・メール／電話）</span>
+          <input id="fContact" maxlength="200" placeholder="例）090-0000-0000" />
+        </label>
+        <label
+          >使う台数 <span class="hint">（随伴車の台数）</span>
+          <input id="fSeat" type="number" min="1" max="50" value="1" />
+        </label>
+        <button class="submit" id="regBtn" type="button">この内容で登録する</button>
+        <div class="err" id="regErr"></div>
+      </div>
+
+      <!-- 会社がある時: ダッシュボード（「会社の設定」タブの中身） -->
+      <div id="main" style="display: none">
+        <h1 class="co" id="coName">—</h1>
+        <div class="status-off" id="statusOff" style="display: none">
+          ⚠ 現在ご利用が停止されています。事務所（ダイコメ）にご確認ください。
+        </div>
+
+        <!-- 配布用URL/QR -->
+        <div class="card">
+          <h2>ドライバーに配るURL／QR</h2>
+          <div class="desc">
+            随伴車のスマホでこのURL（またはQR）を開くと、その端末が使えるようになります。
+          </div>
+          <div class="url-box" id="coUrl">—</div>
+          <div class="row">
+            <button class="btn" id="copyUrl" type="button">URLをコピー</button>
+            <button class="btn ghost" id="toggleQr" type="button">QRを表示</button>
+          </div>
+          <div id="qr" style="display: none"></div>
+        </div>
+
+        <!-- 台数 -->
+        <div class="card">
+          <div class="seat-head">
+            <h2 style="margin: 0">使用台数</h2>
+            <div class="seat-num"><b id="seatUsed">0</b> / <span id="seatMax">0</span> 台</div>
+          </div>
+          <div class="bar"><span id="seatBar" style="width: 0%"></span></div>
+          <div class="desc" style="margin: 10px 0 0">
+            契約台数まで有効化できます。どの車でも使えます。空きが無い時は、下で使っていない端末を外してください。
+          </div>
+        </div>
+
+        <!-- 端末一覧 -->
+        <div class="card">
+          <h2>有効化した端末</h2>
+          <div class="desc">機種変・入れ替えの時は「外す」で席を空けられます。</div>
+          <div id="devList"></div>
+        </div>
+      </div>
+
+      <div class="foot" id="foot" style="display: none">
+        ログインした人だけがこの画面を開けます。
+      </div>
+    </div>
+
+    <script src="js/qrcode.min.js"></script>
+    <script src="js/dk-config.js"></script>
+    <script src="js/dk-session.js"></script>
+    <script>
+      (function () {
+        'use strict';
+        // 接続先は js/dk-config.js(単一の真実源)から。ここには書かない。
+        var CFG = window.DKConfig;
+        var SB_URL = CFG.SB_URL;
+        var REST = CFG.REST_BASE;
+        var FN_REGISTER = CFG.fn('dk-register-company');
+        var ANON = CFG.ANON_KEY;
+        var SESS_KEY = 'dk_dash_sess';
+
+        var SESS = null;
+        var COMPANY = null;
+        var currentUrl = '';
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function show(id, on) {
+          $(id).style.display = on ? '' : 'none';
+        }
+        function goLogin() {
+          location.replace('login.html');
+        }
+
+        // ─── 事務所のタブ（売上表 / 給料 / 月次集計 / 請求書）─────────────
+        //   ★中身は今まで通りの1枚ずつの画面をそのまま出している★
+        //     （単体URLでも開ける＝壊れたら1枚だけ切り離せる）
+        //   請求書だけは別のアプリ・別のログインなので、新しいタブで開く。
+        var TAB_KEY = 'dk_office_tab';
+        var TABS = {
+          uriage: 'uriage.html',
+          kyuryo: 'kyuryo.html',
+          shukei: 'shukei.html',
+        };
+        var SEIKYU_URL = 'https://exally-test.vercel.app/daikou-seikyu.html';
+        var curTab = 'dash';
+
+        // ★ホーム画面に追加のすすめを出すか★
+        //   iPhone/iPad の Safari で開いていて、まだホーム画面アプリになっていない時だけ。
+        //   （ホーム画面アプリで開いていれば もう消えないので出さない）
+        function maybeShowA2HS() {
+          try {
+            var ua = navigator.userAgent || '';
+            var isIOS = /iPhone|iPad|iPod/.test(ua);
+            var standalone =
+              (window.navigator && window.navigator.standalone === true) ||
+              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+            if (!isIOS || standalone) return;
+            if (localStorage.getItem('dk_a2hs_closed') === '1') return;
+            show('a2hs', true);
+          } catch (_) {
+            /* 出せなくても業務に影響しない */
+          }
+        }
+
+        function loadTab() {
+          try {
+            var v = localStorage.getItem(TAB_KEY);
+            return v && (v === 'dash' || TABS[v]) ? v : 'dash';
+          } catch (_) {
+            return 'dash';
+          }
+        }
+        function saveTab(t) {
+          try {
+            localStorage.setItem(TAB_KEY, t);
+          } catch (_) {
+            /* 保存できなくても動く */
+          }
+        }
+
+        // 中の画面が下まで見えるように、残りの高さいっぱいに広げる
+        function fitFrame() {
+          try {
+            var f = $('oframe');
+            if (!f || f.style.display === 'none') return;
+            var top = f.getBoundingClientRect().top;
+            var h = Math.max(360, window.innerHeight - top - 12);
+            f.style.height = h + 'px';
+          } catch (_) {
+            /* ignore */
+          }
+        }
+        window.addEventListener('resize', fitFrame);
+
+        function openTab(t) {
+          if (t === 'seikyu') {
+            // 別のアプリ（別ログイン）なので新しいタブで開く。タブの選択は戻す。
+            try {
+              window.open(SEIKYU_URL, '_blank', 'noopener');
+            } catch (_) {
+              location.href = SEIKYU_URL;
+            }
+            markTab(curTab);
+            return;
+          }
+          curTab = t === 'dash' || TABS[t] ? t : 'dash';
+          saveTab(curTab);
+          markTab(curTab);
+
+          var isFrame = curTab !== 'dash';
+          document.body.classList.toggle('frame-mode', isFrame);
+          show('main', !isFrame);
+          show('foot', !isFrame);
+          show('oframe', isFrame);
+          if (isFrame) {
+            var f = $('oframe');
+            var want = TABS[curTab];
+            // 同じ画面を開き直した時に読み込み直さない（入力中の値を消さないため）
+            if (f.getAttribute('data-src') !== want) {
+              f.setAttribute('data-src', want);
+              f.src = want;
+            }
+            fitFrame();
+            setTimeout(fitFrame, 250);
+          }
+        }
+
+        function markTab(t) {
+          var bs = document.querySelectorAll('[data-otab]');
+          for (var i = 0; i < bs.length; i++) {
+            bs[i].className = 'otab' + (bs[i].getAttribute('data-otab') === t ? ' on' : '');
+          }
+        }
+
+        (function wireTabs() {
+          var bs = document.querySelectorAll('[data-otab]');
+          for (var i = 0; i < bs.length; i++) {
+            bs[i].onclick = function () {
+              openTab(this.getAttribute('data-otab'));
+            };
+          }
+        })();
+
+        // ---------- セッション ----------
+        // ★ログインの持ち方は js/dk-session.js ただ1つ★（2026-08-01）
+        //   前は管理画面が自分用にもう1つ持っていて、タブの中の画面と同時に
+        //   トークンを更新しに行き、取り合いで片方が無効になっていた
+        //   ＝司さん「毎回ログインはどうにかならんのかね？」の原因のひとつ。
+        function clearSess() {
+          SESS = null;
+          DKSession.clear();
+        }
+
+        // ---------- REST ----------
+        function api(path, opts) {
+          opts = opts || {};
+          var h = {
+            apikey: ANON,
+            Authorization: 'Bearer ' + SESS.access_token,
+            'Content-Type': 'application/json',
+          };
+          if (opts.headers) for (var k in opts.headers) h[k] = opts.headers[k];
+          opts.headers = h;
+          return fetch(REST + path, opts);
+        }
+
+        function getUser() {
+          return fetch(SB_URL + '/auth/v1/user', {
+            headers: { apikey: ANON, Authorization: 'Bearer ' + SESS.access_token },
+          })
+            .then(function (r) {
+              if (r.ok) return r.json();
+              // ★401/403 だけが「ログインが切れた」★ 5xx や通信不調は 'net'
+              return DKSession.isAuthError(r) ? null : 'net';
+            })
+            .catch(function () {
+              return 'net';
+            });
+        }
+
+        // ---------- 画面 ----------
+        function fmtDate(s) {
+          if (!s) return '未使用';
+          try {
+            var d = new Date(s);
+            return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+          } catch (e) {
+            return '';
+          }
+        }
+
+        function loadDevices() {
+          return api(
+            '/dk_company_devices?select=device_id,vin,last_seen&company_id=eq.' +
+              encodeURIComponent(COMPANY.company_id) +
+              '&order=last_seen.desc.nullslast'
+          )
+            .then(function (r) {
+              return r.ok ? r.json() : [];
+            })
+            .catch(function () {
+              return [];
+            });
+        }
+
+        function renderDashboard() {
+          show('loading', false);
+          show('register', false);
+          show('main', true);
+          show('otabs', true); // ★会社が登録できてから事務所のタブを出す★
+          maybeShowA2HS();
+          openTab(loadTab());
+          $('coName').textContent = COMPANY.name || '(会社名なし)';
+          show('statusOff', COMPANY.status === 'off');
+          // ★会社URL(ドライバーに配る物)は必ず「メーターの住所」を使う★
+          //   事務所は別の住所(daikome-jimusho)からも開ける。そこで location.origin を使うと
+          //   ドライバーが「メーターの無い住所」へ飛ばされて有効化できなくなる。
+          //   DKConfig.APP_BASE が唯一の正。
+          currentUrl =
+            ((window.DKConfig && window.DKConfig.APP_BASE) || location.origin) +
+            '/?c=' +
+            COMPANY.url_token;
+          $('coUrl').textContent = currentUrl;
+
+          loadDevices().then(function (devs) {
+            devs = Array.isArray(devs) ? devs : [];
+            var used = devs.length;
+            var max = COMPANY.seat_limit || 0;
+            $('seatUsed').textContent = used;
+            $('seatMax').textContent = max;
+            $('seatBar').style.width =
+              (max ? Math.min(100, Math.round((used / max) * 100)) : 0) + '%';
+
+            var list = $('devList');
+            list.innerHTML = '';
+            if (!devs.length) {
+              list.innerHTML = '<div class="empty">まだ端末はありません</div>';
+              return;
+            }
+            devs.forEach(function (d) {
+              var wrap = document.createElement('div');
+              wrap.className = 'dev';
+              var left = document.createElement('div');
+              var idShort = (d.device_id || '').slice(0, 8) + '…';
+              left.innerHTML =
+                '<div class="id"></div><div class="sub">最終利用 ' +
+                fmtDate(d.last_seen) +
+                '</div>';
+              left.querySelector('.id').textContent = idShort;
+              var btn = document.createElement('button');
+              btn.className = 'rm';
+              btn.textContent = '外す';
+              btn.onclick = function () {
+                if (!confirm('この端末を外しますか？（席が1つ空きます）')) return;
+                btn.disabled = true;
+                btn.textContent = '外し中…';
+                api(
+                  '/dk_company_devices?company_id=eq.' +
+                    encodeURIComponent(COMPANY.company_id) +
+                    '&device_id=eq.' +
+                    encodeURIComponent(d.device_id),
+                  { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
+                )
+                  .then(function (r) {
+                    if (r.ok) renderDashboard();
+                    else {
+                      btn.disabled = false;
+                      btn.textContent = '外す';
+                      alert('外せませんでした');
+                    }
+                  })
+                  .catch(function () {
+                    btn.disabled = false;
+                    btn.textContent = '外す';
+                    alert('ネットに繋がる所で、もう一度お試しください。');
+                  });
+              };
+              wrap.appendChild(left);
+              wrap.appendChild(btn);
+              list.appendChild(wrap);
+            });
+          });
+        }
+
+        function showRegister() {
+          show('loading', false);
+          show('main', false);
+          show('register', true);
+          show('otabs', false); // 会社がまだ無いうちは事務所のタブを出さない
+          show('oframe', false);
+          document.body.classList.remove('frame-mode');
+        }
+
+        function loadCompany() {
+          return api('/dk_companies?select=company_id,name,url_token,seat_limit,status')
+            .then(function (r) {
+              // ★ここが「毎回ログイン」の直接の原因だった（2026-08-01）★
+              //   前は「配列が返らなければ goLogin()」＝通信が一瞬こけただけでログアウトしていた。
+              //   ログインが切れたと言えるのは、サーバーが 401/403 と言った時だけ。
+              if (r.ok) return r.json();
+              if (DKSession.isAuthError(r)) return 'auth';
+              return 'net';
+            })
+            .then(function (cos) {
+              if (cos === 'auth') return goLogin();
+              if (cos === 'net' || !Array.isArray(cos)) {
+                show('loading', true);
+                $('loading').textContent =
+                  'いまつながりません。電波が戻ったら「更新」してください。';
+                return;
+              }
+              if (cos.length === 0) {
+                showRegister();
+              } else {
+                COMPANY = cos[0];
+                renderDashboard();
+              }
+            })
+            .catch(function () {
+              // 通信で落ちただけ。★ログアウトさせない★
+              show('loading', true);
+              $('loading').textContent = 'いまつながりません。電波が戻ったら「更新」してください。';
+            });
+        }
+
+        // ---------- ボタン ----------
+        function bindStaticButtons() {
+          $('a2hsClose').addEventListener('click', function () {
+            try {
+              localStorage.setItem('dk_a2hs_closed', '1');
+            } catch (_) {
+              /* ignore */
+            }
+            show('a2hs', false);
+          });
+
+          $('logout').addEventListener('click', function () {
+            clearSess();
+            goLogin();
+          });
+
+          $('copyUrl').addEventListener('click', function () {
+            var b = $('copyUrl');
+            function done() {
+              b.textContent = 'コピーしました';
+              setTimeout(function () {
+                b.textContent = 'URLをコピー';
+              }, 1600);
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText)
+              navigator.clipboard.writeText(currentUrl).then(done, done);
+            else done();
+          });
+
+          $('toggleQr').addEventListener('click', function () {
+            var el = $('qr');
+            var b = $('toggleQr');
+            if (el.style.display === 'none') {
+              try {
+                var qr = window.qrcode(0, 'M');
+                qr.addData(currentUrl);
+                qr.make();
+                el.innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2 });
+              } catch (e) {
+                el.innerHTML = '';
+              }
+              el.style.display = 'block';
+              b.textContent = 'QRを隠す';
+            } else {
+              el.style.display = 'none';
+              b.textContent = 'QRを表示';
+            }
+          });
+
+          $('regBtn').addEventListener('click', function () {
+            var errEl = $('regErr');
+            errEl.style.display = 'none';
+            var name = $('fName').value.trim();
+            var contact = $('fContact').value.trim();
+            var seat = parseInt($('fSeat').value, 10) || 1;
+            if (!name) {
+              errEl.textContent = '会社名を入れてください';
+              errEl.style.display = 'block';
+              return;
+            }
+            var b = $('regBtn');
+            b.disabled = true;
+            b.textContent = '登録中…';
+            fetch(FN_REGISTER, {
+              method: 'POST',
+              headers: {
+                apikey: ANON,
+                Authorization: 'Bearer ' + SESS.access_token,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ company_name: name, contact: contact, seat_limit: seat }),
+            })
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (j) {
+                b.disabled = false;
+                b.textContent = 'この内容で登録する';
+                if (j && j.ok) {
+                  show('register', false);
+                  show('loading', true);
+                  loadCompany();
+                } else {
+                  errEl.textContent =
+                    j && j.reason === 'unauthorized'
+                      ? 'ログインの有効期限が切れました。もう一度ログインしてください。'
+                      : '登録できませんでした。少し時間をおいて、もう一度お試しください。';
+                  errEl.style.display = 'block';
+                }
+              })
+              .catch(function () {
+                b.disabled = false;
+                b.textContent = 'この内容で登録する';
+                errEl.textContent = 'ネットに繋がる所で、もう一度お試しください。';
+                errEl.style.display = 'block';
+              });
+          });
+        }
+
+        // ---------- 起動 ----------
+        function start() {
+          bindStaticButtons();
+          DKSession.ensure().then(function (valid) {
+            if (!valid) return goLogin(); // 本当にログインが要る時だけ
+            SESS = valid;
+            getUser()
+              .then(function (u) {
+                // ★繋がらなかっただけならログアウトさせない★
+                if (u === 'net') {
+                  show('who', true);
+                  show('foot', true);
+                  return loadCompany();
+                }
+                if (!u || !u.id) return goLogin();
+                $('whoMail').textContent = u.email || '';
+                show('who', true);
+                show('foot', true);
+                loadCompany();
+              })
+              .catch(function () {
+                // 通信で落ちただけ。ログイン画面へ飛ばさない
+                show('who', true);
+                show('foot', true);
+                loadCompany();
+              });
+          });
+        }
+
+        start();
+      })();
+    </script>
+  </body>
+</html>

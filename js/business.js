@@ -705,6 +705,37 @@ const Business = (function () {
     return false;
   }
 
+  // ★請求書払い(掛け)先の紐付け (2026-07-31・司さん要件)★
+  //   実車中に「請求書」ボタンで会社を選ぶと、その代行が掛けとして残る。
+  //   その客が誰の掛けかを知っているのは現場のドライバーだけなので、その場で1タップで紐付ける。
+  //   ・料金/距離には一切影響しない(記録用の付箋を貼るだけ)。
+  //   ・代行が始まっていない時に押しても、変な値が来ても、絶対に落ちない(業務を止めない)。
+  //   ・会社名は「その時の名前」を焼き付ける(後でマスタから消えても過去の請求書が壊れない)。
+  function setTripCustomer(customerId, customerName) {
+    try {
+      if (!state.current_trip) return false; // 代行が始まっていない = 貼る先が無い(黙って何もしない)
+      const id = typeof customerId === 'string' && customerId ? customerId : null;
+      state.current_trip.customer_id = id;
+      state.current_trip.customer_name =
+        id && typeof customerName === 'string' ? customerName : null;
+      save();
+      return true;
+    } catch (_) {
+      return false; // ★絶対に throw しない★
+    }
+  }
+
+  // 今どの掛け先が選ばれているか(画面表示用)。未選択なら null。
+  function getTripCustomer() {
+    try {
+      const t = state.current_trip;
+      if (!t || !t.customer_id) return null;
+      return { customer_id: t.customer_id, customer_name: t.customer_name || null };
+    } catch (_) {
+      return null;
+    }
+  }
+
   // 代行開始時の出発地住所取得 + current_trip 初期化
   function onTripStart(lat, lng, accuracy) {
     const startAddr = _safeGetNearestAddress(lat, lng, accuracy);
@@ -713,6 +744,9 @@ const Business = (function () {
       start_address: startAddr,
       waypoints: [],
       end_address: null,
+      // 掛け先は代行ごとにまっさら(前の客の掛けが次に付いたら事故)
+      customer_id: null,
+      customer_name: null,
     };
     save();
     if (typeof dlog === 'function') {
@@ -813,6 +847,9 @@ const Business = (function () {
       end_address: null,
       waypoints: [],
     };
+    // ★掛け先(請求書払い)を代行に焼き付ける (2026-07-31)。未選択なら現金。
+    //   距離/料金には一切影響しない(記録用の付箋)。
+    const _custId = currentTrip.customer_id || null;
     state.trips.push({
       distance_m: distanceM,
       fare_yen: fareYen,
@@ -821,6 +858,9 @@ const Business = (function () {
       start_address: currentTrip.start_address,
       end_address: currentTrip.end_address,
       waypoints: currentTrip.waypoints.slice ? currentTrip.waypoints.slice() : [],
+      customer_id: _custId,
+      customer_name: _custId ? currentTrip.customer_name || null : null,
+      payment_type: _custId ? 'invoice' : 'cash',
     });
     // 統合後 current_trip はリセット (次の代行で onTripStart が新規初期化する)
     state.current_trip = null;
@@ -1111,6 +1151,9 @@ const Business = (function () {
     onWaypoint,
     setEndAddress,
     getCurrentTrip,
+    // ★請求書払い(掛け)先の紐付け (2026-07-31・実車中の「請求書」ボタンから呼ぶ)
+    setTripCustomer,
+    getTripCustomer,
     getState,
     getReport,
     save,

@@ -20,7 +20,7 @@
 //   ✅ 業務中に急にバージョン変わらない（安全）
 // ===========================================
 
-const CACHE_NAME = 'daikome-0a039b8';
+const CACHE_NAME = 'daikome-d643bbb';
 // ★設計変更宣言 (2026-05-13): 47県データを固定名 cache に分離
 //   旧: アプリコード CACHE_NAME が hash で毎デプロイ更新 → 旧 cache 全削除 →
 //       47県データ (/data/roads-*.js) も全削除 → 全欠落・204MB 再 DL
@@ -111,7 +111,13 @@ const CORE_CODE_FILES = [
   '/js/debug-config.js',
   '/js/firebase-config.js',
   '/js/firebase.js',
+  '/js/dk-config.js',
   '/js/license.js',
+  '/js/tweetnacl.min.js',
+  '/js/license-v2.js',
+  '/js/license-activate.js',
+  '/js/job-sync.js',
+  '/js/customer-master.js',
   '/js/trace-outbox.js',
 ];
 
@@ -248,13 +254,11 @@ function staleWhileRevalidate(request, cacheName) {
           return response;
         })
         .catch(function () {
-          // ネット失敗時：cached → "/" → 最終手段で network error Response
-          return (
-            cached ||
-            caches.match('/').then(function (r) {
-              return r || Response.error();
-            })
-          );
+          // ★修正 (2026-08-01)★ ネット失敗時に caches.match('/') を返していた。
+          //   ここは JS/データ用のハンドラなので、HTML(メーター)を返すと
+          //   「スクリプトのはずが HTML」になって構文エラーで静かに壊れる。
+          //   自分のキャッシュが無ければ、素直に失敗を返す。
+          return cached || Response.error();
         });
       return cached || fetchPromise;
     });
@@ -263,6 +267,34 @@ function staleWhileRevalidate(request, cacheName) {
 
 // ナビゲーション専用ハンドラ：querystring 無視で precache を確実にヒット
 // ?_v=xxx のようなパラメータ付き URL でもキャッシュキーをマッチさせる
+//
+// ★修正 (2026-08-01)★ 司さん「どのURLもここにしかいかんけど」の真因はここだった。
+//   旧: ネットに失敗すると caches.match('/') を返していた
+//       → /dashboard.html を開いても ★メーター(/)が出る★。電波が一瞬揺れるだけで起きる。
+//       しかもアドレスバーは /dashboard.html のままなので「URLが効いていない」ように見える。
+//   新: ★別のページを身代わりに出さない★。
+//       その URL のキャッシュがあればそれ、無ければ「つながらない」と正直に出す。
+//       (メーター本体 '/' は今まで通り自分のキャッシュから出るので、オフライン運用は変わらない)
+function offlinePage() {
+  return new Response(
+    '<!doctype html><html lang="ja"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>つながりません</title><style>' +
+      'body{font-family:system-ui,sans-serif;background:#f2f7ff;color:#14243d;' +
+      'display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:24px;text-align:center}' +
+      '.b{background:#fff;border:1px solid #dbe7f7;border-radius:14px;padding:28px 22px;max-width:420px}' +
+      'h1{font-size:19px;margin:0 0 10px}p{font-size:14px;color:#5a6b82;margin:0 0 18px;line-height:1.7}' +
+      'button{background:#007aff;color:#fff;border:0;border-radius:10px;padding:12px 22px;' +
+      'font-size:15px;font-weight:700;font-family:inherit}' +
+      '</style></head><body><div class="b">' +
+      '<h1>いまつながりません</h1>' +
+      '<p>電波が届いていないみたいです。<br>つながってからもう一度お試しください。</p>' +
+      '<button onclick="location.reload()">もう一度ひらく</button>' +
+      '</div></body></html>',
+    { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+  );
+}
+
 function navigationHandler(request) {
   return caches.open(CACHE_NAME).then(function (cache) {
     return cache.match(request, { ignoreSearch: true }).then(function (cached) {
@@ -274,12 +306,9 @@ function navigationHandler(request) {
           return response;
         })
         .catch(function () {
-          return (
-            cached ||
-            caches.match('/').then(function (r) {
-              return r || Response.error();
-            })
-          );
+          // ★身代わりに別のページを出さない★（出すと「どのURLも同じ画面」になる）
+          if (cached) return cached;
+          return offlinePage();
         });
       return cached || fetchPromise;
     });

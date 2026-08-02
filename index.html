@@ -2599,8 +2599,10 @@
       /* 2列ボタン（driving のみ表示） */
       .btn-row {
         display: none;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
+        /* ★2026-07-31: 請求書ボタン追加で 2列→3列。指の当たりを確保するため gap を詰める。
+           横画面は既存の !important で1列縦並びのまま(下部メディアクエリ)。 */
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
       }
       .btn-row.show {
         display: grid;
@@ -2633,6 +2635,15 @@
       }
       .btn-discount {
         background: #5856d6; /* ★値引き(紫・追加料金オレンジと区別) */
+      }
+      /* ★請求書・2026-07-31: ダイコメ青。追加料金オレンジ/値引き紫と区別 */
+      .btn-invoice {
+        background: #007aff;
+      }
+      /* 会社が選ばれている間は色を変える(選び間違いにその場で気づける) */
+      .btn-invoice.is-selected {
+        background: #0051a8;
+        box-shadow: inset 0 0 0 2px #ffffff;
       }
       .btn-confirm {
         background: #34c759;
@@ -4621,6 +4632,44 @@
             max-width: 320px;
           "
         ></div>
+        <!-- ★ライセンス期限 警告バナー (2026-07-27・STEP3)。残り≤7日/期限切れ時のみ表示・非ブロック・🔄更新付き。
+             会社URL方式=Wi-Fiで開けば自動更新なので通常は無表示。客前中立文言(料金/未払いは出さない)。 -->
+        <div
+          id="licenseBanner"
+          style="
+            display: none;
+            text-align: center;
+            font-size: 13px;
+            color: #8a6d00;
+            font-weight: 600;
+            padding: 10px 16px;
+            margin: 0 24px;
+            background: rgba(255, 193, 7, 0.14);
+            border: 1px solid rgba(255, 193, 7, 0.45);
+            border-radius: 10px;
+            line-height: 1.5;
+            max-width: 340px;
+          "
+        >
+          <div id="licenseBannerMsg"></div>
+          <button
+            id="licenseBannerSync"
+            type="button"
+            style="
+              margin-top: 8px;
+              padding: 6px 18px;
+              font-size: 13px;
+              font-weight: 700;
+              color: #fff;
+              background: #52b788;
+              border: none;
+              border-radius: 8px;
+              cursor: pointer;
+            "
+          >
+            🔄 更新する
+          </button>
+        </div>
         <!-- ★設計変更宣言 (2026-05-10): センサー許可明示ボタン -->
         <!-- iOS PWA 未許可時のみ表示・押下で DeviceMotionEvent.requestPermission() を user gesture 経由で発火 -->
         <button
@@ -5046,6 +5095,21 @@
             値引き
           </div>
           <div class="extras-list" id="discountsList"></div>
+          <!-- 請求書セクション (追加料金/値引きと同型・✕で現金にもどす・2026-07-31) -->
+          <div
+            id="invoiceSectionLabel"
+            style="
+              display: none;
+              font-size: 11px;
+              font-weight: 700;
+              color: #8e8e93;
+              letter-spacing: 1px;
+              margin: 8px 12px 4px;
+            "
+          >
+            請求書
+          </div>
+          <div class="extras-list" id="invoiceList"></div>
         </div>
       </div>
 
@@ -5110,6 +5174,11 @@
       <div class="btn-row" id="btnRow">
         <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
         <button class="btn-sub btn-discount" onclick="openDiscountModal()">値引き</button>
+        <!-- ★請求書 (2026-07-31・司さん要件): 実車中に会社を選ぶとその代行が請求書払いになる。
+             どの会社の請求書かを知っているのは現場のドライバーだけなので、その場で1タップ。 -->
+        <button class="btn-sub btn-invoice" id="btnInvoice" onclick="openInvoiceModal()">
+          請求書
+        </button>
       </div>
       <!-- 確定 (driving時のみ・フッター下段 全幅・2026-07-25 司さん要望) -->
       <button
@@ -5162,6 +5231,17 @@
           <input type="number" id="customAmount" placeholder="0" inputmode="numeric" />
           <button class="modal-custom-btn" onclick="addCustomExtra()">追加料金</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 請求書モーダル (2026-07-31・追加料金/値引きと同型) -->
+    <div class="modal-overlay" id="invoiceModalOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">請求書の会社を選ぶ</div>
+          <div class="modal-cancel" onclick="closeInvoiceModal()">キャンセル</div>
+        </div>
+        <div class="modal-items" id="invoiceModalItems"></div>
       </div>
     </div>
 
@@ -5542,8 +5622,25 @@
     <!-- ★debug-log-uploader.js: Eruda console を Firebase RTDB 自動 push (2026-05-29 追加・解析側 Claude 並行参照用)
          feature flag・既定 ON (テストビルド) / OFF (本番)・?debuglog=on/off で切替・debug-trace.js と device_id 共有 -->
     <script src="js/debug-log-uploader.js"></script>
+    <!-- ★dk-config.js = Supabase接続先の単一真実源 (2026-07-31・独立/移設のため)。
+         接続先を使う全モジュール(license.js / license-activate.js / 端末管理配線)より必ず先に load。 -->
+    <script src="js/dk-config.js"></script>
     <!-- ★設計変更宣言 (2026-05-24・端末ライセンス台数ロック): 既存 DAIKOME_DEVICE_ID 流用・debug-trace.js 後に load -->
     <script src="js/license.js"></script>
+    <!-- ★ライセンス最終方式(会社URL/QR+Ed25519署名) STEP3配線 (2026-07-27):
+         tweetnacl(純JS Ed25519・iOS Safari含む全ブラウザ) → license-v2(検証純ロジック) → license-activate(活性化/同期/ゲート) の順。
+         ★gate は DK_LICENSE_GATE_ON==='1' の端末だけ発動(既定OFF=自社運用に無影響)★ -->
+    <script src="js/tweetnacl.min.js"></script>
+    <script src="js/license-v2.js"></script>
+    <script src="js/license-activate.js"></script>
+    <!-- ★job-sync.js (2026-07-31・事務所機能の土台): localStorage に貯まった業務履歴を
+         後から読んでクラウドへ送るだけの独立部品。business.js / 距離コア / 業務の流れには一切触らない。
+         会社URLで活性化していない端末(自社運用)は何も送らない。送信失敗は次回再送(業務は絶対止めない)。 -->
+    <script src="js/job-sync.js"></script>
+    <!-- ★customer-master.js (2026-08-01): 実車中の「請求書」で選ぶ会社一覧を端末に持ってくる。
+         マスタの唯一の正は代行請求書アプリの companies(ダイコメ側に別マスタを作らない)。
+         オフラインでも前回の一覧で選べる。通信失敗でキャッシュは消さない。 -->
+    <script src="js/customer-master.js"></script>
 
     <!-- ★debug-trace.js：較正用 GPS trace 収集 (2026-05-21・noise model 較正タスク用)
          feature flag OFF default・URL ?trace=on で activate・他端末ではサイレント
@@ -7225,6 +7322,8 @@
         document.querySelectorAll('.dateTimeLine').forEach((el) => {
           el.textContent = text;
         });
+        // ★ライセンス期限警告バナー(業務開始画面)を1秒毎に更新(残り≤7日/期限切れ時のみ表示・非ブロック)
+        if (typeof window._updateLicenseBanner === 'function') window._updateLicenseBanner();
         // ★2026-07-23 司さん要望★: 空車画面の日時の上に現在地(町名)だけ表示。
         //   空車表示中のみ Business.getCurrentLiveAddress()(3段fallback)で更新。取得前は:empty で非表示。
         const _locEl = document.getElementById('idleLocation');
@@ -8119,17 +8218,25 @@
         //   未登録 / expired 時は・showLicenseGate で・ゲート画面表示・業務開始 block
         //   絶対ルール準拠: distance_m / 課金距離ロジックには・触れない
         try {
-          // ★2026-07-02: ライセンスゲートは"完全無効"に固定。前セッションの暫定台数ゲート方式は
-          //   最終設計(会社ごとURL/QR+署名/VIN+2ヶ月期限+警告+更新ボタン)へ作り替え予定=[[project_daikome_license_code_activation_design_2026-06-30]]。
-          //   それまで業務開始を一切ブロックしない(自社運用を止めない)。旧DK_LICENSE_GATE_ONトグルON端末の
-          //   誤ブロック(未登録で業務開始不可=使えない)も、このfalse固定で解消。Phase1で本方式実装時に差替。
+          // ★ライセンスゲート (2026-07-27・会社URL/Ed25519署名方式 STEP3配線)。
+          //   DK_LICENSE_GATE_ON==='1' の端末だけ発動(既定OFF=自社運用/未設定端末は一切ブロックしない)。
+          //   ★running(業務中/客乗せ中)は LicenseActivate 側で常に allowed=絶対止めない★。距離/課金に不触。
+          let _running_lic = false;
+          try {
+            _running_lic = !!(
+              window.Meter &&
+              window.Meter.getState &&
+              window.Meter.getState().running
+            );
+          } catch (_e) {
+            /* ignore */
+          }
           if (
-            false &&
             localStorage.getItem('DK_LICENSE_GATE_ON') === '1' &&
-            typeof window.License !== 'undefined' &&
-            typeof window.License.checkBeforeBusinessStart === 'function'
+            typeof window.LicenseActivate !== 'undefined' &&
+            typeof window.LicenseActivate.checkBeforeBusinessStart === 'function'
           ) {
-            const _lic = window.License.checkBeforeBusinessStart();
+            const _lic = window.LicenseActivate.checkBeforeBusinessStart(_running_lic);
             if (!_lic.allowed) {
               if (typeof window.showLicenseGate === 'function') {
                 window.showLicenseGate(_lic);
@@ -9414,6 +9521,110 @@
         discounts.push({ name: '任意値引き', amount: v });
         closeDiscountModal();
       }
+
+      // ─── 請求書 (2026-07-31・司さん要件) ───────────────────
+      //   実車中に「請求書」ボタン→会社を選ぶ→その代行が請求書払いとして残る。
+      //   ★オフラインで動く★(会社一覧は端末に持っている) ・料金/距離には一切触らない。
+      //   ★何があっても業務を止めない★(一覧が空でも、失敗しても、代行はそのまま続く)。
+      function _invoiceCustomers() {
+        try {
+          const raw = localStorage.getItem('dk_customers_cache');
+          const list = raw ? JSON.parse(raw) : [];
+          return Array.isArray(list) ? list.filter((c) => c && c.name && c.active !== false) : [];
+        } catch (_) {
+          return [];
+        }
+      }
+      function openInvoiceModal() {
+        if (blockIfSensorNotGranted()) return;
+        const list = _invoiceCustomers();
+        const cur =
+          (window.Business && Business.getTripCustomer && Business.getTripCustomer()) || null;
+        const el = document.getElementById('invoiceModalItems');
+        let html = '';
+        if (!list.length) {
+          html =
+            '<div class="modal-item" style="justify-content:center;color:#8e8e93">' +
+            '請求書の会社が登録されていません<br>（会社の管理画面から登録してください）' +
+            '</div>';
+        } else {
+          html = list
+            .map(
+              (c, i) =>
+                `<div class="modal-item" onclick="pickInvoiceCustomer(${i})">
+      <span class="modal-item-name">${c.name}</span>
+      <span class="modal-item-price">${cur && cur.customer_id === c.customer_id ? '選択中' : ''}</span>
+    </div>`
+            )
+            .join('');
+        }
+        // 現金に戻す(選び間違えたとき)
+        if (cur) {
+          html +=
+            '<div class="modal-item" onclick="clearInvoiceCustomer()">' +
+            '<span class="modal-item-name">現金にもどす</span>' +
+            '<span class="modal-item-price"></span></div>';
+        }
+        el.innerHTML = html;
+        document.getElementById('invoiceModalOverlay').classList.add('show');
+      }
+      function closeInvoiceModal() {
+        document.getElementById('invoiceModalOverlay').classList.remove('show');
+      }
+      function pickInvoiceCustomer(i) {
+        try {
+          const c = _invoiceCustomers()[i];
+          if (c && window.Business && Business.setTripCustomer) {
+            Business.setTripCustomer(c.customer_id, c.name);
+            if (typeof showToast === 'function') showToast('請求書: ' + c.name);
+          }
+        } catch (_) {
+          /* 業務は止めない */
+        }
+        _updateInvoiceBtn();
+        closeInvoiceModal();
+      }
+      function clearInvoiceCustomer() {
+        try {
+          if (window.Business && Business.setTripCustomer) Business.setTripCustomer(null);
+          if (typeof showToast === 'function') showToast('現金にもどしました');
+        } catch (_) {
+          /* 業務は止めない */
+        }
+        _updateInvoiceBtn();
+        closeInvoiceModal();
+      }
+      // 選ばれている会社を画面に出す。
+      //   ★ボタンの文字は「請求書」固定★(会社名を入れるとボタンからはみ出して読めない)。
+      //   会社名は 追加料金/値引き と同じ一覧セクションに出す = 見せ方を全部そろえる。
+      function _updateInvoiceBtn() {
+        try {
+          const cur =
+            (window.Business && Business.getTripCustomer && Business.getTripCustomer()) || null;
+          const btn = document.getElementById('btnInvoice');
+          if (btn) btn.classList.toggle('is-selected', !!cur);
+
+          const el = document.getElementById('invoiceList');
+          const lbl = document.getElementById('invoiceSectionLabel');
+          if (!el) return;
+          if (!cur) {
+            el.innerHTML = '';
+            if (lbl) lbl.style.display = 'none';
+            return;
+          }
+          if (lbl) lbl.style.display = 'block';
+          const name = String(cur.customer_name || '').replace(/[<>&]/g, '');
+          el.innerHTML = `<div class="extra-item" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>${name}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="extra-del-btn" onclick="clearInvoiceCustomer()">✕</button>
+      </div>
+    </div>`;
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      window._updateInvoiceBtn = _updateInvoiceBtn;
 
       // ─── 代行キャンセル (取消: 距離も料金も加算しない・2026-07-25 司さん要望) ───
       //   代行中に押すと、現在のtripを記録せず破棄して空車へ戻る (Business.onTripEnd を呼ばない)。
@@ -10870,12 +11081,23 @@
           const msgEl = document.getElementById('licenseGateMessage');
           if (msgEl && info && info.message) msgEl.textContent = info.message;
           const idEl = document.getElementById('licenseGateDeviceId');
-          if (
-            idEl &&
-            typeof window.License !== 'undefined' &&
-            typeof window.License.getDeviceId === 'function'
-          ) {
-            idEl.textContent = window.License.getDeviceId();
+          if (idEl) {
+            let _did = '';
+            try {
+              if (window.LicenseActivate && window.LicenseActivate.deviceId)
+                _did = window.LicenseActivate.deviceId();
+            } catch (_) {
+              /* ignore */
+            }
+            if (!_did) {
+              try {
+                if (window.License && window.License.getDeviceId)
+                  _did = window.License.getDeviceId();
+              } catch (_) {
+                /* ignore */
+              }
+            }
+            idEl.textContent = _did || '(不明)';
           }
           el.classList.add('show');
           el.setAttribute('aria-hidden', 'false');
@@ -11018,7 +11240,131 @@
                 window._updateLicenseUI();
               }
             }
+            // ★会社URL/Ed25519署名方式(STEP3) 起動処理★
+            _initLicenseActivate();
           }
+          // 活性化結果の表示(客/ドライバー向け・平易)
+          function _showActivateResult(r) {
+            if (!r || typeof showToast !== 'function') return;
+            if (r.ok) showToast('✅ この端末を有効化しました');
+            else if (r.reason === 'seat_limit')
+              showToast(
+                '⚠ 契約台数(' + (r.seat_limit || '') + '台)に達しています。事務所にご確認ください'
+              );
+            else if (r.reason === 'invalid_url') showToast('⚠ 有効化リンクが正しくありません');
+            else if (r.reason === 'offline') showToast('⚠ ネットに繋がる所で開いてください');
+            else showToast('⚠ 有効化できませんでした');
+          }
+          function _initLicenseActivate() {
+            if (typeof window.LicenseActivate === 'undefined') return;
+            let _c = null;
+            try {
+              _c = new URLSearchParams(location.search).get('c');
+            } catch (_) {
+              _c = null;
+            }
+            function _after() {
+              try {
+                if (typeof window._updateLicenseBanner === 'function')
+                  window._updateLicenseBanner();
+              } catch (_) {
+                /* ignore */
+              }
+              // ★実績のクラウド送信を起動 (2026-07-31・事務所機能の土台)★
+              //   ライセンス処理の後に呼ぶ = 会社url_tokenが揃ってから送る。
+              //   裏で走るだけ・失敗しても何も起きない(次回再送)。業務は絶対に止めない。
+              try {
+                if (window.JobSync && typeof window.JobSync.init === 'function') {
+                  window.JobSync.init();
+                }
+              } catch (_) {
+                /* ignore */
+              }
+              // ★請求先マスタ(請求書で選ぶ会社一覧)を取ってくる (2026-08-01)★
+              //   代行請求書アプリの companies が唯一の正。裏で取るだけ・失敗しても何も起きない。
+              try {
+                if (window.CustomerMaster && typeof window.CustomerMaster.init === 'function') {
+                  window.CustomerMaster.init();
+                }
+              } catch (_) {
+                /* ignore */
+              }
+            }
+            if (_c) {
+              try {
+                window.LicenseActivate.activate(_c).then(function (r) {
+                  _showActivateResult(r);
+                  _after();
+                  try {
+                    const u = new URL(location.href);
+                    u.searchParams.delete('c'); // ?c= を履歴/共有に残さない
+                    history.replaceState(null, '', u.pathname + u.search + u.hash);
+                  } catch (_) {
+                    /* ignore */
+                  }
+                });
+              } catch (_) {
+                /* ignore */
+              }
+            } else {
+              try {
+                window.LicenseActivate.init().then(_after);
+              } catch (_) {
+                _after();
+              }
+            }
+          }
+          // 業務開始画面の期限警告バナー(残り≤7日/期限切れ時のみ・非ブロック)
+          window._updateLicenseBanner = function () {
+            try {
+              const el = document.getElementById('licenseBanner');
+              if (!el || typeof window.LicenseActivate === 'undefined') return;
+              const gateOn = localStorage.getItem('DK_LICENSE_GATE_ON') === '1';
+              // ゲートOFF かつ 会社未登録端末は無関係 → 非表示(自社運用で邪魔しない)
+              if (!gateOn && !window.LicenseActivate.hasCompany()) {
+                el.style.display = 'none';
+                return;
+              }
+              const s = window.LicenseActivate.getState();
+              if (s.state === 'warning' || s.state === 'expired') {
+                const msgEl = document.getElementById('licenseBannerMsg');
+                if (msgEl)
+                  msgEl.textContent = s.message || 'Wi-Fiのある所でダイコメを開いてください';
+                el.style.display = 'block';
+              } else {
+                el.style.display = 'none';
+              }
+            } catch (_) {
+              /* 表示のみ */
+            }
+          };
+          function _wireLicenseBannerBtn() {
+            const btn = document.getElementById('licenseBannerSync');
+            if (!btn || typeof window.LicenseActivate === 'undefined') return;
+            btn.onclick = function () {
+              if (typeof showToast === 'function') showToast('更新中…');
+              try {
+                window.LicenseActivate.sync().then(function (r) {
+                  if (r && r.ok) {
+                    if (typeof showToast === 'function') showToast('✅ 更新しました');
+                  } else if (r && r.reason === 'offline') {
+                    if (typeof showToast === 'function')
+                      showToast('⚠ Wi-Fiのある所で押してください');
+                  } else {
+                    if (typeof showToast === 'function') showToast('⚠ 更新できませんでした');
+                  }
+                  window._updateLicenseBanner();
+                });
+              } catch (_) {
+                /* ignore */
+              }
+            };
+          }
+          const _origInitLA = _initLicenseActivate;
+          _initLicenseActivate = function () {
+            _origInitLA();
+            _wireLicenseBannerBtn();
+          };
           if (document.readyState === 'loading')
             document.addEventListener('DOMContentLoaded', _wireLicenseUI);
           else _wireLicenseUI();
@@ -11027,9 +11373,9 @@
         // ★端末管理(管理者) 配線 (2026-06-29): Supabase auth(REST) + dk_register/list/remove RPC★
         //   ログイン→自社の端末を一覧/追加/削除(SQL不要)。token は sessionStorage(管理操作のみ・揮発)。
         (function () {
-          const SB_URL = 'https://tnfwipbgfgjaymlszeid.supabase.co';
-          const SB_ANON =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuZndpcGJnZmdqYXltbHN6ZWlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1Nzk4MzQsImV4cCI6MjA5NzE1NTgzNH0.zhKPLSlW4zxsdjsXNvqDHvtP3wBqp-EKaxbjqLGW_ek';
+          // 接続先は js/dk-config.js(単一の真実源)から。ここには書かない(移設漏れ防止)。
+          const SB_URL = window.DKConfig.SB_URL;
+          const SB_ANON = window.DKConfig.ANON_KEY;
           const TOKEN_KEY = 'DK_ADMIN_TOKEN';
           function _msg(t, ok) {
             const e = document.getElementById('devAdminMsg');
@@ -13182,7 +13528,7 @@
         "
       >
         <h2 style="font-size: 20px; font-weight: 800; color: #1d4ed8; margin: 0 0 16px">
-          🔒 端末ライセンス
+          🔒 ライセンスの有効化
         </h2>
         <div
           id="licenseGateMessage"
@@ -13200,7 +13546,7 @@
           この端末は未登録です
         </div>
         <div style="font-size: 13px; font-weight: 700; color: #8e8e93; margin: 0 0 6px">
-          端末 ID (= 司さんに伝えて登録してもらう)
+          端末番号（うまくいかない時 事務所に伝える用）
         </div>
         <div
           id="licenseGateDeviceId"
@@ -13222,10 +13568,28 @@
         <button
           type="button"
           onclick="
-            window.License &&
-              window.License.refresh().then(function () {
-                window.hideLicenseGate && window.hideLicenseGate();
-              })
+            (function () {
+              if (typeof showToast === 'function') showToast('更新中…');
+              try {
+                window.LicenseActivate &&
+                  window.LicenseActivate.sync().then(function (r) {
+                    if (r && r.ok) {
+                      if (typeof showToast === 'function') showToast('✅ 有効化しました');
+                      window.hideLicenseGate && window.hideLicenseGate();
+                    } else if (r && r.reason === 'no_company') {
+                      if (typeof showToast === 'function')
+                        showToast('会社から配布されたURL/QRを開いてください');
+                    } else if (r && r.reason === 'offline') {
+                      if (typeof showToast === 'function')
+                        showToast('⚠ Wi-Fiのある所で押してください');
+                    } else if (typeof showToast === 'function') {
+                      showToast('⚠ 有効化できませんでした');
+                    }
+                  });
+              } catch (_e) {
+                /* ignore */
+              }
+            })()
           "
           style="
             display: block;
@@ -13242,7 +13606,7 @@
             font-family: 'Noto Sans JP', sans-serif;
           "
         >
-          再認証する (WiFi 接続後)
+          🔄 更新する（Wi-Fi接続後）
         </button>
         <button
           type="button"
@@ -13297,6 +13661,26 @@
         <div class="appbar-title">設定</div>
       </div>
       <div class="wrap">
+        <!-- ★事務所への入口 (2026-08-01)★
+             司さん「どのURLもここにしかいかんけど」= 会社URL(?c=) を開くとメーターが出るのは
+             仕様(ドライバーのスマホを使えるようにする物)だが、メーターから事務所へ戻る道が
+             1つも無かった。ここに1つ置く。★UIだけ・メーターの中身には触っていない★ -->
+        <div class="section">
+          <div class="section-title">事務所</div>
+          <div
+            class="row"
+            data-office-link="1"
+            onclick="location.href = 'dashboard.html'"
+            style="cursor: pointer"
+          >
+            <div class="row-label">
+              事務所をひらく（売上表・給料・月次集計）<br />
+              <span style="color: #8e8e93; font-size: 12px">社長用・ログインが要ります</span>
+            </div>
+            <div style="color: #8e8e93; font-size: 13px">›</div>
+          </div>
+        </div>
+
         <!-- 料金設定 → #overlayFare (MA Phase D で fare.html を overlay 化) -->
         <div class="section">
           <div class="section-title">料金設定</div>

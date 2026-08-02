@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 売上表</title>
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>"
+    />
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+        --danger: #e0483d;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 22px 18px 60px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--blue-d);
+      }
+
+      .top .tag {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 2px 10px;
+        margin-left: 8px;
+      }
+
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .linkbtn {
+        background: none;
+        border: none;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 2px;
+      }
+
+      /* 管理画面の中に出している時は、その画面の上のリンク列を隠す */
+      body.embedded .top,
+      body.embedded .sub {
+        display: none;
+      }
+
+      body.embedded .wrap {
+        padding-top: 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+
+      .monthbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .monthbar .m {
+        font-size: 18px;
+        font-weight: 800;
+        min-width: 9em;
+        text-align: center;
+      }
+
+      .navb {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 6px 14px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--blue-d);
+        cursor: pointer;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 9px 8px;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        border-bottom: 2px solid var(--line);
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      /* ★.detail td は tr.total td より前に置くこと（stylelint no-descending-specificity）★ */
+      .detail td {
+        background: #fbfdff;
+        font-size: 13px;
+      }
+
+      tr.total td {
+        font-weight: 800;
+        border-top: 2px solid var(--line);
+        border-bottom: none;
+        background: #f7fbff;
+      }
+
+      .carname {
+        font-weight: 700;
+        color: var(--blue-d);
+        background: none;
+        border: none;
+        border-bottom: 1px dashed var(--line);
+        font-size: 14px;
+        font-family: inherit;
+        width: 8em;
+        padding: 2px 0;
+      }
+
+      .carname:focus {
+        outline: none;
+        border-bottom-color: var(--blue);
+      }
+
+      .scroller {
+        overflow-x: auto;
+      }
+
+      .expander {
+        cursor: pointer;
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 700;
+        background: none;
+        border: none;
+        padding: 2px 6px;
+      }
+
+      .yen {
+        width: 6.5em;
+        text-align: right;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+
+      .yen:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      .msg {
+        text-align: center;
+        color: var(--muted);
+        padding: 26px 10px;
+        font-size: 14px;
+      }
+
+      .err {
+        color: var(--danger);
+        font-size: 13px;
+        margin-top: 8px;
+      }
+
+      .saved {
+        color: #1a8a4a;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+
+      .setrow {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 14px;
+      }
+
+      .setlabel {
+        font-weight: 700;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .chk {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .chk input {
+        width: 17px;
+        height: 17px;
+        accent-color: var(--blue);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div><span class="logo">ダイコメ</span><span class="tag">売上表</span></div>
+        <div>
+          <button class="linkbtn" onclick="location.href = 'kyuryo.html'">給料</button>
+          <button class="linkbtn" onclick="location.href = 'shukei.html'">月次集計</button>
+          <button class="linkbtn" onclick="location.href = 'dashboard.html'">会社設定</button>
+          <button class="linkbtn" id="btnLogout">ログアウト</button>
+        </div>
+      </div>
+      <div class="sub" id="sub">読み込み中…</div>
+
+      <div class="card">
+        <div class="monthbar">
+          <button class="navb" id="prevM">‹ 前の月</button>
+          <div class="m" id="monthLabel">—</div>
+          <button class="navb" id="nextM">次の月 ›</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="setrow">
+          <span class="setlabel">売上から引くもの</span>
+          <label class="chk"><input type="checkbox" id="dToll" /> 高速代</label>
+          <label class="chk"><input type="checkbox" id="dBridge" /> 橋代</label>
+          <label class="chk"><input type="checkbox" id="dOther" /> その他</label>
+          <span class="saved" id="setSaved"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="scroller">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>車</th>
+                <th>件数</th>
+                <th>実車距離</th>
+                <th>総走行距離</th>
+                <th>売上</th>
+                <th>引いた分</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="msg" id="msg" style="display: none"></div>
+        <div class="err" id="err" style="display: none"></div>
+        <div class="note">
+          件数・実車距離・総走行距離は<b>メーターが確定した数字</b>です（ここでは変えられません）。<br />
+          <b>売上＝メーターの合計から、上で選んだ実費を引いた分</b>です。<br />
+          高速代・橋代などは<b>手で入力</b>します。車名をタップすると名前を付けられます。
+        </div>
+      </div>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script src="js/dk-session.js"></script>
+    <script src="js/uriage-agg.js"></script>
+    <script src="js/daiko-payroll.js"></script>
+    <script src="js/payroll-period.js"></script>
+    <script src="js/payroll-daily.js"></script>
+    <script>
+      (function () {
+        'use strict';
+
+        // ★管理画面の中に入っている時は、上のリンク列を出さない（1つのアプリに見せる）★
+        //   単体URLで開いた時は今まで通り出る。
+        try {
+          if (window.self !== window.top) document.body.classList.add('embedded');
+        } catch (_) {
+          document.body.classList.add('embedded'); // 読めない = 中に入っている
+        }
+
+        var SESS = null;
+        var COMPANY = null;
+        var MONTH = new Date();
+        var ROWS = [];
+        var OPEN = {}; // 展開中の車
+        var SETTINGS = null; // 売上から何を引くか（会社ごと）
+        var RAW = { shifts: [], edits: [], labels: [] };
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+          });
+        }
+        function showErr(m) {
+          $('err').textContent = m;
+          $('err').style.display = m ? 'block' : 'none';
+        }
+        function showMsg(m) {
+          $('msg').textContent = m;
+          $('msg').style.display = m ? 'block' : 'none';
+        }
+
+        function ymLabel(d) {
+          return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+        }
+        function ymKey(d) {
+          return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+        }
+        function monthRange(d) {
+          var from = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0);
+          var to = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0);
+          return { from: from.toISOString(), to: to.toISOString() };
+        }
+
+        // ---------- 起動 ----------
+        DKSession.ensure().then(function (s) {
+          if (!s) return DKSession.goLogin();
+          SESS = s;
+          loadCompany();
+        });
+
+        $('btnLogout').onclick = function () {
+          DKSession.logout();
+        };
+        $('prevM').onclick = function () {
+          MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() - 1, 1);
+          render();
+          load();
+        };
+        $('nextM').onclick = function () {
+          MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() + 1, 1);
+          render();
+          load();
+        };
+
+        function loadCompany() {
+          DKSession.rest(SESS, 'dk_companies?select=company_id,name&limit=1')
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (j) {
+              if (!Array.isArray(j) || !j.length) {
+                $('sub').textContent = '会社が登録されていません';
+                showMsg('先に「会社設定」で会社を登録してください。');
+                return;
+              }
+              COMPANY = j[0];
+              $('sub').textContent = COMPANY.name || '';
+              render();
+              load();
+            })
+            .catch(function () {
+              $('sub').textContent = '';
+              showErr('会社の読み込みに失敗しました。通信を確認してください。');
+            });
+        }
+
+        function load() {
+          if (!COMPANY) return;
+          showErr('');
+          showMsg('読み込み中…');
+          var r = monthRange(MONTH);
+          var q =
+            'dk_shifts?select=shift_id,device_id,started_at,total_distance_m,actual_total_m,fare_total_yen,trip_count' +
+            '&started_at=gte.' +
+            encodeURIComponent(r.from) +
+            '&started_at=lt.' +
+            encodeURIComponent(r.to) +
+            '&order=started_at.asc&limit=2000';
+
+          // ★1つ失敗しても画面を殺さない★
+          //   手入力(dk_shift_edits)や車名(dk_device_labels)がまだ無くても、
+          //   メーターの数字だけは必ず出す。
+          function soft(path) {
+            return DKSession.rest(SESS, path)
+              .then(function (x) {
+                return x.ok ? x.json() : [];
+              })
+              .catch(function () {
+                return [];
+              });
+          }
+
+          Promise.all([
+            DKSession.rest(SESS, q).then(function (x) {
+              if (!x.ok) throw new Error('shifts');
+              return x.json();
+            }),
+            soft('dk_shift_edits?select=*&limit=2000'),
+            soft('dk_device_labels?select=*&limit=500'),
+            soft('dk_sales_settings?select=*&limit=1'),
+            soft('dk_manual_days?select=*&limit=2000'),
+          ])
+            .then(function (res) {
+              RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
+              RAW.edits = Array.isArray(res[1]) ? res[1] : [];
+              RAW.labels = Array.isArray(res[2]) ? res[2] : [];
+              var st = Array.isArray(res[3]) && res[3].length ? res[3][0] : null;
+              // ★手で入れた1日分も同じ数字で出す（給料・月次集計と食い違わないように）★
+              //   メーターの記録がある車は出さない＝二重計上しない。
+              var manual = (Array.isArray(res[4]) ? res[4] : []).filter(function (m) {
+                if (!m || !m.work_date) return false;
+                var inMonth = String(m.work_date).slice(0, 7) === ymKey(MONTH);
+                if (!inMonth) return false;
+                return !RAW.shifts.some(function (sh) {
+                  return (
+                    sh.device_id === m.device_id &&
+                    String(sh.started_at).slice(0, 10) === m.work_date
+                  );
+                });
+              });
+              var conv = PayrollDaily.manualAsShifts(manual);
+              RAW.shifts = RAW.shifts.concat(conv.shifts);
+              RAW.edits = RAW.edits.concat(conv.edits);
+              SETTINGS = UriageAgg.normSettings(st);
+              window.__editsById = {};
+              RAW.edits.forEach(function (e) {
+                if (e && e.shift_id) window.__editsById[e.shift_id] = e;
+              });
+              recalc();
+              renderSettings();
+              render();
+            })
+            .catch(function () {
+              showMsg('');
+              showErr('読み込みに失敗しました。通信を確認してください。');
+            });
+        }
+
+        // 手元のデータから集計し直す（通信し直さない）
+        function recalc() {
+          var edits = Object.keys(window.__editsById || {}).map(function (k) {
+            return window.__editsById[k];
+          });
+          ROWS = UriageAgg.byDevice(RAW.shifts, edits, RAW.labels, SETTINGS);
+        }
+
+        // ---------- 売上から引くものの設定 ----------
+        function renderSettings() {
+          var s = SETTINGS || UriageAgg.normSettings(null);
+          $('dToll').checked = !!s.deduct_toll;
+          $('dBridge').checked = !!s.deduct_bridge;
+          $('dOther').checked = !!s.deduct_other;
+        }
+        ['dToll', 'dBridge', 'dOther'].forEach(function (id) {
+          $(id).onchange = function () {
+            SETTINGS = {
+              deduct_toll: $('dToll').checked,
+              deduct_bridge: $('dBridge').checked,
+              deduct_other: $('dOther').checked,
+            };
+            recalc();
+            render();
+            saveSettings();
+          };
+        });
+        function saveSettings() {
+          if (!COMPANY) return;
+          DKSession.rest(SESS, 'dk_sales_settings?on_conflict=company_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              deduct_toll: SETTINGS.deduct_toll,
+              deduct_bridge: SETTINGS.deduct_bridge,
+              deduct_other: SETTINGS.deduct_other,
+              updated_at: new Date().toISOString(),
+            }),
+          })
+            .then(function (r) {
+              $('setSaved').textContent = r.ok ? '保存しました' : '';
+              if (!r.ok) showErr('設定を保存できませんでした。');
+              else showErr('');
+              setTimeout(function () {
+                $('setSaved').textContent = '';
+              }, 1600);
+            })
+            .catch(function () {
+              showErr('設定を保存できませんでした。');
+            });
+        }
+
+        // ---------- 描画 ----------
+        function render() {
+          $('monthLabel').textContent = ymLabel(MONTH);
+          var tb = $('tbody');
+          if (!ROWS.length) {
+            tb.innerHTML = '';
+            showMsg('この月はまだ記録がありません。');
+            return;
+          }
+          showMsg('');
+          var html = '';
+          ROWS.forEach(function (r) {
+            html +=
+              '<tr>' +
+              '<td><input class="carname" data-dev="' +
+              esc(r.device_id) +
+              '" value="' +
+              esc(r.label) +
+              '" placeholder="車の名前"></td>' +
+              '<td>' +
+              r.trip_count +
+              '</td>' +
+              '<td>' +
+              UriageAgg.km(r.actual_total_m) +
+              ' km</td>' +
+              '<td>' +
+              UriageAgg.km(r.total_distance_m) +
+              ' km</td>' +
+              '<td>¥' +
+              r.net_fare_yen.toLocaleString() +
+              '</td>' +
+              '<td>−¥' +
+              r.deduct_yen.toLocaleString() +
+              '</td>' +
+              '<td><button class="expander" data-dev="' +
+              esc(r.device_id) +
+              '">' +
+              (OPEN[r.device_id] ? '閉じる' : '日ごと') +
+              '</button></td>' +
+              '</tr>';
+
+            if (OPEN[r.device_id]) {
+              r.shifts.forEach(function (s) {
+                var e = (window.__editsById || {})[s.shift_id] || {};
+                var d = new Date(s.started_at);
+                html +=
+                  '<tr class="detail">' +
+                  '<td>' +
+                  (d.getMonth() + 1) +
+                  '/' +
+                  d.getDate() +
+                  '</td>' +
+                  '<td>' +
+                  (s.trip_count || 0) +
+                  '</td>' +
+                  '<td>' +
+                  UriageAgg.km(s.actual_total_m) +
+                  ' km</td>' +
+                  '<td>' +
+                  UriageAgg.km(s.total_distance_m) +
+                  ' km</td>' +
+                  '<td>¥' +
+                  (s.fare_total_yen || 0).toLocaleString() +
+                  '</td>' +
+                  '<td colspan="2">' +
+                  (s.isManual
+                    ? '<span class="kv">手で入れた分（給料の画面で直せます）</span>'
+                    : '高速 <input class="yen" data-sid="' +
+                      esc(s.shift_id) +
+                      '" data-f="toll_yen" value="' +
+                      (e.toll_yen || 0) +
+                      '"> ' +
+                      '橋 <input class="yen" data-sid="' +
+                      esc(s.shift_id) +
+                      '" data-f="bridge_yen" value="' +
+                      (e.bridge_yen || 0) +
+                      '"> ' +
+                      'その他 <input class="yen" data-sid="' +
+                      esc(s.shift_id) +
+                      '" data-f="other_yen" value="' +
+                      (e.other_yen || 0) +
+                      '">') +
+                  '</td>' +
+                  '</tr>';
+              });
+            }
+          });
+
+          var t = UriageAgg.total(ROWS);
+          html +=
+            '<tr class="total">' +
+            '<td>合計</td>' +
+            '<td>' +
+            t.trip_count +
+            '</td>' +
+            '<td>' +
+            UriageAgg.km(t.actual_total_m) +
+            ' km</td>' +
+            '<td>' +
+            UriageAgg.km(t.total_distance_m) +
+            ' km</td>' +
+            '<td>¥' +
+            t.net_fare_yen.toLocaleString() +
+            '</td>' +
+            '<td>−¥' +
+            t.deduct_yen.toLocaleString() +
+            '</td>' +
+            '<td></td>' +
+            '</tr>';
+          tb.innerHTML = html;
+          wire();
+        }
+
+        function wire() {
+          Array.prototype.forEach.call(document.querySelectorAll('.expander'), function (b) {
+            b.onclick = function () {
+              var d = b.getAttribute('data-dev');
+              OPEN[d] = !OPEN[d];
+              render();
+            };
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('.carname'), function (i) {
+            i.onchange = function () {
+              saveLabel(i.getAttribute('data-dev'), i.value);
+            };
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('.yen'), function (i) {
+            i.onchange = function () {
+              saveEdit(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
+            };
+          });
+        }
+
+        // ---------- 保存（手入力ぶん・元データは触らない） ----------
+        function saveLabel(deviceId, label) {
+          if (!COMPANY) return;
+          DKSession.rest(SESS, 'dk_device_labels?on_conflict=company_id,device_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              device_id: deviceId,
+              label: label,
+              updated_at: new Date().toISOString(),
+            }),
+          })
+            .then(function (r) {
+              if (!r.ok) showErr('車の名前を保存できませんでした。');
+              else showErr('');
+            })
+            .catch(function () {
+              showErr('車の名前を保存できませんでした。');
+            });
+        }
+
+        function saveEdit(shiftId, field, value) {
+          if (!COMPANY) return;
+          var v = parseInt(value, 10);
+          if (!isFinite(v) || v < 0) v = 0;
+          var cur = (window.__editsById || {})[shiftId] || {};
+          var body = {
+            shift_id: shiftId,
+            company_id: COMPANY.company_id,
+            toll_yen: cur.toll_yen || 0,
+            bridge_yen: cur.bridge_yen || 0,
+            other_yen: cur.other_yen || 0,
+            updated_at: new Date().toISOString(),
+          };
+          body[field] = v;
+
+          DKSession.rest(SESS, 'dk_shift_edits?on_conflict=shift_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify(body),
+          })
+            .then(function (r) {
+              if (!r.ok) {
+                showErr('保存できませんでした。通信を確認してください。');
+                return;
+              }
+              showErr('');
+              window.__editsById[shiftId] = body;
+              recalc(); // 売上（差引後）と合計に即反映
+              render();
+            })
+            .catch(function () {
+              showErr('保存できませんでした。通信を確認してください。');
+            });
+        }
+      })();
+    </script>
+  </body>
+</html>

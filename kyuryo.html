@@ -1,0 +1,1676 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 給料</title>
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💴</text></svg>"
+    />
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+        --danger: #e0483d;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 22px 18px 60px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--blue-d);
+      }
+
+      .top .tag {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 2px 10px;
+        margin-left: 8px;
+      }
+
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .linkbtn {
+        background: none;
+        border: none;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 2px;
+      }
+
+      /* 管理画面の中に出している時は、その画面の上のリンク列を隠す */
+      body.embedded .top,
+      body.embedded .sub {
+        display: none;
+      }
+
+      body.embedded .wrap {
+        padding-top: 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+      }
+
+      .tab {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .tab.on {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
+
+      .monthbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .monthbar .m {
+        font-size: 18px;
+        font-weight: 800;
+        min-width: 12em;
+        text-align: center;
+      }
+
+      .periodbar {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+
+      .pbtn {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 5px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .pbtn.on {
+        background: var(--blue-d);
+        border-color: var(--blue-d);
+        color: #fff;
+      }
+
+      .navb {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 6px 14px;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--blue-d);
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .btn {
+        background: var(--blue);
+        border: none;
+        border-radius: 10px;
+        padding: 8px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .btn.ghost {
+        background: #fff;
+        border: 1px solid var(--line);
+        color: var(--blue-d);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 8px;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        border-bottom: 2px solid var(--line);
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      .scroller {
+        overflow-x: auto;
+      }
+
+      .yen,
+      .hrs,
+      .txt {
+        text-align: right;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-size: 13px;
+        font-family: inherit;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      .hrs {
+        width: 5em;
+      }
+
+      .yen {
+        width: 6.5em;
+      }
+
+      .txt {
+        width: 9em;
+        text-align: left;
+      }
+
+      .yen:focus,
+      .hrs:focus,
+      .txt:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      select {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-size: 13px;
+        font-family: inherit;
+        color: var(--ink);
+        background: #fff;
+      }
+
+      .msg {
+        text-align: center;
+        color: var(--muted);
+        padding: 26px 10px;
+        font-size: 14px;
+      }
+
+      .err {
+        color: var(--danger);
+        font-size: 13px;
+        margin-top: 8px;
+      }
+
+      .saved {
+        color: #1a8a4a;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+
+      /* ── 時数入力 ─────────────────────────── */
+      .day {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+      }
+
+      .day > .dhead {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .dhead .dt {
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      .dhead .kv {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .dhead .kv b {
+        color: var(--ink);
+        font-size: 13px;
+      }
+
+      .carrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 6px 0;
+        border-top: 1px dashed var(--line);
+      }
+
+      .carrow .cname {
+        font-weight: 700;
+        color: var(--blue-d);
+        min-width: 6em;
+      }
+
+      .crew {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #f6faff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 2px 4px 2px 8px;
+      }
+
+      .manual {
+        background: #fff4e5;
+        color: #a15c00;
+        border: 1px solid #ffd9a0;
+        border-radius: 999px;
+        padding: 1px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 6px;
+      }
+
+      .xbtn {
+        background: none;
+        border: none;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0 4px;
+        font-family: inherit;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 13px;
+        padding: 4px 0;
+      }
+
+      /* ── 明細 ────────────────────────────── */
+      .slip {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 14px;
+        background: #fff;
+      }
+
+      .slip .shead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .slip .title {
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .slip .who {
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .slip .sums {
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .slip .sums span {
+        margin-left: 14px;
+      }
+
+      .slip table {
+        font-size: 13px;
+      }
+
+      .slip th,
+      .slip td {
+        padding: 5px 7px;
+        border: 1px solid var(--line);
+      }
+
+      .slip tbody th {
+        text-align: left;
+        color: var(--muted);
+        background: #f7fbff;
+        white-space: nowrap;
+      }
+
+      @media print {
+        body {
+          background: #fff;
+        }
+
+        .noprint {
+          display: none !important;
+        }
+
+        .wrap {
+          max-width: none;
+          padding: 0;
+        }
+
+        .slip {
+          break-inside: avoid;
+          border: none;
+          padding: 0 0 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top noprint">
+        <div><span class="logo">ダイコメ</span><span class="tag">給料</span></div>
+        <div>
+          <button class="linkbtn" onclick="location.href = 'uriage.html'">売上表</button>
+          <button class="linkbtn" onclick="location.href = 'shukei.html'">月次集計</button>
+          <button class="linkbtn" onclick="location.href = 'dashboard.html'">会社設定</button>
+          <button class="linkbtn" id="btnLogout">ログアウト</button>
+        </div>
+      </div>
+      <div class="sub noprint" id="sub">読み込み中…</div>
+
+      <div class="tabs noprint">
+        <button class="tab on" data-tab="slip">明細</button>
+        <button class="tab" data-tab="hours">時数を入れる</button>
+        <button class="tab" data-tab="emp">従業員</button>
+        <button class="tab" data-tab="set">決め方</button>
+      </div>
+
+      <div class="card noprint" id="monthCard">
+        <div class="monthbar">
+          <button class="navb" id="prevM">‹ 前の月</button>
+          <div class="m" id="monthLabel">—</div>
+          <button class="navb" id="nextM">次の月 ›</button>
+        </div>
+        <!-- ★司さんは月3回払い（1〜10 / 11〜20 / 21〜末日）＝どの期の明細かを選ぶ★ -->
+        <div class="periodbar" id="periodBar"></div>
+      </div>
+
+      <div class="err noprint" id="err" style="display: none"></div>
+      <div class="msg noprint" id="msg" style="display: none"></div>
+
+      <!-- 明細 -->
+      <div id="paneSlip">
+        <div class="card noprint" style="display: flex; gap: 10px; align-items: center">
+          <button class="btn" id="btnPrint">印刷する</button>
+          <span class="note" style="margin: 0">
+            1人ずつ、実物の給料明細と同じ並びで出ます。休んだ日は空欄です。
+          </span>
+        </div>
+        <div id="slips"></div>
+      </div>
+
+      <!-- 時数 -->
+      <div id="paneHours" style="display: none">
+        <div id="days"></div>
+        <div class="note">
+          <b>スマホがまだ無くても使えます。</b>「＋ 手で車を足す」で、その日の車の
+          <b>売上と時間を手で打てます</b>（今までの計算表と同じやり方）。<br />
+          <b>時間</b>は車が働いた時間です（空欄ならメーターの記録から自動で入ります）。<br />
+          <b>乗った人</b
+          >を選ぶと、その人の時数はその車の時間になります（実物の計算表と同じ）。<br />
+          人の横の小さい枠は<b>早上がりなど、その人だけ時間が違うとき</b>に入れます。
+        </div>
+      </div>
+
+      <!-- 従業員 -->
+      <div id="paneEmp" style="display: none">
+        <div class="card">
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>名前</th>
+                  <th>役割</th>
+                  <th>並び</th>
+                  <th>今いる人</th>
+                </tr>
+              </thead>
+              <tbody id="empBody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top: 12px">
+            <button class="btn" id="btnAddEmp">＋ 従業員を足す</button>
+            <span class="saved" id="empSaved"></span>
+          </div>
+          <div class="note">
+            役割ごとに歩合と最低保証が決まります（「決め方」で変えられます）。<br />
+            辞めた人は「今いる人」のチェックを外します。<b>過去の明細と金額はそのまま残ります。</b>
+          </div>
+        </div>
+      </div>
+
+      <!-- 決め方 -->
+      <div id="paneSet" style="display: none">
+        <div class="card">
+          <div class="title" style="font-weight: 800; margin-bottom: 10px">役割ごとの決め方</div>
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>役割</th>
+                  <th>歩合（売上1hのうち）</th>
+                  <th>最低保証（1時間あたり）</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="roleBody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top: 10px">
+            <button class="btn ghost" id="btnAddRole">＋ 役割を足す</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="title" style="font-weight: 800; margin-bottom: 10px">売上の分け方</div>
+          <table>
+            <tbody>
+              <tr>
+                <td>もとにする売上</td>
+                <td>
+                  <select id="poolMode">
+                    <option value="others_total">自分の車を除いた全部（司さんのやり方）</option>
+                    <option value="all_total">自分の車も入れて全部</option>
+                    <option value="per_car">乗った車ごと</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td>自分の車</td>
+                <td><select id="ownerDev"></select></td>
+              </tr>
+              <tr>
+                <td>積立（みんなの売上から）</td>
+                <td><input class="hrs" id="resPool" /> ％</td>
+              </tr>
+              <tr>
+                <td>積立（自分の売上から）</td>
+                <td><input class="hrs" id="resOwner" /> ％</td>
+              </tr>
+              <tr>
+                <td>積立を引いてから時数で割る</td>
+                <td style="text-align: left">
+                  <input type="checkbox" id="resFirst" style="width: 17px; height: 17px" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="title" style="font-weight: 800; margin-bottom: 10px">明細の期間</div>
+          <table>
+            <tbody>
+              <tr>
+                <td>何日から（月1回・日数で切るとき）</td>
+                <td><input class="hrs" id="pStart" /> 日</td>
+              </tr>
+              <tr>
+                <td>払い方</td>
+                <td>
+                  <select id="pMode">
+                    <option value="thirds">月3回（1〜10日 / 11〜20日 / 21日〜末日）</option>
+                    <option value="month_end">月1回（下の「何日から」〜末日）</option>
+                    <option value="days">日数で切る</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td>日数（日数で切るとき）</td>
+                <td><input class="hrs" id="pDays" /> 日</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="margin-top: 12px">
+            <button class="btn" id="btnSaveSet">保存する</button>
+            <span class="saved" id="setSaved"></span>
+          </div>
+          <div class="note">
+            既定は<b>月3回</b>（1〜10日 / 11〜20日 / 21日〜末日）です。実物の「月別」シートの
+            <b>バ1〜10 / バ11〜20 / バ21〜31</b> がこの3回で、バ21〜31 は給料明細（21日〜末日）の
+            人数ぶんの合計と一致します。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script src="js/dk-session.js"></script>
+    <script src="js/uriage-agg.js"></script>
+    <script src="js/daiko-payroll.js"></script>
+    <script src="js/payroll-period.js"></script>
+    <script src="js/payroll-daily.js"></script>
+    <script>
+      (function () {
+        'use strict';
+
+        // ★管理画面の中に入っている時は、上のリンク列を出さない（1つのアプリに見せる）★
+        //   単体URLで開いた時は今まで通り出る。
+        try {
+          if (window.self !== window.top) document.body.classList.add('embedded');
+        } catch (_) {
+          document.body.classList.add('embedded'); // 読めない = 中に入っている
+        }
+
+        var SESS = null;
+        var COMPANY = null;
+        var TAB = 'slip';
+        var YM = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+        var PERIODS = []; // その月の期（司さんは月3回払い＝3つ）
+        var PIDX = 0; // いま見ている期
+        var PERIOD = null;
+        var SET = null; // dk_payroll_settings の行（生）
+        var RAW = {
+          shifts: [],
+          edits: [],
+          labels: [],
+          employees: [],
+          workHours: [],
+          manualDays: [], // 手で入れた1日分（スマホが無くても給料を出せる）
+          salesSettings: null,
+          payrollSettings: null,
+        };
+        var CTX = null;
+        var REP = null;
+        var EDIT_BY_SHIFT = {};
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+          });
+        }
+        function showErr(m) {
+          $('err').textContent = m || '';
+          $('err').style.display = m ? 'block' : 'none';
+        }
+        function showMsg(m) {
+          $('msg').textContent = m || '';
+          $('msg').style.display = m ? 'block' : 'none';
+        }
+        function flash(id, t) {
+          $(id).textContent = t;
+          setTimeout(function () {
+            $(id).textContent = '';
+          }, 1600);
+        }
+        function yen(v) {
+          if (v === null || v === undefined || !isFinite(v)) return '';
+          return Math.round(v).toLocaleString();
+        }
+        function hrs(v) {
+          if (v === null || v === undefined || !isFinite(v)) return '';
+          return (Math.round(v * 100) / 100).toFixed(2);
+        }
+        var WD = ['日', '月', '火', '水', '木', '金', '土'];
+        function mdw(dateStr) {
+          var p = String(dateStr).split('-');
+          var d = new Date(+p[0], +p[1] - 1, +p[2]);
+          return +p[1] + '/' + +p[2] + '(' + WD[d.getDay()] + ')';
+        }
+        function num(v) {
+          var x = parseFloat(v);
+          return isFinite(x) ? x : 0;
+        }
+
+        // ---------- 起動 ----------
+        DKSession.ensure().then(function (s) {
+          if (!s) return DKSession.goLogin();
+          SESS = s;
+          loadCompany();
+        });
+
+        $('btnLogout').onclick = function () {
+          DKSession.logout();
+        };
+        $('btnPrint').onclick = function () {
+          window.print();
+        };
+        $('prevM').onclick = function () {
+          YM = PayrollPeriod.shift(YM, -1);
+          PIDX = 0;
+          loadPeriod();
+        };
+        $('nextM').onclick = function () {
+          YM = PayrollPeriod.shift(YM, 1);
+          PIDX = 0;
+          loadPeriod();
+        };
+        Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
+          b.onclick = function () {
+            TAB = b.getAttribute('data-tab');
+            Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+              x.className = 'tab' + (x === b ? ' on' : '');
+            });
+            render();
+          };
+        });
+
+        // ---------- 通信の共通 ----------
+        // ★1つ失敗しても画面を殺さない★（表がまだ無くても他は出す）
+        function soft(path) {
+          return DKSession.rest(SESS, path)
+            .then(function (x) {
+              return x.ok ? x.json() : [];
+            })
+            .catch(function () {
+              return [];
+            });
+        }
+        function upsert(table, conflict, body) {
+          return DKSession.rest(SESS, table + '?on_conflict=' + conflict, {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify(body),
+          });
+        }
+
+        function loadCompany() {
+          DKSession.rest(SESS, 'dk_companies?select=company_id,name&limit=1')
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (j) {
+              if (!Array.isArray(j) || !j.length) {
+                $('sub').textContent = '会社が登録されていません';
+                showMsg('先に「会社設定」で会社を登録してください。');
+                return;
+              }
+              COMPANY = j[0];
+              $('sub').textContent = COMPANY.name || '';
+              loadMasters();
+            })
+            .catch(function () {
+              showErr('会社の読み込みに失敗しました。通信を確認してください。');
+            });
+        }
+
+        // 期間に関係ない物（従業員・車名・決め方）
+        function loadMasters() {
+          Promise.all([
+            soft('dk_employees?select=*&order=sort_order.asc&limit=500'),
+            soft('dk_device_labels?select=*&limit=500'),
+            soft('dk_payroll_settings?select=*&limit=1'),
+            soft('dk_sales_settings?select=*&limit=1'),
+          ]).then(function (res) {
+            RAW.employees = res[0] || [];
+            RAW.labels = res[1] || [];
+            SET = (res[2] && res[2][0]) || null;
+            RAW.payrollSettings = SET;
+            RAW.salesSettings = (res[3] && res[3][0]) || null;
+            loadPeriod();
+          });
+        }
+
+        // 期間ぶん（勤務・手入力・時数）
+        function loadPeriod() {
+          if (!COMPANY) return;
+          var st = PayrollDaily.normSettings(SET);
+          PERIODS = PayrollPeriod.periodsOf(YM.year, YM.month, {
+            startDay: st.periodStartDay,
+            endMode: st.periodEndMode,
+            days: st.periodDays,
+          });
+          if (!(PIDX >= 0 && PIDX < PERIODS.length)) PIDX = 0;
+          PERIOD = PERIODS[PIDX];
+          showErr('');
+          showMsg('読み込み中…');
+
+          // 期間の日付は日本時間。勤務は開始時刻で数える。
+          var from = PERIOD.start + 'T00:00:00+09:00';
+          var toD = new Date(
+            +PERIOD.end.slice(0, 4),
+            +PERIOD.end.slice(5, 7) - 1,
+            +PERIOD.end.slice(8, 10) + 1
+          );
+          var to =
+            toD.getFullYear() +
+            '-' +
+            ('0' + (toD.getMonth() + 1)).slice(-2) +
+            '-' +
+            ('0' + toD.getDate()).slice(-2) +
+            'T00:00:00+09:00';
+
+          Promise.all([
+            soft(
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count' +
+                '&started_at=gte.' +
+                encodeURIComponent(from) +
+                '&started_at=lt.' +
+                encodeURIComponent(to) +
+                '&order=started_at.asc&limit=2000'
+            ),
+            soft('dk_shift_edits?select=*&limit=2000'),
+            soft(
+              'dk_work_hours?select=*&work_date=gte.' +
+                PERIOD.start +
+                '&work_date=lte.' +
+                PERIOD.end +
+                '&limit=2000'
+            ),
+            soft(
+              'dk_manual_days?select=*&work_date=gte.' +
+                PERIOD.start +
+                '&work_date=lte.' +
+                PERIOD.end +
+                '&limit=2000'
+            ),
+          ]).then(function (res) {
+            RAW.shifts = res[0] || [];
+            RAW.edits = res[1] || [];
+            RAW.workHours = res[2] || [];
+            RAW.manualDays = res[3] || [];
+            EDIT_BY_SHIFT = {};
+            RAW.edits.forEach(function (e) {
+              if (e && e.shift_id) EDIT_BY_SHIFT[e.shift_id] = e;
+            });
+            showMsg('');
+            recalc();
+            render();
+          });
+        }
+
+        function recalc() {
+          CTX = PayrollDaily.buildCtx(RAW);
+          REP = PayrollDaily.report(PERIOD ? PERIOD.dates : [], CTX);
+        }
+
+        // ---------- 描画 ----------
+        function render() {
+          $('monthLabel').textContent = PERIOD
+            ? PERIOD.year + '年 ' + PERIOD.label + '　' + PERIOD.rangeLabel
+            : '—';
+          renderPeriodBar();
+          $('monthCard').style.display = TAB === 'slip' || TAB === 'hours' ? '' : 'none';
+          $('paneSlip').style.display = TAB === 'slip' ? '' : 'none';
+          $('paneHours').style.display = TAB === 'hours' ? '' : 'none';
+          $('paneEmp').style.display = TAB === 'emp' ? '' : 'none';
+          $('paneSet').style.display = TAB === 'set' ? '' : 'none';
+          if (TAB === 'slip') renderSlips();
+          if (TAB === 'hours') renderDays();
+          if (TAB === 'emp') renderEmp();
+          if (TAB === 'set') renderSet();
+        }
+
+        // ── 期の選び方（司さんは月3回払い）────────────────
+        function renderPeriodBar() {
+          var bar = $('periodBar');
+          if (!PERIODS || PERIODS.length < 2) {
+            bar.innerHTML = ''; // 1回払いの会社では出さない
+            return;
+          }
+          bar.innerHTML = PERIODS.map(function (p, i) {
+            return (
+              '<button class="pbtn' +
+              (i === PIDX ? ' on' : '') +
+              '" data-pidx="' +
+              i +
+              '">' +
+              esc(p.name) +
+              '</button>'
+            );
+          }).join('');
+          Array.prototype.forEach.call(bar.querySelectorAll('[data-pidx]'), function (b) {
+            b.onclick = function () {
+              PIDX = parseInt(b.getAttribute('data-pidx'), 10) || 0;
+              loadPeriod();
+            };
+          });
+        }
+
+        // ── 明細（実物の給料1〜8と同じ並び）──────────────
+        function renderSlips() {
+          var box = $('slips');
+          if (!REP || !REP.employees.length) {
+            box.innerHTML =
+              '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
+            return;
+          }
+          var cars = REP.cars;
+          var html = '';
+          REP.employees.forEach(function (e) {
+            html +=
+              '<div class="slip"><div class="shead">' +
+              '<div><div class="title">給料明細</div>' +
+              '<div>' +
+              esc(PERIOD.label) +
+              '　' +
+              esc(PERIOD.rangeLabel) +
+              '</div></div>' +
+              '<div class="sums">合計 <span>¥' +
+              yen(e.totalPay) +
+              '</span> <span>' +
+              hrs(e.totalHours) +
+              ' 時間</span></div>' +
+              '<div class="who">' +
+              esc(e.name) +
+              '　殿</div>' +
+              '</div><div class="scroller"><table><tbody>';
+
+            function row(label, get, cls) {
+              var s = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + esc(label) + '</th>';
+              e.cells.forEach(function (c) {
+                s += '<td>' + get(c) + '</td>';
+              });
+              return s + '</tr>';
+            }
+
+            // 日付
+            html += '<tr><th>日付</th>';
+            e.cells.forEach(function (c) {
+              html += '<th>' + mdw(c.date) + '</th>';
+            });
+            html += '</tr>';
+
+            html += row('金額', function (c) {
+              return c.pay === null ? '' : yen(c.pay);
+            });
+            html += row('時間', function (c) {
+              return c.hours === null ? '' : hrs(c.hours);
+            });
+            cars.forEach(function (car, i) {
+              html += row('売上' + (i + 1) + '（' + car.label + '）', function (c) {
+                return c.carSales[i] === null ? '' : yen(c.carSales[i]);
+              });
+            });
+            html += row('時間（全台）', function (c) {
+              return c.poolHours === null ? '' : hrs(c.poolHours);
+            });
+
+            html += '</tbody></table></div></div>';
+          });
+
+          // つかさの取り分（会社に残る分）
+          html +=
+            '<div class="card noprint"><b>会社に残る分（つかさの取り分）</b>　¥' +
+            yen(REP.ownerShareTotal) +
+            '<div class="note">売上合計 ¥' +
+            yen(REP.poolSalesTotal) +
+            '　／　積立 ¥' +
+            yen(REP.reserveTotal) +
+            '　／　みんなの給料 ¥' +
+            yen(REP.staffTotalAll) +
+            '　／　時数合計 ' +
+            hrs(REP.poolHoursTotal) +
+            ' 時間</div></div>';
+          box.innerHTML = html;
+        }
+
+        // ── 時数を入れる ────────────────────────
+        function renderDays() {
+          var box = $('days');
+          if (!PERIOD) return;
+          var actives = RAW.employees.filter(function (e) {
+            return e.active !== false;
+          });
+          var html = '';
+
+          PERIOD.dates.forEach(function (date) {
+            var day = (REP && REP.days[date]) || null;
+            var meter = RAW.shifts.filter(function (s) {
+              return PayrollDaily.dateOf(s.started_at) === date;
+            });
+            // ★手で入れた1日分も同じ並びに出す（メーターがある車は出さない＝二重に見せない）★
+            var meterDevs = {};
+            meter.forEach(function (s) {
+              meterDevs[s.device_id] = true;
+            });
+            var manual = RAW.manualDays.filter(function (m) {
+              return m.work_date === date && !meterDevs[m.device_id];
+            });
+            var shifts = meter.concat(
+              PayrollDaily.manualAsShifts(manual).shifts.map(function (x) {
+                return x;
+              })
+            );
+            var wh = RAW.workHours.filter(function (w) {
+              return w.work_date === date;
+            });
+
+            html += '<div class="day"><div class="dhead"><div class="dt">' + mdw(date) + '</div>';
+            if (day && day.poolSales) {
+              html +=
+                '<div class="kv">売上合計 <b>¥' +
+                yen(day.poolSales) +
+                '</b></div><div class="kv">時数合計 <b>' +
+                hrs(day.poolHours) +
+                '</b></div><div class="kv">売上1h <b>¥' +
+                yen(day.hourly) +
+                '</b></div><div class="kv">会社に残る分 <b>¥' +
+                yen(day.ownerShare) +
+                '</b></div>';
+            }
+            html += '</div>';
+
+            if (!shifts.length) {
+              html += '<div class="empty">この日はまだ何もありません。</div>';
+            }
+
+            shifts.forEach(function (s) {
+              var isManual = !!s.isManual;
+              var man = isManual
+                ? RAW.manualDays.filter(function (m) {
+                    return m.work_date === date && m.device_id === s.device_id;
+                  })[0] || {}
+                : null;
+              var e = isManual
+                ? {
+                    toll_yen: man.toll_yen,
+                    bridge_yen: man.bridge_yen,
+                    other_yen: man.other_yen,
+                    hours: man.hours,
+                  }
+                : EDIT_BY_SHIFT[s.shift_id] || {};
+              var auto = isManual ? 0 : PayrollDaily.carHoursOf(s, null);
+              var label = CTX && CTX.labels[s.device_id] ? CTX.labels[s.device_id] : s.device_id;
+              var own = CTX && CTX.settings.ownerDeviceId === s.device_id;
+              var crew = wh.filter(function (w) {
+                return w.device_id === s.device_id;
+              });
+
+              html +=
+                '<div class="carrow"><span class="cname">' +
+                esc(label) +
+                (own ? '（自分の車）' : '') +
+                '</span>' +
+                (isManual
+                  ? '<span class="manual">手入力</span>売上 <input class="yen" data-man-date="' +
+                    date +
+                    '" data-man-dev="' +
+                    esc(s.device_id) +
+                    '" data-man-f="sales_yen" value="' +
+                    num(man.sales_yen) +
+                    '">'
+                  : '<span class="kv">売上 ¥' +
+                    yen(num(s.fare_total_yen) - (UriageAgg.deductOf(e, RAW.salesSettings) || 0)) +
+                    '</span>') +
+                '　時間 ' +
+                (isManual
+                  ? '<input class="hrs" data-man-date="' +
+                    date +
+                    '" data-man-dev="' +
+                    esc(s.device_id) +
+                    '" data-man-f="hours" value="' +
+                    num(man.hours) +
+                    '">'
+                  : '<input class="hrs" data-sid="' +
+                    esc(s.shift_id) +
+                    '" data-dev="' +
+                    esc(s.device_id) +
+                    '" value="' +
+                    (e.hours === null || e.hours === undefined ? '' : e.hours) +
+                    '" placeholder="' +
+                    (auto ? auto : '') +
+                    '">') +
+                (isManual
+                  ? '<button class="xbtn" data-man-del-date="' +
+                    date +
+                    '" data-man-del-dev="' +
+                    esc(s.device_id) +
+                    '" title="この行を消す">✕</button>'
+                  : '');
+
+              crew.forEach(function (w) {
+                var emp = RAW.employees.filter(function (x) {
+                  return x.employee_id === w.employee_id;
+                })[0];
+                html +=
+                  '<span class="crew">' +
+                  esc(emp ? emp.name : '?') +
+                  '<input class="hrs" style="width:4.2em" data-wh-emp="' +
+                  esc(w.employee_id) +
+                  '" data-wh-date="' +
+                  date +
+                  '" data-wh-dev="' +
+                  esc(s.device_id) +
+                  '" value="' +
+                  (num(w.hours) > 0 ? w.hours : '') +
+                  '" placeholder="' +
+                  hrs(num(e.hours) > 0 ? e.hours : auto) +
+                  '">' +
+                  '<button class="xbtn" data-del-emp="' +
+                  esc(w.employee_id) +
+                  '" data-del-date="' +
+                  date +
+                  '">✕</button></span>';
+              });
+
+              // 追加用
+              var taken = {};
+              wh.forEach(function (w) {
+                taken[w.employee_id] = true;
+              });
+              var rest = actives.filter(function (a) {
+                return !taken[a.employee_id];
+              });
+              if (rest.length) {
+                html +=
+                  '<select data-add-date="' +
+                  date +
+                  '" data-add-dev="' +
+                  esc(s.device_id) +
+                  '"><option value="">＋ 乗った人</option>';
+                rest.forEach(function (a) {
+                  html += '<option value="' + esc(a.employee_id) + '">' + esc(a.name) + '</option>';
+                });
+                html += '</select>';
+              }
+              html += '</div>';
+            });
+
+            // ★手で1台ぶん足す（スマホが無い日・アプリ無しで走った日）★
+            var used = {};
+            shifts.forEach(function (x) {
+              used[x.device_id] = true;
+            });
+            var addable = ((CTX && CTX.devices) || []).filter(function (d) {
+              return !used[d];
+            });
+            html +=
+              '<div class="carrow"><select data-man-add="' +
+              date +
+              '"><option value="">＋ 手で車を足す</option>' +
+              addable
+                .map(function (d) {
+                  return (
+                    '<option value="' +
+                    esc(d) +
+                    '">' +
+                    esc((CTX.labels && CTX.labels[d]) || d) +
+                    '</option>'
+                  );
+                })
+                .join('') +
+              '<option value="__new__">＋ 新しい車…</option></select></div>';
+
+            html += '</div>';
+          });
+          box.innerHTML = html;
+          wireDays();
+        }
+
+        function wireDays() {
+          // 車の時数
+          Array.prototype.forEach.call(document.querySelectorAll('[data-sid]'), function (i) {
+            i.onchange = function () {
+              saveCarHours(i.getAttribute('data-sid'), i.value);
+            };
+          });
+          // 人ごとの時数の直し
+          Array.prototype.forEach.call(document.querySelectorAll('[data-wh-emp]'), function (i) {
+            i.onchange = function () {
+              saveWorkHour(
+                i.getAttribute('data-wh-date'),
+                i.getAttribute('data-wh-emp'),
+                i.getAttribute('data-wh-dev'),
+                i.value
+              );
+            };
+          });
+          // 乗った人を足す
+          Array.prototype.forEach.call(document.querySelectorAll('[data-add-date]'), function (s) {
+            s.onchange = function () {
+              if (!s.value) return;
+              saveWorkHour(
+                s.getAttribute('data-add-date'),
+                s.value,
+                s.getAttribute('data-add-dev'),
+                ''
+              );
+            };
+          });
+          // 外す
+          Array.prototype.forEach.call(document.querySelectorAll('[data-del-emp]'), function (b) {
+            b.onclick = function () {
+              delWorkHour(b.getAttribute('data-del-date'), b.getAttribute('data-del-emp'));
+            };
+          });
+          // 手で入れた1日分：直す
+          Array.prototype.forEach.call(document.querySelectorAll('[data-man-f]'), function (i) {
+            i.onchange = function () {
+              saveManual(
+                i.getAttribute('data-man-date'),
+                i.getAttribute('data-man-dev'),
+                i.getAttribute('data-man-f'),
+                i.value
+              );
+            };
+          });
+          // 手で入れた1日分：消す
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-man-del-dev]'),
+            function (b) {
+              b.onclick = function () {
+                delManual(b.getAttribute('data-man-del-date'), b.getAttribute('data-man-del-dev'));
+              };
+            }
+          );
+          // 手で車を足す
+          Array.prototype.forEach.call(document.querySelectorAll('[data-man-add]'), function (sel) {
+            sel.onchange = function () {
+              if (!sel.value) return;
+              var date = sel.getAttribute('data-man-add');
+              var dev = sel.value;
+              if (dev === '__new__') {
+                var name = window.prompt('車の名前を入れてください（例: 2号車）');
+                if (!name) {
+                  sel.value = '';
+                  return;
+                }
+                dev = 'manual-' + name;
+                saveLabel(dev, name);
+              }
+              saveManual(date, dev, 'sales_yen', 0);
+            };
+          });
+        }
+
+        // ── 手で入れた1日分 ───────────────────────────
+        function manualRow(date, dev) {
+          return (
+            RAW.manualDays.filter(function (m) {
+              return m.work_date === date && m.device_id === dev;
+            })[0] || null
+          );
+        }
+
+        function saveManual(date, dev, field, value) {
+          if (!COMPANY) return;
+          var cur = manualRow(date, dev) || {};
+          var v = num(value);
+          if (v < 0) v = 0;
+          var body = {
+            company_id: COMPANY.company_id,
+            work_date: date,
+            device_id: dev,
+            sales_yen: num(cur.sales_yen),
+            hours: num(cur.hours),
+            toll_yen: num(cur.toll_yen),
+            bridge_yen: num(cur.bridge_yen),
+            other_yen: num(cur.other_yen),
+            trip_count: num(cur.trip_count),
+            updated_at: new Date().toISOString(),
+          };
+          body[field] = v;
+          upsert('dk_manual_days', 'company_id,work_date,device_id', body)
+            .then(function (r) {
+              if (!r.ok) return showErr('手で入れた分を保存できませんでした。');
+              showErr('');
+              var found = false;
+              RAW.manualDays = RAW.manualDays.map(function (m) {
+                if (m.work_date === date && m.device_id === dev) {
+                  found = true;
+                  return body;
+                }
+                return m;
+              });
+              if (!found) RAW.manualDays.push(body);
+              recalc();
+              renderDays();
+            })
+            .catch(function () {
+              showErr('手で入れた分を保存できませんでした。');
+            });
+        }
+
+        function delManual(date, dev) {
+          if (!COMPANY) return;
+          DKSession.rest(
+            SESS,
+            'dk_manual_days?company_id=eq.' +
+              encodeURIComponent(COMPANY.company_id) +
+              '&work_date=eq.' +
+              encodeURIComponent(date) +
+              '&device_id=eq.' +
+              encodeURIComponent(dev),
+            { method: 'DELETE' }
+          )
+            .then(function (r) {
+              if (!r.ok) return showErr('消せませんでした。');
+              showErr('');
+              RAW.manualDays = RAW.manualDays.filter(function (m) {
+                return !(m.work_date === date && m.device_id === dev);
+              });
+              recalc();
+              renderDays();
+            })
+            .catch(function () {
+              showErr('消せませんでした。');
+            });
+        }
+
+        function saveCarHours(shiftId, value) {
+          var cur = EDIT_BY_SHIFT[shiftId] || {};
+          var v = parseFloat(value);
+          var body = {
+            shift_id: shiftId,
+            company_id: COMPANY.company_id,
+            toll_yen: cur.toll_yen || 0,
+            bridge_yen: cur.bridge_yen || 0,
+            other_yen: cur.other_yen || 0,
+            hours: isFinite(v) && v > 0 ? v : null, // 空 = メーターの記録から自動
+            updated_at: new Date().toISOString(),
+          };
+          upsert('dk_shift_edits', 'shift_id', body)
+            .then(function (r) {
+              if (!r.ok) return showErr('時間を保存できませんでした。');
+              showErr('');
+              EDIT_BY_SHIFT[shiftId] = body;
+              var found = false;
+              RAW.edits = RAW.edits.map(function (e) {
+                if (e.shift_id === shiftId) {
+                  found = true;
+                  return body;
+                }
+                return e;
+              });
+              if (!found) RAW.edits.push(body);
+              recalc();
+              renderDays();
+            })
+            .catch(function () {
+              showErr('時間を保存できませんでした。');
+            });
+        }
+
+        function saveWorkHour(date, employeeId, deviceId, value) {
+          var v = parseFloat(value);
+          var body = {
+            company_id: COMPANY.company_id,
+            work_date: date,
+            employee_id: employeeId,
+            device_id: deviceId || '',
+            hours: isFinite(v) && v > 0 ? v : 0, // 0 = 乗った車の時数を使う
+            updated_at: new Date().toISOString(),
+          };
+          upsert('dk_work_hours', 'company_id,work_date,employee_id', body)
+            .then(function (r) {
+              if (!r.ok) return showErr('乗った人を保存できませんでした。');
+              showErr('');
+              var found = false;
+              RAW.workHours = RAW.workHours.map(function (w) {
+                if (w.work_date === date && w.employee_id === employeeId) {
+                  found = true;
+                  return body;
+                }
+                return w;
+              });
+              if (!found) RAW.workHours.push(body);
+              recalc();
+              renderDays();
+            })
+            .catch(function () {
+              showErr('乗った人を保存できませんでした。');
+            });
+        }
+
+        function delWorkHour(date, employeeId) {
+          DKSession.rest(
+            SESS,
+            'dk_work_hours?company_id=eq.' +
+              encodeURIComponent(COMPANY.company_id) +
+              '&work_date=eq.' +
+              encodeURIComponent(date) +
+              '&employee_id=eq.' +
+              encodeURIComponent(employeeId),
+            { method: 'DELETE' }
+          )
+            .then(function (r) {
+              if (!r.ok) return showErr('外せませんでした。');
+              showErr('');
+              RAW.workHours = RAW.workHours.filter(function (w) {
+                return !(w.work_date === date && w.employee_id === employeeId);
+              });
+              recalc();
+              renderDays();
+            })
+            .catch(function () {
+              showErr('外せませんでした。');
+            });
+        }
+
+        // ── 従業員 ─────────────────────────────
+        function roleNames() {
+          var st = PayrollDaily.normSettings(SET);
+          return Object.keys(st.roles);
+        }
+
+        function renderEmp() {
+          var roles = roleNames();
+          var html = '';
+          RAW.employees.forEach(function (e) {
+            html +=
+              '<tr><td><input class="txt" data-emp="' +
+              esc(e.employee_id) +
+              '" data-f="name" value="' +
+              esc(e.name) +
+              '"></td>' +
+              '<td><select data-emp="' +
+              esc(e.employee_id) +
+              '" data-f="role">' +
+              roles
+                .map(function (r) {
+                  return (
+                    '<option value="' +
+                    esc(r) +
+                    '"' +
+                    (r === e.role ? ' selected' : '') +
+                    '>' +
+                    esc(r) +
+                    '</option>'
+                  );
+                })
+                .join('') +
+              (roles.indexOf(e.role) < 0 && e.role
+                ? '<option value="' +
+                  esc(e.role) +
+                  '" selected>' +
+                  esc(e.role) +
+                  '（無い役割）</option>'
+                : '') +
+              '</select></td>' +
+              '<td><input class="hrs" data-emp="' +
+              esc(e.employee_id) +
+              '" data-f="sort_order" value="' +
+              (e.sort_order || 0) +
+              '"></td>' +
+              '<td><input type="checkbox" style="width:17px;height:17px" data-emp="' +
+              esc(e.employee_id) +
+              '" data-f="active"' +
+              (e.active !== false ? ' checked' : '') +
+              '></td></tr>';
+          });
+          if (!RAW.employees.length) {
+            html = '<tr><td colspan="4" class="empty">まだ誰も登録されていません。</td></tr>';
+          }
+          $('empBody').innerHTML = html;
+          Array.prototype.forEach.call(document.querySelectorAll('[data-emp]'), function (i) {
+            i.onchange = function () {
+              var f = i.getAttribute('data-f');
+              var v = f === 'active' ? i.checked : f === 'sort_order' ? num(i.value) : i.value;
+              saveEmp(i.getAttribute('data-emp'), f, v);
+            };
+          });
+        }
+
+        $('btnAddEmp').onclick = function () {
+          if (!COMPANY) return;
+          var roles = roleNames();
+          DKSession.rest(SESS, 'dk_employees', {
+            method: 'POST',
+            headers: { Prefer: 'return=representation' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              name: '新しい人',
+              role: roles[0] || '2種',
+              sort_order: RAW.employees.length + 1,
+            }),
+          })
+            .then(function (r) {
+              return r.ok ? r.json() : null;
+            })
+            .then(function (j) {
+              if (!j || !j.length) return showErr('従業員を足せませんでした。');
+              showErr('');
+              RAW.employees.push(j[0]);
+              recalc();
+              renderEmp();
+              flash('empSaved', '足しました');
+            })
+            .catch(function () {
+              showErr('従業員を足せませんでした。');
+            });
+        };
+
+        function saveEmp(id, field, value) {
+          var body = {};
+          body[field] = value;
+          body.updated_at = new Date().toISOString();
+          DKSession.rest(SESS, 'dk_employees?employee_id=eq.' + encodeURIComponent(id), {
+            method: 'PATCH',
+            body: JSON.stringify(body),
+          })
+            .then(function (r) {
+              if (!r.ok) return showErr('保存できませんでした。');
+              showErr('');
+              RAW.employees.forEach(function (e) {
+                if (e.employee_id === id) e[field] = value;
+              });
+              RAW.employees.sort(function (a, b) {
+                return num(a.sort_order) - num(b.sort_order);
+              });
+              recalc();
+              flash('empSaved', '保存しました');
+            })
+            .catch(function () {
+              showErr('保存できませんでした。');
+            });
+        }
+
+        // ── 決め方 ─────────────────────────────
+        function renderSet() {
+          var st = PayrollDaily.normSettings(SET);
+          var html = '';
+          Object.keys(st.roles).forEach(function (r) {
+            html +=
+              '<tr><td><input class="txt" data-role="' +
+              esc(r) +
+              '" data-f="name" value="' +
+              esc(r) +
+              '"></td>' +
+              '<td><input class="hrs" data-role="' +
+              esc(r) +
+              '" data-f="rate" value="' +
+              st.roles[r].rate +
+              '"></td>' +
+              '<td><input class="yen" data-role="' +
+              esc(r) +
+              '" data-f="floor" value="' +
+              st.roles[r].floor +
+              '"> 円</td>' +
+              '<td><button class="xbtn" data-role-del="' +
+              esc(r) +
+              '">✕</button></td></tr>';
+          });
+          $('roleBody').innerHTML = html;
+
+          $('poolMode').value = st.poolMode;
+          $('resPool').value = Math.round(st.reservePoolRate * 1000) / 10;
+          $('resOwner').value = Math.round(st.reserveOwnerRate * 1000) / 10;
+          $('resFirst').checked = !!st.deductReserveBeforeRate;
+          $('pStart').value = st.periodStartDay;
+          $('pMode').value = st.periodEndMode;
+          $('pDays').value = st.periodDays;
+
+          var devs = (CTX && CTX.devices) || [];
+          $('ownerDev').innerHTML =
+            '<option value="">（決めていない）</option>' +
+            devs
+              .map(function (d) {
+                var lab = (CTX.labels && CTX.labels[d]) || d;
+                return (
+                  '<option value="' +
+                  esc(d) +
+                  '"' +
+                  (d === st.ownerDeviceId ? ' selected' : '') +
+                  '>' +
+                  esc(lab) +
+                  '</option>'
+                );
+              })
+              .join('');
+
+          Array.prototype.forEach.call(document.querySelectorAll('[data-role-del]'), function (b) {
+            b.onclick = function () {
+              var r = b.getAttribute('data-role-del');
+              var st2 = PayrollDaily.normSettings(SET);
+              delete st2.roles[r];
+              stageRoles(st2.roles);
+              renderSet();
+            };
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-role]'), function (i) {
+            i.onchange = function () {
+              var st2 = PayrollDaily.normSettings(SET);
+              var old = i.getAttribute('data-role');
+              var f = i.getAttribute('data-f');
+              var cur = st2.roles[old] || { rate: 0, floor: 0 };
+              if (f === 'name') {
+                if (!i.value || i.value === old) return;
+                delete st2.roles[old];
+                st2.roles[i.value] = cur;
+              } else {
+                cur[f] = num(i.value);
+                st2.roles[old] = cur;
+              }
+              stageRoles(st2.roles);
+              renderSet();
+            };
+          });
+        }
+
+        function stageRoles(roles) {
+          SET = SET || {};
+          SET.roles = roles;
+          RAW.payrollSettings = SET;
+          recalc();
+        }
+
+        $('btnAddRole').onclick = function () {
+          var st = PayrollDaily.normSettings(SET);
+          var i = 1;
+          while (st.roles['役割' + i]) i++;
+          st.roles['役割' + i] = { rate: 0.3, floor: 1000 };
+          stageRoles(st.roles);
+          renderSet();
+        };
+
+        $('btnSaveSet').onclick = function () {
+          if (!COMPANY) return;
+          var st = PayrollDaily.normSettings(SET);
+          var body = {
+            company_id: COMPANY.company_id,
+            pool_mode: $('poolMode').value,
+            deduct_reserve_before_rate: $('resFirst').checked,
+            reserve_pool_rate: num($('resPool').value) / 100,
+            reserve_owner_rate: num($('resOwner').value) / 100,
+            period_start_day: num($('pStart').value) || 21,
+            period_end_mode: $('pMode').value,
+            period_days: num($('pDays').value) || 11,
+            owner_device_id: $('ownerDev').value || '',
+            roles: st.roles,
+            updated_at: new Date().toISOString(),
+          };
+          upsert('dk_payroll_settings', 'company_id', body)
+            .then(function (r) {
+              if (!r.ok) return showErr('決め方を保存できませんでした。');
+              showErr('');
+              SET = body;
+              RAW.payrollSettings = SET;
+              flash('setSaved', '保存しました');
+              loadPeriod(); // 期間が変わることがあるので読み直す
+            })
+            .catch(function () {
+              showErr('決め方を保存できませんでした。');
+            });
+        };
+      })();
+    </script>
+  </body>
+</html>
