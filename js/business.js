@@ -48,6 +48,10 @@ const Business = (function () {
     //   current_trip を null 化する。住所取得は Meter.getNearestAddress に委譲。
     //   絶対ルール準拠: 住所取得失敗 (null) でも業務継続・代行開始/確定を絶対に止めない。
     current_trip: null, // { start_time, start_address, waypoints:[{address,timestamp}], end_address }
+    // ★終了時に履歴へ積んだかの印 (2026-08-03)★
+    //   end() で積む形にしたので、abandon() が積み直さないための目印。
+    //   ★保存・復元・初期化の全部に通すこと★（1箇所でも漏れると二重に積まれる）。
+    history_pushed: false,
   };
 
   // ★設計変更宣言 (2026-05-14・業務リセット仕様変更):
@@ -94,6 +98,7 @@ const Business = (function () {
       last_meter_distance_m: 0,
       // 経由地点 + 住所表示機能 (2026-05-15・業務開始時は trip 未開始のため null)
       current_trip: null,
+      history_pushed: false, // ★新しい業務なので、まだ積んでいない★
     };
     // ★設計変更宣言 (2026-05-14・business_distance_m を業務開始でも 0 リセット):
     //   通常は Meter.businessEnd() で 0 リセットされるが、abandon() 経由 (前業務 limbo) や
@@ -123,8 +128,21 @@ const Business = (function () {
   // 業務終了（[終了]ボタン押下時）
   // 3時間以内なら resume() で再開可能
   // 3時間経過後は次回 start() or checkAutoAbandon() で自動 abandon
+  // ★2026-08-03 作り直し★ 司さん「反映されない」の根治。
+  //
+  //   ★元の作り★ 業務終了では履歴に積まず、★次の業務開始の中の abandon() で積んで★いた
+  //     （index.html:8582「履歴の確定 push は次の Business.start() 内の abandon() で実施」）。
+  //     理由は二重 push 回避。だが夜の仕事は「終わったらもう開かない」ので、
+  //     ★その晩の記録は翌日まで どこにも無い＝クラウドにも上がらない★。
+  //
+  //   ★新しい作り★ 終了した時点で積む。二重にならないよう state に印を持つ。
+  //     ・end()    … 履歴に積んで history_pushed=true
+  //     ・abandon()… 既に積んであれば積み直さない
+  //     ・resume() … 積んだ分を履歴から外す（まだ終わっていないので）
+  //   距離・料金・メーター本体には触っていない（積むタイミングだけ）。
   function end() {
     if (!state.active && !state.start_time) return null;
+    if (state.ended && state.history_pushed) return getReport(); // 2回押しても増やさない
     const now = Date.now();
     state.active = false;
     state.ended = true;
@@ -138,9 +156,15 @@ const Business = (function () {
         /* noop */
       }
     }
+    // ★ここで履歴に積む（次の業務開始を待たない）★
+    const report = getReport();
+    if (state.start_time) {
+      _appendHistory(report);
+      state.history_pushed = true;
+    }
     save();
-    if (typeof dlog === 'function') dlog('[Business] end (resumable for 3h)');
-    return getReport();
+    if (typeof dlog === 'function') dlog('[Business] end (history saved / resumable)');
+    return report;
   }
 
   // 業務再開（end 後・前業務 limbo 状態なら常時可能・3 時間制限なし）
@@ -148,6 +172,13 @@ const Business = (function () {
   function resume() {
     if (state.active) return false;
     if (!state.start_time) return false; // start していない
+    // ★end() が履歴に積んだ分を外す (2026-08-03)★
+    //   まだ終わっていないので履歴に残っていてはいけない。
+    //   外さないと、この業務を本当に終えた時に★もう1件積まれて二重になる★。
+    if (state.history_pushed) {
+      _removeHistory(state.start_time, state.end_time);
+      state.history_pushed = false;
+    }
     state.active = true;
     state.ended = false;
     state.ended_at = null;
@@ -177,7 +208,8 @@ const Business = (function () {
   // 通常は3時間経過後に checkAutoAbandon() から呼ばれる
   // 手動で確定したい場合の公開API（明示的な abandon）
   function abandon() {
-    if (state.start_time) {
+    // ★end() が既に積んでいれば積み直さない (2026-08-03)★ これが二重 push の唯一の防波堤。
+    if (state.start_time && !state.history_pushed) {
       const report = getReport();
       _appendHistory(report);
     }
@@ -195,6 +227,7 @@ const Business = (function () {
       last_meter_distance_m: 0,
       // 経由地点 + 住所表示機能 (2026-05-15・abandon で trip 進行中なら破棄)
       current_trip: null,
+      history_pushed: false, // ★リセット後は「まだ積んでいない」★
     };
     // ★ Phase 2: 業務破棄で business_active 完全停止
     if (typeof Meter !== 'undefined' && typeof Meter.setBusinessActive === 'function') {
@@ -1004,6 +1037,8 @@ const Business = (function () {
         //   絶対ルール準拠: distance_m / 課金 / 他 state / Meter には・触らない・1 行追加のみ。
         //   null/undefined/object 全パターン安全 (= '|| null' で吸収・参照 18 箇所は全て null ガード済)。
         current_trip: parsed.current_trip || null,
+        // ★2026-08-03★ ここを復元し忘れると、開き直したあとに同じ勤務が二重に積まれる
+        history_pushed: !!parsed.history_pushed,
       };
       // ★設計変更宣言 (2026-05-14): ロード後の自動 abandon (checkAutoAbandon) は撤去。
       //   limbo (ended=true / start_time!=null) はそのまま維持・代行開始時に abandon() で履歴 push。
@@ -1090,6 +1125,31 @@ const Business = (function () {
 
   // 履歴から業務状態を復元して active 状態に戻す（業務開始画面の「続きから再開」用）
   // history: getLastEndedBusiness() で取得した履歴オブジェクト
+  // ★履歴から1件だけ外す (2026-08-03)★
+  //   「終了 → 続ける」の時に使う。まだ終わっていない業務が履歴に残らないようにする。
+  //   ★start_time で見分ける★（end_time は続けるたびに変わるため当てにならない）。
+  function _removeHistory(startTime, endTime) {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      if (!raw) return false;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) return false;
+      const filtered = list.filter(function (item) {
+        if (!item) return false;
+        if (typeof startTime === 'number' && item.start_time === startTime) return false;
+        if (typeof endTime === 'number' && endTime && item.end_time === endTime) return false;
+        return true;
+      });
+      if (filtered.length !== list.length) {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(filtered));
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false; // 消せなくても業務は止めない
+    }
+  }
+
   function restoreFromHistory(history) {
     if (!history) return false;
     if (typeof history.start_time !== 'number') return false;

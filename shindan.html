@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 端末の中身をみる</title>
+    <!--
+      ★2026-08-03 追加★ 本番で「勤務は上がったのに距離が0」が起きたので、
+      ★端末に何が入っているかを実際に読む★ためだけのページ。
+
+      ・読むだけ。★1バイトも書き換えない★。
+      ・メーターの画面・業務の流れ・距離の計算には一切つながっていない（独立した1枚）。
+      ・事務所には出さない（通す一覧に入れていないので事務所の住所では404になる）。
+    -->
+    <style>
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        margin: 0;
+        padding: 16px;
+        background: #f2f7ff;
+        color: #14243d;
+      }
+
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+
+      p.sub {
+        font-size: 12px;
+        color: #5a6b82;
+        margin: 0 0 16px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid #dbe7f7;
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+
+      .card h2 {
+        font-size: 14px;
+        margin: 0 0 10px;
+        color: #0a5fd0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      td {
+        padding: 5px 4px;
+        border-bottom: 1px solid #eef3fb;
+        vertical-align: top;
+      }
+
+      td.k {
+        color: #5a6b82;
+        width: 48%;
+        word-break: break-all;
+      }
+
+      td.v {
+        font-weight: 700;
+        text-align: right;
+        word-break: break-all;
+      }
+
+      .big {
+        font-size: 20px;
+      }
+
+      .zero {
+        color: #c0392b;
+      }
+
+      .ok {
+        color: #1a7f4b;
+      }
+
+      button {
+        width: 100%;
+        padding: 14px;
+        font-size: 15px;
+        font-weight: 800;
+        border: 0;
+        border-radius: 10px;
+        background: #007aff;
+        color: #fff;
+        font-family: inherit;
+        margin-bottom: 10px;
+      }
+
+      pre {
+        background: #0f1720;
+        color: #d7e3f4;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 10px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>端末の中身をみる</h1>
+    <p class="sub">読むだけです。何も消しません・変えません。</p>
+
+    <button id="copyBtn" type="button">この内容をコピーする</button>
+
+    <div class="card">
+      <h2>いまの業務（daikou_business_state）</h2>
+      <table id="tState"></table>
+    </div>
+
+    <div class="card">
+      <h2>メーターの中（Meter.getState）</h2>
+      <table id="tMeter"></table>
+    </div>
+
+    <div class="card">
+      <h2>たまっている勤務（daikou_business_history）</h2>
+      <table id="tHist"></table>
+    </div>
+
+    <div class="card">
+      <h2>会社と送信の記録</h2>
+      <table id="tSync"></table>
+    </div>
+
+    <div class="card">
+      <h2>そのままの中身（貼り付け用）</h2>
+      <pre id="raw"></pre>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script>
+      (function () {
+        'use strict';
+        function ls(k) {
+          try {
+            return localStorage.getItem(k);
+          } catch (_) {
+            return null;
+          }
+        }
+        function j(k) {
+          try {
+            const r = ls(k);
+            return r ? JSON.parse(r) : null;
+          } catch (_) {
+            return null;
+          }
+        }
+        function km(m) {
+          return typeof m === 'number' ? (m / 1000).toFixed(3) + ' km' : String(m);
+        }
+        function row(t, k, v, cls) {
+          const tr = document.createElement('tr');
+          const a = document.createElement('td');
+          a.className = 'k';
+          a.textContent = k;
+          const b = document.createElement('td');
+          b.className = 'v ' + (cls || '');
+          b.textContent = v;
+          tr.appendChild(a);
+          tr.appendChild(b);
+          t.appendChild(tr);
+        }
+        function zc(v) {
+          return v === 0 || v === '0' || v === null || v === undefined ? 'zero' : 'ok';
+        }
+
+        const dump = {};
+
+        // ── いまの業務 ──
+        const st = j('daikou_business_state');
+        dump.business_state = st;
+        const tS = document.getElementById('tState');
+        if (!st) row(tS, '（保存なし）', '-');
+        else {
+          row(tS, '業務中か active', String(st.active));
+          row(tS, '終了予約 ended', String(st.ended));
+          row(
+            tS,
+            '開始 start_time',
+            st.start_time ? new Date(st.start_time).toLocaleString() : '-'
+          );
+          row(tS, '終了 end_time', st.end_time ? new Date(st.end_time).toLocaleString() : '-');
+          row(tS, '★総走行 total_distance_m★', km(st.total_distance_m), zc(st.total_distance_m));
+          row(tS, '実車 actual_total_m', km(st.actual_total_m), zc(st.actual_total_m));
+          row(tS, '売上 fare_total_yen', String(st.fare_total_yen) + ' 円', zc(st.fare_total_yen));
+          row(tS, '営業回数 trip_count', String(st.trip_count), zc(st.trip_count));
+          row(tS, '代行の件数 trips', String((st.trips || []).length), zc((st.trips || []).length));
+        }
+
+        // ── メーターの中 ──
+        const tM = document.getElementById('tMeter');
+        let ms = null;
+        try {
+          if (window.Meter && typeof Meter.getState === 'function') ms = Meter.getState();
+        } catch (_) {
+          ms = null;
+        }
+        dump.meter_state = ms
+          ? {
+              business_active: ms.business_active,
+              business_distance_m: ms.business_distance_m,
+              business_display_distance_m: ms.business_display_distance_m,
+              business_tier2_pending_m: ms.business_tier2_pending_m,
+              distance_m: ms.distance_m,
+              running: ms.running,
+              billing_frozen: ms.billing_frozen,
+            }
+          : null;
+        if (!ms) row(tM, '（メーターが読み込まれていない）', 'このページ単独では出ません');
+        else {
+          row(
+            tM,
+            '★業務ゲート business_active★',
+            String(ms.business_active),
+            ms.business_active ? 'ok' : 'zero'
+          );
+          row(
+            tM,
+            '確定ロック billing_frozen',
+            String(ms.billing_frozen),
+            ms.billing_frozen ? 'zero' : 'ok'
+          );
+          row(
+            tM,
+            '★業務距離 business_distance_m★',
+            km(ms.business_distance_m),
+            zc(ms.business_distance_m)
+          );
+          row(
+            tM,
+            '画面用 business_display_distance_m',
+            km(ms.business_display_distance_m),
+            zc(ms.business_display_distance_m)
+          );
+          row(
+            tM,
+            '保留 business_tier2_pending_m',
+            km(ms.business_tier2_pending_m),
+            zc(ms.business_tier2_pending_m)
+          );
+          row(tM, '課金距離 distance_m', km(ms.distance_m), zc(ms.distance_m));
+        }
+
+        // ── たまっている勤務 ──
+        const hist = j('daikou_business_history') || [];
+        dump.history = hist.map(function (h) {
+          return {
+            start_time: h.start_time,
+            end_time: h.end_time,
+            elapsed_sec: h.elapsed_sec,
+            total_distance_m: h.total_distance_m,
+            actual_total_m: h.actual_total_m,
+            fare_total_yen: h.fare_total_yen,
+            trip_count: h.trip_count,
+            trips: (h.trips || []).length,
+          };
+        });
+        const tH = document.getElementById('tHist');
+        if (!hist.length) row(tH, '（1件もない）', '-', 'zero');
+        hist.slice(0, 12).forEach(function (h, i) {
+          const when = h.start_time ? new Date(h.start_time).toLocaleString() : '-';
+          row(tH, i + 1 + '. ' + when, km(h.total_distance_m), zc(h.total_distance_m));
+          row(
+            tH,
+            '　　　代行' + (h.trips || []).length + '件 / ' + (h.fare_total_yen || 0) + '円',
+            (h.elapsed_sec || 0) + '秒'
+          );
+        });
+
+        // ── 会社と送信 ──
+        const tY = document.getElementById('tSync');
+        const co = ls('dk_license_company');
+        const sc = ls('dk_sync_company');
+        const sent = j('dk_synced_shifts') || [];
+        dump.company = { dk_license_company: co, dk_sync_company: sc, synced: sent.length };
+        row(
+          tY,
+          '今の会社 dk_license_company',
+          co ? co.slice(0, 12) + '…' : '（無い）',
+          co ? 'ok' : 'zero'
+        );
+        row(
+          tY,
+          '控えた会社 dk_sync_company',
+          sc ? sc.slice(0, 12) + '…' : '（無い）',
+          sc ? 'ok' : 'zero'
+        );
+        row(tY, '送信済みの勤務', String(sent.length) + ' 件');
+        const veh = j('dk_veh_list') || [];
+        row(tY, '登録された車', String(veh.length) + ' 台');
+
+        document.getElementById('raw').textContent = JSON.stringify(dump, null, 1);
+
+        document.getElementById('copyBtn').addEventListener('click', function () {
+          const t = JSON.stringify(dump, null, 1);
+          try {
+            navigator.clipboard.writeText(t);
+            this.textContent = '✅ コピーしました';
+          } catch (_) {
+            this.textContent = '下の黒い所を長押しでコピーしてください';
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
