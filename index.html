@@ -5504,6 +5504,9 @@
          RegionHelper を mm-data-pipeline より前に load し、Step7 の cache miss
          検知で利用可能にする。data-registry の後・mm-data-pipeline の前。 -->
     <script src="js/region-helper.js"></script>
+    <!-- ★どの県まで地図を落とすかを決める (2026-08-03)★
+         47県204MBを全部落として10〜25分待たせていたのをやめ、今いる県＋隣だけにする。 -->
+    <script src="js/dl-plan.js"></script>
     <script src="js/mm-data-pipeline.js"></script>
 
     <!-- ★OBD-II 速度源 (2026-06-05・obd ブランチ): Web Bluetooth(Android) → ELM327 → 車速PID。
@@ -12003,15 +12006,63 @@
           }
         }
 
-        async function _onCheckUpdate() {
+        // ★2026-08-03 作り直し★ 司さん「46県で止まる」「完了するまでもくそ遅い」
+        //
+        //   ★元の作りの問題（実測で確定）★
+        //     1. ★47都道府県ぶん・合計204MB★ を落としていた（roads 47件・最大は北海道11.2MB）。
+        //        パソコンの回線でも1件2〜2.5秒。携帯のWi-Fiなら1件10〜30秒＝★10〜25分★。
+        //        司さんが走るのは愛媛（4.4MB・1件）。★残り46県・約200MBは一生使わない。★
+        //     2. fetch に ★制限時間が無かった★。1県の応答が返らないと
+        //        ★永久に46/47のまま止まる★。エラーも出ない。これが「46で止まる」の正体。
+        //     3. cache:'reload' ＝ ★もう持っている県も毎回ぜんぶ落とし直す★。
+        //
+        //   ★直した中身★
+        //     ・既定は「今いる県＋隣」だけ（js/dl-plan.js が決める）。全国は明示で選ぶ。
+        //     ・1県ごとに制限時間（AbortController）。★止まらない★。
+        //     ・持っている県は取り直さない（cache:'reload' をやめる）。
+        //     ・今いる県を必ず1番目に落とす（先にこれが揃えば仕事は始められる）。
+        //   ★距離・料金・業務の流れには一切触っていない（落とすファイルを選ぶだけ）。★
+        const DL_TIMEOUT_MS = 45000; // 1県ぶんの制限時間（11MBの県でも足りる）
+
+        function _dlCurrentPref() {
+          try {
+            if (window.RegionHelper && typeof window.RegionHelper.getCurrentPref === 'function') {
+              const p = window.RegionHelper.getCurrentPref();
+              if (p && typeof p === 'string') return p;
+              if (p && p.pref) return p.pref;
+            }
+          } catch (_) {
+            /* 分からなければ null */
+          }
+          return null;
+        }
+
+        // 落とす県を決める。all=true なら全国（今いる県から順に）
+        function _dlTargets(all) {
+          const pref = _dlCurrentPref();
+          if (all) {
+            return window.DLPlan
+              ? window.DLPlan.orderFor(pref, PREFECTURES_DL)
+              : PREFECTURES_DL.slice();
+          }
+          const near = window.DLPlan ? window.DLPlan.planFor(pref) : null;
+          // ★県が分からない時は全国に落とす（少なく落として「地図が無い」より安全）★
+          if (!near) return PREFECTURES_DL.slice();
+          return near.filter(function (p) {
+            return PREFECTURES_DL.indexOf(p) >= 0;
+          });
+        }
+
+        async function _onCheckUpdate(all) {
           const btn = document.getElementById('_st_dlUpdateBtn');
           if (!btn) return;
           btn.disabled = true;
           const originalText = btn.textContent;
           btn.textContent = '⏳ 確認中...';
           try {
-            const total = PREFECTURES_DL.length;
-            const queue = PREFECTURES_DL.slice();
+            const list = _dlTargets(all === true);
+            const total = list.length;
+            const queue = list.slice();
             const PARALLEL = 2,
               MAX_RETRY = 3;
             let ok = 0,
@@ -12024,9 +12075,17 @@
                 let success = false,
                   lastErr = null;
                 for (let attempt = 1; attempt <= MAX_RETRY && !success; attempt++) {
+                  // ★制限時間★ これが無いと1県で永久に止まる（46/47のまま）
+                  const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                  const timer = ac
+                    ? setTimeout(function () {
+                        ac.abort();
+                      }, DL_TIMEOUT_MS)
+                    : null;
                   try {
                     const url = '/data/roads-' + pref + '.js';
-                    const res = await fetch(url, { cache: 'reload' });
+                    // ★cache:'reload' を使わない★＝もう持っている県は取り直さない
+                    const res = await fetch(url, ac ? { signal: ac.signal } : {});
                     if (!res.ok) throw new Error('HTTP ' + res.status);
                     await res.blob();
                     success = true;
@@ -12034,6 +12093,8 @@
                     lastErr = e;
                     if (attempt < MAX_RETRY)
                       await new Promise((r) => setTimeout(r, 1000 * attempt));
+                  } finally {
+                    if (timer) clearTimeout(timer);
                   }
                 }
                 if (success) ok++;
@@ -12049,7 +12110,7 @@
             const workers = [];
             for (let i = 0; i < PARALLEL; i++) workers.push(worker());
             await Promise.all(workers);
-            if (ok === total) _showToast('✅ ' + total + '県確認しました');
+            if (ok === total) _showToast('✅ ' + total + '県ぶん確認しました');
             else if (ok > 0)
               _showToast(
                 '⚠️ ' +
@@ -12072,6 +12133,10 @@
           }
         }
         window._st_onCheckUpdate = _onCheckUpdate;
+        // 全国ぶんを落とす（長距離を走る時だけ。既定は使わない）
+        window._st_onCheckUpdateAll = function () {
+          return _onCheckUpdate(true);
+        };
 
         window._st_toggleTrainingEnabled = function () {
           const next = !_trainingIsEnabled();
@@ -13757,8 +13822,18 @@
             </div>
           </div>
           <div class="dl-update-btn-wrap">
+            <!-- ★2026-08-03★ 既定は「今いる県＋隣」だけ（愛媛なら数十秒）。
+                 全国ぶん(47県・204MB)は10〜25分かかるので、長距離を走る時だけ下から。 -->
             <button class="dl-update-btn" id="_st_dlUpdateBtn" onclick="_st_onCheckUpdate()">
-              🔄 最新データを確認する
+              🔄 この辺りの地図を確認する
+            </button>
+            <button
+              class="dl-update-btn"
+              id="_st_dlUpdateAllBtn"
+              onclick="_st_onCheckUpdateAll()"
+              style="margin-top: 8px; background: #8e8e93"
+            >
+              🗾 全国ぶんを落とす（時間がかかります）
             </button>
           </div>
         </div>
