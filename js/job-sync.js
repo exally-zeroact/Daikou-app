@@ -26,6 +26,9 @@
   const HISTORY_KEY = 'daikou_business_history'; // business.js が書く履歴(読むだけ)
   const K_SYNCED = 'dk_synced_shifts'; // 送信済みの勤務(start_time)の記録
   const K_COMPANY = 'dk_license_company'; // license-activate が持つ会社url_token
+  // ★前回どの会社として送っていたか (2026-08-03 追加)★
+  //   これが無いと「会社が変わった」ことに気づけない。下の sealForCompanySwitch を見ること。
+  const K_SYNC_COMPANY = 'dk_sync_company';
   const DEVICE_ID_KEY = 'DAIKOME_DEVICE_ID';
 
   const MAX_BATCH = 20; // 1回に送る勤務の上限
@@ -126,6 +129,82 @@
       return out.slice(0, MAX_BATCH);
     } catch (_) {
       return [];
+    }
+  }
+
+  // ★会社が変わったら、前の会社の勤務を切り離す (2026-08-03)★
+  //
+  //   ★何が起きるところだったか（司さんの報告から見つかった）★
+  //     従業員の予備スマホをテストで使い、そのまま本番用に登録しようとしていた。
+  //     その端末にはテスト時の勤務が daikou_business_history に30日ぶん残っている。
+  //     ところが上の selectUnsynced は「まだ送っていないか」しか見ておらず、
+  //     ★どの会社の物かを見ていなかった★。本番の勤務は0件＝テスト分は全部「未送信」。
+  //     → 本番のQRを読んだ瞬間、★テストで走った分が本番の会社の売上に上がる★。
+  //        売上表には普通の1件として出るので、見ただけでは気づけない。
+  //
+  //   ★決まり（ここを間違えると逆の事故になる）★
+  //     ・会社が「無い → ある」(はじめての活性化) … ★切り離さない★
+  //       従業員は活性化する前から本番のメーターで実際に働いている。
+  //       その働きはその会社の物なので捨ててはいけない(30日で消える前に拾うのが目的)。
+  //     ・会社が「A → B」に変わった … ★切り離す★
+  //       Aのために走った分をBに請求してはいけない。
+  //
+  //   やり方: 履歴は1バイトも書き換えず、★今ある勤務を「送信済み」に印だけ付ける★。
+  //           これから走る分は今まで通り送れる。
+  function sealForCompanySwitch(store, companyToken) {
+    const out = { changed: false, sealed: 0 };
+    try {
+      const st = store || _ls();
+      if (!st) return out;
+      const now = _str(companyToken);
+      if (!now) return out;
+
+      let prev = '';
+      try {
+        prev = _str(st.getItem(K_SYNC_COMPANY));
+      } catch (_) {
+        prev = '';
+      }
+      if (prev === now) return out; // 同じ会社のまま = 何もしない
+      out.changed = true;
+
+      // ★はじめての活性化は切り離さない★（活性化前の働きもその会社の物）
+      if (prev) {
+        let history = [];
+        let synced = [];
+        try {
+          history = _arr(JSON.parse(st.getItem(HISTORY_KEY) || '[]'));
+        } catch (_) {
+          history = [];
+        }
+        try {
+          synced = _arr(JSON.parse(st.getItem(K_SYNCED) || '[]'));
+        } catch (_) {
+          synced = [];
+        }
+        const keys = [];
+        history.forEach(function (s) {
+          const k = shiftKey(s);
+          if (k) keys.push(k);
+        });
+        if (keys.length) {
+          try {
+            st.setItem(K_SYNCED, JSON.stringify(mergeSynced(synced, keys)));
+            out.sealed = keys.length;
+          } catch (_) {
+            /* 保存できなくても業務は止めない */
+          }
+        }
+      }
+
+      try {
+        st.setItem(K_SYNC_COMPANY, now);
+      } catch (_) {
+        /* ignore */
+      }
+      return out;
+    } catch (_) {
+      return out; // ★絶対に throw しない★
     }
   }
 
@@ -232,6 +311,11 @@
       const deviceId = _deviceId();
       // 会社URLで活性化していない端末(自社運用/ゲートOFF)は送らない = 送り先の会社が無い
       if (!companyToken || !deviceId) return { ok: false, sent: 0, reason: 'not_activated' };
+
+      // ★会社が変わっていたら、前の会社の勤務をここで切り離す (2026-08-03)★
+      //   ネットの前に必ず通す。圏外でも切り離しは効かせる（次に繋がった時に上がってしまうため）。
+      sealForCompanySwitch(null, companyToken);
+
       if (!_online()) return { ok: false, sent: 0, reason: 'offline' };
 
       const cfg = _cfg();
@@ -301,6 +385,7 @@
     selectUnsynced: selectUnsynced,
     toPayload: toPayload,
     mergeSynced: mergeSynced,
+    sealForCompanySwitch: sealForCompanySwitch,
     // 実行
     sync: sync,
     init: init,
