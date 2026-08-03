@@ -153,100 +153,267 @@
     <div class="card">
       <div class="logo">🚗 ダイコメ</div>
 
+      <!-- ★2026-08-03 作り直し★ 司さんの指摘が正解だった。
+           旧: メールのリンクを押す方式だけ
+               → リンクは★ブラウザで開く★。アプリとブラウザはログイン情報を別々に持つので、
+                 ブラウザで入ってもアプリ側は「まだ誰も入っていない」まま＝★毎回聞かれる★。
+               （「ホーム画面に追加すれば直る」は間違い。リンクがブラウザで開く以上、同じ）
+           新: ★パスワードでログイン★を主にする。開いているその場で終わる＝ブラウザに飛ばない。
+               メールのリンクは「パスワードを決める時」だけ使う（1回だけ）。 -->
       <div id="form-view">
-        <h1>ログイン / 新規登録</h1>
-        <p class="sub">
-          メールアドレスを入れると、ログイン用のリンクをお送りします。<br />
-          パスワードは要りません。
-        </p>
+        <h1>ログイン</h1>
+        <p class="sub">メールアドレスとパスワードを入れてください。</p>
         <label for="email">メールアドレス</label>
         <input id="email" type="email" inputmode="email" placeholder="例）info@example.com" />
-        <button class="btn" id="sendBtn" type="button">ログインリンクを送る</button>
+        <label for="pw">パスワード</label>
+        <input id="pw" type="password" placeholder="6文字以上" autocomplete="current-password" />
+        <button class="btn" id="loginBtn" type="button">ログイン</button>
         <div class="err" id="err" style="display: none"></div>
+        <div class="foot" style="margin-top: 14px">
+          <a href="#" id="toSetPw">はじめて／パスワードを忘れた</a>
+        </div>
+      </div>
+
+      <!-- パスワードを決めるためのメールを送る -->
+      <div id="send-view" style="display: none">
+        <h1>パスワードを決める</h1>
+        <p class="sub">
+          メールを1通お送りします。<br />
+          そのリンクを押すと、パスワードを決める画面になります。<br />
+          <b>決めるのは1回だけ</b>です。次からはパスワードで入れます。
+        </p>
+        <label for="email2">メールアドレス</label>
+        <input id="email2" type="email" inputmode="email" placeholder="例）info@example.com" />
+        <button class="btn" id="sendBtn" type="button">メールを送る</button>
+        <div class="err" id="err2" style="display: none"></div>
+        <div class="foot" style="margin-top: 14px">
+          <a href="#" id="toLogin">ログインにもどる</a>
+        </div>
       </div>
 
       <div class="sent" id="sent-view">
         <div class="big">📩</div>
         <h2>メールを確認してください</h2>
         <p>
-          <b id="sentTo"></b> にログイン用のリンクを送りました。<br />
-          メールを開いてリンクを押すと、ログインできます。<br /><br />
+          <b id="sentTo"></b> にメールを送りました。<br />
+          メールを開いてリンクを押すと、パスワードを決める画面になります。<br /><br />
           （届かない時は迷惑メールもご確認ください）
         </p>
       </div>
 
-      <div class="foot">はじめての方も、このまま登録できます。</div>
+      <!-- メールのリンクから戻ってきた時（# にトークンが付いている）だけ出す -->
+      <div id="setpw-view" style="display: none">
+        <h1>パスワードを決める</h1>
+        <p class="sub">
+          これから使うパスワードを入れてください。<br />
+          <b>次からは、このパスワードで入れます。</b>
+        </p>
+        <label for="pw1">新しいパスワード</label>
+        <input id="pw1" type="password" placeholder="6文字以上" autocomplete="new-password" />
+        <label for="pw2">もう一度</label>
+        <input
+          id="pw2"
+          type="password"
+          placeholder="もう一度おなじものを"
+          autocomplete="new-password"
+        />
+        <button class="btn" id="savePwBtn" type="button">決めて、はじめる</button>
+        <div class="err" id="err3" style="display: none"></div>
+      </div>
+
+      <div class="foot" id="footNote">はじめての方は「はじめて」から進んでください。</div>
     </div>
 
     <script src="js/dk-config.js"></script>
+    <script src="js/dk-session.js"></script>
     <script>
       (function () {
         'use strict';
         // 接続先は js/dk-config.js(単一の真実源)から。ここには書かない。
         var SB_URL = window.DKConfig.SB_URL;
         var ANON = window.DKConfig.ANON_KEY;
-        var btn = document.getElementById('sendBtn');
-        var errEl = document.getElementById('err');
-
-        function showErr(m) {
-          errEl.textContent = m;
-          errEl.style.display = 'block';
-        }
-
-        // ★前に入れたメールを覚えておく（入り直しを1タップで済ませる）★
-        //   iPhoneは7日触らないと保存を消すので、消える時は一緒に消える。
-        //   それでも「同じ端末で使い続ける限り打ち直さなくていい」効果はある。
         var EMAIL_KEY = 'dk_last_email';
-        try {
-          var last = localStorage.getItem(EMAIL_KEY);
-          if (last) document.getElementById('email').value = last;
-        } catch (_) {
-          /* ignore */
-        }
 
-        btn.addEventListener('click', function () {
-          errEl.style.display = 'none';
-          var email = document.getElementById('email').value.trim();
-          if (!email || email.indexOf('@') < 1) {
-            showErr('メールアドレスを正しく入れてください');
-            return;
-          }
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function show(id, on) {
+          $(id).style.display = on ? 'block' : 'none';
+        }
+        function err(id, m) {
+          var e = $(id);
+          e.textContent = m;
+          e.style.display = m ? 'block' : 'none';
+        }
+        function saveEmail(v) {
           try {
-            localStorage.setItem(EMAIL_KEY, email);
+            localStorage.setItem(EMAIL_KEY, v);
           } catch (_) {
             /* ignore */
           }
-          btn.disabled = true;
-          btn.textContent = '送信中…';
-          // Supabase Auth: メールのマジックリンク(OTP)を送る。新規は自動でアカウント作成。
+        }
+        function lastEmail() {
+          try {
+            return localStorage.getItem(EMAIL_KEY) || '';
+          } catch (_) {
+            return '';
+          }
+        }
+        function view(name) {
+          ['form-view', 'send-view', 'sent-view', 'setpw-view'].forEach(function (v) {
+            show(v, v === name);
+          });
+          show('footNote', name === 'form-view');
+        }
+
+        $('email').value = lastEmail();
+        $('email2').value = lastEmail();
+
+        // ─── メールのリンクから戻ってきた時 ─────────────────
+        //   # に access_token が付いている。DKSession が拾って保存してくれるので、
+        //   ここでは「パスワードを決める」画面を出すだけ。
+        var cameFromMail = /access_token=/.test(location.hash || '');
+        if (cameFromMail) {
+          window.DKSession.ensure().then(function (s) {
+            if (s) view('setpw-view');
+            else view('form-view');
+          });
+        } else {
+          view('form-view');
+        }
+
+        // ─── ① パスワードでログイン（★ここが主。ブラウザに飛ばない★）───
+        $('loginBtn').addEventListener('click', function () {
+          err('err', '');
+          var email = $('email').value.trim();
+          var pw = $('pw').value;
+          if (!email || email.indexOf('@') < 1)
+            return err('err', 'メールアドレスを正しく入れてください');
+          if (!pw) return err('err', 'パスワードを入れてください');
+          saveEmail(email);
+          var b = $('loginBtn');
+          b.disabled = true;
+          b.textContent = 'ログイン中…';
+          fetch(SB_URL + '/auth/v1/token?grant_type=password', {
+            method: 'POST',
+            headers: { apikey: ANON, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: email, password: pw }),
+          })
+            .then(function (r) {
+              return r.json().then(function (j) {
+                return { ok: r.ok, j: j };
+              });
+            })
+            .then(function (res) {
+              b.disabled = false;
+              b.textContent = 'ログイン';
+              if (!res.ok || !res.j.access_token) {
+                return err(
+                  'err',
+                  'メールアドレスかパスワードが違います。はじめての方は下から進んでください。'
+                );
+              }
+              var now = Math.floor(Date.now() / 1000);
+              window.DKSession.save({
+                access_token: res.j.access_token,
+                refresh_token: res.j.refresh_token || '',
+                expires_at: res.j.expires_at || now + (res.j.expires_in || 3600),
+              });
+              location.replace('dashboard.html');
+            })
+            .catch(function () {
+              b.disabled = false;
+              b.textContent = 'ログイン';
+              err('err', 'ネットに繋がる所で、もう一度お試しください。');
+            });
+        });
+
+        // ─── ② パスワードを決めるためのメールを送る（1回だけ）───
+        $('toSetPw').addEventListener('click', function (e) {
+          e.preventDefault();
+          $('email2').value = $('email').value.trim() || lastEmail();
+          view('send-view');
+        });
+        $('toLogin').addEventListener('click', function (e) {
+          e.preventDefault();
+          view('form-view');
+        });
+
+        $('sendBtn').addEventListener('click', function () {
+          err('err2', '');
+          var email = $('email2').value.trim();
+          if (!email || email.indexOf('@') < 1)
+            return err('err2', 'メールアドレスを正しく入れてください');
+          saveEmail(email);
+          var b = $('sendBtn');
+          b.disabled = true;
+          b.textContent = '送信中…';
           fetch(SB_URL + '/auth/v1/otp', {
             method: 'POST',
             headers: { apikey: ANON, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               email: email,
               create_user: true,
-              options: { email_redirect_to: location.origin + '/dashboard.html' },
+              // ★戻り先は login.html★（dashboard ではない）
+              //   戻ってきた所で そのまま パスワードを決めてもらうため。
+              options: { email_redirect_to: location.origin + '/login.html' },
             }),
           })
             .then(function (r) {
               return r.ok ? {} : r.json();
             })
             .then(function (j) {
-              btn.disabled = false;
-              btn.textContent = 'ログインリンクを送る';
-              if (j && j.error) {
-                showErr('送れませんでした。時間をおいて、もう一度お試しください。');
-                return;
-              }
-              document.getElementById('sentTo').textContent = email;
-              document.getElementById('form-view').style.display = 'none';
-              document.getElementById('sent-view').style.display = 'block';
+              b.disabled = false;
+              b.textContent = 'メールを送る';
+              if (j && j.error)
+                return err('err2', '送れませんでした。時間をおいてお試しください。');
+              $('sentTo').textContent = email;
+              view('sent-view');
             })
             .catch(function () {
-              btn.disabled = false;
-              btn.textContent = 'ログインリンクを送る';
-              showErr('ネットに繋がる所で、もう一度お試しください。');
+              b.disabled = false;
+              b.textContent = 'メールを送る';
+              err('err2', 'ネットに繋がる所で、もう一度お試しください。');
             });
+        });
+
+        // ─── ③ パスワードを決めて保存 ─────────────────────
+        $('savePwBtn').addEventListener('click', function () {
+          err('err3', '');
+          var p1 = $('pw1').value;
+          var p2 = $('pw2').value;
+          if (!p1 || p1.length < 6) return err('err3', 'パスワードは6文字以上にしてください');
+          if (p1 !== p2) return err('err3', '2つのパスワードが違います');
+          var b = $('savePwBtn');
+          b.disabled = true;
+          b.textContent = '保存中…';
+          window.DKSession.ensure().then(function (s) {
+            if (!s) {
+              b.disabled = false;
+              b.textContent = '決めて、はじめる';
+              return err('err3', '時間が経ちすぎました。もう一度メールを送ってください。');
+            }
+            fetch(SB_URL + '/auth/v1/user', {
+              method: 'PUT',
+              headers: {
+                apikey: ANON,
+                Authorization: 'Bearer ' + s.access_token,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ password: p1 }),
+            })
+              .then(function (r) {
+                b.disabled = false;
+                b.textContent = '決めて、はじめる';
+                if (!r.ok) return err('err3', '保存できませんでした。もう一度お試しください。');
+                location.replace('dashboard.html');
+              })
+              .catch(function () {
+                b.disabled = false;
+                b.textContent = '決めて、はじめる';
+                err('err3', 'ネットに繋がる所で、もう一度お試しください。');
+              });
+          });
         });
       })();
     </script>
