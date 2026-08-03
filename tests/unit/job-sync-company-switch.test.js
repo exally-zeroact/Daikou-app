@@ -146,6 +146,61 @@ describe('★会社が変わったら 前の会社の勤務を送らない★', 
   });
 });
 
+// ============================================================
+// ★既に動いている端末のための引き継ぎ（穴を1つ塞いだ）★
+//   dk_sync_company は今日足した新しい記録なので、
+//   ★今動いている端末には全部「無い」★。すると切り離しから見て
+//   どれも「はじめての活性化」に見え、★切り離しが効かない★。
+//   ＝テストで使った端末が本番のQRを読んでも、古い勤務がそのまま上がってしまう。
+//   → 起動時に一度だけ、今の会社を写しておく。
+// ============================================================
+describe('★既に動いている端末でも切り離しが効くこと★', () => {
+  it('テストで活性化済みの端末は、今の会社を控える', () => {
+    const s = store({ dk_license_company: 'TEST_CO' });
+    expect(JS.adoptCurrentCompanyOnce(s)).toBe(true);
+    expect(s.getItem('dk_sync_company')).toBe('TEST_CO');
+  });
+
+  it('★控えたあと本番へ切り替わると、ちゃんと切り離される★（これが穴だった）', () => {
+    const s = store({
+      dk_license_company: 'TEST_CO',
+      daikou_business_history: JSON.stringify([shift(100), shift(200)]),
+      dk_synced_shifts: JSON.stringify([]),
+    });
+    JS.adoptCurrentCompanyOnce(s); // 起動時
+    const r = JS.sealForCompanySwitch(s, 'ZERO_CO'); // QRを読んで本番へ
+    expect(r.sealed, 'テストの勤務が本番の売上に上がってしまう').toBe(2);
+  });
+
+  it('★一度も活性化していない端末では何もしない★（働いた分を捨てない）', () => {
+    const s = store({ daikou_business_history: JSON.stringify([shift(100)]) });
+    expect(JS.adoptCurrentCompanyOnce(s)).toBe(false);
+    expect(s.getItem('dk_sync_company')).toBe(null);
+    // その後 はじめて活性化しても切り離されない
+    expect(JS.sealForCompanySwitch(s, 'ZERO_CO').sealed).toBe(0);
+  });
+
+  it('もう控えてあれば上書きしない', () => {
+    const s = store({ dk_license_company: 'B', dk_sync_company: 'A' });
+    expect(JS.adoptCurrentCompanyOnce(s)).toBe(false);
+    expect(s.getItem('dk_sync_company')).toBe('A');
+  });
+
+  it('保存できない端末でも落ちない', () => {
+    const s = {
+      getItem: function () {
+        throw new Error('だめ');
+      },
+      setItem: function () {
+        throw new Error('だめ');
+      },
+    };
+    expect(function () {
+      JS.adoptCurrentCompanyOnce(s);
+    }).not.toThrow();
+  });
+});
+
 describe('★作っただけで呼ばれていない、を防ぐ★', () => {
   const fs = require('fs');
   const SRC = fs.readFileSync(path.resolve(__dirname, '..', '..', 'js', 'job-sync.js'), 'utf8');
@@ -155,6 +210,15 @@ describe('★作っただけで呼ばれていない、を防ぐ★', () => {
     expect(i).toBeGreaterThan(-1);
     const body = SRC.slice(i, i + 1200);
     expect(body, 'sync から呼ばれていない＝守れていない').toContain('sealForCompanySwitch(');
+  });
+
+  it('★起動時(init)に、今の会社を控えている★（無いと既存端末で切り離しが効かない）', () => {
+    const i = SRC.indexOf('function init()');
+    expect(i).toBeGreaterThan(-1);
+    const body = SRC.slice(i, i + 900);
+    expect(body, 'init から呼ばれていない＝既に動いている端末が守れない').toContain(
+      'adoptCurrentCompanyOnce('
+    );
   });
 
   it('★圏外の判定より前に呼んでいる★（圏外でも切り離しは効かせる）', () => {

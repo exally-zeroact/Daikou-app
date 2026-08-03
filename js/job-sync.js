@@ -208,6 +208,42 @@
     }
   }
 
+  // ★既に動いている端末のための引き継ぎ (2026-08-03)★
+  //
+  //   ★穴★ dk_sync_company は今日足した新しい記録なので、
+  //   ★今動いている端末には全部「無い」★。すると sealForCompanySwitch から見て
+  //   どれも「はじめての活性化」に見え、★切り離しが効かない★。
+  //   ＝テストで使った端末が本番のQRを読んでも、古い勤務がそのまま上がってしまう。
+  //
+  //   ★塞ぎ方★ 起動時に一度だけ、今の会社(dk_license_company)を dk_sync_company に写す。
+  //     ・テストで活性化済みの端末 … 前の会社が入る → 本番へ切り替わった時に切り離される ✓
+  //     ・一度も活性化していない端末 … 空のまま → はじめての活性化として扱われる ✓
+  //       （従業員が活性化前から働いている分は、今までどおり拾う）
+  function adoptCurrentCompanyOnce(store) {
+    try {
+      const st = store || _ls();
+      if (!st) return false;
+      let already = '';
+      try {
+        already = _str(st.getItem(K_SYNC_COMPANY));
+      } catch (_) {
+        already = '';
+      }
+      if (already) return false; // もう写してある
+      let cur = '';
+      try {
+        cur = _str(st.getItem(K_COMPANY));
+      } catch (_) {
+        cur = '';
+      }
+      if (!cur) return false; // 一度も活性化していない = 何もしない
+      st.setItem(K_SYNC_COMPANY, cur);
+      return true;
+    } catch (_) {
+      return false; // ★絶対に throw しない★
+    }
+  }
+
   // 送信する形に整える。★値は作らない・変えない★。派生値(比率/平均)は載せない。
   function toPayload(shift) {
     try {
@@ -363,6 +399,12 @@
   // 起動時 + オンライン復帰時に自動で送る。業務の邪魔は一切しない(裏で走るだけ)。
   function init() {
     try {
+      // ★一番はじめに、今の会社を控える (2026-08-03)★
+      //   これをやらないと、既に動いている端末では切り離しが効かない
+      //   （dk_sync_company が無く「はじめての活性化」に見えるため）。
+      //   ★QRを読む前に通る★ので、テスト会社→本番会社の切り替わりを捕まえられる。
+      adoptCurrentCompanyOnce(null);
+
       const run = function () {
         try {
           sync();
@@ -386,6 +428,7 @@
     toPayload: toPayload,
     mergeSynced: mergeSynced,
     sealForCompanySwitch: sealForCompanySwitch,
+    adoptCurrentCompanyOnce: adoptCurrentCompanyOnce,
     // 実行
     sync: sync,
     init: init,
