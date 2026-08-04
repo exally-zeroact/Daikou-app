@@ -94,10 +94,33 @@
       arr(edits).forEach(function (e) {
         if (e && e.shift_id) editById[e.shift_id] = e;
       });
-      const labelById = {};
-      arr(labels).forEach(function (l) {
-        if (l && l.device_id) labelById[l.device_id] = l.label || '';
+      // ★画面に出す名前は js/car-name.js が1箇所で決める (2026-08-04)★
+      //   司さん「売上1の横の英語のやつ邪魔でしょうがない」
+      //   名前が無い時に端末ID(UUID)を出していた。名前が無ければ「車1」「車2」にする。
+      const _ids = [];
+      arr(shifts).forEach(function (s) {
+        if (s && typeof s.device_id === 'string' && s.device_id) _ids.push(s.device_id);
       });
+      const labelById =
+        global && global.CarName
+          ? global.CarName.nameMap(_ids, labels)
+          : (function () {
+              // CarName が無い時も ★UUIDは出さない★（並べて番号を振る）
+              const m = {};
+              const named = {};
+              arr(labels).forEach(function (l) {
+                if (l && l.device_id && l.label) named[l.device_id] = l.label;
+              });
+              _ids
+                .filter(function (v, i, a) {
+                  return a.indexOf(v) === i;
+                })
+                .sort()
+                .forEach(function (id, i) {
+                  m[id] = named[id] || '車' + (i + 1);
+                });
+              return m;
+            })();
 
       const map = {};
       arr(shifts).forEach(function (s) {
@@ -108,7 +131,7 @@
         if (!map[dev]) {
           map[dev] = {
             device_id: dev,
-            label: labelById[dev] || shortId(dev),
+            label: labelById[dev] || '車', // ★UUIDは出さない★
             shift_count: 0,
             trip_count: 0,
             total_distance_m: 0,

@@ -630,6 +630,8 @@
 
     <script src="js/dk-config.js"></script>
     <script src="js/dk-session.js"></script>
+    <!-- ★画面に出す車の名前を1箇所で決める (2026-08-04)★ 名前が無い時にUUIDを出さない -->
+    <script src="js/car-name.js"></script>
     <script src="js/uriage-agg.js"></script>
     <script src="js/daiko-payroll.js"></script>
     <script src="js/payroll-period.js"></script>
@@ -667,6 +669,28 @@
         var CTX = null;
         var REP = null;
         var EDIT_BY_SHIFT = {};
+
+        // ★画面に出す車の名前 (2026-08-04)★
+        //   司さん「売上1の横の英語のやつ邪魔でしょうがない」
+        //   名前が無い時に端末ID(UUID)をそのまま出していたのをやめる。
+        //   番号は「その会社の端末を並べた順」で決める＝★開くたびに車1と車2が入れ替わらない★。
+        var _CAR_NAMES = null;
+        function _carNames() {
+          if (_CAR_NAMES) return _CAR_NAMES;
+          var ids = [];
+          (RAW.shifts || []).forEach(function (s) {
+            if (s && typeof s.device_id === 'string' && s.device_id) ids.push(s.device_id);
+          });
+          (RAW.workHours || []).forEach(function (w) {
+            if (w && typeof w.device_id === 'string' && w.device_id) ids.push(w.device_id);
+          });
+          _CAR_NAMES = window.CarName ? window.CarName.nameMap(ids, RAW.labels) : {};
+          return _CAR_NAMES;
+        }
+        function _carName(deviceId) {
+          var m = _carNames();
+          return m[deviceId] || '車'; // ★どんな時もUUIDは出さない★
+        }
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -867,6 +891,7 @@
         }
 
         function recalc() {
+          _CAR_NAMES = null; // ★データを読み直したら車の名前も作り直す★
           CTX = PayrollDaily.buildCtx(RAW);
           REP = PayrollDaily.report(PERIOD ? PERIOD.dates : [], CTX);
         }
@@ -1058,7 +1083,12 @@
                   }
                 : EDIT_BY_SHIFT[s.shift_id] || {};
               var auto = isManual ? 0 : PayrollDaily.carHoursOf(s, null);
-              var label = CTX && CTX.labels[s.device_id] ? CTX.labels[s.device_id] : s.device_id;
+              // ★UUIDを画面に出さない (2026-08-04)★
+              //   司さん「売上1の横の英語のやつ邪魔でしょうがない」
+              //   旧: 名前が無ければ端末ID(UUID)をそのまま出していた
+              //       → 売上1(7e1919ef-4aaa-411e-8db0-ba0424…)
+              //   新: 名前が無ければ「車1」「車2」（js/car-name.js が1箇所で決める）
+              var label = _carName(s.device_id);
               var own = CTX && CTX.settings.ownerDeviceId === s.device_id;
               var crew = wh.filter(function (w) {
                 return w.device_id === s.device_id;
