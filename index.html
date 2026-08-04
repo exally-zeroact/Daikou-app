@@ -8414,6 +8414,7 @@
             Meter.businessEnd();
           }
           Business.end();
+          _syncAfterEnd(); // ★業務終了で送る（これが無いと上がるのは翌日）★
           // fareConfig v2: 業務終了で surcharge ボタン群を非表示
           try {
             if (typeof renderSurchargeButtons === 'function') renderSurchargeButtons();
@@ -8598,6 +8599,7 @@
           //       → 結果: businessStart 画面に戻った時に updateResumeFromStartVisibility が
           //               「前回の業務を引き継ぐ場合は」note + 業務再開ボタンを表示する
           Business.end();
+          _syncAfterEnd(); // ★業務終了で送る（これが無いと上がるのは翌日）★
           appState = 'businessStart';
           showScreen('businessStart');
           document.getElementById('appbarTitle').textContent = 'ダイコメ';
@@ -9926,6 +9928,50 @@
           }
         } catch (_) {
           /* ★戻せなくても業務は止めない★ */
+        }
+      }
+
+      // ★業務終了で、その場でクラウドへ送る (2026-08-04)★
+      //
+      //   ★直した穴★ 送る配線は job-sync.js の init() だけだった:
+      //     run();                                  ← アプリを開いた時に1回
+      //     addEventListener('online', run);        ← 圏外から復帰した時
+      //   ＝業務終了で送る配線が無く、★上がるのは翌日アプリを開いた時★だった。
+      //
+      //   ★なぜ見落としたか★ job-sync.js を作った7/31時点では
+      //   「業務終了で履歴に積んでいなかった」ので「開いた時に送る」で辻褄が合っていた。
+      //   今日「終了で積む」に直したのに、送る側は7/31のままだった。
+      //   ＝★片方だけ直して、もう片方を見なかった★。
+      //
+      //   ▼決まり
+      //     ・オフラインなら送らずに終わる。★業務は絶対に止めない★
+      //     ・送れなかった分は次に繋がった時に自動で送る（online の配線は既にある）
+      //     ・★「送りました／あとで送ります」を必ず出す★
+      //       運転手が「上がったのか」を知る手段が無かった。★黙って終わらない★
+      function _syncAfterEnd() {
+        try {
+          if (!window.JobSync || typeof window.JobSync.sync !== 'function') return;
+          const say = function (msg) {
+            try {
+              if (typeof window._showToast === 'function') window._showToast(msg);
+            } catch (_) {
+              /* 出せなくても業務は止めない */
+            }
+          };
+          window.JobSync.sync()
+            .then(function (r) {
+              if (r && r.ok && r.sent > 0) say('事務所に送りました（' + r.sent + '件）');
+              else if (r && r.reason === 'offline') say('圏外です。つながったら自動で送ります');
+              else if (r && r.reason === 'not_activated')
+                say('この端末はまだ会社に登録されていません');
+              else if (r && r.ok && r.sent === 0) say('送るものはありません');
+              else say('あとで自動で送ります');
+            })
+            .catch(function () {
+              say('あとで自動で送ります');
+            });
+        } catch (_) {
+          /* ★送れなくても業務は絶対に止めない★ */
         }
       }
 

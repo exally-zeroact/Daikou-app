@@ -302,6 +302,36 @@
     }
   }
 
+  // ★どれを「送信済み」にしてよいか (2026-08-04)★
+  //
+  //   ★直した穴★ 旧:
+  //     const acceptedKeys = _arr(j.accepted).length
+  //       ? _arr(j.accepted)
+  //       : shifts.map(s => s.start_time);   ← ★ここ★
+  //   サーバが accepted を返さない／空の時、★送った全部を「送信済み」にしていた★。
+  //   サーバが弾いていても端末は「送った」と記録し、★二度と送らない＝黙って消える★。
+  //
+  //   ★新しい決まり★ サーバが「受け取った」と言った物だけを送信済みにする。
+  //   分からない時は送信済みにしない ＝ 次回また送る（★二重はサーバ側の dk_ref が弾く★）。
+  //   ※実物のサーバ(dk-sync-jobs/index.ts:167)は accepted を必ず返している（確認済み）。
+  function acceptedKeysOf(res, shifts) {
+    try {
+      if (!res || typeof res !== 'object') return [];
+      const acc = _arr(res.accepted);
+      if (!acc.length) return []; // ★分からない＝送信済みにしない★
+      // 送った物の中に在る物だけ（サーバが余計な物を返しても拾わない）
+      const sent = {};
+      _arr(shifts).forEach(function (s) {
+        if (s && _isNum(s.start_time)) sent[String(s.start_time)] = true;
+      });
+      return acc.filter(function (k) {
+        return sent[String(k)];
+      });
+    } catch (_) {
+      return [];
+    }
+  }
+
   // 送信済み記録に足す(重複なし・増えすぎたら古い順に間引く)
   function mergeSynced(existing, added) {
     try {
@@ -383,14 +413,19 @@
 
       if (!j || !j.ok) return { ok: false, sent: 0, reason: (j && j.reason) || 'error' };
 
-      // サーバが受け取った勤務だけを「送信済み」にする(取りこぼしを次回に残す)
-      const acceptedKeys = _arr(j.accepted).length
-        ? _arr(j.accepted)
-        : shifts.map(function (s) {
-            return s.start_time;
-          });
-      _set(K_SYNCED, JSON.stringify(mergeSynced(synced, acceptedKeys)));
-      return { ok: true, sent: acceptedKeys.length, reason: '' };
+      // ★サーバが「受け取った」と言った物だけを送信済みにする (2026-08-04)★
+      //   旧: accepted が空/無い時は「送った全部」を送信済みにしていた
+      //       → サーバが弾いていても端末は送ったことにして★二度と送らない＝黙って消える★
+      const acceptedKeys = acceptedKeysOf(j, shifts);
+      if (acceptedKeys.length) {
+        _set(K_SYNCED, JSON.stringify(mergeSynced(synced, acceptedKeys)));
+      }
+      return {
+        ok: true,
+        sent: acceptedKeys.length,
+        // 送ったのに1件も受け取られなかった＝次回また送る（黙って消さない）
+        reason: acceptedKeys.length ? '' : 'not_accepted',
+      };
     } catch (_) {
       return { ok: false, sent: 0, reason: 'error' }; // ★絶対に throw しない★
     }
@@ -427,6 +462,7 @@
     selectUnsynced: selectUnsynced,
     toPayload: toPayload,
     mergeSynced: mergeSynced,
+    acceptedKeysOf: acceptedKeysOf,
     sealForCompanySwitch: sealForCompanySwitch,
     adoptCurrentCompanyOnce: adoptCurrentCompanyOnce,
     // 実行
