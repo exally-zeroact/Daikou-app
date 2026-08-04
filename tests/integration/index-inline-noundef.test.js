@@ -26,6 +26,9 @@ const INDEX_HTML = path.join(__dirname, '..', '..', 'index.html');
 const EXTERNAL_GLOBALS = [
   // ダイコメ自前モジュール (js/*.js で定義・別 <script src> load)
   'Meter',
+  // ★メーターの控え (2026-08-04)★ js/meter-persist.js で定義・別 <script src> で読む。
+  //   閉じた瞬間に距離が消えていた件の根治。
+  'MeterPersist',
   'GPS',
   'FB',
   'Business',

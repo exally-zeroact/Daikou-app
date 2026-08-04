@@ -5610,6 +5610,10 @@
 
     <!-- ★テスト用・リリース時削除（2026/04/26追加）-->
 
+    <!-- ★メーターが自分の走った距離を端末に覚える (2026-08-04)★
+         司さん「オフラインで走って画面を閉じて、家で業務終了」→ 距離が0で上がった件の根治。
+         meter.js は距離も料金も保存していなかった（localStorage 参照3件は全部 車両プロファイル）。 -->
+    <script src="js/meter-persist.js"></script>
     <script src="js/business.js"></script>
 
     <!-- ★business.js：業務管理スーパー機能（2026/05/01追加）-->
@@ -7497,6 +7501,13 @@
               if (typeof Business !== 'undefined' && typeof Business.onGps === 'function') {
                 Business.onGps(g);
               }
+              // ★メーターの控えを端末に書く (2026-08-04)★
+              //   司さん「オフラインで走って ★画面を閉じて★ 家で業務終了」→ 距離が0で上がった。
+              //   meter.js は距離も料金も端末に保存していない（localStorage 参照3件は全部
+              //   車両プロファイル）。閉じた瞬間に消えるので、ここで1秒ごとに控える。
+              //   ★1秒★＝business.js の保存と同じ間隔（5秒だと時速50kmで約70m＝金額が消える）。
+              //   実測 287バイト・0.0008ミリ秒。距離の計算には割り込まない（呼ぶだけ）。
+              _saveMeterSnapshot();
               // ★設計変更宣言 (2026-05-23・住所② 現在地ライブ表示・raw GPS 配信):
               //   走行中 / 停止中 を問わず・1Hz で・raw GPS を Business に通知・常時表示 source。
               //   表示専用 (= distance_m / Meter / Worker B 完全無関係)。
@@ -9852,6 +9863,83 @@
         console.error('FB setIdle error:', e);
       }
 
+      // ─── ★メーターの控え（端末に覚える）2026-08-04★ ───────────────
+      //   司さん「オフラインで走って ★画面を閉じて★ 家で業務終了」→ 距離が0で上がった。
+      //   meter.js は距離も料金も端末に保存していない（localStorage 参照3件は全部 車両プロファイル）。
+      //   ここで控えて、起動時に戻す。★距離・料金の計算そのものには触っていない★。
+      function _meterCtx() {
+        let bs = null;
+        try {
+          const s = Business.getState();
+          bs = s && s.start_time ? s.start_time : null;
+        } catch (_) {
+          bs = null;
+        }
+        let ts = null;
+        try {
+          const t = Business.getCurrentTrip && Business.getCurrentTrip();
+          ts = t && typeof t.start_time === 'number' ? t.start_time : null;
+        } catch (_) {
+          ts = null;
+        }
+        return { businessStart: bs, tripStart: ts, now: Date.now() };
+      }
+
+      function _saveMeterSnapshot() {
+        try {
+          if (typeof MeterPersist === 'undefined' || typeof Meter === 'undefined') return;
+          MeterPersist.save(null, Meter.getState(), _meterCtx());
+        } catch (_) {
+          /* ★控えが書けなくても業務は止めない★ */
+        }
+      }
+
+      function _restoreMeterSnapshot() {
+        try {
+          if (typeof MeterPersist === 'undefined' || typeof Meter === 'undefined') return;
+          const cur = Meter.getState();
+          const ctx = _meterCtx();
+          ctx.cur = cur;
+          const r = MeterPersist.restore(null, ctx);
+          if (!r || !r.restored) return;
+          // ★必ず上書き（足し算にしない）★ 2回呼んでも2倍にならない
+          if (typeof Meter.setDistance === 'function' && r.distance_m != null) {
+            Meter.setDistance(r.distance_m);
+          }
+          if (typeof Meter.setBusinessDistance === 'function' && r.business_distance_m != null) {
+            Meter.setBusinessDistance(r.business_distance_m);
+          }
+          if (
+            typeof Meter.setElapsedAccumulated === 'function' &&
+            r.elapsed_accumulated_sec != null
+          ) {
+            Meter.setElapsedAccumulated(r.elapsed_accumulated_sec);
+          }
+          // ★黙って金額を戻さない★ 運転手が目で見て、違えば止められるようにする
+          if (r.fare_restored && r.notice) {
+            try {
+              if (typeof window._showToast === 'function') window._showToast(r.notice);
+            } catch (_) {
+              /* 出せなくても業務は止めない */
+            }
+            if (typeof dlog === 'function') dlog('[MeterPersist] ' + r.notice);
+          }
+        } catch (_) {
+          /* ★戻せなくても業務は止めない★ */
+        }
+      }
+
+      // ★画面が隠れた瞬間に書く（今回の穴はここ）★
+      //   閉じる・ホームに戻る・タスクキル・電池切れの直前を拾う。
+      try {
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState === 'hidden') _saveMeterSnapshot();
+        });
+        window.addEventListener('pagehide', _saveMeterSnapshot);
+      } catch (_) {
+        /* 付けられなくても業務は止めない */
+      }
+
       // ─── 業務管理スーパー機能の初期化（2026/05/01追加） ───
       // 永続化された業務状態を復元 + 3時間経過チェック（自動 abandon）
       // Business.load() 内で checkAutoAbandon() も呼ばれるが、保険で明示呼出
@@ -9865,7 +9953,11 @@
         }
         if (typeof Business !== 'undefined') {
           Business.load();
-          // ★設計変更宣言 (2026-05-14): Business.checkAutoAbandon 撤去・3 時間制限なしに変更
+          // ★メーターの控えを戻す (2026-08-04)★
+          //   ★Business.load() の直後・起動時に1回だけ★（何度も呼ぶと足し込まれる恐れがある）。
+          //   戻すのは「同じ業務」の時だけ。時間の長さでは切らない
+          //   （18時→翌9時=15時間の夜勤で消えるのが一番まずいため）。
+          _restoreMeterSnapshot();
           if (typeof dlog === 'function') {
             const s = Business.getState();
             dlog(
@@ -11853,6 +11945,10 @@
             _toastTimer = null;
           }, 2500);
         }
+        // ★別のスクリプト塊からも使えるようにする (2026-08-04)★
+        //   メーターの控えを戻した時に「前回の続きから 1,850円 / 5.3km」を出すため。
+        //   ★トーストの実装を2つ持たない★（表示がバラつくと運転手が混乱する）。
+        window._showToast = _showToast;
 
         function _trainingIsEnabled() {
           try {
