@@ -149,6 +149,10 @@
       employees: [],
       empById: {},
       labels: {},
+      // ★名前を付けた行そのまま (2026-08-05)★
+      //   labels は「端末ID→名前」だけなので★並び(sort_order)が落ちる★。
+      //   並べ替えに要るので生の行も持っておく。
+      labelRows: [],
       devices: [], // 出てきた車（つかさ車も含む）
     };
     try {
@@ -158,6 +162,7 @@
       arr(r.labels).forEach(function (l) {
         if (!l || !l.device_id) return;
         ctx.labels[l.device_id] = l.label || '';
+        ctx.labelRows.push(l);
         // ★名前を付けた車は「知っている車」として扱う★
         //   （記録がまだ1件も無くても、手入力で選べるようにするため）
         if (!seen[l.device_id]) {
@@ -267,12 +272,14 @@
       .filter(Boolean);
     const named = (ctx && ctx.labels) || {};
     if (global && global.CarName) {
-      return global.CarName.nameMap(
-        ids,
-        Object.keys(named).map(function (k) {
-          return { device_id: k, label: named[k] };
-        })
-      );
+      // ★生の行があれば そちらを渡す＝並び(sort_order)も効く★
+      const rows =
+        ctx && arr(ctx.labelRows).length
+          ? ctx.labelRows
+          : Object.keys(named).map(function (k) {
+              return { device_id: k, label: named[k] };
+            });
+      return global.CarName.nameMap(ids, rows);
     }
     // CarName が無い時も ★UUIDは出さない★
     const out = {};
@@ -297,6 +304,11 @@
     try {
       const own = (ctx && ctx.settings && ctx.settings.ownerDeviceId) || '';
       const names = _carLabels(ctx);
+      // ★売上1・2・3 の並び (2026-08-05・司さん「並べ変えできたら楽」)★
+      //   給料の設定で決めた順にする。決めていなければ★今までどおり名前の順★。
+      const rows = arr(ctx && ctx.labelRows);
+      const ord = global && global.CarName && rows.length ? global.CarName.orderMap(rows) : {};
+      const hasOrder = Object.keys(ord).length > 0;
       return arr(ctx && ctx.devices)
         .filter(function (d) {
           return d !== own;
@@ -305,6 +317,11 @@
           return { device_id: d, label: names[d] || '車' }; // ★UUIDは出さない★
         })
         .sort(function (a, b) {
+          if (hasOrder) {
+            const oa = ord[a.device_id] === undefined ? Infinity : ord[a.device_id];
+            const ob = ord[b.device_id] === undefined ? Infinity : ord[b.device_id];
+            if (oa !== ob) return oa - ob;
+          }
           return String(a.label).localeCompare(String(b.label), 'ja', { numeric: true });
         });
     } catch (_) {

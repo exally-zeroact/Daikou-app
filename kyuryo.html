@@ -290,6 +290,147 @@
         .emp-pane .yen {
           width: 5.5em;
         }
+
+        /* 車の名前と並びも同じ形（1台1枚） */
+        .car-body td[data-l]::before {
+          content: attr(data-l);
+          display: block;
+          font-size: 11px;
+          color: var(--muted);
+          font-weight: 700;
+          margin-bottom: 2px;
+        }
+
+        .car-pane thead {
+          display: none;
+        }
+
+        .car-pane .scroller {
+          overflow-x: visible;
+        }
+
+        .car-pane table,
+        .car-pane tbody,
+        .car-pane tr,
+        .car-pane td {
+          display: block;
+          width: 100%;
+        }
+
+        .car-pane tr {
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          padding: 10px 12px 12px;
+          margin-bottom: 10px;
+        }
+
+        .car-pane td {
+          border: none;
+          padding: 5px 0;
+          text-align: left;
+          white-space: normal;
+        }
+
+        .car-pane td[data-l='今の呼び方'] {
+          font-weight: 800;
+          font-size: 16px;
+        }
+
+        .car-pane td[data-l='名前'],
+        .car-pane td[data-l='並び'] {
+          display: inline-block;
+          width: auto;
+          margin-right: 14px;
+        }
+
+        /* ★「売上の分け方」「明細の期間」も横にはみ出していた (2026-08-05)★
+           車の表を足した時に測って見つけた。選ぶ欄の文が長く、
+           2列の表が画面より広くなっていた（元からの持ち越し）。
+           左の言葉を上に、選ぶ欄を下に置いて、幅いっぱいに収める。 */
+        .kv-pane td {
+          display: block;
+          width: 100%;
+          text-align: left;
+          white-space: normal;
+          border: none;
+          padding: 2px 0;
+        }
+
+        .kv-pane tr {
+          display: block;
+          border-bottom: 1px solid var(--line);
+          padding: 8px 0;
+        }
+
+        .kv-pane select,
+        .kv-pane .hrs {
+          max-width: 100%;
+        }
+
+        .kv-pane select {
+          width: 100%;
+        }
+
+        /* 役割の決まりも同じ形（1行1枚）＝画面ごとにバラバラにしない */
+        .role-body td[data-l]::before {
+          content: attr(data-l);
+          display: block;
+          font-size: 11px;
+          color: var(--muted);
+          font-weight: 700;
+          margin-bottom: 2px;
+        }
+
+        .role-pane {
+          overflow-x: visible;
+        }
+
+        .role-pane thead {
+          display: none;
+        }
+
+        .role-pane table,
+        .role-pane tbody,
+        .role-pane tr,
+        .role-pane td {
+          display: block;
+          width: 100%;
+        }
+
+        .role-pane tr {
+          position: relative;
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          padding: 10px 12px 12px;
+          margin-bottom: 10px;
+        }
+
+        .role-pane td {
+          border: none;
+          padding: 5px 0;
+          text-align: left;
+          white-space: normal;
+        }
+
+        .role-pane td[data-l='歩合'],
+        .role-pane td[data-l='最低保証'] {
+          display: inline-block;
+          width: auto;
+          margin-right: 14px;
+        }
+
+        /* 消すボタンは右上に逃がす */
+        .role-pane td[data-l='消す'] {
+          position: absolute;
+          top: 8px;
+          right: 10px;
+          width: auto;
+          padding: 0;
+        }
+
+        .role-pane td[data-l='消す']::before {
+          content: none;
+        }
       }
 
       .scroller {
@@ -616,14 +757,39 @@
         </div>
       </div>
 
-      <!-- 決め方 -->
+      <!-- 給料の設定 -->
       <div id="paneSet" style="display: none">
+        <!-- ★車の名前と並び (2026-08-05・司さん指示)★
+             司さん「売上1,2.3とかもここで並べ変えや名前を決めれるようにしたら楽」
+             今まで名前は売上表でしか付けられず、並びは決められなかった。 -->
+        <div class="card car-pane">
+          <div class="title" style="font-weight: 800; margin-bottom: 4px">車の名前と並び</div>
+          <div class="note" style="margin: 0 0 10px">
+            ここで付けた名前が<b>給料明細の「売上1・売上2」</b>や売上表に出ます。<br />
+            <b>並び</b>の数字が小さい車から順に「売上1・売上2…」になります。
+            <b>空欄なら今までどおり</b>です。
+          </div>
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>今の呼び方</th>
+                  <th>名前<span class="th-sub">空欄=車1・車2…</span></th>
+                  <th>並び<span class="th-sub">小さい順</span></th>
+                </tr>
+              </thead>
+              <tbody id="carBody" class="car-body"></tbody>
+            </table>
+          </div>
+          <span class="saved" id="carSaved"></span>
+        </div>
+
         <div class="card">
           <div class="title" style="font-weight: 800; margin-bottom: 4px">役割ごとの決まり</div>
           <div class="note" style="margin: 0 0 10px">
             ここが<b>みんなの基本</b>です。<b>その人だけ違うとき</b>は「従業員」で打ってください。
           </div>
-          <div class="scroller">
+          <div class="scroller role-pane">
             <table>
               <thead>
                 <tr>
@@ -633,7 +799,7 @@
                   <th></th>
                 </tr>
               </thead>
-              <tbody id="roleBody"></tbody>
+              <tbody id="roleBody" class="role-body"></tbody>
             </table>
           </div>
           <div style="margin-top: 10px">
@@ -641,7 +807,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card kv-pane">
           <div class="title" style="font-weight: 800; margin-bottom: 10px">売上の分け方</div>
           <table>
             <tbody>
@@ -677,7 +843,7 @@
           </table>
         </div>
 
-        <div class="card">
+        <div class="card kv-pane">
           <div class="title" style="font-weight: 800; margin-bottom: 10px">明細の期間</div>
           <table>
             <tbody>
@@ -996,7 +1162,10 @@
           if (TAB === 'slip') renderSlips();
           if (TAB === 'hours') renderDays();
           if (TAB === 'emp') renderEmp();
-          if (TAB === 'set') renderSet();
+          if (TAB === 'set') {
+            renderSet();
+            renderCars(); // ★車の名前と並びも同じ画面に出す★
+          }
         }
 
         // ── 期の選び方（司さんは月3回払い）────────────────
@@ -1706,24 +1875,25 @@
         function renderSet() {
           var st = PayrollDaily.normSettings(SET);
           var html = '';
+          // data-l は★スマホで1行1枚にした時の見出し★（横スクロールさせない）
           Object.keys(st.roles).forEach(function (r) {
             html +=
-              '<tr><td><input class="txt" data-role="' +
+              '<tr><td data-l="役割"><input class="txt" data-role="' +
               esc(r) +
               '" data-f="name" value="' +
               esc(r) +
               '"></td>' +
-              '<td><input class="hrs" data-role="' +
+              '<td data-l="歩合"><input class="hrs" data-role="' +
               esc(r) +
               '" data-f="rate" value="' +
               st.roles[r].rate +
               '"></td>' +
-              '<td><input class="yen" data-role="' +
+              '<td data-l="最低保証"><input class="yen" data-role="' +
               esc(r) +
               '" data-f="floor" value="' +
               st.roles[r].floor +
               '"> 円</td>' +
-              '<td><button class="xbtn" data-role-del="' +
+              '<td data-l="消す"><button class="xbtn" data-role-del="' +
               esc(r) +
               '">✕</button></td></tr>';
           });
@@ -1782,6 +1952,95 @@
               renderSet();
             };
           });
+        }
+
+        // ── 車の名前と並び (2026-08-05) ─────────────────
+        //   司さん「売上1,2.3とかもここで並べ変えや名前を決めれるようにしたら楽」
+        //   ★保存はその場★（役割の決まりと違い「保存」ボタンを押させない）
+        function renderCars() {
+          var devs = (CTX && CTX.devices) || [];
+          var rows = (RAW && RAW.labels) || [];
+          var byId = {};
+          rows.forEach(function (l) {
+            if (l && l.device_id) byId[l.device_id] = l;
+          });
+          var names = window.CarName ? window.CarName.nameMap(devs, rows) : {};
+          var sorted = window.CarName ? window.CarName.sortIds(devs, rows) : devs.slice();
+
+          var html = sorted
+            .map(function (d) {
+              var cur = byId[d] || {};
+              return (
+                '<tr><td data-l="今の呼び方">' +
+                esc(names[d] || '車') +
+                '</td>' +
+                '<td data-l="名前"><input class="txt" data-car="' +
+                esc(d) +
+                '" data-f="label" placeholder="' +
+                esc(names[d] || '') +
+                '" value="' +
+                esc(cur.label || '') +
+                '"></td>' +
+                '<td data-l="並び"><input class="hrs" data-car="' +
+                esc(d) +
+                '" data-f="sort_order" inputmode="numeric" value="' +
+                (cur.sort_order === null || cur.sort_order === undefined ? '' : cur.sort_order) +
+                '"></td></tr>'
+              );
+            })
+            .join('');
+          if (!sorted.length) {
+            html = '<tr><td colspan="3" class="empty">まだ車がありません。</td></tr>';
+          }
+          $('carBody').innerHTML = html;
+
+          Array.prototype.forEach.call(document.querySelectorAll('[data-car]'), function (i) {
+            i.onchange = function () {
+              var f = i.getAttribute('data-f');
+              var v =
+                f === 'sort_order'
+                  ? String(i.value).trim() === ''
+                    ? null // ★空欄なら今までどおり★
+                    : num(i.value)
+                  : String(i.value).trim();
+              saveCar(i.getAttribute('data-car'), f, v);
+            };
+          });
+        }
+
+        function saveCar(deviceId, field, value) {
+          if (!COMPANY) return;
+          var body = {
+            company_id: COMPANY.company_id,
+            device_id: deviceId,
+            updated_at: new Date().toISOString(),
+          };
+          body[field] = value;
+          DKSession.rest(SESS, 'dk_device_labels?on_conflict=company_id,device_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(body),
+          })
+            .then(function (r) {
+              if (!r.ok) return showErr('車の名前を保存できませんでした。');
+              showErr('');
+              // 手元の控えも合わせる（画面のあちこちで同じ名前になるように）
+              var hit = null;
+              RAW.labels.forEach(function (l) {
+                if (l && l.device_id === deviceId) hit = l;
+              });
+              if (!hit) {
+                hit = { company_id: COMPANY.company_id, device_id: deviceId };
+                RAW.labels.push(hit);
+              }
+              hit[field] = value;
+              recalc();
+              renderCars();
+              flash('carSaved', '保存しました');
+            })
+            .catch(function () {
+              showErr('車の名前を保存できませんでした。');
+            });
         }
 
         function stageRoles(roles) {

@@ -41,19 +41,47 @@
     return m;
   }
 
+  // ★並び (2026-08-05・司さん「並べ変えや名前を決めれるようにしたら楽」)★
+  //   dk_device_labels.sort_order。決めていない車は★後ろ★に回す。
+  //   ★1つも決めていなければ今までどおり（端末IDの順）＝今の見え方は変わらない★
+  function orderMap(labels) {
+    const m = {};
+    _arr(labels).forEach(function (l) {
+      if (!l) return;
+      const id = _str(l.device_id);
+      const v = l.sort_order;
+      const n = typeof v === 'number' ? v : parseFloat(v);
+      if (id && isFinite(n)) m[id] = n;
+    });
+    return m;
+  }
+
+  // 並べる（決めた順 → 決めていない物は端末IDの順で後ろ）
+  function sortIds(ids, labels) {
+    const ord = orderMap(labels);
+    return _arr(ids)
+      .map(_str)
+      .filter(Boolean)
+      .filter(function (v, i, a) {
+        return a.indexOf(v) === i;
+      })
+      .sort(function (a, b) {
+        const oa = ord[a] === undefined ? Infinity : ord[a];
+        const ob = ord[b] === undefined ? Infinity : ord[b];
+        if (oa !== ob) return oa - ob;
+        return a < b ? -1 : a > b ? 1 : 0; // ★同じなら端末IDの順＝毎回同じ★
+      });
+  }
+
   // ★画面に出す名前を作る★
   //   deviceIds … その会社の端末ID全部（仮名の番号を決めるのに要る）
   //   labels    … dk_device_labels の行
   //   返り値: 端末ID → 出す名前
   function nameMap(deviceIds, labels) {
     const named = labelMap(labels);
-    const ids = _arr(deviceIds)
-      .map(_str)
-      .filter(Boolean)
-      .filter(function (v, i, a) {
-        return a.indexOf(v) === i;
-      })
-      .sort(); // ★並べてから番号を振る＝毎回同じ番号になる★
+    // ★並べてから番号を振る＝毎回同じ番号になる★
+    //   並びを決めていれば その順。決めていなければ端末IDの順（今までどおり）。
+    const ids = sortIds(deviceIds, labels);
 
     const out = {};
     let n = 0;
@@ -83,6 +111,8 @@
   const api = {
     UUID_RE: UUID_RE,
     labelMap: labelMap,
+    orderMap: orderMap,
+    sortIds: sortIds,
     nameMap: nameMap,
     nameOf: nameOf,
     hasUuid: hasUuid,
