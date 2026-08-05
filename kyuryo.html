@@ -1202,7 +1202,7 @@
                     '<option value="' +
                     esc(d) +
                     '">' +
-                    esc((CTX.labels && CTX.labels[d]) || d) +
+                    esc(_carName(d)) + // ★UUIDは出さない (2026-08-05)★
                     '</option>'
                   );
                 })
@@ -1613,7 +1613,7 @@
             '<option value="">（決めていない）</option>' +
             devs
               .map(function (d) {
-                var lab = (CTX.labels && CTX.labels[d]) || d;
+                var lab = _carName(d); // ★UUIDは出さない (2026-08-05)★
                 return (
                   '<option value="' +
                   esc(d) +

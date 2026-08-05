@@ -253,16 +253,56 @@
     return ctx;
   }
 
+  // ★画面に出す車の名前 (2026-08-05)★
+  //   司さん「給料明細の売上1.2.3の横の英数字の訳分からんやつ」
+  //   名前が無い時に ★端末ID(UUID)をそのまま出していた★:
+  //     売上1（7e1919ef-4aaa-411e-8db0-ba0424…）
+  //   名前が無ければ「車1」「車2」にする。★UUIDは絶対に出さない★。
+  //   番号は端末IDを並べた順（開くたびに入れ替わらない）。
+  function _carLabels(ctx) {
+    const ids = arr(ctx && ctx.devices)
+      .map(function (d) {
+        return typeof d === 'string' ? d : '';
+      })
+      .filter(Boolean);
+    const named = (ctx && ctx.labels) || {};
+    if (global && global.CarName) {
+      return global.CarName.nameMap(
+        ids,
+        Object.keys(named).map(function (k) {
+          return { device_id: k, label: named[k] };
+        })
+      );
+    }
+    // CarName が無い時も ★UUIDは出さない★
+    const out = {};
+    let n = 0;
+    ids
+      .filter(function (v, i, a) {
+        return a.indexOf(v) === i;
+      })
+      .sort()
+      .forEach(function (id) {
+        if (named[id]) out[id] = named[id];
+        else {
+          n += 1;
+          out[id] = '車' + n;
+        }
+      });
+    return out;
+  }
+
   // 明細の「売上1・売上2・売上3…」の並び（つかさ車は外す）
   function carsOf(ctx) {
     try {
       const own = (ctx && ctx.settings && ctx.settings.ownerDeviceId) || '';
+      const names = _carLabels(ctx);
       return arr(ctx && ctx.devices)
         .filter(function (d) {
           return d !== own;
         })
         .map(function (d) {
-          return { device_id: d, label: (ctx.labels && ctx.labels[d]) || d };
+          return { device_id: d, label: names[d] || '車' }; // ★UUIDは出さない★
         })
         .sort(function (a, b) {
           return String(a.label).localeCompare(String(b.label), 'ja', { numeric: true });
@@ -284,6 +324,7 @@
       if (!ctx) return out;
       const own = ctx.settings.ownerDeviceId || '';
       const cars = (ctx.byDate && ctx.byDate[date]) || {};
+      const names = _carLabels(ctx); // ★UUIDを出さない（2026-08-05）★
 
       Object.keys(cars).forEach(function (dev) {
         const c = cars[dev];
@@ -298,7 +339,7 @@
           out.cars.push({
             id: dev,
             device_id: dev,
-            label: (ctx.labels && ctx.labels[dev]) || dev,
+            label: names[dev] || '車', // ★UUIDは出さない★
             sales: c.sales,
             expense: c.expense,
             hours: c.hours,

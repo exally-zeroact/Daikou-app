@@ -40,6 +40,52 @@ describe('★名前を決める所が1箇所だけであること★', () => {
   });
 });
 
+// ============================================================
+// ★2026-08-05 テストの見方を変えた（同じ漏れを2回やったため）★
+//
+//   1回目: kyuryo.html の車の行だけ直した → ★給料明細の「売上1（UUID）」が残っていた★
+//   司さん「消してないやないかぼけ」
+//
+//   ★なぜ漏れたか★
+//     テストが「私が直した1箇所」を名指しで見ていたので、
+//     ★直していない別の経路を見ていなかった★。
+//   ⇒ 名指しをやめ、★「名前を作っている所」を全部見つけて、どれも UUID を出さない★
+//     という見方にする。新しい経路が増えても自動で引っかかる。
+// ============================================================
+describe('★名前を作っている所を全部見る（名指しをやめる）★', () => {
+  const SOURCES = ['js/payroll-daily.js', 'js/uriage-agg.js', 'kyuryo.html', 'uriage.html'];
+
+  it('★「名前が無ければ端末ID」と書いている所が1つも無い★', () => {
+    // labels[x] || x   /  labels[dev] || dev   のような「端末IDに落とす」書き方を全部探す
+    const offenders = [];
+    SOURCES.forEach(function (f) {
+      const t = read(f);
+      const re = /\|\|\s*(dev|d|deviceId|device_id|s\.device_id)\s*[,;)\n]/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const line = t.slice(0, m.index).split('\n').length;
+        offenders.push(f + ':' + line + '  ' + m[0].trim());
+      }
+    });
+    expect(offenders, '★名前が無い時に端末IDを出している★').toEqual([]);
+  });
+
+  it('★短縮UUIDに落とす書き方も無い★', () => {
+    const offenders = [];
+    SOURCES.forEach(function (f) {
+      const t = read(f);
+      if (/\|\|\s*shortId\(/.test(t)) offenders.push(f);
+    });
+    expect(offenders, '★7e1919ef… のような短縮UUIDを名前にしている★').toEqual([]);
+  });
+
+  it('名前を決める道具を通していること', () => {
+    ['js/payroll-daily.js', 'js/uriage-agg.js'].forEach(function (f) {
+      expect(read(f), f + ' が名前を自分で決めている').toMatch(/CarName|_carLabels/);
+    });
+  });
+});
+
 describe('★端末IDをそのまま画面に出していないこと★', () => {
   it('給料明細が device_id をそのまま名前にしていない', () => {
     const t = read('kyuryo.html');
@@ -106,6 +152,60 @@ describe('★司さんの呼び方が出ること★', () => {
       { device_id: ids[2], label: '1173' },
     ]);
     expect([m[ids[0]], m[ids[1]], m[ids[2]]]).toEqual(['4987', '1466', '1173']);
+  });
+});
+
+// ★出る文字そのものを見る（コードの形だけでは足りなかった）★
+describe('★給料明細に出る名前に UUID が混ざらないこと★', () => {
+  const PD = require(path.join(ROOT, 'js', 'payroll-daily.js'));
+  const A = '7e1919ef-4aaa-411e-8db0-ba0424111111';
+  const B = '22849fdb-cde7-4f1d-afc7-47009a6222222';
+  const C = 'f3527369-9df3-47c4-93a8-b6e532a333333';
+
+  function ctx(labels) {
+    return {
+      devices: [A, B, C],
+      labels: labels || {},
+      settings: { ownerDeviceId: '' },
+      byDate: {},
+    };
+  }
+
+  it('★名前が無くても「売上1（車1）」になる（UUIDが出ない）★', () => {
+    const cars = PD.carsOf(ctx());
+    expect(cars.length).toBe(3);
+    cars.forEach(function (c, i) {
+      const shown = '売上' + (i + 1) + '（' + c.label + '）';
+      expect(CN.hasUuid(shown), '★' + shown + '★').toBe(false);
+      expect(c.label).toMatch(/^車\d+$/);
+    });
+  });
+
+  it('名前を付ければ その名前が出る', () => {
+    const cars = PD.carsOf(ctx({ [A]: '4987', [B]: '1173', [C]: '1466' }));
+    const names = cars.map((c) => c.label).sort();
+    expect(names).toEqual(['1173', '1466', '4987']);
+  });
+
+  it('★一部だけ名前が付いていても、残りはUUIDにならない★', () => {
+    const cars = PD.carsOf(ctx({ [A]: '4987' }));
+    cars.forEach(function (c) {
+      expect(CN.hasUuid(c.label), '★' + c.label + '★').toBe(false);
+    });
+    expect(cars.map((c) => c.label)).toContain('4987');
+  });
+
+  it('★1日ぶんの明細でもUUIDが出ない★', () => {
+    const c = ctx();
+    c.byDate['2026-08-04'] = {
+      [A]: { sales: 19600, expense: 0, hours: 8 },
+      [B]: { sales: 24300, expense: 0, hours: 9 },
+    };
+    const day = PD.dayInput('2026-08-04', c);
+    day.cars.forEach(function (car) {
+      expect(CN.hasUuid(car.label), '★' + car.label + '★').toBe(false);
+      expect(car.label).not.toMatch(/^[0-9a-f]{8}/);
+    });
   });
 });
 
