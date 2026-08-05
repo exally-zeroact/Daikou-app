@@ -5614,6 +5614,9 @@
          司さん「オフラインで走って画面を閉じて、家で業務終了」→ 距離が0で上がった件の根治。
          meter.js は距離も料金も保存していなかった（localStorage 参照3件は全部 車両プロファイル）。 -->
     <script src="js/meter-persist.js"></script>
+    <!-- ★前の日の業務が終わっていないことに気づかせる (2026-08-05)★
+         押し忘れると業務開始が効かず、2晩ぶんが1つにまとまって日付がずれる。 -->
+    <script src="js/carryover.js"></script>
     <script src="js/business.js"></script>
 
     <!-- ★business.js：業務管理スーパー機能（2026/05/01追加）-->
@@ -9931,6 +9934,50 @@
         }
       }
 
+      // ★前の日の業務が終わっていないことを知らせる (2026-08-05)★
+      //
+      //   ★何が起きていたか（司さんの指摘）★
+      //     業務終了を押し忘れたまま次の日を迎えると、
+      //     ★業務開始が効かない★（business.js: state.active なら return false）。
+      //     画面も「業務中」のままなので前の日の業務がそのまま続き、
+      //     2晩ぶんが1つの勤務にまとまって ★日付がずれる★（その日の売上表が空になる）。
+      //
+      //   ★決まり★
+      //     ・★勝手に締めない★。締めた時刻までの距離しか残らず、そのあと走った分が飛ぶ。
+      //       運転手に選ばせる。
+      //     ・★普通の夜勤（18時→翌9時）では出さない★。20時間を超えた時だけ。
+      //       毎晩出たら、ただのじゃまになって誰も読まなくなる。
+      //     ・出せなくても業務は止めない。
+      function _askCarryOver() {
+        try {
+          if (typeof CarryOver === 'undefined' || typeof Business === 'undefined') return;
+          const info = CarryOver.check(Business.getState(), Date.now());
+          if (!info || !info.carryOver) return;
+
+          const msg = CarryOver.message(info);
+          if (typeof dlog === 'function') dlog('[CarryOver] ' + msg);
+
+          // 画面が出来てから聞く（起動直後だと押せない）
+          setTimeout(function () {
+            try {
+              // eslint-disable-next-line no-alert
+              const yes = window.confirm(
+                msg + '\n\n「OK」= 終わらせて事務所に送る\n「キャンセル」= このまま続ける'
+              );
+              if (!yes) return; // ★続ける＝何もしない（勝手に締めない）★
+              Business.end();
+              _syncAfterEnd();
+              appState = 'businessStart';
+              if (typeof showScreen === 'function') showScreen('businessStart');
+            } catch (_) {
+              /* 聞けなくても業務は止めない */
+            }
+          }, 1500);
+        } catch (_) {
+          /* ★気づかせられなくても業務は絶対に止めない★ */
+        }
+      }
+
       // ★業務終了で、その場でクラウドへ送る (2026-08-04)★
       //
       //   ★直した穴★ 送る配線は job-sync.js の init() だけだった:
@@ -9999,6 +10046,12 @@
         }
         if (typeof Business !== 'undefined') {
           Business.load();
+          // ★前の日の業務が開きっぱなしなら気づかせる (2026-08-05)★
+          //   業務終了を押し忘れると★業務開始が効かない★（active なら return false）ので、
+          //   前の日の業務がそのまま続き、2晩ぶんが1つにまとまって日付がずれる。
+          //   ★勝手に締めない★ ─ 締めた時刻までの距離しか残らず、そのあと走った分が飛ぶため。
+          _askCarryOver();
+
           // ★メーターの控えを戻す (2026-08-04)★
           //   ★Business.load() の直後・起動時に1回だけ★（何度も呼ぶと足し込まれる恐れがある）。
           //   戻すのは「同じ業務」の時だけ。時間の長さでは切らない

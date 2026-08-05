@@ -29,6 +29,8 @@ const EXTERNAL_GLOBALS = [
   // ★メーターの控え (2026-08-04)★ js/meter-persist.js で定義・別 <script src> で読む。
   //   閉じた瞬間に距離が消えていた件の根治。
   'MeterPersist',
+  // ★前の日の業務が開きっぱなしかを判断する (2026-08-05)★ js/carryover.js で定義
+  'CarryOver',
   'GPS',
   'FB',
   'Business',
