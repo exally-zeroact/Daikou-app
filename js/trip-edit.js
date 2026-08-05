@@ -91,6 +91,13 @@
       const c = e.customer;
       out.customer_id = c && c.customer_id ? c.customer_id : null;
       out.customer_name = c && c.customer_id ? c.customer_name || null : null;
+      // 会社を変えたら「誰が乗ったか」は必ず消す（前の客のが残ったら請求書が狂う）
+      out.customer_note = null;
+    }
+    // ★誰が乗ったか(会長/社長/専務など) 2026-08-05★
+    //   請求書の備考に入り、そこで小計が分かれる会社がある。選び忘れをここで直せる。
+    if (e.customerNote !== undefined) {
+      out.customer_note = out.customer_id && e.customerNote ? String(e.customerNote) : null;
     }
     // ★距離には一切代入しない★（元の値は Object.assign がそのまま運ぶ）
     //   「念のため戻す」も書かない。書けば触れる余地が残る。
@@ -110,6 +117,7 @@
       const id = ride.customer_id || null;
       out.customer_id = id;
       out.customer_name = id ? ride.customer_name || null : null;
+      out.customer_note = id ? ride.customer_note || null : null; // 誰が乗ったか
       out.payment_type = id ? 'invoice' : 'cash';
     }
     return out;

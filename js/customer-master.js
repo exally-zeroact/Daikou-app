@@ -78,7 +78,20 @@
         const id = r.id === 0 || r.id ? String(r.id) : '';
         const name = typeof r.name === 'string' ? r.name.trim() : '';
         if (!id || !name) continue;
-        out.push({ customer_id: id, name: name, active: true });
+        const row = { customer_id: id, name: name, active: true };
+        // ★誰が乗ったかを選ばせる会社 (2026-08-05)★
+        //   藤原建設のように請求書を「会長／社長／専務」で分けて小計を出す会社は、
+        //   請求先を選んだ後に★名前も選ばせないと、その行だけ仕分けから外れる★。
+        //   使わない会社には付けない(付いていない=聞かない、で判断できる)。
+        const g = Array.isArray(r.note_groups) ? r.note_groups : null;
+        if (g) {
+          const clean = g
+            .map((x) => (typeof x === 'string' ? x.trim() : ''))
+            .filter((x) => x)
+            .slice(0, 20);
+          if (clean.length) row.note_groups = clean;
+        }
+        out.push(row);
       }
       return out;
     } catch (_) {

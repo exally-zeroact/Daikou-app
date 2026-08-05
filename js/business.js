@@ -744,17 +744,36 @@ const Business = (function () {
   //   ・料金/距離には一切影響しない(記録用の付箋を貼るだけ)。
   //   ・代行が始まっていない時に押しても、変な値が来ても、絶対に落ちない(業務を止めない)。
   //   ・会社名は「その時の名前」を焼き付ける(後でマスタから消えても過去の請求書が壊れない)。
-  function setTripCustomer(customerId, customerName) {
+  //   ★2026-08-05 「誰が乗ったか」も一緒に貼れるようにした★
+  //     藤原建設は請求書を「会長／社長／専務」で分けて小計を出す(companies.config.noteGroups)。
+  //     メーターに選ぶ所が無く、★その会社の行だけ備考が空で上がって仕分けから外れていた★。
+  //     customerNote は請求書の備考にそのまま入る。会社を選び直したら消える(前の客のが残ると事故)。
+  function setTripCustomer(customerId, customerName, customerNote) {
     try {
       if (!state.current_trip) return false; // 代行が始まっていない = 貼る先が無い(黙って何もしない)
       const id = typeof customerId === 'string' && customerId ? customerId : null;
       state.current_trip.customer_id = id;
       state.current_trip.customer_name =
         id && typeof customerName === 'string' ? customerName : null;
+      state.current_trip.customer_note =
+        id && typeof customerNote === 'string' && customerNote ? customerNote : null;
       save();
       return true;
     } catch (_) {
       return false; // ★絶対に throw しない★
+    }
+  }
+
+  // 「誰が乗ったか」だけを後から貼る(会社は変えない)。会社未選択なら何もしない。
+  function setTripCustomerNote(customerNote) {
+    try {
+      const t = state.current_trip;
+      if (!t || !t.customer_id) return false;
+      t.customer_note = typeof customerNote === 'string' && customerNote ? customerNote : null;
+      save();
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -763,7 +782,11 @@ const Business = (function () {
     try {
       const t = state.current_trip;
       if (!t || !t.customer_id) return null;
-      return { customer_id: t.customer_id, customer_name: t.customer_name || null };
+      return {
+        customer_id: t.customer_id,
+        customer_name: t.customer_name || null,
+        customer_note: t.customer_note || null,
+      };
     } catch (_) {
       return null;
     }
@@ -780,6 +803,7 @@ const Business = (function () {
       // 掛け先は代行ごとにまっさら(前の客の掛けが次に付いたら事故)
       customer_id: null,
       customer_name: null,
+      customer_note: null, // 誰が乗ったか(会長/社長/専務など)。前の客のが残ったら事故なので必ず消す
     };
     save();
     if (typeof dlog === 'function') {
@@ -893,6 +917,8 @@ const Business = (function () {
       waypoints: currentTrip.waypoints.slice ? currentTrip.waypoints.slice() : [],
       customer_id: _custId,
       customer_name: _custId ? currentTrip.customer_name || null : null,
+      // ★誰が乗ったか(会長/社長/専務など)★ 請求書の備考に入り、そこで小計が分かれる
+      customer_note: _custId ? currentTrip.customer_note || null : null,
       payment_type: _custId ? 'invoice' : 'cash',
     });
     // 統合後 current_trip はリセット (次の代行で onTripStart が新規初期化する)
@@ -1213,6 +1239,7 @@ const Business = (function () {
     getCurrentTrip,
     // ★請求書払い(掛け)先の紐付け (2026-07-31・実車中の「請求書」ボタンから呼ぶ)
     setTripCustomer,
+    setTripCustomerNote,
     getTripCustomer,
     getState,
     getReport,

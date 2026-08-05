@@ -5418,6 +5418,19 @@
       </div>
     </div>
 
+    <!-- 誰が乗ったかモーダル (2026-08-05・司さん指摘)
+         藤原建設のように請求書を「会長／社長／専務」で分けて小計を出す会社だけ出る。
+         中身は事務所の会社設定(noteGroups)から来る＝会社が増えてもここは直さない。 -->
+    <div class="modal-overlay" id="noteGroupModalOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">誰が乗った？</div>
+          <div class="modal-cancel" onclick="closeNoteGroupModal()">あとで</div>
+        </div>
+        <div class="modal-items" id="noteGroupModalItems"></div>
+      </div>
+    </div>
+
     <!-- 値引きモーダル (2026-07-25・追加料金と同型) -->
     <div class="modal-overlay" id="discountModalOverlay">
       <div class="modal">
@@ -9246,6 +9259,7 @@
             // ★請求先も残す★（履歴から付け替えできるように）
             customer_id: _trip ? _trip.customer_id || null : null,
             customer_name: _trip ? _trip.customer_name || null : null,
+            customer_note: _trip ? _trip.customer_note || null : null, // 誰が乗ったか
             start_address: _trip ? _trip.start_address || null : null,
             end_address: _trip ? _trip.end_address || null : null,
             waypoints:
@@ -9855,17 +9869,86 @@
         document.getElementById('invoiceModalOverlay').classList.remove('show');
       }
       function pickInvoiceCustomer(i) {
+        let picked = null;
         try {
           const c = _invoiceCustomers()[i];
           if (c && window.Business && Business.setTripCustomer) {
             Business.setTripCustomer(c.customer_id, c.name);
             if (typeof showToast === 'function') showToast('請求書: ' + c.name);
+            picked = c;
           }
         } catch (_) {
           /* 業務は止めない */
         }
         _updateInvoiceBtn();
         closeInvoiceModal();
+        // ★誰が乗ったかを聞く会社なら、続けて名前を選ばせる (2026-08-05・司さん指摘)★
+        //   藤原建設は請求書を「会長／社長／専務」で分けて小計を出す。
+        //   ここで聞かないと★その会社の行だけ備考が空で上がり、仕分けから外れる★。
+        try {
+          if (picked && Array.isArray(picked.note_groups) && picked.note_groups.length) {
+            _openNoteGroupModal(picked.note_groups);
+          }
+        } catch (_) {
+          /* 聞けなくても代行は続く */
+        }
+      }
+
+      // ─── 誰が乗ったか (会長/社長/専務 …) ───────────────────
+      //   出す中身は事務所の会社設定から来る＝会社が増えても分け方が変わってもここは直さない。
+      //   ★選ばなくても代行は続く★(あとから履歴で直せる)。
+      let _noteGroups = [];
+      function _openNoteGroupModal(groups) {
+        _noteGroups = Array.isArray(groups) ? groups : [];
+        const el = document.getElementById('noteGroupModalItems');
+        if (!el) return;
+        const cur =
+          (window.Business && Business.getTripCustomer && Business.getTripCustomer()) || null;
+        const now = cur ? cur.customer_note : null;
+        el.innerHTML = _noteGroups
+          .map(
+            (g, i) =>
+              '<div class="modal-item" onclick="pickNoteGroup(' +
+              i +
+              ')"><span class="modal-item-name">' +
+              String(g).replace(/[<>&]/g, '') +
+              '</span><span class="modal-item-price">' +
+              (now === g ? '選択中' : '') +
+              '</span></div>'
+          )
+          .join('');
+        document.getElementById('noteGroupModalOverlay').classList.add('show');
+      }
+      function closeNoteGroupModal() {
+        document.getElementById('noteGroupModalOverlay').classList.remove('show');
+      }
+      function pickNoteGroup(i) {
+        try {
+          const g = _noteGroups[i];
+          if (g && window.Business && Business.setTripCustomerNote) {
+            Business.setTripCustomerNote(g);
+            if (typeof showToast === 'function') showToast('請求書: ' + g);
+          }
+        } catch (_) {
+          /* 業務は止めない */
+        }
+        _updateInvoiceBtn();
+        closeNoteGroupModal();
+      }
+      // 会社を選んだあとに「誰が乗ったか」を選び直す（一覧の行から呼ぶ）
+      function reopenNoteGroup() {
+        try {
+          const cur =
+            (window.Business && Business.getTripCustomer && Business.getTripCustomer()) || null;
+          if (!cur) return;
+          const c = _invoiceCustomers().filter(function (x) {
+            return x.customer_id === cur.customer_id;
+          })[0];
+          if (c && Array.isArray(c.note_groups) && c.note_groups.length)
+            _openNoteGroupModal(c.note_groups);
+        } catch (_) {
+          /* ignore */
+        }
       }
       function clearInvoiceCustomer() {
         try {
@@ -9897,8 +9980,27 @@
           }
           if (lbl) lbl.style.display = 'block';
           const name = String(cur.customer_name || '').replace(/[<>&]/g, '');
+          // ★誰が乗ったかも一緒に出す (2026-08-05)★
+          //   出ていないと、選び忘れたことに気づけない（＝請求書で仕分けから外れる）。
+          //   聞く会社なのに未選択なら「誰？」と赤く出して、押せば選び直せる。
+          let noteHtml = '';
+          try {
+            const c = _invoiceCustomers().filter(function (x) {
+              return x.customer_id === cur.customer_id;
+            })[0];
+            if (c && Array.isArray(c.note_groups) && c.note_groups.length) {
+              const n = String(cur.customer_note || '').replace(/[<>&]/g, '');
+              noteHtml = n
+                ? '<span onclick="reopenNoteGroup()" style="margin-left:8px;color:#007aff;font-weight:700;">' +
+                  n +
+                  '</span>'
+                : '<span onclick="reopenNoteGroup()" style="margin-left:8px;color:#ff3b30;font-weight:700;">誰？</span>';
+            }
+          } catch (_) {
+            /* ignore */
+          }
           el.innerHTML = `<div class="extra-item" style="display:flex;justify-content:space-between;align-items:center;">
-      <span>${name}</span>
+      <span>${name}${noteHtml}</span>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="extra-del-btn" onclick="clearInvoiceCustomer()">✕</button>
       </div>
@@ -12930,6 +13032,8 @@
                   (extrasText ? extrasText + '　' : '') +
                   '<span class="r-i">請求書: ' +
                   _histEscape(ride.customer_name) +
+                  // ★誰が乗ったか (2026-08-05)★ 出ていないと選び忘れに気づけない
+                  (ride.customer_note ? '（' + _histEscape(ride.customer_note) + '）' : '') +
                   '</span>';
               }
               if (ride.surcharge) extrasText = (extrasText ? extrasText + '　' : '') + '割増あり';
@@ -13046,6 +13150,7 @@
             customer: ride.customer_id
               ? { customer_id: ride.customer_id, customer_name: ride.customer_name || '' }
               : null,
+            customerNote: ride.customer_note || null, // 誰が乗ったか
           };
           // 直せない所（見せるだけ）
           const km = ((ride.distance_m || 0) / 1000).toFixed(2);
@@ -13097,9 +13202,23 @@
               .join('');
           document.getElementById('teExtras').innerHTML = rows(_cur.extras, false);
           document.getElementById('teDiscounts').innerHTML = rows(_cur.discounts, true);
+          // ★誰が乗ったか(会長/社長/専務など)も出す (2026-08-05)★
+          //   聞く会社なのに未選択なら赤く「誰？」と出す。押せばその場で選べる。
+          let noteHtml = '';
+          if (_cur.customer) {
+            const g = _te_noteGroupsOf(_cur.customer.customer_id);
+            if (g.length) {
+              noteHtml = _cur.customerNote
+                ? '<span class="te-note-pick" onclick="_te_pick(\'note\')" style="margin-left:8px;color:#007aff;font-weight:700;">' +
+                  _esc(_cur.customerNote) +
+                  '</span>'
+                : '<span class="te-note-pick" onclick="_te_pick(\'note\')" style="margin-left:8px;color:#ff3b30;font-weight:700;">誰？</span>';
+            }
+          }
           document.getElementById('teCustomer').innerHTML = _cur.customer
             ? '<div class="te-row"><span>' +
               _esc(_cur.customer.customer_name) +
+              noteHtml +
               '</span><span class="te-x" onclick="_te_del(\'customer\',0)">✕</span></div>'
             : '';
 
@@ -13116,20 +13235,55 @@
 
         window._te_del = function (kind, i) {
           if (!_cur) return;
-          if (kind === 'customer') _cur.customer = null;
-          else if (kind === 'discount') _cur.discounts.splice(i, 1);
+          if (kind === 'customer') {
+            _cur.customer = null;
+            _cur.customerNote = null; // 現金に戻すなら誰が乗ったかも消す
+          } else if (kind === 'discount') _cur.discounts.splice(i, 1);
           else _cur.extras.splice(i, 1);
           _te_render();
         };
 
-        // ─── 選ぶ画面（追加料金／値引き／請求先で使い回す）───
+        // その会社が「誰が乗ったか」を聞く会社かどうか（聞かない会社は空配列）
+        function _te_noteGroupsOf(customerId) {
+          try {
+            const c = _readJson('dk_customers_cache', []).filter(function (x) {
+              return x && x.customer_id === customerId;
+            })[0];
+            return c && Array.isArray(c.note_groups) ? c.note_groups : [];
+          } catch (_) {
+            return [];
+          }
+        }
+
+        // ─── 選ぶ画面（追加料金／値引き／請求先／誰が乗ったか で使い回す）───
         window._te_pick = function (mode) {
           if (!_cur) return;
           _pickMode = mode;
           const el = document.getElementById('tePickItems');
           const custom = document.getElementById('tePickCustom');
           let html = '';
-          if (mode === 'customer') {
+          if (mode === 'note') {
+            document.getElementById('tePickTitle').textContent = '誰が乗った？';
+            custom.style.display = 'none';
+            const groups = _cur.customer ? _te_noteGroupsOf(_cur.customer.customer_id) : [];
+            _pickList = groups.map(function (g) {
+              return { name: g };
+            });
+            html = _pickList.length
+              ? _pickList
+                  .map(
+                    (x, i) =>
+                      '<div class="modal-item" onclick="_te_pickItem(' +
+                      i +
+                      ')"><span class="modal-item-name">' +
+                      _esc(x.name) +
+                      '</span><span class="modal-item-price">' +
+                      (_cur.customerNote === x.name ? '選択中' : '') +
+                      '</span></div>'
+                  )
+                  .join('')
+              : '<div class="modal-item" style="justify-content:center;color:#8e8e93">分け方が登録されていません</div>';
+          } else if (mode === 'customer') {
             document.getElementById('tePickTitle').textContent = '請求書の会社を選ぶ';
             custom.style.display = 'none';
             const list = _readJson('dk_customers_cache', []).filter(
@@ -13189,8 +13343,11 @@
           if (!_cur) return;
           const x = _pickList[i];
           if (!x) return;
-          if (_pickMode === 'customer') {
+          if (_pickMode === 'note') {
+            _cur.customerNote = x.name;
+          } else if (_pickMode === 'customer') {
             _cur.customer = { customer_id: x.customer_id, customer_name: x.name };
+            _cur.customerNote = null; // 会社を変えたら誰が乗ったかは消す（前の客のが残ったら事故）
           } else if (_pickMode === 'discount') {
             _cur.discounts.push({ name: x.name, amount: Number(x.amount) || 0 });
           } else {
@@ -13220,6 +13377,7 @@
               extras: _cur.extras,
               discounts: _cur.discounts,
               customer: _cur.customer,
+              customerNote: _cur.customerNote || null, // 誰が乗ったか
               now: Date.now(),
             },
           });
