@@ -126,6 +126,13 @@ const CORE_CODE_FILES = [
   '/js/job-sync.js',
   '/js/customer-master.js',
   '/js/trace-outbox.js',
+  // ★2026-08-05 入れ忘れていた3本を追加★
+  //   ダイコメは★完全オフライン前提★。ここに無いと、圏外で入れ直した端末で
+  //   「距離を覚える」「前の日の業務に気づく」「履歴から直す」が丸ごと動かない。
+  //   (meter-persist / carryover は作った時に入れ忘れていた)
+  '/js/meter-persist.js',
+  '/js/carryover.js',
+  '/js/trip-edit.js',
 ];
 
 self.addEventListener('install', function (e) {

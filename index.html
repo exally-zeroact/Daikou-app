@@ -1182,6 +1182,179 @@
       #overlayHistory .ride-item:last-child {
         border-bottom: none;
       }
+      /* ★押せることを見せる (2026-08-05・履歴から直す)★
+         司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな」 */
+      #overlayHistory .ride-item.tappable {
+        cursor: pointer;
+        position: relative;
+        padding-right: 30px; /* 右端の「＞」ぶん */
+      }
+      #overlayHistory .ride-item.tappable::after {
+        content: '›';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #c7c7cc;
+        font-size: 26px;
+        line-height: 1;
+      }
+      #overlayHistory .ride-item.tappable:active {
+        background: #f2f2f7;
+      }
+      /* 直した代行の印（あとで見て分かるように） */
+      #overlayHistory .ride-edited {
+        font-size: 11px;
+        color: #ff9500;
+        font-weight: 700;
+      }
+      /* 値引きは紫・追加料金はオレンジ（走行中の画面と同じ色使い） */
+      #overlayHistory .ride-extras .r-d {
+        color: #5856d6;
+      }
+      #overlayHistory .ride-extras .r-i {
+        color: #007aff;
+      }
+
+      /* ─── あとから直すシート (2026-08-05) ─── */
+      .te-modal {
+        max-height: 86vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .te-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 4px 0 8px;
+      }
+      .te-fixed {
+        background: #f2f2f7;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+      }
+      .te-fixed-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 2px 0;
+      }
+      .te-lbl {
+        font-size: 13px;
+        color: #6b6b70;
+      }
+      .te-val {
+        font-size: 17px;
+        font-weight: 700;
+        color: #1c1c1e;
+      }
+      .te-route {
+        font-size: 12px;
+        color: #6b6b70;
+        margin-top: 4px;
+        word-break: break-all;
+      }
+      .te-note {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 6px;
+      }
+      .te-sec {
+        margin-bottom: 12px;
+      }
+      .te-sec-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: #1c1c1e;
+        margin-bottom: 6px;
+      }
+      .te-add {
+        border: none;
+        border-radius: 8px;
+        padding: 7px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+        background: #ff9500; /* 追加料金オレンジ */
+      }
+      .te-add-d {
+        background: #5856d6; /* 値引き紫 */
+      }
+      .te-add-i {
+        background: #007aff; /* 請求書 青 */
+      }
+      .te-add:active {
+        opacity: 0.7;
+      }
+      .te-list:empty::before {
+        content: 'なし';
+        font-size: 13px;
+        color: #8e8e93;
+      }
+      .te-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 10px;
+        background: #fff;
+        border: 1px solid #e5e5ea;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        font-size: 15px;
+      }
+      .te-row .te-x {
+        color: #ff3b30;
+        font-size: 20px;
+        padding: 0 4px;
+        line-height: 1;
+      }
+      .te-row .te-amt {
+        margin-left: auto;
+        margin-right: 10px;
+        font-weight: 700;
+      }
+      .te-amt.minus {
+        color: #5856d6;
+      }
+      .te-total {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        border-top: 2px solid #1c1c1e;
+        padding-top: 10px;
+        margin-top: 4px;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .te-total #teTotal {
+        font-size: 26px;
+      }
+      .te-diff {
+        font-size: 13px;
+        font-weight: 700;
+        color: #ff9500;
+        text-align: right;
+        min-height: 18px;
+      }
+      .te-actions {
+        padding-top: 10px;
+      }
+      .te-save {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 15px;
+        font-size: 17px;
+        font-weight: 700;
+        color: #fff;
+        background: #2e7d54;
+      }
+      .te-save:active {
+        opacity: 0.8;
+      }
       #overlayHistory .ride-left {
         display: flex;
         flex-direction: column;
@@ -5261,6 +5434,82 @@
       </div>
     </div>
 
+    <!-- ============================================================
+         ★あとから代行を直す（履歴から）★ 2026-08-05
+           司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな
+                   忘れとる時があると思うから」
+
+           ★走行中のモーダル(extras/discounts のグローバル)は流用しない★
+             流用すると、走行中の代行の金額を書き換えてしまう。履歴専用に独立させる。
+           ★距離と走った分の料金は出すだけ・直せない★（距離コアは触らない）
+         ============================================================ -->
+    <div class="modal-overlay" id="tripEditOverlay">
+      <div class="modal te-modal">
+        <div class="modal-header">
+          <div class="modal-title" id="teTitle">代行を直す</div>
+          <div class="modal-cancel" onclick="_te_close()">やめる</div>
+        </div>
+        <div class="te-body">
+          <!-- 直せない所（見せるだけ） -->
+          <div class="te-fixed">
+            <div class="te-fixed-row">
+              <span class="te-lbl">走行</span><span id="teDist" class="te-val">-</span>
+            </div>
+            <div class="te-fixed-row">
+              <span class="te-lbl">走った分の料金</span><span id="teBase" class="te-val">-</span>
+            </div>
+            <div class="te-route" id="teRoute"></div>
+            <div class="te-note">走行と走った分の料金は直せません</div>
+          </div>
+
+          <!-- 直せる所 -->
+          <div class="te-sec">
+            <div class="te-sec-head">
+              <span>追加料金</span>
+              <button class="te-add" onclick="_te_pick('extra')">＋ 足す</button>
+            </div>
+            <div class="te-list" id="teExtras"></div>
+          </div>
+          <div class="te-sec">
+            <div class="te-sec-head">
+              <span>値引き</span>
+              <button class="te-add te-add-d" onclick="_te_pick('discount')">＋ 足す</button>
+            </div>
+            <div class="te-list" id="teDiscounts"></div>
+          </div>
+          <div class="te-sec">
+            <div class="te-sec-head">
+              <span>請求書</span>
+              <button class="te-add te-add-i" onclick="_te_pick('customer')">選ぶ</button>
+            </div>
+            <div class="te-list" id="teCustomer"></div>
+          </div>
+
+          <div class="te-total"><span>合計</span><span id="teTotal">¥0</span></div>
+          <div class="te-diff" id="teDiff"></div>
+        </div>
+        <div class="te-actions">
+          <button class="te-save" onclick="_te_save()">この内容で直す</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 直す時の選択（追加料金／値引き／請求先を1枚で使い回す） -->
+    <div class="modal-overlay" id="tePickOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="tePickTitle">選ぶ</div>
+          <div class="modal-cancel" onclick="_te_pickClose()">キャンセル</div>
+        </div>
+        <div class="modal-items" id="tePickItems"></div>
+        <div class="modal-custom" id="tePickCustom" style="margin-top: 8px">
+          <span>任意入力</span>
+          <input type="number" id="tePickAmount" placeholder="0" inputmode="numeric" />
+          <button class="modal-custom-btn" onclick="_te_pickCustom()">足す</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       // NoSleep自前実装（WakeLock API優先・AudioContextフォールバック）
       class NoSleep {
@@ -5617,6 +5866,11 @@
     <!-- ★前の日の業務が終わっていないことに気づかせる (2026-08-05)★
          押し忘れると業務開始が効かず、2晩ぶんが1つにまとまって日付がずれる。 -->
     <script src="js/carryover.js"></script>
+    <!-- ★あとから代行を直す（追加料金・値引き・請求書）(2026-08-05)★
+         司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな
+                 忘れとる時があると思うから」
+         ★距離と走った分の料金は触らない。足し引きする物だけ差し替える。★ -->
+    <script src="js/trip-edit.js"></script>
     <script src="js/business.js"></script>
 
     <!-- ★business.js：業務管理スーパー機能（2026/05/01追加）-->
@@ -8980,8 +9234,18 @@
             end_time: now.getTime(),
             distance_m: Math.round(s.distance_m),
             fare: total,
+            // ★あとから直せるように、内訳を残す (2026-08-05)★
+            //   司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな」
+            //   ★meter_fare = 走った分の料金(割増を掛けたあと)★
+            //   これが無いと、直す時に「合計から戻し計算」しか出来ず、
+            //   値引きが入っていた古い履歴で走った分を取り違える。
+            meter_fare: fare,
             surcharge: surchargeOn,
             extras: [...extras],
+            discounts: Array.isArray(discounts) ? [...discounts] : [], // ★今まで残していなかった★
+            // ★請求先も残す★（履歴から付け替えできるように）
+            customer_id: _trip ? _trip.customer_id || null : null,
+            customer_name: _trip ? _trip.customer_name || null : null,
             start_address: _trip ? _trip.start_address || null : null,
             end_address: _trip ? _trip.end_address || null : null,
             waypoints:
@@ -12460,6 +12724,7 @@
           //   旧: 今日の daikou_history_<日付> キー 1 つだけ読み込み → 日付をまたぐと前夜分が見えなかった。
           //   新: 保持中の全 daikou_history_<日付> キーをマージし、日付セクション(新しい日が上・各日内は
           //       保存順=時系列)で表示。上部 summary は表示中の全 ride を合算。
+          const PREFIX_FOR_EDIT = 'daikou_history_'; // 直す時に使う鍵の前半
           let buckets = [];
           try {
             const PREFIX = 'daikou_history_';
@@ -12628,15 +12893,50 @@
               const i = j; // 回目=時系列(保存順)。表示は逆順でも回目は不変。
               const item = document.createElement('div');
               item.className = 'ride-item';
+              // ★押したら直せる (2026-08-05・司さん指示)★
+              //   trip_key が無い古い履歴は突き合わせられないので押せなくする
+              //   （押せてしまうと「直したのに反映されない」が起きる）。
+              if (ride.trip_key) {
+                item.className += ' tappable';
+                item.dataset.tripKey = String(ride.trip_key);
+                item.dataset.rideKey = PREFIX_FOR_EDIT + bucket.dateStr;
+              }
               let extrasText = '';
               if (ride.extras && ride.extras.length > 0) {
                 extrasText = ride.extras
                   .map(function (e) {
-                    return e.name + ' +¥' + (e.amount || 0).toLocaleString();
+                    return _histEscape(e.name) + ' +¥' + (e.amount || 0).toLocaleString();
                   })
                   .join('　');
               }
+              // ★値引き・請求先も出す (2026-08-05)★ 直せるようにした以上、見えないと直したか分からない
+              if (Array.isArray(ride.discounts) && ride.discounts.length > 0) {
+                extrasText =
+                  (extrasText ? extrasText + '　' : '') +
+                  ride.discounts
+                    .map(function (d) {
+                      return (
+                        '<span class="r-d">' +
+                        _histEscape(d.name) +
+                        ' -¥' +
+                        (d.amount || 0).toLocaleString() +
+                        '</span>'
+                      );
+                    })
+                    .join('　');
+              }
+              if (ride.customer_id && ride.customer_name) {
+                extrasText =
+                  (extrasText ? extrasText + '　' : '') +
+                  '<span class="r-i">請求書: ' +
+                  _histEscape(ride.customer_name) +
+                  '</span>';
+              }
               if (ride.surcharge) extrasText = (extrasText ? extrasText + '　' : '') + '割増あり';
+              if (ride.edited_at)
+                extrasText =
+                  (extrasText ? extrasText + '　' : '') +
+                  '<span class="ride-edited">修正済み</span>';
               const routeHtml = _buildRouteHtml(ride);
               const timesHtml = _buildTimesHtml(ride);
               // ★2026-07-05 司さん指示: 走行(距離)を左下→右カラム(金額の上)へ移動=右で距離/金額を縦バランス。
@@ -12674,6 +12974,279 @@
             );
         }
         window._hist_render = _hist_render;
+
+        // ★履歴の代行を押したら直すシートを開く (2026-08-05・司さん指示)★
+        //   1件ずつに onclick を書かず、親で受ける（描き直しても効き続ける）。
+        document.addEventListener('click', function (ev) {
+          try {
+            const item = ev.target && ev.target.closest && ev.target.closest('.ride-item.tappable');
+            if (!item) return;
+            if (!document.getElementById('overlayHistory').contains(item)) return;
+            if (typeof window._te_open === 'function') {
+              window._te_open(item.dataset.rideKey, Number(item.dataset.tripKey));
+            }
+          } catch (_) {
+            /* 履歴表示は絶対に止めない */
+          }
+        });
+      })();
+
+      // ============================================================
+      // ★あとから代行を直す（追加料金・値引き・請求書）★ 2026-08-05
+      //
+      //   司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな
+      //           忘れとる時があると思うから」
+      //
+      //   ▼絶対にやらないこと
+      //     ・距離を触る            … distance_m は読むだけ
+      //     ・走った分の料金を作り直す … meter_fare をそのまま持ち回る
+      //     ・走行中の extras/discounts を書き換える … ここは履歴専用の変数で閉じる
+      //   ▼金額の計算・保存は js/trip-edit.js（テスト済み）に任せる。ここは画面だけ。
+      // ============================================================
+      (function () {
+        let _cur = null; // { rideKey, tripKey, ride, extras, discounts, customer, before }
+        let _pickMode = null;
+
+        const _esc = (s) =>
+          String(s == null ? '' : s).replace(
+            /[&<>"']/g,
+            (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+          );
+        const _yen = (n) => '¥' + Math.round(Number(n) || 0).toLocaleString();
+        const _readJson = (k, d) => {
+          try {
+            const raw = localStorage.getItem(k);
+            return raw ? JSON.parse(raw) : d;
+          } catch (_) {
+            return d;
+          }
+        };
+
+        function _findRide(rideKey, tripKey) {
+          const list = _readJson(rideKey, []);
+          if (!Array.isArray(list)) return null;
+          return list.find((r) => r && Number(r.trip_key) === Number(tripKey)) || null;
+        }
+
+        window._te_open = function (rideKey, tripKey) {
+          if (typeof TripEdit === 'undefined') return;
+          const ride = _findRide(rideKey, tripKey);
+          if (!ride) {
+            if (typeof window._showToast === 'function')
+              window._showToast('この代行が見つかりません');
+            return;
+          }
+          _cur = {
+            rideKey: rideKey,
+            tripKey: tripKey,
+            ride: ride,
+            before: Number(ride.fare) || 0,
+            extras: Array.isArray(ride.extras) ? ride.extras.slice() : [],
+            discounts: Array.isArray(ride.discounts) ? ride.discounts.slice() : [],
+            customer: ride.customer_id
+              ? { customer_id: ride.customer_id, customer_name: ride.customer_name || '' }
+              : null,
+          };
+          // 直せない所（見せるだけ）
+          const km = ((ride.distance_m || 0) / 1000).toFixed(2);
+          document.getElementById('teDist').textContent = km + ' km';
+          document.getElementById('teBase').textContent = _yen(TripEdit.meterFareOf(ride));
+          const when =
+            (ride.start_time
+              ? new Date(ride.start_time).toLocaleString('ja-JP', {
+                  month: 'numeric',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+              : ride.time || '') + ' の代行';
+          document.getElementById('teTitle').textContent = when;
+          const route = [ride.start_address, ride.end_address]
+            .filter(Boolean)
+            .map(_esc)
+            .join(' → ');
+          document.getElementById('teRoute').innerHTML = route;
+          _te_render();
+          document.getElementById('tripEditOverlay').classList.add('show');
+        };
+
+        window._te_close = function () {
+          document.getElementById('tripEditOverlay').classList.remove('show');
+          _cur = null;
+        };
+
+        function _te_render() {
+          if (!_cur) return;
+          const rows = (list, minus) =>
+            list
+              .map(
+                (x, i) =>
+                  '<div class="te-row"><span>' +
+                  _esc(x.name) +
+                  '</span><span class="te-amt' +
+                  (minus ? ' minus' : '') +
+                  '">' +
+                  (minus ? '-' : '+') +
+                  _yen(x.amount) +
+                  '</span><span class="te-x" onclick="_te_del(\'' +
+                  (minus ? 'discount' : 'extra') +
+                  "'," +
+                  i +
+                  ')">✕</span></div>'
+              )
+              .join('');
+          document.getElementById('teExtras').innerHTML = rows(_cur.extras, false);
+          document.getElementById('teDiscounts').innerHTML = rows(_cur.discounts, true);
+          document.getElementById('teCustomer').innerHTML = _cur.customer
+            ? '<div class="te-row"><span>' +
+              _esc(_cur.customer.customer_name) +
+              '</span><span class="te-x" onclick="_te_del(\'customer\',0)">✕</span></div>'
+            : '';
+
+          const total = TripEdit.totalOf(
+            TripEdit.meterFareOf(_cur.ride),
+            _cur.extras,
+            _cur.discounts
+          );
+          document.getElementById('teTotal').textContent = _yen(total);
+          const d = total - _cur.before;
+          document.getElementById('teDiff').textContent =
+            d === 0 ? '' : d > 0 ? '直す前より +' + _yen(d) : '直す前より -' + _yen(-d);
+        }
+
+        window._te_del = function (kind, i) {
+          if (!_cur) return;
+          if (kind === 'customer') _cur.customer = null;
+          else if (kind === 'discount') _cur.discounts.splice(i, 1);
+          else _cur.extras.splice(i, 1);
+          _te_render();
+        };
+
+        // ─── 選ぶ画面（追加料金／値引き／請求先で使い回す）───
+        window._te_pick = function (mode) {
+          if (!_cur) return;
+          _pickMode = mode;
+          const el = document.getElementById('tePickItems');
+          const custom = document.getElementById('tePickCustom');
+          let html = '';
+          if (mode === 'customer') {
+            document.getElementById('tePickTitle').textContent = '請求書の会社を選ぶ';
+            custom.style.display = 'none';
+            const list = _readJson('dk_customers_cache', []).filter(
+              (c) => c && c.name && c.active !== false
+            );
+            html = list.length
+              ? list
+                  .map(
+                    (c, i) =>
+                      '<div class="modal-item" onclick="_te_pickItem(' +
+                      i +
+                      ')"><span class="modal-item-name">' +
+                      _esc(c.name) +
+                      '</span><span class="modal-item-price">' +
+                      (_cur.customer && _cur.customer.customer_id === c.customer_id
+                        ? '選択中'
+                        : '') +
+                      '</span></div>'
+                  )
+                  .join('')
+              : '<div class="modal-item" style="justify-content:center;color:#8e8e93">請求書の会社が登録されていません</div>';
+            _pickList = list;
+          } else {
+            const isD = mode === 'discount';
+            document.getElementById('tePickTitle').textContent = isD
+              ? '値引きを選ぶ'
+              : '追加料金を選ぶ';
+            custom.style.display = '';
+            document.getElementById('tePickAmount').value = '';
+            const items = _readJson(isD ? 'daikou_discounts' : 'daikou_extras', []);
+            _pickList = Array.isArray(items) ? items : [];
+            html = _pickList.length
+              ? _pickList
+                  .map(
+                    (x, i) =>
+                      '<div class="modal-item" onclick="_te_pickItem(' +
+                      i +
+                      ')"><span class="modal-item-name">' +
+                      _esc(x.name) +
+                      '</span><span class="modal-item-price">' +
+                      _yen(x.amount) +
+                      '</span></div>'
+                  )
+                  .join('')
+              : '<div class="modal-item" style="justify-content:center;color:#8e8e93">登録がありません（下の任意入力で足せます）</div>';
+          }
+          el.innerHTML = html;
+          document.getElementById('tePickOverlay').classList.add('show');
+        };
+        let _pickList = [];
+
+        window._te_pickClose = function () {
+          document.getElementById('tePickOverlay').classList.remove('show');
+        };
+
+        window._te_pickItem = function (i) {
+          if (!_cur) return;
+          const x = _pickList[i];
+          if (!x) return;
+          if (_pickMode === 'customer') {
+            _cur.customer = { customer_id: x.customer_id, customer_name: x.name };
+          } else if (_pickMode === 'discount') {
+            _cur.discounts.push({ name: x.name, amount: Number(x.amount) || 0 });
+          } else {
+            _cur.extras.push({ name: x.name, amount: Number(x.amount) || 0 });
+          }
+          window._te_pickClose();
+          _te_render();
+        };
+
+        window._te_pickCustom = function () {
+          if (!_cur) return;
+          const v = Math.round(Number(document.getElementById('tePickAmount').value) || 0);
+          if (v <= 0) return;
+          if (_pickMode === 'discount') _cur.discounts.push({ name: '値引き', amount: v });
+          else _cur.extras.push({ name: '追加料金', amount: v });
+          window._te_pickClose();
+          _te_render();
+        };
+
+        // ─── 直す（保存）───
+        window._te_save = function () {
+          if (!_cur || typeof TripEdit === 'undefined') return;
+          const r = TripEdit.apply({
+            rideKey: _cur.rideKey,
+            tripKey: _cur.tripKey,
+            edit: {
+              extras: _cur.extras,
+              discounts: _cur.discounts,
+              customer: _cur.customer,
+              now: Date.now(),
+            },
+          });
+          if (!r || !r.ok) {
+            if (typeof window._showToast === 'function') window._showToast('直せませんでした');
+            return;
+          }
+          window._te_close();
+          try {
+            if (typeof window._hist_render === 'function') window._hist_render();
+          } catch (_) {}
+          // 今の業務を直したなら、待機画面の集計も合わせる
+          try {
+            if (typeof updateBusinessDashboard === 'function') updateBusinessDashboard();
+          } catch (_) {}
+          // ★直しを事務所へ届ける★（送信済みの印は TripEdit が外している）
+          let msg = '直しました　' + _yen(r.total);
+          if (r.resend) {
+            msg += '　事務所へ送り直します';
+            try {
+              if (window.JobSync && typeof JobSync.sync === 'function') JobSync.sync();
+            } catch (_) {}
+          } else if (!r.linkedToShift) {
+            msg += '（この画面だけ）';
+          }
+          if (typeof window._showToast === 'function') window._showToast(msg);
+        };
       })();
 
       // ★設計変更宣言 (2026-05-15・MA Phase D・fare overlay 動作 JS):

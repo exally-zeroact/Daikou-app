@@ -31,6 +31,11 @@ const EXTERNAL_GLOBALS = [
   'MeterPersist',
   // ★前の日の業務が開きっぱなしかを判断する (2026-08-05)★ js/carryover.js で定義
   'CarryOver',
+  // ★あとから代行を直す (2026-08-05)★ js/trip-edit.js で定義・別 <script src> で読む。
+  //   司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな」
+  'TripEdit',
+  // ★実績を事務所へ送る★ js/job-sync.js で定義。直した後の送り直しで呼ぶ。
+  'JobSync',
   'GPS',
   'FB',
   'Business',
