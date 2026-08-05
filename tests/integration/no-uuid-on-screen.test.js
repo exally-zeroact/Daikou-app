@@ -24,7 +24,9 @@ describe('★名前を決める所が1箇所だけであること★', () => {
   });
 
   it('事務所の画面が読み込んでいる', () => {
-    ['kyuryo.html', 'uriage.html', 'shukei.html'].forEach(function (f) {
+    // ★2026-08-05 dashboard.html を足した★
+    //   会社の設定だけ端末IDの先頭8文字(7e1919ef…)を出し続けていた。
+    ['kyuryo.html', 'uriage.html', 'shukei.html', 'dashboard.html'].forEach(function (f) {
       expect(read(f), f + ' が car-name.js を読んでいない').toContain('src="js/car-name.js"');
     });
   });
@@ -100,6 +102,47 @@ describe('★端末IDをそのまま画面に出していないこと★', () =>
     expect(t, '★7e1919ef… のような短縮UUIDを名前にしている★').not.toContain(
       'label: labelById[dev] || shortId(dev)'
     );
+  });
+
+  // ★2026-08-05 3回目の漏れ（会社の設定）で、見方をもう一段変えた★
+  //   前の見方は '>' + esc(x.device_id) + '<' という「HTMLに埋める形」しか見ていなかった。
+  //   会社の設定は ★textContent に代入していた★ ので素通りしていた:
+  //       var idShort = (d.device_id || '').slice(0, 8) + '…';
+  //       left.querySelector('.id').textContent = idShort;
+  //   ⇒ 埋め方を問わず「★端末IDを切って文字にしている所★」を全部探す。
+  it('★端末IDを切り取って文字にしている所が1つも無い★（埋め方を問わない）', () => {
+    const offenders = [];
+    SCREENS.concat(['index.html']).forEach(function (f) {
+      const t = read(f);
+      // device_id を slice / substr / substring している所
+      const re = /device_id[^;\n]{0,40}\.(slice|substr|substring)\s*\(/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const line = t.slice(0, m.index).split('\n').length;
+        offenders.push(f + ':' + line + '  ' + m[0]);
+      }
+    });
+    expect(offenders, '★端末IDを切って画面に出している★').toEqual([]);
+  });
+
+  it('★textContent / innerHTML に端末IDをそのまま渡していない★', () => {
+    const offenders = [];
+    SCREENS.forEach(function (f) {
+      const t = read(f);
+      const re = /(textContent|innerHTML)\s*=\s*[^;\n]{0,60}device_id/g;
+      let m;
+      while ((m = re.exec(t))) {
+        const line = t.slice(0, m.index).split('\n').length;
+        offenders.push(f + ':' + line);
+      }
+    });
+    expect(offenders, '★端末IDを画面に書き込んでいる★').toEqual([]);
+  });
+
+  it('★会社の設定が名前を引いている★（引かなければ出しようがない）', () => {
+    const t = read('dashboard.html');
+    expect(t, '名前を引いていない').toContain('dk_device_labels');
+    expect(t, '名前を決める道具を通していない').toContain('CarName.nameMap');
   });
 
   it('★どの画面も device_id を「表示される文字」に直接入れていない★', () => {

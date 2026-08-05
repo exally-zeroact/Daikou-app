@@ -503,6 +503,9 @@
 
     <script src="js/qrcode.min.js"></script>
     <script src="js/dk-config.js"></script>
+    <!-- ★車の名前を決める所は1箇所だけ (2026-08-05)★
+         端末IDの先頭8文字(7e1919ef…)を出していたのを、名前 or 「車1・車2」にする。 -->
+    <script src="js/car-name.js"></script>
     <script src="js/dk-session.js"></script>
     <script>
       (function () {
@@ -701,6 +704,33 @@
             });
         }
 
+        // ★車の名前 (2026-08-05・司さん「訳分からんやつ消せ」)★
+        //   ここは端末IDの先頭8文字(7e1919ef…)をそのまま出していた最後の画面。
+        //   名前は売上表で付ける(dk_device_labels)。付いていなければ「車1・車2」。
+        //   ★引けなくても画面は出す★(名前が無いだけで会社の設定が開けなくなったら困る)
+        function loadCarNames(devs) {
+          var ids = (devs || []).map(function (d) {
+            return d && d.device_id;
+          });
+          return api(
+            '/dk_device_labels?select=device_id,label&company_id=eq.' +
+              encodeURIComponent(COMPANY.company_id)
+          )
+            .then(function (r) {
+              return r.ok ? r.json() : [];
+            })
+            .catch(function () {
+              return [];
+            })
+            .then(function (labels) {
+              try {
+                return window.CarName ? window.CarName.nameMap(ids, labels) : {};
+              } catch (_) {
+                return {};
+              }
+            });
+        }
+
         function renderDashboard() {
           show('loading', false);
           show('register', false);
@@ -735,48 +765,52 @@
               list.innerHTML = '<div class="empty">まだ端末はありません</div>';
               return;
             }
-            devs.forEach(function (d) {
-              var wrap = document.createElement('div');
-              wrap.className = 'dev';
-              var left = document.createElement('div');
-              var idShort = (d.device_id || '').slice(0, 8) + '…';
-              left.innerHTML =
-                '<div class="id"></div><div class="sub">最終利用 ' +
-                fmtDate(d.last_seen) +
-                '</div>';
-              left.querySelector('.id').textContent = idShort;
-              var btn = document.createElement('button');
-              btn.className = 'rm';
-              btn.textContent = '外す';
-              btn.onclick = function () {
-                if (!confirm('この端末を外しますか？（席が1つ空きます）')) return;
-                btn.disabled = true;
-                btn.textContent = '外し中…';
-                api(
-                  '/dk_company_devices?company_id=eq.' +
-                    encodeURIComponent(COMPANY.company_id) +
-                    '&device_id=eq.' +
-                    encodeURIComponent(d.device_id),
-                  { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
-                )
-                  .then(function (r) {
-                    if (r.ok) renderDashboard();
-                    else {
+            loadCarNames(devs).then(function (names) {
+              devs.forEach(function (d) {
+                var wrap = document.createElement('div');
+                wrap.className = 'dev';
+                var left = document.createElement('div');
+                // ★端末IDの先頭8文字を出すのをやめた (2026-08-05)★
+                //   司さん「訳分からんやつ消せ」。名前が付いていなければ「車1・車2」。
+                var carName = (names && names[d.device_id]) || '車';
+                left.innerHTML =
+                  '<div class="id"></div><div class="sub">最終利用 ' +
+                  fmtDate(d.last_seen) +
+                  '</div>';
+                left.querySelector('.id').textContent = carName;
+                var btn = document.createElement('button');
+                btn.className = 'rm';
+                btn.textContent = '外す';
+                btn.onclick = function () {
+                  if (!confirm(carName + ' を外しますか？（席が1つ空きます）')) return;
+                  btn.disabled = true;
+                  btn.textContent = '外し中…';
+                  api(
+                    '/dk_company_devices?company_id=eq.' +
+                      encodeURIComponent(COMPANY.company_id) +
+                      '&device_id=eq.' +
+                      encodeURIComponent(d.device_id),
+                    { method: 'DELETE', headers: { Prefer: 'return=minimal' } }
+                  )
+                    .then(function (r) {
+                      if (r.ok) renderDashboard();
+                      else {
+                        btn.disabled = false;
+                        btn.textContent = '外す';
+                        alert('外せませんでした');
+                      }
+                    })
+                    .catch(function () {
                       btn.disabled = false;
                       btn.textContent = '外す';
-                      alert('外せませんでした');
-                    }
-                  })
-                  .catch(function () {
-                    btn.disabled = false;
-                    btn.textContent = '外す';
-                    alert('ネットに繋がる所で、もう一度お試しください。');
-                  });
-              };
-              wrap.appendChild(left);
-              wrap.appendChild(btn);
-              list.appendChild(wrap);
-            });
+                      alert('ネットに繋がる所で、もう一度お試しください。');
+                    });
+                };
+                wrap.appendChild(left);
+                wrap.appendChild(btn);
+                list.appendChild(wrap);
+              });
+            }); // loadCarNames
           });
         }
 
