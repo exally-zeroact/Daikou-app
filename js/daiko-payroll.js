@@ -135,19 +135,32 @@
 
       const hourly = hourlyOf(pool.sales, pool.hours, reservePool, st);
 
+      // ★人ごとに歩合・最低保証を変えられる (2026-08-05・司さん指示 A案)★
+      //   司さん「人によって変えれるの仕組みにしてないやないか」
+      //   ★空欄なら役割どおり、打てばその人だけ変わる★
+      //   0 は「0にしたい」という意思なので通す。空(null/undefined/'')だけを「未指定」とする。
+      const has = function (v) {
+        return v !== null && v !== undefined && v !== '' && isFinite(parseFloat(v));
+      };
+
       const rows = staff.map(function (p) {
         const role = st.roles[(p && p.role) || ''] || { rate: 0, floor: 0 };
+        const rate = has(p && p.rate) ? n(p.rate) : role.rate;
+        const floor = has(p && p.floor) ? n(p.floor) : role.floor;
         const hours = n(p && p.hours);
         const h = st.poolMode === 'per_car' ? n(perCarHourly[String(p && p.car)]) : hourly;
-        const byRate = h * role.rate * hours;
-        const byFloor = role.floor * hours;
+        const byRate = h * rate * hours;
+        const byFloor = floor * hours;
         return {
           name: (p && p.name) || '',
           role: (p && p.role) || '',
           hours: hours,
           hourly: h,
-          rate: role.rate,
-          floor: role.floor,
+          rate: rate,
+          floor: floor,
+          // その人だけ変えているか（画面で「この人は個別」と出せるように）
+          rateIsOwn: has(p && p.rate) && n(p.rate) !== role.rate,
+          floorIsOwn: has(p && p.floor) && n(p.floor) !== role.floor,
           byRate: byRate, // 歩合で出した額
           byFloor: byFloor, // 最低保証で出した額
           pay: Math.max(byRate, byFloor), // ★高い方★

@@ -218,6 +218,80 @@
         text-align: left;
       }
 
+      /* 見出しの下に出す小さい説明（例: 歩合「空欄=役割どおり」） 2026-08-05 */
+      .th-sub {
+        display: block;
+        font-size: 10px;
+        font-weight: 500;
+        color: #98a6b8;
+        margin-top: 1px;
+      }
+
+      /* ★スマホでは従業員を「1人1枚」にする (2026-08-05)★
+         歩合・最低保証を足して6列になり、横にはみ出して★最低保証が見えなくなった★。
+         司さんはスマホで見る。横スクロールさせない。 */
+      @media (max-width: 620px) {
+        .emp-body td[data-l]::before {
+          content: attr(data-l);
+          display: block;
+          font-size: 11px;
+          color: var(--muted);
+          font-weight: 700;
+          margin-bottom: 2px;
+        }
+
+        .emp-pane thead {
+          display: none;
+        }
+
+        .emp-pane .scroller {
+          overflow-x: visible;
+        }
+
+        .emp-pane table,
+        .emp-pane tbody,
+        .emp-pane tr,
+        .emp-pane td {
+          display: block;
+          width: 100%;
+        }
+
+        .emp-pane tr {
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          padding: 10px 12px 12px;
+          margin-bottom: 10px;
+        }
+
+        .emp-pane td {
+          border: none;
+          padding: 5px 0;
+          text-align: left;
+          white-space: normal;
+        }
+
+        /* 名前は1枚の見出しとして大きく */
+        .emp-pane td:first-child .txt {
+          width: 100%;
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+        /* 歩合・最低保証・並び は横に3つ並べる（1枚が縦に長くなりすぎない） */
+        .emp-pane td[data-l='歩合'],
+        .emp-pane td[data-l='最低保証'],
+        .emp-pane td[data-l='並び'] {
+          display: inline-block;
+          width: auto;
+          margin-right: 14px;
+        }
+
+        .emp-pane .hrs,
+        .emp-pane .yen {
+          width: 5.5em;
+        }
+      }
+
       .scroller {
         overflow-x: auto;
       }
@@ -466,7 +540,9 @@
         <button class="tab on" data-tab="slip">明細</button>
         <button class="tab" data-tab="hours">時数を入れる</button>
         <button class="tab" data-tab="emp">従業員</button>
-        <button class="tab" data-tab="set">決め方</button>
+        <!-- ★「決め方」→「給料の設定」 (2026-08-05・司さん指示)★
+             司さん「決め方やなくて違う言い方にせな分かりにくいわ」 -->
+        <button class="tab" data-tab="set">給料の設定</button>
       </div>
 
       <div class="card noprint" id="monthCard">
@@ -507,7 +583,7 @@
       </div>
 
       <!-- 従業員 -->
-      <div id="paneEmp" style="display: none">
+      <div id="paneEmp" class="emp-pane" style="display: none">
         <div class="card">
           <div class="scroller">
             <table>
@@ -515,11 +591,16 @@
                 <tr>
                   <th>名前</th>
                   <th>役割</th>
+                  <!-- ★人ごとに変えられる (2026-08-05・司さん指示)★
+                       司さん「人によって変えれるの仕組みにしてないやないか」
+                       空欄なら役割どおり。打てばその人だけ変わる。 -->
+                  <th>歩合<span class="th-sub">空欄=役割どおり</span></th>
+                  <th>最低保証<span class="th-sub">空欄=役割どおり</span></th>
                   <th>並び</th>
                   <th>今いる人</th>
                 </tr>
               </thead>
-              <tbody id="empBody"></tbody>
+              <tbody id="empBody" class="emp-body"></tbody>
             </table>
           </div>
           <div style="margin-top: 12px">
@@ -527,7 +608,9 @@
             <span class="saved" id="empSaved"></span>
           </div>
           <div class="note">
-            役割ごとに歩合と最低保証が決まります（「決め方」で変えられます）。<br />
+            ふつうは<b>役割ごとの決まり</b>で計算します（「給料の設定」で変えられます）。<br />
+            <b>その人だけ違う</b>ときだけ、歩合・最低保証を打ってください。
+            <b>空欄にすれば役割どおりに戻ります。</b><br />
             辞めた人は「今いる人」のチェックを外します。<b>過去の明細と金額はそのまま残ります。</b>
           </div>
         </div>
@@ -536,7 +619,10 @@
       <!-- 決め方 -->
       <div id="paneSet" style="display: none">
         <div class="card">
-          <div class="title" style="font-weight: 800; margin-bottom: 10px">役割ごとの決め方</div>
+          <div class="title" style="font-weight: 800; margin-bottom: 4px">役割ごとの決まり</div>
+          <div class="note" style="margin: 0 0 10px">
+            ここが<b>みんなの基本</b>です。<b>その人だけ違うとき</b>は「従業員」で打ってください。
+          </div>
           <div class="scroller">
             <table>
               <thead>
@@ -1465,13 +1551,14 @@
           var roles = roleNames();
           var html = '';
           RAW.employees.forEach(function (e) {
+            // data-l は★スマホで1人1枚にした時の見出し★（横スクロールさせないため）
             html +=
-              '<tr><td><input class="txt" data-emp="' +
+              '<tr><td data-l="名前"><input class="txt" data-emp="' +
               esc(e.employee_id) +
               '" data-f="name" value="' +
               esc(e.name) +
               '"></td>' +
-              '<td><select data-emp="' +
+              '<td data-l="役割"><select data-emp="' +
               esc(e.employee_id) +
               '" data-f="role">' +
               roles
@@ -1495,28 +1582,70 @@
                   '（無い役割）</option>'
                 : '') +
               '</select></td>' +
-              '<td><input class="hrs" data-emp="' +
+              // ★人ごとの歩合・最低保証 (2026-08-05・A案)★
+              //   空欄＝役割どおり。役割の値を薄く出しておく＝何もしなければどうなるか見える。
+              '<td data-l="歩合"><input class="hrs" data-emp="' +
+              esc(e.employee_id) +
+              '" data-f="pay_rate" inputmode="decimal" placeholder="' +
+              _roleRateOf(e.role) +
+              '" value="' +
+              (e.pay_rate === null || e.pay_rate === undefined ? '' : e.pay_rate) +
+              '"></td>' +
+              '<td data-l="最低保証"><input class="yen" data-emp="' +
+              esc(e.employee_id) +
+              '" data-f="pay_floor" inputmode="numeric" placeholder="' +
+              _roleFloorOf(e.role) +
+              '" value="' +
+              (e.pay_floor === null || e.pay_floor === undefined ? '' : e.pay_floor) +
+              '"> 円</td>' +
+              '<td data-l="並び"><input class="hrs" data-emp="' +
               esc(e.employee_id) +
               '" data-f="sort_order" value="' +
               (e.sort_order || 0) +
               '"></td>' +
-              '<td><input type="checkbox" style="width:17px;height:17px" data-emp="' +
+              '<td data-l="今いる人"><input type="checkbox" style="width:17px;height:17px" data-emp="' +
               esc(e.employee_id) +
               '" data-f="active"' +
               (e.active !== false ? ' checked' : '') +
               '></td></tr>';
           });
           if (!RAW.employees.length) {
-            html = '<tr><td colspan="4" class="empty">まだ誰も登録されていません。</td></tr>';
+            html = '<tr><td colspan="6" class="empty">まだ誰も登録されていません。</td></tr>';
           }
           $('empBody').innerHTML = html;
           Array.prototype.forEach.call(document.querySelectorAll('[data-emp]'), function (i) {
             i.onchange = function () {
               var f = i.getAttribute('data-f');
-              var v = f === 'active' ? i.checked : f === 'sort_order' ? num(i.value) : i.value;
+              var v;
+              if (f === 'active') v = i.checked;
+              else if (f === 'sort_order') v = num(i.value);
+              else if (f === 'pay_rate' || f === 'pay_floor') {
+                // ★空欄なら null＝役割どおりに戻す★（0 は「0にしたい」なので通す）
+                v = String(i.value).trim() === '' ? null : num(i.value);
+              } else v = i.value;
               saveEmp(i.getAttribute('data-emp'), f, v);
             };
           });
+        }
+
+        // 役割の値（打たなかった時にどうなるかを薄く見せる）
+        function _roleRateOf(role) {
+          try {
+            var st = PayrollDaily.normSettings(SET);
+            var r = st.roles[role || ''];
+            return r ? String(r.rate) : '';
+          } catch (_) {
+            return '';
+          }
+        }
+        function _roleFloorOf(role) {
+          try {
+            var st = PayrollDaily.normSettings(SET);
+            var r = st.roles[role || ''];
+            return r ? String(r.floor) : '';
+          } catch (_) {
+            return '';
+          }
         }
 
         $('btnAddEmp').onclick = function () {
@@ -1689,7 +1818,7 @@
           };
           upsert('dk_payroll_settings', 'company_id', body)
             .then(function (r) {
-              if (!r.ok) return showErr('決め方を保存できませんでした。');
+              if (!r.ok) return showErr('給料の設定を保存できませんでした。');
               showErr('');
               SET = body;
               RAW.payrollSettings = SET;
@@ -1697,7 +1826,7 @@
               loadPeriod(); // 期間が変わることがあるので読み直す
             })
             .catch(function () {
-              showErr('決め方を保存できませんでした。');
+              showErr('給料の設定を保存できませんでした。');
             });
         };
       })();

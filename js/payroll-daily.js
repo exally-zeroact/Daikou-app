@@ -363,6 +363,11 @@
           role: emp.role || '',
           car: w.device_id,
           hours: hours,
+          // ★その人だけの歩合・最低保証 (2026-08-05・司さん指示 A案)★
+          //   空のままなら役割どおり。打った時だけその人に効く。
+          //   （運ばないと画面で打っても金額が変わらない＝配線漏れ）
+          rate: emp.pay_rate,
+          floor: emp.pay_floor,
         });
       });
       out.staff.sort(function (a, b) {
