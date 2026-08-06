@@ -80,54 +80,71 @@ describe('gps-worker.js dynamic worker test (⑪)', () => {
     worker.terminate();
   });
 
-  // ★timeout 緩和 (2026-06-18)★: 旧 内部10s/it15s は ★CI runnerの低温起動+大容量
-  //   キャッシュDL(~100MB)のI/O競合★で実Worker(gps-worker.js)コンパイルが10sを超えると
-  //   false-red(c9c209c の test 失敗の真因=タイミングflake・コード起因でない)。内部25s/it30sへ
-  //   緩和=真のハングは30sで依然検出しつつ、CI低速の偽陽性を排除。
-  it('Worker 起動 + position message → result 応答受信', { timeout: 30000 }, async () => {
-    const workerUrl = new URL('../../js/gps-worker.js', import.meta.url);
-    const worker = new Worker(workerUrl);
+  // ★時間切れの直し (2026-08-06・指示役の指摘)★
+  //
+  //   ★何が起きていたか★
+  //     このテストだけ25秒で時間切れ。同じファイルの他17本は2〜9ms。手元では5回とも緑。
+  //     ＝コードの不具合ではなく★CIの機械が遅い時に、Workerの立ち上がりで25秒を使い切る★。
+  //     gps-worker.js は大きく、CIの冷えた機械では読み込み＋コンパイルに時間がかかる。
+  //
+  //   ★直し方（時間を延ばすのではなく、待つ形にした）★
+  //     init には返事が無い作り（worker が出すのは result と gpsDbg だけ）なので、
+  //     ★空打ちを1回投げて result が返るまで待つ＝立ち上がり完了の合図★にする。
+  //     その後で本番の position を投げ、★短い時間で★返ることを見る。
+  //     こうすると「機械が遅い」は待ち時間に吸収され、
+  //     ★本当に固まった時だけ赤になる★（測っているのが立ち上がりでなく応答になる）。
+  const WARMUP_MS = 60000; // 立ち上がり待ち（遅い機械でも通す。ここは測っていない）
+  const REPLY_MS = 5000; // ★立ち上がった後の応答★ ここが本題。遅ければ本物の不具合。
 
-    // init 先行
-    worker.postMessage({ type: 'init', data: { config: {}, debug: false } });
-
-    // result 受信 promise
-    const resultPromise = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        worker.terminate();
-        reject(new Error('worker result timeout (25s)'));
-      }, 25000);
+  function nextResult(worker, ms, label) {
+    return new Promise((resolve, reject) => {
+      const to = setTimeout(() => reject(new Error(label + ' が ' + ms + 'ms で返らない')), ms);
       worker.onmessage = (e) => {
         if (e.data && e.data.type === 'result') {
-          clearTimeout(timeout);
+          clearTimeout(to);
           resolve(e.data.data);
         }
       };
       worker.onerror = (err) => {
-        clearTimeout(timeout);
+        clearTimeout(to);
         reject(new Error('worker error: ' + (err && err.message)));
       };
     });
+  }
 
-    // position 送信 (= 静止判定対象になりやすい低速 GPS)
-    worker.postMessage({
-      type: 'position',
-      data: {
-        lat: 33.84,
-        lng: 132.7656,
-        accuracy: 5,
-        speedKmh: 0,
-        heading: null,
-        altitude: 0,
-        now: Date.now(),
-        compassHeading: null,
-        accelSamples: [],
-        gyroSamples: [],
-      },
-    });
+  const posMsg = () => ({
+    type: 'position',
+    data: {
+      lat: 33.84,
+      lng: 132.7656,
+      accuracy: 5,
+      speedKmh: 0,
+      heading: null,
+      altitude: 0,
+      now: Date.now(),
+      compassHeading: null,
+      accelSamples: [],
+      gyroSamples: [],
+    },
+  });
+
+  it('Worker 起動 + position message → result 応答受信', { timeout: 90000 }, async () => {
+    const workerUrl = new URL('../../js/gps-worker.js', import.meta.url);
+    const worker = new Worker(workerUrl);
 
     try {
-      const result = await resultPromise;
+      worker.postMessage({ type: 'init', data: { config: {}, debug: false } });
+
+      // ① 立ち上がりを待つ（空打ち1回・ここは時間を測らない）
+      const warm = nextResult(worker, WARMUP_MS, '立ち上がり');
+      worker.postMessage(posMsg());
+      await warm;
+
+      // ② 立ち上がった後の応答を測る（★ここが本題★）
+      const reply = nextResult(worker, REPLY_MS, '応答');
+      worker.postMessage(posMsg());
+      const result = await reply;
+
       // result が返れば成功 (= 中身は Kalman 平滑後の値・ここでは存在のみ確認)
       expect(result).toBeDefined();
       expect(typeof result.lat).toBe('number');

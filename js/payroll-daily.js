@@ -178,6 +178,10 @@
 
       arr(r.shifts).forEach(function (s) {
         if (!s || typeof s !== 'object') return;
+        // ★印を付けた勤務は使わない (2026-08-06)★
+        //   司さん「0mの3件は消さない」＝記録は残すが、給料・売上表・月次には入れない。
+        //   （8/3 の較正の日の試し打ち。0時間の日が並ぶと明細が読みにくい）
+        if (s.excluded === true) return;
         const dev = s.device_id;
         if (!dev || typeof dev !== 'string') return; // どの車か分からない数字は使わない
         const date = dateOf(s.started_at);

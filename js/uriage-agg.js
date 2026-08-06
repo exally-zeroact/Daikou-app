@@ -125,6 +125,10 @@
       const map = {};
       arr(shifts).forEach(function (s) {
         if (!s || typeof s !== 'object') return;
+        // ★印を付けた勤務は出さない (2026-08-06)★
+        //   司さん「0mの3件は消さない」＝記録は残すが、売上表・給料・月次には出さない。
+        //   （8/3 の較正の日の試し打ち。中身の無い日が並ぶと数字が読みにくい）
+        if (s.excluded === true) return;
         const dev = s.device_id;
         if (!dev || typeof dev !== 'string') return; // どの車か分からない数字は出さない
 
