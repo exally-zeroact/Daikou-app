@@ -23,7 +23,17 @@ import { HOSTS } from './dk-hosts.mjs';
 //   ここに自分で書くと必ずズレる（実際にズレて「鍵が無い」と誤診断した）。
 import { readToken, whereWeLooked } from './db-token.mjs';
 
-const PROJECT = 'tnfwipbgfgjaymlszeid';
+// ★倉庫は2つある (2026-08-07)★
+//   テスト側が別の倉庫(DB-test)に切り替わったのに、この道具は本番だけを見ていた。
+//   ＝★テスト側の許可リストが空のまま★になり、メールのリンクが
+//     既定の戻り先(http://localhost:3000)に流れて★開けなかった★。
+//   司さん「メール開いたらこれ（localhost）」で発覚。
+//   使い方: node scripts/auth-redirect-allow.mjs [--test|--prod|--both] [--apply]
+const PROJECTS = {
+  prod: 'tnfwipbgfgjaymlszeid',
+  test: 'khawdrnvssdenumbiwfg',
+};
+const PROJECT = PROJECTS.prod; // 後方互換（既存の呼び出しはこれまでどおり本番）
 
 // 4ホストぶん、ログインが戻ってくる可能性のある住所
 export function wantedUrls(hosts = HOSTS) {
@@ -59,33 +69,48 @@ if (isMain) {
   }
   console.log('鍵の出どころ: ' + found.from);
   const H = { Authorization: 'Bearer ' + found.token, 'Content-Type': 'application/json' };
-  const url = `https://api.supabase.com/v1/projects/${PROJECT}/config/auth`;
 
-  const cur = await fetch(url, { headers: H }).then((r) => r.json());
-  console.log('★SITE_URL（触らない）★\n  ' + cur.site_url);
-  console.log('\n★今の許可リスト★');
-  String(cur.uri_allow_list || '')
-    .split(',')
-    .filter(Boolean)
-    .forEach((u) => console.log('  ' + u));
+  // ★どの倉庫を見るか（既定は両方）★
+  //   片方だけ見ていたせいで、テスト側の許可リストが空のまま気づけなかった。
+  const which = process.argv.includes('--prod')
+    ? ['prod']
+    : process.argv.includes('--test')
+      ? ['test']
+      : ['prod', 'test'];
 
-  const { list, added } = merge(cur.uri_allow_list, wantedUrls());
-  console.log('\n★足りない物★');
-  if (!added.length) console.log('  無し（4ホスト全部ある）');
-  else added.forEach((u) => console.log('  + ' + u));
+  let missingTotal = 0;
+  for (const key of which) {
+    const url = `https://api.supabase.com/v1/projects/${PROJECTS[key]}/config/auth`;
+    console.log('\n================ ' + (key === 'prod' ? '本番' : 'テスト') + ' ================');
+    const cur = await fetch(url, { headers: H }).then((r) => r.json());
+    console.log('★SITE_URL（触らない）★\n  ' + cur.site_url);
+    console.log('\n★今の許可リスト★');
+    const now = String(cur.uri_allow_list || '')
+      .split(',')
+      .filter(Boolean);
+    if (!now.length) console.log('  ★1つも無い★');
+    now.forEach((u) => console.log('  ' + u));
 
-  // ★process.exit() を使わない (2026-08-02)★
-  //   まだ開いている通信が有るうちに切ると Windows の node が
-  //   「Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)」で落ち、
-  //   ★中身は正しいのに終了コード 9★ になる（CIが赤と誤解する）。
+    const { list, added } = merge(cur.uri_allow_list, wantedUrls());
+    console.log('\n★足りない物★');
+    if (!added.length) console.log('  無し（4ホスト全部ある）');
+    else added.forEach((u) => console.log('  + ' + u));
+    missingTotal += added.length;
+
+    // ★process.exit() を使わない (2026-08-02)★
+    //   まだ開いている通信が有るうちに切ると Windows の node が
+    //   「Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)」で落ち、
+    //   ★中身は正しいのに終了コード 9★ になる（CIが赤と誤解する）。
+    if (process.argv.includes('--apply') && added.length) {
+      await applyList(url, H, list);
+    }
+  }
+
   if (!process.argv.includes('--apply')) {
     console.log('\n見ただけです。足すなら --apply を付けてください。');
-    process.exitCode = added.length ? 1 : 0;
-  } else if (!added.length) {
-    console.log('\n足す物はありません。');
-    process.exitCode = 0;
+    process.exitCode = missingTotal ? 1 : 0;
   } else {
-    await applyList(url, H, list);
+    process.exitCode = 0;
   }
 }
 

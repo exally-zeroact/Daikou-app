@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 管理</title>
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>"
+    />
+    <!-- ============================================================
+         ★ダイコメ 管理画面（運営＝司さん専用）★ 2026-08-07
+
+           司さん「ダイコメの管理アプリを（Exally系の）ように作って
+                   そこでおれが権限持つようしろ」
+
+           ★他のアプリ（Kyually / Castally）の管理画面と同じ形にした★
+             ・司さんだけが入れる（ダイコメ自身の dk_admins に居るか）
+             ・お客さん（会社）の一覧
+             ・★押して切り替えるだけ★
+             ・人の追加・削除は無い（他の2つにも無い）
+
+           ★ダイコメで押す物は「プラン」ではなく 使う/止める と 席数★
+             dk_companies の status / seat_limit は★元からある★。
+             新しい仕組みは足していない。並べて押せるようにしただけ。
+         ============================================================ -->
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+        --danger: #e0483d;
+        --ok: #1a8a4a;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: #fff;
+        border-bottom: 1px solid var(--line);
+        padding: 12px 16px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+      }
+
+      .bar b {
+        font-size: 17px;
+        color: var(--blue-d);
+      }
+
+      .bar small {
+        font-size: 11px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 2px 10px;
+      }
+
+      .sp {
+        flex: 1;
+      }
+
+      .who {
+        font-size: 12px;
+        color: var(--muted);
+        word-break: break-all;
+      }
+
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 18px 16px 60px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px 18px;
+        margin-bottom: 14px;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin-bottom: 4px;
+      }
+
+      p.lead {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 14px;
+      }
+
+      input {
+        width: 100%;
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        padding: 11px 12px;
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--ink);
+        margin-bottom: 10px;
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      button {
+        font-family: inherit;
+        cursor: pointer;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+      }
+
+      .btn {
+        background: var(--blue-d);
+        color: #fff;
+        padding: 11px 18px;
+        font-size: 15px;
+        width: 100%;
+      }
+
+      /* ★他のアプリのログインと同じ「もう1つのボタン」★ 2026-08-07
+         司さん「他のアプリでユーザーがやるように、なんで同じ構造にせんのど」
+         js/exally-login.js の login-btn-sub と同じ見え方（白地・枠あり）。 */
+      .btn-sub {
+        background: #fff;
+        color: var(--blue-d);
+        border: 1.5px solid var(--blue-d);
+        padding: 11px 18px;
+        font-size: 15px;
+        width: 100%;
+      }
+
+      .login-mid {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.7;
+        text-align: center;
+        margin: 16px 0 8px;
+      }
+
+      .out,
+      .refresh {
+        background: #fff;
+        color: var(--blue-d);
+        border: 1.5px solid var(--line);
+        padding: 6px 14px;
+        font-size: 12.5px;
+      }
+
+      .msg {
+        font-size: 13px;
+        color: var(--danger);
+        min-height: 20px;
+      }
+
+      .tools {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+        flex-wrap: wrap;
+      }
+
+      .tools input {
+        flex: 1 1 180px;
+        min-width: 0;
+        margin: 0;
+      }
+
+      .stat {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+
+      /* 1社ぶん */
+      .co {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 10px;
+      }
+
+      .co-name {
+        font-size: 16px;
+        font-weight: 800;
+        word-break: break-all;
+      }
+
+      .co-sub {
+        font-size: 12px;
+        color: var(--muted);
+        word-break: break-all;
+        margin-top: 2px;
+      }
+
+      .co-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+
+      .seg {
+        display: flex;
+        gap: 6px;
+      }
+
+      .pill {
+        border: 1.5px solid var(--line);
+        background: #fff;
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 6px 16px;
+        font-size: 13px;
+      }
+
+      .pill.on {
+        background: var(--ok);
+        border-color: var(--ok);
+        color: #fff;
+      }
+
+      .pill.off.on {
+        background: var(--danger);
+        border-color: var(--danger);
+      }
+
+      .seat {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .seat input {
+        width: 4.5em;
+        margin: 0;
+        padding: 6px 8px;
+        font-size: 15px;
+        text-align: right;
+      }
+
+      .empty {
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+        padding: 20px 0;
+      }
+
+      .hide {
+        display: none !important;
+      }
+
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%) translateY(20px);
+        background: #1c1c1e;
+        color: #fff;
+        border-radius: 10px;
+        padding: 11px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        opacity: 0;
+        transition: 0.2s;
+        pointer-events: none;
+        max-width: 90vw;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar hide" id="topbar">
+      <b>ダイコメ 管理</b><small>運営</small><span class="sp"></span>
+      <span class="who" id="who"></span>
+      <button class="out" id="logout">ログアウト</button>
+    </div>
+
+    <!-- ログイン -->
+    <div class="wrap" id="login">
+      <div class="card" id="loginCard">
+        <h1>ダイコメ 管理</h1>
+        <p class="lead">運営のアカウントで入ってください。</p>
+        <input id="email" type="email" placeholder="メールアドレス" autocomplete="username" />
+        <input id="pw" type="password" placeholder="パスワード" autocomplete="current-password" />
+        <div class="msg" id="msg"></div>
+        <button class="btn" id="signin">ログイン</button>
+        <!-- ★他のアプリのログインと同じ形★ 2026-08-07
+             司さん「他のアプリでユーザーがやるように、なんで同じ構造にせんのど」
+             js/exally-login.js（給料・飲み屋・アマかせが使っている物）と同じ:
+               メールとパスワードを自分で打つ → ★新規登録★ を押す → そのまま入る。
+             ★メールのリンクは使わない★（届くのを待たない・localhost に飛ぶ事故も起きない）
+             ★パスワードは司さんが自分で決める★（私が決めない）。 -->
+        <div class="login-mid">
+          はじめての方は、メールとパスワードを<br />入力してから新規登録ボタンを押して下さい
+        </div>
+        <button class="btn-sub" id="signup">新規登録</button>
+        <!-- 既に登録済みで、パスワードだけ分からない時の逃げ道（メールで直す） -->
+        <div style="text-align: center; margin-top: 14px">
+          <a href="#" id="toSetPw" style="color: var(--blue); font-size: 14px; font-weight: 700"
+            >パスワードを忘れた</a
+          >
+        </div>
+      </div>
+
+      <!-- パスワードを決めるためのメールを送る -->
+      <div class="card hide" id="sendCard">
+        <h1>パスワードを決め直す</h1>
+        <p class="lead">
+          メールアドレスを入れて「メールを送る」を押してください。<br />
+          届いたリンクを押すと、<b>自分でパスワードを決める画面</b>になります。
+        </p>
+        <input id="email2" type="email" placeholder="メールアドレス" autocomplete="username" />
+        <div class="msg" id="msg2"></div>
+        <button class="btn" id="sendBtn">メールを送る</button>
+        <div style="text-align: center; margin-top: 14px">
+          <a href="#" id="toLogin" style="color: var(--blue); font-size: 14px; font-weight: 700"
+            >ログインに戻る</a
+          >
+        </div>
+      </div>
+
+      <!-- 送ったあと -->
+      <div class="card hide" id="sentCard">
+        <h1>メールを送りました</h1>
+        <p class="lead">
+          <b id="sentTo"></b> に送りました。<br />
+          メールを開いてリンクを押すと、<b>パスワードを決める画面</b>になります。
+        </p>
+      </div>
+
+      <!-- 決める -->
+      <div class="card hide" id="setPwCard">
+        <h1>パスワードを決める</h1>
+        <p class="lead">これから使うパスワードを入れてください（6文字以上）。</p>
+        <input
+          id="pw1"
+          type="password"
+          placeholder="新しいパスワード"
+          autocomplete="new-password"
+        />
+        <input id="pw2" type="password" placeholder="もう一度" autocomplete="new-password" />
+        <div class="msg" id="msg3"></div>
+        <button class="btn" id="savePwBtn">決めて、はじめる</button>
+      </div>
+    </div>
+
+    <!-- 権限なし -->
+    <div class="wrap hide" id="denied">
+      <div class="card empty">
+        このアカウントは<b>ダイコメの運営ではありません</b>。<br />運営のアカウントで入り直してください。
+      </div>
+    </div>
+
+    <!-- 一覧 -->
+    <div class="wrap hide" id="panel">
+      <!-- ★新しいお客さんを登録する (2026-08-07・司さん「おれが新規で登録してやるんやろが」)★
+           今まではお客さん自身が事務所から登録する形しか無かった。
+           売るのは司さんなので、司さんの側から登録して会社URL(QR)を渡せるようにする。 -->
+      <div class="card">
+        <h1 style="font-size: 16px; color: var(--blue-d)">新しい会社を登録する</h1>
+        <p class="lead">登録すると、その会社に渡す<b>会社URL</b>が出ます。</p>
+        <input id="newName" placeholder="会社名（例：〇〇代行）" />
+        <input id="newContact" type="email" placeholder="連絡先メール（あとで変えられます）" />
+        <div class="seat" style="margin-bottom: 10px">
+          使う台数 <input id="newSeat" type="number" inputmode="numeric" min="1" value="2" /> 台
+        </div>
+        <div class="msg" id="newMsg"></div>
+        <button class="btn" id="newAdd">登録する</button>
+        <!-- 登録できたら、渡すURLをここに出す -->
+        <div id="newDone" class="hide" style="margin-top: 14px">
+          <div class="co-sub" style="font-weight: 800; color: var(--ok)">登録できました</div>
+          <div class="co-sub">この住所を、その会社に渡してください。</div>
+          <div
+            id="newUrl"
+            style="
+              background: var(--bg);
+              border: 1.5px solid var(--line);
+              border-radius: 10px;
+              padding: 11px 12px;
+              font-size: 13px;
+              word-break: break-all;
+              user-select: all;
+              margin-top: 8px;
+            "
+          ></div>
+          <button class="refresh" id="newCopy" style="margin-top: 8px">コピー</button>
+        </div>
+      </div>
+
+      <div class="tools">
+        <input id="q" placeholder="会社名・メールでしぼる" />
+        <button class="refresh" id="refresh">更新</button>
+      </div>
+      <div class="stat" id="stat"></div>
+      <div id="list"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/dk-config.js"></script>
+    <script src="js/daikome-admin.js"></script>
+  </body>
+</html>
