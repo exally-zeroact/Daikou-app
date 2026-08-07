@@ -2919,6 +2919,19 @@
         transform: scale(0.98);
         filter: brightness(0.9);
       }
+      /* ★準備が終わるまで押せないボタンの姿 (2026-08-07)★
+         「押せないのに見た目が普通」を無くす。!important なのは、あとから
+         他の処理が inline style で opacity を書き戻しても消えないようにするため
+         （実際に _updateCalibGate が opacity='' で消していた＝実バグ）。 */
+      .dk-gate-off {
+        opacity: 0.4 !important;
+        pointer-events: none !important;
+        cursor: default !important;
+      }
+      .dk-gate-off:active {
+        transform: none !important;
+        filter: none !important;
+      }
       /* portrait 空車画面: btn-main-idle-portrait 表示・btn-area 内 btn-main 非表示 */
       @media (orientation: portrait) {
         .btn-main-idle-portrait {
@@ -4073,14 +4086,22 @@
         let _gateActive = false;
         let _pollTimer = null;
 
+        // ★2026-08-07 実バグ修正: 押せないのに見た目が普通のままだった★
+        //   旧: ここで el.style.opacity='0.4' を直接書いていた。
+        //       ところが _updateCalibGate (較正ゲート) が同じボタンに
+        //       el.style.opacity = '' を毎回書き込むため ★薄さが即座に消される★。
+        //       結果 ＝ 見た目は普通の青いボタン・押しても何も起きない
+        //       （実測: 版がズレた状態で opacity=1 / pointer-events=none / disabled=true）。
+        //   新: class を付け外しする。CSS 側を !important にしてあるので
+        //       あとから inline style を書かれても薄さが消えない。
         function _applyDisabled(el, disabled) {
           if (!el) return;
           if (disabled) {
             el.disabled = true;
-            el.style.opacity = '0.4';
-            el.style.pointerEvents = 'none';
+            el.classList.add('dk-gate-off');
           } else {
             el.disabled = false;
+            el.classList.remove('dk-gate-off');
             el.style.opacity = '';
             el.style.pointerEvents = '';
           }
