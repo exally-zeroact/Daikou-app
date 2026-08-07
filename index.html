@@ -8670,8 +8670,13 @@
       function onBusinessEnd() {
         // S3 (2026-05-10): 業務終了の確認 dialog (誤操作防止)
         if (!confirm('業務を終了します。よろしいですか?')) return;
-        // 全ボタン共通：センサー未許可ならバナー表示してブロック
-        if (blockIfSensorNotGranted()) return;
+        // ★センサーの許可は要求しない (2026-08-07・司さん指摘)★
+        //   司さん「事務所に戻るとOBDきれるのに警告のせいで業務終了が押せない」
+        //   iPhoneのアプリは★一度離れて戻るとセンサーの許可が切れる★。
+        //   その状態で業務終了を押すと、ここで止められて
+        //   「センサーを許可して」の警告が出るだけ＝★終われない★。
+        //   ★終わらせる操作に加速度センサーは要らない★（もう測った分を締めるだけ）。
+        //   許可が要るのは「これから測り始める」操作（業務開始・代行開始・再開）だけ。
         if (typeof Business === 'undefined') return;
         // 実車中・支払中は業務終了不可（保険・本来 screenIdle のみ表示なのでここに来ない）
         if (appState === 'driving' || appState === 'fare') {
@@ -8810,7 +8815,7 @@
       //   page reload 発生せず GPS / Meter / MM Worker / WakeLock 継続稼働。
       //   showOverlay 未定義環境 (旧 cache 等) は location.href fallback (= MA-7 redirect 経由 / 着地)。
       function onHistory() {
-        if (blockIfSensorNotGranted()) return;
+        // ★センサーの許可は要求しない (2026-08-07)★ 見るだけの画面。
         if (typeof window.showOverlay === 'function') {
           window.showOverlay('history');
         } else {
@@ -8857,8 +8862,8 @@
 
       // [終了] 押下：Business.abandon() 発火 → 業務開始画面へ
       function onBusinessConfirm() {
-        // 全ボタン共通：センサー未許可ならバナー表示してブロック
-        if (blockIfSensorNotGranted()) return;
+        // ★センサーの許可は要求しない (2026-08-07)★ 終わらせる操作なので不要。
+        //   ここで止めると、業務終了の次の一手でまた進めなくなる。
         if (typeof Business === 'undefined') return;
         try {
           // ★設計変更宣言 (2026-05-14・業務終了確定を abandon → end に変更):
@@ -9354,8 +9359,8 @@
 
       // ─── 空車ボタン ───
       function onIdle() {
-        // 全ボタン共通：センサー未許可ならバナー表示してブロック（保険）
-        if (blockIfSensorNotGranted()) return;
+        // ★センサーの許可は要求しない (2026-08-07・司さん指摘)★
+        //   iPhoneは一度アプリを離れると許可が切れる。終わらせる操作で止めると詰む。
         if (appState === 'driving') {
           // 走行中は空車に戻れない
           showToast('先に「確定」を押してください');
@@ -9525,8 +9530,8 @@
 
       // ─── 確定ボタン（旧Send）───
       function onSend() {
-        // 全ボタン共通：センサー未許可ならバナー表示してブロック
-        if (blockIfSensorNotGranted()) return;
+        // ★センサーの許可は要求しない (2026-08-07・司さん指摘)★
+        //   iPhoneは一度アプリを離れると許可が切れる。終わらせる操作で止めると詰む。
         if (appState === 'driving') {
           // Driving中に確定を押したら → 確定画面へ（カウントは継続）
           appState = 'fare';
@@ -10014,7 +10019,8 @@
       // ─── 代行キャンセル (取消: 距離も料金も加算しない・2026-07-25 司さん要望) ───
       //   代行中に押すと、現在のtripを記録せず破棄して空車へ戻る (Business.onTripEnd を呼ばない)。
       function onCancelTrip() {
-        if (blockIfSensorNotGranted()) return;
+        // ★センサーの許可は要求しない (2026-08-07・司さん指摘)★
+        //   iPhoneは一度アプリを離れると許可が切れる。終わらせる操作で止めると詰む。
         if (appState !== 'driving' && appState !== 'fare') return;
         if (!confirm('この代行を取消します。距離も料金も加算されません。よろしいですか？')) return;
         // メーター停止+trip reset (distance_m/料金を破棄) ・記録(onTripEnd)はしない
