@@ -6239,6 +6239,12 @@
       let discounts = []; // ★値引き (追加料金と同型・合計から減算)★
       let todayDist = 0;
       let todayCount = 0;
+      // ★総走行距離の命綱 (2026-08-08)★: 実車/回数/売上 の3つには 2026-05-14 に
+      //   Math.max の命綱を付けたが、★総走行距離だけ付け忘れていた★。
+      //   getReport().total_distance_m が一瞬でも 0 を返すと、200ms ごとの更新が
+      //   画面を 0.00 に上書きし続ける（司さん報告: 1台だけ総走行距離が動かない）。
+      //   ★同じ業務の中で、一度出た正の値より下げない★。業務開始で 0 に戻す。
+      let lastGoodTotalM = 0;
       // ★設計変更宣言 (2026-05-14・本日売上 global fallback):
       //   旧: updateBusinessDashboard は Business state のみ参照・onTripEnd 失敗時 ¥0 で固まる事象あり
       //   新: renderFare で todayFareYen += total を蓄積・updateBusinessDashboard で Math.max fallback
@@ -7491,6 +7497,7 @@
             todayDist = obj.dist || 0;
             todayCount = obj.count || 0;
             todayFareYen = obj.fare || 0;
+            lastGoodTotalM = obj.total || 0; // ★総走行距離の命綱も戻す★
           }
         }
         FB.setVehicleId(vehicleId);
@@ -7680,7 +7687,12 @@
             r.fare_total_yen || 0,
             typeof todayFareYen === 'number' ? todayFareYen : 0
           );
-          if (elTotal) elTotal.textContent = (r.total_distance_m / 1000).toFixed(2);
+          // ★総走行距離にも他の3つと同じ命綱を付ける (2026-08-08)★
+          //   0 に落ちても、同じ業務の中で一度出た正の値より下げない。
+          //   拾う相手は ★総走行距離そのもの★（実車 todayDist ではない＝別の嘘を作らない）。
+          const totalM = Math.max(r.total_distance_m || 0, lastGoodTotalM);
+          lastGoodTotalM = totalM;
+          if (elTotal) elTotal.textContent = (totalM / 1000).toFixed(2);
           if (elActual) elActual.textContent = (actualM / 1000).toFixed(2);
           if (elCount) elCount.textContent = tripN;
           if (elFare) elFare.textContent = fareYen.toLocaleString();
@@ -8606,10 +8618,11 @@
             todayDist = 0;
             todayCount = 0;
             todayFareYen = 0;
+            lastGoodTotalM = 0; // ★業務が変わったので命綱も 0 に戻す★
             const _today = new Date().toDateString();
             localStorage.setItem(
               'daikou_today',
-              JSON.stringify({ date: _today, dist: 0, count: 0, fare: 0 })
+              JSON.stringify({ date: _today, dist: 0, count: 0, fare: 0, total: 0 })
             );
             // ★監査MAJOR修正 (2026-06-20・深夜営業で当日履歴が消える根治):
             //   旧: ここで removeItem('daikou_history_'+_today) し、同日2業務目の「代行開始」で
@@ -9318,6 +9331,7 @@
               dist: todayDist,
               count: todayCount,
               fare: todayFareYen,
+              total: lastGoodTotalM, // ★総走行距離の命綱も残す★
             })
           );
           localStorage.setItem(histKey, JSON.stringify(r.hist));
