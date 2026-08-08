@@ -273,6 +273,92 @@
     return fetch(cfg.rest(pathAndQuery), opts);
   }
 
+  // ★自分の会社だけを、決まった順で取る (2026-08-08)★
+  //
+  //   ★なぜ要るか（司さんの申告2件の真因）★
+  //     「給料が手で入力できない」「台数が使っているのに0」は、事務所の画面が
+  //     ★別の会社(検証ゴミ)★ を表示していたため。各画面が /dk_companies を
+  //     ★並び順の指定なし★ で取り、★返ってきた最初の1件★ を無条件に採っていた。
+  //     2026-08-07 に司さんを dk_admins に入れた結果、RLS の is_dk_admin() で
+  //     ★11社 全部が見える★ようになり、一番古い検証ゴミが先頭で返っていた。
+  //     書き込みの条件は owner_id = 自分 なので、その会社には保存できない。
+  //
+  //   ★4つの画面(dashboard / kyuryo / uriage / shukei)が同じ形で間違えていた★ので、
+  //   ここに1つだけ置いて、全部そこを通す（また兄弟の食い違いを作らないため）。
+
+  // ログインの証(JWT)から 自分のid(sub)を読む。読めなければ null。
+  function uidOf(sess) {
+    try {
+      const t = sess && sess.access_token;
+      if (!t || typeof t !== 'string') return null;
+      const p = t.split('.')[1];
+      if (!p) return null;
+      const b = p.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b + '='.repeat((4 - (b.length % 4)) % 4);
+      const raw =
+        typeof atob === 'function'
+          ? atob(pad)
+          : /* eslint-disable-next-line no-undef */ Buffer.from(pad, 'base64').toString('utf8');
+      const o = JSON.parse(raw);
+      return o && typeof o.sub === 'string' && o.sub ? o.sub : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ★自分が持ち主の会社だけ★ を ★必ず同じ順★ で取る問い合わせ文。
+  //   limit=1 は使わない（何件あるか分からなくなり、2件目の存在に気づけないため）。
+  //   ★2026-08-08 追記: uid が読めない時は「問い合わせ自体をしない」★
+  //     絞りだけ外して取ると、dk_admins に入っている人には ★全社が返る★。
+  //     検証ゴミが選択画面に並び、そこで1つ選ぶと覚えてしまい ★元の事故に戻る★。
+  //     ＝「取れなかった」を「0件」や「全部」として扱わない。まだ分からない、と言う。
+  function myCompaniesQuery(sess, select) {
+    const uid = uidOf(sess);
+    if (!uid) return null; // ★誰か分からないなら聞きに行かない★
+    const cols = select || 'company_id,name,url_token,seat_limit,status';
+    return (
+      'dk_companies?select=' + cols + '&order=created_at.asc&owner_id=eq.' + encodeURIComponent(uid)
+    );
+  }
+
+  // 返り値は fetch の結果と同じ形。ただし uid が無い時は
+  // ★通信に行かず { ok:false, noUid:true } を返す★（呼ぶ側は「読み込み中」のままにする）。
+  function myCompanies(sess, select) {
+    const q = myCompaniesQuery(sess, select);
+    if (!q) return Promise.resolve({ ok: false, noUid: true, status: 0 });
+    return rest(sess, q);
+  }
+
+  // ★黙って先頭を選ばない★
+  //   0件 → 登録へ / 1件 → そのまま / 2件以上 → 選ばせる
+  //   前に選んだ会社(rememberedId)が今の一覧にあれば、それを使う。
+  function pickCompany(list, rememberedId) {
+    const arr = Array.isArray(list) ? list.filter((x) => x && x.company_id) : [];
+    if (arr.length === 0) return { mode: 'none', company: null, list: [] };
+    if (arr.length === 1) return { mode: 'one', company: arr[0], list: arr };
+    if (rememberedId) {
+      const hit = arr.filter((x) => String(x.company_id) === String(rememberedId))[0];
+      if (hit) return { mode: 'one', company: hit, list: arr };
+    }
+    return { mode: 'choose', company: null, list: arr };
+  }
+
+  const REMEMBER_KEY = 'dk_office_company';
+  function rememberedCompanyId() {
+    try {
+      return _ls() ? _ls().getItem(REMEMBER_KEY) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function rememberCompany(id) {
+    try {
+      if (_ls()) _ls().setItem(REMEMBER_KEY, String(id));
+    } catch (_) {
+      /* 覚えられなくても使えるので止めない */
+    }
+  }
+
   function logout() {
     clear();
     goLogin();
@@ -292,6 +378,13 @@
     refresh: refresh,
     ensure: ensure,
     rest: rest,
+    // ★会社の選び方（4画面で共有）★
+    uidOf: uidOf,
+    myCompaniesQuery: myCompaniesQuery,
+    myCompanies: myCompanies,
+    pickCompany: pickCompany,
+    rememberedCompanyId: rememberedCompanyId,
+    rememberCompany: rememberCompany,
     goLogin: goLogin,
     logout: logout,
     // ★通信の失敗でログアウトさせないための判定★

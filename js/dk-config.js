@@ -39,6 +39,13 @@
   //   が git の remote(＝同期でコピーされない所)から素性を取って機械で縛っている。
   const APP_BASE = 'https://daikou-app.vercel.app'; // メーター(ドライバーが使う)
   const OFFICE_BASE = 'https://daikome-jimusho.vercel.app'; // 事務所(社長が使う)
+  // ★代行請求書アプリ(ダイコメの製品)の住所 (2026-08-09)★
+  //   ★repo ごとに違う★: 本番repo=本番の請求書 / テストrepo=テストの請求書。
+  //   ここに置く理由: 前は dashboard.html に ★古い住所(Exallyのテスト用として作った所)★ が
+  //   直書きされていて、
+  //   ★本番repo も テストrepo も 同じ「本番の請求書」へ飛んでいた★（司さん 2026-08-09 指摘）。
+  //   しかも名前に -test と入っているのに中身は本番＝一番危ない見た目だった。
+  const SEIKYU_BASE = 'https://daikou-seikyu.vercel.app';
 
   const api = {
     SB_URL: SB_URL,
@@ -47,6 +54,7 @@
     FN_BASE: SB_URL + '/functions/v1',
     APP_BASE: APP_BASE,
     OFFICE_BASE: OFFICE_BASE,
+    SEIKYU_BASE: SEIKYU_BASE,
 
     // Edge Function の URL を名前から組み立てる: fn('dk-issue-license')
     fn: function (name) {

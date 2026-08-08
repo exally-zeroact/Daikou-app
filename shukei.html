@@ -390,6 +390,22 @@
           $('err').textContent = m || '';
           $('err').style.display = m ? 'block' : 'none';
         }
+        // ★2026-08-08: 断られた時に「どの会社に書こうとして断られたか」まで出す★
+        //   司さんの申告では 赤字が「手で入れた分を保存できませんでした。」だけで、
+        //   ★相手の会社が分からないので誰も原因に辿り着けなかった★（実際は検証ゴミの会社だった）。
+        //   401/403 は倉庫が「その会社には書けない」と言っている時なので、会社名を添える。
+        function saveErr(msg, r) {
+          try {
+            var st = r && r.status;
+            if (st === 401 || st === 403) {
+              var nm = (COMPANY && COMPANY.name) || '(会社が選ばれていません)';
+              return showErr(msg + ' ' + nm + ' には書き込めません。');
+            }
+          } catch (_) {
+            /* 名前が出せなくても、元の言い方はそのまま出す */
+          }
+          return showErr(msg);
+        }
         function showMsg(m) {
           $('msg').textContent = m || '';
           $('msg').style.display = m ? 'block' : 'none';
@@ -442,8 +458,14 @@
         }
 
         function loadCompany() {
-          DKSession.rest(SESS, 'dk_companies?select=company_id,name&limit=1')
+          // ★2026-08-08: 自分の会社だけを、決まった順で取る★
+          //   旧: limit=1 ・並び順なしで j[0] を無条件に採用していた。
+          //       司さんを dk_admins に入れた結果 11社見えるようになり、
+          //       検証ゴミの会社を掴んでいた（給料が保存できない・台数が0）。
+          DKSession.myCompanies(SESS, 'company_id,name')
             .then(function (r) {
+              // ★自分が誰か分からない時は 会社を一切出さない (2026-08-08)★
+              if (r && r.noUid) return 'unknown';
               return r.json();
             })
             .then(function (j) {
@@ -452,7 +474,18 @@
                 showMsg('先に「会社設定」で会社を登録してください。');
                 return;
               }
-              COMPANY = j[0];
+              if (j === 'unknown') {
+                $('sub').textContent = '読み込み中…';
+                return;
+              }
+              // ★黙って先頭を選ばない★（2件以上なら事務所の画面で選んでもらう）
+              var picked = DKSession.pickCompany(j, DKSession.rememberedCompanyId());
+              if (picked.mode !== 'one') {
+                $('sub').textContent = '会社を選んでください';
+                showMsg('会社が複数あります。事務所の画面でどの会社を出すか選んでください。');
+                return;
+              }
+              COMPANY = picked.company;
               $('sub').textContent = COMPANY.name || '';
               load();
             })
@@ -705,7 +738,7 @@
             }),
           })
             .then(function (r) {
-              if (!r.ok) return showErr('PayPay の分を保存できませんでした。');
+              if (!r.ok) return saveErr('PayPay の分を保存できませんでした。', r);
               showErr('');
               PP[key] = v;
               recalc();

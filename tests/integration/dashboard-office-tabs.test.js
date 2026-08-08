@@ -41,7 +41,12 @@ describe('★入口は管理画面ひとつ★', () => {
   });
 
   it('★請求書は別アプリ・別ログインなので新しいタブで開く（中に埋め込まない）★', () => {
-    expect(DASH).toContain('https://exally-test.vercel.app/daikou-seikyu.html');
+    // ★2026-08-09 仕様変更★: 行き先を画面に直書きせず js/dk-config.js の SEIKYU_BASE から読む。
+    //   旧は exally-test の住所が直書きで、★本番repo も テストrepo も同じ「本番の請求書」★へ
+    //   飛んでいた（しかも名前に -test と入っているのに中身は本番）。司さん 2026-08-09 指摘。
+    //   どちらを指すべきかは tests/unit/seikyu-link-pointer.test.js が repo ごとに見張る。
+    expect(DASH).toContain('DKConfig.SEIKYU_BASE');
+    expect(DASH).toContain("'/daikou-seikyu.html'");
     expect(DASH).toMatch(/window\.open\(SEIKYU_URL/);
     // iframe の行き先に請求書を入れていないこと
     expect(DASH).not.toMatch(/TABS\s*=\s*\{[^}]*seikyu/);
