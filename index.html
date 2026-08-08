@@ -4220,7 +4220,12 @@
           _updateProgress();
           if (typeof dlog === 'function') dlog('[DataReadyGate] 初回 DL 中・ボタン disabled');
           _pollTimer = setInterval(function () {
-            if (_checkBgLoadDone()) {
+            // ★2026-08-08: 印が合った時点でも開ける★
+            //   _markerOk() は DataRegistry の版と比べる。DataRegistry が★遅れて来る★と
+            //   起動時の判定では「版が違う」になってゲートが閉じ、道データが既に揃っている起動では
+            //   _bgLoadDone が来ないので ★二度と開かなかった★（＝代行開始が押せないまま）。
+            //   ここで毎秒 印を見直すことで、遅れて来ても必ず開く。
+            if (_checkBgLoadDone() || _markerOk()) {
               _releaseGate();
             } else {
               _updateProgress();
@@ -4255,7 +4260,11 @@
           let _tries = 0;
           const _waitTimer = setInterval(function () {
             _tries++;
-            if (window._mmPipeline || _tries > 30) {
+            // ★2026-08-08: DataRegistry も待つ★
+            //   _init() は _markerOk() で版を比べて「掛けるか掛けないか」を決める。
+            //   DataRegistry がまだ無いと比べる相手が '0' になり、★正常な端末でもゲートが閉じる★。
+            //   決める前に来るのを待つ（来なくても _tries の上限で必ず先へ進む＝止まらない）。
+            if ((window._mmPipeline && window.DataRegistry) || _tries > 30) {
               clearInterval(_waitTimer);
               _init();
             }
