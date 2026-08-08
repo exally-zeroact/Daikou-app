@@ -97,7 +97,7 @@ describe('business.js history 30 日 rotation (㉓)', () => {
     expect(history.length).toBeGreaterThan(0);
   });
 
-  it('D2: 31 日経過した古い entry は cutoff で削除される', () => {
+  it('D2: 31 日経過した古い entry は cutoff で削除される（★雲へ上がった物だけ★）', () => {
     const { Business, ls } = loadBusiness();
     // 古い entry (= 31 日前) を localStorage に手動セット
     const oldEntry = {
@@ -107,6 +107,11 @@ describe('business.js history 30 日 rotation (㉓)', () => {
       fare_total_yen: 1300,
     };
     ls.setItem('daikou_business_history', JSON.stringify([oldEntry]));
+    // ★2026-08-08 仕様変更★: まだ雲へ上がっていない業務は 30日を過ぎても捨てない
+    //   （会社の有効化に失敗した端末で、お客さんの売上が黙って消えるのを止めるため）。
+    //   ここは「捨てる側」の確認なので、★送れた印を付けてから★ 回す。
+    //   未送信の物が残ることは tests/integration/history-keep-unsent.test.js で見ている。
+    ls.setItem('dk_synced_shifts', JSON.stringify([String(oldEntry.start_time)]));
 
     // 新規 business で _appendHistory が走ると cutoff で古い entry 削除
     Business.start();

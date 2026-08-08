@@ -65,6 +65,10 @@ const Business = (function () {
 
   // 履歴保持期間（日数）
   const RETENTION_DAYS = 30;
+  // ★2026-08-08: まだ上がっていない業務を捨てないための道具★
+  const SYNCED_KEY = 'dk_synced_shifts'; // job-sync が「送れた」印を残す所（読むだけ）
+  const DROPPED_KEY = 'dk_history_dropped'; // 上限を超えて捨てた件数（黙って消さない）
+  const UNSENT_KEEP_MAX = 200; // 30日を過ぎても残す「未送信」の上限
   const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
   // ─────────────────────────────────────────
@@ -1128,12 +1132,63 @@ const Business = (function () {
       list.unshift(report); // 新しい順
       // 直近 RETENTION_DAYS 日分のみ保持
       // 判定は end_time 優先（無ければ start_time、それも無ければ残す）
+      //
+      // ★2026-08-08: まだ雲へ上がっていない業務は、30日を過ぎても捨てない★
+      //   ★なぜ★ 会社の有効化に失敗している端末（送り先が分からない）では一度も上がらない。
+      //     実測(2026-08-08・テスト環境): dk-issue-license が 500 server_no_key を返し、
+      //     dk_license_company が入らず、送信済0件・履歴に貯まったまま になった。
+      //     そこで30日で捨てると ★お客さんの売上が 誰にも気づかれずに消える★。
+      //   ★印★ job-sync が送れた物の start_time を dk_synced_shifts に文字列で残している。
+      //     印が付いていない＝まだ上がっていない → 古くても残す。
+      //     ★印が読めない時も残す（安全側）★
+      //   ★溜まり続けない歯止め★ 残す上限 UNSENT_KEEP_MAX。超えた分は新しい方から残し、
+      //     捨てた件数を dk_history_dropped に足す（黙って消さない・あとで画面に出せる）。
       const cutoff = Date.now() - RETENTION_MS;
+      let syncedSet = null; // null = 読めなかった（＝全部 未送信あつかい＝捨てない）
+      try {
+        const rawSynced = localStorage.getItem(SYNCED_KEY);
+        if (rawSynced) {
+          const arr = JSON.parse(rawSynced);
+          if (Array.isArray(arr)) {
+            syncedSet = Object.create(null);
+            arr.forEach((k) => {
+              syncedSet[String(k)] = true;
+            });
+          }
+        } else {
+          syncedSet = Object.create(null); // 印そのものが無い＝1件も送れていない
+        }
+      } catch (_) {
+        syncedSet = null; // 壊れていたら 捨てない側に倒す
+      }
+      const isSent = (item) => {
+        if (syncedSet === null) return false; // 読めない＝未送信あつかい
+        const key = item && item.start_time != null ? String(item.start_time) : null;
+        return !!(key && syncedSet[key]);
+      };
+      let keptUnsentOld = 0;
+      let droppedNow = 0;
       const trimmed = list.filter((item) => {
         const t = item.end_time || item.start_time || null;
         if (t === null) return true; // 時刻不明は残す（保険）
-        return t >= cutoff;
+        if (t >= cutoff) return true; // 30日以内は今までどおり残す
+        if (isSent(item)) return false; // 送信済みの古い物は今までどおり捨てる
+        // ★まだ上がっていない古い物★
+        if (keptUnsentOld < UNSENT_KEEP_MAX) {
+          keptUnsentOld++;
+          return true;
+        }
+        droppedNow++; // 上限超え。捨てるが ★件数は残す★
+        return false;
       });
+      if (droppedNow > 0) {
+        try {
+          const prev = parseInt(localStorage.getItem(DROPPED_KEY) || '0', 10) || 0;
+          localStorage.setItem(DROPPED_KEY, String(prev + droppedNow));
+        } catch (_) {
+          /* 記録できなくても業務は止めない */
+        }
+      }
       localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
       if (typeof dlog === 'function') {
         dlog(
