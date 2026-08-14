@@ -359,6 +359,93 @@
     }
   }
 
+  // ★「取れなかった」を 0 や 空 として出さない (2026-08-09)★
+  //
+  //   ★なぜ要るか★ 司さんの「台数が使いよんのに0になっとる」を追う中で、
+  //     ★通信が失敗しても 空配列にして、画面には 0 と書く★ 形が 21箇所あった
+  //     （dashboard 3 / kyuryo 9 / shukei 9・元は soft() と loadDevices）。
+  //     ＝「本当に0台」と「取れなかった」が ★画面で見分けられない★。
+  //   ★決めた形★ 取れなかったことを数え、画面には ★0でも空でもなく「—」★ を出し、
+  //     ★「もう一度読む」★ を添える。1本でも失敗したら その画面の数字は信じない。
+  const UNKNOWN_TEXT = '—';
+
+  // 1回の読み込みで「何本 取れなかったか」を覚える箱
+  function newLoadState() {
+    return { failed: 0, tried: 0 };
+  }
+  function loadFailed(st) {
+    return !!(st && st.failed > 0);
+  }
+
+  // 一覧を取る。★落ちないように空は返すが、失敗は必ず数える★
+  function softList(sess, pathAndQuery, st) {
+    if (st) st.tried++;
+    return rest(sess, pathAndQuery)
+      .then(function (r) {
+        if (r && r.ok) return r.json();
+        if (st) st.failed++;
+        return [];
+      })
+      .catch(function () {
+        if (st) st.failed++;
+        return [];
+      });
+  }
+
+  // 数字を画面に出す時の言い方。★取れていなければ「—」★
+  function numOrUnknown(v, st) {
+    if (loadFailed(st)) return UNKNOWN_TEXT;
+    return String(v == null ? UNKNOWN_TEXT : v);
+  }
+
+  // ★取れなかったことを 画面の上に出す（0件の時は何も出さない＝お節介にしない）★
+  //   「失敗」「エラー」とは書かない。何が起きたかと、次にできる事だけ書く。
+  function showUnknownBar(st, onRetry) {
+    try {
+      if (!global || !global.document) return;
+      const id = 'dkUnknownBar';
+      let el = global.document.getElementById(id);
+      if (!loadFailed(st)) {
+        if (el) el.style.display = 'none';
+        return;
+      }
+      if (!el) {
+        el = global.document.createElement('div');
+        el.id = id;
+        el.style.cssText =
+          'position:sticky;top:0;z-index:50;margin:0 0 8px;padding:10px 12px;' +
+          'background:#fff8e1;border:1px solid #ffd666;border-radius:10px;' +
+          'font-size:13px;color:#8a6d00;display:flex;gap:10px;align-items:center';
+        const span = global.document.createElement('span');
+        span.id = id + 'Msg';
+        span.style.cssText = 'flex:1';
+        const btn = global.document.createElement('button');
+        btn.type = 'button';
+        btn.id = id + 'Btn';
+        btn.textContent = 'もう一度読む';
+        btn.style.cssText =
+          'padding:6px 12px;border-radius:8px;border:1px solid #cfe0ff;' +
+          'background:#fff;color:#0b57d0;font-weight:700;font-size:13px';
+        el.appendChild(span);
+        el.appendChild(btn);
+        const host = global.document.querySelector('.wrap') || global.document.body;
+        host.insertBefore(el, host.firstChild);
+      }
+      el.style.display = 'flex';
+      const msg = global.document.getElementById(id + 'Msg');
+      if (msg)
+        msg.textContent =
+          'いま読めなかった物があります（' +
+          st.failed +
+          '件）。数字は「' +
+          UNKNOWN_TEXT +
+          '」で出しています。';
+      const b = global.document.getElementById(id + 'Btn');
+      if (b && typeof onRetry === 'function') b.onclick = onRetry;
+    } catch (_) {
+      /* 出せなくても業務は止めない */
+    }
+  }
   function logout() {
     clear();
     goLogin();
@@ -378,6 +465,13 @@
     refresh: refresh,
     ensure: ensure,
     rest: rest,
+    // ★「取れなかった」を 0/空 として出さないための道具★
+    UNKNOWN_TEXT: UNKNOWN_TEXT,
+    newLoadState: newLoadState,
+    loadFailed: loadFailed,
+    softList: softList,
+    numOrUnknown: numOrUnknown,
+    showUnknownBar: showUnknownBar,
     // ★会社の選び方（4画面で共有）★
     uidOf: uidOf,
     myCompaniesQuery: myCompaniesQuery,
