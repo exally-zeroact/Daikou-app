@@ -71,7 +71,7 @@ grep -c 'data-cfemail' {ファイル名}
 |mint-dark  |#3D9E72                                           |
 |mint-bg    |#F0FAF4                                           |
 |コードブロック背景  |#C8ECD8                                           |
-|コードブロックテキスト|#1A4A2E                                           |
+|コードブロックテキスト|#2E7D54                                           |
 |ロゴフォント     |DM Mono / 20px / weight500 / letter-spacing:-0.5px|
 |本文フォント     |Noto Sans JP                                      |
 |DM Mono使用箇所|ロゴ・価格・数式・コードブロック・TSV                              |
