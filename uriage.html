@@ -122,43 +122,142 @@
         cursor: pointer;
       }
 
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 14px;
+      /* ===== 読める一覧＋バー (2026-08-09) =====
+         司さん「全体的に表が見にくいから他のアプリの用に見せるようにしろ」
+         7列の表はスマホで横に流れて読めなかった。1行を大きく、金額を主役にする。 */
+      .seg {
+        display: flex;
+        gap: 6px;
+        background: #e8f0fe;
+        padding: 4px;
+        border-radius: 12px;
       }
 
-      th,
-      td {
-        padding: 9px 8px;
+      .segb {
+        flex: 1;
+        border: none;
+        background: none;
+        border-radius: 9px;
+        padding: 9px 6px;
+        font-size: 15px;
+        font-weight: 700;
+        font-family: inherit;
+        color: var(--blue-d);
+        cursor: pointer;
+      }
+
+      .segb.on {
+        background: var(--blue-d);
+        color: #fff;
+      }
+
+      .row {
         border-bottom: 1px solid var(--line);
-        text-align: right;
+        padding: 12px 2px 11px;
+      }
+
+      .row:last-child {
+        border-bottom: none;
+      }
+
+      .rhead {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .rname {
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--ink);
+        min-width: 0;
+      }
+
+      .ramt {
+        font-size: 19px;
+        font-weight: 800;
+        color: var(--blue-d);
         white-space: nowrap;
       }
 
-      th {
+      .rbar {
+        height: 7px;
+        background: #e8f0fe;
+        border-radius: 4px;
+        margin: 7px 0 6px;
+        overflow: hidden;
+      }
+
+      .rbar span {
+        display: block;
+        height: 100%;
+        background: var(--blue);
+        border-radius: 4px;
+      }
+
+      .rsub {
+        font-size: 12.5px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .rmore {
+        margin-top: 6px;
+        background: none;
+        border: none;
+        padding: 4px 0;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: inherit;
+        color: var(--blue);
+        cursor: pointer;
+      }
+
+      .rdetail {
+        margin-top: 8px;
+        border-left: 3px solid var(--line);
+        padding-left: 10px;
+      }
+
+      .dline {
+        padding: 8px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+
+      .dline:last-child {
+        border-bottom: none;
+      }
+
+      .dtop {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .dsub {
         font-size: 12px;
         color: var(--muted);
-        font-weight: 700;
-        border-bottom: 2px solid var(--line);
+        margin-top: 2px;
       }
 
-      th:first-child,
-      td:first-child {
-        text-align: left;
+      .dedit {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
       }
 
-      /* ★.detail td は tr.total td より前に置くこと（stylelint no-descending-specificity）★ */
-      .detail td {
-        background: #fbfdff;
-        font-size: 13px;
-      }
-
-      tr.total td {
-        font-weight: 800;
+      .totalrow {
+        margin-top: 4px;
         border-top: 2px solid var(--line);
-        border-bottom: none;
-        background: #f7fbff;
+        padding-top: 12px;
+      }
+
+      .totalrow .rname,
+      .totalrow .ramt {
+        font-size: 20px;
       }
 
       .carname {
@@ -292,23 +391,16 @@
         </div>
       </div>
 
+      <!-- ★車ごと／日ごと の切り替え (2026-08-09 司さん「1日おきと車おきで見れないかん」)★ -->
       <div class="card">
-        <div class="scroller">
-          <table id="tbl">
-            <thead>
-              <tr>
-                <th>車</th>
-                <th>件数</th>
-                <th>実車距離</th>
-                <th>総走行距離</th>
-                <th>売上</th>
-                <th>引いた分</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tbody"></tbody>
-          </table>
+        <div class="seg">
+          <button class="segb on" id="segCar" type="button">車ごと</button>
+          <button class="segb" id="segDay" type="button">日ごと</button>
         </div>
+      </div>
+
+      <div class="card">
+        <div id="list"></div>
         <div class="msg" id="msg" style="display: none"></div>
         <div class="err" id="err" style="display: none"></div>
         <div class="note">
@@ -341,9 +433,13 @@
 
         var SESS = null;
         var COMPANY = null;
+        // ★1回の読み込みで「何本 取れなかったか」を覚える箱★
+        var LOAD = DKSession.newLoadState();
         var MONTH = new Date();
-        var ROWS = [];
-        var OPEN = {}; // 展開中の車
+        var ROWS = []; // 車ごと
+        var DAYS = []; // ★日ごと (2026-08-09 司さん「1日おきと車おきで見れないかん」)★
+        var MODE = 'car'; // 'car' = 車ごと / 'day' = 日ごと
+        var OPEN = {}; // 開いている行（車ごとは端末ID・日ごとは日付）
         var SETTINGS = null; // 売上から何を引くか（会社ごと）
         var RAW = { shifts: [], edits: [], labels: [] };
 
@@ -413,6 +509,22 @@
           load();
         };
 
+        // ★車ごと／日ごと の切り替え★
+        //   通信し直さない（同じ数字を見せ方だけ変える）。
+        //   開いていた行は閉じる＝車の並びに日付の鍵が残って混ざらないように。
+        function setMode(m) {
+          if (MODE === m) return;
+          MODE = m;
+          OPEN = {};
+          render();
+        }
+        $('segCar').onclick = function () {
+          setMode('car');
+        };
+        $('segDay').onclick = function () {
+          setMode('day');
+        };
+
         function loadCompany() {
           // ★2026-08-08: 自分の会社だけを、決まった順で取る★
           //   旧: limit=1 ・並び順なしで j[0] を無条件に採用していた。
@@ -468,14 +580,14 @@
           // ★1つ失敗しても画面を殺さない★
           //   手入力(dk_shift_edits)や車名(dk_device_labels)がまだ無くても、
           //   メーターの数字だけは必ず出す。
+          // ★2026-08-09: 取れなかったことを 数える★
+          //   旧: 通信が失敗しても黙って空配列 → 画面には 0 と出ていた。
+          //   新: 空は返すが ★失敗は必ず数える★。画面の上に出して 数字は「—」にする。
           function soft(path) {
-            return DKSession.rest(SESS, path)
-              .then(function (x) {
-                return x.ok ? x.json() : [];
-              })
-              .catch(function () {
-                return [];
-              });
+            return DKSession.softList(SESS, path, LOAD);
+          }
+          function afterLoad(retry) {
+            DKSession.showUnknownBar(LOAD, retry);
           }
 
           Promise.all([
@@ -517,6 +629,7 @@
               recalc();
               renderSettings();
               render();
+              afterLoad(load); // ★取れなかった物があれば 画面の上に出す★
             })
             .catch(function () {
               showMsg('');
@@ -529,7 +642,9 @@
           var edits = Object.keys(window.__editsById || {}).map(function (k) {
             return window.__editsById[k];
           });
+          // ★車ごと／日ごと の両方を作る（数字は同じ物から作る＝食い違わない）★
           ROWS = UriageAgg.byDevice(RAW.shifts, edits, RAW.labels, SETTINGS);
+          DAYS = UriageAgg.byDay(RAW.shifts, edits, RAW.labels, SETTINGS);
         }
 
         // ---------- 売上から引くものの設定 ----------
@@ -578,123 +693,187 @@
         }
 
         // ---------- 描画 ----------
+        //   ★司さん「全体的に表が見にくいから他のアプリの用に見せるようにしろ」(2026-08-09)★
+        //     7列の表はスマホで横に流れて読めなかった。
+        //     1行＝名前(または日付) ＋ 売上を大きく ＋ バー ＋ 小さい字で内訳。
+        //   ★司さん「売上を１日おきと車おきで見れないかん」★ → 上の切り替えで出し分ける。
+        function money(v) {
+          return '¥' + Number(v || 0).toLocaleString();
+        }
+
+        function dayLabel(ymd) {
+          var p = String(ymd).split('-');
+          var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+          var w = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()];
+          return Number(p[1]) + '/' + Number(p[2]) + '（' + w + '）';
+        }
+
+        function subText(r) {
+          return (
+            r.trip_count +
+            '件　実車 ' +
+            UriageAgg.km(r.actual_total_m) +
+            ' km　総走行 ' +
+            UriageAgg.km(r.total_distance_m) +
+            ' km' +
+            (r.deduct_yen ? '　引いた分 −' + money(r.deduct_yen) : '')
+          );
+        }
+
+        // 1件ぶんの明細（開いた時に出す・高速代などはここで直す）
+        function shiftLine(s) {
+          var e = (window.__editsById || {})[s.shift_id] || {};
+          var d = new Date(s.started_at);
+          return (
+            '<div class="dline">' +
+            '<div class="dtop"><span>' +
+            (d.getMonth() + 1) +
+            '/' +
+            d.getDate() +
+            '</span><span>' +
+            money(s.fare_total_yen) +
+            '</span></div>' +
+            '<div class="dsub">' +
+            (s.trip_count || 0) +
+            '件　実車 ' +
+            UriageAgg.km(s.actual_total_m) +
+            ' km　総走行 ' +
+            UriageAgg.km(s.total_distance_m) +
+            ' km</div>' +
+            '<div class="dedit">' +
+            (s.isManual
+              ? '手で入れた分（給料の画面で直せます）'
+              : '高速 <input class="yen" data-sid="' +
+                esc(s.shift_id) +
+                '" data-f="toll_yen" value="' +
+                (e.toll_yen || 0) +
+                '"> 橋 <input class="yen" data-sid="' +
+                esc(s.shift_id) +
+                '" data-f="bridge_yen" value="' +
+                (e.bridge_yen || 0) +
+                '"> その他 <input class="yen" data-sid="' +
+                esc(s.shift_id) +
+                '" data-f="other_yen" value="' +
+                (e.other_yen || 0) +
+                '">') +
+            '</div>' +
+            '</div>'
+          );
+        }
+
+        // 車1台ぶんの小さい行（日ごとを開いた時に出す）
+        function carLine(c) {
+          return (
+            '<div class="dline">' +
+            '<div class="dtop"><span>' +
+            esc(c.label) +
+            '</span><span>' +
+            money(c.net_fare_yen) +
+            '</span></div>' +
+            '<div class="dsub">' +
+            subText(c) +
+            '</div>' +
+            '</div>'
+          );
+        }
+
+        function rowHtml(o) {
+          // バーは「一番多い所を100%」で見る（額の大小が一目で分かる）
+          var pct = o.max > 0 ? Math.max(2, Math.round((o.value / o.max) * 100)) : 0;
+          return (
+            '<div class="row">' +
+            '<div class="rhead"><div class="rname">' +
+            o.name +
+            '</div><div class="ramt">' +
+            money(o.value) +
+            '</div></div>' +
+            '<div class="rbar"><span style="width:' +
+            pct +
+            '%"></span></div>' +
+            '<div class="rsub">' +
+            o.sub +
+            '</div>' +
+            '<button class="rmore" type="button" data-key="' +
+            esc(o.key) +
+            '">' +
+            (o.open ? '閉じる ▴' : o.openText) +
+            '</button>' +
+            (o.open ? '<div class="rdetail">' + o.detail + '</div>' : '') +
+            '</div>'
+          );
+        }
+
         function render() {
           $('monthLabel').textContent = ymLabel(MONTH);
-          var tb = $('tbody');
-          if (!ROWS.length) {
-            tb.innerHTML = '';
+          $('segCar').className = 'segb' + (MODE === 'car' ? ' on' : '');
+          $('segDay').className = 'segb' + (MODE === 'day' ? ' on' : '');
+
+          var list = $('list');
+          var rows = MODE === 'day' ? DAYS : ROWS;
+          if (!rows.length) {
+            list.innerHTML = '';
             showMsg('この月はまだ記録がありません。');
             return;
           }
           showMsg('');
-          var html = '';
-          ROWS.forEach(function (r) {
-            html +=
-              '<tr>' +
-              '<td><input class="carname" data-dev="' +
-              esc(r.device_id) +
-              '" value="' +
-              esc(r.label) +
-              '" placeholder="車の名前"></td>' +
-              '<td>' +
-              r.trip_count +
-              '</td>' +
-              '<td>' +
-              UriageAgg.km(r.actual_total_m) +
-              ' km</td>' +
-              '<td>' +
-              UriageAgg.km(r.total_distance_m) +
-              ' km</td>' +
-              '<td>¥' +
-              r.net_fare_yen.toLocaleString() +
-              '</td>' +
-              '<td>−¥' +
-              r.deduct_yen.toLocaleString() +
-              '</td>' +
-              '<td><button class="expander" data-dev="' +
-              esc(r.device_id) +
-              '">' +
-              (OPEN[r.device_id] ? '閉じる' : '日ごと') +
-              '</button></td>' +
-              '</tr>';
 
-            if (OPEN[r.device_id]) {
-              r.shifts.forEach(function (s) {
-                var e = (window.__editsById || {})[s.shift_id] || {};
-                var d = new Date(s.started_at);
-                html +=
-                  '<tr class="detail">' +
-                  '<td>' +
-                  (d.getMonth() + 1) +
-                  '/' +
-                  d.getDate() +
-                  '</td>' +
-                  '<td>' +
-                  (s.trip_count || 0) +
-                  '</td>' +
-                  '<td>' +
-                  UriageAgg.km(s.actual_total_m) +
-                  ' km</td>' +
-                  '<td>' +
-                  UriageAgg.km(s.total_distance_m) +
-                  ' km</td>' +
-                  '<td>¥' +
-                  (s.fare_total_yen || 0).toLocaleString() +
-                  '</td>' +
-                  '<td colspan="2">' +
-                  (s.isManual
-                    ? '<span class="kv">手で入れた分（給料の画面で直せます）</span>'
-                    : '高速 <input class="yen" data-sid="' +
-                      esc(s.shift_id) +
-                      '" data-f="toll_yen" value="' +
-                      (e.toll_yen || 0) +
-                      '"> ' +
-                      '橋 <input class="yen" data-sid="' +
-                      esc(s.shift_id) +
-                      '" data-f="bridge_yen" value="' +
-                      (e.bridge_yen || 0) +
-                      '"> ' +
-                      'その他 <input class="yen" data-sid="' +
-                      esc(s.shift_id) +
-                      '" data-f="other_yen" value="' +
-                      (e.other_yen || 0) +
-                      '">') +
-                  '</td>' +
-                  '</tr>';
+          var max = 0;
+          rows.forEach(function (r) {
+            if (r.net_fare_yen > max) max = r.net_fare_yen;
+          });
+
+          var html = '';
+          rows.forEach(function (r) {
+            if (MODE === 'day') {
+              html += rowHtml({
+                key: r.date,
+                name: dayLabel(r.date),
+                value: r.net_fare_yen,
+                max: max,
+                sub: subText(r),
+                open: !!OPEN[r.date],
+                openText: '車ごと ▾',
+                detail: r.cars.map(carLine).join(''),
+              });
+            } else {
+              html += rowHtml({
+                key: r.device_id,
+                name:
+                  '<input class="carname" data-dev="' +
+                  esc(r.device_id) +
+                  '" value="' +
+                  esc(r.label) +
+                  '" placeholder="車の名前">',
+                value: r.net_fare_yen,
+                max: max,
+                sub: subText(r),
+                open: !!OPEN[r.device_id],
+                openText: '日ごと ▾',
+                detail: r.shifts.map(shiftLine).join(''),
               });
             }
           });
 
-          var t = UriageAgg.total(ROWS);
+          var t = UriageAgg.total(rows);
           html +=
-            '<tr class="total">' +
-            '<td>合計</td>' +
-            '<td>' +
-            t.trip_count +
-            '</td>' +
-            '<td>' +
-            UriageAgg.km(t.actual_total_m) +
-            ' km</td>' +
-            '<td>' +
-            UriageAgg.km(t.total_distance_m) +
-            ' km</td>' +
-            '<td>¥' +
-            t.net_fare_yen.toLocaleString() +
-            '</td>' +
-            '<td>−¥' +
-            t.deduct_yen.toLocaleString() +
-            '</td>' +
-            '<td></td>' +
-            '</tr>';
-          tb.innerHTML = html;
+            '<div class="row totalrow">' +
+            '<div class="rhead"><div class="rname">合計</div><div class="ramt">' +
+            money(t.net_fare_yen) +
+            '</div></div>' +
+            '<div class="rsub">' +
+            subText(t) +
+            '</div>' +
+            '</div>';
+
+          list.innerHTML = html;
           wire();
         }
 
         function wire() {
-          Array.prototype.forEach.call(document.querySelectorAll('.expander'), function (b) {
+          Array.prototype.forEach.call(document.querySelectorAll('.rmore'), function (b) {
             b.onclick = function () {
-              var d = b.getAttribute('data-dev');
-              OPEN[d] = !OPEN[d];
+              var k = b.getAttribute('data-key');
+              OPEN[k] = !OPEN[k];
               render();
             };
           });

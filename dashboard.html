@@ -476,6 +476,31 @@
           <div id="qr" style="display: none"></div>
         </div>
 
+        <!-- 地元の市（請求書の行き先の書き方） -->
+        <div class="card">
+          <h2 style="margin: 0 0 8px">地元の市</h2>
+          <div class="desc" style="margin: 0 0 10px">
+            請求書の行き先で、この市名は落として町名だけにします。 市外はそのまま市名を付けます（例:
+            松山市道後町）。空なら 今治市。
+          </div>
+          <div class="row">
+            <input
+              id="homeCity"
+              type="text"
+              placeholder="今治市"
+              style="
+                flex: 1;
+                padding: 10px;
+                border: 1px solid #cfe0ff;
+                border-radius: 10px;
+                font-size: 15px;
+              "
+            />
+            <button class="btn" id="saveHomeCity" type="button">保存</button>
+          </div>
+          <div id="homeCityMsg" class="desc" style="margin: 8px 0 0"></div>
+        </div>
+
         <!-- 台数 -->
         <div class="card">
           <div class="seat-head">
@@ -694,45 +719,125 @@
           }
         }
 
+        // ★取れなかった回数を覚える箱（使用台数を 0 と書かないため）★
+        var DEVLOAD = DKSession.newLoadState();
         function loadDevices() {
-          return api(
-            '/dk_company_devices?select=device_id,vin,last_seen&company_id=eq.' +
-              encodeURIComponent(COMPANY.company_id) +
-              '&order=last_seen.desc.nullslast'
-          )
-            .then(function (r) {
-              return r.ok ? r.json() : [];
-            })
-            .catch(function () {
-              return [];
-            });
+          DEVLOAD.failed = 0;
+          return (
+            api(
+              '/dk_company_devices?select=device_id,vin,last_seen&company_id=eq.' +
+                encodeURIComponent(COMPANY.company_id) +
+                '&order=last_seen.desc.nullslast'
+            )
+              // ★2026-08-09: 取れなかったことを数える（0台と区別する）★
+              .then(function (r) {
+                if (r && r.ok) return r.json();
+                DEVLOAD.failed++;
+                return [];
+              })
+              .catch(function () {
+                DEVLOAD.failed++;
+              })
+          );
         }
 
         // ★車の名前 (2026-08-05・司さん「訳分からんやつ消せ」)★
         //   ここは端末IDの先頭8文字(7e1919ef…)をそのまま出していた最後の画面。
         //   名前は売上表で付ける(dk_device_labels)。付いていなければ「車1・車2」。
         //   ★引けなくても画面は出す★(名前が無いだけで会社の設定が開けなくなったら困る)
+        // ★車の名前を保存する (2026-08-09)★ 給料の設定と同じ棚・同じ形
+        function saveLabel(deviceId, label) {
+          return api('/dk_device_labels?on_conflict=company_id,device_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              device_id: deviceId,
+              label: label,
+              updated_at: new Date().toISOString(),
+            }),
+          }).then(function (r) {
+            if (!r.ok) alert('車の名前を保存できませんでした。');
+            renderDashboard();
+          });
+        }
+
+        // ★並びを保存する★ 決めた順が 売上・給料・請求書 全部に効く
+        function saveOrder(rows) {
+          return api('/dk_device_labels?on_conflict=company_id,device_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(
+              rows.map(function (x) {
+                return {
+                  company_id: COMPANY.company_id,
+                  device_id: x.device_id,
+                  sort_order: x.sort_order,
+                  updated_at: new Date().toISOString(),
+                };
+              })
+            ),
+          }).then(function (r) {
+            if (!r.ok) alert('並びを保存できませんでした。');
+            renderDashboard();
+          });
+        }
+
+        // ▲▼ のボタンを作る
+        function mkMove(devs, deviceId, dir, mark) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = mark;
+          b.style.cssText =
+            'width:34px;padding:6px 0;border-radius:8px;border:1px solid #cfe0ff;' +
+            'background:#fff;color:#0b57d0;font-weight:700';
+          var ids = devs.map(function (x) {
+            return x.device_id;
+          });
+          var i = ids.indexOf(deviceId);
+          var end = dir === -1 ? i <= 0 : i < 0 || i >= ids.length - 1;
+          if (end) {
+            b.disabled = true;
+            b.style.opacity = '0.35';
+          }
+          b.onclick = function () {
+            if (!window.CarName) return;
+            var r = window.CarName.reorder(ids, i, dir);
+            if (!r.changed) return;
+            saveOrder(r.rows);
+          };
+          return b;
+        }
+
         function loadCarNames(devs) {
           var ids = (devs || []).map(function (d) {
             return d && d.device_id;
           });
-          return api(
-            '/dk_device_labels?select=device_id,label&company_id=eq.' +
-              encodeURIComponent(COMPANY.company_id)
-          )
-            .then(function (r) {
-              return r.ok ? r.json() : [];
-            })
-            .catch(function () {
-              return [];
-            })
-            .then(function (labels) {
-              try {
-                return window.CarName ? window.CarName.nameMap(ids, labels) : {};
-              } catch (_) {
-                return {};
-              }
-            });
+          return (
+            api(
+              // ★2026-08-09: 並び(sort_order)も取る★ 司さんが決めた順で並べるため
+              '/dk_device_labels?select=device_id,label,sort_order&company_id=eq.' +
+                encodeURIComponent(COMPANY.company_id)
+            )
+              // ★2026-08-09: 取れなかったことを数える（0台と区別する）★
+              .then(function (r) {
+                if (r && r.ok) return r.json();
+                DEVLOAD.failed++;
+                return [];
+              })
+              .catch(function () {
+                DEVLOAD.failed++;
+              })
+              .then(function (labels) {
+                // ★並べ替えで使う（この画面で 決めた順に並べるため）★
+                window.__dkLabels = Array.isArray(labels) ? labels : [];
+                try {
+                  return window.CarName ? window.CarName.nameMap(ids, labels) : {};
+                } catch (_) {
+                  return {};
+                }
+              })
+          );
         }
 
         function renderDashboard() {
@@ -744,6 +849,8 @@
           openTab(loadTab());
           $('coName').textContent = COMPANY.name || '(会社名なし)';
           show('statusOff', COMPANY.status === 'off');
+          // ★地元の市★（空なら空欄。書かなければ 今治市あつかい）
+          if ($('homeCity')) $('homeCity').value = COMPANY.home_city || '';
           // ★会社URL(ドライバーに配る物)は必ず「メーターの住所」を使う★
           //   事務所は別の住所(daikome-jimusho)からも開ける。そこで location.origin を使うと
           //   ドライバーが「メーターの無い住所」へ飛ばされて有効化できなくなる。
@@ -758,8 +865,12 @@
             devs = Array.isArray(devs) ? devs : [];
             var used = devs.length;
             var max = COMPANY.seat_limit || 0;
-            $('seatUsed').textContent = used;
+            // ★取れていない時は 0 ではなく「—」を出す（本当に0台と区別する）★
+            $('seatUsed').textContent = DKSession.numOrUnknown(used, DEVLOAD);
             $('seatMax').textContent = max;
+            DKSession.showUnknownBar(DEVLOAD, function () {
+              loadCompany();
+            });
             $('seatBar').style.width =
               (max ? Math.min(100, Math.round((used / max) * 100)) : 0) + '%';
 
@@ -769,7 +880,29 @@
               list.innerHTML = '<div class="empty">まだ端末はありません</div>';
               return;
             }
+            // ★2026-08-09: 司さんが決めた並び(sort_order)の順に並べ替えてから描く★
+            //   旧: 最終利用の新しい順（last_seen）＝決めた並びが この画面だけ効かなかった
             loadCarNames(devs).then(function (names) {
+              var LBL = (window.__dkLabels || []).slice();
+              var sorted = window.CarName
+                ? window.CarName.sortIds(
+                    devs.map(function (d) {
+                      return d.device_id;
+                    }),
+                    LBL
+                  )
+                : devs.map(function (d) {
+                    return d.device_id;
+                  });
+              var byId = {};
+              devs.forEach(function (d) {
+                byId[d.device_id] = d;
+              });
+              devs = sorted
+                .map(function (id) {
+                  return byId[id];
+                })
+                .filter(Boolean);
               devs.forEach(function (d) {
                 var wrap = document.createElement('div');
                 wrap.className = 'dev';
@@ -782,6 +915,19 @@
                   fmtDate(d.last_seen) +
                   '</div>';
                 left.querySelector('.id').textContent = carName;
+                // ★2026-08-09: 名前を ここで直せるようにする★
+                var nameBox = document.createElement('input');
+                nameBox.type = 'text';
+                nameBox.value = carName;
+                nameBox.setAttribute('aria-label', '車の名前');
+                nameBox.style.cssText =
+                  'width:120px;padding:6px 8px;border:1px solid #cfe0ff;border-radius:8px;font-size:14px';
+                nameBox.onchange = function () {
+                  saveLabel(d.device_id, nameBox.value.trim());
+                };
+                // ★上下に動かす（この順が 売上・給料・請求書 全部に効く）★
+                var up = mkMove(devs, d.device_id, -1, '▲');
+                var dn = mkMove(devs, d.device_id, 1, '▼');
                 var btn = document.createElement('button');
                 btn.className = 'rm';
                 btn.textContent = '外す';
@@ -810,8 +956,14 @@
                       alert('ネットに繋がる所で、もう一度お試しください。');
                     });
                 };
+                var tools = document.createElement('div');
+                tools.style.cssText = 'display:flex;gap:6px;align-items:center';
+                tools.appendChild(nameBox);
+                tools.appendChild(up);
+                tools.appendChild(dn);
+                tools.appendChild(btn);
                 wrap.appendChild(left);
-                wrap.appendChild(btn);
+                wrap.appendChild(tools);
                 list.appendChild(wrap);
               });
             }); // loadCarNames
@@ -860,7 +1012,11 @@
         }
 
         function loadCompany() {
-          return DKSession.myCompanies(SESS)
+          // ★2026-08-09: 地元の市(home_city)も取る★
+          return DKSession.myCompanies(
+            SESS,
+            'company_id,name,url_token,seat_limit,status,home_city'
+          )
             .then(function (r) {
               // ★ここが「毎回ログイン」の直接の原因だった（2026-08-01）★
               //   前は「配列が返らなければ goLogin()」＝通信が一瞬こけただけでログアウトしていた。
@@ -907,7 +1063,31 @@
         }
 
         // ---------- ボタン ----------
+        // ★地元の市を保存する (2026-08-09・司さん B を選択)★
+        function saveHomeCity() {
+          var v = ($('homeCity').value || '').trim();
+          var msg = $('homeCityMsg');
+          msg.textContent = '保存中…';
+          return api('/dk_companies?company_id=eq.' + encodeURIComponent(COMPANY.company_id), {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ home_city: v || null }),
+          })
+            .then(function (r) {
+              if (!r.ok) {
+                msg.textContent = '保存できませんでした（' + (COMPANY.name || '') + '）。';
+                return;
+              }
+              COMPANY.home_city = v || null;
+              msg.textContent = v ? '保存しました（' + v + '）' : '保存しました（空＝今治市）';
+            })
+            .catch(function () {
+              msg.textContent = 'ネットに繋がる所で、もう一度お試しください。';
+            });
+        }
+
         function bindStaticButtons() {
+          if ($('saveHomeCity')) $('saveHomeCity').addEventListener('click', saveHomeCity);
           $('a2hsClose').addEventListener('click', function () {
             try {
               localStorage.setItem('dk_a2hs_closed', '1');

@@ -183,6 +183,79 @@
     }
   }
 
+  // ─── 日ごとにまとめる ───────────────────────────────────
+  //   ★司さん「4 売上を１日おきと車おきで見れないかんやろ」(2026-08-09)★
+  //     今までは「車おき」だけで、日ごとは1台を開いた時しか出なかった。
+  //     ＝「8/1 は全部の車で いくらだったか」が どこにも出なかった。
+  //
+  //   ★日の切り方は 業務開始の日を日本時間で切る★
+  //     給料(js/payroll-daily.js dateOf)・請求書(meisai-row.js businessDate)と同じ。
+  //     代行は夜の仕事なので、ここを間違えると
+  //     ★同じ晩の仕事が2日に分かれる★（請求書で実際に起きた）。
+  const JST_OFFSET_MIN = 540;
+  function dayOf(iso) {
+    // 給料の部品があればそれを使う（切り方が1箇所に集まる）
+    if (global && global.PayrollDaily && typeof global.PayrollDaily.dateOf === 'function') {
+      return global.PayrollDaily.dateOf(iso, JST_OFFSET_MIN);
+    }
+    try {
+      const t = Date.parse(String(iso));
+      if (!isFinite(t)) return '';
+      const d = new Date(t + JST_OFFSET_MIN * 60000);
+      const p = function (v) {
+        return String(v).padStart(2, '0');
+      };
+      return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+    } catch (_) {
+      return '';
+    }
+  }
+
+  //   返す形: [{ date, …車ごとと同じ合計…, cars:[車ごとの行], shifts:[その日の勤務] }]
+  //   ★数字は1円も変えない★ 日ごとの合計 ＝ 車ごとの合計（試験で毎回突き合わせる）
+  function byDay(shifts, edits, labels, settings) {
+    try {
+      // 日ごとに勤務を仕分けてから、★車ごとと同じ関数(byDevice)に通す★
+      //   別々に足すと、引く物の設定や「印を付けた勤務」の扱いがズレる。
+      const bucket = {};
+      arr(shifts).forEach(function (s) {
+        if (!s || typeof s !== 'object') return;
+        const d = dayOf(s.started_at);
+        if (!d) return; // 日付が読めない行は出さない（0として混ぜない）
+        if (!bucket[d]) bucket[d] = [];
+        bucket[d].push(s);
+      });
+
+      return Object.keys(bucket)
+        .sort()
+        .map(function (d) {
+          const cars = byDevice(bucket[d], edits, labels, settings);
+          const t = total(cars);
+          t.date = d;
+          // ★車の並びは js/car-name.js が1箇所で決める★（売上・給料・請求書と揃える）
+          if (global && global.CarName) {
+            const order = global.CarName.sortIds(
+              cars.map(function (c) {
+                return c.device_id;
+              }),
+              labels
+            );
+            cars.sort(function (a, b) {
+              return order.indexOf(a.device_id) - order.indexOf(b.device_id);
+            });
+          }
+          t.cars = cars;
+          t.shifts = bucket[d];
+          return t;
+        })
+        .filter(function (r) {
+          return r.cars.length > 0; // どの車か分からない数字だけの日は出さない
+        });
+    } catch (_) {
+      return [];
+    }
+  }
+
   // 合計行
   function total(rows) {
     const t = {
@@ -216,6 +289,7 @@
     km: km,
     shortId: shortId,
     byDevice: byDevice,
+    byDay: byDay, // ★日ごと（2026-08-09 司さん「1日おきと車おきで見れないかん」）★
     total: total,
     normSettings: normSettings,
     deductOf: deductOf,

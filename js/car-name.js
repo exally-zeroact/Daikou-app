@@ -56,6 +56,32 @@
     return m;
   }
 
+  // ★上下に動かして並べ替える (2026-08-09・司さん「ここで名前の変更と並べかえで
+  //   上にある順から売上とかも一緒の並びになるように」)★
+  //   ・動いたら ★全部に連番を振り直す★（虫食いを残さない＝次に動かした時にズレない）
+  //   ・端は動かない（一番上で▲、一番下で▼は 何も起きない）
+  //   ・返す rows を そのまま dk_device_labels に保存すれば、
+  //     売上・給料・請求書 全部が この順になる（sortIds が同じ物を見ているため）
+  function reorder(ids, index, dir) {
+    const list = _arr(ids).map(_str).filter(Boolean);
+    const i = typeof index === 'number' ? index : -1;
+    const d = dir === 1 ? 1 : dir === -1 ? -1 : 0;
+    const j = i + d;
+    if (!d || i < 0 || i >= list.length || j < 0 || j >= list.length) {
+      return { order: list, rows: [], changed: false };
+    }
+    const out = list.slice();
+    const t = out[i];
+    out[i] = out[j];
+    out[j] = t;
+    return {
+      order: out,
+      rows: out.map(function (id, k) {
+        return { device_id: id, sort_order: k + 1 };
+      }),
+      changed: true,
+    };
+  }
   // 並べる（決めた順 → 決めていない物は端末IDの順で後ろ）
   function sortIds(ids, labels) {
     const ord = orderMap(labels);
@@ -113,6 +139,7 @@
     labelMap: labelMap,
     orderMap: orderMap,
     sortIds: sortIds,
+    reorder,
     nameMap: nameMap,
     nameOf: nameOf,
     hasUuid: hasUuid,
