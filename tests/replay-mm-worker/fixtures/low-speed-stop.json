@@ -1,26 +1,26 @@
 {
   "meta": {
     "name": "low-speed-stop-74m",
-    "description": "ehime road 22188 (= 411m unclassified) の seg 4 (= 73.9m) を低速 (= 6.7km/h・徐行)で走行・中央 20 step は停車 (= isStationary=true・speedKmh=0 強制)。司さん命名「low-speed-stop-50m」は概数 (= 実態 74m を 60 step・走行+停車+走行)。並走 25m に road 22220 (= 競合並走) あり。GPS noise は実機相当 default (= 停車中も position σ 3m で drift あり)。stationary_step_indices: 20-39 (= 中央 20 step)。狙い: 停車中に distance_m が増えないこと (= iOS speed=0 noise 由来の phantom 距離が出ないか) を Worker B の isStationary gate (= map-matcher.js T12 + meter.js _isStationary) が抑止する prod 経路で検証。低速ゆえ post-warmup 50 step は warmup 償却に十分。",
+    "description": "ehime road 22182 (= 411m unclassified) の seg 4 (= 73.9m) を低速 (= 6.7km/h・徐行)で走行・中央 20 step は停車 (= isStationary=true・speedKmh=0 強制)。司さん命名「low-speed-stop-50m」は概数 (= 実態 74m を 60 step・走行+停車+走行)。並走 25m に road 22214 (= 競合並走) あり。GPS noise は実機相当 default (= 停車中も position σ 3m で drift あり)。stationary_step_indices: 20-39 (= 中央 20 step)。狙い: 停車中に distance_m が増えないこと (= iOS speed=0 noise 由来の phantom 距離が出ないか) を Worker B の isStationary gate (= map-matcher.js T12 + meter.js _isStationary) が抑止する prod 経路で検証。低速ゆえ post-warmup 50 step は warmup 償却に十分。",
     "prefecture": "ehime",
     "true_speed_kmh": 6.7,
     "ground_truth_segments": [
       {
-        "roadIndex": 22188,
+        "roadIndex": 22182,
         "segmentIndex": 4,
         "t_start": 0,
         "t_end": 0.5,
         "num_samples": 20
       },
       {
-        "roadIndex": 22188,
+        "roadIndex": 22182,
         "segmentIndex": 4,
         "t_start": 0.5,
         "t_end": 0.5,
         "num_samples": 20
       },
       {
-        "roadIndex": 22188,
+        "roadIndex": 22182,
         "segmentIndex": 4,
         "t_start": 0.5,
         "t_end": 1,
@@ -50,7 +50,7 @@
       39
     ],
     "competing_road_indices": [
-      22220
+      22214
     ],
     "noise_model": {
       "seed": 48,
