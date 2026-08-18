@@ -134,7 +134,11 @@ test_thresholds:
 # ─── ai_review (= AI 駆動レビュー設定) ───────────────────────────
 
 ai_review:
-  enabled: true
+  # ★2026-08-18 既定を false にした★
+  #   ダイコメで実測：PRが全部 dependabot（人間のPRが0件）＝js/ を触るPRが3ヶ月で1件も無く、
+  #   ai-review.yml は ★起動0回★・pr-agent.yml は ★83回起動して全部 skipped★ だった。
+  #   ★人がPRを出す開発をしている repo だけ true にする★（＝入れる前に「PRが出ているか」を数える）
+  enabled: false
   models:
     primary: "anthropic/claude-haiku-4-5-20251001"
     fallback: "anthropic/claude-sonnet-4-5-20250929"

@@ -206,8 +206,9 @@ scripts/zeroact-test-commons/
 | Sentry (config) | error tracking | observability/sentry-config.js |
 | Firebase Remote Config | A/B 実験 | observability/ab-config.js |
 | OpenReplay (config) | session replay | observability/openreplay-config.js |
-| CodeRabbit / PR-Agent | AI レビュー | .coderabbit.yml / .pr-agent.toml |
-| multi-llm-consensus | AI 並列 PR review | ai/multi-llm-consensus.js |
+| CodeRabbit | AI レビュー | .coderabbit.yml |
+| ~~PR-Agent~~ | ★2026-08-18 削除★ 83回起動して全部 skipped・成功0回 | ― |
+| multi-llm-consensus | AI 並列 PR review ★現在 配線なし★ | ai/multi-llm-consensus.js |
 | llm-as-judge | テスト結果判定 | ai/llm-as-judge.js |
 | ai-bug-hunter | 週次バグ探索 | ai/ai-bug-hunter.js |
 | Dependabot | 依存更新 | .github/dependabot.yml |

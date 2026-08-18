@@ -8,7 +8,14 @@
 // 目的: PR 毎の Claude Haiku + Gemini Flash 並列レビュー (multi-LLM consensus)。
 //       両 LLM 同意なら通過・片方でも NG なら警告を出す cost-effective gate。
 //
-// トリガー: .github/workflows/ai-review.yml (= js/ 配下変更の PR のみ)
+// トリガー: ★2026-08-18 現在 配線なし（このスクリプトを呼ぶ物は無い）★
+//   旧: .github/workflows/ai-review.yml (= js/ 配下変更の PR のみ) ← 削除した
+//   消した理由（実測）: この repo の PR は ★全部 dependabot＝人間のPRが0件★。
+//     dependabot は package.json しか触らないので paths: js/** に一度も当たらず、
+//     ai-review.yml は 2026-05-18 の新設から3ヶ月で ★起動0回★ だった。
+//     同じ理由で pr-agent.yml も ★83回起動して全部 skipped・成功0回★ だった。
+//   ★スクリプト自体は消していない★＝人がPRを出す開発に変えた日に、
+//     ai-review.yml を作り直してここを呼べば そのまま動く。
 //
 // 必要環境変数:
 //   ANTHROPIC_API_KEY  Claude Haiku API キー (= sk-ant-...)

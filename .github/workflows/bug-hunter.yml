@@ -18,6 +18,12 @@ on:
 
 jobs:
   hunt:
+    # ★2026-08-18 実測★ 本番(Daikou-app)とテスト(Daikou-app-test)の ★両方★ で毎週動いていた。
+    #   読むのは js/meter.js / js/map-matcher.js / js/gps-worker.js の3本だけ（下の TARGET_FILES）。
+    #   テスト側は本番の数コミット遅れ＝ほぼ同じコードを Sonnet でもう1回読ませていた＝二重。
+    #   ★定時(schedule)で回すのは本番だけ★。テスト側で試したい時は workflow_dispatch で手で回す。
+    #   ★このファイルは両repoで同一のまま保つ★（片方だけ消すと、次の同期で黙って戻る）。
+    if: github.event_name != 'schedule' || github.repository == 'exally-zeroact/Daikou-app'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
