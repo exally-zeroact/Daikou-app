@@ -210,7 +210,7 @@ scripts/zeroact-test-commons/
 | ~~PR-Agent~~ | ★2026-08-18 削除★ 83回起動して全部 skipped・成功0回 | ― |
 | multi-llm-consensus | AI 並列 PR review ★現在 配線なし★ | ai/multi-llm-consensus.js |
 | llm-as-judge | テスト結果判定 | ai/llm-as-judge.js |
-| ai-bug-hunter | 週次バグ探索 | ai/ai-bug-hunter.js |
+| ai-bug-hunter | バグ探索 ★2026-08-18 定時をやめ 手動(workflow_dispatch)だけに★ | ai/ai-bug-hunter.js |
 | Dependabot | 依存更新 | .github/dependabot.yml |
 | Secret Scanning | 秘密漏洩検出 | GitHub repo settings |
 

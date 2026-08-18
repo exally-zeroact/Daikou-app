@@ -1,29 +1,41 @@
-# Weekly AI Bug Hunter (= Claude Sonnet 4 で未知バグ探索)
-# Stage 5 (2026-05-18 新規)
+# AI Bug Hunter (= Claude Sonnet に js の3本を読ませて未知バグを探す)
+# Stage 5 (2026-05-18 新規) → ★2026-08-18 定時をやめて「手で押した時だけ」に変更★
 #
-# トリガー: schedule 毎週月曜 0 時 JST (= UTC 日曜 15:00)
+# トリガー: ★workflow_dispatch のみ★（Actions → AI Bug Hunter → Run workflow）
 # 必要 secrets:
 #   ANTHROPIC_API_KEY  Claude API キー
 # 出力:
 #   bug-hunt-report.json (= risks: [...])
-#   GitHub Issue 自動作成 (= 司さんへの通知)
+#   GitHub Issue 自動作成
+#
+# ★★定時(毎週月曜0時 JST)をやめた理由＝実測 2026-08-18★★
+#   ① ★作ったIssueを誰も読んでいない★
+#      本番15件 + テスト12件 = 計27件。★27件 全部 OPEN・コメント0件・1件も閉じられていない★
+#      （2026-05-31 から3ヶ月ぶん）
+#   ② ★「0 risks」の週は 見つからなかったのではなく 失敗だった★
+#      本番15回のうち7回が「0 risks」。中身を開いたら全部 失敗:
+#        #22/#19/#15/#14 = JSON parse error（答えが max_tokens=4096 で途中で切れた。
+#                          切れる位置は毎回 7,100〜7,800 付近＝毎回 同じ所で力尽きている）
+#        #11/#10/#9      = execution failed
+#      ＝★成功したのは15回中8回(53%)★。しかも Issue のタイトルは「(0 risks)」・
+#        本文は「No risks detected (or execution failed).」＝
+#        ★失敗した週と、本当に安全だった週が 見た目で区別できない（赤を緑と書いている）★
+#   ③ ★成功した週も 毎週ほぼ同じ10件を言い直している★
+#      前回の指摘を覚えていないので、08-09 と 08-16 の1件目がほぼ同一文だった。
+#
+#   ⇒ 中身（distance_m の二重ガード・GPS直線距離の混入 等）は的外れではないが、
+#     ★出口が無い（誰も読まない・1件も直らない）★ので、定時で作り続ける意味が無い。
+#     ★消していない★＝使いたい日に手で押せば、今までどおり動く。
+#   ⇒ ★もう一度 定時に戻す日は、先に ② を直す事★
+#      （max_tokens を上げる／失敗時はIssueを作らずCIを赤にする／前回のIssueを渡す）
 
 name: AI Bug Hunter
 
 on:
-  schedule:
-    # 毎週月曜 JST 0:00 (= UTC 日曜 15:00)
-    - cron: '0 15 * * SUN'
   workflow_dispatch:
 
 jobs:
   hunt:
-    # ★2026-08-18 実測★ 本番(Daikou-app)とテスト(Daikou-app-test)の ★両方★ で毎週動いていた。
-    #   読むのは js/meter.js / js/map-matcher.js / js/gps-worker.js の3本だけ（下の TARGET_FILES）。
-    #   テスト側は本番の数コミット遅れ＝ほぼ同じコードを Sonnet でもう1回読ませていた＝二重。
-    #   ★定時(schedule)で回すのは本番だけ★。テスト側で試したい時は workflow_dispatch で手で回す。
-    #   ★このファイルは両repoで同一のまま保つ★（片方だけ消すと、次の同期で黙って戻る）。
-    if: github.event_name != 'schedule' || github.repository == 'exally-zeroact/Daikou-app'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
