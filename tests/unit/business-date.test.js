@@ -85,25 +85,55 @@ describe('★請求書の切り方が「代行ごとの時刻」に戻ってい�
     'index.ts'
   );
 
-  it('業務開始の日で切っている', () => {
-    if (!fs.existsSync(FN)) return; // 本番repoには置いていない
-    const t = fs.readFileSync(FN, 'utf8');
-    expect(t, '★業務開始の日で切っていない★').toContain('const bizDate =');
-    expect(t).toContain('date: bizDate,');
+  // ★2026-08-05 見る場所を変えた★
+  //   日付を切る所は meisai-row.js に出した（自動投入が黙って落ちていた件で、
+  //   行を作る所を外に出して試せるようにしたため）。
+  //   文字列を探すのはやめて、★実際に呼んで日付を見る★。そちらが強い。
+  const ROW = path.resolve(
+    __dirname,
+    '..',
+    '..',
+    'supabase',
+    'functions',
+    'dk-sync-jobs',
+    'meisai-row.js'
+  );
+
+  it('★業務開始の日（日本時間）で切っている★', async () => {
+    if (!fs.existsSync(ROW)) return; // 本番repoには置いていない
+    const M = await import('file://' + ROW.replace(/\\/g, '/'));
+    // 日本時間 8/4 15:44 開始 → 8/4
+    expect(M.businessDate(1785835513046)).toBe('2026-08-04');
+    // 同じ晩の、日をまたいだ代行も同じ日付になること
+    const rows = M.buildMeisaiRows({
+      ownerId: 'x',
+      deviceId: 'd',
+      shiftStartMs: 1785835513046,
+      trips: [
+        { seq: 1, distance_m: 5000, fare_yen: 2000, payment_type: 'invoice', customer_name: 'A' },
+        { seq: 9, distance_m: 3000, fare_yen: 1500, payment_type: 'invoice', customer_name: 'B' },
+      ],
+    });
+    expect(
+      rows.map((r) => r.date),
+      '★同じ晩が2日に分かれている★'
+    ).toEqual(['2026-08-04', '2026-08-04']);
+  });
+
+  it('★日本時間に直してから切っている★（UTCのままだと朝9時前が前日になる）', async () => {
+    if (!fs.existsSync(ROW)) return;
+    const M = await import('file://' + ROW.replace(/\\/g, '/'));
+    expect(M.businessDate(Date.UTC(2026, 7, 5, 0, 30)), '日本 8/5 9:30').toBe('2026-08-05');
+    expect(M.businessDate(Date.UTC(2026, 7, 4, 15, 30)), '日本 8/5 0:30').toBe('2026-08-05');
+    expect(M.businessDate(Date.UTC(2026, 7, 4, 14, 59)), '日本 8/4 23:59').toBe('2026-08-04');
   });
 
   it('★代行ごとの時刻で切る古い形が残っていない★', () => {
     if (!fs.existsSync(FN)) return;
-    const t = fs.readFileSync(FN, 'utf8');
+    const t =
+      fs.readFileSync(FN, 'utf8') + (fs.existsSync(ROW) ? fs.readFileSync(ROW, 'utf8') : '');
     expect(t, '★同じ晩が2日に分かれる形に戻っている★').not.toContain(
       'date: started ? started.slice(0, 10) : null'
     );
-  });
-
-  it('★日本時間に直してから切っている★', () => {
-    if (!fs.existsSync(FN)) return;
-    const t = fs.readFileSync(FN, 'utf8');
-    const i = t.indexOf('const bizDate =');
-    expect(t.slice(i, i + 400), 'UTCのまま切っている').toContain('9 * 60 * 60 * 1000');
   });
 });

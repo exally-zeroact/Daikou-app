@@ -66,7 +66,11 @@ describe('★取りこぼしを黙って消さないこと（【3】）★', () 
     const fn = path.join(ROOT, 'supabase', 'functions', 'dk-sync-jobs', 'index.ts');
     if (!fs.existsSync(fn)) return; // 本番repoには置いていない
     const t = fs.readFileSync(fn, 'utf8');
-    expect(t).toContain('return json({ ok: true, accepted });');
+    // ★2026-08-05 返事に meisai(請求書アプリへ入れた理由) を足した★
+    //   自動投入が黙って落ちていた時に、なぜ入らなかったか読めなかったため。
+    //   accepted は今までどおり必ず返る。
+    expect(t).toMatch(/return json\(\{ ok: true, accepted(, meisai)? \}\);/);
+    expect(t, '★accepted を返さなくなっている＝端末が送信済みにできない★').toContain('accepted');
   });
 
   it('★accepted が空なら「送信済み」にしない★（次回また送る）', () => {
