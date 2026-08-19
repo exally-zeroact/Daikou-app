@@ -64,7 +64,9 @@ describe('★業務終了で送ること（⑤の配線）★', () => {
 describe('★取りこぼしを黙って消さないこと（【3】）★', () => {
   it('サーバは accepted を必ず返す（実物で確認済み）', () => {
     const fn = path.join(ROOT, 'supabase', 'functions', 'dk-sync-jobs', 'index.ts');
-    if (!fs.existsSync(fn)) return; // 本番repoには置いていない
+    // ★2026-08-19 「無ければ素通り」をやめた★（指示役）
+    //   ファイルが無い間は ★何も見ずに緑★だった＝本番側で1度も働いていなかった。
+    expect(fs.existsSync(fn), '★' + fn + ' が無い（何が動いているか追えない）★').toBe(true);
     const t = fs.readFileSync(fn, 'utf8');
     // ★2026-08-05 返事に meisai(請求書アプリへ入れた理由) を足した★
     //   自動投入が黙って落ちていた時に、なぜ入らなかったか読めなかったため。

@@ -99,8 +99,17 @@ describe('★請求書の切り方が「代行ごとの時刻」に戻ってい�
     'meisai-row.js'
   );
 
+  // ★2026-08-19 「無ければ素通り」をやめた★（指示役）
+  //   ここは以前 `if (!fs.existsSync(ROW)) return;` で、★ファイルが無い間は 何も見ずに緑★だった。
+  //   実際 本番repo には supabase/functions が1本も無く、★この試験は本番側で1度も働いていなかった★。
+  //   （その間に 本番の倉庫は 08-05版のまま10日 動き続け、明細が「1地点だけ」で入り続けた）
+  //   ⇒ ★動いている物のソースが repo に無ければ 赤★にする。
+  it('★動いている関数のソースが repo に在る★', () => {
+    expect(fs.existsSync(ROW), '★' + ROW + ' が無い（何が動いているか追えない）★').toBe(true);
+    expect(fs.existsSync(FN), '★' + FN + ' が無い（何が動いているか追えない）★').toBe(true);
+  });
+
   it('★業務開始の日（日本時間）で切っている★', async () => {
-    if (!fs.existsSync(ROW)) return; // 本番repoには置いていない
     const M = await import('file://' + ROW.replace(/\\/g, '/'));
     // 日本時間 8/4 15:44 開始 → 8/4
     expect(M.businessDate(1785835513046)).toBe('2026-08-04');
@@ -121,7 +130,6 @@ describe('★請求書の切り方が「代行ごとの時刻」に戻ってい�
   });
 
   it('★日本時間に直してから切っている★（UTCのままだと朝9時前が前日になる）', async () => {
-    if (!fs.existsSync(ROW)) return;
     const M = await import('file://' + ROW.replace(/\\/g, '/'));
     expect(M.businessDate(Date.UTC(2026, 7, 5, 0, 30)), '日本 8/5 9:30').toBe('2026-08-05');
     expect(M.businessDate(Date.UTC(2026, 7, 4, 15, 30)), '日本 8/5 0:30').toBe('2026-08-05');
@@ -129,9 +137,7 @@ describe('★請求書の切り方が「代行ごとの時刻」に戻ってい�
   });
 
   it('★代行ごとの時刻で切る古い形が残っていない★', () => {
-    if (!fs.existsSync(FN)) return;
-    const t =
-      fs.readFileSync(FN, 'utf8') + (fs.existsSync(ROW) ? fs.readFileSync(ROW, 'utf8') : '');
+    const t = fs.readFileSync(FN, 'utf8') + fs.readFileSync(ROW, 'utf8');
     expect(t, '★同じ晩が2日に分かれる形に戻っている★').not.toContain(
       'date: started ? started.slice(0, 10) : null'
     );
