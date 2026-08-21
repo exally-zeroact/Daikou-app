@@ -14,11 +14,11 @@
 //     押下時のみ(オンライン)。watchPosition による収集は継続。以下の auto-flush/beacon 記述は無効経路。
 //
 //   activation:
-//     ★設計変更宣言 (2026-05-23・テストビルド常時 ON 化・noise calibration 30 日収集 加速):
-//       テストビルド (= !DEBUG.isProduction) では・既定 ON (= 司さん手動操作 不要)。
-//       本番 (= daikou-app.vercel.app 等) では・既存挙動維持 (= 既定 OFF)。
-//       ?trace=off で・テストビルドでも・明示 OFF 可能 (= localStorage に '0' 永続)。
-//       ?trace=on は・既存互換 (= 本番でも・明示 ON 可能・localStorage '1' 永続)。
+//     ★設計変更宣言 (2026-08-01・司さん指示「蛇口を閉める」・2026-05-23 のテストビルド常時 ON を撤回):
+//       ★本番/テストとも 既定 OFF★ (= 開いただけでは 1 byte も送らない)。
+//       有効化は ?trace=on を明示した時のみ (= localStorage '1' 永続)。?trace=off で '0' 永続。
+//       撤回の理由: テスト URL を開くだけで startup_metrics が自動送信され続け、Firebase RTDB の
+//       無料枠 1GB の 92% に到達 (2026-08-01 に debug_traces 15,698件/約1,000MB を削除)。
 //       prod の・privacy/cost/同意 への影響なし (= 本番 既定 OFF 不変)。
 //
 //   security:
@@ -72,10 +72,8 @@
   const MANUAL_ONLY = true;
 
   // ─── Feature flag handling (= ?trace=on/off で切替) ────────
-  // ★設計変更宣言 (2026-05-23・テストビルド既定 ON):
-  //   旧: ?trace=on → '1' set / ?trace=off → removeItem(null) → 既定 OFF
-  //   新: ?trace=on → '1' set / ?trace=off → '0' set (= 明示 OFF 印・null と区別)
-  //   テストビルド (= !DEBUG.isProduction) で・stored が・null (= 未設定) なら ON 扱い。
+  //   ?trace=on → '1' set (= 明示 ON) / ?trace=off → '0' set (= 明示 OFF 印・null と区別)
+  //   stored が null (= 未設定) は ★環境によらず OFF★ (2026-08-01・下の enabled 判定を参照)。
   try {
     const params = new URLSearchParams(location.search);
     const t = params.get('trace');
@@ -93,11 +91,14 @@
   //   優先度:
   //     1. localStorage = '1' (= 明示 ON) → ON
   //     2. localStorage = '0' (= 明示 OFF) → OFF
-  //     3. localStorage = null (= 未設定):
-  //        - テストビルド (= DEBUG.isProduction !== true) → ON (= 既定 ON・noise calibration 自動収集)
-  //        - 本番 (= DEBUG.isProduction === true) → OFF (= privacy/cost/同意・既定 OFF 不変)
-  //   DEBUG global は・debug-config.js (= 先行 load) の top-level const・classic script で共有 scope。
-  //   DEBUG 参照不可 (= debug-config 未 load 等) → 安全側で OFF (= 本番扱い)。
+  //     3. localStorage = null (= 未設定) → ★環境によらず OFF★
+  //   ★2026-08-01 司さん指示「蛇口を閉める」★:
+  //     旧は「テストビルド (= DEBUG.isProduction !== true) なら既定 ON」だった。その結果
+  //     テスト URL を開くだけで startup_metrics が自動送信され続け、Firebase RTDB (無料枠 1GB)
+  //     が 92% に到達して警告メールが来た (debug_traces 15,698件/約1,000MB を 2026-08-01 に削除)。
+  //     → 未設定は本番/テストとも OFF。有効化は ?trace=on を明示した時のみ (= localStorage '1' に永続)。
+  //     debug-log-uploader.js (console log) は 2026-07-03 に同じ理由で既定 OFF 化済み＝これで両方閉じる。
+  //     ※収集 (watchPosition) と手動送信ボタンの作りは不変。変えたのは「既定で有効か」だけ。
   let _enabled = false;
   try {
     const stored = localStorage.getItem(FLAG_KEY);
@@ -106,9 +107,8 @@
     } else if (stored === '0') {
       _enabled = false;
     } else {
-      // 未設定: テストビルド既定 ON / 本番既定 OFF
-      const _isProd = typeof DEBUG !== 'undefined' && DEBUG && DEBUG.isProduction === true;
-      _enabled = !_isProd;
+      // 未設定: 既定 OFF (= 開いただけでは 1 byte も送らない)
+      _enabled = false;
     }
   } catch (_) {
     _enabled = false; // localStorage 不可 → 安全側 OFF

@@ -38,6 +38,19 @@ describe('debug-trace.js: 自動アップロード廃止・手動ボタンのみ
     expect(traceSrc).toMatch(/const\s+MANUAL_ONLY\s*=\s*true/);
   });
 
+  // ★2026-08-01 追加 (蛇口を閉める・司さん指示)★:
+  //   debug-log-uploader.js は 2026-07-03 に既定 OFF 化されたが debug-trace.js は
+  //   `_enabled = !_isProd` (= テストビルド既定 ON) が残っており、テスト URL を開くだけで
+  //   startup_metrics が自動送信され続けていた (Firebase RTDB が無料枠 1GB の 92% に到達)。
+  //   → debug-log-uploader.js と同じ検査を debug-trace.js にも掛け、再発を機械で止める。
+  it('★ 未設定時は既定 OFF (_enabled = false)・旧 !_isProd は撤去 (= 蛇口が開かない)', () => {
+    expect(traceSrc).toMatch(/_enabled\s*=\s*false;/);
+    // 旧「テストビルドは既定 ON」= _enabled = !_isProd が残っていたら赤
+    expect(traceSrc).not.toMatch(/_enabled\s*=\s*!_isProd/);
+    // DEBUG.isProduction による分岐そのものが撤去されていること (= 判定に環境が効かない)
+    expect(traceSrc).not.toMatch(/const\s+_isProd\s*=/);
+  });
+
   it('★ onPosition の自動 flush が MANUAL_ONLY で無効化 (!MANUAL_ONLY で gate)', () => {
     // 旧: if (_dueByCount || _dueByTime) { ... _flushTrace(true) }
     // 新: if (!MANUAL_ONLY && (_dueByCount || _dueByTime)) { ... }

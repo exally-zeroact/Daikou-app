@@ -447,14 +447,17 @@
           load();
         };
 
+        // ★2026-08-09: 取れなかったことを 数える★
+        //   旧: 通信が失敗しても 黙って空配列 → 画面には 0 と出ていた。
+        //       ＝「本当に0」と「取れなかった」が見分けられない。
+        //   新: 空は返す（落ちないため）が ★失敗は必ず数える★。
+        //       数えた結果は画面の上に出し、数字は「—」にする。
+        var LOAD = DKSession.newLoadState();
         function soft(path) {
-          return DKSession.rest(SESS, path)
-            .then(function (x) {
-              return x.ok ? x.json() : [];
-            })
-            .catch(function () {
-              return [];
-            });
+          return DKSession.softList(SESS, path, LOAD);
+        }
+        function afterLoad(retry) {
+          DKSession.showUnknownBar(LOAD, retry);
         }
 
         function loadCompany() {
@@ -569,6 +572,7 @@
             showMsg('');
             recalc();
             render();
+            afterLoad(load); // ★取れなかった物があれば 画面の上に出す★
           });
         }
 
