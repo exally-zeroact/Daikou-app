@@ -1,0 +1,37 @@
+name: 4ホストの取り違えを見る（毎日）
+
+# ★2026-08-21 司さんの実機で起きた事★
+#   本番の事務所からしかQRを読んでいないのに、3台のメーターが
+#   ★テスト線の版(daikome-c7a5b18)★ になっていた。
+#
+# ★一番こたえた事★
+#   取り違えを見つける道具 scripts/check-hosts.mjs は ★2026-08-02から在った★のに、
+#   ★どの workflow からも呼ばれていなかった＝一度も回っていなかった★。
+#   （2026-08-21 実測：.github/workflows の中に check-hosts の呼び出し 0件）
+#   見張りは ★登録するまで1本も回らない★。作った事は やった事ではない。
+#
+# 見る物（scripts/check-hosts.mjs・読むだけ・1文字も変えない）
+#   ・事務所の4画面が全部200か
+#   ・★事務所の js/dk-config.js の APP_BASE が「反対側のメーター」を指していないか★
+#   ・事務所に sw.js / manifest.json / index.html が漏れていないか
+#   ・メーターの /dashboard.html が事務所へ 308 で送られているか
+#
+# 終了コード 1（違いあり）で ★赤★。SKIP は作らない。
+on:
+  schedule:
+    - cron: "0 22 * * *" # 毎日 07:00(JST)
+  workflow_dispatch:
+
+jobs:
+  hosts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 実物を叩いて 表どおりか見る（本番）
+        run: node scripts/check-hosts.mjs --side prod
+      - name: 実物を叩いて 表どおりか見る（テスト）
+        if: always()
+        run: node scripts/check-hosts.mjs --side test

@@ -469,6 +469,21 @@
             随伴車のスマホでこのURL（またはQR）を開くと、その端末が使えるようになります。
           </div>
           <div class="url-box" id="coUrl">—</div>
+          <!-- ★取り違えた時に出す知らせ（2026-08-21）★
+               ここが出ている間は QR もコピーも出さない＝読ませてしまう事を物理的に止める -->
+          <div
+            id="qrSideWarn"
+            style="
+              display: none;
+              margin: 10px 0 0;
+              padding: 10px 12px;
+              border: 2px solid #c62828;
+              border-radius: 8px;
+              background: #fff5f5;
+              color: #333333;
+              line-height: 1.7;
+            "
+          ></div>
           <div class="row">
             <button class="btn" id="copyUrl" type="button">URLをコピー</button>
             <button class="btn ghost" id="toggleQr" type="button">QRを表示</button>
@@ -546,6 +561,39 @@
         var SESS = null;
         var COMPANY = null;
         var currentUrl = '';
+        // ★反対側のメーターを配りかけている時は true（QRもコピーも出さない）★ 2026-08-21
+        var QR_BLOCKED = false;
+
+        /* ==HOST-PAIR-START== ★事務所の住所だけで「配ってよいメーターの住所」を決める★ 2026-08-21
+           ▼なぜ画面の中に直接置くか
+             事務所(daikome-jimusho)は ★通す物だけ通す★ 作りなので、
+             新しい js/*.js を足すと ★事務所側で404★ になり、
+             ★見張りが在るのに黙って効かない★（一番たちの悪い形）になる。
+             だから外のファイルにしない。この画面と一緒に必ず届く。
+           ▼決まり
+             ・行き先は location.host だけで決める＝★中の設定(dk-config)を信じない★
+             ・知らない住所(localhost など)は見ない＝素通り（開発の邪魔をしない）
+             ・合っていない時は ★QRを出さない★（警告だけでは人は読んでしまう） */
+        var HOST_PAIRS = [
+          { host: 'daikome-jimusho.vercel.app', meter: 'https://daikou-app.vercel.app' },
+          { host: 'daikome-jimusho-test.vercel.app', meter: 'https://daikou-app-test.vercel.app' },
+          { host: 'daikou-app.vercel.app', meter: 'https://daikou-app.vercel.app' },
+          { host: 'daikou-app-test.vercel.app', meter: 'https://daikou-app-test.vercel.app' },
+        ];
+        function expectedMeterFor(host) {
+          var h = String(host == null ? '' : host).toLowerCase().trim();
+          for (var i = 0; i < HOST_PAIRS.length; i++) {
+            if (HOST_PAIRS[i].host === h) return HOST_PAIRS[i].meter;
+          }
+          return null; // 知らない住所は見ない
+        }
+        function checkQrTarget(host, appBase) {
+          var want = expectedMeterFor(host);
+          var got = String(appBase == null ? '' : appBase).trim().replace(/\/+$/, '');
+          if (!want) return { known: false, ok: true, want: null, got: got };
+          return { known: true, ok: got === want, want: want, got: got };
+        }
+        /* ==HOST-PAIR-END== */
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -855,11 +903,40 @@
           //   事務所は別の住所(daikome-jimusho)からも開ける。そこで location.origin を使うと
           //   ドライバーが「メーターの無い住所」へ飛ばされて有効化できなくなる。
           //   DKConfig.APP_BASE が唯一の正。
-          currentUrl =
-            ((window.DKConfig && window.DKConfig.APP_BASE) || location.origin) +
-            '/?c=' +
-            COMPANY.url_token;
-          $('coUrl').textContent = currentUrl;
+          // ★2026-08-21 追加：配る前に「行き先がこの事務所に正しい相手か」を住所で確かめる★
+          //   司さんの実機で、本番の事務所からしか読んでいないのに
+          //   メーターがテスト線の版になっていた（daikome-c7a5b18）。
+          //   取り違えの跡は配信側に出なかったが、★出ても誰も気づけない形★だったのが穴。
+          //   ⇒ 合わない時は ★QRもコピーも出さない★。警告だけでは人は読んでしまう。
+          //   判定は location.host だけで行う（★中の設定が壊れている時にこそ効かせる★）。
+          var APP_BASE = (window.DKConfig && window.DKConfig.APP_BASE) || '';
+          var side = checkQrTarget(location.host, APP_BASE);
+          QR_BLOCKED = side.known && !side.ok;
+          currentUrl = QR_BLOCKED ? '' : (APP_BASE || location.origin) + '/?c=' + COMPANY.url_token;
+          $('coUrl').textContent = currentUrl || '—';
+
+          var warn = $('qrSideWarn');
+          if (QR_BLOCKED) {
+            warn.innerHTML =
+              '<b>⚠ 配れません（行き先が違います）</b><br>' +
+              'この事務所（' +
+              location.host +
+              '）が配ってよいのは<br><b>' +
+              side.want +
+              '</b><br>ですが、今の設定は<br><b>' +
+              (side.got || '(読めませんでした)') +
+              '</b><br>を指しています。<br>' +
+              '直すまで QR は出しません（読ませてしまうと全員がそちらで走り出す為）。';
+            warn.style.display = 'block';
+            $('copyUrl').style.display = 'none';
+            $('toggleQr').style.display = 'none';
+            $('qr').style.display = 'none';
+            $('qr').innerHTML = '';
+          } else {
+            warn.style.display = 'none';
+            $('copyUrl').style.display = '';
+            $('toggleQr').style.display = '';
+          }
 
           loadDevices().then(function (devs) {
             devs = Array.isArray(devs) ? devs : [];
@@ -1118,6 +1195,12 @@
           $('toggleQr').addEventListener('click', function () {
             var el = $('qr');
             var b = $('toggleQr');
+            // ★行き先が違う時は 何があっても描かない（2026-08-21）★
+            if (QR_BLOCKED) {
+              el.innerHTML = '';
+              el.style.display = 'none';
+              return;
+            }
             if (el.style.display === 'none') {
               try {
                 var qr = window.qrcode(0, 'M');

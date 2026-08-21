@@ -452,6 +452,41 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
+  // ★倉庫の住所(js/dk-config.js)だけは 溜め込んだ物を先に出さない★ 2026-08-21
+  //   ▼これが要る理由（実測 2026-08-21）
+  //     テスト線の dk-config は ★2026-08-05 23:27 まで「本番の倉庫」を指していた★
+  //     （a1a02770「テスト環境が本番の倉庫を見ていたのを直す」）。
+  //     ところが dk-config.js は他のJSと同じ ★staleWhileRevalidate＝まず古い物を返す★ で
+  //     配っていたので、★スマホの中では その古い住所が生き続けた★。
+  //     結果、本番の倉庫のログに
+  //       referer=https://daikou-app-test.vercel.app → POST /rpc/dk_check_device_license
+  //     が実際に残っている（8/21 14:40:33 / 14:42:33 / 14:48:15・Android）。
+  //     ＝ ★テスト版のメーターが本番の倉庫を触っていた★。直したはずの物が端末で効いていない。
+  //   ▼直し方
+  //     ネットが在る時は ★必ず新しい住所を取る（network-first・no-store）★。
+  //     取れた物は cache に入れ直す。★圏外の時だけ 最後に取れた物を使う★
+  //     （ダイコメは完全オフライン前提なので、取れない＝止める にはしない）。
+  if (req.url.indexOf('/js/dk-config.js') >= 0) {
+    e.respondWith(
+      fetch(req, { cache: 'no-store' })
+        .then(function (res) {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then(function (c) {
+              c.put(req, copy);
+            });
+          }
+          return res;
+        })
+        .catch(function () {
+          return caches.match(req).then(function (cached) {
+            return cached || Response.error();
+          });
+        })
+    );
+    return;
+  }
+
   // 静的アセット（icon・manifest）：cache-first
   if (req.url.includes('/icon-') || req.url.includes('/manifest.json')) {
     e.respondWith(
