@@ -12534,11 +12534,24 @@
         //   司さん指示「CACHE_NAME どこ？」 で・設定画面に SW CACHE_NAME を表示。
         //   sw.js の message handler ({ type: 'GET_CACHE_NAME' }) に MessageChannel で問合せ。
         //   SW 未登録 (= 開発環境 / 初回 install 直後) は「(SW 未登録)」 表示で fallback。
+        // ★どのアプリを開いているか（本番／テスト用）を 版と一緒に出す★ 2026-08-21
+        //   ★起きた事★ 司さんの端末の版が daikome-c7a5b18（テスト線の刻印）になっていた。
+        //   ホーム画面アプリ(PWA)は ★アドレスが見えない★ので、
+        //   司さんが自分で「どっちを開いているか」を確かめる方法が無かった。
+        //   ⇒ ★アプリの中に出す★。版の字を読まなくても この1行で分かる。
+        function _envLabel() {
+          const h = location.host || '';
+          if (/-test\./.test(h) || /-test$/.test(h)) return '★テスト用★';
+          return '本番';
+        }
+        function _withEnv(v) {
+          return v + '  /  ' + _envLabel() + '  /  ' + (location.host || '');
+        }
         function _loadAppVersion() {
           const el = document.getElementById('_st_appVersionLine');
           if (!el) return;
           if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
-            el.textContent = '(SW 未登録)';
+            el.textContent = _withEnv('(SW 未登録)');
             return;
           }
           let received = false;
@@ -12547,18 +12560,18 @@
             ch.port1.onmessage = function (ev) {
               received = true;
               if (ev && ev.data && ev.data.type === 'CACHE_NAME' && ev.data.value) {
-                el.textContent = ev.data.value;
+                el.textContent = _withEnv(ev.data.value);
                 window.DK_SW_CACHE = ev.data.value; // ★自己診断trace用にビルド名を保持
               } else {
-                el.textContent = '(取得失敗)';
+                el.textContent = _withEnv('(取得失敗)');
               }
             };
             navigator.serviceWorker.controller.postMessage({ type: 'GET_CACHE_NAME' }, [ch.port2]);
             setTimeout(function () {
-              if (!received) el.textContent = '(応答なし)';
+              if (!received) el.textContent = _withEnv('(応答なし)');
             }, 2000);
           } catch (_) {
-            el.textContent = '(取得失敗)';
+            el.textContent = _withEnv('(取得失敗)');
           }
         }
 
