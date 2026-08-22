@@ -5812,6 +5812,13 @@
     <script src="js/k-calib.js"></script>
     <!-- ★車レジストリ (多台＋車別K永続・2026-06-26)★: 設定の車一覧/追加/削除・業務開始の車選択が使う。 -->
     <script src="js/veh-registry.js"></script>
+    <!-- ★今回限りの引っ越しの「受け取り口」（2026-08-22・撤去期限 2026-09-30）★
+         テストのアドレスに入ってしまった端末の 較正K・車・端末ID・履歴・設定を
+         そのまま受け取る。★?migrate=1 で開いた時だけ動く／送り元がテスト線の時だけ受け取る／
+         既に中身が在るキーは1つも上書きしない★。普段の画面は1ドットも変わらない。
+         正本=Daikou-app-test（1バイトも変えずに写した・sha256一致）
+         見張り: tests/unit/migrate-removal-deadline.test.js（期限を過ぎたら赤） -->
+    <script src="js/dk-migrate.js"></script>
     <!-- ★1km自動較正K (autoCalibK・確定方式2026-06-26 / 2026-07-03 永続OFFキー廃止)★:
          ★素で常時ON★=普通に開けば新方式(OBD∫v×学習K)で動く・URLパラメータ不要。
          ?autocalibk=off は ★このセッションのみ★ 旧方式(永続しない)。on は不要(素でON)。
