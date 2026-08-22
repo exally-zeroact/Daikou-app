@@ -33,6 +33,7 @@ describe('★印の作り方★', () => {
   });
 
   it('印は多すぎない（既定10個まで）', () => {
-    expect(fingerprint(SRC).length).toBeLessThanOrEqual(10);
+    // ★2026-08-22 印を10→100に増やした（10個では書き換えを見逃した・実測で100個でも全部一致）★
+    expect(fingerprint(SRC).length).toBeLessThanOrEqual(100);
   });
 });
