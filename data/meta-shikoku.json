@@ -1,10 +1,10 @@
 {
   "region": "shikoku",
-  "generated": "2026-08-15T18:37:56.530Z",
+  "generated": "2026-08-22T18:39:47.941Z",
   "prefectures": {
     "tokushima": {
       "numRoads": 57130,
-      "sizeBytes": 2051244,
+      "sizeBytes": 2051281,
       "bbox": [
         3324560,
         13392012,
@@ -12,11 +12,11 @@
         13481916
       ],
       "attrCounts": {
-        "oneway": 1435,
+        "oneway": 1425,
         "incline": 15,
-        "lanes": 5235,
+        "lanes": 5224,
         "width": 9,
-        "layer": 5574,
+        "layer": 5575,
         "access": 39,
         "maxspeed": 1695,
         "track": 0,
@@ -25,8 +25,8 @@
       }
     },
     "kagawa": {
-      "numRoads": 77408,
-      "sizeBytes": 2699233,
+      "numRoads": 77407,
+      "sizeBytes": 2699219,
       "bbox": [
         3381258,
         13352821,
@@ -47,8 +47,8 @@
       }
     },
     "ehime": {
-      "numRoads": 117490,
-      "sizeBytes": 4606547,
+      "numRoads": 117503,
+      "sizeBytes": 4607021,
       "bbox": [
         3270859,
         13201828,
@@ -60,7 +60,7 @@
         "incline": 7,
         "lanes": 5223,
         "width": 587,
-        "layer": 6211,
+        "layer": 6215,
         "access": 36,
         "maxspeed": 786,
         "track": 0,

@@ -1,7 +1,7 @@
 {
   "meta": {
     "name": "y-fork-148m",
-    "description": "ehime road 177 (= 正解・typeCode 5 unclassified・bearing 299度 北西) と road 62437 (= 競合・typeCode 2 primary・bearing 165度 南南東) が junction (= 33.83120, 132.79750) で角度差 45度の Y 字分岐構造。trace は正解 road 177 の seg 0→1 (= 148m・junction から北西方向) を 50 step に分割・期待距離 148m・代行徐行 trip 相当 (= 約 10km/h)。GPS noise は実機相当 default (= iOS 1Hz: accuracy 10m / position σ 3m / heading σ 5度 / outlier 2%・noise-model.js defaultConfig)。typeCode 2 (primary) は Worker B attrBoost で typeCode 5 (unclassified) より score が高めに出る傾向 → 序盤 warmup 区間で・noise GPS が junction 付近で 62476 寄りになると誤 snap 確率が上がる構成 (= 自明回避・典型的な Y 字判別困難 case)。A-2 検証用: heading boost on=0.1 / off=0 で boost on の方が正解 177 (bearing 299) と GPS heading の整合で snap_f1 が上がる期待。",
+    "description": "ehime road 177 (= 正解・typeCode 5 unclassified・bearing 299度 北西) と road 62434 (= 競合・typeCode 2 primary・bearing 165度 南南東) が junction (= 33.83120, 132.79750) で角度差 45度の Y 字分岐構造。trace は正解 road 177 の seg 0→1 (= 148m・junction から北西方向) を 50 step に分割・期待距離 148m・代行徐行 trip 相当 (= 約 10km/h)。GPS noise は実機相当 default (= iOS 1Hz: accuracy 10m / position σ 3m / heading σ 5度 / outlier 2%・noise-model.js defaultConfig)。typeCode 2 (primary) は Worker B attrBoost で typeCode 5 (unclassified) より score が高めに出る傾向 → 序盤 warmup 区間で・noise GPS が junction 付近で 62476 寄りになると誤 snap 確率が上がる構成 (= 自明回避・典型的な Y 字判別困難 case)。A-2 検証用: heading boost on=0.1 / off=0 で boost on の方が正解 177 (bearing 299) と GPS heading の整合で snap_f1 が上がる期待。",
     "prefecture": "ehime",
     "true_speed_kmh": 10.6,
     "ground_truth_segments": [
@@ -14,7 +14,7 @@
       }
     ],
     "competing_road_indices": [
-      62437
+      62434
     ],
     "noise_model": {
       "seed": 43,
