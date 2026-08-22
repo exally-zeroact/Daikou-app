@@ -345,7 +345,28 @@
       if (!w) {
         status.textContent =
           '本番の画面が開けませんでした（ブラウザに止められました）。もう一度 押してください。';
+        return;
       }
+      // ★2026-08-22 実測で見つけた穴★
+      //   本番の sw.js は 画面(index.html)を ★溜め込んだ物を先に返す★ 作り(navigationHandler)。
+      //   ＝ 版が新しくなった直後の ★1回目は 古い画面が出て 受け取り口が動かない★。
+      //   （新しい sw は skipWaiting+clients.claim ですぐ効くので 2回目は新しい画面）
+      //   ⇒ ★返事が来なければ その窓を こちらで開き直す（人に押し直させない）★
+      setTimeout(function () {
+        if (sent) return;
+        status.textContent = '本番の画面を開き直しています…';
+        try {
+          w.location.href = url + '&r=1';
+        } catch (_) {
+          status.textContent = 'もう一度「本番へ引っ越す」を押してください。';
+        }
+      }, 6000);
+      setTimeout(function () {
+        if (!sent) {
+          status.textContent =
+            '本番の画面から返事がありません。もう一度「本番へ引っ越す」を押してください。';
+        }
+      }, 16000);
     };
     body.appendChild(go);
 

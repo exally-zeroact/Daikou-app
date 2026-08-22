@@ -393,6 +393,23 @@ self.addEventListener('fetch', function (e) {
 
   // [修正5] ナビゲーションリクエスト（HTML ページ取得）は querystring 無視で precache マッチ
   //   → URL に ?foo=bar 等が付与されていても本体パスのキャッシュにヒット
+  // ★引っ越し(?migrate=1)の画面だけは 溜め込んだ物を使わない★ 2026-08-22（撤去期限 2026-09-30）
+  //   navigationHandler は ★まず古い画面を返す★ ので、版が新しくなった直後の1回目に
+  //   ★受け取り口の入っていない古い index.html★ が出て 引っ越しが黙って空振りする。
+  //   引っ越しは1回きりなので ★必ずネットから取る（取れない時だけ 溜め込んだ物）★。
+  if (req.mode === 'navigate' && req.url.indexOf('migrate=1') >= 0) {
+    e.respondWith(
+      fetch(req, { cache: 'no-store' }).catch(function () {
+        return caches.open(CACHE_NAME).then(function (c) {
+          return c.match(req, { ignoreSearch: true }).then(function (m) {
+            return m || offlinePage();
+          });
+        });
+      })
+    );
+    return;
+  }
+
   if (req.mode === 'navigate') {
     e.respondWith(navigationHandler(req));
     return;
