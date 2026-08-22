@@ -1,0 +1,1574 @@
+{
+  "labels": [
+    {
+      "device_id": "devT",
+      "label": "つかさ"
+    },
+    {
+      "device_id": "dev2",
+      "label": "2号車"
+    },
+    {
+      "device_id": "dev3",
+      "label": "3号車"
+    },
+    {
+      "device_id": "dev4",
+      "label": "4号車"
+    }
+  ],
+  "employees": [
+    {
+      "employee_id": "e1",
+      "name": "白石正人",
+      "role": "2種",
+      "active": true,
+      "sort_order": 1
+    },
+    {
+      "employee_id": "e2",
+      "name": "長野孝",
+      "role": "2種",
+      "active": true,
+      "sort_order": 2
+    },
+    {
+      "employee_id": "e3",
+      "name": "長野真道",
+      "role": "1種",
+      "active": true,
+      "sort_order": 3
+    },
+    {
+      "employee_id": "e4",
+      "name": "竹内真一郎",
+      "role": "1種",
+      "active": true,
+      "sort_order": 4
+    },
+    {
+      "employee_id": "e5",
+      "name": "八木俊幸",
+      "role": "1種",
+      "active": true,
+      "sort_order": 5
+    },
+    {
+      "employee_id": "e6",
+      "name": "結田航平",
+      "role": "2種",
+      "active": true,
+      "sort_order": 6
+    },
+    {
+      "employee_id": "e7",
+      "name": "正岡卓",
+      "role": "1種",
+      "active": true,
+      "sort_order": 7
+    },
+    {
+      "employee_id": "e8",
+      "name": "向垣内靖",
+      "role": "1種",
+      "active": true,
+      "sort_order": 8
+    },
+    {
+      "employee_id": "e9",
+      "name": "バイト",
+      "role": "1種",
+      "active": true,
+      "sort_order": 9
+    }
+  ],
+  "shifts": [
+    {
+      "shift_id": "s-2026-01-02-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-02T20:00:00+09:00",
+      "fare_total_yen": 44400,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-03-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-03T20:00:00+09:00",
+      "fare_total_yen": 44100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-06-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-06T20:00:00+09:00",
+      "fare_total_yen": 26400,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-06-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-06T20:00:00+09:00",
+      "fare_total_yen": 14500,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-07-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-07T20:00:00+09:00",
+      "fare_total_yen": 23900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-07-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-07T20:00:00+09:00",
+      "fare_total_yen": 26300,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-08-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-08T20:00:00+09:00",
+      "fare_total_yen": 27800,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-08-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-08T20:00:00+09:00",
+      "fare_total_yen": 24200,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-09-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-09T20:00:00+09:00",
+      "fare_total_yen": 5600,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-09-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-09T20:00:00+09:00",
+      "fare_total_yen": 26700,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-09-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-09T20:00:00+09:00",
+      "fare_total_yen": 29100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-10T20:00:00+09:00",
+      "fare_total_yen": 6900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-10T20:00:00+09:00",
+      "fare_total_yen": 25700,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-10T20:00:00+09:00",
+      "fare_total_yen": 24100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-10T20:00:00+09:00",
+      "fare_total_yen": 21500,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-12-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-12T20:00:00+09:00",
+      "fare_total_yen": 13900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-13-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-13T20:00:00+09:00",
+      "fare_total_yen": 12600,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-13-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-13T20:00:00+09:00",
+      "fare_total_yen": 32100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-13-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-13T20:00:00+09:00",
+      "fare_total_yen": 30300,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-14-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-14T20:00:00+09:00",
+      "fare_total_yen": 12900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-14-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-14T20:00:00+09:00",
+      "fare_total_yen": 23200,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-15-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-15T20:00:00+09:00",
+      "fare_total_yen": 15600,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-16-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-16T20:00:00+09:00",
+      "fare_total_yen": 37600,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-16-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-16T20:00:00+09:00",
+      "fare_total_yen": 30200,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-17-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-17T20:00:00+09:00",
+      "fare_total_yen": 26000,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-17-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-17T20:00:00+09:00",
+      "fare_total_yen": 37600,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-17-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-17T20:00:00+09:00",
+      "fare_total_yen": 27900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-19-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-19T20:00:00+09:00",
+      "fare_total_yen": 14800,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-19-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-19T20:00:00+09:00",
+      "fare_total_yen": 24000,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-20-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-20T20:00:00+09:00",
+      "fare_total_yen": 26900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-20-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-20T20:00:00+09:00",
+      "fare_total_yen": 24400,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-21-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-21T20:00:00+09:00",
+      "fare_total_yen": 16000,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-21-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-21T20:00:00+09:00",
+      "fare_total_yen": 17100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-22-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-22T20:00:00+09:00",
+      "fare_total_yen": 9600,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-22-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-22T20:00:00+09:00",
+      "fare_total_yen": 27900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-23-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-23T20:00:00+09:00",
+      "fare_total_yen": 21300,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-23-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-23T20:00:00+09:00",
+      "fare_total_yen": 31000,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-23-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-23T20:00:00+09:00",
+      "fare_total_yen": 28100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-24-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-24T20:00:00+09:00",
+      "fare_total_yen": 27000,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-24-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-24T20:00:00+09:00",
+      "fare_total_yen": 22800,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-24-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-24T20:00:00+09:00",
+      "fare_total_yen": 41100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-26-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-26T20:00:00+09:00",
+      "fare_total_yen": 4400,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-26-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-26T20:00:00+09:00",
+      "fare_total_yen": 20100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-27-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-27T20:00:00+09:00",
+      "fare_total_yen": 30400,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-27-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-27T20:00:00+09:00",
+      "fare_total_yen": 20800,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-28-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-28T20:00:00+09:00",
+      "fare_total_yen": 27700,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-28-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-28T20:00:00+09:00",
+      "fare_total_yen": 21300,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-29-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-29T20:00:00+09:00",
+      "fare_total_yen": 12800,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-30-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-30T20:00:00+09:00",
+      "fare_total_yen": 25700,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-30-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-30T20:00:00+09:00",
+      "fare_total_yen": 33900,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-30-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-30T20:00:00+09:00",
+      "fare_total_yen": 31300,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-devT",
+      "device_id": "devT",
+      "started_at": "2026-01-31T20:00:00+09:00",
+      "fare_total_yen": 20200,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-dev2",
+      "device_id": "dev2",
+      "started_at": "2026-01-31T20:00:00+09:00",
+      "fare_total_yen": 28700,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-dev3",
+      "device_id": "dev3",
+      "started_at": "2026-01-31T20:00:00+09:00",
+      "fare_total_yen": 21100,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-dev4",
+      "device_id": "dev4",
+      "started_at": "2026-01-31T20:00:00+09:00",
+      "fare_total_yen": 21500,
+      "trip_count": 0,
+      "total_distance_m": 0,
+      "actual_total_m": 0
+    }
+  ],
+  "edits": [
+    {
+      "shift_id": "s-2026-01-02-devT",
+      "hours": 8.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-03-devT",
+      "hours": 9.25,
+      "toll_yen": 1520,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-06-dev2",
+      "hours": 9.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-06-dev3",
+      "hours": 7.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-07-dev2",
+      "hours": 8,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-07-dev3",
+      "hours": 7.75,
+      "toll_yen": 1520,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-08-devT",
+      "hours": 6.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-08-dev4",
+      "hours": 7.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-09-devT",
+      "hours": 7,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-09-dev2",
+      "hours": 8.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-09-dev3",
+      "hours": 8.25,
+      "toll_yen": 1520,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-devT",
+      "hours": 5.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-dev2",
+      "hours": 9,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-dev3",
+      "hours": 8.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-10-dev4",
+      "hours": 8.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-12-dev4",
+      "hours": 6,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-13-devT",
+      "hours": 7.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-13-dev2",
+      "hours": 7.5,
+      "toll_yen": 3150,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-13-dev3",
+      "hours": 7,
+      "toll_yen": 2220,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-14-devT",
+      "hours": 8.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-14-dev3",
+      "hours": 7.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-15-devT",
+      "hours": 6,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-16-dev2",
+      "hours": 9.5,
+      "toll_yen": 2720,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-16-dev3",
+      "hours": 8.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-17-dev2",
+      "hours": 8.75,
+      "toll_yen": 1360,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-17-dev3",
+      "hours": 8.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-17-dev4",
+      "hours": 9,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-19-devT",
+      "hours": 6.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-19-dev4",
+      "hours": 7.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-20-dev2",
+      "hours": 8.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-20-dev3",
+      "hours": 7.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-21-dev2",
+      "hours": 6.5,
+      "toll_yen": 1520,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-21-dev3",
+      "hours": 6.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-22-devT",
+      "hours": 7,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-22-dev4",
+      "hours": 8.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-23-devT",
+      "hours": 7,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-23-dev2",
+      "hours": 8,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-23-dev3",
+      "hours": 7,
+      "toll_yen": 1360,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-24-devT",
+      "hours": 8,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-24-dev2",
+      "hours": 8,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-24-dev4",
+      "hours": 11.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-26-devT",
+      "hours": 6,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-26-dev4",
+      "hours": 7.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-27-dev2",
+      "hours": 8.25,
+      "toll_yen": 1520,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-27-dev3",
+      "hours": 7.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-28-devT",
+      "hours": 8.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-28-dev3",
+      "hours": 7.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-29-devT",
+      "hours": 6.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-30-devT",
+      "hours": 7,
+      "toll_yen": 1440,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-30-dev2",
+      "hours": 8.5,
+      "toll_yen": 2220,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-30-dev3",
+      "hours": 8.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-devT",
+      "hours": 5.5,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-dev2",
+      "hours": 8.5,
+      "toll_yen": 2720,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-dev3",
+      "hours": 7.75,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    },
+    {
+      "shift_id": "s-2026-01-31-dev4",
+      "hours": 8.25,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0
+    }
+  ],
+  "workHours": [
+    {
+      "work_date": "2026-01-06",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-06",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-06",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-06",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-07",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-07",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-07",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-07",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-08",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-08",
+      "employee_id": "e8",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-09",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-09",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-09",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-09",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-10",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-10",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-10",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-10",
+      "employee_id": "e4",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-10",
+      "employee_id": "e5",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-10",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-12",
+      "employee_id": "e4",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-12",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-13",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-13",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-13",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-13",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-14",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-14",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-16",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-16",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-16",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-16",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-17",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-17",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-17",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-17",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-17",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-17",
+      "employee_id": "e8",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-19",
+      "employee_id": "e4",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-19",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-20",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-20",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-20",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-20",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-21",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-21",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-21",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-21",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-22",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-22",
+      "employee_id": "e7",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-23",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-23",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-23",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-23",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-24",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-24",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-24",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-24",
+      "employee_id": "e8",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-26",
+      "employee_id": "e4",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-26",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-27",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-27",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-27",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-27",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-28",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-28",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-30",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-30",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-30",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-30",
+      "employee_id": "e4",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-31",
+      "employee_id": "e1",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-31",
+      "employee_id": "e2",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-31",
+      "employee_id": "e3",
+      "device_id": "dev3",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-31",
+      "employee_id": "e4",
+      "device_id": "dev4",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-31",
+      "employee_id": "e5",
+      "device_id": "dev2",
+      "hours": 0
+    },
+    {
+      "work_date": "2026-01-31",
+      "employee_id": "e6",
+      "device_id": "dev4",
+      "hours": 0
+    }
+  ],
+  "payments": [
+    {
+      "pay_date": "2026-01-02",
+      "invoice_yen": 7000,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-03",
+      "invoice_yen": 1000,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-06",
+      "invoice_yen": 7300,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-07",
+      "invoice_yen": 6500,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-08",
+      "invoice_yen": 2900,
+      "paypay_yen": 2900
+    },
+    {
+      "pay_date": "2026-01-09",
+      "invoice_yen": 9100,
+      "paypay_yen": 1300
+    },
+    {
+      "pay_date": "2026-01-10",
+      "invoice_yen": 26400,
+      "paypay_yen": 2000
+    },
+    {
+      "pay_date": "2026-01-13",
+      "invoice_yen": 18100,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-14",
+      "invoice_yen": 5900,
+      "paypay_yen": 4000
+    },
+    {
+      "pay_date": "2026-01-15",
+      "invoice_yen": 11000,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-16",
+      "invoice_yen": 16900,
+      "paypay_yen": 2500
+    },
+    {
+      "pay_date": "2026-01-17",
+      "invoice_yen": 9500,
+      "paypay_yen": 2600
+    },
+    {
+      "pay_date": "2026-01-19",
+      "invoice_yen": 7500,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-20",
+      "invoice_yen": 5600,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-21",
+      "invoice_yen": 1200,
+      "paypay_yen": 3000
+    },
+    {
+      "pay_date": "2026-01-22",
+      "invoice_yen": 4900,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-23",
+      "invoice_yen": 5400,
+      "paypay_yen": 4800
+    },
+    {
+      "pay_date": "2026-01-24",
+      "invoice_yen": 17600,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-26",
+      "invoice_yen": 9900,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-27",
+      "invoice_yen": 2500,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-28",
+      "invoice_yen": 14700,
+      "paypay_yen": 1900
+    },
+    {
+      "pay_date": "2026-01-29",
+      "invoice_yen": 1100,
+      "paypay_yen": 0
+    },
+    {
+      "pay_date": "2026-01-30",
+      "invoice_yen": 7500,
+      "paypay_yen": 2800
+    },
+    {
+      "pay_date": "2026-01-31",
+      "invoice_yen": 7300,
+      "paypay_yen": 5600
+    }
+  ],
+  "payrollSettings": {
+    "owner_device_id": "devT",
+    "period_start_day": 21,
+    "period_end_mode": "thirds"
+  },
+  "salesSettings": {
+    "deduct_toll": true,
+    "deduct_bridge": true,
+    "deduct_other": false
+  },
+  "expected": {
+    "月": "2026-01",
+    "売上合計": 1298210,
+    "バ1_10": 177375,
+    "バ11_20": 211390.42499999996,
+    "バ21_末": 279332.1,
+    "バイト合計": 668097.5249999999,
+    "経費": 24790,
+    "積立金": 65058.5,
+    "未収": 240200,
+    "現金": 1058010,
+    "ZERO合計": 565053.9750000001,
+    "請求書": 206800,
+    "PayPay": 33400
+  }
+}
