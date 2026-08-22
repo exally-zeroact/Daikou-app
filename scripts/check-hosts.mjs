@@ -278,8 +278,21 @@ if (isMain) {
   const results = await checkAll(onlySide, probe, HOSTS, allow);
 
   // ログインの戻り先（メールは送らない）
-  const AUTH = 'https://tnfwipbgfgjaymlszeid.supabase.co';
+  // ★2026-08-22 本番とテストの許可リストを分けた★
+  //   ここは前まで ★本番の倉庫だけをベタ書きで見ていた★ ので、
+  //   分けた瞬間に テスト側の2ホストが「戻り先が違う」と赤くなった。
+  //   ＝ ★見張りの側が間違っていた★（テストのログインは テストの倉庫を通る）。
+  //   ⇒ ★そのホストの側(prod/test)に合う倉庫で見る★
+  const AUTH_BY_SIDE = {
+    prod: 'https://tnfwipbgfgjaymlszeid.supabase.co',
+    test: 'https://khawdrnvssdenumbiwfg.supabase.co',
+  };
   for (const r of results) {
+    const AUTH = AUTH_BY_SIDE[r.side];
+    if (!AUTH) {
+      r.ng.push(`★このホストの側(${r.side})に合う倉庫が分からない＝見張りが数えられていない★`);
+      continue;
+    }
     const lr = await checkLoginReturn(r.host, AUTH, probe);
     r.loginReturnsTo = lr.returnsTo;
     r.ng.push(...lr.ng);
