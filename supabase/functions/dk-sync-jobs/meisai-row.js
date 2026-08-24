@@ -140,7 +140,11 @@ function buildMeisaiRows(opts) {
       note: typeof t.customer_note === 'string' ? t.customer_note : '',
       extra: {
         dk_ref: refOf(deviceId, shiftStart, t.seq), // 二重登録を防ぐ鍵
-        dk_from: String(t.start_address || ''), // 出発地（標準の列に無い）
+        // ★2026-08-25 直し（司さん）★ 出発地も 到着地と同じ決まりで書く（地元の市は落とす）。
+        //   ここだけ ★生の住所のまま★ だったので、一覧では
+        //   「今治市松本町〜東鳥生町」と ★出発地にだけ 今治市が残る★ 形になっていた。
+        //   （到着地は 2026-08-09 から placeText を通していた＝片方だけ直っていた）
+        dk_from: placeText(t.start_address, homeCity), // 出発地（標準の列に無い）
         dk_source: 'daikome',
         dk_distance_m: typeof t.distance_m === 'number' ? t.distance_m : null, // ★正確な距離★
       },

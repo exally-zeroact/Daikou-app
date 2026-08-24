@@ -111,7 +111,12 @@ describe('★明細の行に入る形★', () => {
     });
     expect(rows.length).toBe(1);
     expect(rows[0].destination, '★つないだ形になっていない★').toBe('大西〜西条市実報寺');
-    expect(rows[0].extra.dk_from, '出発地が残っていない').toBe('今治市大西');
+    // ★2026-08-25 決まりが変わった（司さん）★
+    //   前は 出発地を ★生の住所のまま★ 残していた（ここがそう書いてあった）。
+    //   ところが一覧は「出発〜到着」でつなぐので ★出発地にだけ 今治市が残って見えていた★。
+    //   司さん「今治市内は今治市って載せんでええのが バグって何こか載ってる」
+    //   ⇒ ★出発地も 到着地と同じ決まりで落とす★ に変えた。
+    expect(rows[0].extra.dk_from, '出発地も地元の市を落とす').toBe('大西');
     expect(rows[0].distance).toBe(5.36);
   });
 
@@ -133,5 +138,58 @@ describe('★明細の行に入る形★', () => {
       done: new Set(),
     });
     expect(rows[0].destination, '★既定の地元(今治市)が効いていない★').toBe('大西〜小泉');
+  });
+});
+
+// ============================================================
+// ★出発地も 地元の市を落とす★ 2026-08-25（司さんの指摘）
+//   司さん「今治市内は今治市って載せんでええのがバグって何こか載ってる」
+//   実測 … 到着地(destination)は 2026-08-09 から落としていたが、
+//   ★出発地(extra.dk_from)だけ 生の住所のまま★ だった。
+//   一覧は「出発〜到着」でつなぐので ★出発地にだけ 今治市が残って見えていた★。
+//   （本番の倉庫で 出発地に今治市 51件／到着地に今治市 27件 を実測）
+// ============================================================
+describe('★出発地も 地元の市を落とす★', () => {
+  const mk = (start, end) => ({
+    payment_type: 'invoice',
+    customer_name: 'テスト会社',
+    seq: 1,
+    start_address: start,
+    end_address: end,
+    waypoints: [],
+    fare_yen: 1000,
+    distance_m: 1000,
+  });
+  const build = (t, homeCity) =>
+    R.buildMeisaiRows({
+      ownerId: 'u1',
+      deviceId: 'd1',
+      shiftStartMs: Date.UTC(2026, 7, 25, 12, 0, 0),
+      trips: [t],
+      done: new Set(),
+      homeCity: homeCity,
+    })[0];
+
+  it('地元の市は 出発地からも落ちる', () => {
+    const r = build(mk('今治市松本町', '今治市東鳥生町'), '今治市');
+    expect(r.extra.dk_from, '★出発地に地元の市が残っている★').toBe('松本町');
+    expect(r.destination).toBe('松本町〜東鳥生町');
+  });
+
+  it('市外は 出発地でも 市名を付けたまま', () => {
+    const r = build(mk('西条市郷桜井', '今治市喜田村'), '今治市');
+    expect(r.extra.dk_from, '★市外の市名を落としている★').toBe('西条市郷桜井');
+    expect(r.destination).toBe('西条市郷桜井〜喜田村');
+  });
+
+  it('★町名が取れていない時は 落とさない★（「付近」だけにしない）', () => {
+    const r = build(mk('今治市 付近', '今治市喜田村'), '今治市');
+    expect(r.extra.dk_from).toBe('今治市 付近');
+  });
+
+  it('地元の市が 別の市の会社でも同じ', () => {
+    const r = build(mk('松山市三番町', '今治市喜田村'), '松山市');
+    expect(r.extra.dk_from).toBe('三番町');
+    expect(r.destination).toBe('三番町〜今治市喜田村');
   });
 });
