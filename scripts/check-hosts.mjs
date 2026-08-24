@@ -268,8 +268,25 @@ const isMain = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('
 if (isMain) {
   const argv = process.argv.slice(2);
   const i = argv.indexOf('--side');
-  const onlySide = i >= 0 ? argv[i + 1] : null;
+  const asked = i >= 0 ? argv[i + 1] : null;
   const asJson = argv.includes('--json');
+
+  // ★この repo が見てよいのは 自分の側だけ★（2026-08-24 指示役③）
+  //   前は 両方の倉庫のアドレスをここに並べていた＝
+  //   ★本番の repo の中に テスト倉庫へ繋ぐ字が在る★状態で、
+  //   「倉庫の向き先」の見張りに 正しく引っかかった。
+  //   ⇒ ★自分の倉庫だけ書く。反対側は そちらの repo で回す★（環境を混ぜない）
+  const MY_SIDE = 'prod';
+  const MY_AUTH = 'https://tnfwipbgfgjaymlszeid.supabase.co';
+  if (asked && asked !== MY_SIDE) {
+    console.log(
+      `★この repo は ${MY_SIDE} 側だけを見ます★（--side ${asked} は見ません）
+` +
+        `  ${asked} 側は そちらの repo で回してください（環境を混ぜない為）。`
+    );
+    process.exit(1);
+  }
+  const onlySide = MY_SIDE;
 
   const probe = realProbe();
   // ★通すはずの物の一覧は HTML から機械で作る★（目視で決めない）
@@ -283,17 +300,12 @@ if (isMain) {
   //   分けた瞬間に テスト側の2ホストが「戻り先が違う」と赤くなった。
   //   ＝ ★見張りの側が間違っていた★（テストのログインは テストの倉庫を通る）。
   //   ⇒ ★そのホストの側(prod/test)に合う倉庫で見る★
-  const AUTH_BY_SIDE = {
-    prod: 'https://tnfwipbgfgjaymlszeid.supabase.co',
-    test: 'https://khawdrnvssdenumbiwfg.supabase.co',
-  };
   for (const r of results) {
-    const AUTH = AUTH_BY_SIDE[r.side];
-    if (!AUTH) {
-      r.ng.push(`★このホストの側(${r.side})に合う倉庫が分からない＝見張りが数えられていない★`);
+    if (r.side !== MY_SIDE) {
+      r.ng.push(`★このrepoは ${MY_SIDE} 側だけを見ます（${r.side} が混ざっている）★`);
       continue;
     }
-    const lr = await checkLoginReturn(r.host, AUTH, probe);
+    const lr = await checkLoginReturn(r.host, MY_AUTH, probe);
     r.loginReturnsTo = lr.returnsTo;
     r.ng.push(...lr.ng);
   }

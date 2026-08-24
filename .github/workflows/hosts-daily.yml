@@ -30,8 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # ★2026-08-24 この repo は 自分の側だけ見る★（指示役③）
+      #   前は 反対側も見ていたので、★repo の中に 反対側の倉庫へ繋ぐ字★ が必要だった。
+      #   ＝「倉庫の向き先」の見張りに 正しく引っかかった。環境を混ぜない。
       - name: 実物を叩いて 表どおりか見る（本番）
         run: node scripts/check-hosts.mjs --side prod
-      - name: 実物を叩いて 表どおりか見る（テスト）
-        if: always()
-        run: node scripts/check-hosts.mjs --side test
