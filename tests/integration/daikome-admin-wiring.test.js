@@ -29,6 +29,8 @@
 // ============================================================
 const fs = require('fs');
 const path = require('path');
+// ★道具を そのまま動かして確かめる為★（ソースを読むだけにしない）
+const { pathToFileURL } = require('url');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const HTML = fs.readFileSync(path.join(ROOT, 'daikome-admin.html'), 'utf8');
@@ -226,6 +228,50 @@ describe('★はじめて入る道があること★', () => {
     expect(tool, '★片方の倉庫しか見ていない★').toMatch(/PROJECTS\s*=\s*\{[\s\S]{0,200}test:/);
     expect(tool, 'テスト側の倉庫を知らない').toContain('khawdrnvssdenumbiwfg');
     expect(tool, '★SITE_URL を触っている★').not.toMatch(/site_url\s*:/);
+  });
+
+  // ★2026-08-25 指示役の裁定★
+  //   ★見つかった本当の危険★
+  //     この道具の wantedUrls(HOSTS) は ★4ホストぜんぶ★ の住所を作っていた。
+  //     `--prod --apply` を1回 押すと ★本番の許可リストに daikou-app-test が入る★。
+  //     ＝2026-08-23 に外した「環境の混ざり」（本番22→16）が 黙って元に戻る。
+  //   ⇒ 外す（ダイコメが自分の戻り先を足せなくなる）でも
+  //     許す（押した瞬間に混ざる）でもなく ★直す★。
+  it('★反対側の環境のURLを 足そうとしない★（本番に -test を入れない）', async () => {
+    const tool = await import(
+      pathToFileURL(path.join(ROOT, 'scripts', 'auth-redirect-allow.mjs')).href
+    );
+    expect(typeof tool.hostsOfSide, '★側で絞る道具が無い★').toBe('function');
+
+    const prod = tool.wantedUrls(tool.hostsOfSide('prod'));
+    const test = tool.wantedUrls(tool.hostsOfSide('test'));
+    expect(prod.length, '★本番側の住所が作れていない★').toBeGreaterThan(0);
+    expect(test.length, '★テスト側の住所が作れていない★').toBeGreaterThan(0);
+
+    // ★本番の分に テストのホストが 1つも混ざらない★
+    const mixedInProd = prod.filter((u) => /daikou-app-test|daikome-jimusho-test/.test(u));
+    expect(
+      mixedInProd,
+      `★本番に足す住所に テストが ${mixedInProd.length} 件 混ざっています★ ` +
+        mixedInProd.join(' / ')
+    ).toEqual([]);
+
+    // ★テストの分に 本番のホストが 1つも混ざらない★
+    const mixedInTest = test.filter((u) =>
+      /daikou-app\.vercel|daikome-jimusho\.vercel/.test(u)
+    );
+    expect(
+      mixedInTest,
+      `★テストに足す住所に 本番が ${mixedInTest.length} 件 混ざっています★ ` +
+        mixedInTest.join(' / ')
+    ).toEqual([]);
+
+    // ★押す前に 数を出す★（見たつもりで当てるのを防ぐ）
+    const src = fs.readFileSync(path.join(ROOT, 'scripts', 'auth-redirect-allow.mjs'), 'utf8');
+    expect(src, '★押す前に 数を出していない★').toContain('★数えます★');
+    expect(src, '★混ざりを見つけても 止まらない★').toContain(
+      'の住所を足そうとしました★'
+    );
   });
 
   // ★2026-08-07 司さん「他のアプリでユーザーがやるように、なんで同じ構造にせんのど」★

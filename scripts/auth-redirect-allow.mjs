@@ -13,7 +13,12 @@
 //
 //   使い方:
 //     node scripts/auth-redirect-allow.mjs            … 今の状態を見るだけ
+//     node scripts/auth-redirect-allow.mjs --prod     … 本番の倉庫だけ 見る
+//     node scripts/auth-redirect-allow.mjs --test     … テストの倉庫だけ 見る
 //     node scripts/auth-redirect-allow.mjs --apply    … 足りない物を足す
+//
+//   ★当てる倉庫と 同じ側のホストしか 作りません★ 2026-08-25（指示役の裁定）
+//     本番の倉庫に daikou-app-test を足す、という事は ★起きません★。
 //
 //   鍵は %TEMP%\daikome-db-token.json か 環境変数 SUPABASE_ACCESS_TOKEN から読む。
 //   ★画面には出さない★
@@ -36,6 +41,20 @@ const PROJECTS = {
 const PROJECT = PROJECTS.prod; // 後方互換（既存の呼び出しはこれまでどおり本番）
 
 // 4ホストぶん、ログインが戻ってくる可能性のある住所
+// ★その環境のホストだけ取り出す★ 2026-08-25（指示役の裁定）
+//   ★踏みかけた事★
+//     wantedUrls(HOSTS) は 4ホストぜんぶ を作るので、
+//     `--prod --apply` を1回 押すと ★本番の許可リストに daikou-app-test が入る★。
+//     ＝2026-08-23 に外した「環境の混ざり」が 黙って元に戻る。
+//   ⇒ ★当てる倉庫と 同じ側のホストだけ★ を作る。
+export function hostsOfSide(side, hosts = HOSTS) {
+  const out = {};
+  for (const [host, h] of Object.entries(hosts)) {
+    if (h.side === side) out[host] = h;
+  }
+  return out;
+}
+
 export function wantedUrls(hosts = HOSTS) {
   const out = [];
   for (const [host, h] of Object.entries(hosts)) {
@@ -91,9 +110,32 @@ if (isMain) {
     if (!now.length) console.log('  ★1つも無い★');
     now.forEach((u) => console.log('  ' + u));
 
-    const { list, added } = merge(cur.uri_allow_list, wantedUrls());
+    // ★当てる倉庫と 同じ側のホストだけ★（反対側の住所は 作らない）
+    const wanted = wantedUrls(hostsOfSide(key));
+    const { list, added } = merge(cur.uri_allow_list, wanted);
+
+    // ★押す前に 必ず 数を出す★ 2026-08-25（指示役の裁定③）
+    console.log('');
+    console.log('★数えます★');
+    console.log('  今 入っている … ' + now.length + ' 件');
+    console.log('  この道具が持つ（' + key + ' の2ホストぶん） … ' + wanted.length + ' 件');
+    console.log('  ★足す★ … ' + added.length + ' 件');
+    console.log('  ★触らない（今あるまま残す）★ … ' + now.length + ' 件');
+    console.log('  足した後 … ' + list.length + ' 件');
+
+    // ★反対側の住所を作っていないか 自分で確かめる★（作っていたら 押さずに止まる）
+    const other = key === 'prod' ? 'test' : 'prod';
+    const otherHosts = Object.keys(hostsOfSide(other));
+    const mixed = added.filter((u) => otherHosts.some((h) => u.includes(h)));
+    if (mixed.length) {
+      console.error('');
+      console.error('★止めます：' + key + ' の倉庫に ' + other + ' の住所を足そうとしました★');
+      mixed.forEach((u) => console.error('  ' + u));
+      process.exitCode = 1;
+      continue;
+    }
     console.log('\n★足りない物★');
-    if (!added.length) console.log('  無し（4ホスト全部ある）');
+    if (!added.length) console.log('  無し（' + key + ' の2ホスト 全部ある）');
     else added.forEach((u) => console.log('  + ' + u));
     missingTotal += added.length;
 
@@ -102,7 +144,7 @@ if (isMain) {
     //   「Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)」で落ち、
     //   ★中身は正しいのに終了コード 9★ になる（CIが赤と誤解する）。
     if (process.argv.includes('--apply') && added.length) {
-      await applyList(url, H, list);
+      await applyList(url, H, list, wanted);
     }
   }
 
@@ -114,7 +156,7 @@ if (isMain) {
   }
 }
 
-async function applyList(url, H, list) {
+async function applyList(url, H, list, wanted) {
   const res = await fetch(url, {
     method: 'PATCH',
     headers: H,
@@ -133,11 +175,12 @@ async function applyList(url, H, list) {
     .filter(Boolean)
     .forEach((u) => console.log('  ' + u));
   console.log('\nSITE_URL は ' + after.site_url + '（変えていない）');
-  const still = wantedUrls().filter((u) => !after.uri_allow_list.includes(u));
+  // ★確かめるのも その側の住所だけ★（4本ぜんぶ見ると 反対側が無くて 嘘の赤になる）
+  const still = (wanted || wantedUrls()).filter((u) => !after.uri_allow_list.includes(u));
   if (still.length) {
     console.error('★まだ足りない★ ' + still.join(', '));
     process.exitCode = 1;
     return;
   }
-  console.log('4ホスト全部そろいました。');
+  console.log('この側の2ホスト 全部そろいました。');
 }
