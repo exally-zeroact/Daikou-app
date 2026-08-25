@@ -137,6 +137,10 @@
         background: var(--blue);
         border-radius: 999px;
         padding: 4px 12px;
+
+        /* ★狭い画面で「事務所」の字が 縦に割れていた★（2026-08-25 実測 375px … 給料の画面で 110 x 51＝2行）
+           札の字は 折り返さない。 */
+        white-space: nowrap;
       }
 
       .who {

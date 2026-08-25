@@ -234,7 +234,17 @@ describe('★画面がそろっていること★', () => {
   });
 
   it('列を足したぶん、空のときの colspan も合っている', () => {
-    expect(HTML, '列数がずれて表が崩れる').toContain('colspan="6"');
+    // ★数を直に書かない★（2026-08-25：列を1つ足した時に この試験だけ赤くなった）
+    //   ⇒ ★見出しの数を その場で数えて★ 空のときの colspan と突き合わせる。
+    const head = HTML.slice(
+      HTML.indexOf('<tbody id="empBody"') - 4000,
+      HTML.indexOf('<tbody id="empBody"')
+    );
+    const th = (head.match(/<th[\s>]/g) || []).length;
+    expect(th, '★従業員の表の見出しが読めない★').toBeGreaterThan(0);
+    const empty = HTML.slice(HTML.indexOf('まだ誰も登録されていません') - 60, HTML.indexOf('まだ誰も登録されていません'));
+    const span = Number((empty.match(/colspan="(\d+)"/) || [])[1]);
+    expect(span, `★列は ${th} 個なのに 空のときは ${span} 個ぶんになっている（表が崩れる）★`).toBe(th);
   });
 
   // ============================================================

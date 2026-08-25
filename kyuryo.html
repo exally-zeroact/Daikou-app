@@ -40,11 +40,23 @@
         padding: 22px 18px 60px;
       }
 
+      /* ★紙だけの窓は 上を広く空ける★ 2026-08-25（司さん「上に余白ってゆわんかったか？」）
+           1度目は ★箱の中★の余白しか広げていなかった＝紙の一番上が 詰まったままだった。
+           ここは ★printOne が作る窓だけ★（body.paper）＝本体の画面は 1文字も変えない。
+           ★em（字の大きさ）で決める★ので 中身が増えても 上の空き方は変わらない。 */
+      .paper .wrap {
+        padding-top: 3.4em;
+      }
+
       .top {
         display: flex;
         align-items: center;
         justify-content: space-between;
         margin-bottom: 6px;
+
+        /* ★狭い画面では 名前と行き先ボタンを 上下に分ける（押し合って字が割れない）★ 2026-08-25 */
+        flex-wrap: wrap;
+        gap: 4px 12px;
       }
 
       .logo {
@@ -61,6 +73,10 @@
         border-radius: 999px;
         padding: 2px 10px;
         margin-left: 8px;
+
+        /* ★狭い画面で「給料」の2文字が 縦に割れていた★（2026-08-25 実測 375px … 110 x 51＝2行）
+           札の字は 折り返さない。 */
+        white-space: nowrap;
       }
 
       .sub {
@@ -132,8 +148,31 @@
       .monthbar .m {
         font-size: 18px;
         font-weight: 800;
-        min-width: 12em;
+        flex: 0 1 12em; /* 広い時は今まで通り 12em・狭い時だけ縮む */
+        min-width: 0;
         text-align: center;
+      }
+
+      /* ★狭い画面で 押す物の字が1文字ずつ縦に割れる★（2026-08-25 実測・375px）
+           給料 「‹ 前の月」 45 x 102（＝4行に割れていた）
+           売上表 62 x 58 ／ 月次集計 72 x 58（＝2行）  ※1行なら 約34px
+         原因：真ん中の「月の字」の箱が min-width で場所を先に取り、
+               押す物だけが縮められていた（flex は 押す物から縮める）。
+         直し方：月(年)の字を 上の行へ落として、押す物は 横1行で並べる。
+                 ★480px より広い画面は 今まで通り（1文字も変えない）★ */
+      @media (max-width: 480px) {
+        .monthbar {
+          flex-wrap: wrap;
+        }
+
+        .monthbar .m {
+          order: -1;
+          flex: 1 0 100%;
+        }
+
+        .navb {
+          flex: 1 1 auto;
+        }
       }
 
       .periodbar {
@@ -172,6 +211,8 @@
         color: var(--blue-d);
         cursor: pointer;
         font-family: inherit;
+        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */
+        flex: 0 0 auto; /* ★押す物は縮めない★ */
       }
 
       .btn {
@@ -437,6 +478,40 @@
         overflow-x: auto;
       }
 
+      /* ★役割は 打っても 選んでもいい (2026-08-25)★ */
+      .rolein {
+        min-width: 7em;
+      }
+
+      /* ★決まりの無い役割＝給料が黙って0円になる★ その場で赤く知らせる */
+      .rolewarn {
+        margin-top: 5px;
+        padding: 6px 8px;
+        border: 1px solid var(--danger);
+        border-radius: 8px;
+        background: #fdf1f0;
+        color: var(--danger);
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.5;
+        max-width: 22em;
+        white-space: normal;
+      }
+
+      /* ★その人だけの車のチェック (2026-08-25)★ 1台ずつ 名前つきで並べる */
+      .empcars {
+        min-width: 12em;
+      }
+
+      .empcar {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        margin: 0 10px 4px 0;
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
       .yen,
       .hrs,
       .txt {
@@ -589,21 +664,58 @@
       }
 
       /* ── 明細 ────────────────────────────── */
+
+      /* ★余白は 字の大きさを ものさしにする★ 2026-08-25（司さん
+           「もう少し上に余白作ってバランス考えろ 売上が1.2.3.4と増えても
+             自動で余白のバランス考えろ」）
+         px で決め打ちにすると 行が増えた時／字を大きくした時に 詰まって見える。
+         ★em（字の大きさ）で決める★と、中身が増えても 見た目の間の取り方が変わらない。 */
       .slip {
         border: 1px solid var(--line);
         border-radius: 12px;
-        padding: 14px;
-        margin-bottom: 14px;
+        padding: 1.7em 1.5em 1.5em;
+        margin-bottom: 1.1em;
         background: #fff;
       }
 
+      /* ★見出しの並び★ 2026-08-25
+           司さん「赤丸の所に名前もってきて」→ 名前は「給料明細」のすぐ右
+           司さん「金額は赤丸の中心ぐらいに」→ 合計は ★行の真ん中★
+         ★左のかたまりと 右のかたまりを 同じ幅にして 合計を 真ん中に置く★
+         （1度目：余った所の真ん中にしたら ★右に寄って見えた★＝直っていなかった）
+         ★右のかたまりは 紙でも残す★＝ボタンが消えても 真ん中がずれない。 */
       .slip .shead {
         display: flex;
         align-items: baseline;
-        justify-content: space-between;
         gap: 12px;
         flex-wrap: wrap;
-        margin-bottom: 8px;
+        margin-bottom: 1.1em;
+      }
+
+      .slip .sh-l,
+      .slip .sh-r {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+      }
+
+      .slip .sh-r {
+        justify-content: flex-end;
+      }
+
+      /* ★狭い画面は 上下に並べる★（横に3つ 並べると どれも読めない） */
+      @media (max-width: 640px) {
+        .slip .sh-l,
+        .slip .sh-r,
+        .slip .sums {
+          flex: 1 1 100%;
+        }
+
+        .slip .sh-r {
+          justify-content: flex-start;
+        }
       }
 
       .slip .title {
@@ -616,13 +728,36 @@
         font-weight: 800;
       }
 
+      /* ★合計は 給料明細で 一番 見たい所★（2026-08-25 司さん
+           「給料明細なんやけん 赤丸の所は 大きく 見やすく 目立つようにしろよ」）
+         色は付けない（色は 押せる物と 選ばれている物だけ）。
+         ★大きさと 太さと 薄い枠★ で目立たせる。紙にも そのまま出る。 */
       .slip .sums {
-        font-size: 14px;
+        flex: 0 0 auto;
+        font-size: 13px;
         font-weight: 700;
+        color: var(--muted);
+        background: #f7fbff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 7px 16px;
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        white-space: nowrap;
       }
 
-      .slip .sums span {
-        margin-left: 14px;
+      .slip .sums .big {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--ink);
+        letter-spacing: -0.5px;
+      }
+
+      .slip .sums .mid {
+        font-size: 17px;
+        font-weight: 800;
+        color: var(--ink);
       }
 
       .slip table {
@@ -642,6 +777,64 @@
         white-space: nowrap;
       }
 
+      /* ★1期は 10〜11日ぶん在る★（2026-08-25 司さん「なんで2日分しか載せてないんど」）
+           横に並べると 375px では ★2日ぶんしか見えない★（実測：表 715px / 箱 324px）。
+           ⇒ ★紙は 今まで通り 横（実物の給料明細と同じ並び）★
+             ★スマホの画面だけ 1日1行の縦★＝10日 ぜんぶ見える。
+           出し分けは CSS だけ。字の作り方は JS の1本（F）で共通。 */
+      .slip .tate {
+        display: none;
+      }
+
+      .slip .tate .d {
+        border-bottom: 1px solid var(--line);
+        padding: 7px 2px;
+      }
+
+      .slip .tate .d:last-child {
+        border-bottom: none;
+      }
+
+      .slip .tate .dh {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .slip .tate .dh b {
+        min-width: 5.5em;
+      }
+
+      .slip .tate .dn {
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      .slip .tate .dl {
+        font-size: 13px;
+
+        /* ★横の表と同じ字の色（新しい色を足さない）★ */
+        color: var(--ink);
+        padding-left: 5.5em;
+      }
+
+      .slip .tate .d.off .dh {
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      @media (max-width: 480px) {
+        .slip .yoko {
+          display: none;
+        }
+
+        .slip .tate {
+          display: block;
+        }
+      }
+
       @media print {
         body {
           background: #fff;
@@ -651,15 +844,31 @@
           display: none !important;
         }
 
+        /* ★紙は いつも 横（実物の給料明細と同じ並び）★ */
+        .slip .yoko {
+          display: block !important;
+        }
+
+        .slip .tate {
+          display: none !important;
+        }
+
         .wrap {
           max-width: none;
           padding: 0;
         }
 
+        /* ★刷る時も 紙の頭に間を作る★（上0だと 端から字が始まって見える） */
+        .paper .wrap {
+          padding-top: 2.2em;
+        }
+
+        /* ★紙も 上に余白★（今までは 上0＝いきなり字が始まっていた）
+             ここも em なので 売上の行が増えても 間の取り方は変わらない。 */
         .slip {
           break-inside: avoid;
           border: none;
-          padding: 0 0 18px;
+          padding: 1.4em 0 2em;
         }
       }
     </style>
@@ -739,6 +948,13 @@
                   <th>最低保証<span class="th-sub">空欄=役割どおり</span></th>
                   <th>並び</th>
                   <th>今いる人</th>
+                  <!-- ★その人だけの車 (2026-08-25・司さん指示)★
+                       司さん「個人個人で給料明細に載せるかも選びたいんや
+                               山田太郎は車1、山田花子は車2と3とかカスタムしたい」
+                       ★何も付けなければ 会社の決まりどおり★ -->
+                  <th>
+                    明細に出す車<span class="th-sub">何も付けない=会社の決まりどおり</span>
+                  </th>
                 </tr>
               </thead>
               <tbody id="empBody" class="emp-body"></tbody>
@@ -752,7 +968,11 @@
             ふつうは<b>役割ごとの決まり</b>で計算します（「給料の設定」で変えられます）。<br />
             <b>その人だけ違う</b>ときだけ、歩合・最低保証を打ってください。
             <b>空欄にすれば役割どおりに戻ります。</b><br />
-            辞めた人は「今いる人」のチェックを外します。<b>過去の明細と金額はそのまま残ります。</b>
+            辞めた人は「今いる人」のチェックを外します。<b>過去の明細と金額はそのまま残ります。</b><br />
+            <!-- ★その人だけの車 (2026-08-25・司さん指示)★ -->
+            <b>明細に出す車</b>は、<b>その人の給料明細にだけ</b>きく設定です。
+            付けた車の売上だけが「売上1・売上2…」に出ます。
+            <b>何も付けなければ</b>「給料の設定 → 車の名前と並び」で決めたとおりです。
           </div>
         </div>
       </div>
@@ -767,7 +987,10 @@
           <div class="note" style="margin: 0 0 10px">
             ここで付けた名前が<b>給料明細の「売上1・売上2」</b>や売上表に出ます。<br />
             <b>並び</b>の数字が小さい車から順に「売上1・売上2…」になります。
-            <b>空欄なら今までどおり</b>です。
+            <b>空欄なら今までどおり</b>です。<br />
+            <!-- ★1台ずつ 出す/出さない (2026-08-25・司さん「個別で見せる見せないも選べたら最高」)★ -->
+            <b>明細に出す</b>のチェックを外した車は、給料明細に<b>その車の売上を出しません</b>。
+            （売上表・月次集計は今までどおりです）
           </div>
           <div class="scroller">
             <table>
@@ -776,6 +999,7 @@
                   <th>今の呼び方</th>
                   <th>名前<span class="th-sub">空欄=車1・車2…</span></th>
                   <th>並び<span class="th-sub">小さい順</span></th>
+                  <th>明細に出す<span class="th-sub">外すと出ません</span></th>
                 </tr>
               </thead>
               <tbody id="carBody" class="car-body"></tbody>
@@ -837,6 +1061,16 @@
                 <td>積立を引いてから時数で割る</td>
                 <td style="text-align: left">
                   <input type="checkbox" id="resFirst" style="width: 17px; height: 17px" />
+                </td>
+              </tr>
+              <!-- ★給料明細に 車ごとの売上を載せるか★ 2026-08-25（司さん）
+                   「売り上げ（車ごと）を載せないような選べるようにするのを決めるところが欲しい」
+                   ★決めるのは社長・会社ごと★（dk_payroll_settings に持つ＝新しい棚を作らない）
+                   ★既定は 載せる＝今までと同じ見た目★ -->
+              <tr>
+                <td>給料明細に 車ごとの売上を載せる</td>
+                <td style="text-align: left">
+                  <input type="checkbox" id="showCarSales" style="width: 17px; height: 17px" />
                 </td>
               </tr>
             </tbody>
@@ -1232,36 +1466,193 @@
         }
 
         // ── 明細（実物の給料1〜8と同じ並び）──────────────
+        // ★載せるかどうかは ここ1か所で決める★（画面と設定で食い違わない）2026-08-25
+        //   倉庫にまだ列が無い会社は ★載せる（今までと同じ）★。
+        function showCarSalesNow() {
+          return !(SET && SET.show_car_sales === false);
+        }
+        // ============================================================
+        // ★1人ぶんだけを 紙だけの新しい窓で刷る★ 2026-08-25（司さん）
+        //   「給料は1人ごとにPDFとして送るようにする」
+        //   ・★本体の画面を汚さない★＝新しい窓に その人の1枚だけを描く（決まり）
+        //   ・★窓の名前を そのままファイル名にする★＝「PDFで保存」した時の既定の名前
+        //       例）給料明細_2026-08_白石正人
+        //   ・スマホは その紙を そのまま共有（LINE・メール）で送れる
+        // ============================================================
+        function printOne(ei) {
+          var box = document.getElementById('slip-' + ei);
+          var emp = REP && REP.employees ? REP.employees[ei] : null;
+          if (!box || !emp) {
+            showErr('その人の明細が見つかりません。');
+            return;
+          }
+          // ★中身から作った名前を先に出す★（保存する時の既定のファイル名になる）
+          var ym =
+            String(YM.year) + '-' + String(YM.month).padStart(2, '0');
+          var title = '給料明細_' + ym + '_' + String(emp.name || '');
+          var css = '';
+          document.querySelectorAll('style').forEach(function (st) {
+            css += st.textContent;
+          });
+          // ★紙だけの窓には 押す物を持ち込まない★（2026-08-25 実測で踏んだ）
+          //   noprint は「紙に出ない」だけ。★その窓の画面には ボタンが残って見えていた★。
+          //   その窓で押しても printOne は居ないので 何も起きない＝押せる見た目の飾りになる。
+          //   ⇒ 写しを取って noprint の物を 先に取り除く（本体の画面は 1文字も変えない）。
+          var clone = box.cloneNode(true);
+          clone.querySelectorAll('.noprint').forEach(function (el) {
+            el.remove();
+          });
+          var w = window.open('', '_blank');
+          if (!w) {
+            showErr('新しい窓が開けませんでした（ブラウザに止められました）。もう一度 押してください。');
+            return;
+          }
+          w.document.open();
+          w.document.write(
+            '<!doctype html><html lang="ja"><head><meta charset="utf-8">' +
+              '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+              '<title>' +
+              esc(title) +
+              '</title><style>' +
+              css +
+              '</style></head><body class="paper"><div class="wrap">' +
+              clone.outerHTML +
+              '</div></body></html>'
+          );
+          w.document.close();
+          w.focus();
+          w.onload = function () {
+            w.print();
+          };
+          // onload が来ない端末の保険
+          setTimeout(function () {
+            try {
+              w.print();
+            } catch (_) {
+              /* もう刷っている */
+            }
+          }, 700);
+        }
+        window.printOne = printOne;
+
+        // ★どの車を 給料明細に出すか★ 2026-08-25（司さん「個別で見せる見せないも選べたら最高」）
+        //   ・持ち場は ★車の棚（dk_device_labels.show_in_slip）★＝新しい棚を作らない
+        //   ・★空（まだ決めていない）＝出す★＝今までと同じ見た目
+        //   ・決めるのは 社長・会社ごと（「車の名前と並び」の表で1台ずつ）
+        //   ・判定は ★ここ1か所★（設定の画面と 明細で 食い違わない）
+        function carShowsInSlip(deviceId) {
+          var hit = null;
+          (RAW.labels || []).forEach(function (l) {
+            if (l && l.device_id === deviceId) hit = l;
+          });
+          return !(hit && hit.show_in_slip === false);
+        }
+
+        // ★その人だけの車の指定★ 2026-08-25
+        //   司さん「個人個人で給料明細に載せるかも選びたいんや
+        //           山田太郎は車1、山田花子は車2と3とかカスタムしたい」
+        //   ・持ち場は ★人の棚（dk_employees.slip_cars）★＝新しい棚を作らない
+        //   ・★空（打っていない）＝会社の決まりどおり★＝今までと同じ見た目
+        //   ・入っていれば ★その人は その車だけ★
+        function empSlipCars(employeeId) {
+          var hit = null;
+          (RAW.employees || []).forEach(function (x) {
+            if (x && x.employee_id === employeeId) hit = x;
+          });
+          var v = hit && hit.slip_cars;
+          if (!v) return null;
+          try {
+            if (typeof v === 'string') v = JSON.parse(v); // 倉庫から文字で返る事がある
+          } catch (_) {
+            return null;
+          }
+          return v && v.length ? v : null;
+        }
+
+        // ★明細に出す車だけを 並び順のまま 取り出す★
+        //   元の並びの何番目か（i）も一緒に持つ＝売上の数字を取り違えない。
+        //   出す物だけで「売上1・売上2…」と番号を振り直す（間が抜けない）。
+        //   ★決める順番は ここ1か所★
+        //     ①その人の指定が在れば その車だけ
+        //     ②無ければ 会社の「明細に出す」（車ごと）
+        function slipCars(cars, employeeId) {
+          var mine = empSlipCars(employeeId);
+          var out = [];
+          (cars || []).forEach(function (car, i) {
+            var ok = mine ? mine.indexOf(car.device_id) >= 0 : carShowsInSlip(car.device_id);
+            if (ok) out.push({ car: car, i: i });
+          });
+          return out;
+        }
+
         function renderSlips() {
+          var SHOW_CAR_SALES = showCarSalesNow();
           var box = $('slips');
           if (!REP || !REP.employees.length) {
             box.innerHTML =
               '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
             return;
           }
-          var cars = REP.cars;
           var html = '';
-          REP.employees.forEach(function (e) {
+          REP.employees.forEach(function (e, ei) {
+            // ★出す車は 人ごとに決まる★（その人の指定が無ければ 会社の決まりどおり）
+            var cars = slipCars(REP.cars, e.employee_id);
             html +=
-              '<div class="slip"><div class="shead">' +
+              '<div class="slip" id="slip-' + ei + '"><div class="shead">' +
+              // ★左のかたまり★（題＋期間＋名前）
+              //   ★名前は「給料明細」のすぐ右★ 2026-08-25（司さん「赤丸の所に名前もってきて」）
+              '<div class="sh-l">' +
               '<div><div class="title">給料明細</div>' +
               '<div>' +
               esc(PERIOD.label) +
               '　' +
               esc(PERIOD.rangeLabel) +
               '</div></div>' +
-              '<div class="sums">合計 <span>¥' +
-              yen(e.totalPay) +
-              '</span> <span>' +
-              hrs(e.totalHours) +
-              ' 時間</span></div>' +
               '<div class="who">' +
               esc(e.name) +
               '　殿</div>' +
-              '</div><div class="scroller"><table><tbody>';
+              '</div>' +
+              // ★合計は 行の 真ん中★ 2026-08-25（司さん「金額は赤丸の中心ぐらいに」）
+              //   左のかたまりと 右のかたまりを ★同じ幅★にして 合計を真ん中に置く。
+              //   （余った所の真ん中では ★右に寄って見える★＝1度 それで直っていなかった）
+              '<div class="sums">合計<span class="big">¥' +
+              yen(e.totalPay) +
+              '</span><span class="mid">' +
+              hrs(e.totalHours) +
+              ' 時間</span></div>' +
+              // ★右のかたまり★（幅合わせ＋この人のPDF）
+              //   ★紙でもボタンが消えるだけで この箱は残す★＝紙でも真ん中がずれない
+              '<div class="sh-r">' +
+              // ★この人だけのPDF★ 2026-08-25（司さん「給料は1人ごとにPDFとして送る」）
+              '<button class="btn ghost noprint" onclick="printOne(' +
+              ei +
+              ')">この人のPDF</button>' +
+              '</div>' +
+              '</div>';
 
-            function row(label, get, cls) {
-              var s = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><th>' + esc(label) + '</th>';
+            // ★字の作り方は ここ1本★（横＝紙 と 縦＝スマホ画面 で 二度書かない）
+            //   2026-08-25：司さん「なんで2日分しか載せてないんど」
+            //   実物は 1期＝10〜11日ぶん。横に並べると スマホでは ★2日ぶんしか見えない★。
+            var F = {
+              pay: function (c) {
+                return c.pay === null ? '' : yen(c.pay);
+              },
+              hours: function (c) {
+                return c.hours === null ? '' : hrs(c.hours);
+              },
+              car: function (c, i) {
+                return c.carSales[i] === null ? '' : yen(c.carSales[i]);
+              },
+              pool: function (c) {
+                return c.poolHours === null ? '' : hrs(c.poolHours);
+              },
+            };
+
+            // ───────── 横（今まで通り・★紙はこれ★）─────────
+            html += '<div class="yoko scroller"><table><tbody>';
+
+            function row(label, get) {
+              var s = '<tr><th>' + esc(label) + '</th>';
               e.cells.forEach(function (c) {
                 s += '<td>' + get(c) + '</td>';
               });
@@ -1275,22 +1666,45 @@
             });
             html += '</tr>';
 
-            html += row('金額', function (c) {
-              return c.pay === null ? '' : yen(c.pay);
-            });
-            html += row('時間', function (c) {
-              return c.hours === null ? '' : hrs(c.hours);
-            });
-            cars.forEach(function (car, i) {
-              html += row('売上' + (i + 1) + '（' + car.label + '）', function (c) {
-                return c.carSales[i] === null ? '' : yen(c.carSales[i]);
+            html += row('金額', F.pay);
+            html += row('時間', F.hours);
+            // ★車ごとの売上を載せるか（社長が決める・既定は載せる）★ 2026-08-25
+            if (SHOW_CAR_SALES) {
+              cars.forEach(function (x, n) {
+                html += row('売上' + (n + 1) + '（' + x.car.label + '）', function (c) {
+                  return F.car(c, x.i);
+                });
               });
-            });
-            html += row('時間（全台）', function (c) {
-              return c.poolHours === null ? '' : hrs(c.poolHours);
-            });
+            }
+            html += row('時間（全台）', F.pool);
 
-            html += '</tbody></table></div></div>';
+            html += '</tbody></table></div>';
+
+            // ───────── 縦（★スマホの画面だけ★・1日1行で 全部の日が見える）─────────
+            //   紙は ★1バイトも変えない★。出し分けは CSS（@media）だけ。
+            html += '<div class="tate">';
+            e.cells.forEach(function (c) {
+              var pay = F.pay(c);
+              var hh = F.hours(c);
+              var yasumi = pay === '' && hh === '';
+              html +=
+                '<div class="d' +
+                (yasumi ? ' off' : '') +
+                '"><div class="dh"><b>' +
+                mdw(c.date) +
+                '</b>' +
+                (yasumi
+                  ? '<span class="dn">—</span>'
+                  : '<span>¥' + pay + '</span><span>' + hh + ' 時間</span>') +
+                '</div></div>';
+              // ★スマホの一覧は 金額と時間だけ★ 2026-08-25（司さん
+              //   「この一覧の所は 赤丸の部分除けて 金額と時間だけにして スマートにしろ」）
+              //   売上・時間（全台）は ★紙（PDF）には 今までどおり出る★。
+              //   ＝この画面は「いくら・何時間」を ざっと見る所、紙が 渡す物。
+            });
+            html += '</div>';
+
+            html += '</div>';
           });
 
           // つかさの取り分（会社に残る分）
@@ -1774,30 +2188,20 @@
               '" data-f="name" value="' +
               esc(e.name) +
               '"></td>' +
-              '<td data-l="役割"><select data-emp="' +
+              // ★役割は 選んでも 打ってもいい★ 2026-08-25（司さん
+              //   「乙の所が 自由に入力してカスタムできるようにしたらええやないか」）
+              //   前は select だけ＝「給料の設定」で足すまで 新しい役割を書けなかった。
+              //   ★決まりに無い役割は 給料が 黙って0円になる★ ので、その時は赤く知らせる。
+              '<td data-l="役割"><input class="txt rolein" list="roleList" data-emp="' +
               esc(e.employee_id) +
-              '" data-f="role">' +
-              roles
-                .map(function (r) {
-                  return (
-                    '<option value="' +
-                    esc(r) +
-                    '"' +
-                    (r === e.role ? ' selected' : '') +
-                    '>' +
-                    esc(r) +
-                    '</option>'
-                  );
-                })
-                .join('') +
-              (roles.indexOf(e.role) < 0 && e.role
-                ? '<option value="' +
-                  esc(e.role) +
-                  '" selected>' +
-                  esc(e.role) +
-                  '（無い役割）</option>'
-                : '') +
-              '</select></td>' +
+              '" data-f="role" value="' +
+              esc(e.role || '') +
+              '" placeholder="役割を打つ／選ぶ">' +
+              (function () {
+                var w = _roleWarn(e);
+                return w ? '<div class="rolewarn">' + w + '</div>' : '';
+              })() +
+              '</td>' +
               // ★人ごとの歩合・最低保証 (2026-08-05・A案)★
               //   空欄＝役割どおり。役割の値を薄く出しておく＝何もしなければどうなるか見える。
               '<td data-l="歩合"><input class="hrs" data-emp="' +
@@ -1823,17 +2227,31 @@
               esc(e.employee_id) +
               '" data-f="active"' +
               (e.active !== false ? ' checked' : '') +
-              '></td></tr>';
+              '></td>' +
+              // ★その人だけの車 (2026-08-25)★ 何も付けなければ 会社の決まりどおり
+              '<td data-l="明細に出す車" class="empcars">' +
+              _empCarBoxes(e) +
+              '</td></tr>';
           });
           if (!RAW.employees.length) {
-            html = '<tr><td colspan="6" class="empty">まだ誰も登録されていません。</td></tr>';
+            html = '<tr><td colspan="7" class="empty">まだ誰も登録されていません。</td></tr>';
           }
+          // ★打つ時の候補★（決まりが在る役割を出す・打ちたければ そのまま打てる）
+          html +=
+            '<datalist id="roleList">' +
+            roles
+              .map(function (r) {
+                return '<option value="' + esc(r) + '"></option>';
+              })
+              .join('') +
+            '</datalist>';
           $('empBody').innerHTML = html;
           Array.prototype.forEach.call(document.querySelectorAll('[data-emp]'), function (i) {
             i.onchange = function () {
               var f = i.getAttribute('data-f');
               var v;
-              if (f === 'active') v = i.checked;
+              if (f === 'slip_cars') v = _collectEmpCars(i.getAttribute('data-emp'));
+              else if (f === 'active') v = i.checked;
               else if (f === 'sort_order') v = num(i.value);
               else if (f === 'pay_rate' || f === 'pay_floor') {
                 // ★空欄なら null＝役割どおりに戻す★（0 は「0にしたい」なので通す）
@@ -1842,6 +2260,95 @@
               saveEmp(i.getAttribute('data-emp'), f, v);
             };
           });
+        }
+
+        // ★その人だけの車のチェック (2026-08-25)★
+        //   並びは「車の名前と並び」で決めた順（明細の売上1・売上2…と同じ順）。
+        //   ★何も付けなければ 会社の決まりどおり★＝今までと同じ見た目。
+        function _empCarBoxes(e) {
+          var cars = (REP && REP.cars) || [];
+          if (!cars.length) return '<span class="th-sub">まだ車がありません</span>';
+          var mine = empSlipCars(e.employee_id);
+          return cars
+            .map(function (c) {
+              return (
+                '<label class="empcar"><input type="checkbox" style="width:16px;height:16px" data-emp="' +
+                esc(e.employee_id) +
+                '" data-f="slip_cars" data-car="' +
+                esc(c.device_id) +
+                '"' +
+                (mine && mine.indexOf(c.device_id) >= 0 ? ' checked' : '') +
+                '>' +
+                esc(c.label) +
+                '</label>'
+              );
+            })
+            .join('');
+        }
+
+        // ★その人の今のチェックを 全部 集めて 1本の並びにする★
+        //   1つずつ保存すると 途中の状態が倉庫に残る（片方だけ入る）ので まとめて送る。
+        //   ★1つも付いていなければ null＝会社の決まりどおりに戻す★
+        function _collectEmpCars(empId) {
+          var out = [];
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-emp="' + empId + '"][data-f="slip_cars"]'),
+            function (cb) {
+              if (cb.checked) out.push(cb.getAttribute('data-car'));
+            }
+          );
+          return out.length ? out : null;
+        }
+
+        // ★決まりの無い役割を打つと 何が起きるか★ 2026-08-25
+        //   engine（daiko-payroll.js）は st.roles[役割] が無いと
+        //   ★歩合0・最低保証0★ を使う。エラーは出ない＝★黙って金額が小さくなる★。
+        //   ただし その人に打ってある物は そちらが勝つので、起きる事は3通り。
+        //
+        //   ★言葉は 実測して決めた★（2026-08-25）
+        //     はじめ「0円になります」と1つだけ出したが、最低保証だけ打ってある人は
+        //     ★0円ではなく 11,400円（1200 x 9.50時間）★だった＝★注意が嘘をついていた★。
+        //     押して見つけたので 3通りに書き分ける。
+        function _roleWarn(e) {
+          var role = String((e && e.role) || '').trim();
+          if (!role) return null; // まだ何も打っていない人には出さない
+          var st;
+          try {
+            st = PayrollDaily.normSettings(SET);
+          } catch (_) {
+            return null;
+          }
+          if (st.roles && st.roles[role]) return null; // 決まりが在る＝何も起きない
+          var has = function (v) {
+            return v !== null && v !== undefined && v !== '' && isFinite(parseFloat(v));
+          };
+          var r = has(e.pay_rate);
+          var f = has(e.pay_floor);
+          if (r && f) return null; // その人だけで足りている＝役割は使われない
+          if (!r && !f) {
+            return (
+              '★この役割の決まりがありません★<br>このままだと この人の給料は <b>0円</b> になります。<br>' +
+              '「給料の設定 → 役割ごとの決まり」で <b>' +
+              esc(role) +
+              '</b> を足すか、この人の<b>歩合と最低保証</b>を打ってください。'
+            );
+          }
+          if (r) {
+            return (
+              '★この役割の決まりがありません★<br><b>最低保証が 0円</b>として計算されます' +
+              '（打ってある歩合だけで出ます）。<br>' +
+              '「給料の設定 → 役割ごとの決まり」で <b>' +
+              esc(role) +
+              '</b> を足すか、この人の<b>最低保証</b>を打ってください。'
+            );
+          }
+          return (
+            '★この役割の決まりがありません★<br><b>歩合が 0</b>として計算されます' +
+            '（打ってある最低保証だけで出ます）。<br>' +
+            '「給料の設定 → 役割ごとの決まり」で <b>' +
+            esc(role) +
+            '</b> を足すか、この人の<b>歩合</b>を打ってください。'
+          );
         }
 
         // 役割の値（打たなかった時にどうなるかを薄く見せる）
@@ -1911,6 +2418,10 @@
                 return num(a.sort_order) - num(b.sort_order);
               });
               recalc();
+              // ★役割を打ち替えたら その場で 出し直す★ 2026-08-25
+              //   決まりの無い役割を打った時の ★赤い注意★ を すぐ出す為。
+              //   （打ち終わって 欄から離れた時に来るので 字が消える事は無い）
+              if (field === 'role') renderEmp();
               flash('empSaved', '保存しました');
             })
             .catch(function () {
@@ -1950,6 +2461,8 @@
           $('resPool').value = Math.round(st.reservePoolRate * 1000) / 10;
           $('resOwner').value = Math.round(st.reserveOwnerRate * 1000) / 10;
           $('resFirst').checked = !!st.deductReserveBeforeRate;
+          // ★既定は 載せる（true）★＝倉庫にまだ無い会社も 今までと同じ見た目
+          $('showCarSales').checked = !(SET && SET.show_car_sales === false);
           $('pStart').value = st.periodStartDay;
           $('pMode').value = st.periodEndMode;
           $('pDays').value = st.periodDays;
@@ -2032,7 +2545,15 @@
                 esc(d) +
                 '" data-f="sort_order" inputmode="numeric" value="' +
                 (cur.sort_order === null || cur.sort_order === undefined ? '' : cur.sort_order) +
-                '"></td></tr>'
+                '"></td>' +
+                // ★1台ずつ 明細に出す/出さない (2026-08-25)★ 決めていなければ出す（今までどおり）
+                '<td data-l="明細に出す"><input type="checkbox" style="width:17px;height:17px" data-car="' +
+                esc(d) +
+                '" data-f="show_in_slip"' +
+                // ★出す/出さないの判定は carShowsInSlip 1か所★
+                //   ここで もう一度 決めると 設定の画面と 明細が 食い違う。
+                (carShowsInSlip(d) ? ' checked' : '') +
+                '></td></tr>'
               );
             })
             .join('');
@@ -2044,12 +2565,15 @@
           Array.prototype.forEach.call(document.querySelectorAll('[data-car]'), function (i) {
             i.onchange = function () {
               var f = i.getAttribute('data-f');
-              var v =
-                f === 'sort_order'
-                  ? String(i.value).trim() === ''
-                    ? null // ★空欄なら今までどおり★
-                    : num(i.value)
-                  : String(i.value).trim();
+              var v;
+              if (i.type === 'checkbox') {
+                // ★チェックは value ではなく checked★（value を読むと いつも "on" になる）
+                v = i.checked;
+              } else if (f === 'sort_order') {
+                v = String(i.value).trim() === '' ? null : num(i.value); // ★空欄なら今までどおり★
+              } else {
+                v = String(i.value).trim();
+              }
               saveCar(i.getAttribute('data-car'), f, v);
             };
           });
@@ -2119,6 +2643,7 @@
             period_end_mode: $('pMode').value,
             period_days: num($('pDays').value) || 11,
             owner_device_id: $('ownerDev').value || '',
+            show_car_sales: $('showCarSales').checked, // ★車ごとの売上を載せるか★ 2026-08-25
             roles: st.roles,
             updated_at: new Date().toISOString(),
           };

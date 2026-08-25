@@ -126,7 +126,9 @@ describe('★実物の明細と同じ物が出る作りになっている★', (
     expect(HTML).toContain('>日付<');
     expect(HTML).toContain("row('金額'");
     expect(HTML).toContain("row('時間'");
-    expect(HTML).toContain("'売上' + (i + 1)");
+    // 2026-08-25：1台ずつ「明細に出す/出さない」を足したので、番号は
+    // ★出す車だけで振り直す★（i ではなく n）。売上2・売上3 が抜けない為。
+    expect(HTML).toContain("'売上' + (n + 1)");
     expect(HTML).toContain("row('時間（全台）'");
   });
 

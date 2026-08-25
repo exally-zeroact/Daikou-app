@@ -45,6 +45,10 @@
         align-items: center;
         justify-content: space-between;
         margin-bottom: 6px;
+
+        /* ★狭い画面では 名前と行き先ボタンを 上下に分ける（押し合って字が割れない）★ 2026-08-25 */
+        flex-wrap: wrap;
+        gap: 4px 12px;
       }
 
       .logo {
@@ -61,6 +65,10 @@
         border-radius: 999px;
         padding: 2px 10px;
         margin-left: 8px;
+
+        /* ★狭い画面で「給料」の2文字が 縦に割れていた★（2026-08-25 実測 375px … 110 x 51＝2行）
+           札の字は 折り返さない。 */
+        white-space: nowrap;
       }
 
       .sub {
@@ -107,8 +115,31 @@
       .monthbar .m {
         font-size: 18px;
         font-weight: 800;
-        min-width: 7em;
+        flex: 0 1 7em; /* 広い時は今まで通り 7em・狭い時だけ縮む */
+        min-width: 0;
         text-align: center;
+      }
+
+      /* ★狭い画面で 押す物の字が1文字ずつ縦に割れる★（2026-08-25 実測・375px）
+           給料 「‹ 前の月」 45 x 102（＝4行に割れていた）
+           売上表 62 x 58 ／ 月次集計 72 x 58（＝2行）  ※1行なら 約34px
+         原因：真ん中の「月の字」の箱が min-width で場所を先に取り、
+               押す物だけが縮められていた（flex は 押す物から縮める）。
+         直し方：月(年)の字を 上の行へ落として、押す物は 横1行で並べる。
+                 ★480px より広い画面は 今まで通り（1文字も変えない）★ */
+      @media (max-width: 480px) {
+        .monthbar {
+          flex-wrap: wrap;
+        }
+
+        .monthbar .m {
+          order: -1;
+          flex: 1 0 100%;
+        }
+
+        .navb {
+          flex: 1 1 auto;
+        }
       }
 
       .navb {
@@ -121,6 +152,8 @@
         color: var(--blue-d);
         cursor: pointer;
         font-family: inherit;
+        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */
+        flex: 0 0 auto; /* ★押す物は縮めない★ */
       }
 
       .btn {
