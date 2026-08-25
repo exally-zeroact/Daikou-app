@@ -25,7 +25,9 @@ const WF = path.join(ROOT, '.github', 'workflows');
 // 重い＝data/ を丸ごと取ると打ち切られる物
 const HEAVY = [
   { file: 'cert-gate.yml', result: 'cert-gate-result' },
-  { file: 'bug-hunter.yml', result: 'bug-hunter-result' },
+  // ★bug-hunter.yml は 2026-08-25 に消した★（指示役の裁定）
+  //   出していたのは週1の issue だけで、★27件が12週間 誰にも読まれず全部 open★だった。
+  //   ★止めるだけだと いつか誰かが有効に戻す★ ので ワークフローごと消した。
 ];
 
 const read = (f) => fs.readFileSync(path.join(WF, f), 'utf8');

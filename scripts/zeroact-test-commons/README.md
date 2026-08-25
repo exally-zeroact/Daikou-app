@@ -147,9 +147,7 @@ scripts/zeroact-test-commons/
 │   ├── openreplay-config.js
 │   └── error-analyzer.js
 ├── ai/
-│   ├── multi-llm-consensus.js
-│   ├── llm-as-judge.js
-│   └── ai-bug-hunter.js
+│   └── llm-as-judge.js
 ├── scenarios/                              ← 業務シナリオ集 (= ダイコメ 8 件)
 ├── bug-patterns/                           ← 業界バグパターン集
 ├── known-issues/                           ← 過去事例レポジトリ
@@ -208,9 +206,9 @@ scripts/zeroact-test-commons/
 | OpenReplay (config) | session replay | observability/openreplay-config.js |
 | CodeRabbit | AI レビュー | .coderabbit.yml |
 | ~~PR-Agent~~ | ★2026-08-18 削除★ 83回起動して全部 skipped・成功0回 | ― |
-| multi-llm-consensus | AI 並列 PR review ★現在 配線なし★ | ai/multi-llm-consensus.js |
+| ~~multi-llm-consensus~~ | ★2026-08-25 削除★ 呼んでいる所 0件（配線なしのまま 3か月） | ― |
 | llm-as-judge | テスト結果判定 | ai/llm-as-judge.js |
-| ai-bug-hunter | バグ探索 ★2026-08-18 定時をやめ 手動(workflow_dispatch)だけに★ | ai/ai-bug-hunter.js |
+| ~~ai-bug-hunter~~ | ★2026-08-25 削除★ 出していたのは週1の issue だけ・★27件が12週間 誰にも読まれず全部 open★（本番15/テスト12）。止めるだけだと いつか戻るので 消した | ― |
 | Dependabot | 依存更新 | .github/dependabot.yml |
 | Secret Scanning | 秘密漏洩検出 | GitHub repo settings |
 
