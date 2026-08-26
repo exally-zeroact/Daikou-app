@@ -142,12 +142,20 @@ export async function checkHost(host, spec, probe, hosts = HOSTS, mustPass = nul
   out.sw = sw.status;
   out.codes['/sw.js'] = sw.status;
   if (spec.serviceWorker) {
-    if (sw.status !== 200) out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
+    if (sw.status !== 200)
+      out.ng.push(`メーターなのに sw.js が ${sw.status}（圏外で動かなくなる）`);
   } else if (sw.status === 200) {
     out.ng.push('★事務所に sw.js が居る（どのURLもメーターに化ける事故が戻る）★');
   }
 
   if (spec.role === 'office') {
+    // ★事務所の配信日が古くても「壊れている」ではない (2026-08-26)★
+    //   事務所は Root Directory = office-host で GitHub に繋がっている。
+    //   ⇒ ★office-host/ の中が変わった時だけ 配信し直す★。
+    //     kyuryo.html などメーター側だけ直した回は 事務所は配信し直さない（★それで正しい★）。
+    //   ＝★配信日を見る時は office-host/ の最終更新と比べる★。日付だけで赤にしない。
+    //   （この見張りが見るのは 日付ではなく ★実物のHTTP応答★＝通す物200／出さない物404）
+    //
     // ★通す物だけ通す＝一覧に無い物が200で出たら赤 (2026-08-02 追加)★
     //
     //   それまでは /sw.js と /index.html だけ名指しで塞いでいた。
@@ -164,9 +172,7 @@ export async function checkHost(host, spec, probe, hosts = HOSTS, mustPass = nul
       if (r.status === 200) {
         out.ng.push(
           `★事務所で ${p} が200（メーターの物が事務所の住所で出る）★` +
-            (p === '/manifest.json'
-              ? ' ＝ホーム画面に「事務所」の顔でメーターが入る'
-              : '')
+            (p === '/manifest.json' ? ' ＝ホーム画面に「事務所」の顔でメーターが入る' : '')
         );
       }
     }
@@ -197,7 +203,9 @@ export async function checkHost(host, spec, probe, hosts = HOSTS, mustPass = nul
     out.dashboard = dash.status;
     out.dashboardTo = dash.location;
     out.codes['/dashboard.html'] = dash.status;
-    const office = Object.entries(hosts).find(([, h]) => h.role === 'office' && h.side === spec.side);
+    const office = Object.entries(hosts).find(
+      ([, h]) => h.role === 'office' && h.side === spec.side
+    );
     const officeHost = office ? office[0] : null;
     if (dash.status !== 308 && dash.status !== 301) {
       out.ng.push(`/dashboard.html が ${dash.status}（事務所へ送っていない）`);
@@ -235,7 +243,8 @@ export async function checkHost(host, spec, probe, hosts = HOSTS, mustPass = nul
 export async function checkLoginReturn(host, authBase, probe) {
   const back = `https://${host}/dashboard.html`;
   const url =
-    `${authBase}/auth/v1/verify?token=invalid&type=magiclink&redirect_to=` + encodeURIComponent(back);
+    `${authBase}/auth/v1/verify?token=invalid&type=magiclink&redirect_to=` +
+    encodeURIComponent(back);
   const r = await probe.head(url);
   const to = r.location || '';
   const ok = to.startsWith(`https://${host}/`);
@@ -256,8 +265,7 @@ export async function checkLoginReturn(host, authBase, probe) {
 export async function checkAll(side, probe, hosts = HOSTS, mustPass = null) {
   const targets = Object.entries(hosts).filter(([, s]) => !side || s.side === side);
   const out = [];
-  for (const [host, spec] of targets)
-    out.push(await checkHost(host, spec, probe, hosts, mustPass));
+  for (const [host, spec] of targets) out.push(await checkHost(host, spec, probe, hosts, mustPass));
   return out;
 }
 
@@ -276,13 +284,12 @@ if (isMain) {
   //   ★本番の repo の中に テスト倉庫へ繋ぐ字が在る★状態で、
   //   「倉庫の向き先」の見張りに 正しく引っかかった。
   //   ⇒ ★自分の倉庫だけ書く。反対側は そちらの repo で回す★（環境を混ぜない）
-  const MY_SIDE = 'prod';
-  const MY_AUTH = 'https://tnfwipbgfgjaymlszeid.supabase.co';
+  const MY_SIDE = 'test';
+  const MY_AUTH = 'https://khawdrnvssdenumbiwfg.supabase.co';
   if (asked && asked !== MY_SIDE) {
     console.log(
       `★この repo は ${MY_SIDE} 側だけを見ます★（--side ${asked} は見ません）
-` +
-        `  ${asked} 側は そちらの repo で回してください（環境を混ぜない為）。`
+` + `  ${asked} 側は そちらの repo で回してください（環境を混ぜない為）。`
     );
     process.exit(1);
   }
