@@ -153,3 +153,66 @@ describe('★洗い出しの道具そのものが空振りしていないこと�
     expect(Array.from(refs)).toEqual([]);
   });
 });
+
+// ============================================================
+// ★2026-08-26 実際に開いた穴（★見張りは緑のままだった★）★
+//   給料明細のPDFで vendor/html2canvas.min.js / vendor/jspdf.umd.min.js を
+//   ★押した時に el.src = 'vendor/…' で読む★形にした。
+//   refsIn は ★HTMLの src= / href= しか見ない★ので この2本を拾わず、
+//   事務所の住所（daikome-jimusho{,-test}.vercel.app）で ★実測 404★。
+//   ＝押しても紙が出ず、保険の window.print()（司さんが突き返した紙）に落ちる。
+//   ⇒ runtimeRefsIn を足した。ここは ★その穴が戻らないこと★ を見張る。
+// ============================================================
+describe('★JSが 後から読む物も 通してある★', () => {
+  it('★紙(PDF)の道具2本が 事務所を通る★（通らないと 押しても紙が出ない）', () => {
+    const src = sources();
+    ['/vendor/html2canvas.min.js', '/vendor/jspdf.umd.min.js'].forEach((p) => {
+      expect(src, `${p} が通っていない＝事務所で404＝PDFが出ない`).toContain(p);
+    });
+  });
+
+  it('★引数で渡す形も 拾える★（これが 実際に開いた穴）', () => {
+    // ★実物の書き方★（kyuryo.html の loadPdfLibs）
+    //   function one(src, has) { … el.src = src; … }
+    //   one('vendor/html2canvas.min.js', …)
+    //   ＝★el.src = <変わる物>★ なので、src= を見る道具では ★字が出てこない★。
+    const html =
+      '<html><body><script>' +
+      'function one(src, has) { var el = document.createElement("script"); el.src = src; }' +
+      "one('vendor/html2canvas.min.js', function () { return !!window.html2canvas; });" +
+      '</script></body></html>';
+    expect([...OA.runtimeRefsIn(html, ROOT)], '★JSが後から読む物を 拾えていない★').toContain(
+      '/vendor/html2canvas.min.js'
+    );
+    // ★src= だけを見る道具では 拾えない★＝だから runtimeRefsIn を足した
+    expect([...OA.refsIn(html)], '前提が変わった').not.toContain('/vendor/html2canvas.min.js');
+  });
+
+  it('★実物の kyuryo.html でも 拾えている★（見本ではなく 本物で押す）', () => {
+    const html = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+    const got = [...OA.runtimeRefsIn(html, ROOT)];
+    ['/vendor/html2canvas.min.js', '/vendor/jspdf.umd.min.js'].forEach((p) => {
+      expect(got, `★本物の画面から ${p} を拾えていない★`).toContain(p);
+    });
+  });
+
+  it('★説明文の中のファイル名は 拾わない★（コメントを消してから見る）', () => {
+    const html =
+      '<html><body><script>' +
+      '// むかしは js/meter.js を読んでいた\n' +
+      '/* data/coarse-jp.js も読んでいた */\n' +
+      'var a = 1;' +
+      '</script></body></html>';
+    const got = [...OA.runtimeRefsIn(html, ROOT)];
+    expect(got, '★説明文の中の名前まで通してしまう★').not.toContain('/js/meter.js');
+    expect(got, '★説明文の中の名前まで通してしまう★').not.toContain('/data/coarse-jp.js');
+  });
+
+  it('★repoに無いファイル名は 拾わない★（綴り違い・作り話を通さない）', () => {
+    const html =
+      '<html><body><script>' +
+      "var el={}; el.src = 'vendor/aru-hazu-no-nai-mono.js';" +
+      '</script></body></html>';
+    expect([...OA.runtimeRefsIn(html, ROOT)]).toEqual([]);
+  });
+});

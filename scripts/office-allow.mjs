@@ -60,6 +60,39 @@ export function pageLinksIn(html) {
   return out;
 }
 
+// ★JSが 後から読む物★も拾う 2026-08-26
+//   ★実際に穴が開いた★:
+//     給料明細のPDFで vendor/html2canvas.min.js と vendor/jspdf.umd.min.js を
+//     ★押した時に el.src = 'vendor/…' で読む★形にした。
+//     refsIn は ★HTMLの src= / href= しか見ない★ので この2本を拾わず、
+//     見張りは ★緑のまま★、事務所の住所では ★404★ になった。
+//     ＝押しても紙が出ず、保険の window.print()（司さんが突き返した紙）に落ちる。
+//   ★決まり「死にファイル判定に src= だけ使うな」の 裏返し★。
+//
+//   拾い方（★当てずっぽうにしない★）:
+//     ①<script> の中の ★コメントを消してから★ 見る（説明文の中のファイル名を拾わない）
+//     ②中身が「相対の道」＋「部品の拡張子」の 引用符つきの字だけ
+//     ③★そのファイルが 実際に repo に在る物だけ★（綴り違い・作り話を通さない）
+const BUHIN = /\.(?:js|mjs|css|woff2?|ttf|otf|png|svg|jpg|jpeg|webp|json)$/i;
+
+export function runtimeRefsIn(html, root = ROOT) {
+  const out = new Set();
+  // ①コメントを消す（// … と /* … */）
+  const nama = html.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+  // ②引用符の中の 相対の道
+  const re = /['"]((?:\.\/)?(?:[\w.-]+\/)*[\w.-]+\.[A-Za-z0-9]{2,5})['"]/g;
+  let m;
+  while ((m = re.exec(nama))) {
+    let u = m[1].trim().replace(/^\.\//, '');
+    if (!BUHIN.test(u)) continue;
+    if (u.startsWith('/')) u = u.slice(1);
+    // ③実物が在る物だけ
+    if (!fs.existsSync(path.join(root, u))) continue;
+    out.add('/' + u);
+  }
+  return out;
+}
+
 // ★通す物の一覧（HTMLから機械で作る）★
 export function buildAllowList(root = ROOT) {
   const allow = new Set(['/']);
@@ -75,6 +108,7 @@ export function buildAllowList(root = ROOT) {
     const html = fs.readFileSync(f, 'utf8');
     for (const r of refsIn(html)) allow.add(r);
     for (const r of pageLinksIn(html)) allow.add(r);
+    for (const r of runtimeRefsIn(html, root)) allow.add(r);
   }
 
   // ★事務所の画面から行ける先が事務所に無いと、押した瞬間404になる★
@@ -113,10 +147,28 @@ export function toRewrites(allow, meterBase) {
   return rw;
 }
 
-const isMain =
-  process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('office-allow.mjs');
+// ★どちらの側のメーターを指すか★は 今の設定から読む（側を取り違えない）
+export function meterBaseOf(root = ROOT) {
+  const f = path.join(root, 'office-host', 'vercel.json');
+  const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const d = j.rewrites && j.rewrites[0] && j.rewrites[0].destination;
+  if (!d) throw new Error('★今の行き先が読めない★');
+  return new URL(d).origin;
+}
+
+const isMain = process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('office-allow.mjs');
 if (isMain) {
   const { allow, missing, meterOnly } = buildAllowList();
+  if (process.argv.includes('--write')) {
+    // ★作り直す★（目で書かない＝増やし忘れ・減らし忘れを止める）
+    const base = meterBaseOf();
+    const f = path.join(ROOT, 'office-host', 'vercel.json');
+    const mae = JSON.parse(fs.readFileSync(f, 'utf8'));
+    mae.rewrites = toRewrites(allow, base);
+    fs.writeFileSync(f, JSON.stringify(mae, null, 2) + '\n', 'utf8');
+    console.log('★書き直しました★', f, '／ 行き先', base, '／', mae.rewrites.length, '件');
+    process.exit(0);
+  }
   if (missing.length) console.error('★画面が見つからない★ ' + missing.join(', '));
   console.log('★事務所で通す物（HTMLから機械で洗い出した）★');
   allow.forEach((p) => console.log('  ' + p));
