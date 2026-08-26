@@ -6,10 +6,10 @@
 
 ダイコメは**2つの顔**を持っている。
 
-| 顔                      | 誰が使う         | 何をする                         |
-| ----------------------- | ---------------- | -------------------------------- |
-| メーター                | ドライバー       | 業務開始・距離・料金（圏外で動く） |
-| 事務所                  | 社長（司さん）   | 売上表・給料・月次集計             |
+| 顔       | 誰が使う       | 何をする                           |
+| -------- | -------------- | ---------------------------------- |
+| メーター | ドライバー     | 業務開始・距離・料金（圏外で動く） |
+| 事務所   | 社長（司さん） | 売上表・給料・月次集計             |
 
 同じ入れ物に両方を入れていたら、司さんに
 **「どのURLもここにしかいかんけど」**（＝どのURLを開いてもメーターが出る）
@@ -18,10 +18,10 @@
 
 ## 4つの入れ物
 
-|        | メーター（ドライバー）        | 事務所（社長）                    |
-| ------ | ----------------------------- | --------------------------------- |
-| テスト | `daikou-app-test.vercel.app`  | `daikome-jimusho-test.vercel.app` |
-| 本番   | `daikou-app.vercel.app`       | `daikome-jimusho.vercel.app`      |
+|        | メーター（ドライバー）       | 事務所（社長）                    |
+| ------ | ---------------------------- | --------------------------------- |
+| テスト | `daikou-app-test.vercel.app` | `daikome-jimusho-test.vercel.app` |
+| 本番   | `daikou-app.vercel.app`      | `daikome-jimusho.vercel.app`      |
 
 正の表は **`scripts/dk-hosts.mjs`**。増やす・変える時はそこを直す。
 
@@ -146,3 +146,45 @@ node -e "import('./scripts/office-allow.mjs').then(m=>{
 1. この `vercel.json` を直す
 2. Vercel の事務所プロジェクトへ反映
 3. `node scripts/check-hosts.mjs` が緑になるまで確認
+
+## ★GitHubに繋いだ（2026-08-26）★
+
+それまで **この企画は GitHub に繋がっていなかった**（Vercel の `link` が null）。
+最後の配信は **2026-08-02 の手動**。つまり **`vercel.json` を直しても
+誰かが手で CLI を叩くまで 客に届かない** 形だった。**24日 誰も気づかなかった。**
+
+実際に穴が開いた：給料明細のPDFが使う `vendor/html2canvas.min.js` `vendor/jspdf.umd.min.js` が
+事務所の住所で **404**。押しても紙が出ず、保険の `window.print()`
+（司さんが 8/25 に突き返した紙）に落ちる所だった。
+
+### 設定（両方の企画）
+
+| 企画                   | repo              | 枝     | Root Directory    |
+| ---------------------- | ----------------- | ------ | ----------------- |
+| `daikome-jimusho`      | `Daikou-app`      | `main` | **`office-host`** |
+| `daikome-jimusho-test` | `Daikou-app-test` | `main` | **`office-host`** |
+
+**Root Directory を `office-host` 以外にしてはいけない。**
+repo の一番上にすると、事務所が **メーターを丸ごと出す**（2026-08-02 の事故そのもの）。
+特に `manifest.json` が 200 になると **iPhone のホーム画面に「事務所」の顔でメーターが入る**。
+
+### Preview 配信は止めてある
+
+Ignored Build Step に次を入れてある（`VERCEL_ENV` が production 以外なら **exit 0＝建てない**）:
+
+```
+if [ "$VERCEL_ENV" != "production" ]; then exit 0; else exit 1; fi
+```
+
+理由は手間でもお金でもなく **環境の混ざり**。
+**Preview の事務所は 本番のメーターを指す**（`vercel.json` の行き先が本番のまま）＝
+テストのつもりで押した操作が本番のメーターに向く形が生まれる（指示役の裁定 2026-08-26）。
+見た目を確かめたい時は **テスト側の事務所（`daikome-jimusho-test`）** で見る。
+
+### 触った後に必ず回す
+
+```
+node scripts/check-hosts.mjs --side test   # または --side prod
+```
+
+**通す物30本が200／出してはいけない物11本が404** を1回で数える（毎朝07:00にも回っている）。
