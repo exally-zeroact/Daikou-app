@@ -31,6 +31,11 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8').replace(/\r\n/g, '\n');
 const SQL = fs.readFileSync(path.join(ROOT, 'supabase', 'apply-emp-slip-cars.sql'), 'utf8');
 
+// ★見張りは 書き方の空白で 赤にならない★ 2026-08-26
+//   prettier が 折り返し方を変えると ★中身は1文字も変わっていないのに 赤★ になった。
+//   ⇒ 見る前に ★続く空白を 1つに畳む★（何を見るかは 変えない）。
+const flat = (s) => String(s).replace(/\s+/g, ' ');
+
 describe('★人ごとに 明細に出す車★', () => {
   it('倉庫は 人の棚に列を1本 足すだけ（新しい棚を作らない）', () => {
     expect(SQL, '★人の棚ではない所に作っている★').toContain('alter table daikome.dk_employees');
@@ -66,9 +71,15 @@ describe('★人ごとに 明細に出す車★', () => {
   it('★人ごとに出し分ける★（明細は 1人ずつ 車を数え直す）', () => {
     expect(HTML, '★全員 同じ車で出している★').toContain('slipCars(REP.cars, e.employee_id)');
     // 人ごとに変わるので ★人の輪の中★で決めていること
-    const loop = HTML.indexOf('REP.employees.forEach(function (e, ei) {');
-    const call = HTML.indexOf('slipCars(REP.cars, e.employee_id)');
+    //   ★画面を描く所の中だけ★を見る（他所にも同じ書き方が在るので 全体の indexOf では測れない）
+    const rs = HTML.slice(HTML.indexOf('function renderSlips() {'));
+    const loop = rs.indexOf('REP.employees.forEach(function (e, ei) {');
+    expect(loop, '★人の輪が 無い★').toBeGreaterThan(-1);
+    const call = rs.indexOf('slipCars(REP.cars, e.employee_id)');
     expect(call, '★人の輪の外で 1回だけ決めている（全員 同じになる）★').toBeGreaterThan(loop);
+    // 紙も 人ごとに数え直す（紙だけ 全員同じ車になる事故を止める）
+    const kami = HTML.slice(HTML.indexOf('function _addEmp('), HTML.indexOf('function _openPdf('));
+    expect(kami, '★紙が 人ごとの車を受け取っていない★').toContain('cars');
   });
 
   it('★空（打っていない）＝会社の決まりどおり★', () => {
@@ -107,8 +118,10 @@ describe('★人ごとに 明細に出す車★', () => {
 
 describe('★名前を 真ん中に★', () => {
   it('給料明細 → 名前 → 合計 の順で書いてある', () => {
-    const i = HTML.indexOf("'<div class=\"slip\" id=\"slip-' + ei +");
-    const block = HTML.slice(i, i + 1600);
+    const F = flat(HTML);
+    const i = F.indexOf('\'<div class="slip" id="slip-\' + ei +');
+    expect(i, '★明細1枚の印が 見つからない★').toBeGreaterThan(-1);
+    const block = F.slice(i, i + 1600);
     const title = block.indexOf('class="title">給料明細');
     const who = block.indexOf('<div class="who">');
     const sums = block.indexOf('<div class="sums">');

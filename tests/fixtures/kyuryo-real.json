@@ -1,0 +1,217 @@
+{
+  "which": "test",
+  "ym": "2026-08",
+  "shifts": [
+    {
+      "shift_id": "00000000-0000-4000-a000-000000000001",
+      "device_id": "00000000-0000-4000-9000-000000000001",
+      "started_at": "2026-08-01 09:00:00+00",
+      "ended_at": "2026-08-01 18:00:00+00",
+      "elapsed_sec": 32400,
+      "fare_total_yen": 9800,
+      "trip_count": 3
+    },
+    {
+      "shift_id": "00000000-0000-4000-a000-000000000002",
+      "device_id": "00000000-0000-4000-9000-000000000002",
+      "started_at": "2026-08-01 10:00:00+00",
+      "ended_at": "2026-08-01 17:00:00+00",
+      "elapsed_sec": 25200,
+      "fare_total_yen": 7400,
+      "trip_count": 2
+    },
+    {
+      "shift_id": "00000000-0000-4000-a000-000000000003",
+      "device_id": "00000000-0000-4000-9000-000000000001",
+      "started_at": "2026-08-02 09:30:00+00",
+      "ended_at": "2026-08-02 19:00:00+00",
+      "elapsed_sec": 34200,
+      "fare_total_yen": 11200,
+      "trip_count": 2
+    }
+  ],
+  "edits": [],
+  "workHours": [
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "work_date": "2026-08-01",
+      "employee_id": "ec8d275b-38c0-4d9f-b471-eeb10226a6a9",
+      "device_id": "00000000-0000-4000-9000-000000000001",
+      "hours": 9,
+      "updated_at": "2026-08-06 14:59:12.00606+00"
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "work_date": "2026-08-02",
+      "employee_id": "ec8d275b-38c0-4d9f-b471-eeb10226a6a9",
+      "device_id": "00000000-0000-4000-9000-000000000001",
+      "hours": 9.5,
+      "updated_at": "2026-08-06 14:59:12.00606+00"
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "work_date": "2026-08-01",
+      "employee_id": "46a60d53-02b7-47ef-829e-6fd03cee1a31",
+      "device_id": "00000000-0000-4000-9000-000000000002",
+      "hours": 7,
+      "updated_at": "2026-08-06 14:59:12.00606+00"
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "work_date": "2026-08-02",
+      "employee_id": "d5d0c7da-4b13-455a-92e4-462137f4424c",
+      "device_id": "00000000-0000-4000-9000-000000000001",
+      "hours": 9.5,
+      "updated_at": "2026-08-06 14:59:12.00606+00"
+    }
+  ],
+  "manualDays": [
+    {
+      "company_id": "00000000-0000-4000-8000-0000000000aa",
+      "work_date": "2026-08-02",
+      "device_id": "00000000-0000-4000-9000-000000000002",
+      "sales_yen": 0,
+      "hours": 0,
+      "toll_yen": 0,
+      "bridge_yen": 0,
+      "other_yen": 0,
+      "trip_count": 0,
+      "note": "",
+      "updated_at": "2026-08-08 16:51:44.093+00"
+    }
+  ],
+  "labels": [
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "device_id": "00000000-0000-4000-9000-000000000001",
+      "label": "1号車",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "sort_order": 1,
+      "show_in_slip": true
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-000000000002",
+      "device_id": "00000000-0000-4000-9000-000000000003",
+      "label": "しま1",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "sort_order": 1,
+      "show_in_slip": true
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-0000000000aa",
+      "device_id": "kakunin-device-2",
+      "label": "",
+      "updated_at": "2026-08-08 22:45:44.968+00",
+      "sort_order": 1,
+      "show_in_slip": true
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "device_id": "00000000-0000-4000-9000-000000000002",
+      "label": "2号車",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "sort_order": 2,
+      "show_in_slip": true
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-0000000000aa",
+      "device_id": "kakunin-device-1",
+      "label": "確認用8627号車",
+      "updated_at": "2026-08-08 22:45:44.968+00",
+      "sort_order": 2,
+      "show_in_slip": true
+    },
+    {
+      "company_id": "00000000-0000-4000-8000-0000000000aa",
+      "device_id": "kakunin-device-3",
+      "label": "",
+      "updated_at": "2026-08-08 22:45:44.968+00",
+      "sort_order": 3,
+      "show_in_slip": true
+    }
+  ],
+  "settings": [
+    {
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "pool_mode": "others_total",
+      "deduct_reserve_before_rate": true,
+      "reserve_pool_rate": 0.05,
+      "reserve_owner_rate": 0.05,
+      "period_start_day": 21,
+      "period_end_mode": "thirds",
+      "period_days": 11,
+      "owner_device_id": "",
+      "roles": {
+        "乙": {
+          "rate": 0.25,
+          "floor": 900
+        },
+        "甲": {
+          "rate": 0.3,
+          "floor": 1000
+        }
+      },
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "show_car_sales": true
+    }
+  ],
+  "roles": [],
+  "emps": [
+    {
+      "employee_id": "ec8d275b-38c0-4d9f-b471-eeb10226a6a9",
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "name": "テスト太郎",
+      "role": "甲",
+      "active": true,
+      "sort_order": 1,
+      "note": "",
+      "created_at": "2026-08-06 14:59:12.00606+00",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "pay_rate": null,
+      "pay_floor": null,
+      "slip_cars": null
+    },
+    {
+      "employee_id": "46a60d53-02b7-47ef-829e-6fd03cee1a31",
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "name": "テスト次郎",
+      "role": "甲",
+      "active": true,
+      "sort_order": 2,
+      "note": "",
+      "created_at": "2026-08-06 14:59:12.00606+00",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "pay_rate": "0.3500",
+      "pay_floor": null,
+      "slip_cars": null
+    },
+    {
+      "employee_id": "d5d0c7da-4b13-455a-92e4-462137f4424c",
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "name": "テスト三郎",
+      "role": "乙",
+      "active": true,
+      "sort_order": 3,
+      "note": "",
+      "created_at": "2026-08-06 14:59:12.00606+00",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "pay_rate": null,
+      "pay_floor": 1200,
+      "slip_cars": null
+    },
+    {
+      "employee_id": "68a78ad3-922c-4caa-88a6-699af99d821f",
+      "company_id": "00000000-0000-4000-8000-000000000001",
+      "name": "テスト四郎",
+      "role": "乙",
+      "active": false,
+      "sort_order": 4,
+      "note": "",
+      "created_at": "2026-08-06 14:59:12.00606+00",
+      "updated_at": "2026-08-06 14:59:12.00606+00",
+      "pay_rate": null,
+      "pay_floor": null,
+      "slip_cars": null
+    }
+  ]
+}

@@ -770,6 +770,14 @@
         border: 1px solid var(--line);
       }
 
+      /* ★最低保証で出した日の 金額は 赤★ 2026-08-26（司さん）
+         ＝どちらで出したかは JS の payByFloor 1か所で決める（画面と紙で 食い違わない） */
+      .slip td.floor,
+      .slip .tate .floor {
+        color: var(--danger);
+        font-weight: 700;
+      }
+
       .slip tbody th {
         text-align: left;
         color: var(--muted);
@@ -952,9 +960,7 @@
                        司さん「個人個人で給料明細に載せるかも選びたいんや
                                山田太郎は車1、山田花子は車2と3とかカスタムしたい」
                        ★何も付けなければ 会社の決まりどおり★ -->
-                  <th>
-                    明細に出す車<span class="th-sub">何も付けない=会社の決まりどおり</span>
-                  </th>
+                  <th>明細に出す車<span class="th-sub">何も付けない=会社の決まりどおり</span></th>
                 </tr>
               </thead>
               <tbody id="empBody" class="emp-body"></tbody>
@@ -968,11 +974,12 @@
             ふつうは<b>役割ごとの決まり</b>で計算します（「給料の設定」で変えられます）。<br />
             <b>その人だけ違う</b>ときだけ、歩合・最低保証を打ってください。
             <b>空欄にすれば役割どおりに戻ります。</b><br />
-            辞めた人は「今いる人」のチェックを外します。<b>過去の明細と金額はそのまま残ります。</b><br />
+            辞めた人は「今いる人」のチェックを外します。<b>過去の明細と金額はそのまま残ります。</b
+            ><br />
             <!-- ★その人だけの車 (2026-08-25・司さん指示)★ -->
             <b>明細に出す車</b>は、<b>その人の給料明細にだけ</b>きく設定です。
-            付けた車の売上だけが「売上1・売上2…」に出ます。
-            <b>何も付けなければ</b>「給料の設定 → 車の名前と並び」で決めたとおりです。
+            付けた車の売上だけが「売上1・売上2…」に出ます。 <b>何も付けなければ</b>「給料の設定 →
+            車の名前と並び」で決めたとおりです。
           </div>
         </div>
       </div>
@@ -1245,8 +1252,11 @@
         $('btnLogout').onclick = function () {
           DKSession.logout();
         };
+        // ★「印刷する」も 自前PDF★ 2026-08-25（司さん「Aでやれ」）
+        //   ここも window.print() だった＝★URL・日付・ページ番号が刷られ、戻れない★。
+        //   1人1枚で ★全員ぶんを1つのPDF★にする（他アプリと同じ「複数人=複数ページ」）。
         $('btnPrint').onclick = function () {
-          window.print();
+          printAll();
         };
         $('prevM').onclick = function () {
           YM = PayrollPeriod.shift(YM, -1);
@@ -1479,6 +1489,531 @@
         //       例）給料明細_2026-08_白石正人
         //   ・スマホは その紙を そのまま共有（LINE・メール）で送れる
         // ============================================================
+        // ★紙(PDF)は 自前で作る★ 2026-08-25（司さん「Aでやれ」）
+        //
+        //   ▼前は window.open + window.print だった。★他の3アプリが「使わない」と決めた形★。
+        //     ・代行請求 invoice-pdf.js 冒頭:
+        //       「iOS Safari の window.print() は ★ページ最下部に URL＋日付を勝手に付ける
+        //         （ブラウザの仕様で CSS では消せない）★」
+        //       ＝司さんの紙に出た「https://…/kyuryo.html」「2026/08/25 18:39 1/1ページ」がこれ。
+        //     ・給与アプリ app.js:2819:
+        //       「jsPDFで自前生成(A4ぴったり・iOSのURL/日付フッター無し・★新窓を開かないので戻れる★)。
+        //         iOSのwebページ印刷は フッターが必ず付き ★余白で2ページ化＋戻れない★ため不採用」
+        //       ＝司さんの「PDF押してから前の画面に戻れん」がこれ。
+        //     ・飲み屋 nomiya-ui-kami.js:1470:
+        //       「同じ画面のまま window.print() すると、iPhoneでは ★真っ白で出る★」
+        //     ★3アプリとも 同じ所でつまずいて 同じ答えに辿り着いていた。読まずに同じ穴に落ちた。★
+        //
+        //   ▼この形（給与アプリと同じ＝司さんが選んだ A）
+        //     ・jsPDF + html2canvas で ★自分でA4を組む★（URL・日付・ページ番号は 出ない）
+        //     ・★A4横★（明細は 日が最大11列＝縦だと入らない・司さん「表が見切れとん」）
+        //     ・道具は ★自分のrepoの vendor/★ から ★押した時だけ★ 読む
+        //       （ダイコメは ★完全オフライン前提★＝外のCDNは使わない。実測 0件）
+        //     ・出来た紙は ★blob を新しいタブで開く★（iOSの不具合回避・給与アプリと同じ）
+        //       ＝画面そのものは動かないので ★戻れる★
+        //     ・道具が読めない時だけ ★保険で window.print★（何も出ないよりまし）
+        var _pdfLibs = null;
+        function loadPdfLibs() {
+          if (_pdfLibs) return _pdfLibs;
+          function one(src, has) {
+            return new Promise(function (ok, ng) {
+              if (has()) return ok();
+              var el = document.createElement('script');
+              el.src = src;
+              el.onload = function () {
+                has() ? ok() : ng(new Error(src));
+              };
+              el.onerror = function () {
+                ng(new Error(src));
+              };
+              document.head.appendChild(el);
+            });
+          }
+          _pdfLibs = Promise.all([
+            one('vendor/html2canvas.min.js', function () {
+              return !!window.html2canvas;
+            }),
+            one('vendor/jspdf.umd.min.js', function () {
+              return !!(window.jspdf && window.jspdf.jsPDF);
+            }),
+          ]).catch(function (e) {
+            _pdfLibs = null; // 失敗は 次に押した時に 取り直す
+            throw e;
+          });
+          return _pdfLibs;
+        }
+
+        // ★紙は 画面の写しではなく「紙専用の1枚」を組む★ 2026-08-25（指示役の数字どおり）
+        //
+        //   ▼前は 画面の明細を そのまま写して A4に貼っていた。その結果（指示役が実測）
+        //     ・★表は 紙の縦の 38%しか使わず 下に 62%の空白★
+        //     ・★左の項目列が 表幅の22%★（日付列の2.9倍）＝一番長い車名1本に引っ張られる
+        //     ・★字が小さすぎて 刷ったら読めない★
+        //     ・★中身が空の売上行が 4本 並ぶ★（しま1／車1／確認用8627号車／車2）
+        //
+        //   ▼満たす数字（2026-08-26 指示役が ①②を ★取り消し★）
+        //     ★取り消し★ 表の縦 ÷ 使える高さ ≧ 0.75 … ★行が間延びした★
+        //     ★取り消し★ 左の項目列 ÷ 表幅 ≦ 0.15 … ★列を細くするのは 間違い★
+        //     ⇒ ★正しくは「余白(padding)を詰める・幅は 中身が入るだけ」★
+        //     ①一番小さい字 ≧ 9pt　②空の売上行 0件
+        //     ③★合計の箱の右端 と 表の右端 が 揃う（差 ±1px）★
+        //     ④★一番右の枠線より右に 字が 1pxも出ない★（11日ある月・31日ある月でも）
+        //   ▼表は ★小さくまとまって 紙の上★（下の余白は そのままで良い＝司さん）
+        //     ★行を引き伸ばさない・字の大きさも 変えない★
+        //
+        //   ▼どう作るか
+        //     A4横 842×595pt を ★1123×794px の板★ で組む（1px = 0.75pt）。
+        //     ＝★板の 12px = 紙の 9pt★。だから 板では 13px 以上を使う。
+        //     行の高さは 板で 50px＝紙で 37.5pt（指示役「1行 38pt前後」）。
+        var PAPER_W = 842; // A4横 (pt)
+        var PAPER_H = 595;
+        var PAPER_MARGIN = 20; // 紙の余白(pt)＝使える高さ 555pt
+        var SHEET_W = 1123; // 板の幅(px)＝842pt ÷ 0.75
+        var SHEET_H = 794; // 板の高さ(px)＝595pt ÷ 0.75
+        var PX2PT = PAPER_W / SHEET_W; // 0.75
+
+        // ★明細の字の作り方は ここ1本★（★画面も 紙も 同じ物を使う★）
+        //   前は 画面と紙で 別々に書いていた＝★片方だけ直すと 画面と紙で 数が食い違う★。
+        //   （見張り tests/unit/kyuryo-slip-all-days.test.js「字の作り方は 1本（F）」）
+        // ★その日の金額が「最低保証」で出た物か★ 2026-08-26（司さん）
+        //   司さん「最低保証の時給になったら 金額の数字を赤文字で表示させてた」
+        //     例）最低保証 1,000円／時 で 金額÷時間 が 1,000円ちょうど付近 → その金額は赤
+        //   ★割り算で当てない★＝エンジンが ★どちらで出したか★を持っている。
+        //     js/daiko-payroll.js:169 usedFloor = (最低保証の額 >= 歩合の額)
+        //     js/payroll-daily.js:512 で 1日ごとに そのまま運ばれてくる。
+        //   実測（本物の倉庫の行）… 4日とも usedFloor=true
+        //     太郎 8/1 ¥9,000÷9.00h=1,000（保証1,000）／8/2 ¥9,500÷9.50h=1,000
+        //     次郎 8/1 ¥7,000÷7.00h=1,000 ／ 三郎 8/2 ¥11,400÷9.50h=1,200（その人だけ1,200）
+        //   ★0円の日は 赤にしない★（決め方が入っていないだけの日まで赤くなる）
+        var SLIP_RED = '#e0483d'; // --danger（このアプリが元から使っている赤）
+        function payByFloor(c) {
+          return !!(c && c.usedFloor && c.pay > 0);
+        }
+
+        var SLIP_F = {
+          pay: function (c) {
+            return c.pay === null ? '' : yen(c.pay);
+          },
+          hours: function (c) {
+            return c.hours === null ? '' : hrs(c.hours);
+          },
+          car: function (c, i) {
+            return c.carSales[i] === null ? '' : yen(c.carSales[i]);
+          },
+          pool: function (c) {
+            return c.poolHours === null ? '' : hrs(c.poolHours);
+          },
+        };
+
+        // ★字の幅を 実際に測る★（列の幅を ★中身が入るだけ★ にする為）
+        //   ＝「表幅の◯%」で決めると ★字が欠ける／逆に 余って間延びする★。
+        var _measCtx = null;
+        function _textW(text, px, weight) {
+          if (!_measCtx) _measCtx = document.createElement('canvas').getContext('2d');
+          _measCtx.font = (weight || 400) + ' ' + px + "px 'Noto Sans JP', sans-serif";
+          return _measCtx.measureText(String(text || '')).width;
+        }
+
+        // ★2行に収まらない車名は 自分で切って「…」を付ける★
+        //   overflow:hidden だけだと ★黙って 途中で消える★＝紙を見た人は
+        //   「これで全部」と読む。切ったなら ★切ったと分かる形★で出す。
+        function _fit2(text, px, lineW, lines) {
+          var t = String(text || '');
+          if (_textW(t, px, 400) <= lineW * lines) return t;
+          var dots = _textW('…', px, 400);
+          var kagiri = lineW * lines - dots;
+          var n = t.length;
+          while (n > 0 && _textW(t.slice(0, n), px, 400) > kagiri) n--;
+          return t.slice(0, n) + '…';
+        }
+
+        // ★その期間に 売上が1件も無い車は 紙に出さない★（番号は詰めて振り直す）
+        function _paperCars(e, cars) {
+          var out = [];
+          cars.forEach(function (x) {
+            var atta = e.cells.some(function (c) {
+              var v = c.carSales ? c.carSales[x.i] : null;
+              return v !== null && v !== undefined && v !== 0;
+            });
+            if (atta) out.push(x);
+          });
+          return out;
+        }
+
+        // ★紙1枚を組む★（板 1123×794px・戻り値は 画面外に置いた要素）
+        function _buildPaperSheet(e, showCarSales, allCars, from, to, maiNo, maiN) {
+          var cars = showCarSales ? _paperCars(e, allCars) : [];
+          // ★画面と 同じ 1本を使う★（紙で 別に書くと 画面と紙で 違う数が出る）
+          var F = SLIP_F;
+
+          // 出す行（見出し＋金額＋時間＋売上n＋時間（全台））
+          var rows = [];
+          rows.push({ lbl: '金額', get: F.pay, aka: payByFloor }); // ★最低保証の日は 赤★
+          rows.push({ lbl: '時間', get: F.hours });
+          cars.forEach(function (x, n) {
+            rows.push({
+              lbl: '売上' + (n + 1),
+              sub: x.car.label, // ★車名は 小さい2行目★＝列を広げない
+              get: function (c) {
+                return F.car(c, x.i);
+              },
+            });
+          });
+          rows.push({ lbl: '時間（全台）', get: F.pool });
+
+          // ★この紙に載せる日★（1枚に入らない時は 何枚かに分ける・下の _maisu を見て）
+          var allCells = e.cells;
+          var cells = allCells.slice(from || 0, to === undefined ? allCells.length : to);
+          var days = cells.length;
+          var PAD = 18; // 板の左右の余白(px)
+          var tableW = SHEET_W - PAD * 2;
+
+          // ★字の大きさは 決め打ち★（★行の高さで つじつまを合わせない★）
+          //   板の 12px = 紙の 9pt。★本文15px=11.25pt／2行目13px=9.75pt★＝どちらも 9pt以上。
+          var fontPx = 15;
+          var subPx = 13;
+          var rowH = 50; // 板50px = 紙37.5pt（★引き伸ばさない★）
+
+          // ★左の項目列 … 幅は「中身が入るだけ」／詰めるのは 余白★
+          //   前は「表幅の15%」で決めていた（指示役が取り消し）。
+          //   ⇒ ★項目の字を 実際に測って★ ＋ ★内側の余白 LABEL_PAD★ だけ。
+          var LABEL_PAD = 6; // 項目の字の 左右の余白(px)＝紙で 4.5pt
+          //   ★車名（2行目）で 列を広げない★（指示役 2026-08-26）
+          //     広げると 日付の列が痩せて ★日付や金額が欠ける★。長い車名は ★2行に折る★。
+          //     実測：27字「事務所の裏に置いてある予備の軽自動車（黒）8627号車」
+          //       直す前 … 項目の列 104→★326px★（表幅の30%）／日付の列 98→76px
+          //       直した後 … 項目の列は ★104pxのまま★／車名は 2行
+          var labelInk = 0;
+          rows.forEach(function (r) {
+            labelInk = Math.max(labelInk, _textW(r.lbl, fontPx, 700));
+          });
+          labelInk = Math.max(labelInk, _textW('日付', fontPx, 700));
+          // ★字が欠けない★＝測った幅を 切り捨てず 上に丸める（＋枠線1px）
+          var labelW = Math.ceil(labelInk) + LABEL_PAD * 2 + 2;
+          // 車名が とても長い時だけ 上限（それでも ★日付の列より 表を壊さない★）
+          var LABEL_MAX = Math.floor(tableW * 0.3);
+          var labelKake = labelW > LABEL_MAX; // ★欠けたか★＝見張りが数で見る
+          if (labelKake) labelW = LABEL_MAX;
+
+          // ★1つの日の列に 最低いる幅★＝★その日の一番長い字★＋余白（＝字を欠けさせない）
+          //   ★字を小さくして 押し込む事はしない★（指示役「一番小さい字 ≧9pt」）
+          var CELL_PAD = 8;
+          var minColW = 0;
+          cells.forEach(function (c) {
+            minColW = Math.max(minColW, _textW(mdw(c.date), fontPx, 700));
+            rows.forEach(function (r) {
+              minColW = Math.max(minColW, _textW(r.get(c), fontPx, 400));
+            });
+          });
+          minColW = Math.ceil(minColW) + CELL_PAD * 2 + 2;
+
+          var dayW = Math.floor((tableW - labelW) / days);
+          var headH = 96; // 見出し（給料明細／名前／期間／合計）の高さ(px)
+
+          var el = document.createElement('div');
+          el.style.cssText =
+            'position:fixed;left:-10000px;top:0;background:#ffffff;box-sizing:border-box;' +
+            'width:' +
+            SHEET_W +
+            'px;height:' +
+            SHEET_H +
+            'px;padding:' +
+            PAD +
+            'px;' +
+            "font-family:'Noto Sans JP',sans-serif;color:#333333;";
+
+          // ── 見出し（画面と同じ並び：給料明細 → 名前 → 合計）──
+          var head =
+            '<div style="display:flex;align-items:center;gap:16px;height:' +
+            headH +
+            'px;">' +
+            '<div style="flex:1 1 0;display:flex;align-items:baseline;gap:16px;">' +
+            '<div><div style="font-size:20px;font-weight:800;color:#14243d;">給料明細</div>' +
+            '<div style="font-size:15px;margin-top:4px;">' +
+            esc(PERIOD.label) +
+            '　' +
+            esc(PERIOD.rangeLabel) +
+            // ★2枚以上に分かれた時だけ 何枚めかを出す★
+            //   （1枚で収まる時は 出さない＝今までの紙と 1文字も変わらない）
+            (maiN > 1 ? '　（' + maiNo + '/' + maiN + '枚目）' : '') +
+            '</div></div>' +
+            '<div style="font-size:24px;font-weight:800;color:#14243d;white-space:nowrap;">' +
+            esc(e.name) +
+            '　殿</div>' +
+            '</div>' +
+            '<div style="flex:0 0 auto;border:1px solid #dbe7f7;background:#f7fbff;' +
+            'border-radius:10px;padding:10px 20px;white-space:nowrap;">' +
+            '<span style="font-size:15px;color:#5a6b82;font-weight:700;">合計</span>' +
+            '<span style="font-size:34px;font-weight:800;color:#14243d;margin-left:14px;">¥' +
+            yen(e.totalPay) +
+            '</span>' +
+            '<span style="font-size:20px;font-weight:800;color:#14243d;margin-left:14px;">' +
+            hrs(e.totalHours) +
+            ' 時間</span>' +
+            '</div>' +
+            // ★合計の塊は 見出しの ★中心★★（司さん 2026-08-25 決定・8/26 再確認）
+            //   ・左（給料明細／期間／名前）と 右 を ★同じ幅の詰め物★で挟む＝真ん中に来る
+            //   ・★この詰め物を外すと 右端に貼り付く★（8/26 に一度 外して 突き返された）
+            //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
+            '<div style="flex:1 1 0;min-width:0;"></div>' +
+            '</div>';
+
+          // ── 表 ──
+          var TD =
+            'border:1px solid #999999;padding:0 8px;height:' +
+            rowH +
+            'px;' +
+            'font-size:' +
+            fontPx +
+            'px;line-height:1.15;';
+          var TH =
+            'border:1px solid #999999;height:' +
+            rowH +
+            'px;line-height:1.15;' +
+            'font-size:' +
+            fontPx +
+            'px;' +
+            // ★詰めるのは 余白★（幅ではない）＝指示役 2026-08-26
+            'padding:0 ' +
+            LABEL_PAD +
+            'px;' +
+            // ★項目（日付／金額／時間／売上n／時間（全台））は 中央揃え★ 2026-08-26 司さん
+            'background:#f7fbff;text-align:center;color:#333333;font-weight:700;' +
+            'width:' +
+            labelW +
+            'px;max-width:' +
+            labelW +
+            'px;overflow:hidden;';
+          var t =
+            '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+            '<colgroup><col style="width:' +
+            labelW +
+            'px"><col span="' +
+            days +
+            '" style="width:' +
+            dayW +
+            'px"></colgroup><tbody>';
+          t += '<tr><th style="' + TH + '">日付</th>';
+          cells.forEach(function (c) {
+            t +=
+              '<th style="' +
+              TD +
+              'background:#f7fbff;text-align:center;font-weight:700;white-space:nowrap;">' +
+              mdw(c.date) +
+              '</th>';
+          });
+          t += '</tr>';
+          rows.forEach(function (r) {
+            t +=
+              '<tr><th style="' +
+              TH +
+              '"><div style="white-space:nowrap;">' +
+              esc(r.lbl) +
+              '</div>' +
+              (r.sub
+                ? '<div style="font-size:' +
+                  subPx +
+                  // ★折り返す★＝画面のCSS（tbody th は白空白を折り返さない）を 打ち消す
+                  'px;font-weight:400;color:#5a6b82;line-height:1.15;white-space:normal;' +
+                  // ★2行まで★（行の高さ50pxに 15px＋13px×2＝47px で収まる）
+                  'max-height:' +
+                  Math.round(subPx * 1.15 * 2) +
+                  'px;overflow:hidden;word-break:break-all;">' +
+                  esc(_fit2(r.sub, subPx, labelW - LABEL_PAD * 2 - 2, 2)) +
+                  '</div>'
+                : '') +
+              '</th>';
+            cells.forEach(function (c) {
+              var aka = r.aka && r.aka(c);
+              t +=
+                '<td style="' +
+                TD +
+                'text-align:right;white-space:nowrap;' +
+                (aka ? 'color:' + SLIP_RED + ';font-weight:700;' : '') +
+                '">' +
+                r.get(c) +
+                '</td>';
+            });
+            t += '</tr>';
+          });
+          t += '</tbody></table>';
+
+          el.innerHTML = head + t;
+          // ★測れるように 印を付ける★（見張りが 数で確かめる為）
+          el.setAttribute('data-paper', '1');
+          el.setAttribute('data-label-w', String(labelW));
+          el.setAttribute('data-day-w', String(dayW));
+          el.setAttribute('data-row-h', String(rowH));
+          el.setAttribute('data-label-pad', String(LABEL_PAD));
+          el.setAttribute('data-min-col-w', String(minColW));
+          el.setAttribute('data-usable-w', String(tableW - labelW));
+          el.setAttribute('data-days', String(days));
+          el.setAttribute('data-label-ink', String(Math.ceil(labelInk)));
+          el.setAttribute('data-label-kake', labelKake ? '1' : '0');
+          el.setAttribute('data-font-px', String(fontPx));
+          el.setAttribute('data-sub-px', String(subPx));
+          el.setAttribute('data-rows', String(rows.length + 1));
+          return el;
+        }
+
+        // ★何枚に分けるか★＝1枚に入る日の数から出す
+        //   ★62日ぶんの期間まで作れる★（js/payroll-period.js:128 days<=62／月まとめは28〜31日）
+        //   実測：本物の10日・11日 → 1枚／31日 → 3枚（★字は 9pt以上のまま★）
+        function _maisu(e, showCarSales, allCars) {
+          var probe = _buildPaperSheet(e, showCarSales, allCars, 0, e.cells.length);
+          var hairu = Math.floor(
+            +probe.getAttribute('data-usable-w') / +probe.getAttribute('data-min-col-w')
+          );
+          var per = hairu > 1 ? hairu : 1;
+          var mai = Math.ceil(e.cells.length / per);
+          var n = mai > 1 ? mai : 1;
+          return { per: per, n: n };
+        }
+
+        // 紙1枚 → 絵にする
+        // ★返らない時に 永久に待たない★（指示役 2026-08-26）
+        //   html2canvas は 中の <link>/画像が返らないと ★いつまでも返らない★。
+        //   ＝押した人は「PDFを作っています…」のまま ★何も起きない★。
+        //   ⇒ ★HTML2CANVAS_TIMEOUT_MS で 打ち切って エラーにする★（保険の印刷へ落ちる）。
+        var HTML2CANVAS_TIMEOUT_MS = 20000;
+        function _withTimeout(pr, ms, name) {
+          var tid = null;
+          return Promise.race([
+            pr.then(function (v) {
+              clearTimeout(tid);
+              return v;
+            }),
+            new Promise(function (_, ng) {
+              tid = setTimeout(function () {
+                ng(new Error(name + ' が ' + ms + 'ms で返りませんでした'));
+              }, ms);
+            }),
+          ]);
+        }
+
+        function _sheetToCanvas(sheet) {
+          document.body.appendChild(sheet);
+          return _withTimeout(
+            window
+              .html2canvas(sheet, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                width: SHEET_W,
+                height: SHEET_H,
+                windowWidth: SHEET_W,
+                windowHeight: SHEET_H,
+              })
+              .then(function (canvas) {
+                document.body.removeChild(sheet);
+                return canvas;
+              })
+              .catch(function (e2) {
+                try {
+                  document.body.removeChild(sheet);
+                } catch (_) {
+                  /* もう消えている */
+                }
+                throw e2;
+              }),
+            HTML2CANVAS_TIMEOUT_MS,
+            'html2canvas'
+          ).catch(function (e3) {
+            // 時間切れで抜けた時も ★板を 画面に残さない★
+            try {
+              if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+            } catch (_) {
+              /* もう消えている */
+            }
+            throw e3;
+          });
+        }
+
+        // 絵 → A4横の紙いっぱいに置く（板がもうA4の比なので 余白ぶんだけ内側に）
+        function _placeOnA4(doc, canvas) {
+          var w = PAPER_W - PAPER_MARGIN * 2;
+          var h = PAPER_H - PAPER_MARGIN * 2;
+          doc.addImage(
+            canvas.toDataURL('image/jpeg', 0.92),
+            'JPEG',
+            PAPER_MARGIN,
+            PAPER_MARGIN,
+            w,
+            h
+          );
+        }
+
+        // ★1人ぶんを doc に足す★（1枚に入らない期間は ★分けて 何枚か★）
+        //   ★字を小さくして押し込む事はしない★＝入らないなら 紙を増やす。
+        function _addEmp(doc, e, cars, first) {
+          var m = _maisu(e, showCarSalesNow(), cars);
+          var i = 0;
+          function one() {
+            if (i >= m.n) return Promise.resolve(doc);
+            var from = i * m.per;
+            var to = Math.min(e.cells.length, from + m.per);
+            var sheet = _buildPaperSheet(e, showCarSalesNow(), cars, from, to, i + 1, m.n);
+            return _sheetToCanvas(sheet).then(function (canvas) {
+              if (!doc) {
+                doc = new window.jspdf.jsPDF({
+                  orientation: 'landscape',
+                  unit: 'pt',
+                  format: [PAPER_W, PAPER_H],
+                });
+              } else if (!(first && i === 0)) {
+                doc.addPage([PAPER_W, PAPER_H], 'landscape');
+              }
+              _placeOnA4(doc, canvas);
+              i++;
+              return one();
+            });
+          }
+          return one();
+        }
+
+        // 出来た紙を ★新しいタブで開く★（開けない時だけ 保存に落とす）
+        function _openPdf(doc, title) {
+          try {
+            var url = URL.createObjectURL(doc.output('blob'));
+            var w2 = window.open(url, '_blank');
+            if (!w2) doc.save(title + '.pdf');
+            setTimeout(function () {
+              try {
+                URL.revokeObjectURL(url);
+              } catch (_) {
+                /* もう消えている */
+              }
+            }, 60000);
+          } catch (_) {
+            doc.save(title + '.pdf');
+          }
+        }
+
+        // ★出なかった時の知らせ★（★中身を 場合で書き分ける★）
+        //   前は どちらでも「道具が読めませんでした」と出していた＝★時間切れの時は 嘘★（実測）。
+        //   ・道具が読めない … ★保険で印刷★（何も出ないよりまし・URLと日付は付いてしまう）
+        //   ・時間切れ ……… ★印刷に落とさない★
+        //       印刷で出る紙は ★司さんが 8/25 に突き返した物★（URL・日付・見切れ）。
+        //       ＝出さない方がまし。起きた事を そのまま出す。
+        function _pdfShippai(err) {
+          showMsg('');
+          var jikangire = String((err && err.message) || err || '').indexOf('html2canvas が') === 0;
+          if (jikangire) {
+            showErr(
+              '紙を作るのに ' +
+                Math.round(HTML2CANVAS_TIMEOUT_MS / 1000) +
+                '秒 かかっても終わりませんでした。PDFは出していません。'
+            );
+            return;
+          }
+          showErr('PDFの道具が読めませんでした。印刷で出します。');
+          try {
+            window.print();
+          } catch (_) {
+            /* これ以上は打つ手なし */
+          }
+        }
+
         function printOne(ei) {
           var box = document.getElementById('slip-' + ei);
           var emp = REP && REP.employees ? REP.employees[ei] : null;
@@ -1486,54 +2021,98 @@
             showErr('その人の明細が見つかりません。');
             return;
           }
-          // ★中身から作った名前を先に出す★（保存する時の既定のファイル名になる）
-          var ym =
-            String(YM.year) + '-' + String(YM.month).padStart(2, '0');
+          // ★中身から作った名前★（保存する時の既定のファイル名になる）
+          var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
           var title = '給料明細_' + ym + '_' + String(emp.name || '');
-          var css = '';
-          document.querySelectorAll('style').forEach(function (st) {
-            css += st.textContent;
-          });
-          // ★紙だけの窓には 押す物を持ち込まない★（2026-08-25 実測で踏んだ）
-          //   noprint は「紙に出ない」だけ。★その窓の画面には ボタンが残って見えていた★。
-          //   その窓で押しても printOne は居ないので 何も起きない＝押せる見た目の飾りになる。
-          //   ⇒ 写しを取って noprint の物を 先に取り除く（本体の画面は 1文字も変えない）。
-          var clone = box.cloneNode(true);
-          clone.querySelectorAll('.noprint').forEach(function (el) {
-            el.remove();
-          });
-          var w = window.open('', '_blank');
-          if (!w) {
-            showErr('新しい窓が開けませんでした（ブラウザに止められました）。もう一度 押してください。');
-            return;
-          }
-          w.document.open();
-          w.document.write(
-            '<!doctype html><html lang="ja"><head><meta charset="utf-8">' +
-              '<meta name="viewport" content="width=device-width,initial-scale=1">' +
-              '<title>' +
-              esc(title) +
-              '</title><style>' +
-              css +
-              '</style></head><body class="paper"><div class="wrap">' +
-              clone.outerHTML +
-              '</div></body></html>'
-          );
-          w.document.close();
-          w.focus();
-          w.onload = function () {
-            w.print();
-          };
-          // onload が来ない端末の保険
-          setTimeout(function () {
-            try {
-              w.print();
-            } catch (_) {
-              /* もう刷っている */
-            }
-          }, 700);
+
+          showMsg('PDFを作っています…');
+          loadPdfLibs()
+            .then(function () {
+              // ★blob を新しいタブで開く★（給与アプリと同じ・iOSの不具合回避）
+              //   ＝画面そのものは動かないので ★戻れる★。
+              return _addEmp(null, emp, slipCars(REP.cars, emp.employee_id), true).then(
+                function (doc) {
+                  _openPdf(doc, title);
+                  showMsg('');
+                }
+              );
+            })
+            .catch(_pdfShippai);
         }
         window.printOne = printOne;
+
+        // ★全員ぶんを 1つのPDFに★（1人1ページ・A4横）
+        //   給与アプリと同じ「複数人=複数ページ」。作り方は printOne と同じ。
+        function printAll() {
+          // ★数えるのは 人の数★（画面の枚数ではない＝紙は人ごとに組む）
+          var boxes = REP && REP.employees ? REP.employees : [];
+          if (!boxes.length) {
+            showErr('明細がありません。');
+            return;
+          }
+          var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
+          showMsg('PDFを作っています…（' + boxes.length + '人ぶん）');
+          loadPdfLibs()
+            .then(function () {
+              var doc = null;
+              var i = 0;
+              function next() {
+                if (i >= boxes.length) {
+                  _openPdf(doc, '給料明細_' + ym);
+                  showMsg('');
+                  return Promise.resolve();
+                }
+                var emp2 = REP.employees[i];
+                return _addEmp(doc, emp2, slipCars(REP.cars, emp2.employee_id), i === 0).then(
+                  function (d) {
+                    doc = d;
+                    i++;
+                    return next();
+                  }
+                );
+              }
+              return next();
+            })
+            .catch(_pdfShippai);
+        }
+        window.printAll = printAll;
+
+        // ★見張りが 実際に紙を組んで 数を測る為の入口★ 2026-08-26
+        //   ＝★ソースを読むだけの見張りにしない★（読むだけの見張りは 何度も嘘をついた）。
+        //   組むだけ・返すだけ＝画面も倉庫も 1文字も動かさない。
+        window.__paper = {
+          build: function (ei, from, to, no, n) {
+            var e = REP.employees[ei];
+            return _buildPaperSheet(
+              e,
+              showCarSalesNow(),
+              slipCars(REP.cars, e.employee_id),
+              from,
+              to,
+              no,
+              n
+            );
+          },
+          maisu: function (ei) {
+            var e = REP.employees[ei];
+            return _maisu(e, showCarSalesNow(), slipCars(REP.cars, e.employee_id));
+          },
+          ninzu: function () {
+            return REP && REP.employees ? REP.employees.length : 0;
+          },
+          hi: function (ei) {
+            return REP.employees[ei].cells.length;
+          },
+          emp: function (ei) {
+            return REP.employees[ei];
+          },
+          cars: function () {
+            return REP.cars;
+          },
+          timeoutMs: function () {
+            return HTML2CANVAS_TIMEOUT_MS;
+          },
+        };
 
         // ★どの車を 給料明細に出すか★ 2026-08-25（司さん「個別で見せる見せないも選べたら最高」）
         //   ・持ち場は ★車の棚（dk_device_labels.show_in_slip）★＝新しい棚を作らない
@@ -1598,7 +2177,9 @@
             // ★出す車は 人ごとに決まる★（その人の指定が無ければ 会社の決まりどおり）
             var cars = slipCars(REP.cars, e.employee_id);
             html +=
-              '<div class="slip" id="slip-' + ei + '"><div class="shead">' +
+              '<div class="slip" id="slip-' +
+              ei +
+              '"><div class="shead">' +
               // ★左のかたまり★（題＋期間＋名前）
               //   ★名前は「給料明細」のすぐ右★ 2026-08-25（司さん「赤丸の所に名前もってきて」）
               '<div class="sh-l">' +
@@ -1633,28 +2214,17 @@
             // ★字の作り方は ここ1本★（横＝紙 と 縦＝スマホ画面 で 二度書かない）
             //   2026-08-25：司さん「なんで2日分しか載せてないんど」
             //   実物は 1期＝10〜11日ぶん。横に並べると スマホでは ★2日ぶんしか見えない★。
-            var F = {
-              pay: function (c) {
-                return c.pay === null ? '' : yen(c.pay);
-              },
-              hours: function (c) {
-                return c.hours === null ? '' : hrs(c.hours);
-              },
-              car: function (c, i) {
-                return c.carSales[i] === null ? '' : yen(c.carSales[i]);
-              },
-              pool: function (c) {
-                return c.poolHours === null ? '' : hrs(c.poolHours);
-              },
-            };
+            var F = SLIP_F;
 
             // ───────── 横（今まで通り・★紙はこれ★）─────────
             html += '<div class="yoko scroller"><table><tbody>';
 
-            function row(label, get) {
+            function row(label, get, aka) {
               var s = '<tr><th>' + esc(label) + '</th>';
               e.cells.forEach(function (c) {
-                s += '<td>' + get(c) + '</td>';
+                // ★赤にするかは payByFloor 1か所で決める★（画面と紙で 食い違わない）
+                s +=
+                  '<td' + (aka && payByFloor(c) ? ' class="floor"' : '') + '>' + get(c) + '</td>';
               });
               return s + '</tr>';
             }
@@ -1666,7 +2236,7 @@
             });
             html += '</tr>';
 
-            html += row('金額', F.pay);
+            html += row('金額', F.pay, true); // ★最低保証で出た日は 赤★
             html += row('時間', F.hours);
             // ★車ごとの売上を載せるか（社長が決める・既定は載せる）★ 2026-08-25
             if (SHOW_CAR_SALES) {
@@ -1695,7 +2265,13 @@
                 '</b>' +
                 (yasumi
                   ? '<span class="dn">—</span>'
-                  : '<span>¥' + pay + '</span><span>' + hh + ' 時間</span>') +
+                  : '<span' +
+                    (payByFloor(c) ? ' class="floor"' : '') +
+                    '>¥' +
+                    pay +
+                    '</span><span>' +
+                    hh +
+                    ' 時間</span>') +
                 '</div></div>';
               // ★スマホの一覧は 金額と時間だけ★ 2026-08-25（司さん
               //   「この一覧の所は 赤丸の部分除けて 金額と時間だけにして スマートにしろ」）

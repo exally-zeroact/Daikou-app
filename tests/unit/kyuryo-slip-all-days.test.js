@@ -47,10 +47,15 @@ function mediaBlock(html, head) {
   return end < 0 ? html.slice(i) : html.slice(i, end);
 }
 
+// ★見張りは 書き方の空白で 赤にならない★ 2026-08-26
+//   prettier が 折り返し方を変えると ★中身は1文字も変わっていないのに 赤★ になった。
+//   ⇒ 見る前に ★続く空白を 1つに畳む★（何を見るかは 変えない）。
+const flat = (s) => String(s).replace(/\s+/g, ' ');
+
 describe('★期の日を全部 見せる★', () => {
   it('横（紙）と 縦（スマホ画面）の 両方を出している', () => {
     expect(HTML, '★紙用の横が無い★').toContain('<div class="yoko scroller">');
-    expect(HTML, '★スマホ用の縦が無い★').toContain("html += '<div class=\"tate\">'");
+    expect(HTML, '★スマホ用の縦が無い★').toContain('html += \'<div class="tate">\'');
   });
 
   it('★どちらも 期の日を全部 まわしている★（一部だけ出していない）', () => {
@@ -64,7 +69,12 @@ describe('★期の日を全部 見せる★', () => {
   });
 
   it('★字の作り方は 1本（F）★＝横と縦で 違う数が出ない', () => {
-    expect(HTML, '★共通の作り方が無い★').toContain('var F = {');
+    expect(HTML, '★共通の作り方が無い★').toContain('var SLIP_F = {');
+    // ★画面も 紙も 同じ1本を使う★（片方だけ直すと 画面と紙で 数が食い違う）
+    expect(
+      (HTML.match(/var F = SLIP_F;/g) || []).length,
+      '★画面か紙が 別の作り方を持っている★'
+    ).toBe(2);
     // 中身の取り出しを 2度 書いていない（書くと 横と縦で ずれる）
     for (const key of ['c.pay === null', 'c.hours === null', 'c.poolHours === null']) {
       const n = (HTML.match(new RegExp(key.replace(/\./g, '\\.'), 'g')) || []).length;
@@ -75,7 +85,9 @@ describe('★期の日を全部 見せる★', () => {
   it('★紙は いつも 横★（実物の給料明細と同じ並び・縦は紙に出さない）', () => {
     const pr = mediaBlock(HTML, '@media print {');
     expect(pr, '★紙の決まりが無い★').toBeTruthy();
-    expect(pr, '★紙で 横が出るようにしていない★').toMatch(/\.slip \.yoko \{\s*display: block !important;/);
+    expect(pr, '★紙で 横が出るようにしていない★').toMatch(
+      /\.slip \.yoko \{\s*display: block !important;/
+    );
     expect(pr, '★紙に 縦まで出る★').toMatch(/\.slip \.tate \{\s*display: none !important;/);
   });
 
@@ -94,23 +106,29 @@ describe('★期の日を全部 見せる★', () => {
     //   はじめは 縦にも 売上と 時間（全台）を出していた。
     //   ⇒ ★画面は ざっと見る所・紙が 渡す物★ と決めて 縦から外した。
     //   ★紙（横）には 今までどおり 売上も 時間（全台）も 出る★（下の試験で見張る）
-    const i = HTML.indexOf("html += '<div class=\"tate\">'");
+    const i = HTML.indexOf('html += \'<div class="tate">\'');
     const block = HTML.slice(i, HTML.indexOf("html += '</div>';", i));
     expect(block, '★一覧に 売上が戻っている★').not.toContain('売上　');
     expect(block, '★一覧に 時間（全台）が戻っている★').not.toContain('時間（全台）　');
-    expect(block, '★金額が無い★').toContain("'<span>¥' + pay + '</span>");
-    expect(block, '★時間が無い★').toContain("+ hh + ' 時間</span>'");
+    // ★書き方の空白では 赤にしない★（畳んでから見る）
+    const f = flat(block);
+    expect(f, '★金額が無い★').toContain("'>¥' + pay + '</span>");
+    expect(f, '★時間が無い★').toContain("hh + ' 時間</span>'");
+    // ★最低保証で出した日は 金額が 赤★ 2026-08-26（司さん）＝一覧でも 同じ決まり
+    expect(f, '★一覧だけ 赤にならない（画面と紙で 食い違う）★').toContain(
+      "payByFloor(c) ? ' class=\"floor\"' : ''"
+    );
   });
 
   it('★紙には 売上も 時間（全台）も 出る★（消したのは 画面の一覧だけ）', () => {
     const i = HTML.indexOf('<div class="yoko scroller">');
-    const block = HTML.slice(i, HTML.indexOf("html += '<div class=\"tate\">'", i));
+    const block = HTML.slice(i, HTML.indexOf('html += \'<div class="tate">\'', i));
     expect(block, '★紙から 売上まで消えた★').toContain("'売上' + (n + 1)");
     expect(block, '★紙から 時間（全台）が消えた★').toContain("row('時間（全台）', F.pool)");
   });
 
   it('★休んだ日も 日付は出す（中身は「—」）★', () => {
-    const i = HTML.indexOf("html += '<div class=\"tate\">'");
+    const i = HTML.indexOf('html += \'<div class="tate">\'');
     const block = HTML.slice(i, i + 1600);
     expect(block, '★休んだ日の見分けが無い★').toContain('var yasumi =');
     expect(block, '★休んだ日に 何も出ない（日付ごと消える）★').toContain('class="dn">—');
@@ -136,23 +154,20 @@ describe('★余白は 字の大きさを ものさしにする★', () => {
   });
 
   it('★紙の一番上にも 余白が在る★（司さん「上に余白ってゆわんかったか？」）', () => {
-    // ★1度目は 箱の中しか広げていなかった★＝紙の頭は 詰まったままだった。
-    //   実測（1000px）… 直す前 紙の頭→字 50px ／ 直した後 ★83px★（箱の上まで 54px）
-    //   ★本体の画面は 1文字も変えない★（22px のまま）ので 紙の窓だけに 印を付ける。
-    expect(HTML, '★紙の窓に 目印が無い（本体の画面まで変わる）★').toContain(
-      '<body class="paper">'
-    );
-    const i = HTML.indexOf('\n      .paper .wrap {');
-    expect(i, '★紙の窓の 上の余白が無い★').toBeGreaterThan(-1);
-    const css = HTML.slice(i, HTML.indexOf('}', i));
-    expect(css, '★上の余白が em になっていない★').toMatch(/padding-top:[^;]*em/);
-    // 刷る時（本物の紙）にも 上の余白
-    const pr = HTML.slice(HTML.indexOf('@media print {'));
-    const j = pr.indexOf('.paper .wrap {');
-    expect(j, '★刷る時に 上の余白が無い★').toBeGreaterThan(-1);
-    expect(pr.slice(j, pr.indexOf('}', j)), '★刷る時の余白が em でない★').toMatch(
-      /padding-top:[^;]*em/
-    );
+    // ★2026-08-25 は 刷る窓のCSS（.paper .wrap）で余白を作っていた★。
+    //   8/26 に 紙は ★jsPDFで自分で組む★形になったので、余白は ★板の padding★ が作る。
+    //   実測（本物の10日）… 紙の上→「給料明細」の字 ★15.5mm★／紙の上→表の上 ★37.2mm★
+    const i = HTML.indexOf('function _buildPaperSheet');
+    const block = HTML.slice(i, HTML.indexOf('function _maisu'));
+    // 紙そのものの余白（jsPDFが置く時の内側）
+    expect(HTML, '★紙の余白が 無い★').toMatch(/PAPER_MARGIN = \d+/);
+    const mg = Number(HTML.match(/PAPER_MARGIN = (\d+)/)[1]);
+    expect(mg, `★紙の余白が ${mg}pt（狭すぎる）★`).toBeGreaterThanOrEqual(14);
+    // 板の内側の余白（上下左右）＝ここが 0 になると 字が 紙の縁に貼り付く
+    expect(block, '★板の内側の余白が 無い★').toMatch(/var PAD = \d+;/);
+    const pad = Number(block.match(/var PAD = (\d+);/)[1]);
+    expect(pad, `★板の内側の余白が ${pad}px（上が詰まる）★`).toBeGreaterThanOrEqual(12);
+    expect(flat(block), '★板に 余白を掛けていない★').toContain("'px;padding:' + PAD + 'px;'");
   });
 
   it('★本体の画面の上は 変えない★（紙の窓だけ）', () => {
