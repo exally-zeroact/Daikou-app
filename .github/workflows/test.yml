@@ -38,3 +38,17 @@ jobs:
 
       - name: Run mm-priority (停車中 Worker B 出力0 → 業務距離 加算ゼロ)
         run: npm run test:mm-priority # 実測 0.7秒
+
+      # ★2026-08-28 追加：tests/ に在るのに ★npm script すら無かった★ 物（指示役の裁定②）
+      #   15本 全部を 1本ずつ実際に回して、★軽くて緑で 意味が在る物★を ここに載せました。
+      - name: Run replay-pipeline (距離エンジンの再生)
+        run: npm run test:replay-pipeline # 実測 1.0秒
+
+      - name: Run replay-obd-main (OBDメイン distance_m ≤ 真値＝過大ゼロ)
+        run: npm run test:replay-obd-main # 実測 10.0秒
+
+      - name: Run display-even-pace (画面の距離が 等速で進む)
+        run: npm run test:display-even-pace # 実測 0.2秒
+
+      - name: Run display-stop-restart (停車→再発進で 飛ばさない)
+        run: npm run test:display-stop-restart # 実測 0.2秒

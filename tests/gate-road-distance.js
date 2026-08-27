@@ -50,6 +50,13 @@ const TOL_RATIO = 0.03; // ±3%
 const DIST_MIN_M = TIRE_TRUTH_M * (1 - TOL_RATIO); // 8138.3 m
 const DIST_MAX_M = TIRE_TRUTH_M * (1 + TOL_RATIO); // 8641.7 m
 
+// ★今 どちらの物差しで走っているか★（2026-06-06 の設計変更・指示役の裁定③ 2026-08-28）
+//   ON（今）… 平滑した生GPSの弦で距離を出す ⇒ ★Viterbi を距離に使わないのが正しい姿★
+//   OFF ……… 道路の当てはめで距離を出す ⇒ (b)(c) は 昔どおりの見方
+const SMOOTHED_ON = /^\s*smoothedRawMode:\s*true,/m.test(
+  fs.readFileSync(path.join(__dirname, '..', 'js', 'pipeline-distance.js'), 'utf8')
+);
+
 // (b) flip ≈ 0 の許容上限 (= 別道路 roadIndex 変化区間)。連結拘束導入後は legit な交差点通過のみ
 //     残るが・偽遷移 (繋がってない道) は 0 を要求する。
 const FLIP_TOTAL_MAX = 10; // 全別道路遷移の上限 (legit turn を多少許容)
@@ -327,7 +334,16 @@ function analyzeWiringStatic() {
   const pdSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'pipeline-distance.js'), 'utf8');
 
   // sink: meter.js が state.distance_m += pipelineDeltaM (= 距離駆動の単一経路)
-  const sinkPipelineAdd = /state\.distance_m\s*\+=\s*delta/.test(meterSrc);
+  // ★2026-08-28: ここは ★ずっと false でした★（(c) が赤い本当の理由の1つ）。
+  //   探していたのは `state.distance_m += delta` ですが、実物は ★`+= cal`★。
+  //   代行係数を掛ける行（const cal = delta * _kForDelta * _daikouDistFactor）が入った時に
+  //   ★変数の名前が変わった★のに、この見張りは 名前で探していました。
+  //   ⇒★名前で探さない★＝「加算が在る」＋「その値が delta から作られている」で見る。
+  const addName = (meterSrc.match(/state\.distance_m\s*\+=\s*([A-Za-z_$][\w$]*)\s*;/) || [])[1];
+  //   ★正規表現を 文字で組み立てない★（\s が消えて いつも false になった・2026-08-28 に踏んだ）
+  const declLine =
+    meterSrc.split('\n').find((l) => l.indexOf('const ' + addName + ' =') >= 0) || '';
+  const sinkPipelineAdd = !!addName && (addName === 'delta' || declLine.indexOf('delta') >= 0);
   const sinkDeltaFromPipeline = /m\.pipelineDeltaM/.test(meterSrc);
 
   // source: worker は pipelineDeltaM = _confirmedRoadDelta(...) を emit する。
@@ -388,6 +404,16 @@ function runGate(opts) {
   const distM = prod.meter_distance_m;
   const a_pass = distM >= DIST_MIN_M && distM <= DIST_MAX_M;
 
+  // ★★2026-06-06 に 距離の物差しが 変わりました（指示役の裁定③・2026-08-28）★★
+  //   旧 … 道路の当てはめ（Viterbi確定snap）で距離を出す
+  //   新 … ★平滑した生GPSの弦★で距離を出す（js/pipeline-distance.js:257・司さん裁定
+  //         「生GPS寄せ+過大対策」／同:271 smoothedRawMode: true）
+  //   ⇒ ★ON（今）では Viterbi を距離に使わないのが 正しい姿★です。
+  //     なので (b)(c)（＝Viterbi 配線が生きているか）を ON で見ると ★正しいのに赤★になります。
+  //   ⇒ ★消しません。モードで 見る物を 分けます。★
+  //     ・ON（今）… (b)(c) は見ない。代わりに ★「Viterbi を距離に使っていない事」★ を1つ見る。
+  //     ・OFF ……… (b)(c) を 今までどおり見る（★戻すのは この1行だけ★と設計に書いてある）。
+
   // (b) flip ≈ 0 — ★実距離源 (Viterbi 確定 snap 駆動 tracker) での「余計な弦ゼロ」を判定する★。
   //   タスク核心「過大の正体 = 別道路 flip の余計な弦」の真の品質指標は・距離源が ★偽遷移由来の
   //   直線弦を距離に入れていないこと★ = straightSegs===0 かつ straightFallbackM===0。
@@ -401,12 +427,15 @@ function runGate(opts) {
   const src_viterbiSnaps = srcSt ? srcSt.viterbiSnaps || 0 : 0;
   const src_flipRejected = srcSt ? srcSt.flipRejected || 0 : 0;
   // GREEN: 実距離源で偽遷移由来の直線弦寄与がゼロ (= 連結性ハード拘束が全 flip を arc 化/棄却した)。
-  const b_pass =
+  const b_pass_off =
     srcBd != null &&
     srcSt != null &&
     src_straightFallbackM === 0 &&
     src_straightSegs === 0 &&
     src_viterbiSnaps > 0; // 距離源が Viterbi 確定 snap で駆動されている裏付け
+  // ★ON（今）の正しい姿 = Viterbi を距離に使っていない★（使っていたら 二重の物差しになる）
+  const b_pass_on = srcSt != null && src_viterbiSnaps === 0;
+  const b_pass = SMOOTHED_ON ? b_pass_on : b_pass_off;
 
   // (c) 配線完全性: 距離駆動 source が Viterbi 確定経路 (outSnap) に一本化されているか。
   //   ★L1 配線後の GREEN★ = sink 存在 + worker emit + _confirmedRoadDelta が Viterbi 確定 snap を
@@ -423,7 +452,12 @@ function runGate(opts) {
   const dynamicSingleSource = Math.abs(prod.meter_distance_m - prod.sumPipelineDeltaM) < 1.0;
   // 動的裏付け②: 実距離源 tracker が Viterbi 確定 snap で駆動されている (viterbiSnaps > 0)。
   const dynamicViterbiDriven = src_viterbiSnaps > 0;
-  const c_pass = wiringComplete && dynamicSingleSource && dynamicViterbiDriven;
+  // ★ON（今）★ … Viterbi 駆動である事は 求めません（使わないのが正しい姿）。
+  //   ★求めるのは「距離が 1本の経路だけで動いている事」★（他の経路が混ざっていない）。
+  //   ★OFF★ … 昔どおり Viterbi 配線が生きている事まで求めます。
+  const c_pass = SMOOTHED_ON
+    ? wiringComplete && dynamicSingleSource
+    : wiringComplete && dynamicSingleSource && dynamicViterbiDriven;
 
   // (d) creep=0 / calcFare 不変 / 業務 vs trip 分離 (= 不変項目)。
   const creepOk = creep.creep_distance_m <= CREEP_MAX_M;
@@ -503,6 +537,7 @@ function runGate(opts) {
     },
   };
 
+  result.smoothedRawMode = SMOOTHED_ON;
   result.gate_pass = a_pass && b_pass && c_pass && d_pass;
   // 着手時 (実装前 = greedy 駆動・Viterbi 死蔵) では (a)(b)(c) のいずれかが FAIL だった。
   //   配線完了後は全 GREEN。trivial-green 監視は「(d) 不変が常に PASS」で担保する。
@@ -540,7 +575,7 @@ function main() {
       'm)'
   );
   console.log(
-    '(b) flip≈0(余計な弦): ' +
+    (SMOOTHED_ON ? '(b) Viterbiを距離に使っていない: ' : '(b) flip≈0(余計な弦): ') +
       (r.b_flip.pass ? 'PASS' : 'FAIL') +
       '  実距離源 straightFallback=' +
       r.b_flip.source_straightFallback_m +
@@ -555,7 +590,7 @@ function main() {
       ' (OSM way分割で構造的・距離無関係)]'
   );
   console.log(
-    '(c) 配線完全性     : ' +
+    (SMOOTHED_ON ? '(c) 配線完全性(ONでは参考): ' : '(c) 配線完全性     : ') +
       (r.c_wiring.pass ? 'PASS' : 'FAIL') +
       '  距離源=Viterbi確定snap(' +
       (r.c_wiring.static.src_confirmedRoadDelta_passes_viterbi_snap &&
@@ -611,6 +646,14 @@ function main() {
   );
 
   console.log('\n=== GATE: ' + (r.gate_pass ? 'PASS' : 'FAIL') + ' ===');
+  console.log(
+    r.smoothedRawMode
+      ? '★今は smoothedRawMode = true（平滑した生GPSの弦で距離を出す・2026-06-06 司さん裁定）★\n' +
+          '  ⇒ ★(b)(c) は「Viterbi を距離に使っていない事」で見ています★（使っていたら 物差しが二重）。\n' +
+          '  ⇒ false に戻したら (b)(c) は 昔どおり「Viterbi 配線が生きているか」で見ます。\n' +
+          '  ⇒ 戻すのは js/pipeline-distance.js:271 の1行だけ（設計にそう書いてあります）。'
+      : '★今は smoothedRawMode = false（道路の当てはめで距離を出す）★＝(b)(c) は 昔どおりの見方です。'
+  );
   console.log('配線完了後 (a)(b)(c)(d) 全 GREEN: ' + (r.all_green ? 'YES ✓' : 'NO ✗ (要確認)'));
 
   const OUT_DIR = path.join(__dirname, '..', 'data', 'test-results');

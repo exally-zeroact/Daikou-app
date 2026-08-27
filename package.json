@@ -42,7 +42,15 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "check:logic": "npm run test && npm run test:replay && npm run test:replay-display && npm run test:mm-priority",
-    "check:all": "npm run check && npm run check:logic"
+    "check:all": "npm run check && npm run check:logic",
+    "test:replay-pipeline": "node tests/replay-pipeline-distance.js",
+    "test:replay-obd-main": "node tests/replay-obd-main.js",
+    "test:display-even-pace": "node tests/verify-display-even-pace.js",
+    "test:display-stop-restart": "node tests/verify-display-stop-restart.js",
+    "test:gate-road": "node tests/gate-road-distance.js",
+    "test:truedist-0610": "node tests/truedist-score-0610.js",
+    "test:gate-address2": "node tests/gate-address2-accuracy.js",
+    "test:gate-route-gain": "node tests/gate-route-gain.js"
   },
   "lint-staged": {
     "*.js": [

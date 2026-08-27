@@ -68,6 +68,20 @@ jobs:
           - name: k-neverover
             cmd: npm run test:k-neverover
             timeout: 15 # 実測 3分42秒
+          # ★2026-08-28 追加：tests/ に在るのに ★npm script すら無かった★ 重い物（指示役の裁定②）
+          #   ★重い物は 別の組で 最後に★（毎回 全部 回すと 試験が時間切れになる）
+          - name: road-distance（タイヤ真値 8.39km）
+            cmd: npm run test:gate-road
+            timeout: 10 # 実測 51.4秒
+          - name: truedist-0610
+            cmd: npm run test:truedist-0610
+            timeout: 10 # 実測 54.4秒
+          - name: address2-accuracy
+            cmd: npm run test:gate-address2
+            timeout: 15 # 実測 164.4秒
+          - name: route-gain
+            cmd: npm run test:gate-route-gain
+            timeout: 15 # 実測 164.9秒
           - name: realdevice-creep
             cmd: npm run test:gate-creep
             timeout: 10 # 実測 1分54秒

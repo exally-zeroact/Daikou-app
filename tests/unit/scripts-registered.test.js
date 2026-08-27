@@ -8,6 +8,12 @@
 //     ③ tests/truedist-obd-engine-gate.js --k-neverover … 同上 ★0回★（★距離・課金の見張り★）
 //   ⇒ ★4度めを 作らせない為に、ここで 機械に数えさせる★。
 //
+//   ★2026-08-28 追記：穴が もう1つ ありました★
+//     ここは ★package.json の script★ しか見ていませんでした。
+//     ⇒ ★script すら無い tests/直下の .js が 15本★ 在りました（★その中に
+//        タイヤ真値の見張り gate-road-distance も 入っていました★）。
+//     ⇒ 下の「②tests/直下の .js」で そこも 数えます。
+//
 //   決まり:
 //     package.json の ★test:* / check:*★ は、次のどちらかでなければ 赤。
 //       (A) ★どれかの workflow が 実際に呼んでいる★
@@ -112,6 +118,76 @@ describe('★試験は「登録する」か「理由を書く」かの どちら
         WF.includes('npm run ' + k),
         `★${k} が どの workflow にも入っていない★\n` +
           '  ＝停まっている時の距離・過大ゼロ の見張りが 誰も回さない状態に戻っています'
+      ).toBe(true);
+    });
+  });
+});
+
+// ★CIに入れない tests/直下の .js＝1本ずつ 理由を書く★（2026-08-28・指示役の裁定②）
+//   ★1本ずつ 実際に回してから 決めました★（回るか／何秒か／緑か赤か）
+const TESTS_NO_TEMOTO = {
+  'kp-segment-score.js':
+    '★引数が要る道具★（node tests/kp-segment-score.js <traceFile> <kpStart> <kpEnd>。引数なしで回すと usage を出して終わる。2026-08-28 実測 0.2秒・戻り値1）',
+  'sim-display-montecarlo.js':
+    '★数字を出すだけ★（画面の見え方をモンテカルロで並べる。合否の線が無い＝赤にならない。2026-08-28 実測 0.7秒・戻り値0）',
+  'bench-oldphone-decode-dedup.js':
+    '★速さの測定★（古いスマホでの1点あたりの時間。予算5msに対し0.13ms。合否は出すが 機械の速さで揺れるのでCIに入れない。2026-08-28 実測 0.8秒・戻り値0）',
+  'replay-realdevice.js':
+    '★★実物が repo に無いのに 緑を返します★★（2026-08-28 実測 0.2秒・戻り値0。中身は「iPhoneSE: fixture無し／Android: fixture無し」だけ）＝★何も見ていないのに緑★。★裁定待ち★（実物を入れる／無い時は赤にする／消す）',
+  'real-trace-roadsnap.js':
+    '★★実物が repo に無いのに 緑を返します★★（2026-08-28 実測 6.5秒・戻り値0。中身は「GPS trace 見つからず」だけ）＝★何も見ていないのに緑★。★裁定待ち★',
+  'verify-display-frame-clamp.js':
+    '★2026-08-28 に 赤★（1フレーム飛び 22.7m > 10）。★画面の見え方★（課金距離ではない）。★裁定待ち★（直す／今の数を基準にする／消す）',
+  'verify-display-gap-recovery.js':
+    '★2026-08-28 に 赤★（復帰の追従速度 29.70 m/s > 25＝「ドン」と飲む）。★画面の見え方★（課金距離ではない）。★裁定待ち★',
+};
+
+describe('★tests/直下の .js も 登録するか 理由を書くか★', () => {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  const S2 = scripts();
+  const cmds = Object.values(S2).join(' | ');
+  const WF2 = workflowsText();
+  const files = fs2
+    .readdirSync(path2.join(ROOT, 'tests'))
+    .filter((f) => f.endsWith('.js') && !f.endsWith('.test.js'));
+
+  it('★数えられている★（0本なら 数え方が壊れている）', () => {
+    expect(files.length, '★tests/直下の .js が読めない★').toBeGreaterThan(20);
+  });
+
+  it('★どこからも呼ばれない .js は、理由が書いてある物だけ★', () => {
+    const komatta = files.filter((f) => {
+      if (cmds.indexOf('tests/' + f) >= 0) return false; // package.json が呼んでいる
+      if (WF2.indexOf('tests/' + f) >= 0) return false; // workflow が直接 呼んでいる
+      if (TESTS_NO_TEMOTO[f]) return false; // 理由が書いてある
+      return true;
+    });
+    expect(
+      komatta,
+      '★この .js は 誰も回していません★\n' +
+        '  ⇒ ★package.json に名前を付けて workflow に登録する★ か\n' +
+        '  ⇒ ★TESTS_NO_TEMOTO に 名前と理由を書く★（回らないなら 消す）\n' +
+        '  ★2026-08-28 に 15本 見つかりました（うち タイヤ真値の見張りも 入っていた）★'
+    ).toEqual([]);
+  });
+
+  it('★理由だけ残って 中身が消えた物 が無い★', () => {
+    const yurei = Object.keys(TESTS_NO_TEMOTO).filter(
+      (f) => !fs2.existsSync(path2.join(ROOT, 'tests', f))
+    );
+    expect(yurei, '★tests/ に無い物の理由が 残っています★').toEqual([]);
+  });
+
+  it('★距離・課金の見張りは 必ず 呼ばれている★（理由で逃がさない）', () => {
+    // ★2026-08-28 まで 誰も回していなかった物★
+    ['gate-road-distance.js', 'truedist-score-0610.js', 'replay-obd-main.js'].forEach((f) => {
+      expect(
+        cmds.indexOf('tests/' + f) >= 0 || WF2.indexOf('tests/' + f) >= 0,
+        '★' +
+          f +
+          ' が どこからも呼ばれていない★\n' +
+          '  ＝タイヤ真値／過大ゼロ の見張りが 誰も回さない状態に戻っています'
       ).toBe(true);
     });
   });
