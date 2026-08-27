@@ -15,7 +15,11 @@ const fs = require('fs');
 const path = require('path');
 
 const PREF = (process.env.ROADS_PREF || 'ehime').toLowerCase();
-const TRACE_PATH = process.env.GPS_TRACE || 'C:/Users/zeroa/gpstrace.json';
+// ★2026-08-28: repo の外（C:/Users/zeroa/gpstrace.json）を見ていました★
+//   ⇒ 手元では緑／★CI では 実物が無い★。この試験を CI に登録して ★赤で気づきました★。
+//   ⇒ repo の中の実物（実走・タイヤ計 8.39km）を 既定にします。
+const TRACE_PATH =
+  process.env.GPS_TRACE || path.join(__dirname, 'fixtures', 'real-trace-iphone13-8.39km-tire.json');
 const TRIP_GAP_SEC = 120;
 const R = 6371000;
 

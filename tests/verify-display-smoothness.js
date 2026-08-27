@@ -32,7 +32,12 @@ const { createMapMatcherWorker, loadPrefRoadsData } = require('./replay-mm-worke
 const { loadMeter } = require('./replay-mm-worker/runner');
 
 const PREF = (process.env.ROADS_PREF || 'ehime').toLowerCase();
-const TRACE_PATH = process.env.GPS_TRACE || 'C:/Users/zeroa/gpstrace.json';
+// ★2026-08-28: repo の外（C:/Users/zeroa/gpstrace.json）を見ていました★
+//   ⇒ 手元では緑／★CI では 実物が無い★。この試験を CI に登録して ★赤で気づきました★。
+//   ⇒ repo の中の実物（実走・タイヤ計 8.39km）を 既定にします。
+const path = require('path');
+const TRACE_PATH =
+  process.env.GPS_TRACE || path.join(__dirname, 'fixtures', 'real-trace-iphone13-8.39km-tire.json');
 const TRIP_GAP_SEC = 120;
 const R = 6371000;
 
@@ -84,10 +89,11 @@ function fail(msg) {
 
 function main() {
   if (!fs.existsSync(TRACE_PATH)) {
-    console.error('[display] trace not found: ' + TRACE_PATH + ' (skip・実機 trace 未配置)');
-    // trace 未配置の環境 (= 一部 CI) では skip 扱い (= exit 0)。実機 trace のある
-    // 環境 / ローカルでは必ず実行され invariant を検証する。
-    process.exit(0);
+    // ★2026-08-28: 前は ここで ★戻り値0（緑）★で終わっていました＝★何も見ていないのに緑★。
+    //   ⇒「未測定」と はっきり言って ★赤★にします（指示役 2026-08-28・全アプリ共通）。
+    console.error('★[display] ★未測定★ … 実物が在りません: ' + TRACE_PATH + '★');
+    console.error('  ⇒「実物が無い」は「異常なし」ではありません。');
+    process.exit(1);
   }
   const raw = JSON.parse(fs.readFileSync(TRACE_PATH, 'utf8'));
   const samples = Array.isArray(raw) ? raw : raw.samples || raw.trace || [];
