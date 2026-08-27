@@ -140,6 +140,10 @@ jobs:
             package.json
             package-lock.json
             data/roads-ehime.js
+            # ★2026-08-28 追加★ address2-accuracy が読む町ポリゴン（1.7MB）
+            #   ★足す前に「何を読むか」を 実測しました★（CIが「町ポリゴン無し」で赤になって分かった）
+            #   ＝★手元では data/ が全部 在るので 気づけません★。★CIが教えてくれた★物です。
+            data/town-polygons-ehime.js
           sparse-checkout-cone-mode: false
 
       - name: Setup Node
