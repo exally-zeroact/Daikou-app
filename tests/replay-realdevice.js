@@ -143,24 +143,51 @@ function run(label, samples, isIOS) {
   console.log('  mmResult数=' + mm.length);
 }
 
+// ★2026-08-28（指示役の裁定②-1）★
+//   ここは ★data/test-results/rd_<端末>.json（実機から上がってくる物）★を見ていました。
+//   ⇒ repo には 無い ⇒「fixture無し」と出して ★戻り値0（緑）★で終わっていました。
+//   ＝★何も見ていないのに緑★＝「空＝安全」と同じ嘘。
+//   ⇒★repo の中に 同じ実機3台の生GPSが 在ります★（tests/fixtures/realdevice-*.json）。
+//     まず それで動かす。無い時は ★「未測定」と はっきり言って 赤★にする（★緑も沈黙も不可★）。
 const devs = [
-  ['iPhone13', true],
-  ['iPhoneSE', true],
-  ['Android', false],
+  ['iPhone13', true, 'realdevice-iphone13-noisy.json'],
+  ['iPhoneSE', true, 'realdevice-iphonese.json'],
+  ['Android', false, 'realdevice-android.json'],
 ];
-for (const [d, ios] of devs) {
-  const f = require('path').join(__dirname, '..', 'data', 'test-results', 'rd_' + d + '.json');
+let hakattaKazu = 0;
+const misokutei = [];
+for (const [d, ios, fixName] of devs) {
+  const pathMod = require('path');
+  // ①実機から上がってきた物（在れば こちらを優先）
+  const up = pathMod.join(__dirname, '..', 'data', 'test-results', 'rd_' + d + '.json');
+  // ②repo の中の実機トレース
+  const fx = pathMod.join(__dirname, 'fixtures', fixName);
+  const f = fs.existsSync(up) ? up : fx;
   if (!fs.existsSync(f)) {
-    console.log(d + ': fixture無し');
+    console.log('★' + d + ': ★未測定★（実物が在りません: ' + fixName + '）★');
+    misokutei.push(d);
     continue;
   }
+  console.log('[' + d + '] 使った実物 … ' + pathMod.basename(f));
   let s = JSON.parse(fs.readFileSync(f, 'utf8'));
   s = s
     .filter((x) => x && Number.isFinite(x.lat) && Number.isFinite(x.lng))
     .sort((a, b) => (a.t || 0) - (b.t || 0));
   try {
     run(d, s, ios);
+    hakattaKazu++;
   } catch (e) {
-    console.log(d + ' ERROR: ' + e.message);
+    console.log('★' + d + ' ERROR: ' + e.message + '★');
+    misokutei.push(d);
   }
 }
+
+// ★測れた数を 数えてから 終わる★（0件で緑を返さない）
+console.log('');
+console.log('★測れた端末 … ' + hakattaKazu + ' / ' + devs.length + ' 台★');
+if (misokutei.length) {
+  console.log('★未測定 … ' + misokutei.join(' / ') + '★');
+  console.log('  ⇒★「実物が無い」は「異常なし」ではありません。★赤で終わります。');
+  process.exit(1);
+}
+console.log('★判定: PASS（3台とも 実物を通しました）★');

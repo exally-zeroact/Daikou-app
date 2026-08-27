@@ -50,7 +50,8 @@
     "test:gate-road": "node tests/gate-road-distance.js",
     "test:truedist-0610": "node tests/truedist-score-0610.js",
     "test:gate-address2": "node tests/gate-address2-accuracy.js",
-    "test:gate-route-gain": "node tests/gate-route-gain.js"
+    "test:gate-route-gain": "node tests/gate-route-gain.js",
+    "test:replay-realdevice": "node tests/replay-realdevice.js"
   },
   "lint-staged": {
     "*.js": [

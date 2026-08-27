@@ -82,6 +82,9 @@ jobs:
           - name: route-gain
             cmd: npm run test:gate-route-gain
             timeout: 15 # 実測 164.9秒
+          - name: replay-realdevice（実機3台を 実エンジンに流す）
+            cmd: npm run test:replay-realdevice
+            timeout: 15 # 実測 134.4秒
           - name: realdevice-creep
             cmd: npm run test:gate-creep
             timeout: 10 # 実測 1分54秒

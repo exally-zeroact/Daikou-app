@@ -97,14 +97,25 @@ function loadDecoder(pref) {
 async function main() {
   const key = await findLatestGpsTrace();
   if (!key) {
-    console.error('[roadsnap] GPS trace 見つからず');
-    process.exit(0);
+    // ★2026-08-28（指示役の裁定②-1）★
+    //   ここは ★遠くの倉庫（debug_traces）から 実物を取ってくる★作りです。
+    //   取れない時に ★戻り値0（緑）★で終わっていました＝★何も見ていないのに緑★。
+    //   ⇒★「未測定」と はっきり言って 赤★にします（★緑も沈黙も不可★）。
+    console.error(
+      '★[roadsnap] ★未測定★ … GPS trace を取れませんでした（遠くの倉庫に繋がらない/空）★'
+    );
+    console.error('  ⇒「取れなかった」は「異常なし」ではありません。');
+    console.error('  ⇒ この見張りは ★遠くの倉庫が要る★ので CI では動きません（理由は');
+    console.error(
+      '     tests/unit/scripts-registered.test.js の TESTS_NO_TEMOTO に書いてあります）。'
+    );
+    process.exit(1);
   }
   const samples = await getJson(DB + '/debug_traces/' + key + '/samples.json');
   const trip = pickMainTrip(samples);
   if (trip.length < 2) {
-    console.error('[roadsnap] 走行区間なし');
-    process.exit(0);
+    console.error('★[roadsnap] ★未測定★ … 走行区間が 2点未満でした★');
+    process.exit(1);
   }
 
   let raw = 0;
