@@ -30,3 +30,11 @@ jobs:
 
       - name: Run replay-mm (MM 回帰テスト)
         run: npm run test:replay
+
+      # ★2026-08-27 追加：package.json に在るのに どの workflow にも入っていなかった2本★
+      #   どちらも check:logic の中に居たが、check:logic 自体が CI に無かった。
+      - name: Run replay-display (画面の距離の滑らかさ)
+        run: npm run test:replay-display # 実測 36秒
+
+      - name: Run mm-priority (停車中 Worker B 出力0 → 業務距離 加算ゼロ)
+        run: npm run test:mm-priority # 実測 0.7秒

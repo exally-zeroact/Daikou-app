@@ -12,7 +12,27 @@ const fs = require('fs'),
 const { createMapMatcherWorker, loadPrefRoadsData } = require('./replay-mm-worker/worker-sim');
 const { loadMeter } = require('./replay-mm-worker/runner');
 
-const CREEP_MAX_M = 5.0; // 停車中の distance_m 増加上限(認定 creep 10m より厳しく)
+const CREEP_MAX_M = 5.0; // ★目指す所★（停車中の distance_m 増加上限）
+
+// ★★基準（2026-08-27 実測）★★ 指示役の裁定②
+//   この見張りは ★package.json に在るのに どの workflow にも入っていなかった★
+//   （最後に触られたのは 2026-06-12 の一括同期。check-hosts と同じ「在るのに0回」）。
+//   ★登録した時点の実測が 目指す所(5m)を超えていた★:
+//     iPhone13 14.3m ／ iPhoneSE 10.2m ／ Android 12.6m（内訳は3台とも doppler）
+//
+//   ★soft（無視できる形）にはしません★＝★無視できる赤は 無いのと同じ★（指示役）
+//   ⇒ ★今日の数字を基準にして「悪化したら赤／同じか良くなったら緑」★にする。
+//     目指す所(5m)まで下げるのは ★別の回（Ｂ doppler の切り分け → Ｃ 上限の決め直し）★。
+//
+//   ★言葉を混ぜない★: ★代行は検定対象外★＝「認定10mを超えた＝法令違反」ではありません。
+//     縛りは ★DM Light／タイヤ真値という緩い天井★（START_HERE.md の先頭）。
+const CREEP_BASELINE_M = {
+  iPhone13: 14.3,
+  iPhoneSE: 10.2,
+  Android: 12.6,
+};
+// 基準からの ★許す揺れ★（実トレースの再生は同じ入力＝同じ答えになるが、丸めの幅を少し持つ）
+const CREEP_TOLERANCE_M = 0.5;
 const FARE = {
   version: 2,
   base_fare: 1300,
@@ -123,17 +143,25 @@ function main() {
       .filter((x) => x && Number.isFinite(x.lat) && Number.isFinite(x.lng))
       .sort((a, b) => (a.t || 0) - (b.t || 0));
     const r = run(d, s, ios);
-    const pass = r.creep <= CREEP_MAX_M;
+    // ★悪化していないか★で見る（基準＝2026-08-27 の実測）
+    const base = CREEP_BASELINE_M[d];
+    const kijun = typeof base === 'number' ? base + CREEP_TOLERANCE_M : CREEP_MAX_M;
+    const pass = r.creep <= kijun;
     if (!pass) anyFail = true;
+    // ★目指す所(5m)に届いているか★も 毎回 出す（黙って忘れない為）
+    const mokuhyou = r.creep <= CREEP_MAX_M;
     console.log(
       '[' +
         d +
         '] creep=' +
         r.creep.toFixed(1) +
-        'm (<= ' +
-        CREEP_MAX_M +
+        'm (基準 ' +
+        (typeof base === 'number' ? base.toFixed(1) : '—') +
+        'm ±' +
+        CREEP_TOLERANCE_M +
         ') ' +
-        (pass ? 'PASS' : '★FAIL★') +
+        (pass ? 'PASS' : '★FAIL(悪化)★') +
+        (mokuhyou ? '' : '  ※目指す所 ' + CREEP_MAX_M + 'm には まだ届いていません') +
         '  最大ジャンプ=' +
         r.maxJump.toFixed(0) +
         'm  distance_m=' +
@@ -155,11 +183,21 @@ function main() {
   console.log(
     '\n=== GATE: ' +
       (anyFail ? 'FAIL' : 'PASS') +
-      ' (creep≤' +
-      CREEP_MAX_M +
-      'm を全端末で要求) ==='
+      ' (★2026-08-27 の実測より 悪化していない事★ を全端末で要求) ==='
   );
+  if (!anyFail) {
+    const nokori = Object.keys(CREEP_BASELINE_M).filter((k) => CREEP_BASELINE_M[k] > CREEP_MAX_M);
+    if (nokori.length) {
+      console.log(
+        '★宿題★ 目指す所 ' +
+          CREEP_MAX_M +
+          'm に届いていない端末: ' +
+          nokori.join(' / ') +
+          '（Ｂ doppler の切り分け → Ｃ 上限の決め直し の順・指示役 2026-08-27）'
+      );
+    }
+  }
   process.exit(anyFail ? 1 : 0);
 }
 if (require.main === module) main();
-module.exports = { run, CREEP_MAX_M };
+module.exports = { run, CREEP_MAX_M, CREEP_BASELINE_M, CREEP_TOLERANCE_M };

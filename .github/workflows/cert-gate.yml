@@ -63,6 +63,17 @@ jobs:
           - name: snap-accuracy
             cmd: npm run test:gate-snap
             timeout: 10
+          # ★2026-08-27 追加：package.json に在るのに どの workflow にも入っていなかった2本★
+          #   （check-hosts と同じ「在るのに0回」。creep は 2026-06-12 以来 一度も回っていない）
+          - name: k-neverover
+            cmd: npm run test:k-neverover
+            timeout: 15 # 実測 3分42秒
+          - name: realdevice-creep
+            cmd: npm run test:gate-creep
+            timeout: 10 # 実測 1分54秒
+            # ★soft にはしない★＝無視できる赤は 無いのと同じ（指示役 2026-08-27）
+            #   ★2026-08-27 の実測を基準にして「悪化したら赤」★にしてある
+            #   （iPhone13 14.3m / iPhoneSE 10.2m / Android 12.6m・目指す所5mは 別の回で）
           - name: sim-cert
             cmd: npm run test:sim-cert
             timeout: 15 # 実測 6分19秒
