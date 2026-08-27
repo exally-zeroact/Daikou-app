@@ -35,14 +35,18 @@ const TEMOTO_NO_DOUGU = {
   'test:cert': '★束ねただけ★（中の7本は cert-gate.yml の matrix に 1本ずつ在る）',
 
   // ─ 数字を測る物（赤にならない設計）─
+  //   ★test:stryker は 2026-08-27 に 消しました★
+  //     ・123秒で ConfigError（初回テストが赤）＝★動きません★（私の試験を外しても同じ＝前から）
+  //     ・thresholds.break=null ＝★元から 赤にならない設計★＝見張りとして働かない
+  //     ・設定ファイル自身に「dry-run 常時 fail」と書いてあった
+  //     ⇒ 指示役の裁定「消す」。stryker.config.mjs / vitest.stryker.config.js /
+  //        devDependencies(@stryker-mutator/core, /vitest-runner) も 一緒に消しました。
   'test:coverage':
     '★KPIを測る物★（vitest --coverage。落ちる条件が無い＝赤にならない。数字が要る時に手元で回す。2026-08-27 実測 138秒・37.85%）',
-  'test:stryker':
-    '★今 動きません★（2026-08-27 実測：123秒で ConfigError「初回テストが赤」。★私の試験を外しても同じ＝前から★／設定にも「dry-run 常時 fail」と書いてある。加えて thresholds.break=null ＝ ★元から赤にならない設計★。直すか消すかは 別の回）',
 
   // ─ 今 赤なので 保留（勝手に基準化しない）─
   'test:verify-9677':
-    '★2026-08-27 に 赤でした★（距離 9,065.75m / 目標 9,220.89m ＝ −155.14m・−1.68%）。★距離・課金なので 指示役の裁定を待つ★（creep と同じく「今日の数字を基準」にするか、直すか）',
+    '★2026-08-27 に 赤★（今のエンジン 9,065.75m / 基準 9,220.9m ＝ −155.14m・−1.68%）。★原因＝比べている物差しが違う★：基準は 2026-05-31 の「道路の当てはめ(Viterbi確定snap)」の値、今のエンジンは 2026-06-06 に変わった「平滑した生GPSの弦」。★エンジンの不具合ではない★。どうするかは 指示役の裁定待ち（詳しくは tests/verify-new-meter-9677.js の頭）',
 };
 
 function scripts() {

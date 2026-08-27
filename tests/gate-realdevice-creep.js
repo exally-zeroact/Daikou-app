@@ -26,22 +26,42 @@ const CREEP_MAX_M = 5.0; // ★目指す所★（停車中の distance_m 増加�
 //
 //   ★言葉を混ぜない★: ★代行は検定対象外★＝「認定10mを超えた＝法令違反」ではありません。
 //     縛りは ★DM Light／タイヤ真値という緩い天井★（START_HERE.md の先頭）。
-// ★★この行の読み方（2026-08-27 実測・Ｂ 切り分け）★★
-//   下に出る「[道なり◯/routing◯/直線◯/doppler◯]」は ★距離の内訳ではありません★。
-//   実測：この4つの合計は ★全行程の 1.5〜4.5% しか説明していません★
-//     iPhone13 232m/9,390m=2.5% ／ iPhoneSE 143m/9,470m=1.5% ／ Android 459m/10,180m=4.5%
-//   ＝★「3台とも doppler だから creep は doppler 由来」と読むのは 間違いです★
-//     （私が 2026-08-26 に そう読んで 指示役へ渡しました。★この行が 誤読を誘います★）
+// ★★2026-08-27 に分かった事（★数を2つに分けました★）★★
 //
-// ★★では creep は どこから来るか（2026-08-27 実測）★★
-//   ★42回すべてが「止まってから 1点め」★／★3点め以降は 3台とも 0m★
-//     iPhone13 17回 14.30m ／ iPhoneSE 14回 10.18m ／ Android 11回 12.63m
-//   ★増えた量 ≒ 直前の速度 × 時間★（合計の比 0.74 / 1.11 / 0.89）
-//   ⇒ ★止まってからのドリフトではなく、「まだ動いていた最後の1秒」が
-//      速度が0.5m/sを切った点で 計上されている★物です。
-//   ⇒ ★止まり続けている間の増えは 0m★（実測）。
-//   ⇒ 直すなら ★エンジンではなく この見張りの数え方★（境界の1点を どちら側に数えるか）。
-//      ★上限5mの決め直し（Ｃ）と一緒に 指示役が決める★。
+//   ①★止まってからの増え … 3台とも 0.00m★（実測）＝★これが creep の数★
+//   ②★止まった その1点だけ … 14.30 / 10.18 / 12.63m★
+//      ＝★creep ではありません。★双方向平滑の「1点 遅れ」★です。★
+//
+//   ★なぜ 1点 遅れるか（コードに書いてあります）★
+//     js/pipeline-distance.js:257 「生GPS 双方向スムージング距離（2026-06-06・
+//       ★設計変更宣言★・司さん裁定「生GPS寄せ+過大対策」）」
+//     同:266 「★live meter は smoothWindow/2 サンプル遅延の双方向窓で実装★」
+//     同:277 「smoothWindow: ★3★ … h=(win-1)/2 点の双方向平均」→ ★h=1点★
+//     同:274 「★win=2 相当(h=0)=生GPS弦=良GPSで +1% 過大化のため不可★」
+//     同:278 「creep ガード(ZUPT/cap)は生 spd/変位で判定するため窓非依存
+//              ★(win3/win5 で creep 0.00m 同値・実証済)★」
+//   ⇒★遅れは わざとです。無くすと 逆に +1% 過大になります。★
+//   ⇒★「creep が14m 出ている」と読まないでください。★
+//
+//   ★実測の中身（実機3台・本物のエンジン・2026-08-27）★
+//     増えた回数 … iPhone13 17回 ／ iPhoneSE 14回 ／ Android 11回
+//     ★42回すべてが「止まってから1点め」／3点め以降は 3台とも 0.00m★
+//     増えた量 ≒ ★直前の速度 × 時間★（合計の比 0.74 / 1.11 / 0.89）
+//       ＝★実際に走った分より 多くありません＝過大ではありません★
+//     全文 … scratchpad/shot/測定B_creepの出どころ_2026-08-27.txt
+//
+//   ★この下に出る「[道なり◯/routing◯/直線◯/doppler◯]」は 距離の内訳ではありません★
+//     4つの合計は ★全行程の 1.5〜4.5% しか説明していません★
+//       iPhone13 232m/9,390m=2.5% ／ iPhoneSE 143m/9,470m=1.5% ／ Android 459m/10,180m=4.5%
+//     ★「doppler だから creep は doppler 由来」と読むのは 間違いです★（2026-08-26 に私が誤読）
+
+// ★②平滑の1点遅れ★の基準（2026-08-27 実測）。★creep ではないが 黙って増えるのは困る★ので見張る。
+const SMOOTH_LAG_BASELINE_M = {
+  iPhone13: 14.3,
+  iPhoneSE: 10.2,
+  Android: 12.6,
+};
+const SMOOTH_LAG_TOLERANCE_M = 0.5;
 
 const CREEP_BASELINE_M = {
   iPhone13: 14.3,
@@ -106,6 +126,8 @@ function run(label, samples, isIOS) {
   if (typeof Meter._setDrainMmUntil === 'function') Meter._setDrainMmUntil(0);
   if (typeof Meter._setOffRoadGraceUntil === 'function') Meter._setOffRoadGraceUntil(0);
   let creep = 0,
+    smoothLag = 0,
+    tomatteKara = 0,
     lastDm = 0,
     maxJump = 0,
     lastKnownSpd = -1; // ★穴入口直前の確かな速度★ (= 走行/停止を分類する真の信号)
@@ -123,6 +145,9 @@ function run(label, samples, isIOS) {
     const dm = Meter.getState().distance_m || 0;
     const jump = dm - lastDm;
     if (jump > maxJump) maxJump = jump;
+    // ★★2つに分けて数える（2026-08-27）★★
+    //   ・止まってから ★1点め★ … 平滑の1点遅れ（＝わざと・creepではない）
+    //   ・止まってから ★2点め以降★ … ★これが creep★（実測 0.00m）
     // ★creep 判定の真値 = 「車が実際に停止しているか」★。
     //   旧実装は当該点 g.spd<0.5 で計上したが、g.spd=-1 (= 速度 ★不明★・ゴミ GPS の sentinel) を
     //   「停止」と誤分類し、正当な ★走行中の穴 fill★ (= 直前 15.8m/s で走行→79s GPS 欠落→復帰) を
@@ -133,14 +158,21 @@ function run(label, samples, isIOS) {
     const curStopped = typeof g.spd === 'number' && g.spd >= 0 && g.spd < 0.5;
     const unknownButEnteredStopped =
       (typeof g.spd !== 'number' || g.spd < 0) && lastKnownSpd >= 0 && lastKnownSpd < 0.5;
-    if ((curStopped || unknownButEnteredStopped) && dm - lastDm > 0.01) creep += dm - lastDm;
+    const tomatteru = curStopped || unknownButEnteredStopped;
+    if (tomatteru) tomatteKara++;
+    else tomatteKara = 0;
+    if (tomatteru && dm - lastDm > 0.01) {
+      if (tomatteKara <= 1)
+        smoothLag += dm - lastDm; // ★平滑の1点遅れ（わざと）★
+      else creep += dm - lastDm; // ★止まってからの増え＝creep★
+    }
     if (typeof g.spd === 'number' && g.spd >= 0) lastKnownSpd = g.spd; // 確かな速度のみ更新
     lastDm = dm;
   }
   adapter.postMessage({ type: 'getPipelineBreakdown' });
   const dm = Meter.getState().distance_m || 0;
   const bd = pb && pb.breakdown;
-  return { dm, creep, maxJump, bd };
+  return { dm, creep, smoothLag, maxJump, bd };
 }
 
 function main() {
@@ -160,25 +192,31 @@ function main() {
       .filter((x) => x && Number.isFinite(x.lat) && Number.isFinite(x.lng))
       .sort((a, b) => (a.t || 0) - (b.t || 0));
     const r = run(d, s, ios);
-    // ★悪化していないか★で見る（基準＝2026-08-27 の実測）
-    const base = CREEP_BASELINE_M[d];
-    const kijun = typeof base === 'number' ? base + CREEP_TOLERANCE_M : CREEP_MAX_M;
-    const pass = r.creep <= kijun;
+    // ★①止まってからの増え（＝creep）★ … ★本来の上限 5m で見る★（2026-08-27 実測 0.00m）
+    const pass1 = r.creep <= CREEP_MAX_M;
+    // ★②平滑の1点遅れ★ … ★わざと★なので 上限では見ない。★悪化していないか★だけ見る
+    const lagBase = SMOOTH_LAG_BASELINE_M[d];
+    const lagKijun = typeof lagBase === 'number' ? lagBase + SMOOTH_LAG_TOLERANCE_M : Infinity;
+    const pass2 = r.smoothLag <= lagKijun;
+    const pass = pass1 && pass2;
     if (!pass) anyFail = true;
-    // ★目指す所(5m)に届いているか★も 毎回 出す（黙って忘れない為）
-    const mokuhyou = r.creep <= CREEP_MAX_M;
     console.log(
       '[' +
         d +
-        '] creep=' +
-        r.creep.toFixed(1) +
-        'm (基準 ' +
-        (typeof base === 'number' ? base.toFixed(1) : '—') +
-        'm ±' +
-        CREEP_TOLERANCE_M +
+        '] ★止まってからの増え(creep)=' +
+        r.creep.toFixed(2) +
+        'm (<= ' +
+        CREEP_MAX_M +
         ') ' +
-        (pass ? 'PASS' : '★FAIL(悪化)★') +
-        (mokuhyou ? '' : '  ※目指す所 ' + CREEP_MAX_M + 'm には まだ届いていません') +
+        (pass1 ? 'PASS' : '★FAIL★') +
+        '★  ／ 平滑の1点遅れ=' +
+        r.smoothLag.toFixed(2) +
+        'm (基準 ' +
+        (typeof lagBase === 'number' ? lagBase.toFixed(1) : '—') +
+        'm ±' +
+        SMOOTH_LAG_TOLERANCE_M +
+        ') ' +
+        (pass2 ? 'PASS' : '★FAIL(悪化)★') +
         '  最大ジャンプ=' +
         r.maxJump.toFixed(0) +
         'm  distance_m=' +
@@ -200,21 +238,24 @@ function main() {
   console.log(
     '\n=== GATE: ' +
       (anyFail ? 'FAIL' : 'PASS') +
-      ' (★2026-08-27 の実測より 悪化していない事★ を全端末で要求) ==='
+      ' (①止まってからの増え ≤ ' +
+      CREEP_MAX_M +
+      'm ／ ②平滑の1点遅れが 2026-08-27 より 悪化していない事) ==='
   );
-  if (!anyFail) {
-    const nokori = Object.keys(CREEP_BASELINE_M).filter((k) => CREEP_BASELINE_M[k] > CREEP_MAX_M);
-    if (nokori.length) {
-      console.log(
-        '★宿題★ 目指す所 ' +
-          CREEP_MAX_M +
-          'm に届いていない端末: ' +
-          nokori.join(' / ') +
-          '（Ｂ doppler の切り分け → Ｃ 上限の決め直し の順・指示役 2026-08-27）'
-      );
-    }
-  }
+  console.log(
+    '★②は creep ではありません★＝双方向平滑の「1点 遅れ」（司さん裁定 2026-06-06・\n' +
+      '  js/pipeline-distance.js:257-278）。★遅れを無くすと 逆に +1% 過大になります★。\n' +
+      '  実測（2026-08-27）… 増えるのは ★止まってから1点めだけ★／3点め以降 0.00m／\n' +
+      '  増えた量 ≒ 直前の速度×時間（比 0.74〜1.11）＝★実際に走った分より 多くありません★。'
+  );
   process.exit(anyFail ? 1 : 0);
 }
 if (require.main === module) main();
-module.exports = { run, CREEP_MAX_M, CREEP_BASELINE_M, CREEP_TOLERANCE_M };
+module.exports = {
+  run,
+  CREEP_MAX_M,
+  CREEP_BASELINE_M,
+  CREEP_TOLERANCE_M,
+  SMOOTH_LAG_BASELINE_M,
+  SMOOTH_LAG_TOLERANCE_M,
+};
