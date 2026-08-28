@@ -312,11 +312,11 @@ describe('OBDメイン距離 ∫v(OBD) 実エンジン不変条件', () => {
 
 describe('OBDメイン 実機fixture(0610-Android・OBD車速あり) never-over', () => {
   it('★実Android trace を OBD駆動: distance_m ≤ raw∫v + δmax×t_move(認定天井) かつ creep≈0', () => {
+    // ★2026-08-28: 前は「無し=skip」と出して ★何も見ずに緑★でした。
+    //   ⇒ 実物は repo に在ります（tests/fixtures/0610-Android.json）。
+    //     無いなら ★実物が消えた／名前が変わった★ので ★赤★にします（0件と未測定を混ぜない）。
     const a = load('0610-Android.json');
-    if (!a) {
-      console.warn('0610-Android.json 無し=skip');
-      return;
-    }
+    expect(a, '★実物（tests/fixtures/0610-Android.json）が 在りません★').not.toBe(null);
     const obdPts = a.filter((x) => typeof x.obd === 'number' && x.obd >= 0).length;
     expect(obdPts).toBeGreaterThan(0); // この fixture は OBD あり
 

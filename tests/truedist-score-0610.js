@@ -11,6 +11,16 @@ const { createMapMatcherWorker, loadPrefRoadsData } = require('./replay-mm-worke
 const { loadMeter } = require('./replay-mm-worker/runner');
 
 // ★真距離 (今日の実測参照)★
+// ★★2026-08-28 実測：この道具の「真値」と 実物が 合っていません★★
+//   真値 25.69km（約40分の走行）に対し、repo の実物は:
+//     0610-iPhone13.json … 2,400点 ／ ★40.0分★（＝合う）
+//     0610-iPhoneSE.json …… 336点 ／ ★5.6分★（★短すぎる★）
+//     0610-Android.json …… 464点 ／ ★9.8分★（★短すぎる★）
+//   ⇒ 出る数字 … iPhone13 −7.64% ／ iPhoneSE ★−90.61%★ ／ Android ★−69.58%★
+//   ⇒★エンジンが おかしいのではなく「比べる相手（実物）が 途中までしか無い」★
+//     （同じ日に タイヤ計 8.39km では ★−0.93%・過大ゼロ★／creep の見張りでも ★0.00m★）
+//   ⇒★この道具を「距離の合否」に使ってはいけません★（実物を揃えるまで）
+//   ★裁定待ち★ … 実物を揃える／iPhone13 だけで見る／この道具は数を見るだけにする
 const TRUE_DIST_KM = 25.69; // DM Light 代行メーター = 課金の真値
 const ODO_KM = 25.9; // 車オドメーター(緩い天井・参考)
 const BAND_LO = -4.0,
@@ -137,20 +147,28 @@ const devs = [
   ['Android', '0610-Android.json', false],
 ];
 const rows = [];
+// ★2026-08-28: 「fixture無し」で 飛ばして そのまま緑で終わっていました＝★0件でも緑★。
+//   ⇒ ★何台 測れたかを 数えてから 終わる★（下の判定で 0件なら 赤）。
+const misokutei = [];
 for (const [label, file, ios] of devs) {
   const s = loadFixture(file);
   if (!s) {
-    console.log(label + ': fixture無し (' + file + ')');
+    console.log('★' + label + ': ★未測定★（実物が在りません: ' + file + '）★');
+    misokutei.push(label);
     continue;
   }
   let r = null;
   try {
     r = run(label, s, ios);
   } catch (e) {
-    console.log(label + ' ERROR: ' + e.message);
+    console.log('★' + label + ' ERROR: ' + e.message + '★');
+    misokutei.push(label);
     continue;
   }
-  if (!r) continue;
+  if (!r) {
+    misokutei.push(label);
+    continue;
+  }
   const km = r.distance_m / 1000;
   const errVsTrue = ((km - TRUE_DIST_KM) / TRUE_DIST_KM) * 100;
   const errVsOdo = ((km - ODO_KM) / ODO_KM) * 100;
@@ -198,3 +216,27 @@ for (const r of rows) {
 console.log(
   '\n※停車時最大lump = 停車/GPS無効中に1更新で計上された最大距離 = トンネル一括ドンの実体(認定creep要件に直結)'
 );
+
+// ★★2026-08-28: この道具には ★合否の線が ありませんでした★★（指示役の順番3）
+//   ここまで 何を測っても ★必ず 戻り値0（緑）★で終わっていました。
+//   ＝★cert-gate に入れた私の判断ミス★（「緑だった」のではなく「赤にならない作り」だった）。
+//
+//   ★今回 入れたのは「0件なら赤」だけです★
+//     ・1台も測れなかったら ★赤★（実物が消えた／名前が変わった時に 気づける）
+//     ・★どの台が 帯（BAND_LO〜BAND_HI）から外れたら赤にするか は 指示役の裁定待ち★
+//       （距離・課金の線なので 私が勝手に決めません）
+console.log('');
+console.log('★測れた台数 … ' + rows.length + ' / ' + devs.length + ' 台★');
+if (misokutei.length) console.log('★未測定 … ' + misokutei.join(' / ') + '★');
+const soto = rows.filter((r) => !r.inBand);
+console.log(
+  '★帯から外れた台 … ' +
+    (soto.length ? soto.map((r) => r.label).join(' / ') : 'なし') +
+    '★（★今は これで赤にしていません＝裁定待ち★）'
+);
+if (rows.length === 0) {
+  console.log('★判定: FAIL（1台も測れていません＝「異常なし」ではありません）★');
+  process.exit(1);
+}
+console.log('★判定: PASS（測れた台数 ' + rows.length + ' 台・0件ではない）★');
+process.exit(0);

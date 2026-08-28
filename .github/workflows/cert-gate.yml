@@ -78,7 +78,10 @@ jobs:
           - name: road-distance（タイヤ真値 8.39km）
             cmd: npm run test:gate-road
             timeout: 10 # 実測 51.4秒
-          - name: truedist-0610
+          # ★2026-08-28 訂正★ この道具は ★距離の合否を出しません★（今は「0台しか測れなければ赤」だけ）
+          #   実物（0610-iPhoneSE 5.6分／0610-Android 9.8分）が 真値25.69km(約40分)と合っていない為。
+          #   ⇒ 名前を実態に合わせました。★合否の線をどうするかは 指示役の裁定待ち★。
+          - name: truedist-0610（測れた台数だけを見る・合否の線は未定）
             cmd: npm run test:truedist-0610
             timeout: 10 # 実測 54.4秒
           - name: address2-accuracy
