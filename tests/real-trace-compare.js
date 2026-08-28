@@ -146,7 +146,9 @@ async function extractDaikomeBusinessKm() {
 
 // ── OSRM /match (自前 endpoint・100 点間引き) ──
 async function osrmMatch(trip) {
-  if (!OSRM_ENDPOINT) return { status: 'skipped', note: 'OSRM_ENDPOINT 未設定' };
+  // ★2026-08-28: 'skipped' は 読む人に 合格に見えます ⇒ ★未測定★ と はっきり言う
+  if (!OSRM_ENDPOINT)
+    return { status: 'misokutei', note: '★未測定★ OSRM_ENDPOINT が未設定（外のサービスが要る）' };
   const stride = Math.max(1, Math.floor(trip.length / 100));
   const pts = [];
   for (let i = 0; i < trip.length; i += stride) pts.push(trip[i]);
@@ -177,7 +179,11 @@ function llObj(p) {
   return { location: { latLng: { latitude: p.lat, longitude: p.lng } } };
 }
 async function googleDirections(trip) {
-  if (!GOOGLE_KEY) return { status: 'skipped', note: 'GOOGLE_DIRECTIONS_API_KEY 未設定' };
+  if (!GOOGLE_KEY)
+    return {
+      status: 'misokutei',
+      note: '★未測定★ GOOGLE_DIRECTIONS_API_KEY が未設定（外の鍵が要る）',
+    };
   const MAX_WP = 23; // origin + destination + 中間 23 = 計 25 点
   const origin = trip[0];
   const dest = trip[trip.length - 1];
@@ -230,20 +236,23 @@ function pct(a, b) {
 async function main() {
   const key = await findLatestGpsTrace();
   if (!key) {
-    console.error(
-      '[real-compare] GPS trace が見つからん (REAL_TRACE_KEY 指定 or trace 送信を確認)'
-    );
+    // ★2026-08-28: 黙って 0 で終わると 合格に見えます ⇒ ★未測定★ と はっきり言う
+    console.error('★[real-compare] ★未測定★ GPS trace が 見つかりません（遠くの倉庫が要ります）★');
+    console.error('[real-compare] MISOKUTEI=1 reason=trace-not-found');
+    console.error('  ⇒「測っていない」であって「異常なし」ではありません。');
     process.exit(0);
   }
   console.log('[real-compare] trace key =', key);
   const samples = await getJson(DB + '/debug_traces/' + key + '/samples.json');
   if (!Array.isArray(samples) || samples.length < 2) {
-    console.error('[real-compare] samples が空・不正');
+    console.error('★[real-compare] ★未測定★ 実物が 空／読めません★');
+    console.error('[real-compare] MISOKUTEI=1 reason=samples-empty');
     process.exit(0);
   }
   const { trip, rawDistanceM } = pickMainTrip(samples);
   if (trip.length < 2) {
-    console.error('[real-compare] 走行 segment 無し');
+    console.error('★[real-compare] ★未測定★ 走った区間が 在りません★');
+    console.error('[real-compare] MISOKUTEI=1 reason=no-trip');
     process.exit(0);
   }
   const durSec = (trip[trip.length - 1].t - trip[0].t) / 1000;

@@ -126,3 +126,52 @@ describe('★配る物に 作った時刻を 焼き付けない★', () => {
     ).toBe(47);
   });
 });
+
+// ★★外の物が要る見張り＝「未測定」と言う（黙って緑にしない）★★ 2026-08-28（指示役）
+//   外の鍵・外のサービス・遠くの倉庫が要る物は ★正しい★。CIでは 測れません。
+//   ⇒ ★「skipping (no failure)」のような言い方をやめ ★未測定★ と はっきり出す★
+//   ⇒ ★毎回の報告に「未測定 ◯本」を 数で載せる★（増えても 気づけるように）
+const MISOKUTEI = {
+  'tier1-osrm.js': '★外のサービス★ OSRM_ENDPOINT が要る（この環境では 未測定）',
+  'tier4-google.js': '★外の鍵★ GOOGLE_DIRECTIONS_API_KEY が要る（この環境では 未測定）',
+  'real-trace-compare.js': '★外のサービス＋遠くの倉庫★ OSRM/Google と debug_traces が要る',
+  'real-trace-roadsnap.js':
+    '★遠くの倉庫★ debug_traces が要る（2026-08-28 に 赤で終わる形へ直した）',
+};
+
+describe('★外の物が要る見張りは「未測定」と言う★', () => {
+  it('★本数が 変わっていない★（増えたら足す・要らなくなったら消す）', () => {
+    expect(
+      Object.keys(MISOKUTEI).length,
+      '★「未測定」の本数が 4本から 変わりました★\n' +
+        '  ・増えた … ★外の物が要る見張りが 増えました。名前と理由を ここに足してください★\n' +
+        '  ・減った … ★中で測れるようになったなら ここから消す★'
+    ).toBe(4);
+  });
+
+  it('★1本ずつ 実物が在る★', () => {
+    const nai = Object.keys(MISOKUTEI).filter((f) => !fs.existsSync(path.join(ROOT, 'tests', f)));
+    expect(nai, '★tests/ に無い物が 書いてあります★').toEqual([]);
+  });
+
+  // ★数える前に コメントを外す★ 2026-08-28（指示役）
+  //   ★文字列で探すと 自分の説明文まで拾います★
+  //   （実際 この見張りが 私の書いたコメントを拾って 赤になりました）
+  //   ＝「名前で探すな」と 同じ型。★誤検出は 道具の側で 潰します★
+  const komentoWoKesu = (src) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+
+  it('★「未測定」と はっきり書いてある★（skipping で済ませない）', () => {
+    const dame = [];
+    Object.keys(MISOKUTEI).forEach((f) => {
+      const src = komentoWoKesu(fs.readFileSync(path.join(ROOT, 'tests', f), 'utf8'));
+      if (src.indexOf('未測定') < 0) dame.push(f + ' … 「未測定」と 画面に出していない');
+      if (/skipping \(no failure\)/.test(src))
+        dame.push(f + ' … 「skipping (no failure)」が残っている');
+    });
+    expect(
+      dame,
+      '★読む人に「合格」と見える言い方が 残っています★（0件と未測定を 混ぜない）'
+    ).toEqual([]);
+  });
+});

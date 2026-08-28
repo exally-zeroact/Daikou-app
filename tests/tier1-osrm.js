@@ -18,12 +18,19 @@ const ENDPOINT = (process.env.OSRM_ENDPOINT || '').replace(/\/+$/, '');
 const TIMEOUT_MS = 8000;
 const PROFILE = process.env.OSRM_PROFILE || 'driving';
 
+// ★2026-08-28（指示役）★ 外の物が要る見張りは ★正しい★。ただし ★黙って緑にしない★。
+//   「skipping (no failure)」＝★読む人には 合格に見えます★。
+//   ⇒ ★★未測定★★ と はっきり書く／★何本 未測定かを 数えられる形で出す★。
+//   ⇒ 0件と未測定を 混ぜない（全アプリ共通・2026-08-28）
 if (!ENDPOINT) {
-  console.log('[tier1] OSRM_ENDPOINT not set — skipping (no failure)');
+  console.log('[tier1] ★未測定★ OSRM_ENDPOINT が 設定されていません（外のサービスが要ります）');
+  console.log('[tier1] MISOKUTEI=1 reason=OSRM_ENDPOINT-not-set');
+  console.log('  ⇒「測っていない」であって「異常なし」ではありません。');
   process.exit(0);
 }
 if (typeof fetch !== 'function') {
-  console.log('[tier1] global fetch not available (need Node 18+) — skipping');
+  console.log('[tier1] ★未測定★ この Node には fetch が在りません（Node 18以上が要ります）');
+  console.log('[tier1] MISOKUTEI=1 reason=no-fetch');
   process.exit(0);
 }
 

@@ -22,12 +22,18 @@ const MAX_REQUESTS_PER_RUN = parseInt(process.env.GOOGLE_MAX_REQUESTS_PER_RUN ||
 const TIMEOUT_MS = 8000;
 const DISAGREE_THRESHOLD = 0.02; // tier1 と tier2 が 2% 以上違うときだけ Google に聞く
 
+// ★2026-08-28（指示役）★ 外の鍵が要る見張りは ★正しい★。ただし ★黙って緑にしない★。
 if (!KEY) {
-  console.log('[tier4] GOOGLE_DIRECTIONS_API_KEY not set — skipping');
+  console.log(
+    '[tier4] ★未測定★ GOOGLE_DIRECTIONS_API_KEY が 設定されていません（外の鍵が要ります）'
+  );
+  console.log('[tier4] MISOKUTEI=1 reason=GOOGLE_KEY-not-set');
+  console.log('  ⇒「測っていない」であって「異常なし」ではありません。');
   process.exit(0);
 }
 if (typeof fetch !== 'function') {
-  console.log('[tier4] global fetch not available (Node 18+ required) — skipping');
+  console.log('[tier4] ★未測定★ この Node には fetch が在りません（Node 18以上が要ります）');
+  console.log('[tier4] MISOKUTEI=1 reason=no-fetch');
   process.exit(0);
 }
 
