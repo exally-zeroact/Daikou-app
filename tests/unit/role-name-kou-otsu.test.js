@@ -27,7 +27,8 @@ const FILES = ['supabase/seed-test-fake.sql', 'kyuryo.html'];
 describe('★役割の名前に 甲・乙 を使わない★', () => {
   it.each(FILES)('%s に 役割としての 甲・乙 が無い', (f) => {
     const p = path.join(ROOT, f);
-    if (!fs.existsSync(p)) return;
+    // ★2026-08-28: 前は 黙って return＝★無い画面は 何も見ずに緑★でした。
+    expect(fs.existsSync(p), '★見るはずの画面が 在りません: ' + f + '★').toBe(true);
     const s = fs.readFileSync(p, 'utf8');
     // 役割として使われる形だけを見る（住所の小字は '甲' 単体では出てこない書き方）
     const hits = [];

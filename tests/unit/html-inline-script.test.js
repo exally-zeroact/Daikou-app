@@ -67,7 +67,6 @@ function inlineScripts(rawHtml) {
   return out;
 }
 
-
 function syntaxError(code) {
   try {
     // eslint-disable-next-line no-new-func
@@ -115,13 +114,21 @@ describe('★HTMLの中のJSが 動く形になっている★', () => {
     expect(syntaxError('function f( {'), '壊れた物を通している').not.toBe(null);
     // 2026-08-21 に実際に作ってしまったのと同じ形
     const bad = 'var a=1; document.title = ""; "</div>" + a + "x";';
-    expect(deadExpressions(bad, 1, acorn.parse).length, '★誰にも渡らない式を見逃している★').toBeGreaterThan(0);
-    expect(deadExpressions('var a = "x" + 1; f(a);', 1, acorn.parse).length, '正しい物を弾いている').toBe(0);
+    expect(
+      deadExpressions(bad, 1, acorn.parse).length,
+      '★誰にも渡らない式を見逃している★'
+    ).toBeGreaterThan(0);
+    expect(
+      deadExpressions('var a = "x" + 1; f(a);', 1, acorn.parse).length,
+      '正しい物を弾いている'
+    ).toBe(0);
   });
 
   it.each(FILES)('%s … <script> が構文として通る', (f) => {
     const p = path.join(ROOT, f);
-    if (!fs.existsSync(p)) return; // 無い画面は飛ばす（在る物だけ見る）
+    // ★2026-08-28: 前は 黙って return＝★無い画面は 何も見ずに緑★でした。
+    //   ⇒ 見るはずの画面が 消えた／名前が変わった時に 気づけません。
+    expect(fs.existsSync(p), '★見るはずの画面が 在りません: ' + f + '★').toBe(true);
     const ss = inlineScripts(fs.readFileSync(p, 'utf8'));
     for (const s of ss) {
       const e = syntaxError(s.code);
@@ -135,7 +142,10 @@ describe('★HTMLの中のJSが 動く形になっている★', () => {
     const html = fs.readFileSync(p, 'utf8');
     const all = [];
     for (const s of inlineScripts(html)) all.push(...deadExpressions(s.code, s.line, acorn.parse));
-    const doc = all.map((x) => `  ${f} の ${x.行} 行あたり: ${x.さわり}`).slice(0, 3).join('\n');
+    const doc = all
+      .map((x) => `  ${f} の ${x.行} 行あたり: ${x.さわり}`)
+      .slice(0, 3)
+      .join('\n');
     expect(all.length, `★誰にも渡らない式が ${all.length} 件★\n${doc}`).toBe(0);
   });
 });
