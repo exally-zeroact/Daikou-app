@@ -182,12 +182,19 @@ function main() {
     ['Android', false, 'realdevice-android.json'],
   ];
   let anyFail = false;
+  let hakattaDaisu = 0; // ★何台 測れたか（0台なら 赤）★
   for (const [d, ios, fn] of devs) {
     const f = path.join(__dirname, 'fixtures', fn);
+    // ★2026-08-28: 前は「fixture無し SKIP」で 飛ばして そのまま緑でした
+    //   ＝★3台とも 実物が消えても 緑★（何も見ていないのに 合格に見える）。
+    //   実物は ★3台とも repo に在ります★（2026-08-28 実測）。無いなら 消えた/名前が変わった＝★赤★。
     if (!fs.existsSync(f)) {
-      console.log(d + ': fixture無し SKIP');
+      console.error('★' + d + ': 実物が 在りません（測っていません）: ' + f + '★');
+      console.error('  ⇒「測っていない」であって「異常なし」ではありません。');
+      anyFail = true;
       continue;
     }
+    hakattaDaisu++;
     const s = JSON.parse(fs.readFileSync(f, 'utf8'))
       .filter((x) => x && Number.isFinite(x.lat) && Number.isFinite(x.lng))
       .sort((a, b) => (a.t || 0) - (b.t || 0));
@@ -248,6 +255,13 @@ function main() {
       '  実測（2026-08-27）… 増えるのは ★止まってから1点めだけ★／3点め以降 0.00m／\n' +
       '  増えた量 ≒ 直前の速度×時間（比 0.74〜1.11）＝★実際に走った分より 多くありません★。'
   );
+  // ★0台でも緑にしない★（実物が全部 消えた時に 気づけるように）2026-08-28
+  if (hakattaDaisu === 0) {
+    console.error('★1台も 測れていません（実物が 1つも 在りません）＝赤★');
+    anyFail = true;
+  } else {
+    console.log('★測れた台数 = ' + hakattaDaisu + ' / 3 台★');
+  }
   process.exit(anyFail ? 1 : 0);
 }
 if (require.main === module) main();

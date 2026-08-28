@@ -113,6 +113,7 @@ describe('tests/lib/snap.js — drift-guard against real js/roads-decoder.js', (
     for (const p of probes) {
       // 実 RoadDecoder の snap (= prod が GPS に対して行う本物の snap)
       const realSnap = dec.snapToNearestRoad(p.lat, p.lng, { maxDistM: 100 });
+      // ★2026-08-28: 全部 skip されても 緑でした＝★0件でも緑★（下で 0件なら 赤にします）
       if (realSnap == null) {
         skipped++;
         continue;
@@ -155,6 +156,16 @@ describe('tests/lib/snap.js — drift-guard against real js/roads-decoder.js', (
       { dLat: 0, dLng: 0, dDist: 0 }
     );
     // eslint-disable-next-line no-console
+    // ★2026-08-28: 全部 skip でも 緑でした＝★0件でも緑★
+    expect(
+      probes.length - skipped,
+      '★1点も snap 出来ていません（' +
+        skipped +
+        '/' +
+        probes.length +
+        ' が skip）＝0件を 合格と 読ませない★'
+    ).toBeGreaterThan(0);
+
     console.log(
       '[snap.js drift-guard] matched=' +
         matched +

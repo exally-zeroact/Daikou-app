@@ -55,6 +55,13 @@ function getOpt(re, dflt) {
 const PREF = getOpt(/^--pref=(.+)$/, process.env.ROADS_PREF || 'ehime').toLowerCase();
 const EXPAND_TARGET = parseFloat(getOpt(/^--expand=([0-9.]+)$/, '0.10')); // 生弦膨張目標 (+10%)
 const CERT_EPS = parseFloat(getOpt(/^--eps=([0-9.]+)$/, '0.005')); // 過大しきい(真値比・丸め余裕 0.5%)
+// ★代行モードの採点に使う 2つ★（2026-08-28・指示役の裁定①）
+//   ★代行係数 1.0085 (+0.85%)★ … 本番 index.html:7506 Meter.setDaikouDistanceFactor(1.0085)
+//     2026-07-04 に再較正（旧 1.011/1.013）。★随伴車 DM Light に合わせる為の わざとの上乗せ★。
+//   ★天井 +6%★ … DM Light / タイヤ真値(オドメーター) は 真距離+0.5〜6% の範囲。
+//     ⇒ 代行は「真値を超えたら赤」ではなく「★この天井を 超えたら赤★」で 採点する。
+const DAIKOU_FACTOR = parseFloat(getOpt(/^--daikou-factor=([0-9.]+)$/, '1.0085'));
+const DAIKOU_CEIL_PCT = parseFloat(getOpt(/^--daikou-ceil=([0-9.]+)$/, '0.06'));
 const NO_CLAMP = process.argv.slice(2).includes('--no-clamp'); // ★負例★ 平滑OFF=生弦素通し
 const JSON_OUT = process.argv.slice(2).includes('--json');
 
@@ -185,7 +192,29 @@ console.log(
     '% / mode=' +
     (NO_CLAMP ? '★負例(--no-clamp=平滑OFF=生弦素通し)★' : '本判定(平滑既定)')
 );
-console.log('真値=ノイズ無し clean の engine distance_m / 認定=過大不可(distance_m ≤ 真値)');
+// ★★どちらの採点か を 先に言う★★ 2026-08-28（指示役の裁定①）
+//   ★この (B) は「タクシー認定モード(係数1.0)」の採点です★
+//   ・タクシー認定 … ★過大不可(distance_m ≤ 真距離)★＝片側公差。ε=0.5%。
+//   ・★代行は 検定対象外★＝「真距離を超えるな」は 法的拘束では ありません。
+//     代行は 係数 ★1.0085(+0.85%)★ で わざと上乗せし ★随伴車の DM Light に合わせて★います
+//     （本番 index.html の Meter.setDaikouDistanceFactor / 2026-07-04 再較正）。
+//     実上限は ★DM Light・タイヤ真値(オドメーター)＝真距離 +0.5〜6%★ という 緩い天井。
+//   ⇒★同じ数字でも 採点が 2つ在ります。両方 出します★
+console.log('★★採点は 2つ 出します★★');
+console.log(
+  '  ① ★タクシー認定モード★(係数1.0) … 過大不可(distance_m ≤ 真値+ε)  ε=' +
+    (CERT_EPS * 100).toFixed(1) +
+    '%'
+);
+console.log(
+  '  ② ★代行モード★(係数' +
+    DAIKOU_FACTOR.toFixed(4) +
+    ') …… 天井=真値+' +
+    (DAIKOU_CEIL_PCT * 100).toFixed(1) +
+    '%(DM Light/タイヤ真値)'
+);
+console.log('  ★代行は検定対象外＝①が赤でも 代行の請求が おかしいとは 限りません★');
+console.log('真値=ノイズ無し clean の engine distance_m');
 console.log(
   '★distance_m / pipeline-distance.js は read-only(1byte も触らない)。平滑 ON/OFF は呼出時 opts のみ。'
 );
@@ -200,6 +229,7 @@ const report = {
 };
 
 let gateFail = false;
+let daikouFail = false; // ★代行モードの採点（別の物差し）★
 let redProven = false; // 負例: 平滑OFF が過大を起こせたか
 
 for (const fx of FIXTURES) {
@@ -289,15 +319,39 @@ for (const fx of FIXTURES) {
         (overPct >= 0 ? '+' : '') +
         overPct.toFixed(2) +
         '% → ' +
-        (neverOverOk ? 'OK(過大ゼロ維持)' : '★NG(過大=認定アウト)★')
+        (neverOverOk ? 'OK(過大ゼロ維持)' : '★NG(過大=認定アウト)★') +
+        '   ←★①タクシー認定モードの採点★'
+    );
+    // ★②代行モードの採点★（2026-08-28・指示役の裁定①）
+    //   代行は 検定対象外。★係数1.0085 を掛けた値が DM Light/タイヤ真値の天井(+6%)を超えたら赤★。
+    //   ＝「真値を超えたら赤」ではない。同じ数字を ★2つの物差しで★ 採点する。
+    const daikouDm = observedDm * DAIKOU_FACTOR;
+    const daikouOverPct = (daikouDm / trueDm - 1) * 100;
+    const daikouOk = daikouDm <= trueDm * (1 + DAIKOU_CEIL_PCT);
+    row.daikouDm = +daikouDm.toFixed(1);
+    row.daikouOverPct = +daikouOverPct.toFixed(3);
+    row.daikouOk = daikouOk;
+    console.log(
+      '    (B2)天井 代行(×' +
+        DAIKOU_FACTOR.toFixed(4) +
+        ') vs 真値 = ' +
+        (daikouOverPct >= 0 ? '+' : '') +
+        daikouOverPct.toFixed(2) +
+        '% → ' +
+        (daikouOk
+          ? 'OK(天井 +' + (DAIKOU_CEIL_PCT * 100).toFixed(0) + '% の中)'
+          : '★NG(天井超え)★') +
+        '   ←★②代行モードの採点★'
     );
     if (!absorbOk || !neverOverOk) gateFail = true;
+    if (!daikouOk) daikouFail = true;
   }
   console.log('');
 }
 
 console.log('===========================================================');
 let exitCode;
+// ★2つの採点を 両方 出す★（片方だけ見て 判断させない）
 if (NO_CLAMP) {
   // 負例: 防御(平滑)を外したら過大が起きること自体を実証する run。
   if (redProven) {
@@ -317,7 +371,17 @@ if (NO_CLAMP) {
 } else {
   if (gateFail) {
     console.log(
-      '★GATE FAIL★ — GNSS劣化下で (A)吸収 or (B)過大ゼロ 違反 = 片側公差(過大不可)違反。exit 1。'
+      '★① タクシー認定モード = FAIL★ — GNSS劣化下で (A)吸収 or (B)過大ゼロ 違反 = 片側公差(過大不可)違反。'
+    );
+    console.log(
+      '★② 代行モード = ' +
+        (daikouFail
+          ? 'FAIL（天井超え）★'
+          : 'PASS（天井 +' + (DAIKOU_CEIL_PCT * 100).toFixed(0) + '% の中）★')
+    );
+    console.log(
+      '  ⇒★代行は 検定対象外です★。①が赤でも ★代行の請求が おかしいとは 限りません★。' +
+        'この見張りが赤で止めているのは ★タクシー認定モードの線★です。'
     );
     exitCode = 1;
   } else {
