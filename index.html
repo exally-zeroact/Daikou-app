@@ -3918,6 +3918,7 @@
     </script>
   </head>
   <body ontouchstart="" onclick="wakeScreen()">
+    <!-- ★テスト環境の帯は js/dk-env-badge.js が 名札(DKConfig.ENV)だけで 決めます★ 2026-08-28 -->
     <!-- ★iPhone/iPad 未対応ゲートは将来(リリース前)に再導入。決定F=Android専用だが、
          今は司さんのiPhone確認を妨げないため未実装(2026-06-27・司さん「今はまだするな」)。 -->
     <!-- S1 (2026-05-10): 複数タブ guard・閲覧専用モードバナー -->
@@ -4675,53 +4676,64 @@
     </div>
 
     <!-- Android APK 配布バナー (WebAPK 生成不可端末向け・JS で Android Chrome のみ表示) -->
+    <!-- ★入っていない時の案内★ 2026-08-25（司さん
+         「めんどくさいことやらすなや／全ユーザーがすると思うなよ／
+           それやったら最初から誘導しろや」）
+         ▼それまで何が起きていたか
+           ・URL欄が出た状態（＝入っていない）だと ★業務開始が押せない★（8644行あたり）
+             出る言葉は「ホーム画面に追加してから業務開始してください」だけ
+             ＝★何をどう押すのか 書いていない★
+           ・この帯は「APKをダウンロード」と言い、配っていたのは ★2026/05/13の物★
+             ＝★別の古いアプリ★が入って もっと分からなくなる
+           ・直し方は「アイコンを消して入れ直す」しか無かった＝★人にやらせていた★
+         ▼直した形
+           ★押す物ひとつ★で入る（Chromeに入れさせる・メニューを探させない）。
+           入れられない端末（iPhoneなど）の時だけ 手順を出す。 -->
     <div class="apk-banner" id="apkBanner">
       <div class="apk-banner-text">
-        <strong>📦 Androidアプリ版があります</strong>
-        APK ダウンロード → スタンドアロン起動・センサー利用可
+        <strong id="pwaBannerTitle">アプリとして入れてください</strong>
+        <span id="pwaBannerSub">入れないと 業務開始が押せません（今は URL欄が出ています）</span>
       </div>
-      <button class="apk-banner-btn" onclick="showApkInstall()">インストール</button>
+      <button class="apk-banner-btn" id="pwaInstallBtn" onclick="dkInstallApp()">入れる</button>
       <button class="apk-banner-close" onclick="closeApkBanner()">✕</button>
     </div>
 
-    <!-- APK インストール手順モーダル -->
+    <!-- ★押すだけでは入らない端末の 入れ方★ 2026-08-25（司さん指示）
+         ▼やめた物
+           ここは「APKをダウンロード」の手順でした。配っていたのは ★2026/05/13の物★（3か月半 前）で、
+           これに従うと ★別の古いアプリ★が入って もっと分からなくなります。
+           ★APKのファイルは消していません★（案内だけ止めました）。
+         ▼今
+           Androidは 帯の「入れる」で ★押すだけ★で入ります。ここは出ません。
+           ここが出るのは ★iPhone など 押すだけでは入らない端末★だけ。 -->
     <div
       class="apk-modal"
       id="apkModal"
       onclick="if (event.target.id === 'apkModal') closeApkModal();"
     >
       <div class="apk-modal-box">
-        <div class="apk-modal-title">📦 Androidアプリ (APK) をインストール</div>
+        <div class="apk-modal-title">ダイコメを アプリとして入れる</div>
         <div class="apk-modal-step">
           <div class="apk-modal-step-num">1</div>
-          <div>
-            下の <b>「APK をダウンロード」</b> ボタンを押すと
-            <code>daikome.apk</code> が端末に保存されます (約 数 MB)。
-          </div>
+          <div>画面の下（または上）の <b>共有</b>（□から↑が出ている印）を押します。</div>
         </div>
         <div class="apk-modal-step">
           <div class="apk-modal-step-num">2</div>
-          <div>
-            ダウンロード完了通知をタップ → 「<b>このソースのアプリを許可</b>」のダイアログが出るので
-            <b>許可</b> をタップ (端末によっては
-            <b>設定 → アプリ → 提供元不明のアプリ → Chrome を許可</b>)。
-          </div>
+          <div><b>「ホーム画面に追加」</b> を押します。</div>
         </div>
         <div class="apk-modal-step">
           <div class="apk-modal-step-num">3</div>
-          <div>続けて <b>「インストール」</b> をタップ。完了後 <b>「開く」</b> でアプリ起動。</div>
-        </div>
-        <div class="apk-modal-step">
-          <div class="apk-modal-step-num">4</div>
-          <div>初回起動時に <b>位置情報・センサー</b> の許可ダイアログが出るので全て許可。</div>
+          <div>
+            出てきた <b>ダイコメ</b> のアイコンから開きます。
+            <b>URL欄が出なくなったら 入っています。</b>
+          </div>
         </div>
         <div class="apk-modal-warn">
-          ⚠️ 「Play プロテクトでブロックされました」と表示された場合は
-          <b>詳細 → このまま使用</b> または <b>気にせずインストール</b> をタップ。<br />
-          Google Play 公式配布ではないため警告が出ますが, 配布元は司さん本人なので安全です。
+          入れないと <b>業務開始が押せません</b>。<br />
+          道に沿った距離が使えず、直線の距離で料金を出してしまうためです。<br />
+          <b>入れ直しても 車の登録と較正（K）は消えません。</b>
         </div>
         <div class="apk-modal-actions">
-          <a class="apk-modal-dl" href="/download/daikome.apk" download>APK をダウンロード</a>
           <button class="apk-modal-close" onclick="closeApkModal()">閉じる</button>
         </div>
       </div>
@@ -5812,13 +5824,9 @@
     <script src="js/k-calib.js"></script>
     <!-- ★車レジストリ (多台＋車別K永続・2026-06-26)★: 設定の車一覧/追加/削除・業務開始の車選択が使う。 -->
     <script src="js/veh-registry.js"></script>
-    <!-- ★今回限りの引っ越しの「受け取り口」（2026-08-22・撤去期限 2026-09-30）★
-         テストのアドレスに入ってしまった端末の 較正K・車・端末ID・履歴・設定を
-         そのまま受け取る。★?migrate=1 で開いた時だけ動く／送り元がテスト線の時だけ受け取る／
-         既に中身が在るキーは1つも上書きしない★。普段の画面は1ドットも変わらない。
-         正本=Daikou-app-test（1バイトも変えずに写した・sha256一致）
+    <!-- ★今回限りの引っ越し（2026-08-22・撤去期限 2026-09-30）★
+         テスト版に入ってしまった端末の 較正K・車・端末ID・履歴を 本番へそのまま運ぶ。
          見張り: tests/unit/migrate-removal-deadline.test.js（期限を過ぎたら赤） -->
-    <script src="js/dk-migrate.js"></script>
     <!-- ★1km自動較正K (autoCalibK・確定方式2026-06-26 / 2026-07-03 永続OFFキー廃止)★:
          ★素で常時ON★=普通に開けば新方式(OBD∫v×学習K)で動く・URLパラメータ不要。
          ?autocalibk=off は ★このセッションのみ★ 旧方式(永続しない)。on は不要(素でON)。
@@ -8601,7 +8609,13 @@
             window.navigator.standalone === true ||
             (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
           if (!_bsIsStandalone) {
-            showToast('ホーム画面に追加してから業務開始してください');
+            // ★止めるだけにしない★ 2026-08-25（司さん「それやったら最初から誘導しろや」）
+            //   前は この言葉だけ＝★何をどう押すのか分からない★
+            //   → その場で ★押す物ひとつ★の案内を出す（メニューを探させない）
+            showToast('アプリとして入れてから業務開始してください（下の「入れる」を押す）');
+            try {
+              if (typeof dkShowInstallBanner === 'function') dkShowInstallBanner();
+            } catch (_) {}
             if (typeof dlog === 'function') dlog('[Business] start blocked: not PWA standalone');
             return;
           }
@@ -10629,10 +10643,14 @@
         );
       }
 
-      // ─── Android APK 配布バナー / モーダル 制御 ───
+      // ─── 入れてください の帯 / 入れ方 の窓 ───
       function closeApkBanner() {
+        // ★「二度と出さない」にはしない★ 2026-08-25
+        //   前は localStorage に「もう出さない」を書いていた。
+        //   ＝一度 ✕ を押した端末は ★入っていないのに 何も出ない★ まま
+        //     業務開始だけ押せない、という一番わかりにくい形になる。
+        //   今は その場で閉じるだけ。開き直すか 業務開始を押せば また出る。
         document.getElementById('apkBanner').classList.remove('show');
-        localStorage.setItem('apk_banner_dismissed', '1');
       }
       function showApkInstall() {
         document.getElementById('apkModal').classList.add('show');
@@ -10640,19 +10658,80 @@
       function closeApkModal() {
         document.getElementById('apkModal').classList.remove('show');
       }
-      // Android Chrome かつ standalone 起動でない場合に表示 (iOS / 既 PWA 化端末では出さない)
+      // ★入っていない時に「押す物ひとつ」で入れる★ 2026-08-25（司さん指示）
+      //   ▼考え方
+      //     ・Chrome は「入れられる」と判断した時に beforeinstallprompt をくれる。
+      //       ★それを取っておいて、こちらのボタンで出す★＝メニュー（⋮）を探させない。
+      //     ・入れられない端末（iPhoneなど）は prompt が来ないので、その時だけ手順を出す。
+      //     ・★入っていない時は 閉じても また出す★（業務開始が押せない＝仕事にならない為）。
+      //       閉じたまま忘れる方が困る。
+      var _dkInstallPrompt = null;
+      function dkIsStandalone() {
+        try {
+          return (
+            window.navigator.standalone === true ||
+            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+          );
+        } catch (_) {
+          return false;
+        }
+      }
+      function dkShowInstallBanner() {
+        try {
+          if (dkIsStandalone()) return; // 入っている人には出さない
+          var el = document.getElementById('apkBanner');
+          if (!el) return;
+          var btn = document.getElementById('pwaInstallBtn');
+          var sub = document.getElementById('pwaBannerSub');
+          if (_dkInstallPrompt) {
+            // ★押すだけで入る★
+            if (btn) btn.textContent = '入れる';
+            if (sub) sub.textContent = '入れないと 業務開始が押せません（今は URL欄が出ています）';
+          } else {
+            // ★押すだけでは入らない端末★＝その時だけ 手順を出す
+            if (btn) btn.textContent = '入れ方';
+            if (sub) sub.textContent = '入れないと 業務開始が押せません（入れ方を見る）';
+          }
+          el.classList.add('show');
+        } catch (_) {}
+      }
+      window.addEventListener('beforeinstallprompt', function (e) {
+        try {
+          e.preventDefault(); // ★Chrome任せの出し方を止めて こちらのボタンで出す★
+          _dkInstallPrompt = e;
+          dkShowInstallBanner();
+        } catch (_) {}
+      });
+      window.addEventListener('appinstalled', function () {
+        try {
+          _dkInstallPrompt = null;
+          var el = document.getElementById('apkBanner');
+          if (el) el.classList.remove('show');
+          if (typeof showToast === 'function')
+            showToast('入りました。ホーム画面のダイコメから開いてください');
+        } catch (_) {}
+      });
+      function dkInstallApp() {
+        try {
+          if (_dkInstallPrompt) {
+            _dkInstallPrompt.prompt();
+            _dkInstallPrompt.userChoice
+              .then(function () {
+                _dkInstallPrompt = null;
+              })
+              .catch(function () {
+                _dkInstallPrompt = null;
+              });
+            return;
+          }
+          showApkInstall(); // 押すだけでは入らない端末＝手順を出す
+        } catch (_) {}
+      }
       (function () {
         try {
-          const ua = navigator.userAgent || '';
-          const isAndroid = /Android/i.test(ua);
-          const isStandalone =
-            (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
-            window.navigator.standalone === true;
-          const dismissed = localStorage.getItem('apk_banner_dismissed') === '1';
-          if (isAndroid && !isStandalone && !dismissed) {
-            const el = document.getElementById('apkBanner');
-            if (el) el.classList.add('show');
-          }
+          // ★入っていなければ 出す（Androidだけに絞らない）★
+          //   iPhone も 入っていないと 業務開始が押せないので 同じように案内する。
+          if (!dkIsStandalone()) dkShowInstallBanner();
         } catch (e) {}
       })();
 
@@ -12544,10 +12623,8 @@
         //   sw.js の message handler ({ type: 'GET_CACHE_NAME' }) に MessageChannel で問合せ。
         //   SW 未登録 (= 開発環境 / 初回 install 直後) は「(SW 未登録)」 表示で fallback。
         // ★どのアプリを開いているか（本番／テスト用）を 版と一緒に出す★ 2026-08-21
-        //   ★起きた事★ 司さんの端末の版が daikome-c7a5b18（テスト線の刻印）になっていた。
-        //   ホーム画面アプリ(PWA)は ★アドレスが見えない★ので、
-        //   司さんが自分で「どっちを開いているか」を確かめる方法が無かった。
-        //   ⇒ ★アプリの中に出す★。版の字を読まなくても この1行で分かる。
+        //   ホーム画面アプリ(PWA)は ★アドレスバーが出ない★＝司さんが自分で確かめる道が無かった。
+        //   ⇒ ★アプリの中に出す★（判定は location.host＝中の設定を信じない）
         function _envLabel() {
           const h = location.host || '';
           if (/-test\./.test(h) || /-test$/.test(h)) return '★テスト用★';
@@ -16958,14 +17035,20 @@
                 el.style.display = 'none'; // 全部済=ガイド不要
                 return;
               }
+              // ★1文字ずつ縦に割れないようにする★ 2026-08-25（実測 375px）
+              //   前 … 「① 車を登録」が ★57 x 37（＝2行に割れる）★
+              //         「② OBDを接続」75 x 37 ／「③ 較正走行」66 x 37
+              //   原因 … 3つを横1列(flex)に並べていたので、狭いと ★字の方が潰される★
+              //   直し … ★印と見出しは 折り返さない・縮めない★／説明は ★次の行★へ。
+              //          （この形は 給料の画面でも 同じ日に踏んだ）
               function row(done, label, hint) {
                 return (
-                  '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;">' +
-                  '<span style="font-size:15px;">' +
+                  '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:4px 0;">' +
+                  '<span style="font-size:15px;flex:0 0 auto;">' +
                   (done ? '✅' : '⬜') +
-                  '</span><span style="font-weight:600;">' +
+                  '</span><span style="font-weight:600;white-space:nowrap;flex:0 0 auto;">' +
                   label +
-                  '</span><span style="color:#8c8c8c;font-size:12px;">' +
+                  '</span><span style="color:#8c8c8c;font-size:12px;flex:1 1 100%;padding-left:23px;">' +
                   hint +
                   '</span></div>'
                 );
