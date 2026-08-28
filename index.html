@@ -5939,6 +5939,8 @@
     <!-- ★dk-config.js = Supabase接続先の単一真実源 (2026-07-31・独立/移設のため)。
          接続先を使う全モジュール(license.js / license-activate.js / 端末管理配線)より必ず先に load。 -->
     <script src="js/dk-config.js"></script>
+    <!-- ★テスト環境の帯★ 名札(DKConfig.ENV)だけで 決まる。本番では 何も出ない。 -->
+    <script src="js/dk-env-badge.js"></script>
     <!-- ★設計変更宣言 (2026-05-24・端末ライセンス台数ロック): 既存 DAIKOME_DEVICE_ID 流用・debug-trace.js 後に load -->
     <script src="js/license.js"></script>
     <!-- ★ライセンス最終方式(会社URL/QR+Ed25519署名) STEP3配線 (2026-07-27):
