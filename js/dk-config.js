@@ -22,6 +22,19 @@
 (function (global) {
   'use strict';
 
+  // ▼★自分がどちら側か の名札 (2026-08-28)★ -------------------------------
+  //   ★'test' か 'prod' の どちらかだけ★。ここ以外に 書かない。
+  //   ★帯（テスト環境の表示）は この名札★だけ★で 決まります★:
+  //     ・ホスト名 / 倉庫のID / repo名は ★見ません★
+  //       （配り先は 引っ越しで変わる。★本番かテストかは 接続先1本で 決まる★）
+  //     ・★repo名の -test を 環境の証拠にしない★（名前は 中身の証明に ならない）
+  //     ・★名札が 無い・知らない値なら 帯を 出さない（迷ったら 出さない）★
+  //       ＝★本番に「テスト環境」と 出る という 一番 高い事故だけは 構造上 起こさない★
+  //   ★この行は repo ごとに 値が違う＝同期でコピーしてはいけない★
+  //     テストrepo(Daikou-app-test) → 'test' ／ 本番repo(Daikou-app) → 'prod'
+  //   見張り: tests/unit/env-badge.test.js（git の remote から 素性を取って 機械で 縛る）
+  const ENV = 'prod';
+
   // ▼倉庫(Supabaseプロジェクト) --------------------------------------------
   //   現在: Exally 共有プロジェクト。★独立時はこの2つを新プロジェクトの値に差し替える★
   const SB_URL = 'https://tnfwipbgfgjaymlszeid.supabase.co';
@@ -47,7 +60,15 @@
   //   しかも名前に -test と入っているのに中身は本番＝一番危ない見た目だった。
   const SEIKYU_BASE = 'https://daikou-seikyu.vercel.app';
 
+  // ▼★本番の事務所の入口（帯の「本番を開く」だけに 使う）★ 2026-08-28
+  //   ★両repoで 同じ値★（＝本番の住所そのもの）。テスト線でしか 使われません
+  //   （本番は 帯が 出ないので 押す所も 出ません）。
+  //   ここに置く理由 … ★帯の中に ホスト名を 直に 書かない為★
+  //   （帯は 名札だけで 判定する。住所は「戻り先」であって 判定材料では ない）
+  const PROD_OFFICE_BASE = 'https://daikome-jimusho.vercel.app';
+
   const api = {
+    ENV: ENV,
     SB_URL: SB_URL,
     ANON_KEY: ANON_KEY,
     REST_BASE: SB_URL + '/rest/v1',
@@ -55,6 +76,7 @@
     APP_BASE: APP_BASE,
     OFFICE_BASE: OFFICE_BASE,
     SEIKYU_BASE: SEIKYU_BASE,
+    PROD_OFFICE_BASE: PROD_OFFICE_BASE,
 
     // Edge Function の URL を名前から組み立てる: fn('dk-issue-license')
     fn: function (name) {

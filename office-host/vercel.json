@@ -29,6 +29,10 @@
       "destination": "https://daikou-app.vercel.app/js/dk-config.js"
     },
     {
+      "source": "/js/dk-env-badge.js",
+      "destination": "https://daikou-app.vercel.app/js/dk-env-badge.js"
+    },
+    {
       "source": "/js/dk-session.js",
       "destination": "https://daikou-app.vercel.app/js/dk-session.js"
     },

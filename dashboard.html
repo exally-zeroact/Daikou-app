@@ -484,7 +484,7 @@
               border: 2px solid #c62828;
               border-radius: 8px;
               background: #fff5f5;
-              color: #333333;
+              color: #333;
               line-height: 1.7;
             "
           ></div>
@@ -547,6 +547,8 @@
 
     <script src="js/qrcode.min.js"></script>
     <script src="js/dk-config.js"></script>
+    <!-- ★テスト環境の帯★ 名札(DKConfig.ENV)だけで 決まる。本番では 何も出ない。 -->
+    <script src="js/dk-env-badge.js" data-modoru="office"></script>
     <!-- ★車の名前を決める所は1箇所だけ (2026-08-05)★
          端末IDの先頭8文字(7e1919ef…)を出していたのを、名前 or 「車1・車2」にする。 -->
     <script src="js/car-name.js"></script>
@@ -585,7 +587,9 @@
           { host: 'daikou-app-test.vercel.app', meter: 'https://daikou-app-test.vercel.app' },
         ];
         function expectedMeterFor(host) {
-          var h = String(host == null ? '' : host).toLowerCase().trim();
+          var h = String(host == null ? '' : host)
+            .toLowerCase()
+            .trim();
           for (var i = 0; i < HOST_PAIRS.length; i++) {
             if (HOST_PAIRS[i].host === h) return HOST_PAIRS[i].meter;
           }
@@ -593,7 +597,9 @@
         }
         function checkQrTarget(host, appBase) {
           var want = expectedMeterFor(host);
-          var got = String(appBase == null ? '' : appBase).trim().replace(/\/+$/, '');
+          var got = String(appBase == null ? '' : appBase)
+            .trim()
+            .replace(/\/+$/, '');
           if (!want) return { known: false, ok: true, want: null, got: got };
           return { known: true, ok: got === want, want: want, got: got };
         }
