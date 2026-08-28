@@ -58,12 +58,12 @@ export function findTargetTables(sql) {
   const s = stripNoise(sql);
   const out = new Set();
   const pats = [
-    /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?([a-z_][\w]*)/gi,
-    /\balter\s+table\s+(?:if\s+exists\s+)?([a-z_][\w]*)/gi,
-    /\bcreate\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?[\w]+\s+on\s+([a-z_][\w]*)/gi,
-    /\bcreate\s+policy\s+[\w]+\s+on\s+([a-z_][\w]*)/gi,
-    /\bcomment\s+on\s+column\s+([a-z_][\w]*)\./gi,
-    /\bcomment\s+on\s+table\s+([a-z_][\w]*)/gi,
+    /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?((?:[a-z_][\w]*\.)?[a-z_][\w]*)/gi,
+    /\balter\s+table\s+(?:if\s+exists\s+)?((?:[a-z_][\w]*\.)?[a-z_][\w]*)/gi,
+    /\bcreate\s+(?:unique\s+)?index\s+(?:concurrently\s+)?(?:if\s+not\s+exists\s+)?[\w]+\s+on\s+((?:[a-z_][\w]*\.)?[a-z_][\w]*)/gi,
+    /\bcreate\s+policy\s+[\w]+\s+on\s+((?:[a-z_][\w]*\.)?[a-z_][\w]*)/gi,
+    /\bcomment\s+on\s+column\s+((?:[a-z_][\w]*\.)?[a-z_][\w]*)\./gi,
+    /\bcomment\s+on\s+table\s+((?:[a-z_][\w]*\.)?[a-z_][\w]*)/gi,
   ];
   for (const re of pats) {
     let m;
@@ -75,6 +75,8 @@ export function findTargetTables(sql) {
 // ★門★ 通すか止めるか
 export function guard(sql, opts) {
   const prefix = (opts && opts.prefix) || 'dk_';
+  // ★ダイコメの部屋(schema)★。部屋つきの名前は この部屋の物だけ通す。
+  const room = (opts && opts.room) || 'daikome';
   const reasons = [];
 
   const danger = findDangerous(sql);
@@ -82,8 +84,25 @@ export function guard(sql, opts) {
     reasons.push('消す/書き換える書き方が入っている: ' + d.kind + ' → ' + d.at);
 
   const tables = findTargetTables(sql);
-  const foreign = tables.filter((t) => t.indexOf(prefix) !== 0);
-  for (const t of foreign) reasons.push('他アプリの棚に触ろうとしている: ' + t);
+  // ★2026-08-25 直し★：棚の名前に ★部屋(schema)が付いている書き方★ を読めていなかった。
+  //   daikome.dk_payroll_settings を「daikome という棚」と読んで、
+  //   ★自分の棚なのに「他アプリの棚」と言って止めていた★（司さんの作業が1回 止まった）。
+  //   通す … daikome.dk_◯◯ ／ dk_◯◯
+  //   止める … 他の部屋(public.x / kyuyo.dk_x) ／ dk_ で始まらない棚
+  for (const t of tables) {
+    const p = t.split('.');
+    if (p.length === 2) {
+      if (p[0] !== room) {
+        reasons.push(
+          '他アプリの部屋に触ろうとしている: ' + t + '（この repo が触ってよいのは ' + room + ' だけ）'
+        );
+      } else if (p[1].indexOf(prefix) !== 0) {
+        reasons.push('他アプリの棚に触ろうとしている: ' + t);
+      }
+    } else if (p[0].indexOf(prefix) !== 0) {
+      reasons.push('他アプリの棚に触ろうとしている: ' + t);
+    }
+  }
 
   if (!tables.length && !/\bselect\b/i.test(stripNoise(sql))) {
     reasons.push('何をする物か読み取れない（棚も select も無い）');

@@ -53,6 +53,24 @@ export const EXPECT = {
     dk_trips: [1, 2],
   },
 
+  // ★本番の最初の1件 (2026-08-03)★
+  //   司さんが本番の事務所でZERO代行のQRを配り、★3台が登録済み★（実測 18→21台）。
+  //   会社も端末ももう出来ているので、増えるのは ★勤務と代行だけ★。
+  //   通す前の控え: before-first-job（勤務0件・代行0件・請求先24件・明細1,099件）
+  first_job: {
+    dk_shifts: [1, 1], // 業務開始〜終了 1晩
+    dk_trips: [1, 3], // 代行1〜3件（1晩に何本か走る）
+    // ★companies / dk_companies / meisai / dk_company_devices は ±0★
+    //   端末が増えたら「知らない人が読んだ」、明細が増えたら「自動投入が立っている」。
+    //   どちらも止める理由。
+  },
+
+  // 3人ぶん揃った時
+  first_job_3drivers: {
+    dk_shifts: [1, 3],
+    dk_trips: [1, 9],
+  },
+
   //   ★テスト用アカウントで通す（2026-08-02）★ので dk_companies も1件増える
   e2e_stage1: {
     dk_shifts: [1, 1],
