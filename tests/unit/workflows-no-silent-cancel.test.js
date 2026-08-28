@@ -72,7 +72,11 @@ describe('★ワークフローの timeout が実測より短くないこと★'
   // 「timeout を伸ばして隠す」のは直したことにならないが、
   // 実測より短いままだと永久に打ち切られる。両方を避けるための下限。
   it('cert-gate の各ゲートに timeout がある', () => {
-    if (!fs.existsSync(path.join(WF, 'cert-gate.yml'))) return;
+    // ★2026-08-28: 前は「無ければ return」＝★何も見ずに緑★でした。
+    expect(
+      fs.existsSync(path.join(WF, 'cert-gate.yml')),
+      '★cert-gate.yml が 在りません★（見張りの本体が 消えています）'
+    ).toBe(true);
     const t = read('cert-gate.yml');
     const timeouts = Array.from(t.matchAll(/^\s*timeout:\s*(\d+)/gm)).map((m) => Number(m[1]));
     expect(timeouts.length, 'ゲートごとの timeout が無い').toBeGreaterThan(10);

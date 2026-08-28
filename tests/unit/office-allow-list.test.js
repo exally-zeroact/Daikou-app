@@ -77,9 +77,12 @@ describe('★一覧とHTMLがズレていないこと（増やし忘れ・減ら
   it('★HTMLが読む js が1つも漏れていない★（漏れると画面が動かない）', () => {
     const src = sources();
     const missing = [];
+    // ★2026-08-28: 画面が 1枚も 無くても 緑でした＝★0件でも緑★。
+    //   事務所の画面は ★必ず在る★（実測）。無いなら 消えた/名前が変わった＝★赤★。
+    const nai = OA.OFFICE_PAGES.filter((page) => !fs.existsSync(path.join(ROOT, page)));
+    expect(nai, '★事務所の画面が 在りません（OFFICE_PAGES を 直してください）★').toEqual([]);
     for (const page of OA.OFFICE_PAGES) {
       const f = path.join(ROOT, page);
-      if (!fs.existsSync(f)) continue;
       for (const r of OA.refsIn(fs.readFileSync(f, 'utf8'))) {
         if (!r.endsWith('.js')) continue;
         if (!src.includes(r)) missing.push(`${page} が読む ${r}`);

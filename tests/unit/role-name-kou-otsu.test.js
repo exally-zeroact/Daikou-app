@@ -53,7 +53,11 @@ describe('★役割の名前に 甲・乙 を使わない★', () => {
 
   it('★住所の小字（今治市 松本町 甲・乙）は 別物なので 残す★', () => {
     const p = path.join(ROOT, 'tests', 'integration', 'address-street-build.test.js');
-    if (!fs.existsSync(p)) return;
+    // ★2026-08-28: 前は「無ければ return」＝★何も見ずに緑★でした。
+    //   見張る相手が 消えたら ★見張れていない★＝赤にします。
+    expect(fs.existsSync(p), '★見張る相手（address-street-build.test.js）が 在りません★').toBe(
+      true
+    );
     const s = fs.readFileSync(p, 'utf8');
     // ここを うっかり消すと 実在の住所が出せなくなる
     expect(s, '★実在の小字を消してしまっている★').toContain("koaza: '甲'");

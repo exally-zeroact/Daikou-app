@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 'use strict';
+// ★物差し★ 2026-08-28 … ★画面の見え方の線（display ≤ distance_m）で 判定しています★
+//   ・見ているのは ★画面の数字が 課金距離を 先取りしないか★（この file 自身に そう書いてある）
+//   ・★距離そのもの（いくら取るか）の採点では ありません★。
+//   ・タクシー認定モード（過大不可）／代行モード（天井 +0.5〜6%）の どちらの線でも ありません。
 
 // tests/verify-display-smoothness.js
 // 白紙書き直し (clean-rebuild-pipeline) 表示層検証:

@@ -148,7 +148,12 @@ describe('dk-config = Supabase接続先の単一真実源', () => {
     const fnDir = path.join(ROOT, 'supabase', 'functions');
     // ★本番repoには Edge Function のソースを置いていない（共有倉庫へデプロイ済）★
     //   無い物で落ちるのは道具の不備。在る時だけ見る。
-    if (!fs.existsSync(fnDir)) return;
+    // ★2026-08-28: 前は 黙って return＝★合格に見える★。★未測定★と はっきり言う。
+    if (!fs.existsSync(fnDir)) {
+      console.warn('★未測定★ supabase/functions が 在りません（この repo には 置いていない）');
+      console.warn('  MISOKUTEI=1 reason=edge-function-dir-not-in-this-repo');
+      return;
+    }
     const fns = fs.readdirSync(fnDir).filter((d) => {
       return fs.existsSync(path.join(fnDir, d, 'index.ts'));
     });

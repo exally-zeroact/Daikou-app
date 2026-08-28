@@ -164,3 +164,41 @@ describe('★実物のファイルで確かめる★', () => {
     expect(r.ok).toBe(false);
   });
 });
+
+// ============================================================
+// ★部屋(schema)つきの名前を読めるか★ 2026-08-25
+//   ダイコメの棚は daikome という部屋に入っている（daikome.dk_payroll_settings）。
+//   門番は 部屋つきの名前を「daikome という棚」と読んで、
+//   ★自分の棚なのに「他アプリの棚」と言って止めていた★（司さんの作業が1回 止まった）。
+//   ⇒ 部屋と 頭文字(dk_) の ★両方★ を見る。ここで その両方を数える。
+// ============================================================
+describe('★部屋つきの棚の名前★', () => {
+  it('daikome.dk_◯◯ は通す', () => {
+    expect(
+      G.guard(
+        'alter table daikome.dk_payroll_settings add column if not exists show_car_sales boolean not null default true;'
+      ).ok,
+      '★自分の棚を止めている★'
+    ).toBe(true);
+  });
+  it('部屋なしの dk_◯◯ も 今までどおり通す', () => {
+    expect(G.guard('alter table dk_trips add column if not exists memo text;').ok).toBe(true);
+  });
+  it('★他の部屋は止める★', () => {
+    expect(G.guard('alter table public.users add column x text;').ok, '★他の部屋を通した★').toBe(
+      false
+    );
+    expect(
+      G.guard('alter table kyuyo.dk_x add column x text;').ok,
+      '★他の部屋の dk_ を通した★'
+    ).toBe(false);
+  });
+  it('★自分の部屋でも dk_ で始まらない棚は止める★', () => {
+    expect(G.guard('alter table daikome.employees add column x text;').ok).toBe(false);
+  });
+  it('★消す/書き換える書き方は 部屋つきでも止める★', () => {
+    expect(G.guard('drop table daikome.dk_trips;').ok).toBe(false);
+    expect(G.guard('delete from daikome.dk_trips;').ok).toBe(false);
+    expect(G.guard('update daikome.dk_trips set fare_yen = 0;').ok).toBe(false);
+  });
+});

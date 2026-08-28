@@ -1,3 +1,6 @@
+// ★物差し★ 2026-08-28 … ★距離の採点では ありません★
+//   ・この file が 赤にするのは 下に書いてある 別の基準です（配線・較正・採点の道具 など）。
+//   ・タクシー認定モード（過大不可）／代行モード（天井 +0.5〜6%）の どちらの線でも 判定していません。
 // tests/replay-mm-worker/scoring.js (Phase 1 基盤・2026-05-21・rev2 warmup-aware)
 // ★設計変更宣言 Phase 1 (2026-05-21・rev2):
 //   旧 rev1: 全 GPS step を等しく扱う precision/recall・末尾未 flush で FN 過大

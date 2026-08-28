@@ -29,11 +29,27 @@ describe('★古いiPhoneで効く書き方を守ること★', () => {
   });
 
   it('★事務所の画面が新しい範囲記法を使っていない★', () => {
-    const files = ['kyuryo.html', 'uriage.html', 'shukei.html', 'dashboard.html', 'login.html'];
+    // ★2026-08-29: company.html が 一覧に 無く ★見ていませんでした★
+    //   （本番へ 運ぼうとして pre-commit の stylelint に 捕まって 気づいた）
+    //   ＝★一覧に 入れ忘れた画面は 何も 見られない★。★画面を 足したら ここにも 足す★
+    const files = [
+      'kyuryo.html',
+      'uriage.html',
+      'shukei.html',
+      'dashboard.html',
+      'login.html',
+      'company.html',
+      'index.html',
+      'sub.html',
+      'history.html',
+      'settings.html',
+    ];
     const bad = [];
+    // ★2026-08-28: 前は「無ければ return」＝★何も見ずに緑★でした（5枚 全部 消えても 緑）。
+    const nai = files.filter((f) => !fs.existsSync(path.join(ROOT, f)));
+    expect(nai, '★事務所の画面が 在りません（一覧を 直してください）★').toEqual([]);
     files.forEach(function (f) {
       const p = path.join(ROOT, f);
-      if (!fs.existsSync(p)) return;
       const t = fs.readFileSync(p, 'utf8');
       // @media (width <= 620px) / (width >= 700px) のような形
       const re = /@media[^{]*\(\s*(width|height)\s*[<>]=?/g;

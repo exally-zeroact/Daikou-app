@@ -42,8 +42,10 @@ describe('★scripts/*.mjs の先頭にシェバンを書かない★', () => {
 
   it('テストから読まれている道具は、実際にimportできる', async () => {
     // 「落ちるのはテストの方」なので、ここで先に読んで原因を切り分けられるようにしておく
+    // ★2026-08-28: 前は「無ければ continue」＝★2本とも 消えても 緑★でした。
+    //   2本とも ★scripts/ に 在ります★（実測）。無いなら 消えた/名前が変わった＝★赤★。
     for (const f of ['dk-hosts.mjs', 'check-hosts.mjs']) {
-      if (!fs.existsSync(path.join(SCRIPTS, f))) continue;
+      expect(fs.existsSync(path.join(SCRIPTS, f)), '★scripts/' + f + ' が 在りません★').toBe(true);
       const m = await import('../../scripts/' + f);
       expect(m, f + ' が読めない').toBeTruthy();
     }

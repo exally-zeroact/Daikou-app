@@ -115,7 +115,10 @@ describe('★同期でテスト側の値を持ち込んでいないこと★', (
   });
 
   it('他のワークフローにも テスト側のホストが混ざっていない', () => {
-    if (!fs.existsSync(WF)) return;
+    // ★2026-08-28: 前は「無ければ return」＝★何も見ずに緑★でした。
+    //   .github/workflows は ★必ず在る★（CIは full checkout・test.yml:17 実測）。
+    //   無いなら ★消えた／場所が変わった★ので 赤にします。
+    expect(fs.existsSync(WF), '★.github/workflows が 在りません★').toBe(true);
     const offenders = [];
     for (const f of fs.readdirSync(WF).filter((x) => /\.ya?ml$/.test(x))) {
       const t = fs.readFileSync(path.join(WF, f), 'utf8');

@@ -138,7 +138,10 @@ describe('★HTMLの中のJSが 動く形になっている★', () => {
 
   it.each(FILES)('%s … 誰にも渡らない式が無い', (f) => {
     const p = path.join(ROOT, f);
-    if (!fs.existsSync(p)) return;
+    // ★2026-08-28: 前は「無ければ return」＝★何も見ずに緑★でした。
+    //   FILES は ★今 9本とも 両repoに 在る★（2026-08-28 実測）。
+    //   画面を1枚 消したなら ★FILES からも 消してください★（黙って緑にしない）。
+    expect(fs.existsSync(p), '★' + f + ' が 在りません（FILES を 直してください）★').toBe(true);
     const html = fs.readFileSync(p, 'utf8');
     const all = [];
     for (const s of inlineScripts(html)) all.push(...deadExpressions(s.code, s.line, acorn.parse));
