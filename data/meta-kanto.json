@@ -1,10 +1,10 @@
 {
   "region": "kanto",
-  "generated": "2026-08-22T18:37:08.482Z",
+  "generated": "2026-08-29T20:37:12.378Z",
   "prefectures": {
     "ibaraki": {
-      "numRoads": 119343,
-      "sizeBytes": 4070261,
+      "numRoads": 119375,
+      "sizeBytes": 4070799,
       "bbox": [
         3584021,
         13992266,
@@ -12,21 +12,21 @@
         14080341
       ],
       "attrCounts": {
-        "oneway": 6745,
+        "oneway": 6746,
         "incline": 55,
-        "lanes": 18087,
+        "lanes": 18086,
         "width": 55,
-        "layer": 5066,
+        "layer": 5069,
         "access": 15,
-        "maxspeed": 10444,
+        "maxspeed": 10445,
         "track": 0,
         "inclineFromOSM": 55,
         "inclineFromDem": 0
       }
     },
     "tochigi": {
-      "numRoads": 115871,
-      "sizeBytes": 3855293,
+      "numRoads": 115876,
+      "sizeBytes": 3855169,
       "bbox": [
         3617311,
         13938861,
@@ -38,7 +38,7 @@
         "incline": 1,
         "lanes": 9015,
         "width": 23,
-        "layer": 4777,
+        "layer": 4781,
         "access": 58,
         "maxspeed": 4470,
         "track": 0,
@@ -48,7 +48,7 @@
     },
     "gunma": {
       "numRoads": 125676,
-      "sizeBytes": 4267562,
+      "sizeBytes": 4267523,
       "bbox": [
         3586452,
         13838858,
@@ -69,8 +69,8 @@
       }
     },
     "saitama": {
-      "numRoads": 203166,
-      "sizeBytes": 6300134,
+      "numRoads": 202892,
+      "sizeBytes": 6292018,
       "bbox": [
         3564689,
         13891732,
@@ -78,21 +78,21 @@
         13981795
       ],
       "attrCounts": {
-        "oneway": 10284,
+        "oneway": 10282,
         "incline": 7,
-        "lanes": 22522,
-        "width": 1082,
-        "layer": 8188,
-        "access": 176,
-        "maxspeed": 12593,
+        "lanes": 22495,
+        "width": 1081,
+        "layer": 8189,
+        "access": 171,
+        "maxspeed": 12595,
         "track": 0,
         "inclineFromOSM": 7,
         "inclineFromDem": 0
       }
     },
     "chiba": {
-      "numRoads": 163500,
-      "sizeBytes": 5419295,
+      "numRoads": 163540,
+      "sizeBytes": 5420381,
       "bbox": [
         2475007,
         13982559,
@@ -104,7 +104,7 @@
         "incline": 27,
         "lanes": 11407,
         "width": 118,
-        "layer": 6573,
+        "layer": 6575,
         "access": 118,
         "maxspeed": 4954,
         "track": 0,
@@ -113,8 +113,8 @@
       }
     },
     "tokyo": {
-      "numRoads": 256452,
-      "sizeBytes": 7830187,
+      "numRoads": 256352,
+      "sizeBytes": 7827035,
       "bbox": [
         3530038,
         13944936,
@@ -122,21 +122,21 @@
         14010873
       ],
       "attrCounts": {
-        "oneway": 42281,
+        "oneway": 42293,
         "incline": 512,
-        "lanes": 34568,
+        "lanes": 34614,
         "width": 624,
-        "layer": 9546,
+        "layer": 9547,
         "access": 318,
-        "maxspeed": 31772,
+        "maxspeed": 31795,
         "track": 0,
         "inclineFromOSM": 512,
         "inclineFromDem": 0
       }
     },
     "kanagawa": {
-      "numRoads": 149991,
-      "sizeBytes": 4756277,
+      "numRoads": 149012,
+      "sizeBytes": 4725368,
       "bbox": [
         3244660,
         13890939,
@@ -144,13 +144,13 @@
         13986860
       ],
       "attrCounts": {
-        "oneway": 12349,
+        "oneway": 12356,
         "incline": 189,
-        "lanes": 17802,
-        "width": 1301,
-        "layer": 7251,
-        "access": 278,
-        "maxspeed": 19327,
+        "lanes": 17812,
+        "width": 1298,
+        "layer": 7236,
+        "access": 280,
+        "maxspeed": 19339,
         "track": 0,
         "inclineFromOSM": 189,
         "inclineFromDem": 0
