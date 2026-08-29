@@ -226,9 +226,11 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
         walk(o[k], `${where}.${k}`);
       });
     };
+    // ★2026-08-28: 前は「無ければ return」＝★何も見ずに緑★でした（4本 全部 消えても 緑）。
+    const nai = CONFIGS.filter((rel) => !fs.existsSync(path.join(ROOT, ...rel.split('/'))));
+    expect(nai, '★設定ファイルが 在りません（CONFIGS を 直してください）★').toEqual([]);
     CONFIGS.forEach((rel) => {
       const p = path.join(ROOT, ...rel.split('/'));
-      if (!fs.existsSync(p)) return;
       walk(JSON.parse(fs.readFileSync(p, 'utf8')), rel);
     });
     expect(offenders, '設定ごと拒否される（vercel.json / .eslintrc.json で実際に踏んだ）').toEqual(

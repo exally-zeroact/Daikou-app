@@ -377,89 +377,115 @@ describe('build-address.js --rsdt: UTF-8 BOM 耐性', () => {
 });
 
 // ─── 9. ★ 実 ehime data 最近傍 verify (build 後・skip 可) ─────
+// ★フラキー修正 (2026-08-02)★
+//   このブロックは 19MB / 309,098点 の実データを読む。前は ★3つの it が毎回読み直していた★
+//   (1回 210〜725ms)。vitest の既定の制限は 5000ms で余裕が無く、
+//   フルスイートの並列負荷で 5366ms かかった時に「時間切れ」で赤くなっていた。
+//   ＝判定の誤りではなく時間切れ。`--testTimeout=600` で同じ落ち方(Test timed out)を再現して確認済み。
+//   直し方: ①読むのは beforeAll で1回だけ ②制限に十分な余裕を持たせる
+//   （②だけだと「重いまま隠す」ことになるので、①で実際の負荷を減らすのが本体）
+const LOAD_TIMEOUT_MS = 60000;
+const CASE_TIMEOUT_MS = 30000;
+
 describe('build-address.js --rsdt: 実 ehime data 最近傍 verify', () => {
   const REAL_PATH = path.join(__dirname, '..', '..', 'data', 'addresses-rsdt-ehime.js');
 
-  it('生成済 data/addresses-rsdt-ehime.js は・load 可能 + 全構造一致', () => {
+  // ★1回だけ読む★（未生成なら null のまま = 各 it は skip）
+  let REAL = null;
+  beforeAll(() => {
     if (!fs.existsSync(REAL_PATH)) {
-      console.warn('data/addresses-rsdt-ehime.js 未生成・skip (= build 未実行)');
+      // ★2026-08-28: 前は「skip」と出して 緑で終わっていました＝★読む人には 合格に見える★。
+      //   この生成物は ★repo に置いていません★（build で作る物・2026-08-28 実測で 3本とも 無い）。
+      //   ⇒★赤にはしません★（無いのが 普通）。ただし ★未測定★と はっきり言います。
+      console.warn('★未測定★ data/addresses-rsdt-ehime.js が 在りません（build を回していない）');
+      console.warn('  MISOKUTEI=1 reason=build-output-not-in-repo');
+      console.warn('  ⇒「測っていない」であって「異常なし」ではありません。');
       return;
     }
     const win = {};
     new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
-    const b = win.ADDRESSES_RSDT_EHIME;
-    expect(b.v).toBe(2);
-    expect(b.prefecture).toBe('ehime');
-    expect(b.precision).toBe(100000);
-    expect(b.points.length).toBeGreaterThan(10000);
-    expect(Object.keys(b.oazas).length).toBeGreaterThan(100);
-    expect(Object.keys(b.grid).length).toBeGreaterThan(50);
-    // 全点が k + g を持つ
-    for (let i = 0; i < Math.min(100, b.points.length); i++) {
-      expect(typeof b.points[i].k).toBe('string');
-      expect(typeof b.points[i].g).toBe('string');
-    }
-  });
+    REAL = win.ADDRESSES_RSDT_EHIME;
+  }, LOAD_TIMEOUT_MS);
+
+  it(
+    '生成済 data/addresses-rsdt-ehime.js は・load 可能 + 全構造一致',
+    () => {
+      if (!REAL) return;
+      const b = REAL;
+      expect(b.v).toBe(2);
+      expect(b.prefecture).toBe('ehime');
+      expect(b.precision).toBe(100000);
+      expect(b.points.length).toBeGreaterThan(10000);
+      expect(Object.keys(b.oazas).length).toBeGreaterThan(100);
+      expect(Object.keys(b.grid).length).toBeGreaterThan(50);
+      // 全点が k + g を持つ
+      for (let i = 0; i < Math.min(100, b.points.length); i++) {
+        expect(typeof b.points[i].k).toBe('string');
+        expect(typeof b.points[i].g).toBe('string');
+      }
+    },
+    CASE_TIMEOUT_MS
+  );
 
   // ★ 司さん GPS (34.06467, 133.0015) の・所在地「今治市松本町一丁目」は・地番地区
   //   (= ABR rsdt_addr_flg=0 → ABR rsdt に・含まれない)。これは設計通り (= 号無し領域)。
   //   commit4 SEARCH_CHAIN で・rsdt MISS → street で 「松本町一丁目6」 fallback する。
   //   よって rsdt 単独 verify は・実 ABR 住居表示地区 GPS で実施。
-  it('司さん GPS (34.06467, 133.0015) は・地番地区 = ABR rsdt に・近傍 100m 内 hit なし (= 設計通り・SEARCH_CHAIN で street fallback)', () => {
-    if (!fs.existsSync(REAL_PATH)) {
-      console.warn('data/addresses-rsdt-ehime.js 未生成・skip');
-      return;
-    }
-    const win = {};
-    new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
-    const b = win.ADDRESSES_RSDT_EHIME;
-    function hav(lat1, lng1, lat2, lng2) {
-      const R = 6371000;
-      const T = Math.PI / 180;
-      const dLat = (lat2 - lat1) * T;
-      const dLng = (lng2 - lng1) * T;
-      const a =
-        Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * T) * Math.cos(lat2 * T) * Math.sin(dLng / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-    let bestD = Infinity;
-    for (const p of b.points) {
-      const d = hav(34.06467, 133.0015, p.lat / 100000, p.lng / 100000);
-      if (d < bestD) bestD = d;
-    }
-    // 100m 以内に・ABR rsdt point は無いはず (= 松本町一丁目は・地番地区)
-    expect(bestD).toBeGreaterThan(100);
-  });
-
-  it('★ 住居表示地区 GPS (34.06124, 132.99625 = 今治市常盤町５丁目1番1号) → 同住所が・20m 以内 hit', () => {
-    if (!fs.existsSync(REAL_PATH)) {
-      console.warn('data/addresses-rsdt-ehime.js 未生成・skip');
-      return;
-    }
-    const win = {};
-    new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
-    const b = win.ADDRESSES_RSDT_EHIME;
-    function hav(lat1, lng1, lat2, lng2) {
-      const R = 6371000;
-      const T = Math.PI / 180;
-      const dLat = (lat2 - lat1) * T;
-      const dLng = (lng2 - lng1) * T;
-      const a =
-        Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * T) * Math.cos(lat2 * T) * Math.sin(dLng / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-    let best = null;
-    let bestD = Infinity;
-    for (const p of b.points) {
-      const d = hav(34.06124, 132.99625, p.lat / 100000, p.lng / 100000);
-      if (d < bestD) {
-        bestD = d;
-        best = p;
+  it(
+    '司さん GPS (34.06467, 133.0015) は・地番地区 = ABR rsdt に・近傍 100m 内 hit なし (= 設計通り・SEARCH_CHAIN で street fallback)',
+    () => {
+      if (!REAL) return;
+      const b = REAL;
+      function hav(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const T = Math.PI / 180;
+        const dLat = (lat2 - lat1) * T;
+        const dLng = (lng2 - lng1) * T;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1 * T) * Math.cos(lat2 * T) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       }
-    }
-    expect(bestD).toBeLessThan(20);
-    expect(b.oazas[best.c]).toBe('今治市常盤町５丁目');
-    expect(best.k).toBe('1');
-    expect(best.g).toBe('1');
-  });
+      let bestD = Infinity;
+      for (const p of b.points) {
+        const d = hav(34.06467, 133.0015, p.lat / 100000, p.lng / 100000);
+        if (d < bestD) bestD = d;
+      }
+      // 100m 以内に・ABR rsdt point は無いはず (= 松本町一丁目は・地番地区)
+      expect(bestD).toBeGreaterThan(100);
+    },
+    CASE_TIMEOUT_MS
+  );
+
+  it(
+    '★ 住居表示地区 GPS (34.06124, 132.99625 = 今治市常盤町５丁目1番1号) → 同住所が・20m 以内 hit',
+    () => {
+      if (!REAL) return;
+      const b = REAL;
+      function hav(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const T = Math.PI / 180;
+        const dLat = (lat2 - lat1) * T;
+        const dLng = (lng2 - lng1) * T;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1 * T) * Math.cos(lat2 * T) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
+      let best = null;
+      let bestD = Infinity;
+      for (const p of b.points) {
+        const d = hav(34.06124, 132.99625, p.lat / 100000, p.lng / 100000);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      expect(bestD).toBeLessThan(20);
+      expect(b.oazas[best.c]).toBe('今治市常盤町５丁目');
+      expect(best.k).toBe('1');
+      expect(best.g).toBe('1');
+    },
+    CASE_TIMEOUT_MS
+  );
 });

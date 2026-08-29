@@ -28,8 +28,22 @@ function haversineM(aLat, aLng, bLat, bLng) {
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-const samples = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'fixtures', FIX), 'utf8'));
+// ★実物が要る＝無ければ 未測定で 赤★ 2026-08-28（指示役の裁定③-3）
+//   ★0件と 未測定を 混ぜない★。読む人に「異常なし」と 見えてはいけない。
+const _fixPath = path.join(__dirname, '..', 'fixtures', FIX);
+if (!fs.existsSync(_fixPath)) {
+  console.error('★未測定★ 材料が 在りません: ' + _fixPath);
+  console.error('  MISOKUTEI=1 reason=fixture-not-found');
+  console.error('  ⇒「測っていない」であって「異常なし」ではありません。');
+  process.exit(1);
+}
+const samples = JSON.parse(fs.readFileSync(_fixPath, 'utf8'));
 const arr = Array.isArray(samples) ? samples : samples.samples || samples.points || [];
+if (!arr.length) {
+  console.error('★未測定★ 材料に 点が 1つも 在りません: ' + _fixPath);
+  console.error('  MISOKUTEI=1 reason=fixture-empty');
+  process.exit(1);
+}
 
 const worker = createMapMatcherWorker({ debug: false });
 const mmResults = [];

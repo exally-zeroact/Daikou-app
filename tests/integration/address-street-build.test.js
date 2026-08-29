@@ -241,7 +241,12 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
 
   it('生成済 data/addresses-street-ehime.js は・load 可能 + 全構造一致', () => {
     if (!fs.existsSync(REAL_PATH)) {
-      console.warn('data/addresses-street-ehime.js 未生成・skip (= build 未実行)');
+      // ★2026-08-28: 前は「skip」と出して 緑で終わっていました＝★読む人には 合格に見える★。
+      //   この生成物は ★repo に置いていません★（build で作る物・2026-08-28 実測で 3本とも 無い）。
+      //   ⇒★赤にはしません★（無いのが 普通）。ただし ★未測定★と はっきり言います。
+      console.warn('★未測定★ data/addresses-street-ehime.js が 在りません（build を回していない）');
+      console.warn('  MISOKUTEI=1 reason=build-output-not-in-repo');
+      console.warn('  ⇒「測っていない」であって「異常なし」ではありません。');
       return;
     }
     const win = {};
@@ -257,7 +262,9 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
 
   it('★ 司さん GPS (34.06467, 133.0015) → 「今治市松本町一丁目6」が・20m 以内で hit', () => {
     if (!fs.existsSync(REAL_PATH)) {
-      console.warn('data/addresses-street-ehime.js 未生成・skip');
+      // ★2026-08-28: ここも「skip」で 緑で終わっていました（同じ形が 2か所ありました）。
+      console.warn('★未測定★ data/addresses-street-ehime.js が 在りません（build を回していない）');
+      console.warn('  MISOKUTEI=1 reason=build-output-not-in-repo');
       return;
     }
     const win = {};

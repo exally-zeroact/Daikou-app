@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ｜スマホが、そのまま運転代行メーターに。</title>
+    <meta
+      name="description"
+      content="OBDと連動して距離を正確に測り、料金を自動計算。高価な専用メーター機はいりません。運転代行のメーターを、随伴車のスマホで。"
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>"
+    />
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --card: #fff;
+        --line: #dbe7f7;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      /* ---- Hero ---- */
+      .hero {
+        background: linear-gradient(160deg, #e6f0ff 0%, #f2f7ff 60%);
+        padding: 28px 0 40px;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 0 30px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 22px;
+        color: var(--blue-d);
+        letter-spacing: 0.5px;
+      }
+
+      .nav a.mini {
+        color: var(--blue-d);
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 14px;
+        border: 1.5px solid var(--blue);
+        border-radius: 999px;
+        padding: 7px 16px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 28px;
+        align-items: center;
+      }
+
+      .hero h1 {
+        font-size: 34px;
+        line-height: 1.35;
+        letter-spacing: 0.5px;
+        margin-bottom: 16px;
+      }
+
+      .hero h1 .hl {
+        color: var(--blue-d);
+      }
+
+      .hero p.lead {
+        font-size: 16px;
+        color: var(--muted);
+        margin-bottom: 24px;
+      }
+
+      .cta {
+        display: inline-block;
+        background: var(--blue);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 800;
+        font-size: 16px;
+        padding: 14px 28px;
+        border-radius: 12px;
+        box-shadow: 0 6px 16px rgb(0 122 255 / 32%);
+      }
+
+      .cta:active {
+        transform: translateY(1px);
+      }
+
+      .cta-note {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+
+      .hero-img {
+        width: 100%;
+        max-width: 290px;
+        margin: 0 auto;
+        display: block;
+        border-radius: 22px;
+        box-shadow: 0 18px 40px rgb(20 36 61 / 18%);
+        border: 6px solid #fff;
+      }
+
+      /* ---- Values ---- */
+      section {
+        padding: 48px 0;
+      }
+
+      h2.sec {
+        text-align: center;
+        font-size: 26px;
+        margin-bottom: 8px;
+      }
+
+      p.sec-sub {
+        text-align: center;
+        color: var(--muted);
+        margin-bottom: 34px;
+      }
+
+      .values {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      .val {
+        background: var(--card);
+        border: 1px solid #dbe7f7;
+        border-radius: 16px;
+        padding: 24px 22px;
+      }
+
+      .val .ic {
+        font-size: 30px;
+        margin-bottom: 10px;
+      }
+
+      .val h3 {
+        font-size: 18px;
+        margin-bottom: 8px;
+      }
+
+      .val p {
+        font-size: 14.5px;
+        color: var(--muted);
+      }
+
+      /* ---- How ---- */
+      .how {
+        background: #e6f0ff;
+      }
+
+      .steps {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 18px;
+        counter-reset: st;
+      }
+
+      .step {
+        background: #fff;
+        border-radius: 16px;
+        padding: 24px 20px;
+        position: relative;
+      }
+
+      .step::before {
+        counter-increment: st;
+        content: counter(st);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--blue);
+        color: #fff;
+        font-weight: 800;
+        font-size: 18px;
+        margin-bottom: 12px;
+      }
+
+      .step h4 {
+        font-size: 16px;
+        margin-bottom: 6px;
+      }
+
+      .step p {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      /* ---- Signup ---- */
+      .signup {
+        text-align: center;
+      }
+
+      .form-card {
+        max-width: 460px;
+        margin: 0 auto;
+        background: #fff;
+        border: 1px solid #dbe7f7;
+        border-radius: 18px;
+        padding: 28px 24px;
+        text-align: left;
+        box-shadow: 0 10px 30px rgb(20 36 61 / 8%);
+      }
+
+      .form-card label {
+        display: block;
+        font-weight: 700;
+        font-size: 14px;
+        margin: 14px 0 6px;
+      }
+
+      .form-card input {
+        width: 100%;
+        padding: 13px 14px;
+        font-size: 16px;
+        border: 1.5px solid #cddcf2;
+        border-radius: 10px;
+        font-family: inherit;
+      }
+
+      .form-card input:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      .form-card .hint {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+
+      .submit {
+        width: 100%;
+        margin-top: 22px;
+        padding: 15px;
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .submit:disabled {
+        opacity: 0.6;
+      }
+
+      #reg-result {
+        display: none;
+        max-width: 460px;
+        margin: 22px auto 0;
+        background: #e6f0ff;
+        border: 1px solid var(--blue);
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+      }
+
+      #reg-result h3 {
+        color: var(--blue-d);
+        margin-bottom: 6px;
+      }
+
+      .url-box {
+        background: #fff;
+        border: 1.5px solid #cddcf2;
+        border-radius: 10px;
+        padding: 12px;
+        font-size: 13.5px;
+        word-break: break-all;
+        user-select: all;
+        margin: 14px 0 8px;
+      }
+
+      .copy {
+        background: var(--blue-d);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 9px 18px;
+        font-weight: 700;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      #qr {
+        margin: 18px auto 4px;
+        width: 180px;
+      }
+
+      #qr img,
+      #qr svg {
+        width: 180px;
+        height: 180px;
+      }
+
+      .err {
+        color: #c0392b;
+        font-weight: 700;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+
+      footer {
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+        padding: 30px 0 40px;
+      }
+
+      /* ---- Mobile ---- */
+      @media (max-width: 720px) {
+        .hero-grid,
+        .values,
+        .steps {
+          grid-template-columns: 1fr;
+        }
+
+        .hero h1 {
+          font-size: 27px;
+        }
+
+        .hero-img {
+          max-width: 230px;
+          margin-top: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Hero -->
+    <div class="hero">
+      <div class="wrap">
+        <div class="nav">
+          <div class="logo">🚗 ダイコメ</div>
+          <a class="mini" href="login.html">ログイン / 登録</a>
+        </div>
+        <div class="hero-grid">
+          <div>
+            <h1>スマホが、そのまま<br /><span class="hl">運転代行メーター</span>に。</h1>
+            <p class="lead">
+              OBDと連動して距離を正確に測り、料金を自動で計算。<br />
+              高価な専用メーター機は、もういりません。
+            </p>
+            <a class="cta" href="login.html">2か月 無料でためす</a>
+            <span class="cta-note"
+              >メールだけで登録。カード登録は不要。すぐに専用URL／QRが出て、ドライバーに配れます。</span
+            >
+          </div>
+          <img
+            class="hero-img"
+            src="assets/lp-meter.png"
+            alt="ダイコメの走行中メーター画面（現在料金と走行距離）"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Values -->
+    <section>
+      <div class="wrap">
+        <h2 class="sec">ダイコメが選ばれる理由</h2>
+        <p class="sec-sub">現場で本当に効く、4つの実利。</p>
+        <div class="values">
+          <div class="val">
+            <div class="ic">📏</div>
+            <h3>実車で走り込んだ、確かな精度</h3>
+            <p>
+              車のOBD情報で距離を測り、実際に何度も走り込んでブレを徹底的に詰めました。業務用メーターに迫る精度で、お客様に払わせすぎない「過大ゼロ」設計です。
+            </p>
+          </div>
+          <div class="val">
+            <div class="ic">📱</div>
+            <h3>安いスマホ1台で、いい</h3>
+            <p>
+              高価な専用メーター機はいりません。オフラインで動くので通信契約も不要——中古や格安のスマホ1台で十分です。メーター専用にすれば、業務連絡や私用の通知に邪魔されず、運転にも集中できます。
+            </p>
+          </div>
+          <div class="val">
+            <div class="ic">📡</div>
+            <h3>オフラインで、動く</h3>
+            <p>
+              通信契約も電波もいりません。トンネルや山間部でも計測は継続。スマホがオフラインでも、業務は止まりません。
+            </p>
+          </div>
+          <div class="val">
+            <div class="ic">🧮</div>
+            <h3>あなたの料金体系で</h3>
+            <p>
+              初乗り・加算・時間・迎車・割増・値引きまで、会社ごとの設定で自動計算。締めも精算もラクに。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How -->
+    <section class="how">
+      <div class="wrap">
+        <h2 class="sec">使い始めは、3ステップ</h2>
+        <p class="sec-sub">申込も設置も、その日のうちに。</p>
+        <div class="steps">
+          <div class="step">
+            <h4>メールで登録</h4>
+            <p>メールアドレスで登録・ログインすると、あなたの会社専用URL（とQR）が出ます。</p>
+          </div>
+          <div class="step">
+            <h4>ドライバーが開く</h4>
+            <p>
+              そのURL／QRを随伴車のスマホで開くだけ。一度きりで、その端末が使えるようになります。
+            </p>
+          </div>
+          <div class="step">
+            <h4>業務で使う</h4>
+            <p>スマホで「業務開始」。あとは自動で距離と料金。iPhone／Android どちらでもOK。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Signup -->
+    <section class="signup" id="signup">
+      <div class="wrap">
+        <h2 class="sec">2か月 無料でためす</h2>
+        <p class="sec-sub">
+          メールアドレスだけで始められます。カード登録は不要。<br />
+          登録するとすぐ、ドライバーに配る専用URL／QRが出ます。
+        </p>
+        <a class="cta" href="login.html">メールではじめる</a>
+        <p style="font-size: 13px; color: var(--muted); margin-top: 16px">
+          すでに登録済みの方も、同じ「メールではじめる」からログインできます。<br />
+          ログインすれば、会社の管理画面（URL・台数・端末）がいつでも見られます。
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        iPhone／Android 両対応・OBDが無くてもGPSで使えます。<br />
+        © ダイコメ
+      </div>
+    </footer>
+  </body>
+</html>

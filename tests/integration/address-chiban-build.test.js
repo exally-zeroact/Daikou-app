@@ -442,32 +442,55 @@ describe('build-address.js --chiban: 実 ehime data 司さん GPS hit verify', (
 
   // 実 ehime data (= 164 MB JS) は・load + 271 万点 sweep に・~7 秒 → vitest default 5 秒で timeout
   // 60 秒 まで・拡張 (= 既存 rsdt verify と同様・実機 verify テスト)
-  it('生成済 data/addresses-chiban-ehime.js は・load 可能 + 全構造一致', { timeout: 60000 }, () => {
-    if (!fs.existsSync(REAL_PATH)) {
-      console.warn('data/addresses-chiban-ehime.js 未生成・skip (= build 未実行)');
-      return;
+  //
+  // ★2026-08-07 180秒へ（実測して延ばした）★
+  //   ★中身は1つも弱めていない★。見積もりが実際と合っていなかっただけ。
+  //   実測: ★単独 16.8秒 / 全体走行の中では 86秒・103秒★（2回とも 60秒を超えて赤）
+  //   164MB を読む所が他のテストとディスクを取り合うため、混んでいる時に伸びる。
+  //   ＝これは「遅くなった」のではなく「元から重い物が、混むと更に伸びる」。
+  //   本当に壊れた時（ファイルが壊れている・形が違う）は★中身の照合で落ちる★ので、
+  //   時間で落とす必要は無い。
+  it(
+    '生成済 data/addresses-chiban-ehime.js は・load 可能 + 全構造一致',
+    { timeout: 180000 },
+    () => {
+      if (!fs.existsSync(REAL_PATH)) {
+        // ★2026-08-28: 前は「skip」と出して 緑で終わっていました＝★読む人には 合格に見える★。
+        //   この生成物は ★repo に置いていません★（build で作る物・2026-08-28 実測で 3本とも 無い）。
+        //   ⇒★赤にはしません★（無いのが 普通）。ただし ★未測定★と はっきり言います。
+        console.warn(
+          '★未測定★ data/addresses-chiban-ehime.js が 在りません（build を回していない）'
+        );
+        console.warn('  MISOKUTEI=1 reason=build-output-not-in-repo');
+        console.warn('  ⇒「測っていない」であって「異常なし」ではありません。');
+        return;
+      }
+      const win = {};
+      new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
+      const b = win.ADDRESSES_CHIBAN_EHIME;
+      expect(b.v).toBe(2);
+      expect(b.prefecture).toBe('ehime');
+      expect(b.precision).toBe(100000);
+      expect(b.points.length).toBeGreaterThan(100000);
+      expect(Object.keys(b.oazas).length).toBeGreaterThan(1000);
+      expect(Object.keys(b.grid).length).toBeGreaterThan(100);
+      // 全点が k を持つ (= g は任意)
+      for (let i = 0; i < Math.min(100, b.points.length); i++) {
+        expect(typeof b.points[i].k).toBe('string');
+      }
     }
-    const win = {};
-    new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
-    const b = win.ADDRESSES_CHIBAN_EHIME;
-    expect(b.v).toBe(2);
-    expect(b.prefecture).toBe('ehime');
-    expect(b.precision).toBe(100000);
-    expect(b.points.length).toBeGreaterThan(100000);
-    expect(Object.keys(b.oazas).length).toBeGreaterThan(1000);
-    expect(Object.keys(b.grid).length).toBeGreaterThan(100);
-    // 全点が k を持つ (= g は任意)
-    for (let i = 0; i < Math.min(100, b.points.length); i++) {
-      expect(typeof b.points[i].k).toBe('string');
-    }
-  });
+  );
 
   it(
     '★ 司さん GPS (34.06467, 133.0015) → 「今治市松本町１丁目 6-33番地」が・5m 以内で hit',
     { timeout: 60000 },
     () => {
       if (!fs.existsSync(REAL_PATH)) {
-        console.warn('data/addresses-chiban-ehime.js 未生成・skip');
+        // ★2026-08-28: ここも「skip」で 緑で終わっていました（同じ形が 2か所ありました）。
+        console.warn(
+          '★未測定★ data/addresses-chiban-ehime.js が 在りません（build を回していない）'
+        );
+        console.warn('  MISOKUTEI=1 reason=build-output-not-in-repo');
         return;
       }
       const win = {};

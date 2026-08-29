@@ -73,7 +73,7 @@ async function main() {
   const probe = await runSql(
     ref,
     key.token,
-    "select count(*)::int as n from pg_tables where schemaname='public' and tablename like 'dk\\_%'"
+    "select count(*)::int as n from pg_tables where schemaname in ('public','daikome') and tablename like 'dk\\_%'"
   );
   if (!probe.ok) {
     console.error('NG: 倉庫に届かない', probe.status, JSON.stringify(probe.body).slice(0, 300));
@@ -126,16 +126,16 @@ async function main() {
     key.token,
     `select t.tablename, t.rowsecurity as rls,
             (select count(*)::int from pg_policies p
-              where p.schemaname='public' and p.tablename=t.tablename) as policies
+              where p.schemaname=t.schemaname and p.tablename=t.tablename) as policies
        from pg_tables t
-      where t.schemaname='public' and t.tablename like 'dk\\_%'
+      where t.schemaname in ('public','daikome') and t.tablename like 'dk\\_%'
       order by t.tablename`
   );
   const cols = await runSql(
     ref,
     key.token,
     `select table_name, column_name from information_schema.columns
-      where table_schema='public' and table_name='dk_shift_edits' and column_name='hours'`
+      where table_schema in ('public','daikome') and table_name='dk_shift_edits' and column_name='hours'`
   );
 
   console.log('\n― 当てた後の状態 ―');

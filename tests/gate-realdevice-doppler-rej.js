@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 'use strict';
+// ★物差し★ 2026-08-28 … ★合否は「良いfixの棄却件数」で決めており、距離の採点では ありません★
+//   ・タイヤ真値(2leg合算 12.32km)は ★参考表示のみ★（合否に 使っていない）。
+//   ・タクシー認定モード／代行モード の どちらの線でも 判定していない。
 // gate-realdevice-doppler-rej.js (2026-05-31)
 //   目的: ★実機SE/iPhone13の「過少」= 良い精度(acc<10m)の位置fixを Doppler速度の嘘で棄却した★
 //   問題を gate 化する。既存 gate-realdevice-creep.js は iPhone13 の creep(過大)だけを捕捉し
@@ -219,12 +222,19 @@ function main() {
   ];
   const results = {};
   let anyFail = false;
+  let hakattaDaisu = 0; // ★何台 測れたか（0台なら 赤）★
   for (const [d, ios, fn] of devs) {
     const f = path.join(__dirname, 'fixtures', fn);
+    // ★2026-08-28: 前は「fixture無し SKIP」で 飛ばして そのまま緑でした
+    //   ＝★3台とも 実物が消えても 緑★（何も見ていないのに 合格に見える）。
+    //   実物は ★3台とも repo に在ります★（2026-08-28 実測）。無いなら 消えた/名前が変わった＝★赤★。
     if (!fs.existsSync(f)) {
-      console.log(d + ': fixture無し SKIP');
+      console.error('★' + d + ': 実物が 在りません（測っていません）: ' + f + '★');
+      console.error('  ⇒「測っていない」であって「異常なし」ではありません。');
+      anyFail = true;
       continue;
     }
+    hakattaDaisu++;
     const s = JSON.parse(fs.readFileSync(f, 'utf8'))
       .filter((x) => x && Number.isFinite(x.lat) && Number.isFinite(x.lng))
       .sort((a, b) => (a.t || 0) - (b.t || 0));
@@ -322,6 +332,13 @@ function main() {
   );
 
   console.log('\n=== GATE doppler-rej: ' + (anyFail ? 'FAIL' : 'PASS') + ' ===');
+  // ★0台でも緑にしない★（実物が全部 消えた時に 気づけるように）2026-08-28
+  if (hakattaDaisu === 0) {
+    console.error('★1台も 測れていません（実物が 1つも 在りません）＝赤★');
+    anyFail = true;
+  } else {
+    console.log('★測れた台数 = ' + hakattaDaisu + ' / 3 台★');
+  }
   process.exit(anyFail ? 1 : 0);
 }
 

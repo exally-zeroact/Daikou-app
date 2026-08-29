@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 'use strict';
+// ★物差し★ 2026-08-28 … ★どちらの採点でもない（距離の「多い少ない」を見ていない）★
+//   見ているのは ★穴の出口で 1フレームに まとめて乗るか★。
+//   ・真値と比べた結果は 別の道具に在る（tests/tools/realtest-dm-score.js）:
+//     ★DM Light 基準で 実車1 −1.36% / 実車2 −1.51%＝天井(+0.5〜6%)の 中どころか 下★（2026-08-28 実測）
+//   ⇒★この赤を「過大請求」と 読まないでください★。
 
 // ============================================================================
 // tests/gate-tunnel-continuity.js
@@ -56,10 +61,18 @@ const HOLE_DT_SEC = 5.0; // dt がこれ超 = GPS 穴 (トンネル/欠落)。�
 // 違反集計でゲート判定に使うのは ALL_FRAMES でない限り「業務走行 (act=1 && it=1)」フレームのみ。
 // (★業務別のみ★ ルール: 走行外の trip 境界メガギャップ等を distance 欠陥と混同しない)
 
+// ★2026-08-28 … .slim に 向け直した★（指示役の裁定③）
+//   ★前は shimanami-*.json（full）を見ていましたが 両repoに 1本も在りません★。
+//   ＝'fixture 無し' で throw し、cert-gate.yml の soft: true が それを ✓ に見せていました。
+//   ★実物が在るのは .slim（間引き済みの 実機走行）★＝これで ★本当に測れます★。
+//   ★材料が 切り貼りでない事を 先に確かめた（2026-08-28 実測）★:
+//     ・1〜2秒で 100m 超 動く点 = ★0個★（＝つなぎ目の偽物の飛びは 無い）
+//     ・dt>5秒 = 5個（i250 は 3692秒＝別の運行の境目・残り4つが 本物の穴）
+//   ⇒ full が 手に入ったら ここを戻す。その時は ★点数と判定を 並べて 比べる★。
 const FIXTURES = [
-  ['Android', 'shimanami-Android.json'],
-  ['iPhone13', 'shimanami-iPhone13.json'],
-  ['iPhoneSE', 'shimanami-iPhoneSE.json'],
+  ['Android', 'shimanami-Android.slim.json'],
+  ['iPhone13', 'shimanami-iPhone13.slim.json'],
+  ['iPhoneSE', 'shimanami-iPhoneSE.slim.json'],
 ];
 
 // ── decoder ロード (tests/replay-pipeline-distance.js と同一手法・完全オフライン) ──
@@ -83,7 +96,13 @@ function loadDecoder(pref) {
 function loadFixture(name) {
   const p = path.join(__dirname, 'fixtures', name);
   if (!fs.existsSync(p)) throw new Error('fixture 無し: ' + p);
-  return JSON.parse(fs.readFileSync(p, 'utf8'))
+  // ★材料は 2つの形が 在る★（配列そのまま／{meta, samples}）2026-08-28
+  //   前は 配列しか読めず、{meta,samples} の材料に向けると
+  //   'JSON.parse(...).filter is not a function' で落ちました（＝真値つきの材料が 使えなかった）。
+  const _raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+  const _arr = Array.isArray(_raw) ? _raw : _raw.samples || _raw.points || [];
+  if (!_arr.length) throw new Error('fixture に 点が 無い: ' + p);
+  return _arr
     .filter((s) => s && Number.isFinite(s.lat) && Number.isFinite(s.lng))
     .sort((a, b) => (a.t || 0) - (b.t || 0));
 }

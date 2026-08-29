@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 'use strict';
+// ★物差し★ 2026-08-28 … ★距離の採点では ありません★
+//   ・この file が 赤にするのは 下に書いてある 別の基準です（配線・較正・採点の道具 など）。
+//   ・タクシー認定モード（過大不可）／代行モード（天井 +0.5〜6%）の どちらの線でも 判定していません。
 
 // tests/replay-pipeline-distance.js
 // 新距離コア js/pipeline-distance.js を、実走 trace (C:/Users/zeroa/gpstrace.json) の

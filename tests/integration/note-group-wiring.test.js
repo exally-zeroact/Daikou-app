@@ -31,7 +31,14 @@ const HAS_FN = fs.existsSync(path.join(FN_DIR, 'dk-sync-jobs', 'meisai-row.js'))
 
 describe('★分け方が事務所から端末へ届くこと★', () => {
   it('サーバが分け方を返している（Edge Function）', () => {
-    if (!HAS_FN) return;
+    // ★2026-08-28: 前は 黙って return＝★読む人には 合格に見える★。
+    //   Edge Function は ★repo によって 在る/無い★（本番repoには 置いていない）。
+    //   ⇒★赤にはしません★が ★未測定★と はっきり言います（0件と 混ぜない）。
+    if (!HAS_FN) {
+      console.warn('★未測定★ supabase/functions/dk-sync-jobs/meisai-row.js が 在りません');
+      console.warn('  MISOKUTEI=1 reason=edge-function-not-in-this-repo');
+      return;
+    }
     const fn = read('supabase/functions/dk-customers/index.ts');
     expect(fn, '会社設定を読んでいない').toContain("select('id, name, config')");
     expect(fn, '分け方を返していない').toContain('note_groups');
