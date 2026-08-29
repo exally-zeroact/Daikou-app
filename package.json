@@ -16,7 +16,7 @@
     "audit:biome": "biome check .",
     "audit:arch": "vitest run --config vitest.arch.config.js",
     "check": "npm run lint && npm run format && npm run stylelint && npm run audit",
-    "test": "vitest run --reporter=default --reporter=json --outputFile.json=data/test-results/last-run.json",
+    "test": "vitest run",
     "test:names": "node scripts/last-red.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
