@@ -1,0 +1,44 @@
+{
+ "_doc": "★bg-freeze【長穴】合成 fixture（画面ロック 30秒）★ — gate-bg-freeze-nagaana.js 専用。既にある bg-freeze-tunnel.json は 凍結 9秒＝obdMaxDtS(10秒)の ★直下★ に わざと 置いてあり、「dt上限で 全捨てされる長穴」は ★1本も 試していません★（その fixture の _meta.note に そう 書いてあります）。実機の 画面ロックは 分単位なので ★こちら側が 本番の姿★です。形は 9秒の物と 同じ。",
+ "_meta": {
+  "freezeSec": 30,
+  "speedMps": 20.0,
+  "tickMs": 150,
+  "note": "★過少（落ちる側）を 見る為の fixture★。上側（過大）は 別の門が 見ています。"
+ },
+ "samples": [
+  {
+   "tag": "drive",
+   "lat": 34.0,
+   "lng": 133.0,
+   "t": 1700000000000,
+   "acc": 5,
+   "spd": 20.0
+  },
+  {
+   "tag": "drive",
+   "lat": 34.0,
+   "lng": 133.00021533933048,
+   "t": 1700000001000,
+   "acc": 5,
+   "spd": 20.0
+  },
+  {
+   "tag": "resume_synthetic",
+   "lat": 34.0,
+   "lng": 133.00021533933048,
+   "t": 1700000031000,
+   "acc": 30,
+   "spd": 20.0,
+   "synthetic": true
+  },
+  {
+   "tag": "gps_exit",
+   "lat": 34.0,
+   "lng": 133.00667551924488,
+   "t": 1700000031150,
+   "acc": 5,
+   "spd": 20.0
+  }
+ ]
+}

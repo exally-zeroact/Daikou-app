@@ -16,7 +16,7 @@
     "audit:biome": "biome check .",
     "audit:arch": "vitest run --config vitest.arch.config.js",
     "check": "npm run lint && npm run format && npm run stylelint && npm run audit",
-    "test": "vitest run --reporter=default --reporter=json --outputFile.json=data/test-results/last-run.json",
+    "test": "vitest run",
     "test:names": "node scripts/last-red.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -47,11 +47,15 @@
     "test:replay-obd-main": "node tests/replay-obd-main.js",
     "test:display-even-pace": "node tests/verify-display-even-pace.js",
     "test:display-stop-restart": "node tests/verify-display-stop-restart.js",
+    "test:gate-nagaana": "node tests/gate-bg-freeze-nagaana.js",
+    "test:gate-obd-mienai": "node tests/gate-obd-mienai.js",
+    "test:gate-coast-cap": "node tests/gate-coast-cap.js",
     "test:gate-road": "node tests/gate-road-distance.js",
     "test:truedist-0610": "node tests/truedist-score-0610.js",
     "test:gate-address2": "node tests/gate-address2-accuracy.js",
     "test:gate-route-gain": "node tests/gate-route-gain.js",
-    "test:replay-realdevice": "node tests/replay-realdevice.js"
+    "test:replay-realdevice": "node tests/replay-realdevice.js",
+    "test:gate-fare-history": "node tests/gate-fare-history.js"
   },
   "lint-staged": {
     "*.js": [

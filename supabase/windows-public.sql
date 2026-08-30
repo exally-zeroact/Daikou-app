@@ -201,3 +201,27 @@ SELECT company_id,
     updated_at
    FROM daikome.dk_work_hours;
 alter view public.dk_work_hours set (security_invoker = true);
+
+-- ★★料金表の 窓（Firebase → Supabase の 引っ越し）★★ 2026-08-30
+--   ★司さんの指示★「全部Supabaseに引越ししたろが」「★Firebaseは2度と使うな★」「引っ越しもしろよ」
+--   ★お金に 直結する棚★です。値は 引っ越し前と ★1円も 変えていません★
+--   （787通りの 距離で 前後の 料金が 同じ事を tests/unit/fare-config-store.test.js が 見ています）。
+create or replace view public.dk_fare_config as
+SELECT company_id,
+    config,
+    updated_at,
+    updated_by
+   FROM public.dk_fare_config;
+alter view public.dk_fare_config set (security_invoker = true);
+
+-- ★変えた記録の 窓★（前は 上書き 1件だけで ★戻せませんでした★）
+create or replace view public.dk_fare_config_history as
+SELECT id,
+    company_id,
+    changed_at,
+    changed_by,
+    before_config,
+    after_config,
+    is_revert
+   FROM public.dk_fare_config_history;
+alter view public.dk_fare_config_history set (security_invoker = true);
