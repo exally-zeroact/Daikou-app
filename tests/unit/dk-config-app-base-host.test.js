@@ -335,3 +335,81 @@ describe('会社URL(ドライバーに配る物)の組み立て方', () => {
     expect(src).toMatch(/会社URL|url_token/);
   });
 });
+
+// ============================================================
+// ★★倉庫(Supabase)の向き先を 縛る★★ 2026-08-29
+//
+//   ★実際に 起きた事（実測・言い訳なし）★
+//     本番の棚 public.dk_companies に ★テスト用の会社が 10社★ 入っていました。
+//       自社(テスト)×2 ／【E2E】テスト運転代行 ／【VINテスト】【VIN2】【VIN3】【VIN4】代行 ／
+//       テスト代行1785319589078 ／ UIテスト代行 ／ ドライバ検証代行1785328794651
+//     全部 運行0件。★司さんの ZERO代行(251件)だけが 本物★。
+//     入った日 … 2026-07-27 と 07-29。
+//     その頃 ★テストrepo の dk-config.js は 本番の倉庫(tnfwipbgfgjaymlszeid)を 指していました★
+//     （2026-08-05 の a1a02770「テスト環境が本番の倉庫を見ていたのを直す」で 別れた）
+//     ＝★テストを回すほど 本番の棚が 汚れる状態だった★。
+//
+//   ★なぜ 気づけなかったか（ここが 本題）★
+//     上の APP_BASE / OFFICE_BASE の見張りは ★画面のホストしか 見ていませんでした★。
+//     ★倉庫(SB_URL)を 見ている試験は 1本も 有りませんでした★（2026-08-29 に 数えて確認）。
+//     ＝同じ事が もう一度 起きても ★誰も 赤にしません★。だから ここで 縛ります。
+//
+//   ★素性は git remote から取る★（上と同じ理由＝写しても 誤魔化せない場所）
+// ============================================================
+const EXPECTED_SB_URL = {
+  'Daikou-app-test': 'https://khawdrnvssdenumbiwfg.supabase.co', // テストの倉庫
+  'Daikou-app': 'https://tnfwipbgfgjaymlszeid.supabase.co', // ★本番の倉庫★
+};
+
+function sbUrlInConfig() {
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'dk-config.js'), 'utf8');
+  const m = src.match(/const\s+SB_URL\s*=\s*'([^']+)'/);
+  return m ? m[1] : null;
+}
+
+describe('★倉庫(SB_URL)は そのrepoの側を 指していなければならない★', () => {
+  it('js/dk-config.js に SB_URL が1つある', () => {
+    expect(sbUrlInConfig()).toMatch(/^https:\/\/[a-z0-9]{15,}\.supabase\.co$/);
+  });
+
+  it('★このrepoの 倉庫が 正しい側を 指している★', () => {
+    const name = repoName();
+    const want = EXPECTED_SB_URL[name];
+    if (!want) {
+      throw new Error(
+        '知らないrepoです: ' +
+          name +
+          '\n  → EXPECTED_SB_URL に足してください。' +
+          '★分からないまま通すと、テストが 本番の棚に 書き込みます★'
+      );
+    }
+    expect(sbUrlInConfig()).toBe(want);
+  });
+
+  it('★本番の倉庫が テストrepoに 紛れ込んでいない★（2026-07-27 に 実際に 起きた向き）', () => {
+    if (repoName() !== 'Daikou-app-test') return;
+    expect(
+      sbUrlInConfig(),
+      '★テストrepo が 本番の倉庫を 指しています★\n' +
+        '  ＝テストを回すほど 本番の棚が 汚れます（2026-07-27/29 に 10社 入りました）'
+    ).not.toContain('tnfwipbgfgjaymlszeid');
+  });
+
+  it('★テストの倉庫が 本番repoに 紛れ込んでいない★（逆向きも 止める）', () => {
+    if (repoName() !== 'Daikou-app') return;
+    expect(
+      sbUrlInConfig(),
+      '★本番repo が テストの倉庫を 指しています★＝司さんの実データが 見えなくなります'
+    ).not.toContain('khawdrnvssdenumbiwfg');
+  });
+
+  it('★画面のホストと 倉庫が 同じ側である★（片方だけ 直す取り違えを 止める）', () => {
+    const name = repoName();
+    if (!EXPECTED_SB_URL[name] || !EXPECTED_APP_BASE[name]) return;
+    const testGawa = (s) => /test/.test(s) || s === EXPECTED_SB_URL['Daikou-app-test'];
+    expect(
+      testGawa(sbUrlInConfig()),
+      '★画面は ' + appBaseInConfig() + ' なのに 倉庫は ' + sbUrlInConfig() + ' です★'
+    ).toBe(testGawa(appBaseInConfig()));
+  });
+});

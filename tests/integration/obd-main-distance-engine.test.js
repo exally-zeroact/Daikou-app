@@ -114,6 +114,49 @@ function obdRawIntegral(samples, obdMaxDtS) {
   return m;
 }
 
+// ★★穴（点が obdMaxDtS より 長く 来なかった所）を 位置の 直線で 数える★★ 2026-08-30
+//   ★なぜ 天井に 足すのか★
+//     上の raw∫v は ★穴を 飛ばして 積んでいます★（`continue`）。
+//     ＝★穴の間に 走った分は 天井に 1mも 入っていません★。
+//     エンジン側で 穴を 埋めると（そうしないと 72km/h・60秒で 1,208m 丸ごと 消える）、
+//     ★埋めた分だけ 必ず 天井を 超えます★。2026-08-30 に 実際に 起こしました
+//     （7,701.7m ＞ 4,948.6m）。★これは エンジンの 過大では なく、
+//       天井の 式が「点が 来ない場面」を 想定していないだけ★でした。
+//   ★天井を 緩めているのでは ありません★
+//     足すのは ★位置の 直線★です。★直線 ≤ 道なり ≤ 実走★＝幾何として 常に 真。
+//     ＝★天井は「実距離 以下」のまま★です（過大ゼロの 意味は 変わりません）。
+//     止まっていれば 前後が 同じ場所＝★直線 0m＝1mも 足しません★。
+//   ★エンジン側と 同じ 上限ガード★（車の 乗り換え・位置の 飛び）:
+//     ★穴の 秒数 × 120km/h を 超える直線は 使わない★（js/pipeline-distance.js と 同じ）。
+function obdAnaChordM(samples, obdMaxDtS) {
+  let m = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const dt = (samples[i].t - samples[i - 1].t) / 1000;
+    if (!(dt > obdMaxDtS)) continue;
+    const p = samples[i - 1],
+      c = samples[i];
+    if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) continue;
+    if (!Number.isFinite(c.lat) || !Number.isFinite(c.lng)) continue;
+    const R = 6371000,
+      r = Math.PI / 180;
+    const d1 = (c.lat - p.lat) * r,
+      d2 = (c.lng - p.lng) * r;
+    const x =
+      Math.sin(d1 / 2) * Math.sin(d1 / 2) +
+      Math.cos(p.lat * r) * Math.cos(c.lat * r) * Math.sin(d2 / 2) * Math.sin(d2 / 2);
+    const chord = 2 * R * Math.asin(Math.sqrt(x));
+    // ★エンジン側と 同じ 3分の 上限★（js/pipeline-distance.js の _anaMaxSec と 同じ値）
+    //   ★片側だけ 直さない★: エンジンが 埋めない物を 天井にだけ 足すと 天井が 緩みます。
+    if (dt > 180) continue;
+    // ★エンジン側と 同じ 速さの 上限★（js/pipeline-distance.js の _anaMaxKmh と 同じ値）
+    //   実測: 8月の実車277本の平均は 最速 45.6km/h／車が出した瞬間の最速は ★96km/h★
+    //   ⇒★110km/h（96の上）★。★片側だけ 緩めない★
+    const uwa = (110 / 3.6) * dt;
+    if (chord > 0 && chord <= uwa) m += chord;
+  }
+  return m;
+}
+
 // ★認定天井の δ 許容分★ = Σdt_move(有効OBD区間の経過秒)。
 //   δ は ∫v(OBD) メイン枝が踏む全有効区間(dt∈(0,obdMaxDtS])に最大 δmax まで注入されうる
 //   (vEff=spd+δ・spd=0でも δ>0 なら δ×dt 注入)。よって δ寄与の物理上限 = obdDeltaMaxMps × Σdt。
@@ -130,11 +173,18 @@ function obdValidMoveTimeS(samples, obdMaxDtS) {
   return s;
 }
 
-// ★認定 never-over 天井★: distance_m ≤ raw∫v + δmax×Σdt_move (= floor復元上限 ≤ 真距離)。
+// ★認定 never-over 天井★: distance_m ≤ raw∫v + δmax×Σdt_move ★＋ 穴の直線★ (= ≤ 真距離)。
+//   ★2026-08-30 に 3つ目の項を 足しました（司さん「直せや」）★
+//     raw∫v は ★穴を 飛ばして 積む★ので、★穴の間に 走った分が 天井に 1mも 入っていません★。
+//     エンジンが 穴を 埋めると（埋めないと 72km/h・60秒で 1,208m 丸ごと 消える）
+//     ★必ず この天井を 超えます★。＝★エンジンの 過大では なく 天井の 式の 抜け★でした。
+//   ★緩めていません★: 足すのは ★位置の 直線★で ★直線 ≤ 道なり ≤ 実走★（幾何として 真）。
+//     ＝★天井は「実距離 以下」のまま★。止まっていれば 直線 0m＝1mも 足しません。
 function obdCertCeiling(samples, DEFAULTS) {
   return (
     obdRawIntegral(samples, DEFAULTS.obdMaxDtS) +
-    DEFAULTS.obdDeltaMaxMps * obdValidMoveTimeS(samples, DEFAULTS.obdMaxDtS)
+    DEFAULTS.obdDeltaMaxMps * obdValidMoveTimeS(samples, DEFAULTS.obdMaxDtS) +
+    obdAnaChordM(samples, DEFAULTS.obdMaxDtS)
   );
 }
 

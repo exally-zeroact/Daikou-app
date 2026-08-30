@@ -753,7 +753,11 @@ const GPS = (() => {
       } catch (_) {
         /* OBD 不在/例外は無視し ② 保守ホールドへ */
       }
-      // ② OBD 無し = 直近確立速度を毎秒 ×0.97 減衰してホールド (保守側=過大ゼロ)。
+      // ② OBD 無し = 直近確立速度を毎秒 ★×0.92★ 減衰してホールド (保守側=過大ゼロ)。
+      //   ★2026-08-30 訂正★: ここは 長い間 ★×0.97★ と 書いてありましたが、
+      //   実際に 掛けているのは 355行 COAST_DECAY_PER_S = ★0.92★ です（761行）。
+      //   ★注記の数字を 使うと 見立てを 間違えます★（実測: 72km/h から
+      //   COAST_FREEZE_KMH=9km/h まで 0.97なら約68秒・★0.92なら約25秒★）。
       if (!_obdValid) {
         if (_coastHoldKmh > 0 && _coastHoldUpdatedT != null) {
           const decayDt = (now - _coastHoldUpdatedT) / 1000;

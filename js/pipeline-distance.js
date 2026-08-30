@@ -1229,6 +1229,15 @@ function _prepareBatch(samples, decoder, opts) {
     dopplerM: 0,
     gapGuardSkippedM: 0,
     gapGuardFillM: 0,
+    // ★★捨てた分を 数える（2026-08-30・司さんの「300円ほど 少なく出た」から）★★
+    //   ★距離は 1mmも 変えません。数えるだけです★
+    //   なぜ 要るか: dt が obdMaxDtS(10秒) を 超えると その区間は 加算されません
+    //   （過大ゼロの為・わざと）。ところが ★捨てた事を 誰も 数えていませんでした★＝
+    //   エラーも 出ず 合計だけ 小さくなる＝うちの決まり
+    //   「#ERROR より『黙って 合計が 小さくなる』を 先に潰せ」の 形。
+    //   ★これが 出ていれば、実機の走行で 落ちたかが 後から 分かります★
+    dtSkippedSec: 0, // 捨てた 秒数の 合計
+    dtSkippedM: 0, // その間に 走ったはずの 距離（速度×秒）
     tunnelRouteM: 0, // ★STEP B: トンネル出口アンカー routing 充填の回収距離 (監査用・固定形状)
     stationarySkipped: 0,
   };
@@ -1328,6 +1337,9 @@ function _finishBatch(distance_m, bd, stats) {
       dopplerM: +bd.dopplerM.toFixed(2),
       gapGuardSkippedM: +(bd.gapGuardSkippedM || 0).toFixed(2),
       gapGuardFillM: +(bd.gapGuardFillM || 0).toFixed(2),
+      // ★捨てた分（距離には 入っていない）★ 2026-08-30
+      dtSkippedSec: +(bd.dtSkippedSec || 0).toFixed(2),
+      dtSkippedM: +(bd.dtSkippedM || 0).toFixed(2),
       smoothedM: +(bd.smoothedM || 0).toFixed(2),
       tunnelRouteM: +(bd.tunnelRouteM || 0).toFixed(2),
       stationarySkipped: bd.stationarySkipped,
@@ -2114,6 +2126,12 @@ function createDistanceTracker(decoder, opts) {
         }
       }
       let obdDelta = 0;
+      // ★捨てる時に 数える（距離は 変えない・2026-08-30）★
+      if (dtObd > cfg.obdMaxDtS && spd > 0) {
+        stats.dtSkipped = (stats.dtSkipped || 0) + 1;
+        bd.dtSkippedSec = (bd.dtSkippedSec || 0) + dtObd;
+        bd.dtSkippedM = (bd.dtSkippedM || 0) + spd * dtObd;
+      }
       if (dtObd > 0 && dtObd <= cfg.obdMaxDtS) {
         // ∫(v+δ)。δ は ±0.5km/h クランプ済 = floor過小ぶんだけ持ち上げ過大暴走しない。
         // ★δ は移動中(spd≥stationarySpdMps)のみ適用★: δ は「走行中に1km/h floorで失った量子化分の回収」
@@ -2238,6 +2256,75 @@ function createDistanceTracker(decoder, opts) {
         if (_live > 0 && Math.abs(cfg.obdVehicleK / _live - 1) > 0.03) bd.kDriftWarn = true;
       }
       coastSpdMps = spd; // 連続性: 次区間のフォールバック用に実速度を保持
+      // ★★点が 10秒より 長く 来なかった穴を「位置の 直線」で 埋める★★ 2026-08-30
+      //   ★司さんの指示★「おかしい所が 見つかったなら 直せや」
+      //     「OBDなんやけん 止まっとっても 関係なかろが／車が動いたら OBDが 反応する仕組み」
+      //   ★何が 起きていたか（実測）★
+      //     dtObd > obdMaxDtS(10秒) だと ∫v は 積めず obdDelta = 0 のまま。
+      //     72km/h で 60秒 点が 来ないと ★1,208m 丸ごと 消える★
+      //     （OBD 無しの 同じ穴は ★17m しか 消えない★＝★OBD車の方が 弱い★）
+      //   ★直線で 埋める理由★
+      //     ・★止まっていたら 前後が 同じ場所＝直線 0m＝足さない★（自動で 正しい）
+      //     ・★直線 ≤ 道なり ≤ 実走★＝★幾何として 常に 真＝実距離を 超えない★
+      //     ・速度×時間（想像）では なく ★位置（実測）★で 決まる
+      //   ★★片側だけ 直しません★★
+      //     門の 天井は `raw∫v + δmax×Σdt` で ★穴を 飛ばして 積んでいます★
+      //     （obd-main-distance-engine.test.js 108/125行 `if(!(dt>0&&dt<=obdMaxDtS)) continue;`）。
+      //     ＝★埋める側だけ 直すと 必ず 天井を 超えます★（2026-08-30 に 実際に 起こした:
+      //       7,701.7m ＞ 4,948.6m）。★天井にも 同じ穴の 直線を 足します★（門の側も 直す）。
+      //   ★車を 乗り換えた時の ガード★（代行は 客の車を 運転する）
+      //     ★穴の 秒数 × 120km/h を 超える直線は 使わない★。★捨てた事は 数えます★。
+      if (dtObd > cfg.obdMaxDtS && prev) {
+        const _anaChord = haversineM(prev.lat, prev.lng, cur.lat, cur.lng);
+        // ★★途切れが 長すぎる時は 埋めない（2026-08-30・実測で 決めた）★★
+        //   ★なぜ 要るか★
+        //     実車中でも ★10分より 長い 途切れが 9回★ 在りました（手元の 走行 22本を 数えた）。
+        //     一番 危ないのは ★22.5分 途切れて 直線 2,540m（平均 6.8km/h）＝約600円★。
+        //     ★平均 6.8km/h＝ほぼ 停まっている★＝走ったのでは なく
+        //     ★アプリが 落ちていて、その間に 少し 動いた／別の場所へ 移った★形です。
+        //     ★これを 足すと 走っていない分を 請求します★。
+        //   ★線の 引き方（実測から）★
+        //     8月の 実車 278本 … 真ん中 13.9分／★一番長い 60.2分★
+        //     手元の 途切れ … 10〜30秒 23回／30〜60秒 5回／1〜3分 10回／3〜10分 2回／★10分超 9回★
+        //     ⇒★3分を 超える 途切れは 埋めません★（3分＝72km/h なら 3.6km。
+        //       走行中に 3分も アプリが 落ちるのは 普通では ありません）
+        //     ★埋めなかった分は 数えます（黙って 落とさない）★
+        const _anaMaxSec = 180; // ★3分★（実測から。これより 長い 途切れは 埋めない）
+        // ★★速さの 上限（2026-08-30・指示役の指摘で 実測から 引き直した）★★
+        //   ★なぜ 要るか★
+        //     天井の式にも 同じ直線を 足すので ★両側で 相殺され、門は 直線を 検査できません★。
+        //     ＝★GPS が 飛んだ時に 誰も 止められません★（都市部・トンネル出口の マルチパス）。
+        //     前の 120km/h だと ★3分 × 120km/h ＝ 6,000m まで 通っていました★。
+        //   ★実測から 引いた★（2026-08-30）
+        //     ・8月の 実車 277本の ★平均速度★ … 真ん中 20.8km/h ／ 上位1% 42.9 ／ ★最速 45.6★
+        //     ・車が 出した ★瞬間の 最速★（OBDの生値・手元の走行全部）… ★96 km/h★
+        //     ⇒★瞬間の 最速 96km/h の 上に 置く＝110km/h★
+        //       （★穴の間の 平均★なので、瞬間の 最速を 超える事は 物理的に 有り得ません）
+        //     ⇒ 3分 × 110km/h ＝ 5,500m。★それ以上 動いていたら GPS が 飛んでいます★
+        //   ★捨てた分は 数えます（黙って 落とさない）★
+        const _anaMaxKmh = 110; // ★実測の 瞬間最速 96km/h の 上★
+        const _anaUwa = (_anaMaxKmh / 3.6) * dtObd;
+        if (dtObd > _anaMaxSec) {
+          bd.anaTooLongM = (bd.anaTooLongM || 0) + _anaChord;
+          bd.anaTooLongSec = (bd.anaTooLongSec || 0) + dtObd;
+          stats.anaTooLong = (stats.anaTooLong || 0) + 1;
+        } else if (_anaChord > _anaUwa) {
+          // ★速すぎる＝位置が 飛んでいる★（走ったのでは ない）
+          bd.anaTooFastM = (bd.anaTooFastM || 0) + _anaChord;
+          stats.anaTooFast = (stats.anaTooFast || 0) + 1;
+        } else if (_anaChord > 0) {
+          total += _anaChord;
+          bd.anaChordM = (bd.anaChordM || 0) + _anaChord;
+          stats.anaChordSegs = (stats.anaChordSegs || 0) + 1;
+          prev = cur;
+          prevSnap = snap;
+          return { deltaM: _anaChord, totalM: total, reason: 'obd-ana-chord' };
+        }
+        if (_anaChord > 0) {
+          bd.anaChordSkippedM = (bd.anaChordSkippedM || 0) + _anaChord;
+          stats.anaChordSkipped = (stats.anaChordSkipped || 0) + 1;
+        }
+      }
       prev = cur;
       prevSnap = snap;
       return { deltaM: obdDelta, totalM: total, reason: 'obd' };
@@ -2548,6 +2635,20 @@ function createDistanceTracker(decoder, opts) {
     },
     totalM: function () {
       return total;
+    },
+    // ★★「見えていなかった間」を 外から 見られるようにする(2026-08-30)★★
+    //   ★read-only＝距離には 1mmも 触りません★（calibStatus と 同じ形で 借りました）
+    //   なぜ 要るか: dt が obdMaxDtS(10秒) を 超えた区間は 加算しません（過大ゼロの為・わざと）。
+    //   ところが ★捨てた事を 誰も 数えていませんでした★＝エラーも 出ず 合計だけ 小さくなる。
+    //   ＝うちの決まり「#ERROR より『黙って 合計が 小さくなる』を 先に潰せ」の 形。
+    //   ★これを 呼べば、実機の走行で 何秒／何m 落ちたかが 分かります★（2026-08-30・司さんの
+    //   「300円ほど 少なく出た」から。60秒 見えないと 72km/h で 約1,208m＝約300円）。
+    mienakattaBun: function () {
+      return {
+        kaisuu: stats.dtSkipped || 0, // 何回 捨てたか
+        byou: +(bd.dtSkippedSec || 0).toFixed(2), // 捨てた 秒数の 合計
+        meter: +(bd.dtSkippedM || 0).toFixed(2), // その間に 走ったはずの 距離
+      };
     },
     // ★1km自動較正K の状態(見える化用・2026-06-26)★: autoCalibK時のみ {K,windows,confident,...}。
     //   read-only=距離に影響しない。worker→main へ転送し「較正中 n/3 / 較正完了 K=…」を表示する。
