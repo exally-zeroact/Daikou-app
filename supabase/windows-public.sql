@@ -211,7 +211,7 @@ SELECT company_id,
     config,
     updated_at,
     updated_by
-   FROM public.dk_fare_config;
+   FROM daikome.dk_fare_config;
 alter view public.dk_fare_config set (security_invoker = true);
 
 -- ★変えた記録の 窓★（前は 上書き 1件だけで ★戻せませんでした★）
@@ -223,5 +223,5 @@ SELECT id,
     before_config,
     after_config,
     is_revert
-   FROM public.dk_fare_config_history;
+   FROM daikome.dk_fare_config_history;
 alter view public.dk_fare_config_history set (security_invoker = true);

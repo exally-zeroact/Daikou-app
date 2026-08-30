@@ -38,6 +38,8 @@ const EXTERNAL_GLOBALS = [
   'JobSync',
   'GPS',
   'FB',
+  // ★料金表の 置き場（2026-08-30・Firebase → Supabase）js/fare-config-store.js★
+  'FareConfigStore',
   'Business',
   'RegionHelper',
   'RoadDecoder',

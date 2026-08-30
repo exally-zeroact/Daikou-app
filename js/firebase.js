@@ -135,11 +135,9 @@ const FB = (() => {
             .update(record.payload.data)
             .then(() => resolve())
             .catch(reject);
-        } else if (record.type === 'saveFareConfig') {
-          db.ref('fare_config/default')
-            .set(record.payload)
-            .then(() => resolve())
-            .catch(reject);
+          // ★料金表(saveFareConfig)は 2026-08-30 に Supabase へ 引っ越しました★
+          //   ＝ここには もう 来ません。古い端末に 残っている物は
+          //   「unknown retry type」で 落ちて 消えます（★倉庫には 二重に 入りません★）。
         } else {
           reject(new Error('unknown retry type: ' + record.type));
         }
@@ -283,77 +281,15 @@ const FB = (() => {
     });
   }
 
-  // ★設計変更宣言 (2026-05-10): fareConfig v2 migration
-  //   旧形式 (version 不在) を v2 化して callback に渡す
-  //   surchargeRate (旧単一倍率) は surcharges[0] として保持
-  //   破壊的変更なし・旧キーは維持
-  function _migrateFareConfig(cfg) {
-    if (!cfg || cfg.version === 2) return cfg;
-    const out = Object.assign({}, cfg);
-    out.version = 2;
-    if (!Array.isArray(out.tiers)) out.tiers = [];
-    if (!Array.isArray(out.surcharges)) {
-      out.surcharges = [];
-      const r = parseFloat(cfg.surchargeRate);
-      if (!isNaN(r) && r > 1.0) {
-        out.surcharges.push({
-          id: 'legacy',
-          name: '割増',
-          rate: r,
-          color: '#FF9500',
-          active_default: false,
-        });
-      }
-    }
-    if (typeof out.minFare === 'undefined') out.minFare = null;
-    if (typeof out.maxFare === 'undefined') out.maxFare = null;
-    if (typeof out.rounding !== 'number') out.rounding = 10;
-    if (!out.autoSurcharges) {
-      out.autoSurcharges = {
-        night: { enabled: false, from: 22, to: 5, rate: 1.2 },
-        weekend: { enabled: false, rate: 1.1 },
-        winter: { enabled: false, from: '12-15', to: '03-15', rate: 1.1 },
-      };
-    }
-    if (!Array.isArray(out.vehicles)) out.vehicles = [];
-    if (typeof out.vehiclesEnabled !== 'boolean') out.vehiclesEnabled = false;
-    if (!out.wait) out.wait = { enabled: false, freeMins: 5, ratePerMin: 100 };
-    return out;
-  }
+  // ★fareConfig の v2 化(_migrateFareConfig)も 引っ越し先へ 移りました（2026-08-30）★
+  //   ＝js/fare-config-store.js の totonoeru()。★既定は 前と 同じ（rounding 10）★。
 
-  function loadFareConfig(callback) {
-    const db = getDb();
-    if (!db) {
-      return;
-    }
-    db.ref('fare_config/default')
-      .once('value')
-      .then((snap) => {
-        const raw = snap.val();
-        if (!raw) return;
-        const config = _migrateFareConfig(raw);
-        callback(config);
-        // migration が走った場合は書き戻す (raw === config なら no-op)
-        if (raw.version !== 2) {
-          try {
-            db.ref('fare_config/default').set(config);
-          } catch (e) {}
-        }
-      })
-      .catch((e) => console.error('[FB] loadFareConfig error:', e));
-  }
-
-  function saveFareConfig(config) {
-    const db = getDb();
-    if (!db) return;
-    // ★設計変更宣言 (2026-05-12): 送信失敗時 retry queue 登録 (成功パス無変更)
-    db.ref('fare_config/default')
-      .set(config)
-      .catch((e) => {
-        console.error('[FB] saveFareConfig failed, enqueuing retry:', e && e.message);
-        _enqueueRetry('saveFareConfig', config);
-      });
-  }
+  // ★★料金表は ここから 引っ越しました（2026-08-30）★★
+  //   司さん「なんでFirebaseにあるんど 全部Supabaseに引越ししたろが」
+  //         「★Firebaseは2度と使うな★」「引っ越しもしろよ」
+  //   ⇒ 料金表は ★js/fare-config-store.js（Supabase）★が 持ちます。
+  //      loadFareConfig / saveFareConfig は ★消しました★（呼ぶ所も 直してあります）。
+  //   ★消した理由★ 残すと「まだ 使える」と 思って また 呼ばれるからです。
 
   function watchVehicle(vid, callback) {
     const db = getDb();
@@ -501,8 +437,6 @@ const FB = (() => {
     startSession,
     endSession,
     setIdle,
-    loadFareConfig,
-    saveFareConfig,
     watchVehicle,
     // T8 (2026-05-09)
     markVisited,

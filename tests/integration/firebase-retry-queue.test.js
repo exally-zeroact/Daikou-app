@@ -93,12 +93,19 @@ describe('firebase.js retry queue 動作検証 (P1-⑦)', () => {
     }
   });
 
-  it('S5: _enqueueRetry が startSession / endSession / saveFareConfig 失敗時に呼ばれる', () => {
+  // ★★2026-08-30 直し（料金表の 引っ越し）★★
+  //   料金表(saveFareConfig)は ★Supabase へ 引っ越しました★（司さん「Firebaseは2度と使うな」）。
+  //   ⇒ 再送の 待ち行列に 残るのは ★勤務の 開始と 終わりの 2つ★です。
+  //   ★数を 3 のままに しておくと「消し忘れ」に 気づけません★ので 2 に 直します。
+  it('S5: _enqueueRetry が startSession / endSession の 失敗時に 呼ばれる', () => {
     const source = loadSource();
-    // 3 つの enqueueRetry 呼出 (startSession / endSession / saveFareConfig)
     const calls = source.match(/_enqueueRetry\s*\(\s*['"]\w+['"]/g) || [];
-    if (calls.length < 3) {
-      throw new Error('firebase.js に _enqueueRetry 呼出が 3 件未満: ' + calls.length);
+    if (calls.length < 2) {
+      throw new Error('firebase.js に _enqueueRetry 呼出が 2 件未満: ' + calls.length);
+    }
+    // ★料金表が 戻ってきていない事★も 見る（両方の倉庫に 二重に 入るのを 防ぐ）
+    if (/saveFareConfig/.test(source.replace(/^\s*\/\/.*$/gm, ''))) {
+      throw new Error('★料金表が Firebase に 戻っています（2026-08-30 に 引っ越し済み）★');
     }
   });
 

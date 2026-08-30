@@ -5949,6 +5949,11 @@
     <script src="js/dk-config.js"></script>
     <!-- ★テスト環境の帯★ 名札(DKConfig.ENV)だけで 決まる。本番では 何も出ない。 -->
     <script src="js/dk-env-badge.js"></script>
+    <!-- ★★料金表の 置き場（2026-08-30・Firebase → Supabase の 引っ越し）★★
+         司さん「全部Supabaseに引越ししたろが」「★Firebaseは2度と使うな★」「引っ越しもしろよ」
+         ★圏外でも 料金が 出る★ … 取れた料金表を localStorage に 焼いて、それを 使う。
+         dk-config.js（つなぎ先）より 後に load する。 -->
+    <script src="js/fare-config-store.js"></script>
     <!-- ★設計変更宣言 (2026-05-24・端末ライセンス台数ロック): 既存 DAIKOME_DEVICE_ID 流用・debug-trace.js 後に load -->
     <script src="js/license.js"></script>
     <!-- ★ライセンス最終方式(会社URL/QR+Ed25519署名) STEP3配線 (2026-07-27):
@@ -7470,9 +7475,21 @@
 
       // ─── 設定読み込み ───
       function loadSettings() {
-        FB.loadFareConfig((cfg) => {
-          Meter.setFareConfig(cfg);
-        });
+        // ★★料金表（2026-08-30・Firebase → Supabase）★★
+        //   ①★まず 手元の 写しを 当てる（通信 0回）★＝★圏外でも 料金が 出る★
+        //   ②その後で 倉庫から 取り直す。取れなければ ①のまま（★写しは 消さない★）
+        try {
+          Meter.setFareConfig(FareConfigStore.yomuOffline().config);
+        } catch (e) {
+          console.error('[料金表] 写しの読み込み失敗:', e);
+        }
+        try {
+          FareConfigStore.torikomu().then((r) => {
+            if (r && r.ok) Meter.setFareConfig(r.config);
+          });
+        } catch (e) {
+          console.error('[料金表] 取り直し失敗:', e);
+        }
 
         // ★設計変更宣言 (2026-05-10): デフォルト extras 全削除
         //   旧: 外車/MT車/左ハンドル/深夜割増/迎車料金/キャンセル料 をプリセット
@@ -14491,18 +14508,24 @@
           updateAutoStatus();
         }
         function load() {
-          if (typeof FB !== 'undefined' && FB.loadFareConfig) {
-            FB.loadFareConfig((cfg) => {
-              Object.assign(fc, cfg);
-              if (typeof fc.tiersEnabled === 'undefined')
-                fc.tiersEnabled = fc.tiers && fc.tiers.length > 0;
-              if (typeof fc.zonesEnabled === 'undefined')
-                fc.zonesEnabled = fc.zones && fc.zones.length > 0;
-              _initAll();
-            });
-          } else {
+          // ★★料金表（2026-08-30・Firebase → Supabase）★★
+          //   ★写しで すぐ 描く★（圏外でも 設定画面が 空にならない）→ 取れたら 描き直す
+          function ateru(cfg) {
+            Object.assign(fc, cfg);
+            if (typeof fc.tiersEnabled === 'undefined')
+              fc.tiersEnabled = fc.tiers && fc.tiers.length > 0;
+            if (typeof fc.zonesEnabled === 'undefined')
+              fc.zonesEnabled = fc.zones && fc.zones.length > 0;
             _initAll();
           }
+          if (typeof FareConfigStore === 'undefined') {
+            _initAll();
+            return;
+          }
+          ateru(FareConfigStore.yomuOffline().config);
+          FareConfigStore.torikomu().then((r) => {
+            if (r && r.ok) ateru(r.config);
+          });
         }
         function saveAll() {
           saveBasic();
@@ -14510,8 +14533,18 @@
           if (!fc.tiersEnabled) fc.tiers = [];
           if (!fc.zonesEnabled) fc.zones = [];
           fc.version = 2;
-          if (typeof FB !== 'undefined' && FB.saveFareConfig) {
-            FB.saveFareConfig(fc);
+          // ★★料金表（2026-08-30・Firebase → Supabase）★★
+          //   ★先に この端末へ 残してから 倉庫へ 送る★＝圏外でも 次の走行は 新しい料金。
+          //   ★倉庫へ 入らなかった時に「保存しました」と 言わない★（画面が 嘘を つかない）
+          if (typeof FareConfigStore !== 'undefined') {
+            FareConfigStore.kakuMeter(fc).then((r) => {
+              if (!r || r.ok) return;
+              showToast(
+                r.reason === 'network' || r.reason === 'not_activated'
+                  ? 'この端末に保存しました（倉庫へは後で）'
+                  : '倉庫へ保存できませんでした（この端末には保存済み）'
+              );
+            });
           }
           // Meter.setFareConfig が業務中なら frozen で no-op (= 旧 fare.html と等価)
           // 業務外なら次回 calcFare 呼出から即時反映される
