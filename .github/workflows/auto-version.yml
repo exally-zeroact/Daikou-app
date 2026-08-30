@@ -31,13 +31,27 @@ jobs:
           # GITHUB_TOKEN を使う（自動付与）
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # ─── ★1.5 この push で sw.js が すでに 変わっていたら 何も しない★ ───
+      #   ★2026-08-30 追加★ 付け直すと ★もう1回 建ってしまう★（clone 4分27秒が 丸ごと 無駄）
+      - name: すでに 版名が 入っているか 見る
+        id: sumi
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -qx 'sw.js'; then
+            echo "already=yes" >> $GITHUB_OUTPUT
+            echo "★この push で sw.js が すでに 変わっています＝何も しません★"
+          else
+            echo "already=no" >> $GITHUB_OUTPUT
+          fi
+
       # ─── 2. short SHA を取得 ───
       - name: Get short SHA
         id: sha
+        if: steps.sumi.outputs.already != 'yes'
         run: echo "short_sha=$(git rev-parse --short=7 HEAD)" >> $GITHUB_OUTPUT
 
       # ─── 3. sw.js の CACHE_NAME を書き換え ───
       - name: Update CACHE_NAME in sw.js
+        if: steps.sumi.outputs.already != 'yes'
         run: |
           NEW_NAME="daikome-${{ steps.sha.outputs.short_sha }}"
           # CACHE_NAME = 'XXX' の XXX 部分を置換（シングル/ダブルクォート両対応）
@@ -48,6 +62,7 @@ jobs:
 
       # ─── 4. 変更があれば自動コミット + push ───
       - name: Commit and push if changed
+        if: steps.sumi.outputs.already != 'yes'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
