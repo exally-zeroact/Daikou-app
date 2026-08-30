@@ -88,7 +88,11 @@ describe('★「見えていなかった間」を 数えている★', () => {
 
   it('★穴が 無い時は 0★（普段は 何も 出さない）', () => {
     const r = hashiru(0);
-    expect(r.mienai).toEqual({ kaisuu: 0, byou: 0, meter: 0 });
+    // ★2026-08-31: 内訳も 出すように なりました（nagasugi/hayasugi/sonota/umeta）★
+    expect(r.mienai.kaisuu).toBe(0);
+    expect(r.mienai.byou).toBe(0);
+    expect(r.mienai.meter).toBe(0);
+    expect(r.mienai.umeta).toBe(0);
   });
 
   it('★10秒の 内側（9秒）は 0★（捨てていないので 数えない）', () => {
@@ -101,8 +105,9 @@ describe('★「見えていなかった間」を 数えている★', () => {
       const r = hashiru(a);
       expect(r.mienai.kaisuu, a + '秒の穴を 数えていません').toBe(1);
       expect(r.mienai.byou, a + '秒の穴の 秒数が 合っていません').toBeCloseTo(a, 1);
-      // その間に 走ったはずの 距離 = 速度 × 秒数
-      expect(r.mienai.meter, a + '秒の穴の メートルが 合っていません').toBeCloseTo(SPD * a, 0);
+      // ★2026-08-31: #39 で 穴は 埋まるので ★損は 0★。★埋めた分は 別に 出る★
+      expect(r.mienai.meter, a + '秒の穴は 埋まるのに 損として 数えています').toBe(0);
+      expect(r.mienai.umeta, a + '秒の穴を 埋めていません').toBeGreaterThan(0);
     });
   });
 
@@ -135,15 +140,20 @@ describe('★「見えていなかった間」を 数えている★', () => {
     const r = hashiru(60);
     expect(r.mienai.kaisuu).toBe(1);
     expect(r.mienai.byou).toBeCloseTo(60, 1);
-    expect(r.mienai.meter, '★見込みの m は 記録として 残す★').toBeGreaterThan(0);
+    // ★2026-08-31: 埋まる穴なので 損は 0。★時間の 記録は 残る★
+    expect(r.mienai.meter, '★埋めた穴を 損として 数えています★').toBe(0);
+    expect(r.mienai.umeta, '★埋めた分が 記録されていません★').toBeGreaterThan(1100);
   });
 
-  it('★60秒 見えないと 約1,200m＝約300円★（司さんの申告と 同じ桁である事）', () => {
-    const r = hashiru(60);
-    expect(r.mienai.meter).toBeGreaterThan(1100);
-    expect(r.mienai.meter).toBeLessThan(1300);
-    // 料金は 420m ごとに 100円（1000m以下は 1,300円）
-    const en = Math.floor(r.mienai.meter / 420) * 100;
-    expect(en, '60秒ぶんが 300円の 桁に なっていません').toBeGreaterThanOrEqual(200);
+  // ★★2026-08-31: この試験の 意味が 変わりました★★
+  //   前は「★60秒 見えないと 約1,200m＝約300円 損する★」でした（#39 の 前）。
+  //   ★#39 で 埋めるように なったので、その 60秒は ★もう 損では ありません★★。
+  //   ⇒★損に なるのは「捨てた穴」だけ★＝3分 超え／110km/h 超え（＝位置が 飛んだ）。
+  it('★捨てた穴（3分 超え）は 損として 出る★（黙って 落とさない）', () => {
+    const r = hashiru(181); // 3分＋1秒 ⇒ 埋めない＝捨てる
+    expect(r.mienai.kaisuu).toBe(1);
+    expect(r.mienai.meter, '★捨てたのに 損として 出ていません★').toBeGreaterThan(0);
+    expect(r.mienai.nagasugi, '★内訳（長すぎ）が 出ていません★').toBeGreaterThan(0);
+    expect(r.mienai.umeta, '★捨てたのに 埋めた事に なっています★').toBe(0);
   });
 });

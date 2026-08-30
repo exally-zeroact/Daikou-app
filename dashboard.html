@@ -138,7 +138,7 @@
         border-radius: 999px;
         padding: 4px 12px;
 
-        /* ★狭い画面で「事務所」の字が 縦に割れていた★（2026-08-25 実測 375px … 給料の画面で 110 x 51＝2行）
+        /* ★狭い画面で「給料」の2文字が 縦に割れていた★（2026-08-25 実測 375px … 110 x 51＝2行）
            札の字は 折り返さない。 */
         white-space: nowrap;
       }
@@ -406,6 +406,8 @@
     </style>
   </head>
   <body>
+    <!-- ★テスト環境の帯は js/dk-env-badge.js が 名札(DKConfig.ENV)だけで 決めます★ 2026-08-28
+         （前は ここに 直書きし、本番では 手で 消していました＝写し忘れ1回で 事故） -->
     <div class="wrap">
       <div class="top">
         <div class="logo">🚗 ダイコメ</div>
