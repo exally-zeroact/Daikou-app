@@ -1,0 +1,73 @@
+name: 版名の見張り（実配信 と repo が 合っているか）
+
+# ★★なぜ 要るか（2026-08-30）★★
+#   本番ビルドを 1回に する為に、vercel.json の ignoreCommand で
+#   ★sw.js が 変わらない コミットは 建てない★ ようにしました。
+#   ⇒ 客に 届く版を 作るのは ★auto-version（版名を 付ける workflow）★です。
+#   ⇒★もし それが 落ちたら、何も 配信されません。しかも ★黙って★ です★
+#     （赤も 出ず、画面も 前のまま。一番 気づけない 壊れ方）
+#
+#   ★だから ここで 毎日 数えます★
+#     ★実配信の sw.js の 版名★ と ★repo(main) の sw.js の 版名★ が
+#     合っているか。合わなければ ★赤★。
+#
+#   ★合わない＝どういう事か★
+#     ・repo の 方が 新しい … ★配信が 止まっている★（客は 古い js のまま）
+#     ・実配信の 方が 新しい … repo と 配信が ずれている（別経路で 配られた）
+#     どちらも ★人が 見るべき★状態です。
+#
+#   ★配信の 途中は 少し 待つ★
+#     merge の 直後は 配信中で ずれる事が あります。★3回まで 待って★から 赤に します。
+
+on:
+  schedule:
+    - cron: '0 22 * * *' # 毎日 07:00 JST
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 実配信の 版名と repo の 版名を 突き合わせる
+        run: |
+          set -u
+          # ★見に行く先は dk-config.js の APP_BASE（★ここに ホスト名を 直書きしない★）
+          BASE=$(grep -oE "const APP_BASE = '[^']*'" js/dk-config.js | head -1 | sed -E "s/.*'(.*)'/\1/")
+          if [ -z "$BASE" ]; then
+            echo "★APP_BASE が 読めません（見に行く先が 分からない）★"
+            exit 1
+          fi
+          echo "見に行く先: $BASE"
+
+          REPO_NAME=$(grep -oE "const CACHE_NAME = '[^']*'" sw.js | head -1 | sed -E "s/.*'(.*)'/\1/")
+          echo "repo の 版名: $REPO_NAME"
+          if [ -z "$REPO_NAME" ]; then
+            echo "★repo の sw.js に 版名が ありません★"
+            exit 1
+          fi
+
+          for i in 1 2 3; do
+            LIVE_SW=$(curl -fsSL --max-time 30 "$BASE/sw.js" || true)
+            LIVE_NAME=$(printf '%s' "$LIVE_SW" | grep -oE "const CACHE_NAME = '[^']*'" | head -1 | sed -E "s/.*'(.*)'/\1/")
+            echo "($i回目) 実配信の 版名: ${LIVE_NAME:-（取れませんでした）}"
+            if [ "$LIVE_NAME" = "$REPO_NAME" ]; then
+              echo "★合っています（$REPO_NAME）★"
+              exit 0
+            fi
+            [ "$i" -lt 3 ] && sleep 60
+          done
+
+          echo ""
+          echo "★★合っていません★★"
+          echo "  repo(main) … $REPO_NAME"
+          echo "  実配信 ……… ${LIVE_NAME:-（取れませんでした）}"
+          echo ""
+          echo "★見る所★"
+          echo "  1. auto-version（版名を 付ける workflow）が 落ちていないか"
+          echo "  2. Vercel の ビルドが ignoreCommand で 建たないままに なっていないか"
+          echo "     （scripts/vercel-ignore-build.sh ／ vercel.json の ignoreCommand）"
+          echo "  3. ★客には 古い js が 配られています★"
+          exit 1

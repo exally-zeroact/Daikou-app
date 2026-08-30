@@ -10,6 +10,14 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: 'list',
+  // ★★2026-08-30 追加（実際に 赤に なった）★★
+  //   道路グラフ 15,990本を 消した コミットで CI の e2e が 落ちました:
+  //     GitCommitInfo: timeout ... git fetch <sha> --depth=1
+  //     ★RangeError: Invalid string length★
+  //   ＝Playwright が ★コミットの 情報（変えたファイルの 一覧）を 文字にまとめる★所で
+  //     文字が 長すぎて 落ちていました。★試験の 中身は 1本も 落ちていません★。
+  //   ⇒ この情報は ★報告書の 飾り★なので 取りません（試験の 判定は 1文字も 変わりません）。
+  captureGitInfo: { commit: false, diff: false },
   use: {
     baseURL: 'http://localhost:3000',
     headless: true,
