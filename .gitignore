@@ -68,3 +68,6 @@ data/addresses-chiban-*.js
 # 2026-05-22 追加: PROMPT_NEW_CHAT.md / HANDOVER*.md は・local retain のみ
 HANDOVER*.md
 PROMPT_NEW_CHAT.md
+
+# supabase CLI が 作る 一時ファイル（2026-08-30・料金表の引っ越しで 紛れ込んだ）
+supabase/.temp/
