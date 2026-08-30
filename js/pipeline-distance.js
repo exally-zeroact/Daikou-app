@@ -1237,7 +1237,8 @@ function _prepareBatch(samples, decoder, opts) {
     //   「#ERROR より『黙って 合計が 小さくなる』を 先に潰せ」の 形。
     //   ★これが 出ていれば、実機の走行で 落ちたかが 後から 分かります★
     dtSkippedSec: 0, // 捨てた 秒数の 合計
-    dtSkippedM: 0, // その間に 走ったはずの 距離（速度×秒）
+    // ★dtSkippedM（速度×秒）は 2026-08-31 に やめました★
+    //   ＝#39 で 埋まった穴まで 数えて ★二重★に なるため。
     tunnelRouteM: 0, // ★STEP B: トンネル出口アンカー routing 充填の回収距離 (監査用・固定形状)
     stationarySkipped: 0,
   };
@@ -1339,7 +1340,6 @@ function _finishBatch(distance_m, bd, stats) {
       gapGuardFillM: +(bd.gapGuardFillM || 0).toFixed(2),
       // ★捨てた分（距離には 入っていない）★ 2026-08-30
       dtSkippedSec: +(bd.dtSkippedSec || 0).toFixed(2),
-      dtSkippedM: +(bd.dtSkippedM || 0).toFixed(2),
       smoothedM: +(bd.smoothedM || 0).toFixed(2),
       tunnelRouteM: +(bd.tunnelRouteM || 0).toFixed(2),
       stationarySkipped: bd.stationarySkipped,
@@ -2126,11 +2126,18 @@ function createDistanceTracker(decoder, opts) {
         }
       }
       let obdDelta = 0;
-      // ★捨てる時に 数える（距離は 変えない・2026-08-30）★
+      // ★★「見えなかった分」の 数え方を 直した（2026-08-31・指示役の条件）★★
+      //   ★前★ 穴に 入ったら すぐ「速度×秒」で 見えなかった分に 足していました。
+      //   ★2026-08-30 に #39 が 入り、穴は ★位置の直線で 埋まる★ように なりました。
+      //   ⇒★埋めた穴まで「見えなかった分」に 数えていました＝★二重★★
+      //   ⇒★客に「◯◯円 損した」と ★実際より 大きい 数字★を 見せます★
+      //     （「黙って 小さくなる」の 逆＝★黙って 大きく 見せる★）
+      //   ★直した形★ ここでは ★秒数と 回数だけ★ 数える。
+      //     ★見えなかった 距離は ★捨てた3つの 合計★★（mienakattaBun を 見てください）
+      //   ★距離(distance_m)は 1mmも 変わりません。数えるだけです★
       if (dtObd > cfg.obdMaxDtS && spd > 0) {
         stats.dtSkipped = (stats.dtSkipped || 0) + 1;
         bd.dtSkippedSec = (bd.dtSkippedSec || 0) + dtObd;
-        bd.dtSkippedM = (bd.dtSkippedM || 0) + spd * dtObd;
       }
       if (dtObd > 0 && dtObd <= cfg.obdMaxDtS) {
         // ∫(v+δ)。δ は ±0.5km/h クランプ済 = floor過小ぶんだけ持ち上げ過大暴走しない。
@@ -2647,7 +2654,23 @@ function createDistanceTracker(decoder, opts) {
       return {
         kaisuu: stats.dtSkipped || 0, // 何回 捨てたか
         byou: +(bd.dtSkippedSec || 0).toFixed(2), // 捨てた 秒数の 合計
-        meter: +(bd.dtSkippedM || 0).toFixed(2), // その間に 走ったはずの 距離
+        // ★★2026-08-31 直し（★自分の 試験が 捕まえました★）★★
+        //   はじめ「3つの 合計」に しましたが、★3つは 重なっています★:
+        //     捨てた穴は ★anaTooLongM(または anaTooFastM)★ と
+        //     ★anaChordSkippedM★ の ★両方★に 入ります（エンジンの 作りが そう）。
+        //     ⇒ 合計に すると ★また 二重★（試験④で 2,000 が 4,000 に なった）
+        //   ★正しい形★
+        //     ★meter ＝ anaChordSkippedM だけ★（＝★埋めなかった 分 全部★）
+        //     ★nagasugi / hayasugi は その 内訳★（理由の 分け方）
+        //   ★埋めた分（anaChordM）は 入れません★
+        meter: +(bd.anaChordSkippedM || 0).toFixed(2),
+        nagasugi: +(bd.anaTooLongM || 0).toFixed(2), // 内訳: 3分を 超えて 捨てた
+        hayasugi: +(bd.anaTooFastM || 0).toFixed(2), // 内訳: 110km/h 超え＝位置が 飛んだ
+        sonota: +Math.max(
+          0,
+          (bd.anaChordSkippedM || 0) - (bd.anaTooLongM || 0) - (bd.anaTooFastM || 0)
+        ).toFixed(2), // 内訳: その他
+        umeta: +(bd.anaChordM || 0).toFixed(2), // ★埋めた分（参考・見えなかった分では ない）★
       };
     },
     // ★1km自動較正K の状態(見える化用・2026-06-26)★: autoCalibK時のみ {K,windows,confident,...}。
