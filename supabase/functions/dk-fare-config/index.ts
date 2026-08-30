@@ -5,7 +5,7 @@
 //
 //   入力(POST JSON): { url_token, device_id }            … ★読む★
 //                    { url_token, device_id, config:{} } … ★書く★
-//   出力: { ok:true, config:{...}, updated_at } | { ok:false, reason }
+//   出力: { ok:true, config:{...}, updated_at, updated_by } | { ok:false, reason }
 //
 //   ▼設計の要点（dk-sync-jobs と ★同じ考え方★に そろえる）
 //     ・会社は url_token で引く（★メーターは ログインを 持たない★ため）。
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: row, error: fErr } = await sb
     .from('dk_fare_config')
-    .select('config, updated_at')
+    .select('config, updated_at, updated_by')
     .eq('company_id', co.company_id)
     .maybeSingle();
   // ★読めなかったのを「無い」と 言わない★（呼ぶ側が 前の写しを 消してしまう）
@@ -122,7 +122,13 @@ Deno.serve(async (req: Request) => {
     } catch (_) {
       /* 記録が 残らなくても 料金は 保存されています */
     }
-    return json({ ok: true, company_id: co.company_id, config: input.config, updated_at: now });
+    return json({
+      ok: true,
+      company_id: co.company_id,
+      config: input.config,
+      updated_at: now,
+      updated_by: 'device:' + device_id,
+    });
   }
 
   return json({
@@ -130,5 +136,9 @@ Deno.serve(async (req: Request) => {
     company_id: co.company_id,
     config: row ? row.config : null,
     updated_at: row ? row.updated_at : null,
+    // ★誰が 最後に 変えたか（2026-08-30・監査役の指摘）★
+    //   ★記録は 前から 持っていたのに 誰も 見ていませんでした＝持っているのに 渡していない★
+    //   中身は 'device:<端末ID>'（メーターから）か メール（事務所から）です。
+    updated_by: row ? row.updated_by : null,
   });
 });

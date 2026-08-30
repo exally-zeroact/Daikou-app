@@ -132,25 +132,139 @@
   //   ★ここは 絶対に throw しません★（料金が 出ない画面を 作らない）
   function yomuOffline() {
     const raw = _get(K_CACHE);
-    if (!raw) return { config: totonoeru(null), moto: 'kitei' };
+    if (!raw)
+      return {
+        config: totonoeru(null),
+        moto: 'kitei',
+        totta_at: null,
+        updated_by: null,
+        furusa: furusa(null),
+        fuda: '料金表：まだ取れていません（この端末の既定）',
+        fudaKaeta: fudaKaeta(null),
+      };
     try {
       const v = JSON.parse(raw);
       const c = v && v.config ? v.config : null;
-      if (!c) return { config: totonoeru(null), moto: 'kitei' };
-      return { config: totonoeru(c), moto: 'utsushi', updated_at: v.updated_at || null };
+      if (!c)
+        return {
+          config: totonoeru(null),
+          moto: 'kitei',
+          totta_at: null,
+          updated_by: null,
+          furusa: furusa(null),
+          fuda: '料金表：まだ取れていません（この端末の既定）',
+          fudaKaeta: fudaKaeta(null),
+        };
+      return {
+        config: totonoeru(c),
+        moto: 'utsushi',
+        updated_at: v.updated_at || null,
+        totta_at: v.totta_at || null,
+        updated_by: v.updated_by || null,
+        furusa: furusa(v.totta_at),
+        fuda: fudaMoji(v),
+        fudaKaeta: fudaKaeta(v),
+      };
     } catch (_) {
-      return { config: totonoeru(null), moto: 'kitei' };
+      return {
+        config: totonoeru(null),
+        moto: 'kitei',
+        totta_at: null,
+        updated_by: null,
+        furusa: furusa(null),
+        fuda: '料金表：まだ取れていません（この端末の既定）',
+        fudaKaeta: fudaKaeta(null),
+      };
     }
   }
 
-  function _yaku(config, updatedAt) {
+  // ★焼く時に「★いつ 取ったか★」も 一緒に 焼く★（2026-08-30・監査役の指摘）
+  //   ★2つは 別の物です★
+  //     updated_at … ★会社が 料金表を 変えた日★（倉庫が 持っている）
+  //     totta_at   … ★この端末が 取りに行った日★（古さは こちらで 測る）
+  //   ★端末は「いつの物か」を 知っているのに 見せていませんでした★＝
+  //   ★持っているのに 渡していない★。画面に 出せるように ここで 残します。
+  function _yaku(config, updatedAt, tottaAt, updatedBy) {
     try {
       const ls = _ls();
       if (!ls) return;
-      ls.setItem(K_CACHE, JSON.stringify({ config: config, updated_at: updatedAt || null }));
+      ls.setItem(
+        K_CACHE,
+        JSON.stringify({
+          config: config,
+          updated_at: updatedAt || null,
+          totta_at: tottaAt || new Date().toISOString(),
+          updated_by: updatedBy === undefined ? null : updatedBy,
+        })
+      );
     } catch (_) {
       /* 焼けなくても 今の走行は 続けられる */
     }
+  }
+
+  // ★古さを 数える★（画面が そのまま 使える形で 返す）
+  //   ★取った日が 分からない物は「分からない」と 言う★＝★0日 と 言わない★
+  const FURUI_NICHI = 7; // ★7日 以上で はっきり 知らせる★
+  function furusa(tottaAt, imaMs) {
+    if (!tottaAt) return { wakaru: false, nichi: null, furui: false };
+    const t = Date.parse(tottaAt);
+    if (!isFinite(t)) return { wakaru: false, nichi: null, furui: false };
+    const ima = isFinite(imaMs) ? imaMs : Date.now();
+    const nichi = Math.floor((ima - t) / 86400000);
+    return { wakaru: true, nichi: nichi, furui: nichi >= FURUI_NICHI };
+  }
+
+  // ★日付の 言い方を 1か所に する★（2つの札で 別々に 書くと すぐ 食い違う）
+  function _hiduke(iso, jikanMo) {
+    const t = Date.parse(iso);
+    if (!isFinite(t)) return null;
+    const d = new Date(t);
+    const hi = d.getMonth() + 1 + '月' + d.getDate() + '日';
+    if (!jikanMo) return hi;
+    const fu = ('0' + d.getMinutes()).slice(-2);
+    return hi + ' ' + d.getHours() + ':' + fu;
+  }
+
+  // ★画面に 出す 1行★（部品側で 作る＝2つの画面で 別々に 書かない）
+  function fudaMoji(v) {
+    if (!v || !v.totta_at) return '料金表：いつ取ったか分かりません';
+    const f = furusa(v.totta_at);
+    const hi = _hiduke(v.totta_at, false);
+    if (!f.wakaru || !hi) return '料金表：いつ取ったか分かりません';
+    if (f.furui) return '⚠ 料金表：' + hi + ' 取得（' + f.nichi + '日前・古いかもしれません）';
+    return '料金表：' + hi + ' 取得';
+  }
+
+  // ★★最後に 変えたのは 誰・いつ（2026-08-30・監査役の指摘）★★
+  //   ★記録は 前から 持っていたのに ★誰も 見ていませんでした★＝持っているのに 渡していない★
+  //   ★名前が 出れば 変えにくくなります★（勝手に 変えても 誰にも 分からない、が 終わる）
+  //
+  //   ★倉庫が 持っている 中身は 2種類★
+  //     'device:<端末ID>' … メーターの 設定画面から 変えた
+  //     メール            … 事務所（ログイン）から 変えた ※事務所側の画面は まだ 無い
+  //   ★端末IDを そのまま 出しません★（長い・意味が 読めない）ので
+  //     ★自分の端末なら「この端末」／他なら「別の端末（末尾4文字）」★に します。
+  //   ★分からない物は「分かりません」と 言う★（空欄や 0 に しない）
+  function dareMoji(updatedBy, jibunNoDeviceId) {
+    const raw = updatedBy == null ? '' : String(updatedBy).trim();
+    if (!raw) return null;
+    if (raw.indexOf('device:') === 0) {
+      const id = raw.slice(7);
+      if (!id) return null;
+      const jibun = jibunNoDeviceId === undefined ? _get(DEVICE_ID_KEY) : jibunNoDeviceId;
+      if (jibun && String(jibun) === id) return 'この端末';
+      return '別の端末（…' + id.slice(-4) + '）';
+    }
+    return raw;
+  }
+
+  function fudaKaeta(v, jibunNoDeviceId) {
+    const dare = v ? dareMoji(v.updated_by, jibunNoDeviceId) : null;
+    const itsu = v && v.updated_at ? _hiduke(v.updated_at, true) : null;
+    if (!dare && !itsu) return '最後に変えた人：分かりません';
+    if (!dare) return '最後に変えた人：分かりません（' + itsu + '）';
+    if (!itsu) return '最後に変えた人：' + dare + '（いつかは分かりません）';
+    return '最後に変えた人：' + dare + '（' + itsu + '）';
   }
 
   // ★倉庫から 取り直して 写しを 焼く★
@@ -185,7 +299,7 @@
     // ★config が null＝棚に まだ 無い★。★写しを 消さない★（前の料金で 走り続ける）
     if (body.config == null) return { ok: false, reason: 'no_row' };
     const c = totonoeru(body.config);
-    _yaku(c, body.updated_at);
+    _yaku(c, body.updated_at, null, body.updated_by || null);
     return { ok: true, config: c, moto: 'souko', updated_at: body.updated_at || null };
   }
 
@@ -222,7 +336,7 @@
     }
     if (!body || body.ok !== true)
       return { ok: false, reason: (body && body.reason) || 'ng', config: ato };
-    _yaku(ato, body.updated_at);
+    _yaku(ato, body.updated_at, null, body.updated_by || null);
     return { ok: true, config: ato, updated_at: body.updated_at || null };
   }
 
@@ -317,6 +431,11 @@
     totonoeru: totonoeru,
     // メーター側
     yomuOffline: yomuOffline,
+    furusa: furusa,
+    fudaMoji: fudaMoji,
+    fudaKaeta: fudaKaeta,
+    dareMoji: dareMoji,
+    FURUI_NICHI: FURUI_NICHI,
     torikomu: torikomu,
     kakuMeter: kakuMeter,
     // 事務所側

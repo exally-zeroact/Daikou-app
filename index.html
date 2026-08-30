@@ -14522,10 +14522,43 @@
             _initAll();
             return;
           }
-          ateru(FareConfigStore.yomuOffline().config);
+          const utsushi = FareConfigStore.yomuOffline();
+          ateru(utsushi.config);
+          itsunoFuda(utsushi);
           FareConfigStore.torikomu().then((r) => {
             if (r && r.ok) ateru(r.config);
+            // ★取り直しても 取れなくても 出し直す★（古いままの時こそ 見せたい）
+            itsunoFuda(FareConfigStore.yomuOffline());
           });
+        }
+
+        // ★★いつの 料金表かを 出す（2026-08-30・監査役の指摘）★★
+        //   ★言葉は 部品が 作ります★（2つの画面で 別々に 書かない＝食い違いを 作らない）
+        //   ★2026-08-30 追記（監査役の指摘）★
+        //     ★「最後に 変えたのは 誰・いつ」も ★同じ箱に 2行目★として 出す★
+        //     ★記録は 前から 持っていたのに 誰も 見ていませんでした★
+        //     ⇒★勝手に 変えても 誰にも 分からない、が 終わります★
+        function itsunoFuda(v) {
+          const el = $('_fare_itsuno');
+          if (!el || typeof FareConfigStore === 'undefined') return;
+          el.textContent = '';
+          const gyo1 = document.createElement('div');
+          gyo1.textContent = v && v.fuda ? v.fuda : FareConfigStore.fudaMoji(v);
+          const gyo2 = document.createElement('div');
+          gyo2.style.marginTop = '2px';
+          gyo2.style.opacity = '0.85';
+          gyo2.textContent = v && v.fudaKaeta ? v.fudaKaeta : FareConfigStore.fudaKaeta(v);
+          el.appendChild(gyo1);
+          el.appendChild(gyo2);
+          const furui = !!(v && v.furusa && v.furusa.furui);
+          const wakaranai = !(v && v.totta_at);
+          // ★この画面は 色の 変数を 1つも 使っていません★ので、
+          //   ★既にある 注意の 箱（.apk-modal-warn）と 同じ 色★に そろえます。
+          //   （新しい色を 作らない＝画面の中で 浮かない）
+          const chuui = furui || wakaranai;
+          el.style.background = chuui ? '#fff8e1' : '#f2f2f7';
+          el.style.color = chuui ? '#7a4a00' : '#333';
+          el.style.border = chuui ? '1px solid #f59e0b' : '1px solid #d1d1d6';
         }
         function saveAll() {
           saveBasic();
@@ -14538,6 +14571,10 @@
           //   ★倉庫へ 入らなかった時に「保存しました」と 言わない★（画面が 嘘を つかない）
           if (typeof FareConfigStore !== 'undefined') {
             FareConfigStore.kakuMeter(fc).then((r) => {
+              // ★保存したら 札も 出し直す★（今の料金表に なった事が 見える）
+              try {
+                itsunoFuda(FareConfigStore.yomuOffline());
+              } catch (_) {}
               if (!r || r.ok) return;
               showToast(
                 r.reason === 'network' || r.reason === 'not_activated'
@@ -16026,6 +16063,23 @@
         <div class="appbar-title">FARE CONFIG</div>
       </div>
       <div class="layout">
+        <!-- ★★いつの 料金表か（2026-08-30・監査役の指摘）★★
+             ★端末は「いつ 取ったか」を 知っているのに 見せていませんでした★。
+             圏外だと 焼いてある 写しで 動くので、★古い料金表のまま 走る事が 起きます★。
+             ⇒ ここに はっきり 出す。7日 以上 経っていたら 印を 変える。
+             ★flex/grid の 箱に 入れない★（潰れる）ので 独立した div に します。 -->
+        <div
+          id="_fare_itsuno"
+          style="
+            margin: 8px 12px 0;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: normal;
+            overflow-wrap: anywhere;
+          "
+        ></div>
         <nav class="tab-nav" id="_fare_tabNav">
           <button class="tab-btn active" data-tab="extras">追加料金</button>
           <button class="tab-btn" data-tab="discounts">値引き</button>
