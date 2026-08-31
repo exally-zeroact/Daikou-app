@@ -13,6 +13,7 @@ const path = require('path');
 const GPS_JS_PATH = path.join(__dirname, '..', 'js', 'gps.js');
 const BUSINESS_JS_PATH = path.join(__dirname, '..', 'js', 'business.js');
 const METER_JS_PATH = path.join(__dirname, '..', 'js', 'meter.js');
+const FARE_CALC_JS_PATH = path.join(__dirname, '..', 'js', 'fare-calc.js');
 
 // ──────────────────────────────────────────────────────────────
 // 共通: navigator / window / その他 browser global の sandbox 構築
@@ -20,17 +21,33 @@ const METER_JS_PATH = path.join(__dirname, '..', 'js', 'meter.js');
 function makeLocalStorage() {
   const store = Object.create(null);
   return {
-    getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
-    setItem(k, v) { store[k] = String(v); },
-    removeItem(k) { delete store[k]; },
-    clear() { for (const k of Object.keys(store)) delete store[k]; },
-    key(i) { return Object.keys(store)[i] || null; },
-    get length() { return Object.keys(store).length; },
+    getItem(k) {
+      return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null;
+    },
+    setItem(k, v) {
+      store[k] = String(v);
+    },
+    removeItem(k) {
+      delete store[k];
+    },
+    clear() {
+      for (const k of Object.keys(store)) delete store[k];
+    },
+    key(i) {
+      return Object.keys(store)[i] || null;
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
     _raw: store,
   };
 }
 
-function makeNavigator({ onLine = true, geolocation = null, userAgent = 'Mozilla/5.0 (E2E test sandbox)' } = {}) {
+function makeNavigator({
+  onLine = true,
+  geolocation = null,
+  userAgent = 'Mozilla/5.0 (E2E test sandbox)',
+} = {}) {
   return {
     onLine,
     userAgent,
@@ -54,17 +71,34 @@ function loadGps({ navigator: nav } = {}) {
   sandbox.DEBUG = { enabled: false, isProduction: false };
   sandbox.Worker = undefined;
   sandbox.console = console;
-  sandbox.performance = typeof performance !== 'undefined' ? performance : { now: () => Date.now() };
+  sandbox.performance =
+    typeof performance !== 'undefined' ? performance : { now: () => Date.now() };
   sandbox.self = sandbox;
   // DeviceOrientationEvent / DeviceMotionEvent は使われた場合に typeof undefined で skip される
   const fn = new Function(
-    'window', 'navigator', 'localStorage', 'sessionStorage',
-    'dlog', 'DEBUG', 'Worker', 'console', 'performance', 'self',
+    'window',
+    'navigator',
+    'localStorage',
+    'sessionStorage',
+    'dlog',
+    'DEBUG',
+    'Worker',
+    'console',
+    'performance',
+    'self',
     code
   );
   return fn(
-    sandbox.window, sandbox.navigator, sandbox.localStorage, sandbox.sessionStorage,
-    sandbox.dlog, sandbox.DEBUG, sandbox.Worker, sandbox.console, sandbox.performance, sandbox.self
+    sandbox.window,
+    sandbox.navigator,
+    sandbox.localStorage,
+    sandbox.sessionStorage,
+    sandbox.dlog,
+    sandbox.DEBUG,
+    sandbox.Worker,
+    sandbox.console,
+    sandbox.performance,
+    sandbox.self
   );
 }
 
@@ -107,7 +141,14 @@ describe('GPS 精度低下: navigator.geolocation を mock し accuracy=50 を�
 
     // mock の position fix
     _onPos({
-      coords: { latitude: 35.681, longitude: 139.767, accuracy: 50, altitude: 5, speed: null, heading: null },
+      coords: {
+        latitude: 35.681,
+        longitude: 139.767,
+        accuracy: 50,
+        altitude: 5,
+        speed: null,
+        heading: null,
+      },
       timestamp: Date.now(),
     });
     // state は denied/unknown → granted に遷移する
@@ -131,11 +172,25 @@ describe('GPS 精度低下: navigator.geolocation を mock し accuracy=50 を�
     const updates = [];
     GPS.start((g) => updates.push(g));
     _onPos({
-      coords: { latitude: 35.0, longitude: 139.0, accuracy: 5, altitude: 0, speed: 0, heading: null },
+      coords: {
+        latitude: 35.0,
+        longitude: 139.0,
+        accuracy: 5,
+        altitude: 0,
+        speed: 0,
+        heading: null,
+      },
       timestamp: Date.now(),
     });
     _onPos({
-      coords: { latitude: 35.001, longitude: 139.001, accuracy: 50, altitude: 0, speed: 0, heading: null },
+      coords: {
+        latitude: 35.001,
+        longitude: 139.001,
+        accuracy: 50,
+        altitude: 0,
+        speed: 0,
+        heading: null,
+      },
       timestamp: Date.now() + 1000,
     });
     expect(updates.length).toBeGreaterThanOrEqual(1);
@@ -153,24 +208,31 @@ describe('タスクキル復元: saved Business state を localStorage 経由で
   it('Business.load() で active=true / total_distance_m が復元される', () => {
     const meter = {
       _bd: 0,
-      getState() { return { distance_m: 0, business_distance_m: this._bd, running: false }; },
-      setBusinessDistance(v) { this._bd = v; },
+      getState() {
+        return { distance_m: 0, business_distance_m: this._bd, running: false };
+      },
+      setBusinessDistance(v) {
+        this._bd = v;
+      },
     };
     const ls = makeLocalStorage();
     // 業務復元用 saved state (タスクキル直前に save() された想定)
-    ls.setItem('daikou_business_state', JSON.stringify({
-      active: true,
-      start_time: Date.now() - 3600000,
-      end_time: null,
-      ended: false,
-      ended_at: null,
-      total_distance_m: 1500,
-      actual_total_m: 800,
-      fare_total_yen: 2200,
-      trip_count: 2,
-      trips: [],
-      last_meter_distance_m: 800,
-    }));
+    ls.setItem(
+      'daikou_business_state',
+      JSON.stringify({
+        active: true,
+        start_time: Date.now() - 3600000,
+        end_time: null,
+        ended: false,
+        ended_at: null,
+        total_distance_m: 1500,
+        actual_total_m: 800,
+        fare_total_yen: 2200,
+        trip_count: 2,
+        trips: [],
+        last_meter_distance_m: 800,
+      })
+    );
     const Business = loadBusiness({ meter, localStorageMock: ls });
     const ok = Business.load();
     expect(ok).toBe(true);
@@ -186,8 +248,12 @@ describe('タスクキル復元: saved Business state を localStorage 経由で
   it('Business.load() で空 state はそのまま空 (誤復元しない)', () => {
     const meter = {
       _bd: 0,
-      getState() { return { distance_m: 0, business_distance_m: 0, running: false }; },
-      setBusinessDistance(v) { this._bd = v; },
+      getState() {
+        return { distance_m: 0, business_distance_m: 0, running: false };
+      },
+      setBusinessDistance(v) {
+        this._bd = v;
+      },
     };
     const ls = makeLocalStorage();
     const Business = loadBusiness({ meter, localStorageMock: ls });
@@ -209,7 +275,10 @@ describe('オフライン切替: navigator.onLine = false の状態を sandbox �
     const navMock = makeNavigator({
       onLine: false,
       geolocation: {
-        watchPosition() { calls++; return 1; },
+        watchPosition() {
+          calls++;
+          return 1;
+        },
         clearWatch() {},
       },
     });
@@ -222,15 +291,27 @@ describe('オフライン切替: navigator.onLine = false の状態を sandbox �
   it('オフライン時の Off-Road Mode フォールバック契約 (Meter.state.offroad_count の存在を確認)', () => {
     // 注: 実際の Off-Road Mode 起動は MM Worker からの skipped/snapped 連続が必要で
     //     Node sandbox では Worker を起動しない。本テストは Meter state スキーマ整合性のみ確認。
-    const code = fs.readFileSync(METER_JS_PATH, 'utf8') + '\n;return Meter;';
+    // ★本番が 積んでいる 物を 全部 積む★ 2026-09-01（料金の 計算は meter.js より 前）
+    const code =
+      fs.readFileSync(FARE_CALC_JS_PATH, 'utf8') +
+      '\n' +
+      fs.readFileSync(METER_JS_PATH, 'utf8') +
+      '\n;return Meter;';
     const sandbox = {};
     sandbox.window = sandbox;
     sandbox.dlog = () => {};
     sandbox.DEBUG = { enabled: false, isProduction: false };
     sandbox.console = console;
-    sandbox.performance = typeof performance !== 'undefined' ? performance : { now: () => Date.now() };
+    sandbox.performance =
+      typeof performance !== 'undefined' ? performance : { now: () => Date.now() };
     const fn = new Function('window', 'dlog', 'DEBUG', 'console', 'performance', code);
-    const Meter = fn(sandbox.window, sandbox.dlog, sandbox.DEBUG, sandbox.console, sandbox.performance);
+    const Meter = fn(
+      sandbox.window,
+      sandbox.dlog,
+      sandbox.DEBUG,
+      sandbox.console,
+      sandbox.performance
+    );
     const s = Meter.getState();
     // Off-Road Mode の state フィールドが存在する (オフライン MM Worker dead 時の累積保管先)
     expect(typeof s.offroad_count).toBe('number');

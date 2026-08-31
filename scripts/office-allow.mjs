@@ -29,6 +29,9 @@ export const OFFICE_PAGES = [
   'uriage.html',
   'kyuryo.html',
   'shukei.html',
+  // ★料金表は 事務所が 正しい 置き場★ 2026-08-31（別件③ 2026-08-30 積み分）
+  //   前は メーターの「設定 → 料金設定」だけ＝★運転する人の 端末でしか 変えられなかった★。
+  'ryokinhyou.html',
   'login.html',
 ];
 

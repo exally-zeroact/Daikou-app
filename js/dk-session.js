@@ -286,8 +286,8 @@
   //   ★4つの画面(dashboard / kyuryo / uriage / shukei)が同じ形で間違えていた★ので、
   //   ここに1つだけ置いて、全部そこを通す（また兄弟の食い違いを作らないため）。
 
-  // ログインの証(JWT)から 自分のid(sub)を読む。読めなければ null。
-  function uidOf(sess) {
+  // ★ログインの証(JWT)を 開く所は ここ 1つだけ★（2か所で 開くと すぐ 食い違う）
+  function _akeru(sess) {
     try {
       const t = sess && sess.access_token;
       if (!t || typeof t !== 'string') return null;
@@ -300,10 +300,28 @@
           ? atob(pad)
           : /* eslint-disable-next-line no-undef */ Buffer.from(pad, 'base64').toString('utf8');
       const o = JSON.parse(raw);
-      return o && typeof o.sub === 'string' && o.sub ? o.sub : null;
+      return o && typeof o === 'object' ? o : null;
     } catch (_) {
       return null;
     }
+  }
+
+  // ログインの証(JWT)から 自分のid(sub)を読む。読めなければ null。
+  function uidOf(sess) {
+    const o = _akeru(sess);
+    return o && typeof o.sub === 'string' && o.sub ? o.sub : null;
+  }
+
+  // ★自分の メールアドレスを 読む★（2026-08-31）
+  //   ★なぜ 要るか★ … 料金表に「誰が 変えたか」を 出す時、
+  //   ★uid（英数字の 羅列）を そのまま 出すと 誰か 分かりません★
+  //   （司さん「訳分からんやつ消せ」と 同じ形。指示役の 差し戻し 2026-08-31）。
+  //   ★読めなければ null★＝呼ぶ側で「分かりません」と 言う（★埋めない★）。
+  function mailOf(sess) {
+    const o = _akeru(sess);
+    if (!o) return null;
+    const m = o.email || (o.user_metadata && o.user_metadata.email);
+    return typeof m === 'string' && m ? m : null;
   }
 
   // ★自分が持ち主の会社だけ★ を ★必ず同じ順★ で取る問い合わせ文。
@@ -474,6 +492,7 @@
     showUnknownBar: showUnknownBar,
     // ★会社の選び方（4画面で共有）★
     uidOf: uidOf,
+    mailOf: mailOf,
     myCompaniesQuery: myCompaniesQuery,
     myCompanies: myCompanies,
     pickCompany: pickCompany,

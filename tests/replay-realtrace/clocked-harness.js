@@ -89,6 +89,10 @@ function loadMeterClocked(clock, debug) {
   ctx.globalThis = ctx;
   ctx.self = ctx;
   vm.createContext(ctx);
+  // ★本番が 積んでいる 物を 全部 積む★ 2026-09-01（料金の 計算は meter.js より 前）
+  vm.runInContext(fs.readFileSync(path.join(JS_DIR, 'fare-calc.js'), 'utf8'), ctx, {
+    filename: 'js/fare-calc.js',
+  });
   const src =
     fs.readFileSync(path.join(JS_DIR, 'meter.js'), 'utf8') + '\n;globalThis.Meter = Meter;\n';
   vm.runInContext(src, ctx, { filename: 'js/meter.js' });

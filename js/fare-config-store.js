@@ -248,6 +248,15 @@
   function dareMoji(updatedBy, jibunNoDeviceId) {
     const raw = updatedBy == null ? '' : String(updatedBy).trim();
     if (!raw) return null;
+    // ★事務所（ログイン）から 変えた時★ 2026-08-31（指示役の 差し戻し）
+    //   ★uid を そのまま 出さない★（英数字の 羅列は 誰か 分からない）。
+    //   メールが 取れていれば メールが そのまま 入る（下の 最後の return）。
+    //   取れなかった 時だけ ここに 来る。
+    if (raw.indexOf('jimusho:') === 0) {
+      const id = raw.slice(8);
+      if (!id) return '事務所の人';
+      return '事務所の人（…' + id.slice(-4) + '）';
+    }
     if (raw.indexOf('device:') === 0) {
       const id = raw.slice(7);
       if (!id) return null;
@@ -359,7 +368,8 @@
     if (!companyId) throw new Error('★会社が 決まっていません★');
     const res = await _rest(
       sess,
-      'dk_fare_config?select=config,updated_at&company_id=eq.' + encodeURIComponent(companyId)
+      'dk_fare_config?select=config,updated_at,updated_by&company_id=eq.' +
+        encodeURIComponent(companyId)
     );
     if (!res || !res.ok)
       throw new Error('★料金表を 読めませんでした★ status=' + ((res && res.status) || 0));
@@ -369,6 +379,8 @@
       config: totonoeru(raw),
       moto: raw ? 'souko' : 'kitei',
       updated_at: (Array.isArray(rows) && rows[0] && rows[0].updated_at) || null,
+      // ★誰が 変えたか★（事務所の 画面が 出す。★2026-08-31 追加★）
+      updated_by: (Array.isArray(rows) && rows[0] && rows[0].updated_by) || null,
     };
   }
 

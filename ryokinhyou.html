@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 料金表</title>
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💴</text></svg>"
+    />
+    <!-- ============================================================
+      ★★事務所の 料金表画面★★ 2026-08-31（別件③ 2026-08-30 積み分）
+
+      ★なぜ 作ったか★
+        実測（2026-08-30）… 事務所側に 料金表の 画面は ★1つも 無かった★
+          dashboard / company / settings / kyuryo / uriage / shukei / daikome-admin = 0箇所
+        （fare.html は 在るが ★メーターへ 飛ばすだけの 抜け殻★・事務所の 入口21本にも 無い）
+        ⇒ 料金を 変える 手が ★運転する人の 端末（メーターの 設定）だけ★だった。
+        ★本当の 置き場は 事務所★です。
+
+      ★「この料金だと いくら」の 見本★ 2026-08-31（司さん「②やれ」で 付けました）
+        ★お金の 計算は ここに 1文字も 書いていません★。
+        js/fare-calc.js（★メーターと 同じ 1か所★）を 呼んでいるだけです。
+        ・書き写す＝禁止（2か所に なると ★片方だけ 直って ずれる★）
+        ・メーターの js/meter.js を 事務所に 出す＝禁止（2026-08-02 の 事故）
+        ⇒ ★計算だけを 別ファイルに 出して、両方が それを 呼ぶ★形に しました。
+    ============================================================ -->
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+        --danger: #e0483d;
+        --ok: #1c7c3f;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        line-height: 1.7;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 22px 18px 60px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--blue-d);
+      }
+
+      .top .tag {
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 2px 10px;
+        margin-left: 8px;
+        white-space: nowrap;
+      }
+
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 16px;
+      }
+
+      .linkbtn {
+        background: none;
+        border: none;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 2px;
+      }
+
+      /* 会社設定の 画面の 中に 出している 時は、上の リンク列を 隠す（他の 事務所画面と 同じ） */
+      body.embedded .top,
+      body.embedded .sub {
+        display: none;
+      }
+
+      body.embedded .wrap {
+        padding-top: 8px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+
+      .ttl {
+        font-weight: 800;
+        margin-bottom: 10px;
+      }
+
+      .btn {
+        background: var(--blue);
+        border: none;
+        border-radius: 10px;
+        padding: 8px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .btn[disabled] {
+        background: #b9cfe8;
+        cursor: default;
+      }
+
+      .btn.sub2 {
+        background: #fff;
+        border: 1px solid var(--line);
+        color: var(--blue-d);
+      }
+
+      .btn.sub2[disabled] {
+        color: #b9cfe8;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+
+      th,
+      td {
+        padding: 8px 9px;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        border-bottom: 2px solid var(--line);
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      .scroller {
+        overflow-x: auto;
+      }
+
+      .msg {
+        text-align: center;
+        color: var(--muted);
+        padding: 26px 10px;
+        font-size: 14px;
+      }
+
+      .err {
+        color: var(--danger);
+        font-size: 13px;
+        margin-top: 8px;
+      }
+
+      .done {
+        color: var(--ok);
+        font-size: 13px;
+        margin-top: 8px;
+        font-weight: 700;
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+
+      /* 入れる所 */
+      .rows {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 12px;
+      }
+
+      .row label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+
+      .row .in {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .row input {
+        width: 100%;
+
+        /* ★iOS は 16px 未満だと 画面が 勝手に 寄ります★ */
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--ink);
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        text-align: right;
+      }
+
+      .row .tani {
+        font-size: 13px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .itsuno {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .itsuno b {
+        color: var(--ink);
+      }
+
+      .oshi {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div><span class="logo">ダイコメ</span><span class="tag">料金表</span></div>
+        <div>
+          <button class="linkbtn" onclick="location.href = 'uriage.html'">売上表</button>
+          <button class="linkbtn" onclick="location.href = 'kyuryo.html'">給料</button>
+          <button class="linkbtn" onclick="location.href = 'shukei.html'">月次集計</button>
+          <button class="linkbtn" onclick="location.href = 'dashboard.html'">会社設定</button>
+          <button class="linkbtn" id="btnLogout">ログアウト</button>
+        </div>
+      </div>
+      <div class="sub" id="sub">読み込み中…</div>
+
+      <div class="msg" id="msg">読み込み中…</div>
+
+      <div id="honbun" style="display: none">
+        <div class="card">
+          <div class="ttl">今の 料金表</div>
+          <div class="itsuno" id="itsuno">—</div>
+          <div class="note" id="motoNote"></div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">基本の 料金</div>
+          <div class="rows">
+            <div class="row">
+              <label for="fBase">最初の 料金</label>
+              <div class="in">
+                <input id="fBase" type="number" inputmode="numeric" min="0" step="10" />
+                <span class="tani">円</span>
+              </div>
+            </div>
+            <div class="row">
+              <label for="fBaseM">その 料金で 走れる 距離</label>
+              <div class="in">
+                <input id="fBaseM" type="number" inputmode="numeric" min="0" step="10" />
+                <span class="tani">m</span>
+              </div>
+            </div>
+            <div class="row">
+              <label for="fAdd">その先 上がる 料金</label>
+              <div class="in">
+                <input id="fAdd" type="number" inputmode="numeric" min="0" step="10" />
+                <span class="tani">円</span>
+              </div>
+            </div>
+            <div class="row">
+              <label for="fAddM">上がる ごとの 距離</label>
+              <div class="in">
+                <input id="fAddM" type="number" inputmode="numeric" min="1" step="10" />
+                <span class="tani">m</span>
+              </div>
+            </div>
+            <div class="row">
+              <label for="fRound">端数の 丸め</label>
+              <div class="in">
+                <input id="fRound" type="number" inputmode="numeric" min="1" step="1" />
+                <span class="tani">円ごと</span>
+              </div>
+            </div>
+          </div>
+          <div class="err" id="err" style="display: none"></div>
+          <div class="done" id="done" style="display: none"></div>
+          <div class="note">
+            例）最初 1,300円 で 1,000m まで、その先 420m ごとに 100円 ずつ 上がる。<br />
+            <b>端数の 丸め</b>＝10 なら 10円ごとに 切り上げます（1 なら 丸めません）。
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">この 料金表だと いくらか（上の 数字を 変えると すぐ 変わります）</div>
+          <div class="scroller">
+            <table>
+              <thead>
+                <tr>
+                  <th>走った 距離</th>
+                  <th>今の 料金表</th>
+                  <th>直した 後</th>
+                  <th>差</th>
+                </tr>
+              </thead>
+              <tbody id="mihon"></tbody>
+            </table>
+          </div>
+          <div class="note">
+            この 金額は <b>メーターと 同じ 計算</b>で 出しています（同じ ファイルを
+            呼んでいます）。<br />
+            <b>割増（深夜・休日）が 効く 時間帯なら、その分も 入った 金額</b>です。
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="oshi">
+            <button class="btn" id="btnSave" disabled>保存する</button>
+            <button class="btn sub2" id="btnUndo">1つ前に 戻す</button>
+            <span class="note" id="oshiNote" style="margin-top: 0"></span>
+          </div>
+          <div class="note">
+            保存すると <b>次に 通信できた 端末から 新しい 料金表に なります</b>。<br />
+            <b>走っている 途中の 端末は 変わりません</b>（走行中は 料金表を 止めています）。
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">ここで 変えられない 物</div>
+          <div class="note" style="margin-top: 0">
+            <b>割増（深夜・休日・冬）／段階の 料金／車種ごと／待ち時間</b>
+            は、いまは <b>メーターの「設定 → 料金設定」</b>だけで 変えられます。<br />
+            この画面から 保存しても <b>それらは 1つも 消えません</b>（そのまま 残します）。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script src="js/dk-env-badge.js" data-modoru="office"></script>
+    <script src="js/dk-session.js"></script>
+    <script src="js/fare-config-store.js"></script>
+    <!-- ★料金の 計算★（メーターと ★同じ 1か所★。写しでは ありません） -->
+    <script src="js/fare-calc.js"></script>
+    <script>
+      (function () {
+        'use strict';
+        function $(id) {
+          return document.getElementById(id);
+        }
+
+        try {
+          if (window.self !== window.top) document.body.classList.add('embedded');
+        } catch (_) {
+          document.body.classList.add('embedded'); // 読めない = 中に 入っている
+        }
+
+        var SESS = null;
+        var COMPANY = null;
+        var ZENBU = null; // ★読んだ 料金表を 丸ごと 持つ（触らない設定を 消さない為）★
+        var IMA = null; // 今 倉庫に 入っている 基本の5つ
+        var UPDATED_AT = null;
+        var UPDATED_BY = null;
+
+        var KO = [
+          { id: 'fBase', key: 'base_fare' },
+          { id: 'fBaseM', key: 'base_distance_m' },
+          { id: 'fAdd', key: 'add_fare' },
+          { id: 'fAddM', key: 'add_distance_m' },
+          { id: 'fRound', key: 'rounding' },
+        ];
+
+        function showMsg(t) {
+          $('msg').style.display = t ? '' : 'none';
+          $('msg').textContent = t || '';
+          $('honbun').style.display = t ? 'none' : '';
+        }
+        function showErr(t) {
+          $('err').style.display = t ? '' : 'none';
+          $('err').textContent = t || '';
+        }
+        function showDone(t) {
+          $('done').style.display = t ? '' : 'none';
+          $('done').textContent = t || '';
+        }
+
+        // 見本に 使う 距離（m）… 段の 境目を またぐ 所を 選んでいます
+        var MIHON_M = [500, 1000, 1001, 1420, 2000, 5000, 10000];
+
+        function yen(n) {
+          return n == null ? '—' : Number(n).toLocaleString('ja-JP') + '円';
+        }
+        function km(m) {
+          return (m / 1000).toFixed(m % 1000 === 0 ? 0 : 3) + ' km';
+        }
+
+        // ★お金の 計算は ここに 書かない★＝メーターと 同じ ファイルを 呼ぶ
+        //   ★js/fare-calc.js は `const FareCalc = ...`★＝window には 付きません（この repo の 決まり）。
+        //   同じ頁の 別 script からは ★裸の名前で 見えます★。
+        function ikura(config, m) {
+          try {
+            /* global FareCalc */
+            // 事務所なので ★車種・手動割増・待ち時間は 選んでいない★状態で 出します
+            return FareCalc.keisan(m, config, null, new Set(), 0, new Date());
+          } catch (_) {
+            return null;
+          }
+        }
+
+        // ★倉庫に 残す「誰が 変えたか」★ 2026-08-31（指示役の 差し戻し1）
+        //   ★uid（英数字の 羅列）を そのまま 残さない★＝後で 見た人が 誰か 分からない
+        //   （司さん「訳分からんやつ消せ」と 同じ形）。
+        //   ①メールが 読めれば ★メール★（一番 分かる）
+        //   ②読めなければ ★'jimusho:<uid>'★ → 画面には「事務所の人（…下4）」と 出る
+        //   ③どちらも 読めなければ ★null★ → 画面には「分かりません」と 出る（★埋めない★）
+        function dareNoNamae() {
+          var mail = window.DKSession.mailOf ? window.DKSession.mailOf(SESS) : null;
+          if (mail) return mail;
+          var uid = window.DKSession.uidOf ? window.DKSession.uidOf(SESS) : null;
+          return uid ? 'jimusho:' + uid : null;
+        }
+
+        // 画面の 入力から「基本の5つ」を 取る
+        function nyuuryoku() {
+          var o = {};
+          for (var i = 0; i < KO.length; i++) {
+            var v = Number($(KO[i].id).value);
+            if (!isFinite(v)) return null;
+            o[KO[i].key] = v;
+          }
+          return o;
+        }
+
+        // ★触っていない 設定を 消さない★＝丸ごとの 写しに 5つだけ 上書き
+        function kasaneru(kihon) {
+          var o = JSON.parse(JSON.stringify(ZENBU));
+          for (var k in kihon) o[k] = kihon[k];
+          return o;
+        }
+
+        function tashikame(kihon) {
+          if (!kihon) return '数字を 入れてください。';
+          if (kihon.base_fare < 0 || kihon.add_fare < 0)
+            return '料金に マイナスは 入れられません。';
+          if (kihon.base_distance_m < 0) return '距離に マイナスは 入れられません。';
+          if (!(kihon.add_distance_m > 0)) return '「上がる ごとの 距離」は 1以上に してください。';
+          if (!(kihon.rounding > 0)) return '「端数の 丸め」は 1以上に してください。';
+          return '';
+        }
+
+        function kakinaosu() {
+          var kihon = nyuuryoku();
+          var warui = tashikame(kihon);
+          showErr(warui);
+          $('btnSave').disabled = !!warui;
+
+          var tb = $('mihon');
+          tb.innerHTML = '';
+          var ato = warui ? null : kasaneru(kihon);
+          for (var i = 0; i < MIHON_M.length; i++) {
+            var m = MIHON_M[i];
+            var a = ikura(ZENBU, m);
+            var b = ato ? ikura(ato, m) : null;
+            var sa = a != null && b != null ? b - a : null;
+            var tr = document.createElement('tr');
+            var td1 = document.createElement('td');
+            td1.textContent = km(m);
+            var td2 = document.createElement('td');
+            td2.textContent = yen(a);
+            var td3 = document.createElement('td');
+            td3.textContent = yen(b);
+            var td4 = document.createElement('td');
+            td4.textContent = sa == null ? '—' : sa === 0 ? '同じ' : (sa > 0 ? '+' : '') + yen(sa);
+            if (sa) td4.style.color = sa > 0 ? 'var(--danger)' : 'var(--ok)';
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            tr.appendChild(td3);
+            tr.appendChild(td4);
+            tb.appendChild(tr);
+          }
+
+          // 元に 戻した時は 保存を 出さない
+          if (!warui && IMA) {
+            var onaji = true;
+            for (var j = 0; j < KO.length; j++) {
+              if (Number(kihon[KO[j].key]) !== Number(IMA[KO[j].key])) onaji = false;
+            }
+            $('btnSave').disabled = onaji;
+            $('oshiNote').textContent = onaji ? '変えた所は ありません。' : '';
+          }
+        }
+
+        // ★「いつ・誰」の 1行は ★自分で 組まない★★ 2026-08-31（指示役の 差し戻し2）
+        //   ★元は ここで toLocaleString して「2026/08/20 11:03」と 出していました★。
+        //   メーター側は 同じ物を「8月20日 11:03」と 出しており
+        //   ★同じアプリの 中で 日付の 書き方が 2通り★に なっていました。
+        //   ⇒ ★部品側の 1か所（FareConfigStore.fudaKaeta → _hiduke）を そのまま 使います★。
+        //     「2つの 札で 別々に 書くと すぐ 食い違う」は ★私が 部品に そう 書いた★のに
+        //     ★自分で 破っていました★。
+        function fuda() {
+          $('itsuno').textContent = window.FareConfigStore.fudaKaeta(
+            { updated_at: UPDATED_AT, updated_by: UPDATED_BY },
+            null // ★事務所なので「この端末」の 判定は しない★
+          );
+        }
+
+        function yomikomu() {
+          showMsg('読み込み中…');
+          return window.FareConfigStore.yomu(SESS, COMPANY.company_id)
+            .then(function (r) {
+              ZENBU = r.config;
+              UPDATED_AT = r.updated_at;
+              UPDATED_BY = r.updated_by || null;
+              IMA = {};
+              for (var i = 0; i < KO.length; i++) {
+                IMA[KO[i].key] = ZENBU[KO[i].key];
+                $(KO[i].id).value = ZENBU[KO[i].key];
+              }
+              $('motoNote').textContent =
+                r.moto === 'souko'
+                  ? ''
+                  : '★この会社は まだ 料金表を 入れていません★。今 出ているのは 決まった 初めの 値です。';
+              fuda();
+              showMsg('');
+              kakinaosu();
+            })
+            .catch(function (e) {
+              // ★読めなかったのに「既定です」と 見せない★（人が 上書きしてしまう）
+              showMsg('料金表を 読めませんでした。通信を 確かめて 開き直してください。');
+              /* eslint-disable-next-line no-console */
+              console.error('[ryokinhyou] yomu 失敗', e);
+            });
+        }
+
+        function hozon() {
+          var kihon = nyuuryoku();
+          if (tashikame(kihon)) return;
+          $('btnSave').disabled = true;
+          showDone('');
+          showErr('');
+          window.FareConfigStore.kaku(SESS, COMPANY.company_id, kasaneru(kihon), dareNoNamae())
+            .then(function () {
+              showDone('保存しました。');
+              return yomikomu();
+            })
+            .catch(function (e) {
+              showErr('保存できませんでした。' + (e && e.message ? e.message : ''));
+              $('btnSave').disabled = false;
+            });
+        }
+
+        function modosu() {
+          $('btnUndo').disabled = true;
+          showDone('');
+          showErr('');
+          window.FareConfigStore.modosu(SESS, COMPANY.company_id, dareNoNamae())
+            .then(function (r) {
+              $('btnUndo').disabled = false;
+              if (!r) {
+                showErr('戻る先が ありません（まだ 1度も 変えていません）。');
+                return;
+              }
+              showDone('1つ前に 戻しました。');
+              return yomikomu();
+            })
+            .catch(function (e) {
+              $('btnUndo').disabled = false;
+              showErr('戻せませんでした。' + (e && e.message ? e.message : ''));
+            });
+        }
+
+        // ---------- 起動 ----------
+        window.DKSession.ensure().then(function (s) {
+          if (!s) return window.DKSession.goLogin();
+          SESS = s;
+          window.DKSession.myCompanies(SESS, 'company_id,name')
+            .then(function (r) {
+              if (r && r.noUid) return 'unknown';
+              return r.json();
+            })
+            .then(function (j) {
+              if (j === 'unknown') return;
+              if (!Array.isArray(j) || !j.length) {
+                $('sub').textContent = '会社が登録されていません';
+                showMsg('先に「会社設定」で 会社を 登録してください。');
+                return;
+              }
+              var picked = window.DKSession.pickCompany(j, window.DKSession.rememberedCompanyId());
+              if (picked.mode !== 'one') {
+                $('sub').textContent = '会社を選んでください';
+                showMsg('会社が 複数 あります。「会社設定」で どの会社を 出すか 選んでください。');
+                return;
+              }
+              COMPANY = picked.company;
+              $('sub').textContent = COMPANY.name || '';
+              yomikomu();
+            })
+            .catch(function () {
+              showMsg('会社の 読み込みに 失敗しました。通信を 確かめてください。');
+            });
+        });
+
+        $('btnLogout').onclick = function () {
+          window.DKSession.logout();
+        };
+        $('btnSave').onclick = hozon;
+        $('btnUndo').onclick = modosu;
+        for (var i = 0; i < KO.length; i++) {
+          $(KO[i].id).addEventListener('input', kakinaosu);
+        }
+      })();
+    </script>
+  </body>
+</html>

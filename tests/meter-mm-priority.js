@@ -66,6 +66,14 @@ ctx.GPS.calcDistance = function (lat1, lng1, lat2, lng2) {
   return haversineM(lat1, lng1, lat2, lng2);
 };
 
+// ★★本番が 積んでいる 物を 全部 積む★★ 2026-09-01
+//   本番の index.html は ★js/fare-calc.js を meter.js より 前に★ 読みます。
+//   積み忘れると meter.js が 料金を 出せず ★中身は 正しいのに 台のせいで 赤★に なります。
+//   （2026-08-31 に ここを 積み忘れて ★CI だけ 赤★に なりました）
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'fare-calc.js'), 'utf8'), ctx, {
+  filename: 'js/fare-calc.js',
+});
+
 // meter.js は `const Meter = (() => {...})();` で宣言するため、
 // vm context の globalThis にプロパティとして現れない。末尾に明示的な代入を追加してロード。
 const meterSrc =

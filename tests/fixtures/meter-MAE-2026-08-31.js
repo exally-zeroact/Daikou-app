@@ -43,17 +43,6 @@
 
 // eslint-disable-next-line no-unused-vars -- 他ファイルから Meter をグローバル参照 (cross-file global pattern)
 const Meter = (() => {
-  // ★料金の 計算の 置き場を 取る所は ここ 1つ★ 2026-08-31
-  //   browser / Worker … js/fare-calc.js が 先に 読まれ ★裸の名前 FareCalc★ で 見える
-  //   Node（試験）……… require で 取る
-  function _FareCalc() {
-    /* global FareCalc */
-    if (typeof FareCalc !== 'undefined') return FareCalc;
-    // eslint-disable-next-line no-undef
-    if (typeof require === 'function') return require('./fare-calc.js');
-    throw new Error('★料金の計算(js/fare-calc.js)が 読み込まれていません★');
-  }
-
   // ★随伴車別 k(メーター定数/器差調整)★ (2026-06-09・discovery監査スペック準拠):
   //   engine(pipeline-distance) は無改変。k は ★meter 層の器差定数★ として rawDelta に乗算する。
   //   ・distance_m / business_distance_m = rawDelta × _activeVehicleK (校正)
@@ -826,26 +815,130 @@ const Meter = (() => {
   //   Step 1 距離料金 (tiers 優先・旧 base+add fallback)
   //   Step 2 vehicle 倍率 + addon / Step 3 手動 surcharges 乗算
   //   Step 4 autoSurcharges 乗算 / Step 5 wait 料金 / Step 6 clamp / Step 7 丸め
-  // ★★料金の 計算は js/fare-calc.js に 出しました★★ 2026-08-31（司さん「②やれ」）
-  //   ★式も 定数も 1文字も 変えていません★。ここは ★持っている物を 渡すだけ★です。
-  //   ★なぜ 出したか★ … 事務所の 料金表画面でも ★同じ 計算★を 使う為。
-  //     ・画面に 書き写す＝禁止（2か所に なると 片方だけ 直って ずれる）
-  //     ・メーターの 中身を 事務所に 出す＝禁止（2026-08-02 の 事故）
   function calcFare(distanceM) {
-    return _FareCalc().keisan(
-      distanceM,
-      fareConfig,
-      _activeVehicleId,
-      _activeSurchargeIds,
-      state.wait_sec,
-      new Date()
-    );
+    let fare = 0;
+
+    // Step 1: 距離料金
+    if (Array.isArray(fareConfig.tiers) && fareConfig.tiers.length > 0) {
+      // 新形式: tiers 配列 走査
+      if (distanceM <= fareConfig.base_distance_m) {
+        fare = fareConfig.base_fare;
+      } else {
+        fare = fareConfig.base_fare;
+        for (const tier of fareConfig.tiers) {
+          if (!tier || typeof tier.from_m !== 'number') continue;
+          if (distanceM <= tier.from_m) continue;
+          const tierEnd =
+            tier.to_m === null || tier.to_m === undefined
+              ? distanceM
+              : Math.min(distanceM, tier.to_m);
+          const tierDist = tierEnd - tier.from_m;
+          if (tierDist <= 0) continue;
+          const ad = tier.add_distance_m > 0 ? tier.add_distance_m : 1;
+          const af = tier.add_fare || 0;
+          const steps = Math.floor(tierDist / ad) + 1;
+          fare += steps * af;
+          if (tier.to_m === null || tier.to_m === undefined) break;
+          if (distanceM <= tier.to_m) break;
+        }
+      }
+    } else {
+      // 旧形式 fallback: base + add 単純計算
+      if (distanceM <= fareConfig.base_distance_m) {
+        fare = fareConfig.base_fare;
+      } else {
+        const extra = distanceM - fareConfig.base_distance_m;
+        const steps = Math.ceil(extra / fareConfig.add_distance_m);
+        fare = fareConfig.base_fare + steps * fareConfig.add_fare;
+      }
+    }
+
+    // Step 2: vehicle 倍率 + addon
+    if (fareConfig.vehiclesEnabled && _activeVehicleId && Array.isArray(fareConfig.vehicles)) {
+      const v = fareConfig.vehicles.find((x) => x && x.id === _activeVehicleId);
+      if (v) {
+        const mul = typeof v.multiplier === 'number' && v.multiplier > 0 ? v.multiplier : 1.0;
+        const addon = typeof v.addon === 'number' ? v.addon : 0;
+        fare = fare * mul + addon;
+      }
+    }
+
+    // Step 3: 手動 surcharges 乗算
+    let manualMul = 1.0;
+    if (Array.isArray(fareConfig.surcharges)) {
+      for (const id of _activeSurchargeIds) {
+        const s = fareConfig.surcharges.find((x) => x && x.id === id);
+        if (s && typeof s.rate === 'number' && s.rate >= 1.0) manualMul *= s.rate;
+      }
+    }
+    fare *= manualMul;
+
+    // Step 4: autoSurcharges 自動判定 (現在時刻ベース)
+    fare *= _calcAutoSurchargeMultiplier(new Date());
+
+    // Step 5: wait 料金加算
+    if (fareConfig.wait && fareConfig.wait.enabled) {
+      const waitMin = (state.wait_sec || 0) / 60;
+      const free = typeof fareConfig.wait.freeMins === 'number' ? fareConfig.wait.freeMins : 5;
+      const rate =
+        typeof fareConfig.wait.ratePerMin === 'number' ? fareConfig.wait.ratePerMin : 100;
+      const billable = Math.max(0, waitMin - free);
+      fare += billable * rate;
+    }
+
+    // Step 6: min/max clamp
+    if (
+      typeof fareConfig.minFare === 'number' &&
+      fareConfig.minFare > 0 &&
+      fare < fareConfig.minFare
+    ) {
+      fare = fareConfig.minFare;
+    }
+    if (
+      typeof fareConfig.maxFare === 'number' &&
+      fareConfig.maxFare > 0 &&
+      fare > fareConfig.maxFare
+    ) {
+      fare = fareConfig.maxFare;
+    }
+
+    // Step 7: 丸め
+    const unit =
+      typeof fareConfig.rounding === 'number' && fareConfig.rounding > 0 ? fareConfig.rounding : 1;
+    if (unit > 1) fare = Math.round(fare / unit) * unit;
+    else fare = Math.round(fare);
+
+    return fare;
   }
 
   // autoSurcharges 自動判定: 現在時刻に該当する全 auto rule の rate 積
-  //   ★中身は js/fare-calc.js に 移しました（1文字も 変えていません）★
   function _calcAutoSurchargeMultiplier(now) {
-    return _FareCalc()._autoMul(fareConfig, now);
+    if (!fareConfig.autoSurcharges) return 1.0;
+    let mul = 1.0;
+    const a = fareConfig.autoSurcharges;
+    // night: 時刻範囲 (wraparound 対応)
+    if (a.night && a.night.enabled) {
+      const h = now.getHours();
+      const f = a.night.from,
+        t = a.night.to;
+      const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
+      if (inRange && typeof a.night.rate === 'number') mul *= a.night.rate;
+    }
+    // weekend: 土日固定
+    if (a.weekend && a.weekend.enabled) {
+      const dow = now.getDay();
+      if ((dow === 0 || dow === 6) && typeof a.weekend.rate === 'number') mul *= a.weekend.rate;
+    }
+    // winter: 月日範囲 (年跨ぎ対応・MM-DD 文字列)
+    if (a.winter && a.winter.enabled) {
+      const mmdd =
+        String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      const f = a.winter.from || '12-15';
+      const t = a.winter.to || '03-15';
+      const inRange = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
+      if (inRange && typeof a.winter.rate === 'number') mul *= a.winter.rate;
+    }
+    return mul;
   }
 
   // ─── fareConfig v2 surcharge / vehicle 公開 API ───

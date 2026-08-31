@@ -53,6 +53,13 @@ function kazoeru(dir, deta) {
     if (!/\.(js|mjs)$/.test(e.name)) return;
     const rel = path.relative(ROOT, p).split(path.sep).join('/');
     if (rel === 'tests/unit/nai-toki-midori.test.js') return; // ★自分は 数えない★
+    // ★★凍らせた 複製は 数えない★★ 2026-08-31（理由を 書いてから 外す）
+    //   tests/fixtures/ に 置く 物は ★変える前の コードを そのまま 保存した 物★です
+    //   （例: meter-MAE-2026-08-31.js＝料金の 計算を 別ファイルに 出す前の meter.js）。
+    //   ★1バイトでも 直したら 比べる 意味が 無くなります★ので、
+    //   ここを 数えると ★直せない 物を 直せと 言い続ける★事に なります。
+    //   ⇒ ★fixtures だけ 外します★（js/ と 他の tests/ は 今まで通り 数えます）。
+    if (rel.indexOf('tests/fixtures/') === 0) return;
     const gyou = komentoWoKesu(fs.readFileSync(p, 'utf8')).split('\n');
     for (let i = 0; i < gyou.length; i++) {
       if (!NAI.test(gyou[i])) continue;

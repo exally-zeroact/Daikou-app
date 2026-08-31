@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-07T02:57:01.186Z",
+  "generatedAt": "2026-08-31T18:09:08.485Z",
   "proxyNotice": "PROXY metric only — no ground-truth road labels. True accuracy = real device / tire meter / human labels.",
   "results": [
     {
@@ -10,7 +10,7 @@
       "snappedCount": 1485,
       "committedCount": 1466,
       "headingSuppliedSteps": 1410,
-      "distance_m": 9333.447710946577,
+      "distance_m": 9393.343846704618,
       "proxy": {
         "headingAlign": {
           "n": 1401,
@@ -38,7 +38,7 @@
       "snappedCount": 1770,
       "committedCount": 1751,
       "headingSuppliedSteps": 1740,
-      "distance_m": 9384.089417744968,
+      "distance_m": 9467.166887557958,
       "proxy": {
         "headingAlign": {
           "n": 1729,
@@ -66,7 +66,7 @@
       "snappedCount": 1791,
       "committedCount": 1772,
       "headingSuppliedSteps": 1155,
-      "distance_m": 10090.346407516721,
+      "distance_m": 10183.539558548688,
       "proxy": {
         "headingAlign": {
           "n": 1136,

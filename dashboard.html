@@ -436,6 +436,7 @@
         <button class="otab" data-otab="uriage" type="button">売上表</button>
         <button class="otab" data-otab="kyuryo" type="button">給料</button>
         <button class="otab" data-otab="shukei" type="button">月次集計</button>
+        <button class="otab" data-otab="ryokin" type="button">料金表</button>
         <button class="otab" data-otab="seikyu" type="button">請求書 ↗</button>
       </div>
 
@@ -626,6 +627,9 @@
           uriage: 'uriage.html',
           kyuryo: 'kyuryo.html',
           shukei: 'shukei.html',
+          // ★料金表は 事務所が 正しい 置き場★ 2026-08-31
+          //   （前は メーターの「設定 → 料金設定」だけ＝運転する人の 端末でしか 変えられなかった）
+          ryokin: 'ryokinhyou.html',
         };
         // ★2026-08-09: 行き先を repo ごとの設定から読む★
         //   旧: exally-test.vercel.app 直書き＝★本番もテストも 本番の請求書★へ飛んでいた。

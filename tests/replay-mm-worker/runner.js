@@ -78,6 +78,13 @@ function loadMeter(opts) {
     ctx.DK_VEHICLE_PROFILE = opts.vehicleProfile;
   }
   vm.createContext(ctx);
+  // ★★本番が 積んでいる 物を 全部 積む★★ 2026-08-31
+  //   本番の index.html は ★js/fare-calc.js を meter.js より 前に★ 読みます。
+  //   積み忘れると meter.js が 料金を 出せず、★中身は 正しいのに 台のせいで 赤★に なります
+  //   （2026-08-29 に 同じ形で 907本 誤報告しました）。
+  vm.runInContext(fs.readFileSync(path.join(JS_DIR, 'fare-calc.js'), 'utf8'), ctx, {
+    filename: 'js/fare-calc.js',
+  });
   const meterSrc =
     fs.readFileSync(path.join(JS_DIR, 'meter.js'), 'utf8') + '\n;globalThis.Meter = Meter;\n';
   vm.runInContext(meterSrc, ctx, { filename: 'js/meter.js' });

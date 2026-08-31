@@ -37,6 +37,14 @@
       "destination": "https://daikou-app.vercel.app/js/dk-session.js"
     },
     {
+      "source": "/js/fare-calc.js",
+      "destination": "https://daikou-app.vercel.app/js/fare-calc.js"
+    },
+    {
+      "source": "/js/fare-config-store.js",
+      "destination": "https://daikou-app.vercel.app/js/fare-config-store.js"
+    },
+    {
       "source": "/js/getsuji-agg.js",
       "destination": "https://daikou-app.vercel.app/js/getsuji-agg.js"
     },
@@ -67,6 +75,10 @@
     {
       "source": "/office-manifest.json",
       "destination": "https://daikou-app.vercel.app/office-manifest.json"
+    },
+    {
+      "source": "/ryokinhyou.html",
+      "destination": "https://daikou-app.vercel.app/office/ryokinhyou.html"
     },
     {
       "source": "/shukei.html",
