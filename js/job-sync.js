@@ -299,6 +299,17 @@
         empty_distance_m: _isNum(shift.empty_distance_m) ? shift.empty_distance_m : null,
         fare_total_yen: _isNum(shift.fare_total_yen) ? shift.fare_total_yen : null,
         trip_count: _isNum(shift.trip_count) ? shift.trip_count : trips.length,
+        // ★★見えなかった分（後から「本当に 走ったか」を 確かめる為）★★ 2026-09-01
+        //   ★数える 仕組みは もう 本番に 在ります★（pipeline-distance.mienakattaBun）。
+        //   ですが ★その値は 課金の Worker の 中★に あり、まだ ここまで 来ていません。
+        //   ⇒ ここは ★来たら そのまま 上げる★形に しておきます（来なければ null）。
+        //   ★料金・距離には 一切 効きません★（記録するだけ）。
+        //   ・mienai_kaisuu … 点が 途切れて 捨てた 回数
+        //   ・mienai_byou  … 捨てた 秒数の 合計
+        //   ・mienai_m     … 穴を 埋められず 捨てた 距離（★3つの 合計では ない★）
+        mienai_kaisuu: _isNum(shift.mienai_kaisuu) ? shift.mienai_kaisuu : null,
+        mienai_byou: _isNum(shift.mienai_byou) ? shift.mienai_byou : null,
+        mienai_m: _isNum(shift.mienai_m) ? shift.mienai_m : null,
         trips: trips,
       };
     } catch (_) {

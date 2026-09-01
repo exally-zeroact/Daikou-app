@@ -17,17 +17,29 @@ name: 版名の見張り（実配信 と repo が 合っているか）
 #     どちらも ★人が 見るべき★状態です。
 #
 #   ★配信の 途中は 少し 待つ★
-#     merge の 直後は 配信中で ずれる事が あります。★3回まで 待って★から 赤に します。
+#     merge の 直後は 配信中で ずれる事が あります。★8回まで 待って★から 赤に します。
+
+#   ★★2026-09-01 追加：毎日だけでは 最悪 24時間 気づけません★★
+#     実際に 見ました … 押した ビルドが ★次の push で Canceled★に なり、
+#     版名の コミットが 来るまで ★実配信が 古いまま★でした。
+#     ⇒★版名を 付けた 直後に その場で 数えます★（回数は 増やしません＝
+#       版名の コミットは 客に 届く版を 作る 唯一の 引き金なので、
+#       ★そこ 1回だけ★ 見れば 足ります）。
 
 on:
   schedule:
     - cron: '0 22 * * *' # 毎日 07:00 JST
   workflow_dispatch:
+  push:
+    branches: [main]
+    # ★版名を 付けた コミットだけ★（sw.js が 変わった＝客に 届く版が 出来る時）
+    paths:
+      - 'sw.js'
 
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15  # ★8分 待つので 10分では 足りない（2026-09-01）★
     steps:
       - uses: actions/checkout@v4
 
@@ -49,7 +61,10 @@ jobs:
             exit 1
           fi
 
-          for i in 1 2 3; do
+          # ★待つ 回数（2026-09-01 実測で 決めた）★
+          #   本番の ビルドは ★clone 込みで 約4分★（実測 3:56）。並ぶ 事も あるので
+          #   ★8回（最大 8分）★待ってから 赤に します。毎日の 見張りは 1回目で 通ります。
+          for i in 1 2 3 4 5 6 7 8; do
             LIVE_SW=$(curl -fsSL --max-time 30 "$BASE/sw.js" || true)
             LIVE_NAME=$(printf '%s' "$LIVE_SW" | grep -oE "const CACHE_NAME = '[^']*'" | head -1 | sed -E "s/.*'(.*)'/\1/")
             echo "($i回目) 実配信の 版名: ${LIVE_NAME:-（取れませんでした）}"
@@ -57,7 +72,7 @@ jobs:
               echo "★合っています（$REPO_NAME）★"
               exit 0
             fi
-            [ "$i" -lt 3 ] && sleep 60
+            [ "$i" -lt 8 ] && sleep 60
           done
 
           echo ""

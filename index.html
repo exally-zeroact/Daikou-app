@@ -7587,7 +7587,18 @@
             lastGoodTotalM = obj.total || 0; // ★総走行距離の命綱も戻す★
           }
         }
-        FB.setVehicleId(vehicleId);
+        // ★Firebase が 止まっても ここで 落ちない★ 2026-09-01
+        //   ★実測★… FB を 消して この行を 呼ぶと ReferenceError で 落ち、
+        //   ★この下の「今日の 距離」の 表示まで 止まりました★。
+        //   他の 12か所は 元から 守られていたので ★同じ形★に 揃えます。
+        //   （料金・距離には 影響 ありません＝FB を 消しても calcFare は 同じ 2,300円）
+        if (typeof FB !== 'undefined' && typeof FB.setVehicleId === 'function') {
+          try {
+            FB.setVehicleId(vehicleId);
+          } catch (_) {
+            /* noop - 送れなくても 業務は 続ける */
+          }
+        }
         document.getElementById('todayDist').textContent = (todayDist / 1000).toFixed(2);
         document.getElementById('todayCount').textContent = todayCount;
         updateSurchargeBadge(); // ★割増バッジの表示/非表示 + 青バー1段クラスを一括同期★
@@ -8239,7 +8250,10 @@
           renderDiscounts();
 
           // Firebase送信（2秒ごと）
-          if (s.elapsed_sec % 2 === 0) {
+          // ★Firebase が 止まっても 走行の 刻みを 止めない★ 2026-09-01
+          //   ★実測★… FB を 消して この行を 呼ぶと ReferenceError。
+          //   ここは ★走行中 2秒ごと★に 通るので、落ちると ★走行の 表示が 止まります★。
+          if (s.elapsed_sec % 2 === 0 && typeof FB !== 'undefined' && FB.updateVehicle) {
             FB.updateVehicle({
               status: 'driving',
               session: {
