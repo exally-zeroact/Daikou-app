@@ -104,3 +104,24 @@ test('★★④ 追加料金・値引きは 今まで通り 触れる（止め�
   expect(r.mieru, '★料金表では ない物まで 隠しています★').toBe(true);
   expect(r.oseru, '★料金表では ない物まで 止めています★').toBe(true);
 });
+
+test('★★⑤ 箱は 1つ・「最後に 変えた人」は 出さない★★', async ({ page }) => {
+  // ★司さん 2026-09-01「この赤丸いらんことない？」★
+  //   ・「最後に 変えた人」… ★メーターからは もう 変えられない★ので 運転手には 要らない
+  //   ・「いつ 取ったか」… ★残す★（古い 料金表で 走っていないかは 大事）
+  //   ⇒ ★箱を 2つ 出さず、料金表の 札の 中に 1行★
+  await hiraku(page);
+  const r = await page.evaluate(() => {
+    const e = document.getElementById('_fare_itsuno');
+    const kado = e ? e.closest('.card') : null;
+    return {
+      aru: !!e,
+      naka: !!kado, // ★料金表の 札の 中に 居るか★
+      moji: e ? e.textContent : '',
+    };
+  });
+  expect(r.aru, '★「いつ 取ったか」が 消えています（古い 料金表に 気づけません）★').toBe(true);
+  expect(r.naka, '★箱が 札の 外に 出ています（箱が 2つに なります）★').toBe(true);
+  expect(r.moji, '★「最後に 変えた人」を まだ 出しています★').not.toContain('最後に変えた人');
+  expect(r.moji, '★いつの 料金表か 言っていません★').toContain('料金表');
+});

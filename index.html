@@ -1688,6 +1688,16 @@
          ・数字は 見える（今の 料金表が 分かる）
          ・触れない・保存は 出さない
          ★消さずに 止める★ので、事務所が 使えない 時に 戻せます。 */
+      #overlayFare .itsu-gyou {
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
       #overlayFare .yomu-gyou {
         display: flex;
         justify-content: space-between;
@@ -14401,15 +14411,11 @@
         function itsunoFuda(v) {
           const el = $('_fare_itsuno');
           if (!el || typeof FareConfigStore === 'undefined') return;
-          el.textContent = '';
-          const gyo1 = document.createElement('div');
-          gyo1.textContent = v && v.fuda ? v.fuda : FareConfigStore.fudaMoji(v);
-          const gyo2 = document.createElement('div');
-          gyo2.style.marginTop = '2px';
-          gyo2.style.opacity = '0.85';
-          gyo2.textContent = v && v.fudaKaeta ? v.fudaKaeta : FareConfigStore.fudaKaeta(v);
-          el.appendChild(gyo1);
-          el.appendChild(gyo2);
+          // ★★1行だけ に しました★★ 2026-09-01（司さん「この赤丸いらんことない？」）
+          //   ・「最後に 変えた人」は 出しません＝★メーターからは もう 変えられない★ので
+          //     運転手には 要らない 字（事務所の「料金表」に 出ています）
+          //   ・「いつ 取ったか」は ★残します★＝★古い 料金表で 走っていないか★は 大事
+          el.textContent = v && v.fuda ? v.fuda : FareConfigStore.fudaMoji(v);
           const furui = !!(v && v.furusa && v.furusa.furui);
           const wakaranai = !(v && v.totta_at);
           // ★この画面は 色の 変数を 1つも 使っていません★ので、
@@ -15704,23 +15710,14 @@
         <b>追加料金・値引き</b>は ここで 触れます。
       </div>
       <div class="layout">
-        <!-- ★★いつの 料金表か（2026-08-30・監査役の指摘）★★
-             ★端末は「いつ 取ったか」を 知っているのに 見せていませんでした★。
-             圏外だと 焼いてある 写しで 動くので、★古い料金表のまま 走る事が 起きます★。
-             ⇒ ここに はっきり 出す。7日 以上 経っていたら 印を 変える。
-             ★flex/grid の 箱に 入れない★（潰れる）ので 独立した div に します。 -->
-        <div
-          id="_fare_itsuno"
-          style="
-            margin: 8px 12px 0;
-            padding: 8px 10px;
-            border-radius: 8px;
-            font-size: 13px;
-            line-height: 1.5;
-            white-space: normal;
-            overflow-wrap: anywhere;
-          "
-        ></div>
+        <!-- ★★「いつの 料金表か」の 箱は 外しました★★ 2026-09-01
+             司さん「この赤丸いらんことない？」
+             ★理由★
+               ・「最後に 変えた人」… ★メーターからは もう 変えられません★（事務所だけ）
+                 ⇒ 運転手には ★要らない 字★です。事務所の「料金表」に 出ています。
+               ・「いつ 取ったか」… ★これは 要ります★（古い 料金表で 走っていないか）
+                 ⇒ ★料金表の 札の 中に 1行★で 入れました（箱を 2つ 出さない）
+             ★中の 仕掛け（FareConfigStore.fudaMoji）は 消していません★ -->
         <nav class="tab-nav" id="_fare_tabNav">
           <!-- ★★料金表は 事務所で 変える＝ここは 読むだけ★★ 2026-09-01
                司さん「事務所でやるならこの画面はメーターの方にいらんことないか？
@@ -15997,9 +15994,7 @@
           <section class="tab-pane active" data-pane="ryokinhyou">
             <div class="card">
               <div class="card-title">今の 料金表</div>
-              <div class="card-desc">
-                変えるのは <b>事務所の「料金表」</b>から。ここは 見るだけです。
-              </div>
+              <div id="_fare_itsuno" class="itsu-gyou"></div>
               <div id="_fare_yomu"></div>
             </div>
           </section>

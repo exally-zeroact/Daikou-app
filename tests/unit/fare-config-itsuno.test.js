@@ -182,9 +182,22 @@ describe('★いつの 料金表かを 見せる★', () => {
     expect(html.includes('id="_fare_itsuno"'), '★出す所が ありません★').toBe(true);
     expect(html.includes('itsunoFuda('), '★出す所を 埋めていません★').toBe(true);
     // ★flex/grid の 箱で 潰さない★（前に 潰した事が ある）
+    //   ★2026-09-01 直し★… 前は ★その場に 書いた 見た目（style="…")★だけを 見ていました。
+    //   司さん「この赤丸いらんことない？」で ★箱を 札の 中へ 移し、見た目は class に★ したら
+    //   ★中身は 直っているのに 赤★に なりました。⇒ ★どちらでも 通る★形に 直します。
     const i = html.indexOf('id="_fare_itsuno"');
     const box = html.slice(i, i + 500);
-    expect(/white-space:\s*normal/.test(box), '★折り返しの 指定が ありません★').toBe(true);
+    const clsName = (box.match(/class="([^"]*)"/) || [])[1] || '';
+    const cls = clsName
+      ? html.slice(
+          html.indexOf('.' + clsName.split(' ')[0] + ' {'),
+          html.indexOf('.' + clsName.split(' ')[0] + ' {') + 400
+        )
+      : '';
+    expect(
+      /white-space:\s*normal/.test(box) || /white-space:\s*normal/.test(cls),
+      '★折り返しの 指定が ありません★'
+    ).toBe(true);
   });
 
   // ============================================================
@@ -268,11 +281,20 @@ describe('★いつの 料金表かを 見せる★', () => {
     }
   });
 
-  it('★⑩ 画面に 2行目が 出る（2つで 1組）★', () => {
+  // ★★2026-09-01 に 決まりが 変わりました★★
+  //   司さん「この赤丸いらんことない？」
+  //   ・料金は ★事務所からだけ★ 変える形に なった（メーターからは 変えられない）
+  //   ⇒ メーターに「最後に 変えた人」を 出しても ★運転手には 要らない 字★
+  //   ⇒ ★メーターでは 出さない／事務所の「料金表」に 出す★ に 変えました。
+  //   ★部品（fudaKaeta）は 消していません★＝事務所が 使っています。
+  it('★⑩ メーターでは「誰が 変えたか」を 出さない（事務所に 出す）★', () => {
     const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
     const i = html.indexOf('function itsunoFuda');
     const naka = html.slice(i, i + 1400);
-    expect(naka.includes('fudaKaeta'), '★誰が 変えたかを 出していません★').toBe(true);
+    expect(naka.includes('fudaKaeta'), '★メーターに「誰が 変えたか」を 出しています★').toBe(false);
+    // ★事務所には 出ている★（消えていない事）
+    const jimusho = fs.readFileSync(path.join(ROOT, 'ryokinhyou.html'), 'utf8');
+    expect(jimusho.includes('fudaKaeta'), '★事務所からも 消えています★').toBe(true);
     // ★同じ箱に 入っている★（2つで 1組・離さない）
     expect(naka.includes("$('_fare_itsuno')"), '★同じ箱に 出していません★').toBe(true);
     // ★画面で 日付を 組み立て直していない★
