@@ -1,10 +1,10 @@
 {
   "region": "chugoku",
-  "generated": "2026-08-29T20:39:44.378Z",
+  "generated": "2026-09-01T20:34:46.867Z",
   "prefectures": {
     "tottori": {
-      "numRoads": 57852,
-      "sizeBytes": 2118382,
+      "numRoads": 57854,
+      "sizeBytes": 2118410,
       "bbox": [
         3499274,
         13309346,
@@ -47,8 +47,8 @@
       }
     },
     "okayama": {
-      "numRoads": 170389,
-      "sizeBytes": 5871186,
+      "numRoads": 170396,
+      "sizeBytes": 5871363,
       "bbox": [
         3430767,
         13326155,
@@ -58,9 +58,9 @@
       "attrCounts": {
         "oneway": 5406,
         "incline": 65,
-        "lanes": 17436,
+        "lanes": 17437,
         "width": 350,
-        "layer": 17433,
+        "layer": 17435,
         "access": 126,
         "maxspeed": 10945,
         "track": 0,
@@ -69,8 +69,8 @@
       }
     },
     "hiroshima": {
-      "numRoads": 115494,
-      "sizeBytes": 4199122,
+      "numRoads": 115382,
+      "sizeBytes": 4195599,
       "bbox": [
         3385089,
         13201141,
@@ -82,8 +82,8 @@
         "incline": 37,
         "lanes": 11779,
         "width": 1520,
-        "layer": 8389,
-        "access": 108,
+        "layer": 8396,
+        "access": 107,
         "maxspeed": 3737,
         "track": 0,
         "inclineFromOSM": 37,
@@ -92,7 +92,7 @@
     },
     "yamaguchi": {
       "numRoads": 115950,
-      "sizeBytes": 4158720,
+      "sizeBytes": 4158712,
       "bbox": [
         3371537,
         13078430,

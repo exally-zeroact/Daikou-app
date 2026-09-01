@@ -1,10 +1,10 @@
 {
   "region": "tohoku",
-  "generated": "2026-08-29T20:36:07.221Z",
+  "generated": "2026-09-01T20:31:51.547Z",
   "prefectures": {
     "aomori": {
-      "numRoads": 90191,
-      "sizeBytes": 3088763,
+      "numRoads": 90178,
+      "sizeBytes": 3088572,
       "bbox": [
         4018131,
         13986171,
@@ -16,7 +16,7 @@
         "incline": 5,
         "lanes": 5998,
         "width": 270,
-        "layer": 4002,
+        "layer": 4001,
         "access": 74,
         "maxspeed": 1835,
         "track": 0,
@@ -25,8 +25,8 @@
       }
     },
     "iwate": {
-      "numRoads": 118574,
-      "sizeBytes": 4559489,
+      "numRoads": 118585,
+      "sizeBytes": 4560078,
       "bbox": [
         3886169,
         14079535,
@@ -34,11 +34,11 @@
         14205311
       ],
       "attrCounts": {
-        "oneway": 3765,
+        "oneway": 3763,
         "incline": 8,
-        "lanes": 8055,
+        "lanes": 8056,
         "width": 8,
-        "layer": 7118,
+        "layer": 7122,
         "access": 49,
         "maxspeed": 2707,
         "track": 0,
@@ -47,8 +47,8 @@
       }
     },
     "miyagi": {
-      "numRoads": 141257,
-      "sizeBytes": 5082542,
+      "numRoads": 141272,
+      "sizeBytes": 5082484,
       "bbox": [
         3747128,
         14037787,
@@ -56,21 +56,21 @@
         14167260
       ],
       "attrCounts": {
-        "oneway": 6191,
+        "oneway": 6215,
         "incline": 11,
-        "lanes": 10819,
+        "lanes": 10845,
         "width": 10,
-        "layer": 8750,
+        "layer": 8767,
         "access": 59,
-        "maxspeed": 4130,
+        "maxspeed": 4145,
         "track": 0,
         "inclineFromOSM": 11,
         "inclineFromDem": 0
       }
     },
     "akita": {
-      "numRoads": 109737,
-      "sizeBytes": 3661613,
+      "numRoads": 109735,
+      "sizeBytes": 3661583,
       "bbox": [
         3890262,
         13954342,
@@ -91,8 +91,8 @@
       }
     },
     "yamagata": {
-      "numRoads": 83715,
-      "sizeBytes": 2878646,
+      "numRoads": 83719,
+      "sizeBytes": 2878730,
       "bbox": [
         3768730,
         13954219,
@@ -102,19 +102,19 @@
       "attrCounts": {
         "oneway": 2430,
         "incline": 2,
-        "lanes": 4956,
+        "lanes": 4959,
         "width": 2,
         "layer": 4625,
         "access": 15,
-        "maxspeed": 1204,
+        "maxspeed": 1207,
         "track": 0,
         "inclineFromOSM": 2,
         "inclineFromDem": 0
       }
     },
     "fukushima": {
-      "numRoads": 152374,
-      "sizeBytes": 5610691,
+      "numRoads": 152380,
+      "sizeBytes": 5610769,
       "bbox": [
         3678953,
         13921121,
@@ -126,7 +126,7 @@
         "incline": 3,
         "lanes": 7047,
         "width": 26,
-        "layer": 8165,
+        "layer": 8166,
         "access": 833,
         "maxspeed": 3891,
         "track": 0,

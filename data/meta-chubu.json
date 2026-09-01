@@ -1,10 +1,10 @@
 {
   "region": "chubu",
-  "generated": "2026-08-29T20:38:20.723Z",
+  "generated": "2026-09-01T20:33:39.937Z",
   "prefectures": {
     "niigata": {
-      "numRoads": 170752,
-      "sizeBytes": 5771568,
+      "numRoads": 170735,
+      "sizeBytes": 5770921,
       "bbox": [
         3671574,
         13804905,
@@ -69,8 +69,8 @@
       }
     },
     "fukui": {
-      "numRoads": 67506,
-      "sizeBytes": 2237363,
+      "numRoads": 67497,
+      "sizeBytes": 2237049,
       "bbox": [
         3522686,
         13541330,
@@ -82,7 +82,7 @@
         "incline": 0,
         "lanes": 9211,
         "width": 614,
-        "layer": 4616,
+        "layer": 4617,
         "access": 16,
         "maxspeed": 724,
         "track": 0,
@@ -91,8 +91,8 @@
       }
     },
     "yamanashi": {
-      "numRoads": 82291,
-      "sizeBytes": 2942191,
+      "numRoads": 82296,
+      "sizeBytes": 2942348,
       "bbox": [
         3508500,
         13784012,
@@ -100,7 +100,7 @@
         13914917
       ],
       "attrCounts": {
-        "oneway": 3482,
+        "oneway": 3485,
         "incline": 21,
         "lanes": 5611,
         "width": 135,
@@ -113,8 +113,8 @@
       }
     },
     "nagano": {
-      "numRoads": 179910,
-      "sizeBytes": 6225880,
+      "numRoads": 179905,
+      "sizeBytes": 6225391,
       "bbox": [
         3542617,
         13742225,
@@ -124,9 +124,9 @@
       "attrCounts": {
         "oneway": 4244,
         "incline": 15,
-        "lanes": 9877,
+        "lanes": 9895,
         "width": 228,
-        "layer": 9794,
+        "layer": 9793,
         "access": 163,
         "maxspeed": 5211,
         "track": 0,
@@ -157,8 +157,8 @@
       }
     },
     "shizuoka": {
-      "numRoads": 174268,
-      "sizeBytes": 5908498,
+      "numRoads": 174267,
+      "sizeBytes": 5908461,
       "bbox": [
         3459521,
         13764793,
@@ -170,7 +170,7 @@
         "incline": 109,
         "lanes": 10102,
         "width": 88,
-        "layer": 11718,
+        "layer": 11720,
         "access": 68,
         "maxspeed": 4765,
         "track": 0,
@@ -179,8 +179,8 @@
       }
     },
     "aichi": {
-      "numRoads": 374480,
-      "sizeBytes": 11657970,
+      "numRoads": 374504,
+      "sizeBytes": 11658557,
       "bbox": [
         3457892,
         13640639,
@@ -188,13 +188,13 @@
         13774711
       ],
       "attrCounts": {
-        "oneway": 22014,
+        "oneway": 22017,
         "incline": 119,
-        "lanes": 28295,
+        "lanes": 28308,
         "width": 1274,
         "layer": 18772,
-        "access": 205,
-        "maxspeed": 6745,
+        "access": 206,
+        "maxspeed": 6753,
         "track": 0,
         "inclineFromOSM": 119,
         "inclineFromDem": 0
