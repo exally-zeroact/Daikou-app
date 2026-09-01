@@ -6195,71 +6195,25 @@
             } catch (_) {
               /* ignore */
             }
-            if (!deviceId) return; // device_id 未生成 (= debug-trace 未動作環境) → 送信 skip
-            let label = '';
-            try {
-              label = localStorage.getItem('DAIKOME_DEVICE_LABEL') || '';
-            } catch (_) {
-              /* ignore */
-            }
-            const body = {
-              meta: {
-                device_id: deviceId,
-                device_label: label,
-                userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-                started_at: baseline,
-                ended_at: Date.now(),
-                sample_count: Object.keys(phaseMs).length,
-                watch_options: 'startup_metrics_v1',
-                kind: 'startup_metrics',
-                startup_count: startupCount,
-                first_paint_ms: firstPaintMs,
-                first_contentful_paint_ms: fcpMs,
-              },
-              // 既存 debug-trace.js samples schema 互換 (= rules validate 通過)
-              // lat/lng は startup_metrics では意味なし dummy 値・phase+t_ms が実データ
-              samples: PHASES.map(function (name) {
-                const t = phaseMs[name];
-                return {
-                  t: t != null ? Math.round(baseline + t) : 0,
-                  lat: 0,
-                  lng: 0,
-                  acc: 0,
-                  spd: 0,
-                  hdg: 0,
-                  alt: 0,
-                  phase: name,
-                  t_ms: t != null ? t : null,
-                };
-              }),
-              writeKey: 'DAIKOME_DEBUG_2026',
-            };
-            const url =
-              'https://daikou-app-c821a-default-rtdb.asia-southeast1.firebasedatabase.app/debug_traces.json';
-            const json = JSON.stringify(body);
-            let sentOk = false;
-            try {
-              if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-                const blob = new Blob([json], { type: 'application/json' });
-                sentOk = navigator.sendBeacon(url, blob);
-              }
-            } catch (_) {
-              /* ignore */
-            }
-            if (!sentOk) {
-              try {
-                fetch(url, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: json,
-                  keepalive: true,
-                }).catch(function () {
-                  /* graceful skip */
-                });
-              } catch (_) {
-                /* ignore */
-              }
-            }
+            // ★★ここから 下（起動の 数字を Firebase へ 送る 所）を 外しました★★ 2026-09-02
+            //   ★司さんの 決まり★「Firebaseは 2度と 使うな＝★読む為にも★使わない」
+            //
+            //   ★外し漏れでした（2026-09-02 に 見つかった）★
+            //     2026-09-01 に Firebase の ★読み込み(script src)★は 全部 外しましたが、
+            //     ★この 画面の 中に 直接 書いてあった 送り先★が 残っていました:
+            //       https://daikou-app-c821a-…firebasedatabase.app/debug_traces.json
+            //       navigator.sendBeacon → 失敗したら fetch(POST, keepalive)
+            //   ★誰に 起きていたか★
+            //     ・新しい 端末 … 飛ばない（DAIKOME_DEVICE_ID が 作られないので）
+            //     ・★前に 一度でも trace を 入れた 端末★ … ID が 残っているので
+            //       ★起動の たびに Firebase へ 送り続けていました★
+            //   ⇒ 私の 見張りは ★読み込む ファイルしか 見ていませんでした★（穴）。
+            //     ⇒ ★画面の 中に 直接 書いた 住所も 数える★ように 直しました
+            //       （tests/unit/firebase-tsukawanai.test.js）
+            //
+            //   ★数える所（performance.mark）は 残しています★＝送り先だけ 外しました。
+            //   送り先を Supabase に 作る時は ここに 書きます。
+            return;
           } catch (_) {
             /* 集計失敗 → 業務影響なし・graceful skip */
           }
