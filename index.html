@@ -13744,6 +13744,59 @@
           renderVehicles();
         }
 
+        // ━━ ★距離別の 料金（何km で いくら）★ 2026-09-01 ━━
+        //   ★司さん「前にあった何キロ走ったら何円の料金一覧表は？」★
+        //   ★計算は ここに 書きません★… js/fare-calc.js（★メーターの 料金と 同じ 1か所★）を 呼ぶ。
+        //   ⇒ ★表に 出る 金額と 実際に 取る 金額が ずれません★
+        //   ★時間で 変わる 割増（深夜・土日・冬）も 入った 今の 金額★を 出します
+        //   （下に その事を 書きます＝★数字だけ 見て 誤解しない為★）
+        function _fareKmHyou() {
+          const tb = $('_fare_kmhyou');
+          const note = $('_fare_kmhyouNote');
+          if (!tb) return;
+          tb.innerHTML = '';
+          let c = null;
+          try {
+            c = Meter.getFareConfig();
+          } catch (_) {
+            c = null;
+          }
+          if (!c) {
+            if (note) note.textContent = '料金表が まだ 取れていません。';
+            return;
+          }
+          const base = typeof c.base_distance_m === 'number' ? c.base_distance_m : 1000;
+          const add = c.add_distance_m > 0 ? c.add_distance_m : 420;
+          const MAX = 22000;
+          const now = new Date();
+          const li = [];
+          for (let d = base; d <= MAX; d += add) li.push(d);
+          if (li[li.length - 1] < MAX) li.push(MAX);
+          li.forEach((d, i) => {
+            let en = null;
+            try {
+              /* global FareCalc */
+              en = FareCalc.keisan(d, c, null, new Set(), 0, now);
+            } catch (_) {
+              en = null;
+            }
+            const tr = document.createElement('tr');
+            const t1 = document.createElement('td');
+            t1.textContent =
+              (i === 0 ? '最初の ' : '') + (d >= 1000 ? (d / 1000).toFixed(2) + ' km' : d + ' m');
+            const t2 = document.createElement('td');
+            t2.textContent = en == null ? '—' : en.toLocaleString('ja-JP') + '円';
+            tr.appendChild(t1);
+            tr.appendChild(t2);
+            tb.appendChild(tr);
+          });
+          if (note) {
+            note.textContent =
+              '★今の 時間で 出した 金額★です（深夜・土日・冬の 割増が 効く 時間帯なら その分も 入っています）。' +
+              '待ち時間・追加料金・値引きは 入っていません。';
+          }
+        }
+
         // ━━ ★今の 料金表を 字で 出す（読むだけ）★ 2026-09-01 ━━
         //   ★司さん「料金表が見れたええやろ」★
         //   ★お金の 計算は ここに 書きません★（読んだ 中身を そのまま 並べるだけ）。
@@ -14331,6 +14384,7 @@
           _bindTabsOnce();
           // ★今の 料金表を 字で 出す（読むだけ）★ 2026-09-01
           _fareYomu();
+          _fareKmHyou();
           loadBasic();
           renderTiers();
           renderSurcharges();
@@ -15996,6 +16050,29 @@
               <div class="card-title">今の 料金表</div>
               <div id="_fare_itsuno" class="itsu-gyou"></div>
               <div id="_fare_yomu"></div>
+            </div>
+
+            <!-- ★★距離別の 料金（何km で いくら）★★ 2026-09-01
+                 司さん「前にあった何キロ走ったら何円の料金一覧表は？」
+                 ⇒ ★前は「確認」の 札に 在りました★。札を 減らした時に 一緒に 隠していました。
+                   ★運転手が 一番 見たい 表★なので ここに 戻します。
+                 ★計算は js/fare-calc.js（メーターと 同じ 1か所）★から 出します。
+                   前の 表は ★index.html の 中に もう1つ 計算を 持っていました★（_calcFareForPreview）。
+                   ⇒ ★2か所に なると 片方だけ 直って ずれます★ので もう 使いません。 -->
+            <div class="card">
+              <div class="card-title">距離別の 料金</div>
+              <div class="preview-table-scroll">
+                <table class="preview-table">
+                  <thead>
+                    <tr>
+                      <th>走った 距離</th>
+                      <th>料金</th>
+                    </tr>
+                  </thead>
+                  <tbody id="_fare_kmhyou"></tbody>
+                </table>
+              </div>
+              <div class="card-desc" id="_fare_kmhyouNote"></div>
             </div>
           </section>
 

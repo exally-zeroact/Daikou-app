@@ -125,3 +125,60 @@ test('★★⑤ 箱は 1つ・「最後に 変えた人」は 出さない★★
   expect(r.moji, '★「最後に 変えた人」を まだ 出しています★').not.toContain('最後に変えた人');
   expect(r.moji, '★いつの 料金表か 言っていません★').toContain('料金表');
 });
+
+// ★★⑥⑦ は 司さん 2026-09-01「前にあった何キロ走ったら何円の料金一覧表は？」で 戻した★★
+//   ★前は「確認」の 札に 在りました★。札を 3つに 減らした時に 一緒に 隠していました。
+//   ⇒ ★料金表の 札に 戻しました★。★計算は js/fare-calc.js（メーターの 料金と 同じ 1か所）★。
+//   （前の 表は index.html の 中に ★もう1つ 計算を 持っていました★＝2か所に なると ずれる）
+test('★★⑥ 距離別の 料金の 表が 出る（何km で いくら）★★', async ({ page }) => {
+  await hiraku(page);
+  const r = await page.evaluate(() => {
+    const rows = Array.prototype.slice.call(document.querySelectorAll('#_fare_kmhyou tr'));
+    return {
+      kazu: rows.length,
+      atama: rows[0] ? rows[0].textContent : '',
+      owari: rows.length ? rows[rows.length - 1].textContent : '',
+    };
+  });
+  expect(r.kazu, '★距離別の 料金の 表が 出ていません★').toBeGreaterThan(10);
+  expect(r.atama, '★1行目に 距離が ありません★').toMatch(/km|m/);
+  expect(r.atama, '★1行目に 金額が ありません★').toMatch(/円/);
+  expect(r.owari, '★最後の 行に 金額が ありません★').toMatch(/円/);
+});
+
+test('★★⑦ 表の 金額が 料金の 部品と 1円も 違わない★★', async ({ page }) => {
+  await hiraku(page);
+  const r = await page.evaluate(() => {
+    const rows = Array.prototype.slice.call(document.querySelectorAll('#_fare_kmhyou tr'));
+    const c = Meter.getFareConfig();
+    const now = new Date();
+    const gamen = [];
+    const buhin = [];
+    const base = typeof c.base_distance_m === 'number' ? c.base_distance_m : 1000;
+    const add = c.add_distance_m > 0 ? c.add_distance_m : 420;
+    rows.forEach((tr, i) => {
+      const d = base + add * i;
+      if (d > 22000) return;
+      gamen.push(tr.children[1].textContent.replace(/[^0-9]/g, ''));
+      /* global FareCalc */
+      buhin.push(String(FareCalc.keisan(d, c, null, new Set(), 0, now)));
+    });
+    return { gamen, buhin };
+  });
+  expect(r.gamen.length, '★比べる 行が ありません★').toBeGreaterThan(10);
+  expect(r.gamen, '★表の 金額が 料金の 部品と 違います★').toEqual(r.buhin);
+});
+
+test('★★⑧ 1行目が 見出しに かぶっていない★★', async ({ page }) => {
+  // ★実際に 踏みました★… テスト用の 帯が「貼り付く物」を 下げるので、
+  //   ★箱の 中で 貼り付いている 見出しまで 下がり 1行目に かぶっていました★。
+  await hiraku(page);
+  const kabu = await page.evaluate(() => {
+    const th = document.querySelector('#overlayFare .preview-table th');
+    const r1 = document.querySelector('#_fare_kmhyou tr');
+    if (!th || !r1) return null;
+    return Math.round(th.getBoundingClientRect().bottom - r1.getBoundingClientRect().top);
+  });
+  expect(kabu, '★見出しと 1行目が 見つかりません★').not.toBeNull();
+  expect(kabu, '★見出しが 1行目に かぶっています（1行目が 読めません）★').toBeLessThanOrEqual(1);
+});

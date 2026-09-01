@@ -112,6 +112,16 @@
     const moto = global.getComputedStyle ? global.getComputedStyle(b).paddingTop : '';
     const motoPx = parseFloat(moto) || 0;
     b.style.paddingTop = motoPx + h + 'px';
+    // ★親に「自分で 縦に スクロールする 箱」が 在るか★
+    //   在れば その 中で 貼り付いている＝★画面の 上では ない★ので 下げない
+    const _nakaNoHako = (e) => {
+      for (let p = e.parentElement; p && p !== d.body; p = p.parentElement) {
+        const s2 = global.getComputedStyle(p);
+        if (s2.overflowY === 'auto' || s2.overflowY === 'scroll') return true;
+      }
+      return false;
+    };
+
     // ★上に貼り付く物も 同じ分 下げる★（帯に 隠れると 押せなくなる）
     try {
       const all = d.querySelectorAll('body *');
@@ -121,6 +131,13 @@
         const st = global.getComputedStyle(e);
         if (st.position !== 'fixed' && st.position !== 'sticky') continue;
         if (st.top === 'auto' || st.top === '') continue;
+        // ★★中の 箱に 貼り付く物は 下げない★★ 2026-09-01
+        //   ★実際に 踏みました★… ダイコメの「距離別の 料金」の 表は
+        //   ★自分の 縦スクロールの 箱★の 中で 見出しを 貼り付けています。
+        //   帯の 分だけ 下げると ★見出しが 1行目に かぶって 1行目が 読めません★でした
+        //   （テスト用の 帯が 出ている 時だけ 起きる＝★本番では 起きない★）。
+        //   ⇒ ★画面の 上に 貼り付く物だけ★下げます（親に スクロールの 箱が 無い 物）。
+        if (st.position === 'sticky' && _nakaNoHako(e)) continue;
         const t = parseFloat(st.top);
         if (!isFinite(t)) continue;
         e.style.top = t + h + 'px';
