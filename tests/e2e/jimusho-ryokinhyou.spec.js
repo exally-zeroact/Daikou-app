@@ -266,3 +266,61 @@ test('★★⑦ 日付の 書き方が 部品と 同じ（自分で 組んでい
   );
   expect(moji, '★部品が 作る 1行と 違います（自分で 組んでいます）★').toBe(buhin);
 });
+
+// ★★⑧⑨ は 司さんの 2026-09-01「事務所からだけにしたんやないんか」で 足した★★
+//   ★料金表(倉庫)の 中身を 事務所で 全部 直せる★事を 見ます。
+//   （追加料金・値引きは ★料金表では なく 端末ごとの localStorage★なので ここには 出ません）
+
+test('★★⑧ 料金表の 中身が 全部 事務所で 直せる★★', async ({ page }) => {
+  await login(page);
+  await souko(page);
+  await hiraku(page);
+  const aru = await page.evaluate(() => {
+    const m = (s) => !!document.querySelector(s);
+    return {
+      tiers: m('#fTiersOn') && m('#btnTierAdd'),
+      sur: m('#surList') && m('#btnSurAdd'),
+      auto: m('#fNightOn') && m('#fWeekOn') && m('#fWinOn'),
+      veh: m('#fVehOn') && m('#btnVehAdd'),
+      wait: m('#fWaitOn') && m('#fWaitFree') && m('#fWaitRate'),
+      minmax: m('#fMin') && m('#fMax'),
+    };
+  });
+  Object.keys(aru).forEach((k) => {
+    expect(aru[k], '★' + k + ' を 事務所で 直せません★').toBe(true);
+  });
+
+  // ★倉庫の 中身が 画面に 出ている★（作り話の 既定を 出していない）
+  const v = await page.evaluate(() => ({
+    night: document.getElementById('fNightRate').value,
+    waitFree: document.getElementById('fWaitFree').value,
+    tiers: document.querySelectorAll('#tiersList .kumi').length,
+    veh: document.querySelectorAll('#vehList .kumi').length,
+  }));
+  expect(v.night, '★深夜の 倍率が 倉庫の 値では ありません★').toBe('1.25');
+  expect(v.waitFree, '★待ちの 無料分が 倉庫の 値では ありません★').toBe('3');
+  expect(v.tiers, '★段階が 出ていません★').toBe(1);
+  expect(v.veh, '★車種が 出ていません★').toBe(1);
+});
+
+test('★★⑨ 割増を 直して 保存すると その通り 送られる（他は 消えない）★★', async ({ page }) => {
+  await login(page);
+  const okutta = await souko(page);
+  await hiraku(page);
+
+  await page.fill('#fNightRate', '1.5');
+  await page.fill('#fWaitRate', '150');
+  await page.waitForTimeout(200);
+  await page.click('#btnSave');
+  await page.waitForTimeout(600);
+
+  const hozon = okutta.filter((o) => o.body && o.body.indexOf('"config"') >= 0);
+  expect(hozon.length, '★保存が 送られていません★').toBeGreaterThan(0);
+  const sent = JSON.parse(hozon[0].body).config;
+  expect(sent.autoSurcharges.night.rate, '★深夜の 倍率が 送られていません★').toBe(1.5);
+  expect(sent.wait.ratePerMin, '★待ちの 単価が 送られていません★').toBe(150);
+  // ★触っていない 物は そのまま★
+  expect(sent.tiers, '★段階が 消えました★').toEqual(SOUKO.tiers);
+  expect(sent.vehicles, '★車種が 消えました★').toEqual(SOUKO.vehicles);
+  expect(sent.base_fare, '★基本の 料金が 変わりました★').toBe(SOUKO.base_fare);
+});

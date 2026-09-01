@@ -120,6 +120,13 @@ Deno.serve(async (req: Request) => {
             empty_distance_m: isNum(s.empty_distance_m) ? s.empty_distance_m : null,
             fare_total_yen: isNum(s.fare_total_yen) ? Math.round(s.fare_total_yen) : null,
             trip_count: isNum(s.trip_count) ? Math.round(s.trip_count) : null,
+            // ★★見えなかった分（後から「本当に 走ったか」を 確かめる為）★★ 2026-09-01
+            //   ★ここで 落としていました★… 画面側(js/job-sync.js)は 送っていたのに、
+            //   この 関数が ★列を 名指しで 組み直す★ので ★黙って 捨てられていました★。
+            //   ★料金・距離には 一切 効きません★（記録するだけ・無ければ null）
+            mienai_kaisuu: isNum(s.mienai_kaisuu) ? Math.round(s.mienai_kaisuu) : null,
+            mienai_byou: isNum(s.mienai_byou) ? s.mienai_byou : null,
+            mienai_m: isNum(s.mienai_m) ? s.mienai_m : null,
           },
           { onConflict: 'company_id,device_id,started_at' }
         )

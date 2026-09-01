@@ -1684,6 +1684,62 @@
         cursor: pointer;
         font-family: inherit;
       }
+      /* ★★見るだけ（司さん 2026-09-01「事務所からだけにしたんやないんか」）★★
+         ・数字は 見える（今の 料金表が 分かる）
+         ・触れない・保存は 出さない
+         ★消さずに 止める★ので、事務所が 使えない 時に 戻せます。 */
+      #overlayFare .yomu-gyou {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #e5e5ea;
+        font-size: 14px;
+      }
+
+      #overlayFare .yomu-na {
+        color: #6b6b70;
+        flex: 0 1 auto;
+      }
+
+      #overlayFare .yomu-at {
+        font-weight: 700;
+        color: #1c1c1e;
+        text-align: right;
+        flex: 1 1 auto;
+      }
+
+      #overlayFare .miru-dake-obi {
+        background: #fff4e5;
+        color: #7a4b00;
+        border-bottom: 1px solid #f0d9b5;
+        padding: 10px 14px;
+        font-size: 13px;
+        line-height: 1.6;
+        flex-shrink: 0;
+      }
+
+      /* ★止めるのは ★料金表(倉庫)の 中身★だけ★
+         追加料金・値引きは ★料金表では なく 端末ごとの その場の ボタン★なので
+         ★今まで通り 触れます★（実車ごとに 運転手が 押す 物）。 */
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) input,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) select,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) textarea,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) .toggle,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) button {
+        pointer-events: none;
+        opacity: 0.55;
+      }
+
+      /* ★保存は 料金表 全体の 物なので 出さない★
+         ★「足す」「消す」は ★料金表の 札の 中だけ★ 隠す
+         （追加料金・値引きの「＋ 項目を 追加」は 今まで通り 出します） */
+      #overlayFare .btn-save,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) .btn-del,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) .btn-add {
+        display: none !important;
+      }
+
       #overlayFare .btn-save {
         position: fixed;
         left: 16px;
@@ -4447,8 +4503,12 @@
           }
         }
         function _showBanner() {
-          const el = document.getElementById('trainingConsentBanner');
-          if (el) el.style.display = 'block';
+          // ★★出しません（司さん 2026-09-01「Firebaseは使うな」）★★
+          //   この帯は ★学習データを Firebase Storage へ 上げてよいか★を 聞く 物でした。
+          //   Firebase を 外したので ★どこにも 上がりません★。
+          //   ⇒ ★上げないのに「送ります」と 聞くのは 嘘★なので 出しません。
+          //   （中の 仕掛けは 消していません＝別の 上げ先に 付け替える時に そのまま 使えます）
+          return;
         }
         function _hideBanner() {
           const el = document.getElementById('trainingConsentBanner');
@@ -5728,19 +5788,22 @@
       }
     </script>
 
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
     <!-- Phase 2.B (2026-05-10): Firebase Storage SDK・訓練データ upload に必要 -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
     <!-- ★設計変更宣言 (2026-05-18・㉒ Firebase Remote Config 配線完成):
          A/B 実験パラメータ (viterbi_n_ios / fare_display_mode / warmup_retry_count) を
          Firebase RC console から fetch するため SDK 追加。
          未追加だと ab-config.js は hash assign fallback のみで Remote Config 値が反映されない。 -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-remote-config-compat.js"></script>
 
+    <!-- ★★Firebase は 使いません（司さん 2026-09-01「Firebaseは使うなっていよろがぼけ」）★★
+         ここに 在った 読み込みを ★全部 外しました★:
+           gstatic の Firebase SDK 4本（app / database / storage / remote-config）
+           js/firebase-config.js ／ js/firebase.js
+           js/trace-outbox.js ／ js/debug-trace.js ／ js/debug-log-uploader.js
+             （この3本は ★Firebase RTDB へ 書く為だけ★の 物）
+         ★FB を 呼ぶ 15か所は 全部 守りが 在るので 何も しなくなります★（2026-09-01 実測）
+         ★料金・距離には 効きません★（FB を 消しても calcFare(5000m)=2,300円）
+         ★ファイル自体は 消していません★（戻せる）。見張り: tests/unit/firebase-tsukawanai.test.js -->
     <script src="js/debug-config.js"></script>
 
     <!-- ★debug-config.js：環境変数制御・本番自動OFF（2026/04/26追加） -->
@@ -5770,8 +5833,6 @@
         }
       })();
     </script>
-
-    <script src="js/firebase-config.js"></script>
 
     <!-- ★設計変更宣言 (2026-05-18・P3 A/B 実験 config 配線):
          firebase-config.js load 後に ab-config.js を読込む (= Firebase RC instance 利用前提)。
@@ -5952,10 +6013,10 @@
     <script src="js/fare-calc.js"></script>
     <script src="js/meter.js"></script>
 
-    <script src="js/firebase.js"></script>
-
     <!-- Phase 2.B (2026-05-10): 訓練データ Firebase Storage 送信 framework・firebase.js の後に load -->
-    <script src="js/training-uploader.js"></script>
+    <!-- ★学習データの「上げ役」は 読みません（司さん 2026-09-01「Firebaseは使うな」）★
+         30分ごとに Firebase Storage へ 上げに 行く 物で、★必ず 失敗します★。
+         ★集める役（js/training-collector.js）は そのまま★＝上げ先を 変える時に すぐ 使えます。 -->
 
     <!-- test-mode.js は H-3 対応で削除済 -->
 
@@ -5983,11 +6044,8 @@
 
     <!-- ★trace-outbox.js: trace/log のオフライン永続送信キュー(IndexedDB)。両uploaderより前にload。
          オフライン走行→閉じても消えず・オンライン/次回起動で自動送信(取りこぼしゼロ)。距離コア非関与 (2026-06-16) -->
-    <script src="js/trace-outbox.js"></script>
-    <script src="js/debug-trace.js"></script>
     <!-- ★debug-log-uploader.js: Eruda console を Firebase RTDB 自動 push (2026-05-29 追加・解析側 Claude 並行参照用)
          feature flag・既定 ON (テストビルド) / OFF (本番)・?debuglog=on/off で切替・debug-trace.js と device_id 共有 -->
-    <script src="js/debug-log-uploader.js"></script>
     <!-- ★dk-config.js = Supabase接続先の単一真実源 (2026-07-31・独立/移設のため)。
          接続先を使う全モジュール(license.js / license-activate.js / 端末管理配線)より必ず先に load。 -->
     <script src="js/dk-config.js"></script>
@@ -13676,6 +13734,89 @@
           renderVehicles();
         }
 
+        // ━━ ★今の 料金表を 字で 出す（読むだけ）★ 2026-09-01 ━━
+        //   ★司さん「料金表が見れたええやろ」★
+        //   ★お金の 計算は ここに 書きません★（読んだ 中身を そのまま 並べるだけ）。
+        //   数字の 出どころは ★Meter.getFareConfig()★＝実際に 料金を 出している 物。
+        //   ⇒ ★画面に 出る 数字と 実際に 使う 数字が ずれません★
+        function _fareYomu() {
+          const el = $('_fare_yomu');
+          if (!el) return;
+          let c = null;
+          try {
+            c = Meter.getFareConfig();
+          } catch (_) {
+            c = null;
+          }
+          if (!c) {
+            el.textContent = '料金表が まだ 取れていません。';
+            return;
+          }
+          const yen = (n) => (typeof n === 'number' ? n.toLocaleString('ja-JP') + '円' : '—');
+          const m = (n) => (typeof n === 'number' ? n.toLocaleString('ja-JP') + 'm' : '—');
+          const gyou = [];
+          const ire = (na, at) => gyou.push([na, at]);
+
+          ire('最初の 料金', yen(c.base_fare));
+          ire('その 料金で 走れる 距離', m(c.base_distance_m));
+          ire('その先 上がる 料金', yen(c.add_fare));
+          ire('上がる ごとの 距離', m(c.add_distance_m));
+          ire('端数の 丸め', (c.rounding || 1) + '円ごと');
+
+          if (Array.isArray(c.tiers) && c.tiers.length) {
+            c.tiers.forEach((t, i) => {
+              ire(
+                '段階 ' + (i + 1),
+                m(t.from_m) +
+                  ' 〜 ' +
+                  (t.to_m == null ? 'ずっと' : m(t.to_m)) +
+                  '／' +
+                  m(t.add_distance_m) +
+                  ' ごとに +' +
+                  yen(t.add_fare)
+              );
+            });
+          }
+          if (Array.isArray(c.surcharges) && c.surcharges.length) {
+            c.surcharges.forEach((x) =>
+              ire('割増（手で 押す）', (x.name || '—') + ' ' + x.rate + '倍')
+            );
+          }
+          const a = c.autoSurcharges || {};
+          if (a.night && a.night.enabled)
+            ire('深夜の 割増', a.night.from + '時 〜 ' + a.night.to + '時 ' + a.night.rate + '倍');
+          if (a.weekend && a.weekend.enabled) ire('土日の 割増', a.weekend.rate + '倍');
+          if (a.winter && a.winter.enabled)
+            ire('冬の 割増', a.winter.from + ' 〜 ' + a.winter.to + ' ' + a.winter.rate + '倍');
+          if (c.vehiclesEnabled && Array.isArray(c.vehicles) && c.vehicles.length) {
+            c.vehicles.forEach((v) =>
+              ire('車種', (v.name || '—') + ' ' + (v.multiplier || 1) + '倍 ＋' + yen(v.addon || 0))
+            );
+          }
+          if (c.wait && c.wait.enabled)
+            ire(
+              '待ち時間',
+              (c.wait.freeMins || 0) + '分まで 無料／その先 1分 ' + yen(c.wait.ratePerMin || 0)
+            );
+          if (typeof c.minFare === 'number') ire('これより 安くしない', yen(c.minFare));
+          if (typeof c.maxFare === 'number') ire('これより 高くしない', yen(c.maxFare));
+
+          el.innerHTML = '';
+          gyou.forEach(([na, at]) => {
+            const r = document.createElement('div');
+            r.className = 'yomu-gyou';
+            const l = document.createElement('span');
+            l.className = 'yomu-na';
+            l.textContent = na;
+            const v = document.createElement('span');
+            v.className = 'yomu-at';
+            v.textContent = at;
+            r.appendChild(l);
+            r.appendChild(v);
+            el.appendChild(r);
+          });
+        }
+
         // ━━ 待機タブ ━━
         function loadWait() {
           const w = fc.wait || {};
@@ -14178,6 +14319,8 @@
         // ━━ ロード / 保存 (Meter / FB / localStorage 連携) ━━
         function _initAll() {
           _bindTabsOnce();
+          // ★今の 料金表を 字で 出す（読むだけ）★ 2026-09-01
+          _fareYomu();
           loadBasic();
           renderTiers();
           renderSurcharges();
@@ -14703,8 +14846,14 @@
         <!-- ★設計変更宣言 (2026-05-14): 業務リセット時刻 UI 撤去 (時刻ベース廃止・代行開始トリガーに統一)
          旧 #_st_resetTime input + 説明文 は削除。リセット仕様は onBusinessStart 内の DOM 4 つ 0 化に統一。 -->
 
-        <!-- 学習データ提供 -->
-        <div class="section" id="_st_training">
+        <!-- ★★学習データ提供は 出しません（司さん 2026-09-01「Firebaseは使うな」）★★
+             ★理由★ … この機能は ★Firebase Storage へ 上げる為だけ★の 物でした。
+             Firebase を 外したので ★ON にしても どこにも 上がりません★。
+             「削除」を 押しても ★何も 起きません★（FB.deleteAllTrainingData は 守りで no-op）。
+             ⇒ ★出来ていない物の ボタンを 見せない★ので 画面から 外します。
+             ★中の 仕掛け（TrainingCollector／IndexedDB）は 消していません★＝
+             別の 上げ先（Supabase）に 付け替える時に そのまま 使えます。 -->
+        <div class="section" id="_st_training" style="display: none">
           <div class="section-title">学習データ提供</div>
           <div class="row">
             <div class="row-label">学習データ提供</div>
@@ -15545,6 +15694,15 @@
         </div>
         <div class="appbar-title">FARE CONFIG</div>
       </div>
+      <!-- ★★料金は 事務所からだけ 変えます（司さん 2026-09-01）★★
+           「てかなんでメーターの設定からまだ料金触れるんど 事務所からだけにしたんやないんか」
+           ⇒ ここは ★今の 料金表を 見るだけ★に しました。
+           ★数字は 本物★（倉庫から 取った 物）です。変える所は ★事務所の「料金表」★。
+           ★圏外でも 見られます★（焼いてある 写しを 出すので）。 -->
+      <div class="miru-dake-obi">
+        <b>料金表は 見るだけ</b>です（変えるのは <b>事務所の「料金表」</b>から）。<br />
+        <b>追加料金・値引き</b>は ここで 触れます。
+      </div>
       <div class="layout">
         <!-- ★★いつの 料金表か（2026-08-30・監査役の指摘）★★
              ★端末は「いつ 取ったか」を 知っているのに 見せていませんでした★。
@@ -15564,19 +15722,21 @@
           "
         ></div>
         <nav class="tab-nav" id="_fare_tabNav">
-          <button class="tab-btn active" data-tab="extras">追加料金</button>
+          <!-- ★★料金表は 事務所で 変える＝ここは 読むだけ★★ 2026-09-01
+               司さん「事務所でやるならこの画面はメーターの方にいらんことないか？
+                       追加や値引きとかは事務所でもメーターの方でも触れてええけど
+                       料金表が見れたええやろ」
+               ⇒ ★触れない 入力欄を 並べるのを やめました★。
+                 「料金表」の 札で ★今の 料金表を 字で 読むだけ★。
+                 ★追加料金・値引きは 今まで通り 触れます★（端末ごとの その場の ボタン）
+               ★中の 仕掛けは 消していません★（事務所が 使えない 時に 戻せます） -->
+          <button class="tab-btn active" data-tab="ryokinhyou">料金表</button>
+          <button class="tab-btn" data-tab="extras">追加料金</button>
           <button class="tab-btn" data-tab="discounts">値引き</button>
-          <button class="tab-btn" data-tab="basic">基本</button>
-          <button class="tab-btn" data-tab="tiers">段階</button>
-          <button class="tab-btn" data-tab="surcharges">割増</button>
-          <button class="tab-btn" data-tab="auto">自動割増</button>
-          <button class="tab-btn" data-tab="vehicles">車種</button>
-          <button class="tab-btn" data-tab="wait">待機</button>
           <!-- ★区間(ゾーン)料金はcalcFare未実装=設定しても効かない死に機能→タブを隠す(監査・嘘設定で信頼破壊を防ぐ・今後対応)★ -->
-          <button class="tab-btn" data-tab="preview">確認</button>
         </nav>
         <div class="tab-content">
-          <section class="tab-pane" data-pane="basic">
+          <section class="tab-pane" data-pane="basic" style="display: none">
             <div class="card">
               <div class="card-title">基本料金</div>
               <div class="form-row">
@@ -15659,7 +15819,7 @@
               </div>
             </div>
           </section>
-          <section class="tab-pane" data-pane="tiers">
+          <section class="tab-pane" data-pane="tiers" style="display: none">
             <div class="card">
               <div class="card-title">段階料金</div>
               <div class="form-row">
@@ -15671,7 +15831,7 @@
             <div id="_fare_tiersList"></div>
             <button class="btn-add" onclick="window._fare_addTier()">＋ 区間追加</button>
           </section>
-          <section class="tab-pane" data-pane="surcharges">
+          <section class="tab-pane" data-pane="surcharges" style="display: none">
             <div class="card">
               <div class="card-title">手動割増ボタン</div>
               <div class="card-desc">業務画面で ON/OFF できる割増・複数同時で乗算</div>
@@ -15679,7 +15839,7 @@
             <div id="_fare_surchargesList"></div>
             <button class="btn-add" onclick="window._fare_addSurcharge()">＋ 割増追加</button>
           </section>
-          <section class="tab-pane" data-pane="auto">
+          <section class="tab-pane" data-pane="auto" style="display: none">
             <div class="card">
               <div class="card-title">深夜割増</div>
               <div class="form-row">
@@ -15790,7 +15950,7 @@
               <div class="auto-status inactive" id="_fare_autoWinterStatus">現在 適用外</div>
             </div>
           </section>
-          <section class="tab-pane" data-pane="vehicles">
+          <section class="tab-pane" data-pane="vehicles" style="display: none">
             <div class="card">
               <div class="card-title">車種別料金</div>
               <div class="form-row">
@@ -15802,7 +15962,7 @@
             <div id="_fare_vehiclesList"></div>
             <button class="btn-add" onclick="window._fare_addVehicle()">＋ 車種追加</button>
           </section>
-          <section class="tab-pane" data-pane="wait">
+          <section class="tab-pane" data-pane="wait" style="display: none">
             <div class="card">
               <div class="card-title">待機料金</div>
               <div class="form-row">
@@ -15833,7 +15993,18 @@
               </div>
             </div>
           </section>
-          <section class="tab-pane active" data-pane="extras">
+          <!-- ★今の 料金表（読むだけ）★ 2026-09-01 -->
+          <section class="tab-pane active" data-pane="ryokinhyou">
+            <div class="card">
+              <div class="card-title">今の 料金表</div>
+              <div class="card-desc">
+                変えるのは <b>事務所の「料金表」</b>から。ここは 見るだけです。
+              </div>
+              <div id="_fare_yomu"></div>
+            </div>
+          </section>
+
+          <section class="tab-pane" data-pane="extras">
             <div class="card">
               <div class="card-title">追加料金項目 (迎車料金・キャンセル料など)</div>
               <div class="card-desc">
@@ -15858,7 +16029,7 @@
               </button>
             </div>
           </section>
-          <section class="tab-pane" data-pane="preview">
+          <section class="tab-pane" data-pane="preview" style="display: none">
             <div class="card">
               <div class="card-title">割増シミュレーション</div>
               <div class="card-desc">適用した割増を組み合わせた料金プレビュー</div>

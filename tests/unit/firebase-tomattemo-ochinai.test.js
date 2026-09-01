@@ -45,8 +45,21 @@ function yomu(rel) {
   return fs.readFileSync(p, 'utf8');
 }
 
+// ★説明文を 消してから 数える★ 2026-09-01
+//   ★2026-09-01 に 自分で 踏みました★… 私が 書いた ★何行にも わたる 説明文★の 中の
+//   「FB.deleteAllTrainingData」を ★コードだと 思って 赤★に しました。
+//   行の 頭が `<!--` の 行しか 飛ばしていなかったのが 原因です。
+//   ⇒ ★<!-- --> と /* */ と // を 先に 消してから★ 数えます
+//     （この repo の 別の 見張り nai-toki-midori と 同じ 直し方）。
+function komentoWoKesu(src) {
+  return src
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(new RegExp('(^|[^:])//[^' + String.fromCharCode(10) + ']*', 'g'), '$1 ');
+}
+
 function shirabe(rel) {
-  const L = yomu(rel).split(String.fromCharCode(10));
+  const L = komentoWoKesu(yomu(rel)).split(String.fromCharCode(10));
   const naked = [];
   let n = 0;
   L.forEach((l, i) => {

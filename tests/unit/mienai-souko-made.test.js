@@ -6,6 +6,9 @@
 //     ①数える …………… ★出来ている★（js/pipeline-distance.js mienakattaBun・本番に 在る）
 //     ②上げる 口 ……… ★出来た★（js/job-sync.js が shift の 3つを そのまま 上げる）
 //     ③倉庫の 列 ……… ★SQLは 書いた★（supabase/apply-mienai-columns.sql）★当てるのは 司さん★
+//     ③-b 途中の 関数 …… ★出来た★（supabase/functions/dk-sync-jobs）
+//        ★ここで 落としていました★… 画面は 送っていたのに 関数が 列を 名指しで 組み直すので
+//        ★黙って 捨てられていた★（2026-09-01 に SQL を 当てる時に 気づいた）
 //     ④★数えた 値を ②へ 渡す★ … ★まだ★
 //        理由 … その値は ★課金の Worker（map-matcher → pipeline-distance）の 中★に あり、
 //        本体へ 返す 道が ありません。★課金の 経路なので 雑に 触りません★。
@@ -57,6 +60,16 @@ describe('★「見えなかった分」を 倉庫まで 運ぶ 道★', () => {
         expect(re.test(s), '★足すだけでは ない 文が 混ざっています（' + re + '）★').toBe(false);
       }
     );
+  });
+
+  it('★★③-b 途中の 関数も 3つを 通す（ここで 落としていた）★★', () => {
+    const p = path.join(ROOT, 'supabase', 'functions', 'dk-sync-jobs', 'index.ts');
+    const s = fs.readFileSync(p, 'utf8');
+    HASHIRA.forEach((k) => {
+      expect(s, '★関数が ' + k + ' を 落としています（画面は 送っているのに 消える）★').toContain(
+        k + ':'
+      );
+    });
   });
 
   it('★④ 数える 仕組みは まだ 生きている（消していない）★', () => {

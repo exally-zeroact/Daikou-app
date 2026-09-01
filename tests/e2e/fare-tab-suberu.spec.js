@@ -23,6 +23,35 @@ const { test, expect } = require('@playwright/test');
 const W = 390; // iPhone 12/13
 const H = 780;
 
+// ★★2026-09-01 前提が 変わりました★★
+//   司さん「事務所でやるならこの画面はメーターの方にいらんことないか？」
+//   ⇒ 料金設定の 札を ★9つ → 3つ（料金表／追加料金／値引き）★に 減らしました。
+//   ⇒ 390px で ★もう はみ出しません★（実測）。
+//   ★では この見張りは 要らないか？ … 要ります★
+//     札は また 増えるかもしれません。増えた時に ★合図が 無い★と
+//     「その機能が 無い」と 思われる（2026-08-30 の 指摘そのもの）。
+//   ⇒ ★札を わざと 増やして はみ出させ、その時 影が 出るか★を 見ます。
+//     （★今 はみ出していないから 緑★、では ありません）
+//
+//   ★★わざと壊した 記録（2026-09-01）★★
+//     ・1回目 … 壊す 文字が ★当たっていなかった★（prettier が 行を 変えていた）
+//       ⇒ ★緑のまま★だったので「見張りが 嘘」と 一度 思いました。★私の 壊し方が 悪かった★。
+//     ・2回目 … `radial-gradient(farthest-side` を 全部（4か所）置き換えて ★本当に 消した★
+//       ⇒ ★3本 赤★（①だけ 緑＝はみ出しの 話なので 当然）／戻して ★4本 緑★
+//     ⇒★「赤に ならなかった」時は ★まず 自分の 壊し方を 疑う★★
+async function fuyasu(page) {
+  await page.evaluate(() => {
+    const nav = document.querySelector('#overlayFare .tab-nav');
+    for (let i = 0; i < 8; i++) {
+      const b = document.createElement('button');
+      b.className = 'tab-btn';
+      b.textContent = 'ためし' + i;
+      nav.appendChild(b);
+    }
+  });
+  await page.waitForTimeout(200);
+}
+
 async function hiraku(page) {
   await page.setViewportSize({ width: W, height: H });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
@@ -78,17 +107,29 @@ async function suberu(page, saki) {
   await page.waitForTimeout(250);
 }
 
-test('★① 料金設定の タブは 実際に はみ出している★', async ({ page }) => {
+test('★★① 今は はみ出していない（札を 3つに 減らしたから）★★', async ({ page }) => {
   await hiraku(page);
   const m = await page.evaluate(() => {
     const el = document.querySelector('#overlayFare .tab-nav');
     return { sw: el.scrollWidth, cw: el.clientWidth };
   });
-  expect(m.sw, '★はみ出していません（前提が 変わった）★').toBeGreaterThan(m.cw + 20);
+  // ★はみ出していないのに 影だけ 出る、を 起こさない★
+  expect(
+    m.sw,
+    '★札が 増えて はみ出しています（合図の 出方を 確かめてください）★'
+  ).toBeLessThanOrEqual(m.cw + 2);
 });
 
-test('★★② 右端の 影が 出て、右端まで すべると 消える★★', async ({ page }) => {
+test('★★② 札が 増えたら 右端に 影が 出る★★', async ({ page }) => {
   await hiraku(page);
+  await fuyasu(page);
+  const m = await page.evaluate(() => {
+    const el = document.querySelector('#overlayFare .tab-nav');
+    return { sw: el.scrollWidth, cw: el.clientWidth };
+  });
+  expect(m.sw, '★札を 増やしても はみ出しません（試し方が 壊れています）★').toBeGreaterThan(
+    m.cw + 20
+  );
   await fudaWoKesu(page);
   await suberu(page, 'hidari');
   const a = await haji(page, true);
@@ -100,8 +141,9 @@ test('★★② 右端の 影が 出て、右端まで すべると 消える★
   ).toBe(true);
 });
 
-test('★★③ 左端も 同じ（右に すべると 左に 影が 出る）★★', async ({ page }) => {
+test('★★③ 札が 増えたら 左端も 同じ★★', async ({ page }) => {
   await hiraku(page);
+  await fuyasu(page);
   await fudaWoKesu(page);
   await suberu(page, 'hidari');
   const a = await haji(page, false);

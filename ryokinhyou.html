@@ -256,6 +256,54 @@
         color: var(--ink);
       }
 
+      .hako {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+
+      .hako input {
+        width: 20px;
+        height: 20px;
+      }
+
+      .btn.chi {
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+
+      .kumi {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .kumi input[type='text'] {
+        flex: 1 1 90px;
+        min-width: 0;
+      }
+
+      .kumi input[type='number'] {
+        width: 84px;
+        flex: 0 0 auto;
+      }
+
+      .kumi .keshi {
+        background: none;
+        border: none;
+        color: var(--danger);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 4px 6px;
+      }
+
       .oshi {
         display: flex;
         gap: 10px;
@@ -335,6 +383,117 @@
         </div>
 
         <div class="card">
+          <div class="ttl">段階の 料金（距離で 上がり方を 変える）</div>
+          <label class="hako"
+            ><input type="checkbox" id="fTiersOn" /> <span>段階を 使う</span></label
+          >
+          <div id="tiersList"></div>
+          <button class="btn sub2 chi" id="btnTierAdd" type="button">＋ 段を 足す</button>
+          <div class="note">
+            使わない時は 上の「基本の 料金」だけで 計算します。<br />
+            <b>「まで」を 空</b>に すると <b>そこから先 ずっと</b> その段が 続きます。
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">割増（メーターで 手で 押す 物）</div>
+          <div id="surList"></div>
+          <button class="btn sub2 chi" id="btnSurAdd" type="button">＋ 割増を 足す</button>
+          <div class="note">運転手が 実車中に 押すと この 倍率が かかります。</div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">自動の 割増（時間・曜日・季節）</div>
+          <div class="rows">
+            <div class="row">
+              <label class="hako"><input type="checkbox" id="fNightOn" /> <span>深夜</span></label>
+              <div class="in">
+                <input id="fNightFrom" type="number" inputmode="numeric" min="0" max="23" />
+                <span class="tani">時 〜</span>
+                <input id="fNightTo" type="number" inputmode="numeric" min="0" max="23" />
+                <span class="tani">時</span>
+                <input id="fNightRate" type="number" inputmode="decimal" step="0.05" min="1" />
+                <span class="tani">倍</span>
+              </div>
+            </div>
+            <div class="row">
+              <label class="hako"><input type="checkbox" id="fWeekOn" /> <span>土日</span></label>
+              <div class="in">
+                <input id="fWeekRate" type="number" inputmode="decimal" step="0.05" min="1" />
+                <span class="tani">倍</span>
+              </div>
+            </div>
+            <div class="row">
+              <label class="hako"><input type="checkbox" id="fWinOn" /> <span>冬</span></label>
+              <div class="in">
+                <input id="fWinFrom" type="text" placeholder="12-15" />
+                <span class="tani">〜</span>
+                <input id="fWinTo" type="text" placeholder="03-15" />
+                <input id="fWinRate" type="number" inputmode="decimal" step="0.05" min="1" />
+                <span class="tani">倍</span>
+              </div>
+            </div>
+          </div>
+          <div class="note">
+            冬は <b>月-日</b>（例 12-15）で 入れます。年を またいでも かまいません。
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">車種ごと</div>
+          <label class="hako"
+            ><input type="checkbox" id="fVehOn" /> <span>車種で 変える</span></label
+          >
+          <div id="vehList"></div>
+          <button class="btn sub2 chi" id="btnVehAdd" type="button">＋ 車種を 足す</button>
+          <div class="note">倍率を かけた 後に 追加料金を 足します。</div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">待ち時間</div>
+          <label class="hako"
+            ><input type="checkbox" id="fWaitOn" /> <span>待ち時間を 取る</span></label
+          >
+          <div class="rows">
+            <div class="row">
+              <label for="fWaitFree">無料の 時間</label>
+              <div class="in">
+                <input id="fWaitFree" type="number" inputmode="numeric" min="0" />
+                <span class="tani">分</span>
+              </div>
+            </div>
+            <div class="row">
+              <label for="fWaitRate">その先 1分あたり</label>
+              <div class="in">
+                <input id="fWaitRate" type="number" inputmode="numeric" min="0" />
+                <span class="tani">円</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="ttl">下限・上限（使う時だけ 入れる）</div>
+          <div class="rows">
+            <div class="row">
+              <label for="fMin">これより 安くしない</label>
+              <div class="in">
+                <input id="fMin" type="number" inputmode="numeric" min="0" placeholder="なし" />
+                <span class="tani">円</span>
+              </div>
+            </div>
+            <div class="row">
+              <label for="fMax">これより 高くしない</label>
+              <div class="in">
+                <input id="fMax" type="number" inputmode="numeric" min="0" placeholder="なし" />
+                <span class="tani">円</span>
+              </div>
+            </div>
+          </div>
+          <div class="note">空にすると 使いません。</div>
+        </div>
+
+        <div class="card">
           <div class="ttl">この 料金表だと いくらか（上の 数字を 変えると すぐ 変わります）</div>
           <div class="scroller">
             <table>
@@ -371,9 +530,9 @@
         <div class="card">
           <div class="ttl">ここで 変えられない 物</div>
           <div class="note" style="margin-top: 0">
-            <b>割増（深夜・休日・冬）／段階の 料金／車種ごと／待ち時間</b>
-            は、いまは <b>メーターの「設定 → 料金設定」</b>だけで 変えられます。<br />
-            この画面から 保存しても <b>それらは 1つも 消えません</b>（そのまま 残します）。
+            <b>追加料金・値引き</b>は <b>料金表では ありません</b>。 メーターの 端末ごとに
+            持っている <b>その場で 押す ボタン</b>です。<br />
+            （実車ごとに 運転手が 押す 物なので メーター側に 残します）
           </div>
         </div>
       </div>
@@ -401,7 +560,6 @@
         var SESS = null;
         var COMPANY = null;
         var ZENBU = null; // ★読んだ 料金表を 丸ごと 持つ（触らない設定を 消さない為）★
-        var IMA = null; // 今 倉庫に 入っている 基本の5つ
         var UPDATED_AT = null;
         var UPDATED_BY = null;
 
@@ -464,46 +622,250 @@
         }
 
         // 画面の 入力から「基本の5つ」を 取る
-        function nyuuryoku() {
-          var o = {};
+        // ★★直している 途中の 料金表（丸ごとの 写し）★★ 2026-09-01
+        //   ★倉庫から 読んだ 物を 丸ごと 写して、その上を 直します★。
+        //   ⇒ ★この画面が 知らない 設定も そのまま 残ります★（消えません）。
+        //   （前は「基本の5つだけ 差し替え」でしたが、触る 所が 増えたので 写しに しました）
+        var HENSHU = null;
+        // ★「変えた／変えていない」の 基準★ 2026-09-01
+        //   ★画面に 広げて すぐ 集め直すと、抜けていた 既定（待ち時間の 箱など）が
+        //   埋まって ★何も 触っていないのに「変えた」★に なりました★。
+        //   ⇒ ★開いた 直後の「保存したら こうなる 中身」★を 基準に します。
+        var KIJUN = null;
+
+        function utsushi(o) {
+          return JSON.parse(JSON.stringify(o));
+        }
+
+        function suji(id, kitei) {
+          var v = $(id).value;
+          if (v === '') return kitei;
+          var n = Number(v);
+          return isFinite(n) ? n : kitei;
+        }
+
+        // ─── 画面 → HENSHU ───
+        function atsumeru() {
+          var h = HENSHU;
+          for (var i = 0; i < KO.length; i++) h[KO[i].key] = suji(KO[i].id, 0);
+
+          h.tiersEnabled = $('fTiersOn').checked;
+          h.vehiclesEnabled = $('fVehOn').checked;
+
+          h.wait = h.wait || {};
+          h.wait.enabled = $('fWaitOn').checked;
+          h.wait.freeMins = suji('fWaitFree', 0);
+          h.wait.ratePerMin = suji('fWaitRate', 0);
+
+          h.autoSurcharges = h.autoSurcharges || {};
+          h.autoSurcharges.night = h.autoSurcharges.night || {};
+          h.autoSurcharges.night.enabled = $('fNightOn').checked;
+          h.autoSurcharges.night.from = suji('fNightFrom', 22);
+          h.autoSurcharges.night.to = suji('fNightTo', 5);
+          h.autoSurcharges.night.rate = suji('fNightRate', 1);
+          h.autoSurcharges.weekend = h.autoSurcharges.weekend || {};
+          h.autoSurcharges.weekend.enabled = $('fWeekOn').checked;
+          h.autoSurcharges.weekend.rate = suji('fWeekRate', 1);
+          h.autoSurcharges.winter = h.autoSurcharges.winter || {};
+          h.autoSurcharges.winter.enabled = $('fWinOn').checked;
+          h.autoSurcharges.winter.from = $('fWinFrom').value || '12-15';
+          h.autoSurcharges.winter.to = $('fWinTo').value || '03-15';
+          h.autoSurcharges.winter.rate = suji('fWinRate', 1);
+
+          // ★空なら 使わない（0 に しない）★
+          if ($('fMin').value === '') delete h.minFare;
+          else h.minFare = suji('fMin', 0);
+          if ($('fMax').value === '') delete h.maxFare;
+          else h.maxFare = suji('fMax', 0);
+          return h;
+        }
+
+        // ─── HENSHU → 画面 ───
+        function hirogeru() {
+          var h = HENSHU;
+          for (var i = 0; i < KO.length; i++) $(KO[i].id).value = h[KO[i].key];
+          $('fTiersOn').checked = !!h.tiersEnabled;
+          $('fVehOn').checked = !!h.vehiclesEnabled;
+          var w = h.wait || {};
+          $('fWaitOn').checked = !!w.enabled;
+          $('fWaitFree').value = typeof w.freeMins === 'number' ? w.freeMins : 5;
+          $('fWaitRate').value = typeof w.ratePerMin === 'number' ? w.ratePerMin : 100;
+          var a = h.autoSurcharges || {};
+          var n = a.night || {};
+          var k = a.weekend || {};
+          var f = a.winter || {};
+          $('fNightOn').checked = !!n.enabled;
+          $('fNightFrom').value = typeof n.from === 'number' ? n.from : 22;
+          $('fNightTo').value = typeof n.to === 'number' ? n.to : 5;
+          $('fNightRate').value = typeof n.rate === 'number' ? n.rate : 1.2;
+          $('fWeekOn').checked = !!k.enabled;
+          $('fWeekRate').value = typeof k.rate === 'number' ? k.rate : 1.1;
+          $('fWinOn').checked = !!f.enabled;
+          $('fWinFrom').value = f.from || '12-15';
+          $('fWinTo').value = f.to || '03-15';
+          $('fWinRate').value = typeof f.rate === 'number' ? f.rate : 1.1;
+          $('fMin').value = typeof h.minFare === 'number' ? h.minFare : '';
+          $('fMax').value = typeof h.maxFare === 'number' ? h.maxFare : '';
+          kakuTiers();
+          kakuSur();
+          kakuVeh();
+        }
+
+        // ─── 並びの 部品（段階・割増・車種）───
+        function kumi(oya) {
+          var d = document.createElement('div');
+          d.className = 'kumi';
+          oya.appendChild(d);
+          return d;
+        }
+        function ire(oya, shurui, atai, hint, tsuke) {
+          var e = document.createElement('input');
+          e.type = shurui;
+          e.value = atai == null ? '' : atai;
+          if (hint) e.placeholder = hint;
+          if (shurui === 'number') e.inputMode = 'decimal';
+          e.oninput = function () {
+            tsuke(e.value);
+            kakinaosu();
+          };
+          oya.appendChild(e);
+          return e;
+        }
+        function tani(oya, moji) {
+          var e = document.createElement('span');
+          e.className = 'tani';
+          e.textContent = moji;
+          oya.appendChild(e);
+        }
+        function keshiBtn(oya, osu) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'keshi';
+          b.textContent = '消す';
+          b.onclick = osu;
+          oya.appendChild(b);
+        }
+
+        function kakuTiers() {
+          var root = $('tiersList');
+          root.innerHTML = '';
+          var li = (HENSHU.tiers = HENSHU.tiers || []);
+          li.forEach(function (t, i) {
+            var d = kumi(root);
+            tani(d, 'から');
+            ire(d, 'number', t.from_m, '0', function (v) {
+              li[i].from_m = Number(v) || 0;
+            });
+            tani(d, 'm まで');
+            ire(d, 'number', t.to_m == null ? '' : t.to_m, 'ずっと', function (v) {
+              li[i].to_m = v === '' ? null : Number(v);
+            });
+            tani(d, 'm ／');
+            ire(d, 'number', t.add_distance_m, '420', function (v) {
+              li[i].add_distance_m = Number(v) || 1;
+            });
+            tani(d, 'm ごとに +');
+            ire(d, 'number', t.add_fare, '100', function (v) {
+              li[i].add_fare = Number(v) || 0;
+            });
+            tani(d, '円');
+            keshiBtn(d, function () {
+              li.splice(i, 1);
+              kakuTiers();
+              kakinaosu();
+            });
+          });
+        }
+
+        function kakuSur() {
+          var root = $('surList');
+          root.innerHTML = '';
+          var li = (HENSHU.surcharges = HENSHU.surcharges || []);
+          li.forEach(function (x, i) {
+            var d = kumi(root);
+            ire(d, 'text', x.name || '', '名前', function (v) {
+              li[i].name = v;
+            });
+            ire(d, 'number', x.rate, '1.2', function (v) {
+              li[i].rate = Number(v) || 1;
+            });
+            tani(d, '倍');
+            keshiBtn(d, function () {
+              li.splice(i, 1);
+              kakuSur();
+              kakinaosu();
+            });
+          });
+        }
+
+        function kakuVeh() {
+          var root = $('vehList');
+          root.innerHTML = '';
+          var li = (HENSHU.vehicles = HENSHU.vehicles || []);
+          li.forEach(function (x, i) {
+            var d = kumi(root);
+            ire(d, 'text', x.name || '', '名前', function (v) {
+              li[i].name = v;
+            });
+            ire(d, 'number', x.multiplier, '1.0', function (v) {
+              li[i].multiplier = Number(v) || 1;
+            });
+            tani(d, '倍 ＋');
+            ire(d, 'number', x.addon, '0', function (v) {
+              li[i].addon = Number(v) || 0;
+            });
+            tani(d, '円');
+            keshiBtn(d, function () {
+              li.splice(i, 1);
+              kakuVeh();
+              kakinaosu();
+            });
+          });
+        }
+
+        function atarashiiId(atama) {
+          return atama + '_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+        }
+
+        function tashikame() {
+          var h = HENSHU;
           for (var i = 0; i < KO.length; i++) {
-            var v = Number($(KO[i].id).value);
-            if (!isFinite(v)) return null;
-            o[KO[i].key] = v;
+            if (!isFinite(Number(h[KO[i].key]))) return '数字を 入れてください。';
           }
-          return o;
-        }
-
-        // ★触っていない 設定を 消さない★＝丸ごとの 写しに 5つだけ 上書き
-        function kasaneru(kihon) {
-          var o = JSON.parse(JSON.stringify(ZENBU));
-          for (var k in kihon) o[k] = kihon[k];
-          return o;
-        }
-
-        function tashikame(kihon) {
-          if (!kihon) return '数字を 入れてください。';
-          if (kihon.base_fare < 0 || kihon.add_fare < 0)
-            return '料金に マイナスは 入れられません。';
-          if (kihon.base_distance_m < 0) return '距離に マイナスは 入れられません。';
-          if (!(kihon.add_distance_m > 0)) return '「上がる ごとの 距離」は 1以上に してください。';
-          if (!(kihon.rounding > 0)) return '「端数の 丸め」は 1以上に してください。';
+          if (h.base_fare < 0 || h.add_fare < 0) return '料金に マイナスは 入れられません。';
+          if (h.base_distance_m < 0) return '距離に マイナスは 入れられません。';
+          if (!(h.add_distance_m > 0)) return '「上がる ごとの 距離」は 1以上に してください。';
+          if (!(h.rounding > 0)) return '「端数の 丸め」は 1以上に してください。';
+          if (h.wait && h.wait.enabled) {
+            if (!(h.wait.freeMins >= 0)) return '待ち時間の「無料の 時間」を 確かめてください。';
+            if (!(h.wait.ratePerMin >= 0)) return '待ち時間の「1分あたり」を 確かめてください。';
+          }
+          var t = h.tiers || [];
+          for (var k = 0; k < t.length; k++) {
+            if (!(t[k].add_distance_m > 0)) return '段階の「◯m ごと」は 1以上に してください。';
+            if (t[k].to_m != null && t[k].to_m <= t[k].from_m)
+              return '段階の「まで」は「から」より 大きく してください。';
+          }
+          if (
+            typeof h.minFare === 'number' &&
+            typeof h.maxFare === 'number' &&
+            h.minFare > h.maxFare
+          )
+            return '下限が 上限より 大きく なっています。';
           return '';
         }
 
         function kakinaosu() {
-          var kihon = nyuuryoku();
-          var warui = tashikame(kihon);
+          atsumeru();
+          var warui = tashikame();
           showErr(warui);
-          $('btnSave').disabled = !!warui;
 
           var tb = $('mihon');
           tb.innerHTML = '';
-          var ato = warui ? null : kasaneru(kihon);
           for (var i = 0; i < MIHON_M.length; i++) {
             var m = MIHON_M[i];
             var a = ikura(ZENBU, m);
-            var b = ato ? ikura(ato, m) : null;
+            var b = warui ? null : ikura(HENSHU, m);
             var sa = a != null && b != null ? b - a : null;
             var tr = document.createElement('tr');
             var td1 = document.createElement('td');
@@ -522,15 +884,10 @@
             tb.appendChild(tr);
           }
 
-          // 元に 戻した時は 保存を 出さない
-          if (!warui && IMA) {
-            var onaji = true;
-            for (var j = 0; j < KO.length; j++) {
-              if (Number(kihon[KO[j].key]) !== Number(IMA[KO[j].key])) onaji = false;
-            }
-            $('btnSave').disabled = onaji;
-            $('oshiNote').textContent = onaji ? '変えた所は ありません。' : '';
-          }
+          // ★元に 戻した時は 保存を 出さない★（丸ごと 突き合わせる）
+          var onaji = KIJUN != null && JSON.stringify(HENSHU) === KIJUN;
+          $('btnSave').disabled = !!warui || onaji;
+          $('oshiNote').textContent = warui ? '' : onaji ? '変えた所は ありません。' : '';
         }
 
         // ★「いつ・誰」の 1行は ★自分で 組まない★★ 2026-08-31（指示役の 差し戻し2）
@@ -554,11 +911,10 @@
               ZENBU = r.config;
               UPDATED_AT = r.updated_at;
               UPDATED_BY = r.updated_by || null;
-              IMA = {};
-              for (var i = 0; i < KO.length; i++) {
-                IMA[KO[i].key] = ZENBU[KO[i].key];
-                $(KO[i].id).value = ZENBU[KO[i].key];
-              }
+              HENSHU = utsushi(ZENBU);
+              hirogeru();
+              atsumeru();
+              KIJUN = JSON.stringify(HENSHU);
               $('motoNote').textContent =
                 r.moto === 'souko'
                   ? ''
@@ -576,12 +932,12 @@
         }
 
         function hozon() {
-          var kihon = nyuuryoku();
-          if (tashikame(kihon)) return;
+          atsumeru();
+          if (tashikame()) return;
           $('btnSave').disabled = true;
           showDone('');
           showErr('');
-          window.FareConfigStore.kaku(SESS, COMPANY.company_id, kasaneru(kihon), dareNoNamae())
+          window.FareConfigStore.kaku(SESS, COMPANY.company_id, utsushi(HENSHU), dareNoNamae())
             .then(function () {
               showDone('保存しました。');
               return yomikomu();
@@ -648,9 +1004,73 @@
         };
         $('btnSave').onclick = hozon;
         $('btnUndo').onclick = modosu;
-        for (var i = 0; i < KO.length; i++) {
-          $(KO[i].id).addEventListener('input', kakinaosu);
-        }
+        // ★直した 所を すぐ 見本に 出す★（入れる所・チェック箱 全部）
+        [
+          'fBase',
+          'fBaseM',
+          'fAdd',
+          'fAddM',
+          'fRound',
+          'fTiersOn',
+          'fVehOn',
+          'fWaitOn',
+          'fWaitFree',
+          'fWaitRate',
+          'fNightOn',
+          'fNightFrom',
+          'fNightTo',
+          'fNightRate',
+          'fWeekOn',
+          'fWeekRate',
+          'fWinOn',
+          'fWinFrom',
+          'fWinTo',
+          'fWinRate',
+          'fMin',
+          'fMax',
+        ].forEach(function (id) {
+          var e = $(id);
+          if (!e) return;
+          e.addEventListener('input', kakinaosu);
+          e.addEventListener('change', kakinaosu);
+        });
+
+        $('btnTierAdd').onclick = function () {
+          HENSHU.tiers = HENSHU.tiers || [];
+          var mae = HENSHU.tiers[HENSHU.tiers.length - 1];
+          HENSHU.tiers.push({
+            from_m: mae && mae.to_m != null ? mae.to_m : HENSHU.base_distance_m || 1000,
+            to_m: null,
+            add_distance_m: HENSHU.add_distance_m || 420,
+            add_fare: HENSHU.add_fare || 100,
+          });
+          $('fTiersOn').checked = true;
+          kakuTiers();
+          kakinaosu();
+        };
+        $('btnSurAdd').onclick = function () {
+          HENSHU.surcharges = HENSHU.surcharges || [];
+          HENSHU.surcharges.push({
+            id: atarashiiId('s'),
+            name: '割増' + (HENSHU.surcharges.length + 1),
+            rate: 1.2,
+          });
+          kakuSur();
+          kakinaosu();
+        };
+        $('btnVehAdd').onclick = function () {
+          HENSHU.vehicles = HENSHU.vehicles || [];
+          HENSHU.vehicles.push({
+            id: atarashiiId('v'),
+            name: '車種' + (HENSHU.vehicles.length + 1),
+            multiplier: 1.0,
+            addon: 0,
+            default: HENSHU.vehicles.length === 0,
+          });
+          $('fVehOn').checked = true;
+          kakuVeh();
+          kakinaosu();
+        };
       })();
     </script>
   </body>
