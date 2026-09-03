@@ -990,7 +990,28 @@
              司さん「売上1,2.3とかもここで並べ変えや名前を決めれるようにしたら楽」
              今まで名前は売上表でしか付けられず、並びは決められなかった。 -->
         <div class="card car-pane">
-          <div class="title" style="font-weight: 800; margin-bottom: 4px">車の名前と並び</div>
+          <div class="title" style="font-weight: 800; margin-bottom: 4px">
+            給料明細に 出す 車の 売上
+          </div>
+          <!-- ★★車ごとの売上の 決めごとを 1か所に まとめた★★ 2026-09-03（司さん）
+               司さん「給料明細の車ごとの売上は？ 自由に設定できるようにしたのに どこで設定するんど」
+               ★実測（2026-09-03）★ 3つが ★別々の 場所★に 散っていた:
+                 ①会社ぜんぶ … 「売上の分け方」の ★一番下★
+                 ②車ごと ……… 「車の名前と並び」の 中
+                 ③人ごと ……… ★別のタブ（従業員）★の「明細に出す車」
+               ⇒ ①②を ★この箱の 頭に まとめ★、③へは ★1押しで 飛べる★ようにした。
+               ★押す手間は 増やしていません★（元から 1押しで 出来ていた物は そのまま）。 -->
+          <label class="hako" style="margin: 0 0 10px">
+            <input type="checkbox" id="showCarSales" style="width: 17px; height: 17px" />
+            <span><b>給料明細に 車ごとの売上を 載せる</b>（会社ぜんぶ）</span>
+          </label>
+          <div class="note" style="margin: 0 0 10px">
+            <b>人ごとに 変えたい</b>ときは
+            <button type="button" class="linkbtn" id="toEmpTab" style="padding: 0 2px">
+              従業員 →「明細に出す車」
+            </button>
+            で 決めます。<br />
+          </div>
           <div class="note" style="margin: 0 0 10px">
             ここで付けた名前が<b>給料明細の「売上1・売上2」</b>や売上表に出ます。<br />
             <b>並び</b>の数字が小さい車から順に「売上1・売上2…」になります。
@@ -1070,16 +1091,10 @@
                   <input type="checkbox" id="resFirst" style="width: 17px; height: 17px" />
                 </td>
               </tr>
-              <!-- ★給料明細に 車ごとの売上を載せるか★ 2026-08-25（司さん）
-                   「売り上げ（車ごと）を載せないような選べるようにするのを決めるところが欲しい」
-                   ★決めるのは社長・会社ごと★（dk_payroll_settings に持つ＝新しい棚を作らない）
-                   ★既定は 載せる＝今までと同じ見た目★ -->
-              <tr>
-                <td>給料明細に 車ごとの売上を載せる</td>
-                <td style="text-align: left">
-                  <input type="checkbox" id="showCarSales" style="width: 17px; height: 17px" />
-                </td>
-              </tr>
+              <!-- ★「給料明細に 車ごとの売上を載せる」は ここから 上の
+                   「給料明細に 出す 車の 売上」の 箱へ 移しました★ 2026-09-03（司さん）
+                   ★決めるのは社長・会社ごと★（dk_payroll_settings に持つ＝棚は そのまま）
+                   ★既定は 載せる＝今までと同じ見た目★（変えていません） -->
             </tbody>
           </table>
         </div>
@@ -1279,6 +1294,17 @@
             render();
           };
         });
+        // ★「人ごとに 変えたい」から 従業員タブへ 1押しで 飛ぶ★ 2026-09-03（司さん）
+        //   ★探し回らせない為★＝設定が 2つのタブに 分かれているのを 埋める。
+        //   ★タブの押し方は 上と 同じ物を 使う★（決まりを 2か所に 書かない）
+        (function () {
+          var b = document.getElementById('toEmpTab');
+          if (!b) return;
+          b.onclick = function () {
+            var t = document.querySelector('.tab[data-tab="emp"]');
+            if (t && t.onclick) t.onclick();
+          };
+        })();
 
         // ---------- 通信の共通 ----------
         // ★1つ失敗しても画面を殺さない★（表がまだ無くても他は出す）
