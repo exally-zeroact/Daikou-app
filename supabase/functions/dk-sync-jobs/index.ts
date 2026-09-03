@@ -96,6 +96,19 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
   if (!dev) return json({ ok: false, reason: 'unknown_device' }, 403);
 
+  // ★事務所で 付けた「車の札」を 取る (2026-09-03・司さん)★
+  //   請求書アプリの 一覧は extra の dk_car / dk_car_no で ★車ごとに 分けて 早い順★に 並べる。
+  //   ★これが 無いと 全部「手で入れた分」に まとめられる★（2026-08-25以降 実際に そうなっていた）。
+  //   ★取れなくても 送信は 絶対に 止めない★＝札が 無いだけ（今までどおり 入る）。
+  const { data: lbl } = await sb
+    .from('dk_device_labels')
+    .select('label, sort_order')
+    .eq('company_id', co.company_id)
+    .eq('device_id', device_id)
+    .maybeSingle();
+  const carLabel = (lbl?.label as string | null) || null; // 車の名前（例 4987）
+  const carNo = (lbl?.sort_order as number | null) ?? null; // 事務所で決めた並び順
+
   const accepted: number[] = [];
   const meisai: string[] = []; // 請求書アプリへ入れた/入れなかった理由
 
@@ -255,6 +268,8 @@ async function pushToInvoiceApp(
       shiftStartMs: shiftStart as number,
       trips: invoiceTrips,
       homeCity: homeCity || undefined, // ★会社ごとの地元の市★
+      carLabel: carLabel || undefined, // ★車の名前（一覧を 車ごとに 分ける為）2026-09-03★
+      carNo: carNo === null ? undefined : carNo, // ★事務所で決めた並び順★
     });
     if (!bizDate) return 'skip:業務開始の日付が読めない';
     if (!rows.length) return 'skip:入れる代行が0件';

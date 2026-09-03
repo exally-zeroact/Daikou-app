@@ -112,6 +112,15 @@ function buildMeisaiRows(opts) {
   const trips = Array.isArray(opts.trips) ? opts.trips : [];
   const done = opts.done instanceof Set ? opts.done : new Set(opts.done || []);
   const homeCity = opts.homeCity || HOME_CITY_DEFAULT; // ★地元の市（既定 今治市）★
+  // ★車の札 (2026-09-03・司さん)★
+  //   一覧は extra の dk_car / dk_car_no で ★車ごとに 分けて 早い順★ に 並べる。
+  //   ★これが 無いと 全部「手で入れた分」に まとめられる★（8/25以降 実際に そうなっていた）。
+  //   出どころ … 事務所で 付けた札 daikome.dk_device_labels（label＝車の名前 / sort_order＝並び順）
+  //   ★取れない時は 足さない★＝空文字や 0 を 作らない（＝「車が無い」と 読まれる物を 作らない）
+  const carLabel =
+    typeof opts.carLabel === 'string' && opts.carLabel.trim() ? opts.carLabel.trim() : null;
+  const _carNoRaw = Number(opts.carNo);
+  const carNo = isFinite(_carNoRaw) && _carNoRaw > 0 ? _carNoRaw : null;
 
   const date = businessDate(shiftStart);
   if (!date) return [];
@@ -147,6 +156,9 @@ function buildMeisaiRows(opts) {
         dk_from: placeText(t.start_address, homeCity), // 出発地（標準の列に無い）
         dk_source: 'daikome',
         dk_distance_m: typeof t.distance_m === 'number' ? t.distance_m : null, // ★正確な距離★
+        // ★車の札 (2026-09-03)★ 取れた時だけ 足す（無い時は キーごと 作らない）
+        ...(carLabel === null ? {} : { dk_car: carLabel }),
+        ...(carNo === null ? {} : { dk_car_no: carNo }),
       },
     }));
 }
