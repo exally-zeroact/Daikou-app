@@ -180,6 +180,40 @@
         overflow-x: auto;
       }
 
+      /* ★★60行に なった 見本を 画面から あふれさせない★★ 2026-09-03（司さん「折りたたみにしとんか？」）
+         ★折りたたみ（もう1押し）には しません★＝前は 押さずに 見えていた 物を
+         2段に 落とさない（司さん 2026-08-31）。
+         ⇒ ★箱の 中で 縦に すべる★＝押す手間は ★増えません★。
+         ★見出しは 上に 貼り付けます★＝すべっても「走った距離／今の料金表…」が 消えない。 */
+      .mihon-box {
+        max-height: 46vh;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* ★並び順の 決まり★ 細かい方（thead th）を 後に 書く
+         （stylelint no-descending-specificity＝ゆるい方が 先） */
+      .mihon-box td,
+      .mihon-box th {
+        padding: 6px 9px;
+      }
+
+      .mihon-box thead th {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 1;
+      }
+
+      .kazu {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 6px 0 0;
+        font-weight: 700;
+      }
+
       .msg {
         text-align: center;
         color: var(--muted);
@@ -376,9 +410,12 @@
           </div>
           <div class="err" id="err" style="display: none"></div>
           <div class="done" id="done" style="display: none"></div>
-          <div class="note">
-            例）最初 1,300円 で 1,000m まで、その先 420m ごとに 100円 ずつ 上がる。<br />
-            <b>端数の 丸め</b>＝10 なら 10円ごとに 切り上げます（1 なら 丸めません）。
+          <!-- ★説明を 決め打ちに しない★ 2026-09-03（司さん「説明の1000mまでの解釈が違うやろが」）
+               ★入れた数字から 組み立てる★＝js/fare-calc.js の setsumeiBun（★メーターと 同じファイル★）。
+               前は 金額も 距離も ★決め打ちの 文★でした（1,300円/1,000m と 直に 書いてあった）。
+               ★999 と 入れても 1,000m まで と 出ていた＝嘘★だった。 -->
+          <div class="note" id="fareSetsumei">
+            <!-- ここは 画面が 入れます（入れた数字から 組み立てた 文） -->
           </div>
         </div>
 
@@ -495,7 +532,10 @@
 
         <div class="card">
           <div class="ttl">この 料金表だと いくらか（上の 数字を 変えると すぐ 変わります）</div>
-          <div class="scroller">
+          <!-- ★上がる境目を 全部 出すので 行が 多い★ 2026-09-03
+               ⇒ ★箱の 中で すべらせる★（折りたたみ＝もう1押し には しない） -->
+          <div class="kazu" id="mihonKazu"></div>
+          <div class="scroller mihon-box">
             <table>
               <thead>
                 <tr>
@@ -585,8 +625,51 @@
           $('done').textContent = t || '';
         }
 
-        // 見本に 使う 距離（m）… 段の 境目を またぐ 所を 選んでいます
-        var MIHON_M = [500, 1000, 1001, 1420, 2000, 5000, 10000];
+        // ★★見本に 使う 距離（m）を 入れた数字から 作る★★ 2026-09-03（司さん「料金表ももっと細かく見せろ」）
+        //   ★前は 7つの 決め打ち★（500/1000/1001/1420/2000/5000/10000）でした。
+        //   ⇒ ★上がる境目を 全部 出す★＝「◯m まで ◯円」が 一目で 分かる。
+        //   ・境目 … 基本の距離 と その1m先、その後は 刻みごと
+        //   ・区切りの キロ（1/2/3/5/10/15/20km）も 足す（探しやすさ）
+        //   ・段階（tiers）を 使っている 時は ★その段の 境目★を 使う
+        //   ★多すぎても 読めない★ので 30km まで／60行まで。
+        function mihonKyori(h) {
+          var out = [];
+          var base = Number(h && h.base_distance_m) || 0;
+          if (base > 0) {
+            out.push(base);
+            out.push(base + 1);
+          }
+          var tiers = h && Array.isArray(h.tiers) ? h.tiers : [];
+          if (h && h.tiersEnabled && tiers.length) {
+            for (var t = 0; t < tiers.length; t++) {
+              var ti = tiers[t];
+              var from = Number(ti && ti.from_m) || 0;
+              var ad = Number(ti && ti.add_distance_m) || 0;
+              var to = ti && ti.to_m != null ? Number(ti.to_m) : from + 10000;
+              if (from > 0) out.push(from, from + 1);
+              if (ad > 0)
+                for (var k = 1; k <= 40 && from + k * ad <= to; k++) out.push(from + k * ad);
+            }
+          } else {
+            var add = Number(h && h.add_distance_m) || 0;
+            if (add > 0) for (var j = 1; j <= 60; j++) out.push(base + j * add);
+          }
+          [1000, 2000, 3000, 5000, 10000, 15000, 20000].forEach(function (m) {
+            out.push(m);
+          });
+          var mita = {};
+          return out
+            .filter(function (m) {
+              if (!(m > 0) || m > 30000) return false;
+              if (mita[m]) return false;
+              mita[m] = 1;
+              return true;
+            })
+            .sort(function (a, b) {
+              return a - b;
+            })
+            .slice(0, 60);
+        }
 
         function yen(n) {
           return n == null ? '—' : Number(n).toLocaleString('ja-JP') + '円';
@@ -860,6 +943,32 @@
           var warui = tashikame();
           showErr(warui);
 
+          // ★説明文を 入れた数字から 組み立てる★ 2026-09-03
+          //   ★決まりは メーターと 同じ ファイル★（js/fare-calc.js の setsumeiBun）＝2か所に 書かない。
+          //   前は 金額も 距離も ★決め打ちの 文★でした。999 と入れても 1,000m と出ていた。
+          try {
+            /* global FareCalc */
+            var setsu = $('fareSetsumei');
+            if (setsu) {
+              setsu.textContent = FareCalc.setsumeiBun(HENSHU);
+            }
+          } catch (_) {
+            /* 出せなくても 料金表の 保存は 止めない */
+          }
+
+          var MIHON_M = mihonKyori(HENSHU);
+          // ★何行 出ているかを 書く★ 2026-09-03（箱の 中で すべるので 全部 在る事が 見えない為）
+          try {
+            var kz = $('mihonKazu');
+            if (kz) {
+              kz.textContent =
+                '全 ' +
+                MIHON_M.length +
+                ' 行（料金が 上がる 境目を 全部 出しています。箱の 中を 上下に 動かせます）';
+            }
+          } catch (_) {
+            /* 出せなくても 料金表の 保存は 止めない */
+          }
           var tb = $('mihon');
           tb.innerHTML = '';
           for (var i = 0; i < MIHON_M.length; i++) {

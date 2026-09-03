@@ -148,8 +148,51 @@ const FareCalc = (() => {
     return fare;
   }
 
+  // ★★料金表の 説明文を「入れた数字」で 組み立てる★★ 2026-09-03（司さん）
+  //   ★司さんの言葉★「説明の1000mまでの解釈が違うやろが メーターのコード確認しろ」
+  //
+  //   ★何が 嘘だったか★
+  //     事務所の 画面に 「例）最初 1,300円 で 1,000m まで…」と ★決め打ちで 書いてあった★。
+  //     999 と 入れても 「1,000m まで」と 出る＝★入れた数字と 違う事を 言っていた★。
+  //
+  //   ★ここで 書く 理由★
+  //     ★お金の 決まりは 上の keisan が 正★。説明も ★同じファイルで 作る★＝
+  //     ★2か所に 書かない★（片方だけ 直って 食い違う のを 防ぐ）。
+  //
+  //   ★「ちょうど」の 事★
+  //     keisan は `distanceM <= base_distance_m` ＝ ★入れた距離 ちょうども 基本料金★。
+  //     ここが 司さんの 言う「解釈」。★説明にも そう 書く★。
+  function _kuv(n) {
+    return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  function setsumeiBun(config) {
+    const c = config || {};
+    const kyori = Number(c.base_distance_m) || 0;
+    const kingaku = Number(c.base_fare) || 0;
+    const kizami = Number(c.add_distance_m) || 0;
+    const agaru = Number(c.add_fare) || 0;
+    const maru = Number(c.rounding) || 1;
+    let s =
+      '最初 ' +
+      _kuv(kingaku) +
+      '円 で ' +
+      _kuv(kyori) +
+      'm まで（' +
+      _kuv(kyori) +
+      'm ちょうども ' +
+      _kuv(kingaku) +
+      '円）。';
+    if (kizami > 0 && agaru > 0) {
+      s += 'その先 ' + _kuv(kizami) + 'm ごとに ' + _kuv(agaru) + '円 ずつ 上がります。';
+    }
+    if (maru > 1) s += '端数は ' + _kuv(maru) + '円ごとに 丸めます。';
+    else s += '端数は 丸めません。';
+    return s;
+  }
+
   return {
     keisan,
+    setsumeiBun,
     _autoMul,
   };
 })();
