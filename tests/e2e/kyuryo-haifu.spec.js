@@ -1,0 +1,109 @@
+// ============================================================
+// ★★事務所が 従業員へ 配る（QR・URL）★★ 2026-09-03（司さん）
+//
+//   ★ここで 見張る 事★
+//     ①「配る」を 押すと ★人ごとに 1枚★ 出る（QRも 人数ぶん）
+//     ②★パスワードを まだ 決めていない人だけ★ URL に 初回コード(&c=)が 付く
+//       ⇒★決めた人の URL に 初回コードを 付けない★（付けると パスワードを 上書きできてしまう）
+//     ③画面に ★★（星）が 字として 出ていない★（絵を 開いて 気づいた・2026-09-03）
+//
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-04 実測）★★
+//     ①決めた人にも 初回コードを 付ける … ★1本 赤★
+//     ②QRを 出すのを やめる ……………… ★1本 赤★
+//     戻した後 … ★緑★
+// ============================================================
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+const FIX = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'kyuryo-real.json'), 'utf8')
+);
+const OUT = 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/';
+const LIST = [
+  {
+    employee_id: 'e1',
+    name: 'テスト太郎',
+    token: '7c4383b6aaaa1111bbbb2222cccc3333',
+    init_code: '07041B0C',
+    pw_ari: false,
+    sort_order: 1,
+  },
+  {
+    employee_id: 'e2',
+    name: 'テスト次郎',
+    token: '3b7433a6dddd4444eeee5555ffff6666',
+    init_code: null,
+    pw_ari: true,
+    sort_order: 2,
+  },
+];
+test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だけ★', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 950 });
+  const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
+  const tsugi =
+    moto +
+    ';(function(){var F=' +
+    JSON.stringify(FIX) +
+    ';' +
+    'var co={company_id:F.settings[0].company_id,name:"見張り用"};' +
+    'function rows(p){' +
+    ' if(p.indexOf("dk_employees")===0)return F.emps||[];' +
+    ' if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +
+    ' if(p.indexOf("dk_payroll_settings")===0)return F.settings||[];' +
+    ' if(p.indexOf("dk_shifts")===0)return F.shifts||[];' +
+    ' if(p.indexOf("dk_shift_edits")===0)return F.edits||[];' +
+    ' if(p.indexOf("dk_work_hours")===0)return F.workHours||[];' +
+    ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[];' +
+    ' return [];}' +
+    'var S=window.DKSession;S.ensure=function(){return Promise.resolve({token:"dummy"});};' +
+    'S.goLogin=function(){};S.logout=function(){};' +
+    'S.rememberedCompanyId=function(){return co.company_id;};' +
+    'S.pickCompany=function(){return {mode:"one",company:co};};' +
+    'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
+    'S.rest=function(s,p,o){' +
+    '  if(String(p).indexOf("rpc/dk_kyuryo_haifu")===0)return Promise.resolve({json:function(){return Promise.resolve({ok:true,list:' +
+    JSON.stringify(LIST) +
+    '});}});' +
+    '  if(String(p).indexOf("rpc/dk_kyuryo_saihakkou")===0)return Promise.resolve({json:function(){return Promise.resolve({ok:true,init_code:"NEW11111"});}});' +
+    '  return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
+    'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();';
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: tsugi })
+  );
+  page.on('pageerror', (e) => {
+    throw e;
+  });
+  await page.goto('/kyuryo.html');
+  await page.waitForTimeout(1800);
+  await page.locator('.tab[data-tab="set"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('#btnHaifu').click();
+  await page.waitForTimeout(900);
+  const n = await page.locator('#haifuList .card').count();
+  const svg = await page.locator('#haifuList svg').count();
+  const url = await page.locator('#haifuList .note').first().textContent();
+  // eslint-disable-next-line no-console
+  console.log('★出た人数★ ' + n + ' ／ QR ' + svg + '個');
+  // eslint-disable-next-line no-console
+  console.log('★1人目の 字★ ' + String(url).trim().slice(0, 60));
+  const u2 = await page.evaluate(() =>
+    [...document.querySelectorAll('#haifuList .note')]
+      .map((e) => e.textContent.trim())
+      .filter((t) => t.indexOf('http') >= 0)
+  );
+  // eslint-disable-next-line no-console
+  u2.forEach((t) => console.log('   URL … ' + t.slice(0, 100)));
+  expect(n, '★人ごとの 枚数が 合いません★').toBe(2);
+  expect(svg, '★QRが 出ていません★').toBe(2);
+  // ★初回コードは 未設定の人だけ★
+  expect(u2[0], '★未設定の人の URL に 初回コードが ありません★').toContain('&c=07041B0C');
+  expect(u2[1], '★もう決めた人の URL に 初回コードが 付いています★').not.toContain('&c=');
+  // ★画面に 星が 字として 出ていない★
+  const hoshi = await page.evaluate(() => document.getElementById('haifuList').innerText || '');
+  expect(hoshi.indexOf(String.fromCharCode(9733)), '★星が 字として 出ています★').toBe(-1);
+  await page.locator('#haifuList').scrollIntoViewIfNeeded();
+  await page
+    .locator('#haifuList')
+    .locator('xpath=ancestor::div[contains(@class,"card")][1]')
+    .screenshot({ path: OUT + 'shot-haifu.png' });
+});
