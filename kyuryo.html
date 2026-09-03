@@ -1608,61 +1608,84 @@
             });
         }
 
-        // ★全員分の QRカードを 印刷★（氏名＋QR＋リンク＋初回コード＋手順）
+        // ★★全員分の QRカードを 印刷★★（氏名＋QR＋リンク＋初回コード＋手順）
         //   ★window.print() は 使わない★＝URL・日付・ページ番号が 刷られ 戻れない（この repo の 決まり）
-        //   ⇒ 他の 印刷と 同じ ★自前PDF（jsPDF）★に 揃える
+        //   ★★jsPDF の 字で 日本語は 出ません★★（2026-09-04 実測）
+        //     doc.getFontList() ＝ helvetica / courier / times / … ＝★日本語の 字が 1つも 無い★
+        //     ⇒ ★この画面の 他の 紙と 同じ やり方★＝★板(HTML)を 組んで html2canvas で 絵にして 貼る★
+        //   ★紙に URL の 字も 出す★＝★QRが 読めない 端末の 逃げ道★（2026-09-04 絵を 見て 気づいた）
         function haifuPrint() {
           if (!HAIFU.length) return;
-          // ★紙の 道具は 必要な時に 読む★（この画面に 既に 在る 仕組みを 使う＝2か所に 書かない）
+          var b = document.getElementById('btnHaifuPrint');
+          b.disabled = true;
+          b.textContent = '作っています…';
           return loadPdfLibs()
             .then(haifuPrintNow)
             .catch(function () {
-              haifuErr('印刷の 道具が 読めませんでした。もう一度 お試しください。');
+              haifuErr('紙が 作れませんでした。もう一度 お試しください。');
+            })
+            .then(function () {
+              b.disabled = false;
+              b.textContent = '全員分の QRを 印刷';
             });
         }
 
+        // ★1枚に 6人（2列×3段）★／板は A4横（この画面の 他の 紙と 同じ 大きさ）
+        function haifuSheet(bun) {
+          var el = document.createElement('div');
+          el.style.cssText =
+            'position:fixed;left:-99999px;top:0;background:#fff;width:' +
+            SHEET_W +
+            'px;height:' +
+            SHEET_H +
+            'px;padding:24px;box-sizing:border-box;font-family:inherit;' +
+            'display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:14px';
+          el.innerHTML = bun
+            .map(function (x) {
+              var url = haifuUrl(x);
+              return (
+                '<div style="border:1px dashed #999;border-radius:10px;padding:12px;' +
+                'display:flex;gap:12px;align-items:flex-start;overflow:hidden">' +
+                '<div>' +
+                qrSvg(url, 3) +
+                '</div>' +
+                '<div style="flex:1 1 auto;min-width:0">' +
+                '<div style="font-weight:800;font-size:15px">' +
+                esc(x.name || '') +
+                '　殿</div>' +
+                (x.init_code
+                  ? '<div style="font-size:12px;margin-top:4px">初回コード <b>' +
+                    esc(x.init_code) +
+                    '</b></div>'
+                  : '<div style="font-size:12px;margin-top:4px">（もう 決めてあります）</div>') +
+                '<div style="font-size:10px;margin-top:6px;word-break:break-all;color:#444">' +
+                esc(url) +
+                '</div>' +
+                '<div style="font-size:11px;margin-top:6px">スマホの カメラで このQRを 読んでください。</div>' +
+                '<div style="font-size:11px">初回だけ 自分の パスワードを 決めます（8文字以上）。</div>' +
+                '</div></div>'
+              );
+            })
+            .join('');
+          return el;
+        }
+
         function haifuPrintNow() {
-          var doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
-          var per = 6; // 1枚に 6人
-          HAIFU.forEach(function (x, i) {
-            if (i > 0 && i % per === 0) doc.addPage();
-            var k = i % per;
-            var col = k % 2;
-            var row = Math.floor(k / 2);
-            var x0 = 12 + col * 98;
-            var y0 = 14 + row * 92;
-            doc.setDrawColor(160);
-            doc.roundedRect(x0, y0, 88, 84, 3, 3);
-            doc.setFontSize(11);
-            doc.text(String(x.name || ''), x0 + 4, y0 + 8);
-            doc.setFontSize(7);
-            doc.text('スマホの カメラで このQRを 読んでください', x0 + 4, y0 + 76);
-            doc.text('初回だけ 自分の パスワードを 決めます（8文字以上）', x0 + 4, y0 + 80);
-            var url = haifuUrl(x);
-            // ★QRは 四角を 並べて 描く（画像に しない＝字が つぶれない）★
-            try {
-              var qr = window.qrcode(0, 'M');
-              qr.addData(url);
-              qr.make();
-              var n = qr.getModuleCount();
-              var cell = 52 / n;
-              doc.setFillColor(0, 0, 0);
-              for (var r2 = 0; r2 < n; r2++) {
-                for (var c2 = 0; c2 < n; c2++) {
-                  if (qr.isDark(r2, c2)) {
-                    doc.rect(x0 + 4 + c2 * cell, y0 + 12 + r2 * cell, cell, cell, 'F');
-                  }
-                }
-              }
-            } catch (e) {
-              /* QRが 描けなくても 他は 出す */
+          var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+          var mai = [];
+          for (var i = 0; i < HAIFU.length; i += 6) mai.push(HAIFU.slice(i, i + 6));
+          var tsugi = function (k) {
+            if (k >= mai.length) {
+              doc.save('kyuryo-QR-' + new Date().toISOString().slice(0, 10) + '.pdf');
+              return Promise.resolve();
             }
-            if (x.init_code) {
-              doc.setFontSize(8);
-              doc.text('初回コード ' + x.init_code, x0 + 60, y0 + 20);
-            }
-          });
-          doc.save('kyuryo-QR-' + new Date().toISOString().slice(0, 10) + '.pdf');
+            return _sheetToCanvas(haifuSheet(mai[k])).then(function (canvas) {
+              if (k > 0) doc.addPage();
+              _placeOnA4(doc, canvas);
+              return tsugi(k + 1);
+            });
+          };
+          return tsugi(0);
         }
 
         (function () {

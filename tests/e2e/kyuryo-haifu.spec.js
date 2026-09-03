@@ -10,6 +10,10 @@
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-04 実測）★★
 //     ①決めた人にも 初回コードを 付ける … ★1本 赤★
 //     ②QRを 出すのを やめる ……………… ★1本 赤★
+//   ★★③紙（PDF）が 本当に 出るか も 押す★★ 2026-09-04
+//     ★jsPDF の 字では 日本語が 出ない★（doc.getFontList に 日本語が 1つも 無い・実測）
+//     ⇒ ★この画面の 他の 紙と 同じ★＝板(HTML)を html2canvas で 絵にして 貼る 形に した。
+//     ★紙に URL の 字も 出す★＝QRが 読めない 端末の 逃げ道（絵を 見て 気づいた）
 //     戻した後 … ★緑★
 // ============================================================
 const { test, expect } = require('@playwright/test');
@@ -37,8 +41,10 @@ const LIST = [
     sort_order: 2,
   },
 ];
-test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だけ★', async ({ page }) => {
+test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だけ★', async ({ page, context }) => {
   await page.setViewportSize({ width: 430, height: 950 });
+  // ★「写す」は ブラウザの 許可が 要る★（許可が 無いと ここで 落ちる・2026-09-04 実測）
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const tsugi =
     moto +
@@ -101,6 +107,33 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   // ★画面に 星が 字として 出ていない★
   const hoshi = await page.evaluate(() => document.getElementById('haifuList').innerText || '');
   expect(hoshi.indexOf(String.fromCharCode(9733)), '★星が 字として 出ています★').toBe(-1);
+
+  // ★★紙（PDF）が 本当に 出るか★★ 2026-09-04
+  //   ★「ボタンが 在る」で 終わらせない★＝★出た紙の 大きさと 形★まで 見る。
+  //   ★jsPDF の 字では 日本語が 出ない★（doc.getFontList に 日本語が 1つも 無い・実測）
+  //   ⇒ 板(HTML)を html2canvas で 絵にして 貼る 形＝★絵が 貼れないと 紙は 極端に 小さくなる★
+  const dl = page.waitForEvent('download', { timeout: 60000 });
+  await page.locator('#btnHaifuPrint').click();
+  const d = await dl;
+  const os = require('os');
+  const p2 = path.join(os.tmpdir(), 'kyuryo-QR-mihari.pdf');
+  await d.saveAs(p2);
+  const atama = fs.readFileSync(p2).slice(0, 5).toString('latin1');
+  const ookisa = fs.statSync(p2).size;
+  // eslint-disable-next-line no-console
+  console.log('★出た紙★ ' + d.suggestedFilename() + ' ／ ' + ookisa + ' バイト ／ 頭 ' + atama);
+  expect(atama, '★PDF の 形に なっていない★').toBe('%PDF-');
+  expect(ookisa, '★紙が 小さすぎる＝絵が 貼れていない（中身が 無い）★').toBeGreaterThan(50000);
+  fs.unlinkSync(p2);
+
+  // ★URLを 写す★
+  await page.locator('[data-hcopy]').first().click();
+  await page.waitForTimeout(300);
+  expect(
+    await page.locator('[data-hcopy]').first().textContent(),
+    '★URLを 写せていません★'
+  ).toContain('写しました');
+
   await page.locator('#haifuList').scrollIntoViewIfNeeded();
   await page
     .locator('#haifuList')

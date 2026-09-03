@@ -146,20 +146,29 @@ test('★★② お金の 計算を 写さず、メーターと 同じ ファイ
   ).toBe(false);
 
   // ★★見本の 金額が 部品と 1円も 違わない★★
+  //   ★★行数を 決め打ちに しない★★ 2026-09-04
+  //     司さん「料金表ももっと細かく見せろ」で ★7行 → 60行★ に なり、
+  //     ★この見張りが 正しく 赤に なった★（直す物が 在る 赤では ない）。
+  //   ⇒ 見るのは ★「何行 出たか」では なく「出た 距離の 金額が 部品と 同じか」★
+  //     （行数を 書くと ★細かくする たびに 赤★＝見張りが 邪魔に なる）
   const r = await page.evaluate(() => {
     const rows = Array.prototype.slice.call(document.querySelectorAll('#mihon tr'));
+    // 1列目の「◯.◯◯◯ km」から ★m★ を 取り出す（画面が 出している 距離 そのもの）
+    const m = rows.map((tr) => Math.round(parseFloat(tr.children[0].textContent) * 1000));
     const gamen = rows.map((tr) => tr.children[1].textContent.replace(/[^0-9]/g, ''));
-    const cfg = window.__ZENBU_FOR_TEST || null;
-    return { gamen: gamen, n: rows.length, cfg: cfg };
+    return { m: m, gamen: gamen, n: rows.length };
   });
-  expect(r.n, '★見本の 行が ありません★').toBe(7);
-  const buhin = await page.evaluate((cfg) => {
-    const M = [500, 1000, 1001, 1420, 2000, 5000, 10000];
-    const now = new Date();
-    // ★js/fare-calc.js は const 宣言＝window には 付かない★ので 裸の名前で 呼ぶ
-    /* global FareCalc */
-    return M.map((m) => String(FareCalc.keisan(m, cfg, null, new Set(), 0, now)));
-  }, SOUKO);
+  // ★1行も 出ていない＝空で 緑に しない★
+  expect(r.n, '★見本の 行が ありません★').toBeGreaterThan(5);
+  const buhin = await page.evaluate(
+    (arg) => {
+      const now = new Date();
+      // ★js/fare-calc.js は const 宣言＝window には 付かない★ので 裸の名前で 呼ぶ
+      /* global FareCalc */
+      return arg.m.map((mm) => String(FareCalc.keisan(mm, arg.cfg, null, new Set(), 0, now)));
+    },
+    { cfg: SOUKO, m: r.m }
+  );
   expect(r.gamen, '★画面の 金額が 部品と 違います★').toEqual(buhin);
 });
 
