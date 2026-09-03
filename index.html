@@ -6633,6 +6633,11 @@
           );
           // ★2026-07-03 自己診断trace(足す①): 直近のcalibStatusをwindowに保存=debug-traceがmetaに焼く★
           window._lastCalibStatus = m.calibStatus || null;
+          // ★「見えなかった分」を 置くだけ (2026-09-03)★
+          //   business.js が 業務開始で 控え、業務終了で 差を出して 履歴に 入れます。
+          //   ★ここでは 何も 計算しません／距離にも 料金にも 触りません★
+          //   ★取れない時は null★（0 を 作らない＝「本当に 0 だった」と 読まれない様に）
+          window._lastMienai = m.mienai || null;
           // ★2026-07-04 距離内訳計装: 距離増分を「OBD∫v駆動 vs GPS(その他)駆動」で分けて累積★。
           //   同経路ブレの残り源(OBD有効点のGPS弦漏れ)を実走traceで数値化する用。距離/課金に無関与(読むだけ集計)。
           if (typeof m.pipelineDeltaM === 'number' && m.pipelineDeltaM > 0) {

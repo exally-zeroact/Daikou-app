@@ -52,6 +52,11 @@ const Business = (function () {
     //   end() で積む形にしたので、abandon() が積み直さないための目印。
     //   ★保存・復元・初期化の全部に通すこと★（1箇所でも漏れると二重に積まれる）。
     history_pushed: false,
+    // ★「見えなかった分」の 業務開始時の 控え (2026-09-03)★
+    //   数えているのは 課金の Worker の 中で、その数は ★業務を またいで 積み上がります★。
+    //   ⇒ 業務開始で ここに 控え、終了で 今の値との ★差★ を 履歴に 入れます。
+    //   ★これも 保存・復元・初期化の 全部に 通すこと★（漏れると 開き直しで 差が 出せない）。
+    mienai_base: null,
   };
 
   // ★設計変更宣言 (2026-05-14・業務リセット仕様変更):
@@ -70,6 +75,51 @@ const Business = (function () {
   const DROPPED_KEY = 'dk_history_dropped'; // 上限を超えて捨てた件数（黙って消さない）
   const UNSENT_KEEP_MAX = 200; // 30日を過ぎても残す「未送信」の上限
   const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+  // ─────────────────────────────────────────
+  // ★「見えなかった分」(2026-09-03)★
+  //   ★どこから 来るか★ 課金の Worker（map-matcher → pipeline-distance.mienakattaBun）が
+  //     数えた物を index.html が window._lastMienai に 置きます。★ここは 読むだけ★。
+  //   ★なぜ 引き算するか★ Worker の 数は ★業務を またいで 積み上がる★（tracker は
+  //     業務ごとに 作り直されない）。そのまま 入れると ★前の業務の 分まで 乗ります★。
+  //   ★取れない時は null★（★0 と 書かない★＝「本当に 0 だった」と 読まれる）
+  //   ★距離にも 料金にも 触りません★
+  // ─────────────────────────────────────────
+  function _mienaiNow() {
+    try {
+      const w = typeof window !== 'undefined' ? window : null;
+      const v = w && w._lastMienai;
+      if (!v || typeof v !== 'object') return null;
+      const n = (x) => (typeof x === 'number' && isFinite(x) ? x : null);
+      const kaisuu = n(v.kaisuu);
+      const byou = n(v.byou);
+      const m = n(v.meter);
+      if (kaisuu === null && byou === null && m === null) return null;
+      return { kaisuu: kaisuu || 0, byou: byou || 0, m: m || 0 };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 業務ごとの 差を出す。★今が 無ければ null★／★巻き戻っていたら 今の値そのもの★
+  //   （巻き戻り＝Worker が 作り直された＝configVehicle で tracker を捨てた時に起きる）
+  function _mienaiSa() {
+    const ima = _mienaiNow();
+    if (!ima) return { kaisuu: null, byou: null, m: null };
+    const moto = state.mienai_base;
+    if (!moto || typeof moto !== 'object') {
+      return { kaisuu: ima.kaisuu, byou: ima.byou, m: ima.m };
+    }
+    const hiku = (a, b) => {
+      const d = a - (typeof b === 'number' && isFinite(b) ? b : 0);
+      return d >= 0 ? +d.toFixed(2) : +a.toFixed(2); // ★マイナスにしない＝巻き戻りは 今の値★
+    };
+    return {
+      kaisuu: hiku(ima.kaisuu, moto.kaisuu),
+      byou: hiku(ima.byou, moto.byou),
+      m: hiku(ima.m, moto.m),
+    };
+  }
 
   // ─────────────────────────────────────────
   // ライフサイクル
@@ -103,6 +153,10 @@ const Business = (function () {
       // 経由地点 + 住所表示機能 (2026-05-15・業務開始時は trip 未開始のため null)
       current_trip: null,
       history_pushed: false, // ★新しい業務なので、まだ積んでいない★
+      // ★「見えなかった分」の 基準を ここで 控える (2026-09-03)★
+      //   ★abandon() が 先に 走って 前業務を 積んだ 後★なので、ここで 控えれば
+      //   前業務の 分は 入りません。取れない時は null＝差も null（0 と 書かない）。
+      mienai_base: _mienaiNow(),
     };
     // ★設計変更宣言 (2026-05-14・business_distance_m を業務開始でも 0 リセット):
     //   通常は Meter.businessEnd() で 0 リセットされるが、abandon() 経由 (前業務 limbo) や
@@ -232,6 +286,7 @@ const Business = (function () {
       // 経由地点 + 住所表示機能 (2026-05-15・abandon で trip 進行中なら破棄)
       current_trip: null,
       history_pushed: false, // ★リセット後は「まだ積んでいない」★
+      mienai_base: null, // ★業務が 無い間は 基準も 無い (2026-09-03)★
     };
     // ★ Phase 2: 業務破棄で business_active 完全停止
     if (typeof Meter !== 'undefined' && typeof Meter.setBusinessActive === 'function') {
@@ -1007,6 +1062,7 @@ const Business = (function () {
         ? Date.now() - state.start_time
         : 0;
     const elapsedH = elapsedMs / 3600000;
+    const _mie = _mienaiSa(); // ★1回だけ 出す（getReport は 画面から 何度も 呼ばれる）★
 
     return {
       start_time: state.start_time,
@@ -1024,6 +1080,13 @@ const Business = (function () {
       actual_ratio: totalM > 0 ? actualM / totalM : 0,
       avg_fare_yen: state.trip_count > 0 ? Math.round(state.fare_total_yen / state.trip_count) : 0,
       avg_speed_kmh: elapsedH > 0 ? totalM / 1000 / elapsedH : 0,
+
+      // ★「見えなかった分」＝この業務ぶんの 差 (2026-09-03)★
+      //   ★job-sync が この名前で そのまま 倉庫へ 上げます★（shift.mienai_*）
+      //   ★取れない時は null★（0 と 書かない）／★距離にも 料金にも 触っていません★
+      mienai_kaisuu: _mie.kaisuu,
+      mienai_byou: _mie.byou,
+      mienai_m: _mie.m,
 
       trips: [...state.trips],
     };
@@ -1069,6 +1132,9 @@ const Business = (function () {
         current_trip: parsed.current_trip || null,
         // ★2026-08-03★ ここを復元し忘れると、開き直したあとに同じ勤務が二重に積まれる
         history_pushed: !!parsed.history_pushed,
+        // ★2026-09-03★ ここを復元し忘れると、開き直したあとに
+        //   ★業務開始からの 差が 出せなくなる★（積み上がった数を そのまま 入れてしまう）
+        mienai_base: parsed.mienai_base || null,
       };
       // ★設計変更宣言 (2026-05-14): ロード後の自動 abandon (checkAutoAbandon) は撤去。
       //   limbo (ended=true / start_time!=null) はそのまま維持・代行開始時に abandon() で履歴 push。

@@ -328,6 +328,12 @@ function _resetPipelineTrackers() {
 //     呼出側が mmResult.pipelineDeltaSrc として meter へ渡し、source-aware k 適用に使う。
 let _lastDeltaSrc = 'gps';
 let _lastCalibStatus = null; // ★1km自動較正K の状態(見える化用)★: autoCalibK時のみ非null {K,windows,confident,...}
+// ★「見えなかった分」の 数 (2026-09-03)★: pipeline-distance が 既に 数えている物を そのまま 運ぶだけ。
+//   ★read-only＝距離の 数字には 1mmも 触りません★（calibStatus と まったく 同じ 形）。
+//   ★この数は 業務を またいで 積み上がります★（tracker は 業務ごとに 作り直されない）。
+//   ⇒ ★業務ごとの 差の 引き算は 本体側（business.js）で やります★。
+//     ここで やると Worker が 業務の 開始/終了を 知る必要が 出る＝★課金の経路を 太らせる★ため。
+let _lastMienai = null;
 function _confirmedRoadDelta(msg, outSnap) {
   _lastDeltaSrc = 'gps'; // 既定 (ingest 前/失敗/静止 = gps扱い=随伴車k非適用=安全側)
   try {
@@ -395,6 +401,13 @@ function _confirmedRoadDelta(msg, outSnap) {
       if (_lastCalibStatus) _lastCalibStatus.vehicleId = _vehicleId;
     } catch (_) {
       _lastCalibStatus = null;
+    }
+    // ★「見えなかった分」も 同じ所で 読む(read-only=距離不変) (2026-09-03)★
+    //   ★取れない時は null★＝0 を 作らない（0 と 書くと「本当に 0 だった」と 読まれる）。
+    try {
+      _lastMienai = typeof tk.mienakattaBun === 'function' ? tk.mienakattaBun() : null;
+    } catch (_) {
+      _lastMienai = null;
     }
     const confirmedDeltaM = res && typeof res.deltaM === 'number' ? res.deltaM : 0;
     return confirmedDeltaM > 0 ? confirmedDeltaM : 0;
@@ -3518,6 +3531,9 @@ self.onmessage = function (e) {
       pipelineDeltaM: _pipelineDeltaM_now,
       pipelineDeltaSrc: _pipelineDeltaSrc, // ★source-aware k: 'obd'=随伴車k適用 / 'gps'=×1.0★
       calibStatus: _lastCalibStatus, // ★1km自動較正K 見える化用(autoCalibK時のみ非null)★
+      // ★「見えなかった分」(2026-09-03)★ {kaisuu,byou,meter,nagasugi,hayasugi,sonota,umeta} or null
+      //   ★積み上がった 値のまま 運びます★（業務ごとの 差は business.js が 引きます）
+      mienai: _lastMienai,
     });
   }
 };
