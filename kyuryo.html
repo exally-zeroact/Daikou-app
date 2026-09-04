@@ -1756,14 +1756,15 @@
                 ? 'もう 自分の パスワードを 決めています（このQRは そのまま 使えます）'
                 : 'まだ パスワードを 決めていません（このQRから 決めます）') +
               '</div>' +
-              '<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">' +
+              // ★★一覧には QR も URL も 出しません★★ 2026-09-04（司さん）
+              //   「★一気に 見せる メリット ないやろが★」
+              //   ・その場で 読ませるのは ★1人ずつ（大きく 見せる）★
+              //   ・一覧の 小さい QR（152px）は ★離れて 読めない★＝使い道が 無い
+              //   ・★リンクが 鍵★＝7人ぶんを 一度に 出すと
+              //     ★その場に 居る 誰でも 全員ぶんを 撮れる★
+              //   ⇒ 一覧は ★名前と 様子と ボタンだけ★。URL は「コピー」で 渡す。
               '<div>' +
-              qrSvg(url, 4) +
-              '</div>' +
               '<div style="flex:1 1 200px;min-width:0">' +
-              '<div class="note" style="margin:0 0 6px;word-break:break-all">' +
-              esc(url) +
-              '</div>' +
               // ★★初回コードは 画面に 出しません★★ 2026-09-04（司さん）
               //   「初回コードなんか Rakunally でやってなかろが」
               //   ★Rakunally の 実物（kyuyo/js/app.js:4301）★ も

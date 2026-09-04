@@ -92,15 +92,22 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   console.log('★出た人数★ ' + n + ' ／ QR ' + svg + '個');
   // eslint-disable-next-line no-console
   console.log('★1人目の 字★ ' + String(url).trim().slice(0, 60));
+  // ★★URL は 画面に 出しません★★（2026-09-04 司さん「一気に 見せる メリット ないやろが」）
+  //   ⇒ 渡す 中身は ★コピーボタンが 持っている★ ので そこから 取る
   const u2 = await page.evaluate(() =>
-    [...document.querySelectorAll('#haifuList .note')]
-      .map((e) => e.textContent.trim())
-      .filter((t) => t.indexOf('http') >= 0)
+    [...document.querySelectorAll('#haifuList [data-hcopy]')].map((e) =>
+      e.getAttribute('data-hcopy')
+    )
   );
   // eslint-disable-next-line no-console
   u2.forEach((t) => console.log('   URL … ' + t.slice(0, 100)));
   expect(n, '★人ごとの 枚数が 合いません★').toBe(2);
-  expect(svg, '★QRが 出ていません★').toBe(2);
+  // ★★2026-09-04（司さん）「一気に 見せる メリット ないやろが」★★
+  //   ★一覧には QR を 出さない★（小さくて 読めない／全員ぶんを 撮られる）
+  //   ⇒ 出すのは ★1人ずつ「大きく 見せる」★の 時だけ
+  expect(svg, '★一覧に QR が 並んでいます（1人ずつ 見せる 決まりです）★').toBe(0);
+  const ichiranJi = await page.locator('#haifuList').innerText();
+  expect(ichiranJi, '★一覧に URL が 出ています★').not.toContain('kyuryo.html?t=');
   // ★初回コードは 未設定の人だけ★
   expect(u2[0], '★未設定の人の URL に 初回コードが ありません★').toContain('&c=07041B0C');
   expect(u2[1], '★もう決めた人の URL に 初回コードが 付いています★').not.toContain('&c=');

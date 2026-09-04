@@ -231,9 +231,10 @@ for (const d of [
     expect(suki.tate, '★縦が 引っ付いています★').toBeGreaterThanOrEqual(6);
     expect(suki.ji.join(','), '★「コピー」に なっていません★').toContain('コピー');
 
-    const chiisai = await page.evaluate(() =>
-      Math.round(document.querySelector('#haifuList svg').getBoundingClientRect().width)
-    );
+    // ★一覧には もう QR を 出しません★（2026-09-04 司さん）
+    //   ⇒ 比べる 相手は ★前の 大きさ（152px）★を そのまま 数に して 置く
+    const chiisai = 152;
+    expect(await page.locator('#haifuList svg').count(), '★一覧に QR が 並んでいます★').toBe(0);
     await page.locator('[data-hmise]').first().click();
     await page.waitForTimeout(500);
     const r = await page.evaluate(() => {
