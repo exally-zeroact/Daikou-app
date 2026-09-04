@@ -1719,6 +1719,75 @@
         // ★★明細の「QRを 見せる」★★ 2026-09-04（司さん）
         //   ★まだ 配っていない時は その場で 配ってから 見せます★
         //   （事務所の 人に「先に 設定を 開け」と 言わせない）
+        // ★★「送る」の 中身は ここ 1か所★★ 2026-09-04
+        //   ★明細からも 設定からも 同じ 物を 使う★（決まりを 2つに しない）
+        //   ・使える台（スマホ等）… ★共有シートが 出る★（LINE・メール等を 選ぶ）
+        //   ・使えない台 ………… ★コピーに 落ちる★
+        function haifuOkuru(x, botan) {
+          if (!x) return;
+          var url = haifuUrl(x);
+          // ★誰の 分か 分かる 文にする★（渡し間違いを 防ぐ）
+          var bun =
+            (x.name || '') +
+            'さん の 給料明細です。' +
+            'この リンクは 本人にだけ お使いください（リンクが 鍵です）。';
+          function moji(t) {
+            if (botan) botan.textContent = t;
+          }
+          if (typeof navigator.share === 'function') {
+            moji('送っています…');
+            navigator
+              .share({ title: '給料明細', text: bun, url: url })
+              .catch(function () {
+                // ★やめた／送れなかった★ … 黙って 元に 戻す（責めない）
+              })
+              .then(function () {
+                moji('送る');
+              });
+            return;
+          }
+          // ★使えない台★ … コピーに 落ちる
+          try {
+            navigator.clipboard.writeText(bun + ' ' + url);
+            moji('コピーしました');
+          } catch (e) {
+            moji('コピーできません');
+          }
+          setTimeout(function () {
+            moji('送る');
+          }, 1500);
+        }
+
+        // ★★明細の「送る」★★ 2026-09-04（司さん「ないやないか」）
+        //   ★まだ 配っていない時は その場で 配ってから 送る★
+        //   中身は 設定タブの「送る」と ★同じ 1か所★（決まりを 2つに しない）
+        function meisaiOkuru(eid) {
+          if (!eid) return;
+          var x = null;
+          for (var i = 0; i < HAIFU.length; i++) {
+            if (String(HAIFU[i].employee_id) === String(eid)) x = HAIFU[i];
+          }
+          if (x) {
+            haifuOkuru(x, document.querySelector('[data-meisai-okuru="' + eid + '"]'));
+            return;
+          }
+          haifuHitori(eid).then(function () {
+            for (var i = 0; i < HAIFU.length; i++) {
+              if (String(HAIFU[i].employee_id) === String(eid)) {
+                haifuOkuru(HAIFU[i], document.querySelector('[data-meisai-okuru="' + eid + '"]'));
+                return;
+              }
+            }
+            haifuMado(
+              '<div style="font-weight:800;font-size:18px;text-align:center;max-width:20em">' +
+                'この人の リンクは 作れませんでした</div>' +
+                '<div class="note" style="text-align:center;max-width:22em">' +
+                '「従業員」に 今 居るか 確かめてください。</div>' +
+                '<div class="note">（どこかを 押すと 閉じます）</div>'
+            );
+          });
+        }
+
         function meisaiQr(eid) {
           if (!eid) return;
           var aru = false;
@@ -1835,10 +1904,12 @@
               //   ・使える台（スマホ等）… ★共有シートが 出る★（LINE・メール等を 選ぶ）
               //   ・使えない台 ………… ★コピーに 落ちる★（今までと 同じ）
               //   ★誰の 分か 名前も 一緒に 送る★（渡し間違いを 防ぐ）
+              // ★data-url-mihari … 見張りが 中身を 確かめる 為の 印★
+              //   （画面には 出しません／送る 中身は haifuOkuru が 作ります）
               '<button class="btn sub2 chi" type="button" data-hokuru="' +
+              esc(x.employee_id) +
+              '" data-url-mihari="' +
               esc(url) +
-              '" data-hna="' +
-              esc(x.name || '') +
               '">送る</button>' +
               '<button class="btn sub2 chi" type="button" data-hsai="' +
               esc(x.employee_id) +
@@ -1854,6 +1925,8 @@
           var t = ev.target;
           var q = t && t.getAttribute && t.getAttribute('data-meisai-qr');
           if (q) meisaiQr(q);
+          var mo = t.getAttribute && t.getAttribute('data-meisai-okuru');
+          if (mo) meisaiOkuru(mo);
         });
 
         // ★★1人ぶんだけ 配る★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
@@ -1928,35 +2001,8 @@
             }
             var ok = t.getAttribute && t.getAttribute('data-hokuru');
             if (ok) {
-              var na = t.getAttribute('data-hna') || '';
-              // ★誰の 分か 分かる 文にする★（渡し間違いを 防ぐ）
-              var bun =
-                na +
-                'さん の 給料明細です。' +
-                'この リンクは 本人にだけ お使いください（リンクが 鍵です）。';
-              // ★使える台なら 共有シート★（LINE・メール・メッセージ を 選べる）
-              if (typeof navigator.share === 'function') {
-                t.textContent = '送っています…';
-                navigator
-                  .share({ title: '給料明細', text: bun, url: ok })
-                  .catch(function () {
-                    // ★やめた／送れなかった★ … 黙って 元に 戻す（責めない）
-                  })
-                  .then(function () {
-                    t.textContent = '送る';
-                  });
-                return;
-              }
-              // ★使えない台★ … コピーに 落ちる（今までと 同じ）
-              try {
-                navigator.clipboard.writeText(bun + ' ' + ok);
-                t.textContent = 'コピーしました';
-              } catch (e) {
-                t.textContent = 'コピーできません';
-              }
-              setTimeout(function () {
-                t.textContent = '送る';
-              }, 1500);
+              // ★中身は haifuOkuru 1か所★（明細からも 同じ 物を 使う）
+              haifuOkuru(haifuHito(ok), t);
               return;
             }
             var sai = t.getAttribute && t.getAttribute('data-hsai');
@@ -2960,11 +3006,19 @@
               //   「明細の この人のPDFを 消して QRコードか URLを 配るボタン 作って」
               //   ⇒ ★紙を 作って 送るのでは なく、その場で QR を 見せる★
               //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
+              // ★★明細にも「送る」を 出します★★ 2026-09-04（司さん「ないやないか」）
+              //   ★渡し方の 2つ（見せる／送る）は 同じ 場所に 並べる★
+              //   ★ボタンは 箱に 入れる★（裸で 並べると 折り返しで くっつく）
               (HONNIN
                 ? ''
-                : '<button class="btn ghost noprint" data-meisai-qr="' +
+                : '<div class="noprint" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">' +
+                  '<button class="btn ghost noprint" data-meisai-qr="' +
                   esc(e.employee_id || '') +
-                  '">QRを 見せる</button>') +
+                  '">QRを 見せる</button>' +
+                  '<button class="btn ghost noprint" data-meisai-okuru="' +
+                  esc(e.employee_id || '') +
+                  '">送る</button>' +
+                  '</div>') +
               '</div>' +
               '</div>';
 

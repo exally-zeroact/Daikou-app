@@ -133,3 +133,45 @@ test('★共有シートが 無い台＝コピーに 落ちる★', async ({ pag
   await page.waitForTimeout(1400);
   expect(await b.textContent(), '★字が 元に 戻っていません★').toContain('送る');
 });
+
+// ★★明細からも 送れる★★ 2026-09-04（司さん「ないやないか」）
+//   ★明細には「QRを 見せる」しか 無く、「送る」は 設定タブの 中だけ だった★
+//   ★★わざと壊して 赤に なる事を 見た★★ … 明細の「送る」を 消す ⇒ ★赤★
+test('★明細の「送る」で 共有シートが 出る★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(__dirname),
+    })
+  );
+  await page.addInitScript(() => {
+    window.__SHARE__ = [];
+    navigator.share = function (d) {
+      window.__SHARE__.push(d);
+      return Promise.resolve();
+    };
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/kyuryo.html');
+  await page.waitForTimeout(1800);
+  // ★明細タブの まま★（設定タブは 開かない）
+  const b = page.locator('[data-meisai-okuru]').first();
+  await b.waitFor({ state: 'visible', timeout: 8000 });
+  console.log('★明細の ボタンの 字★ ' + (await b.textContent()).trim());
+  await b.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/shot-meisai-botan.png',
+  });
+  expect((await b.textContent()).trim(), '★字が「送る」で ありません★').toBe('送る');
+  await b.click();
+  await page.waitForTimeout(1500);
+  const d = await page.evaluate(() => window.__SHARE__);
+  console.log('★共有シートに 渡した 物★ ' + JSON.stringify(d));
+  expect(d.length, '★明細から 共有シートを 呼んでいません★').toBe(1);
+  expect(d[0].url, '★リンクを 渡していません★').toContain('kyuryo.html?t=');
+  expect(d[0].text, '★誰の 分か 書いていません★').toContain(FIX.emps[0].name);
+  expect(err, '★画面が 落ちました★').toEqual([]);
+});

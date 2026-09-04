@@ -119,7 +119,7 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   //   ⇒ 渡す 中身は ★「送る」ボタンが 持っている★ ので そこから 取る
   const u2 = await page.evaluate(() =>
     [...document.querySelectorAll('#haifuList [data-hokuru]')].map((e) =>
-      e.getAttribute('data-hokuru')
+      e.getAttribute('data-url-mihari')
     )
   );
   // eslint-disable-next-line no-console
@@ -163,7 +163,7 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   //   （別に 出すと「2つ目の 鍵」に 見えて、本人が 打つ 物だと 思われる）
   expect(naka, '★リンクが 鍵だと 言っていません★').toContain('リンクは 本人にだけ 渡してください');
   // ★URL の 中（?c=）には 在る事★＝本人は 打たなくてよい（上の u2 で 見ている）
-  const url1 = await page.locator('[data-hokuru]').first().getAttribute('data-hokuru');
+  const url1 = await page.locator('[data-hokuru]').first().getAttribute('data-url-mihari');
   expect(url1, '★URL に 初回コードが 埋まっていません★').toContain('&c=07041B0C');
 
   // ★★「全員分の QRを 印刷」を やめました★★ 2026-09-04（司さん「これいらんやろが」）
