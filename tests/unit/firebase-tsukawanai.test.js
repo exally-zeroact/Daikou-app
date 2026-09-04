@@ -225,18 +225,38 @@ describe('★Firebase は 使わない★', () => {
           '$1 '
         );
     const ATENA = /firebasedatabase\.app|firebaseio\.com|gstatic\.com\/firebasejs|firebasestorage/;
-    // ★git に 入っている 物だけ★（客に 届くのは これだけ・手元のゴミは 数えない）
-    const ima = [];
-    let mita = 0;
-    // ★data/ は 外す★ … 道路データ（機械が 作った 地図の 数字）で ★1本が 何十MB★。
-    //   ここまで 読むと ★54秒★ かかり 時間切れで 赤に なる（2026-09-04 実測）。
-    //   ★コードでは 無い★ので 送り先は 入らない。
-    for (const rel of gitNoFile(['*.js', '*.mjs', '*.cjs', '*.html', ':(exclude)data/**'])) {
-      const p = path.join(ROOT, rel);
-      if (!fs.existsSync(p)) continue;
-      mita++;
-      if (ATENA.test(kesu(fs.readFileSync(p, 'utf8')))) ima.push(rel);
+    // ★★全部 読むのを やめました（2026-09-04）★★
+    //   ★504本を 1本ずつ 読んで ★4,980ms★ かかっていました★
+    //   ＝試験の 制限（5,000ms）の ぎりぎり ⇒ ★他の 試験と 並ぶと たまに 赤★
+    //     （実測：単独 614ms／全部 走らせると 時間切れ。2026-09-04 に 2回 出た）
+    //   ⇒ ★git grep で 候補を 先に 絞る★（★37ms★）
+    //     ★注記を 消す 前★の 字で 探すので ★候補は 必ず 本物より 多い★
+    //     （注記を 消して 増える事は 無い）⇒ ★見落としません★
+    //   ★data/ は 外す★ … 道路データ（機械が 作った 地図の 数字）で 1本が 何十MB。
+    //     ★コードでは 無い★ので 送り先は 入らない。
+    const KATA = ['*.js', '*.mjs', '*.cjs', '*.html', ':(exclude)data/**'];
+    const zenbu = gitNoFile(KATA);
+    const mita = zenbu.length;
+    let kouho = [];
+    try {
+      kouho = require('child_process')
+        .execFileSync('git', ['grep', '-l', '-I', '-E', ATENA.source, '--'].concat(KATA), {
+          cwd: ROOT,
+          encoding: 'utf8',
+          maxBuffer: 16 * 1024 * 1024,
+        })
+        .split(/\r?\n/)
+        .filter(Boolean);
+    } catch (e) {
+      // ★git grep は 1本も 見つからないと 終了コード 1 を 返します★（失敗では ない）
+      if (e.status !== 1) throw e;
+      kouho = (e.stdout || '').split(/\r?\n/).filter(Boolean);
     }
+    // ★候補だけ 注記を 消して もう一度 見る★（説明文に 名前が 出るだけの 物を 外す）
+    const ima = kouho.filter((rel) => {
+      const p = path.join(ROOT, rel);
+      return fs.existsSync(p) && ATENA.test(kesu(fs.readFileSync(p, 'utf8')));
+    });
     // ★何本 見たかも 数える★（0本を 見て 緑に しない）
     expect(mita, '★ファイルを ほとんど 見つけられていません★').toBeGreaterThan(300);
     const meibo = Object.keys(NOKORI).sort();
