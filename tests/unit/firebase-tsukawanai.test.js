@@ -58,20 +58,28 @@ function yomu(rel) {
 //   ★Firebase の SDK 2本 + firebase-config.js + firebase.js を 読み込んだまま★
 //   ★本番で 生きていました★（HTTP 200・どこからも リンクは 無い）。
 //   ⇒ ★名簿を やめて 機械に 全部 数えさせます★
+// ★★歩き回るのを やめました（2026-09-04）★★
+//   ★本番で 時間切れ（5秒）に なって 赤に なりました★
+//   ・場所を 601か所 歩いて ★1,868ms★／画面は ★69枚★ 見つかっていた
+//   ・その内 ★48枚は tmp/ の 手元のゴミ★＝客には 1枚も 届かない物
+//   ⇒ ★git に 入っている 物だけ 数えます★
+//     （Vercel は git から 配ります＝★git に 無い物は 客に 届かない★）
+//   ⇒ 数え直しも 1回だけに します（同じ物を 2回 数えない）
+let _gamenOboe = null;
+function gitNoFile(katachi) {
+  return require('child_process')
+    .execFileSync('git', ['ls-files', '-z'].concat(katachi), {
+      cwd: ROOT,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    .split('\0')
+    .filter(Boolean)
+    .sort();
+}
 function zenGamen() {
-  const deta = [];
-  const oku = ['node_modules', '.git', 'coverage', 'data', 'dist'];
-  (function aruku(d, fukasa) {
-    if (fukasa > 4) return;
-    for (const na of fs.readdirSync(d)) {
-      if (oku.indexOf(na) >= 0) continue;
-      const p = path.join(d, na);
-      const st = fs.statSync(p);
-      if (st.isDirectory()) aruku(p, fukasa + 1);
-      else if (na.endsWith('.html')) deta.push(path.relative(ROOT, p).split(path.sep).join('/'));
-    }
-  })(ROOT, 0);
-  return deta.sort();
+  if (!_gamenOboe) _gamenOboe = gitNoFile(['*.html']);
+  return _gamenOboe;
 }
 
 // ★画面が 読み込む 物だけを 見る★（説明文に 名前が 出るのは 構わない）
@@ -204,7 +212,7 @@ describe('★Firebase は 使わない★', () => {
       'tests/unit/firebase-config-constants.test.js':
         '★中身を 読むだけの 見張り★ … firebase-config.js の 形を 見る（vm・繋ぎません）',
     };
-    const oku = ['node_modules', '.git', 'coverage', 'dist', 'data'];
+
     const kesu = (x) =>
       x
         .replace(/<!--[\s\S]*?-->/g, ' ')
@@ -217,22 +225,18 @@ describe('★Firebase は 使わない★', () => {
           '$1 '
         );
     const ATENA = /firebasedatabase\.app|firebaseio\.com|gstatic\.com\/firebasejs|firebasestorage/;
+    // ★git に 入っている 物だけ★（客に 届くのは これだけ・手元のゴミは 数えない）
     const ima = [];
     let mita = 0;
-    (function aruku(d, fukasa) {
-      if (fukasa > 6) return;
-      for (const na of fs.readdirSync(d)) {
-        if (oku.indexOf(na) >= 0) continue;
-        const p = path.join(d, na);
-        if (fs.statSync(p).isDirectory()) {
-          aruku(p, fukasa + 1);
-        } else if (/\.(js|mjs|cjs|html)$/.test(na)) {
-          mita++;
-          if (ATENA.test(kesu(fs.readFileSync(p, 'utf8'))))
-            ima.push(path.relative(ROOT, p).split(path.sep).join('/'));
-        }
-      }
-    })(ROOT, 0);
+    // ★data/ は 外す★ … 道路データ（機械が 作った 地図の 数字）で ★1本が 何十MB★。
+    //   ここまで 読むと ★54秒★ かかり 時間切れで 赤に なる（2026-09-04 実測）。
+    //   ★コードでは 無い★ので 送り先は 入らない。
+    for (const rel of gitNoFile(['*.js', '*.mjs', '*.cjs', '*.html', ':(exclude)data/**'])) {
+      const p = path.join(ROOT, rel);
+      if (!fs.existsSync(p)) continue;
+      mita++;
+      if (ATENA.test(kesu(fs.readFileSync(p, 'utf8')))) ima.push(rel);
+    }
     // ★何本 見たかも 数える★（0本を 見て 緑に しない）
     expect(mita, '★ファイルを ほとんど 見つけられていません★').toBeGreaterThan(300);
     const meibo = Object.keys(NOKORI).sort();
