@@ -534,7 +534,13 @@
         border: 1px solid var(--line);
         border-radius: 8px;
         padding: 4px 6px;
-        font-size: 13px;
+
+        /* ★★iOS は 16px 未満の 入力欄を 触ると 画面が 勝手に 寄ります★★ 2026-09-04
+           ★実測★ iPhone13(390px) / Pixel5(393px) で ★13px の 打つ欄が 4つ★ 在った
+             （resPool / resOwner / pStart / pDays）
+           ⇒ ★16px に する★（★打つ 欄だけ★。チェック箱は 字を 打たないので そのまま）
+           ★他の 画面（ryokinhyou.html）も 同じ 理由で 16px に してある★ */
+        font-size: 16px;
         font-family: inherit;
         color: var(--ink);
         background: #fff;
@@ -564,7 +570,12 @@
         border: 1px solid var(--line);
         border-radius: 8px;
         padding: 4px 6px;
-        font-size: 13px;
+
+        /* ★選ぶ箱も 16px★ 2026-09-04
+           ★iOS は 16px 未満の 入力/選択を 触ると 画面が 勝手に 寄ります★
+           実測（iPhone13 390px / Pixel5 393px）… 13px の select が
+             「時数を入れる」10個 ／「給料の設定」3個（poolMode / ownerDev / pMode） */
+        font-size: 16px;
         font-family: inherit;
         color: var(--ink);
         background: #fff;
