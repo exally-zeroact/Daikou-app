@@ -1560,6 +1560,69 @@
           }
         }
 
+        // ★★画面いっぱいの QR を 出す★★ 2026-09-04（司さん）
+        //   ★その場で 本人の スマホに 読ませて 終わり★（紙も 送信も 要らない）
+        //   ★大きさは 窓に 合わせる★＝パソコンでも スマホでも 読める
+        //   ★どこを 押しても 閉じる★／★Esc でも 閉じる★
+        function haifuMiseru(eid) {
+          var x = null;
+          for (var i = 0; i < HAIFU.length; i++) {
+            if (String(HAIFU[i].employee_id) === String(eid)) x = HAIFU[i];
+          }
+          if (!x) return;
+          // ★$() は 使いません★＝この 箱は ★その場で 作る★物で HTML に 書いていない
+          //   （$() の 相手は HTML に 在る事、という 見張りが 在る）
+          var furui = document.getElementById('haifuMise');
+          if (furui) furui.parentNode.removeChild(furui);
+          // ★窓の 短い方に 合わせる★（はみ出さない・小さすぎない）
+          var mijikai = Math.min(window.innerWidth, window.innerHeight);
+          var haba = Math.max(240, Math.min(560, Math.round(mijikai * 0.72)));
+          var d = document.createElement('div');
+          d.id = 'haifuMise';
+          d.className = 'noprint';
+          d.setAttribute(
+            'style',
+            'position:fixed;inset:0;z-index:9999;background:#fff;' +
+              'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer'
+          );
+          d.innerHTML =
+            '<div style="font-weight:800;font-size:20px">' +
+            esc(x.name || '') +
+            '　殿</div>' +
+            '<div id="haifuMiseQr" style="width:' +
+            haba +
+            'px;height:' +
+            haba +
+            'px">' +
+            qrSvg(haifuUrl(x), 8) +
+            '</div>' +
+            '<div class="note" style="text-align:center;max-width:22em">' +
+            (x.pw_ari
+              ? 'スマホの カメラで この QR を 読んでください。'
+              : 'スマホの カメラで この QR を 読んで、自分の パスワードを 決めてください。') +
+            '</div>' +
+            '<div class="note">（どこかを 押すと 閉じます）</div>';
+          // ★中の QR を 箱いっぱいに 広げる★（svg は そのままだと 元の 大きさ）
+          var sv = d.querySelector('#haifuMiseQr svg');
+          if (sv) {
+            sv.setAttribute('width', '100%');
+            sv.setAttribute('height', '100%');
+            sv.style.width = '100%';
+            sv.style.height = '100%';
+            sv.style.display = 'block';
+          }
+          function tojiru() {
+            if (d.parentNode) d.parentNode.removeChild(d);
+            document.removeEventListener('keydown', kii);
+          }
+          function kii(ev) {
+            if (ev.key === 'Escape') tojiru();
+          }
+          d.onclick = tojiru;
+          document.addEventListener('keydown', kii);
+          document.body.appendChild(d);
+        }
+
         function haifuErr(t) {
           var e = $('haifuErr');
           if (!e) return;
@@ -1605,6 +1668,12 @@
               (x.init_code
                 ? '<div class="note" style="margin:0 0 6px">この リンク（QR）を 開くと 本人が パスワードを 決めます。<b>リンクは 本人にだけ 渡してください</b>（リンクが 鍵です）。</div>'
                 : '') +
+              // ★★本命は これ＝その場で 読ませる★★ 2026-09-04（司さん）
+              //   「QRコードは 見せるだけで ええやろが」
+              //   ★紙も 送信も 要りません★。押すと 画面いっぱいの QR が 出ます。
+              '<button class="btn chi" type="button" data-hmise="' +
+              esc(x.employee_id) +
+              '">大きく 見せる</button> ' +
               '<button class="btn sub2 chi" type="button" data-hcopy="' +
               esc(url) +
               '">URLを 写す</button> ' +
@@ -1738,6 +1807,11 @@
           box.onclick = function (ev) {
             var t = ev.target;
             if (!t) return;
+            var mi = t.getAttribute && t.getAttribute('data-hmise');
+            if (mi) {
+              haifuMiseru(mi);
+              return;
+            }
             var cp = t.getAttribute && t.getAttribute('data-hcopy');
             if (cp) {
               try {
