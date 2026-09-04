@@ -35,6 +35,29 @@ function officeConfig() {
 }
 const sources = () => officeConfig().rewrites.map((r) => r.source);
 
+// ★★行き先は 全部 同じ 側を 指す★★ 2026-09-05
+//   ★2026-09-05 に 私が 1行 足した時、★本番なのに テスト線を 指していました★
+//     （テスト線から 写した まま 直し忘れ）
+//   ⇒ ★本番の 事務所が テスト線の js を 読む★＝★直したのに 出ない／出てはいけない物が 出る★
+//   ⇒ ★片方でも 混ざったら 赤★に する
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-05 実測）★★
+//     1行を 逆の 側に する ⇒ ★赤★（ファイル名まで 出る）／戻して 緑
+describe('★行き先は 全部 同じ 側を 指す★', () => {
+  it('★本番とテスト線が 混ざっていない★', () => {
+    const saki = officeConfig().rewrites.map((r) => ({
+      s: r.source,
+      host: String(r.destination).split('//')[1].split('/')[0],
+    }));
+    expect(saki.length, '★1本も 数えられていません★').toBeGreaterThan(10);
+    const hosts = [...new Set(saki.map((x) => x.host))];
+    const warui = hosts.length > 1 ? saki.filter((x) => x.host !== hosts[0]) : [];
+    expect(
+      warui.map((x) => x.s + ' → ' + x.host),
+      '★行き先が 混ざっています（本番なのに テスト線／その逆）★'
+    ).toEqual([]);
+  });
+});
+
 describe('★通す物だけ通す（総当たりを置かない）★', () => {
   it('★/:path* のような総当たりが無い★', () => {
     const catchAll = sources().filter((s) => /[:*]/.test(s));
