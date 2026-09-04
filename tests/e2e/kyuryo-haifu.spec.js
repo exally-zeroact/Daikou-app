@@ -131,23 +131,20 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   const url1 = await page.locator('[data-hcopy]').first().getAttribute('data-hcopy');
   expect(url1, '★URL に 初回コードが 埋まっていません★').toContain('&c=07041B0C');
 
-  // ★★紙（PDF）が 本当に 出るか★★ 2026-09-04
-  //   ★「ボタンが 在る」で 終わらせない★＝★出た紙の 大きさと 形★まで 見る。
-  //   ★jsPDF の 字では 日本語が 出ない★（doc.getFontList に 日本語が 1つも 無い・実測）
-  //   ⇒ 板(HTML)を html2canvas で 絵にして 貼る 形＝★絵が 貼れないと 紙は 極端に 小さくなる★
-  const dl = page.waitForEvent('download', { timeout: 60000 });
-  await page.locator('#btnHaifuPrint').click();
-  const d = await dl;
-  const os = require('os');
-  const p2 = path.join(os.tmpdir(), 'kyuryo-QR-mihari.pdf');
-  await d.saveAs(p2);
-  const atama = fs.readFileSync(p2).slice(0, 5).toString('latin1');
-  const ookisa = fs.statSync(p2).size;
-  // eslint-disable-next-line no-console
-  console.log('★出た紙★ ' + d.suggestedFilename() + ' ／ ' + ookisa + ' バイト ／ 頭 ' + atama);
-  expect(atama, '★PDF の 形に なっていない★').toBe('%PDF-');
-  expect(ookisa, '★紙が 小さすぎる＝絵が 貼れていない（中身が 無い）★').toBeGreaterThan(50000);
-  fs.unlinkSync(p2);
+  // ★★「全員分の QRを 印刷」を やめました★★ 2026-09-04（司さん「これいらんやろが」）
+  //   ★渡し方は 2つだけ★
+  //     ・その場に 居る人 … その人の「大きく 見せる」＝読ませるだけ
+  //     ・居ない人 ……… その人の「コピー」＝LINE や メールに 貼る
+  //   ★紙は 1度も 要りません★（司さん「なんで 印刷せないかんのど」）
+  //   ⇒ ★ボタンが 戻っていない事★を 見る（前は 紙が 出るかを 見ていた）
+  expect(
+    await page.locator('#btnHaifuPrint').count(),
+    '★「全員分の QRを 印刷」が 戻っています★'
+  ).toBe(0);
+  expect(
+    await page.locator('#paneSet').innerText(),
+    '★印刷の ボタンの 字が 残っています★'
+  ).not.toContain('全員分の QRを 印刷');
 
   // ★コピー★
   await page.locator('[data-hcopy]').first().click();

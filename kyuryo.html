@@ -1188,13 +1188,15 @@
           <!-- ★★説明書★★ 2026-09-04（司さん「説明書 書いて 見せろ」）
                ★渡し方は 3手で 終わる★事を 先に 書く（読まなくても 出来るように） -->
           <div class="note" style="margin: 0 0 10px">
-            <b>配る</b>を押すと、今いる人ぶんの <b>QRコードとURL</b> が出ます。
+            <b>配る</b>を押すと、今いる人ぶんが 一覧に 出ます。<br />
+            渡すのは <b>その人の「大きく 見せる」</b>（読ませるだけ）か
+            <b>「コピー」</b>（LINE等）です。
           </div>
           <details id="haifuSetsumei" style="margin: 0 0 10px">
             <summary style="cursor: pointer; font-weight: 700">使い方（3手で 終わります）</summary>
             <div class="note" style="margin: 8px 0 0; line-height: 1.9">
               <b>① 配る</b> を 押す<br />
-              　… 今いる人ぶんの QR が 一度に 出ます。<br />
+              　… 今いる人が 一覧に 出ます（QR は まだ 出ません）。<br />
               　　もう 配ってある人は <b>そのまま</b>（作り直しには なりません）。<br />
               <b>② その人の「大きく 見せる」</b> を 押す<br />
               　… 画面いっぱいの QR が 出ます。<b>本人に 読ませるだけ</b>。<br />
@@ -1206,8 +1208,8 @@
                 <b>その場に 居ない人には</b><br />
                 　… <b>コピー</b> を 押して LINE や メールに 貼って ください。<br />
                 　　<b>リンクが 鍵です。本人にだけ 渡してください。</b><br />
-                <b>まとめて 紙で 配るなら</b><br />
-                　… <b>全員分の QRを 印刷</b>（スマホを 持っていない人 用）。
+                <b>紙は 要りません</b><br />
+                　… その場で 読ませるか、リンクを 送るかの <b>どちらか</b>です。
               </div>
               <div style="margin: 10px 0 0">
                 <b>忘れた／漏れた ときは</b><br />
@@ -1218,11 +1220,13 @@
               </div>
             </div>
           </details>
+          <!-- ★★「全員分の QRを 印刷」を やめました★★ 2026-09-04（司さん「これいらんやろが」）
+               ★渡し方は 2つだけ★
+                 ・その場に 居る人 … その人の「大きく 見せる」＝読ませるだけ
+                 ・居ない人 ……… その人の「コピー」＝LINE や メールに 貼る
+               ★紙は 1度も 要りません★（司さん「なんで 印刷せないかんのど」） -->
           <div class="oshi" style="display: flex; gap: 10px; flex-wrap: wrap">
             <button class="btn" id="btnHaifu" type="button">配る</button>
-            <button class="btn sub2" id="btnHaifuPrint" type="button" disabled>
-              全員分の QRを 印刷
-            </button>
           </div>
           <div class="err" id="haifuErr" style="display: none"></div>
           <div id="haifuList"></div>
@@ -1740,10 +1744,10 @@
           if (!box) return;
           if (!HAIFU.length) {
             box.innerHTML = '';
-            $('btnHaifuPrint').disabled = true;
+
             return;
           }
-          $('btnHaifuPrint').disabled = false;
+
           box.innerHTML = HAIFU.map(function (x) {
             var url = haifuUrl(x);
             return (
@@ -1838,91 +1842,9 @@
             });
         }
 
-        // ★★全員分の QRカードを 印刷★★（氏名＋QR＋リンク＋手順）★初回コードは 出しません★
-        //   ★window.print() は 使わない★＝URL・日付・ページ番号が 刷られ 戻れない（この repo の 決まり）
-        //   ★★jsPDF の 字で 日本語は 出ません★★（2026-09-04 実測）
-        //     doc.getFontList() ＝ helvetica / courier / times / … ＝★日本語の 字が 1つも 無い★
-        //     ⇒ ★この画面の 他の 紙と 同じ やり方★＝★板(HTML)を 組んで html2canvas で 絵にして 貼る★
-        //   ★紙に URL の 字も 出す★＝★QRが 読めない 端末の 逃げ道★（2026-09-04 絵を 見て 気づいた）
-        function haifuPrint() {
-          if (!HAIFU.length) return;
-          var b = document.getElementById('btnHaifuPrint');
-          b.disabled = true;
-          b.textContent = '作っています…';
-          return loadPdfLibs()
-            .then(haifuPrintNow)
-            .catch(function () {
-              haifuErr('紙が 作れませんでした。もう一度 お試しください。');
-            })
-            .then(function () {
-              b.disabled = false;
-              b.textContent = '全員分の QRを 印刷';
-            });
-        }
-
-        // ★1枚に 6人（2列×3段）★／板は A4横（この画面の 他の 紙と 同じ 大きさ）
-        function haifuSheet(bun) {
-          var el = document.createElement('div');
-          el.style.cssText =
-            'position:fixed;left:-99999px;top:0;background:#fff;width:' +
-            SHEET_W +
-            'px;height:' +
-            SHEET_H +
-            'px;padding:24px;box-sizing:border-box;font-family:inherit;' +
-            'display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:14px';
-          el.innerHTML = bun
-            .map(function (x) {
-              var url = haifuUrl(x);
-              return (
-                '<div style="border:1px dashed #999;border-radius:10px;padding:12px;' +
-                'display:flex;gap:12px;align-items:flex-start;overflow:hidden">' +
-                '<div>' +
-                qrSvg(url, 3) +
-                '</div>' +
-                '<div style="flex:1 1 auto;min-width:0">' +
-                '<div style="font-weight:800;font-size:15px">' +
-                esc(x.name || '') +
-                '　殿</div>' +
-                // ★紙にも 初回コードは 出しません★（上と 同じ 理由）
-                //   ★紙は 人の 手を 渡ります★＝出すと 一番 漏れます
-                (x.init_code
-                  ? '<div style="font-size:12px;margin-top:4px">この QR から パスワードを 決めます</div>'
-                  : '<div style="font-size:12px;margin-top:4px">（もう 決めてあります）</div>') +
-                '<div style="font-size:10px;margin-top:6px;word-break:break-all;color:#444">' +
-                esc(url) +
-                '</div>' +
-                '<div style="font-size:11px;margin-top:6px">スマホの カメラで このQRを 読んでください。</div>' +
-                '<div style="font-size:11px">初回だけ 自分の パスワードを 決めます（8文字以上）。</div>' +
-                '</div></div>'
-              );
-            })
-            .join('');
-          return el;
-        }
-
-        function haifuPrintNow() {
-          var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-          var mai = [];
-          for (var i = 0; i < HAIFU.length; i += 6) mai.push(HAIFU.slice(i, i + 6));
-          var tsugi = function (k) {
-            if (k >= mai.length) {
-              doc.save('kyuryo-QR-' + new Date().toISOString().slice(0, 10) + '.pdf');
-              return Promise.resolve();
-            }
-            return _sheetToCanvas(haifuSheet(mai[k])).then(function (canvas) {
-              if (k > 0) doc.addPage();
-              _placeOnA4(doc, canvas);
-              return tsugi(k + 1);
-            });
-          };
-          return tsugi(0);
-        }
-
         (function () {
           var b = document.getElementById('btnHaifu');
           if (b) b.onclick = haifuGo;
-          var p = document.getElementById('btnHaifuPrint');
-          if (p) p.onclick = haifuPrint;
           var box = document.getElementById('haifuList');
           if (!box) return;
           box.onclick = function (ev) {
