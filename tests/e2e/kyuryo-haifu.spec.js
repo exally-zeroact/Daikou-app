@@ -108,6 +108,22 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   const hoshi = await page.evaluate(() => document.getElementById('haifuList').innerText || '');
   expect(hoshi.indexOf(String.fromCharCode(9733)), '★星が 字として 出ています★').toBe(-1);
 
+  // ★★初回コードを 画面に 出さない★★ 2026-09-04（司さん）
+  //   ★「初回コードなんか Rakunally でやってなかろが」★
+  //   ★Rakunally の 実物（kyuyo/js/app.js:4301）も コードそのものは 1文字も 出さない★
+  //   ⇒ ★事務所の 人に 見えてしまう★／★本人が 打つ 必要も 無い（?c= に 埋めてある）★
+  //   ⇒ ★渡すのは リンク（QR）1つだけ＝リンクが 鍵★
+  const naka = await page.locator('#haifuList').innerText();
+  expect(naka, '★画面に 初回コードの 字が 出ています★').not.toContain('初回コード');
+  // ★URL は 出します★＝★これが 渡す 物★（Rakunally も readonly の 入力欄で 出している）
+  //   ★URL の 中に ?c= が 在るのは そのまま★＝★リンクが 鍵★。
+  //   ★別立ての「初回コード ◯◯◯◯」を 出さない★のが 今回の 直しです
+  //   （別に 出すと「2つ目の 鍵」に 見えて、本人が 打つ 物だと 思われる）
+  expect(naka, '★リンクが 鍵だと 言っていません★').toContain('リンクは 本人にだけ 渡してください');
+  // ★URL の 中（?c=）には 在る事★＝本人は 打たなくてよい（上の u2 で 見ている）
+  const url1 = await page.locator('[data-hcopy]').first().getAttribute('data-hcopy');
+  expect(url1, '★URL に 初回コードが 埋まっていません★').toContain('&c=07041B0C');
+
   // ★★紙（PDF）が 本当に 出るか★★ 2026-09-04
   //   ★「ボタンが 在る」で 終わらせない★＝★出た紙の 大きさと 形★まで 見る。
   //   ★jsPDF の 字では 日本語が 出ない★（doc.getFontList に 日本語が 1つも 無い・実測）

@@ -1596,10 +1596,14 @@
               '<div class="note" style="margin:0 0 6px;word-break:break-all">' +
               esc(url) +
               '</div>' +
+              // ★★初回コードは 画面に 出しません★★ 2026-09-04（司さん）
+              //   「初回コードなんか Rakunally でやってなかろが」
+              //   ★Rakunally の 実物（kyuyo/js/app.js:4301）★ も
+              //   ★コードそのものは 1文字も 出さず★、?c= に 埋めるだけです。
+              //   ⇒ ★出すと 事務所の 人が 見えてしまう★／★本人が 打つ 必要も 無い★
+              //   ⇒ ★渡すのは リンク（QR）1つだけ★＝★リンクが 鍵★
               (x.init_code
-                ? '<div class="note" style="margin:0 0 6px">初回コード <b>' +
-                  esc(x.init_code) +
-                  '</b></div>'
+                ? '<div class="note" style="margin:0 0 6px">この リンク（QR）を 開くと 本人が パスワードを 決めます。<b>リンクは 本人にだけ 渡してください</b>（リンクが 鍵です）。</div>'
                 : '') +
               '<button class="btn sub2 chi" type="button" data-hcopy="' +
               esc(url) +
@@ -1644,7 +1648,7 @@
             });
         }
 
-        // ★★全員分の QRカードを 印刷★★（氏名＋QR＋リンク＋初回コード＋手順）
+        // ★★全員分の QRカードを 印刷★★（氏名＋QR＋リンク＋手順）★初回コードは 出しません★
         //   ★window.print() は 使わない★＝URL・日付・ページ番号が 刷られ 戻れない（この repo の 決まり）
         //   ★★jsPDF の 字で 日本語は 出ません★★（2026-09-04 実測）
         //     doc.getFontList() ＝ helvetica / courier / times / … ＝★日本語の 字が 1つも 無い★
@@ -1689,10 +1693,10 @@
                 '<div style="font-weight:800;font-size:15px">' +
                 esc(x.name || '') +
                 '　殿</div>' +
+                // ★紙にも 初回コードは 出しません★（上と 同じ 理由）
+                //   ★紙は 人の 手を 渡ります★＝出すと 一番 漏れます
                 (x.init_code
-                  ? '<div style="font-size:12px;margin-top:4px">初回コード <b>' +
-                    esc(x.init_code) +
-                    '</b></div>'
+                  ? '<div style="font-size:12px;margin-top:4px">この QR から パスワードを 決めます</div>'
                   : '<div style="font-size:12px;margin-top:4px">（もう 決めてあります）</div>') +
                 '<div style="font-size:10px;margin-top:6px;word-break:break-all;color:#444">' +
                 esc(url) +
