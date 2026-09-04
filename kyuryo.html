@@ -1099,7 +1099,7 @@
                 <td>もとにする売上</td>
                 <td>
                   <select id="poolMode">
-                    <option value="others_total">自分の車を除いた全部（司さんのやり方）</option>
+                    <option value="others_total">自分の車を除いた全部</option>
                     <option value="all_total">自分の車も入れて全部</option>
                     <option value="per_car">乗った車ごと</option>
                   </select>
@@ -2904,7 +2904,7 @@
             html += '</div>';
           });
 
-          // つかさの取り分（会社に残る分）
+          // ★会社に残る分（オーナーの 取り分）★ ★人の 名前は 出さない★（司さん 2026-09-04）
           // ★★本人モードでは 出しません★★ 2026-09-03
           //   ★従業員に 会社の 取り分・みんなの給料・売上合計を 見せない★
           //   ★絵を 開いて 見たら 本人の 画面に 出ていた★（数字だけ 見ていたら 気づかなかった）
@@ -2913,7 +2913,7 @@
             return;
           }
           html +=
-            '<div class="card noprint"><b>会社に残る分（つかさの取り分）</b>　¥' +
+            '<div class="card noprint"><b>会社に残る分</b>　¥' +
             yen(REP.ownerShareTotal) +
             '<div class="note">売上合計 ¥' +
             yen(REP.poolSalesTotal) +
