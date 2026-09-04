@@ -19,7 +19,11 @@ const path = require('path');
 const PD = require(path.join(__dirname, '..', '..', 'js', 'pipeline-distance.js'));
 const kp = require(path.join(__dirname, '..', 'fixtures', 'imabari-196-kp-rtk.json')).kp;
 
-const BASE = 'https://daikou-app-c821a-default-rtdb.asia-southeast1.firebasedatabase.app';
+// ★★Firebase は 使いません（司さん 2026-08-30「読む為にも 使うな」）★★
+//   材料は ★手元の data/traces/*.json★ から 受け取ります。
+const TRACE = require('../lib/trace-zairyou');
+// ★遠くの倉庫では ありません★（下の jget が 手元の 材料に 振り分けます）
+const BASE = 'zairyou:';
 const R = 6371000;
 const rad = (d) => (d * Math.PI) / 180;
 function projKP(lat, lng) {
@@ -48,9 +52,25 @@ const stub = {
   decodeRoadAt: () => null,
 };
 
+// ★取ってくる 所だけ 差し替えました★（呼ぶ側は 1行も 変えていません）
+//   ★外へは 1度も 繋ぎません★。知らない 行き先は ★そのまま 落とす★
+//   （黙って 空を 返すと「材料が 無い」と 見分けが つかない為）
 async function jget(u) {
-  const r = await fetch(u);
-  return r.json();
+  const s = String(u);
+  if (s.indexOf('/debug_traces.json') >= 0) {
+    const o = {};
+    TRACE.keyIchiran().forEach((k) => {
+      o[k] = true;
+    });
+    return o;
+  }
+  const m = s.match(/\/debug_traces\/([^/]+)\/(meta|samples)\.json/);
+  if (m) {
+    const r = m[2] === 'meta' ? TRACE.metaWoYomu(m[1]) : TRACE.samplesWoYomu(m[1]);
+    if (r == null) throw new Error('材料が ありません: ' + m[1]);
+    return r;
+  }
+  throw new Error('★外へは 繋ぎません★: ' + s);
 }
 
 async function main() {

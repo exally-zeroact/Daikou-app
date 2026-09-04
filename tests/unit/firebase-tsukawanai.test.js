@@ -184,6 +184,68 @@ describe('★Firebase は 使わない★', () => {
     expect(mita, '★CI が 走らせる js を 1本も 見つけられていません★').toBeGreaterThan(10);
     expect(warui, '★CI が Firebase を 読んでいます★').toEqual([]);
   });
+  // ★★⑦ Firebase の 送り先を 持つ ファイルを 名簿で 固定する★★ 2026-09-04
+  //   ①〜⑥は「読み込まない」「叩かない」を 見ています。
+  //   ⑦は ★そもそも 送り先を 持っている ファイルが 増えていないか★ を 見ます。
+  //   ★repo 全部（js/mjs/cjs/html・509本）を 数えます★
+  //   ★残っている 6本には 1本ずつ 理由が 要ります★（黙って 名簿に 置かない）
+  it('★★⑦ Firebase の 送り先を 持つ ファイルが 増えていない★★', () => {
+    const NOKORI = {
+      // ★戻せるように 残している 物（2026-09-01 の 決め）★ … どの 画面も 読み込みません（①②③で 見ている）
+      'js/firebase-config.js':
+        '★戻せるように 残す★ … 送り先の 設定そのもの。読み込む 画面は 0枚（③で 見ている）',
+      'js/trace-outbox.js':
+        '★戻せるように 残す★ … Firebase RTDB へ 書く為だけの 物。読み込む 画面は 0枚（②で 見ている）',
+      'js/debug-trace.js': '★戻せるように 残す★ … 同上（②で 見ている）',
+      'js/debug-log-uploader.js': '★戻せるように 残す★ … 同上（②で 見ている）',
+      // ★見張り自身★ … 送り先の 形を 書かないと 見張れない
+      'tests/unit/firebase-tsukawanai.test.js':
+        '★この 見張り自身★ … 探す 形（正規表現）に 送り先が 出る。繋ぎません',
+      'tests/unit/firebase-config-constants.test.js':
+        '★中身を 読むだけの 見張り★ … firebase-config.js の 形を 見る（vm・繋ぎません）',
+    };
+    const oku = ['node_modules', '.git', 'coverage', 'dist', 'data'];
+    const kesu = (x) =>
+      x
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(
+          new RegExp(
+            '(^|[^:])//[^' + String.fromCharCode(10) + String.fromCharCode(13) + ']*',
+            'g'
+          ),
+          '$1 '
+        );
+    const ATENA = /firebasedatabase\.app|firebaseio\.com|gstatic\.com\/firebasejs|firebasestorage/;
+    const ima = [];
+    let mita = 0;
+    (function aruku(d, fukasa) {
+      if (fukasa > 6) return;
+      for (const na of fs.readdirSync(d)) {
+        if (oku.indexOf(na) >= 0) continue;
+        const p = path.join(d, na);
+        if (fs.statSync(p).isDirectory()) {
+          aruku(p, fukasa + 1);
+        } else if (/\.(js|mjs|cjs|html)$/.test(na)) {
+          mita++;
+          if (ATENA.test(kesu(fs.readFileSync(p, 'utf8'))))
+            ima.push(path.relative(ROOT, p).split(path.sep).join('/'));
+        }
+      }
+    })(ROOT, 0);
+    // ★何本 見たかも 数える★（0本を 見て 緑に しない）
+    expect(mita, '★ファイルを ほとんど 見つけられていません★').toBeGreaterThan(300);
+    const meibo = Object.keys(NOKORI).sort();
+    const fueta = ima.filter((x) => meibo.indexOf(x) < 0);
+    const hetta = meibo.filter((x) => ima.indexOf(x) < 0);
+    expect(
+      { fueta, hetta },
+      '★Firebase の 送り先を 持つ ファイルが 変わりました★（増えたら 消すか、理由を 名簿に 書いてください）'
+    ).toEqual({ fueta: [], hetta: [] });
+    // ★1本ずつ 理由が 書いてある★
+    const riyuunashi = meibo.filter((x) => String(NOKORI[x] || '').trim().length < 10);
+    expect(riyuunashi, '★理由が 書けていない物が あります★').toEqual([]);
+  });
   it('★⑤ 使わないだけ＝ファイルは 消していない（戻せる）★', () => {
     ['js/firebase.js', 'js/firebase-config.js', 'js/training-uploader.js'].forEach((f) => {
       expect(fs.existsSync(path.join(ROOT, f)), '★' + f + ' を 消しています★').toBe(true);
