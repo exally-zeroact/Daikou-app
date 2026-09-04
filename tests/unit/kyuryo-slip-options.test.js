@@ -84,7 +84,7 @@ describe('★①1人ごとにPDF★', () => {
     //   2026-08-25：ボタンを右の箱へ移した時に inline の style を外したら、
     //   この試験だけ「ボタンが見つからない」と ★嘘の赤★ を出した。
     //   見たいのは ★class の中身★なので、押した先（printOne）で探す。
-    const cls = (HTML.match(/<button class="([^"]*)"[^>]*onclick="printOne\(/) || [])[1];
+    const cls = (HTML.match(/<button class="([^"]*)"[^>]*data-meisai-qr=/) || [])[1];
     expect(cls, '★1人ごとのPDFのボタンが見つからない★').toBeTruthy();
     for (const c of cls.split(/\s+/).filter(Boolean)) {
       if (c === 'noprint' || c === 'btn') continue;

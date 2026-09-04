@@ -70,8 +70,10 @@ describe('★決まりの無い役割は 赤く知らせる★', () => {
   it('★出さない場合★ 決まりが在る／その人だけで足りている／まだ空', () => {
     const i = HTML.indexOf('function _roleWarn(');
     const block = HTML.slice(i, i + 2600);
-    expect(block, '★まだ打っていない人にも 赤を出す★').toContain("if (!role) return null;");
-    expect(block, '★決まりが在っても 赤を出す★').toContain('if (st.roles && st.roles[role]) return null;');
+    expect(block, '★まだ打っていない人にも 赤を出す★').toContain('if (!role) return null;');
+    expect(block, '★決まりが在っても 赤を出す★').toContain(
+      'if (st.roles && st.roles[role]) return null;'
+    );
     expect(block, '★その人だけで足りていても 赤を出す★').toContain('if (r && f) return null;');
   });
 
@@ -117,8 +119,10 @@ describe('★合計は 名前と右端の 真ん中★', () => {
     // 右のかたまり自体に noprint を付けると 紙で右側が消えて 合計が右へずれる
     expect(HTML, '★右のかたまりごと 紙から消している★').not.toContain('<div class="sh-r noprint">');
     expect(HTML, '★右のかたまりが 無い★').toContain('<div class="sh-r">');
+    // ★2026-09-04（司さん）「この人のPDF」を やめて ★QRを 見せる★ に した★
+    //   ★見張る 中身は 同じ★＝★ボタンだけ 紙から 消す（右の箱は 残す）★
     expect(HTML, '★ボタンだけを 紙から消していない★').toContain(
-      '<button class="btn ghost noprint" onclick="printOne('
+      '<button class="btn ghost noprint" data-meisai-qr="'
     );
   });
 });

@@ -1185,11 +1185,39 @@
           <div class="title" style="font-weight: 800; margin-bottom: 4px">
             従業員へ 配る（自分の 給料明細を 自分で 見る）
           </div>
+          <!-- ★★説明書★★ 2026-09-04（司さん「説明書 書いて 見せろ」）
+               ★渡し方は 3手で 終わる★事を 先に 書く（読まなくても 出来るように） -->
           <div class="note" style="margin: 0 0 10px">
-            <b>配る</b>を押すと、今いる人ぶんの <b>QRコードとURL</b> が出ます。<br />
-            本人は <b>QRを読むだけ</b>で開けます（初回だけ 自分のパスワードを決めます）。<br />
-            <b>忘れた／漏れた</b>ときは その人の <b>作り直す</b> を押してください。
+            <b>配る</b>を押すと、今いる人ぶんの <b>QRコードとURL</b> が出ます。
           </div>
+          <details id="haifuSetsumei" style="margin: 0 0 10px">
+            <summary style="cursor: pointer; font-weight: 700">使い方（3手で 終わります）</summary>
+            <div class="note" style="margin: 8px 0 0; line-height: 1.9">
+              <b>① 配る</b> を 押す<br />
+              　… 今いる人ぶんの QR が 一度に 出ます。<br />
+              　　もう 配ってある人は <b>そのまま</b>（作り直しには なりません）。<br />
+              <b>② その人の「大きく 見せる」</b> を 押す<br />
+              　… 画面いっぱいの QR が 出ます。<b>本人に 読ませるだけ</b>。<br />
+              　　<b>紙も 送信も 要りません。</b><br />
+              　　明細の <b>「QRを 見せる」</b> からも 同じ物が 出ます。<br />
+              <b>③ 本人が 自分の パスワードを 決める</b><br />
+              　… 初回だけ。次からは その パスワードだけで 見られます。
+              <div style="margin: 10px 0 0">
+                <b>その場に 居ない人には</b><br />
+                　… <b>コピー</b> を 押して LINE や メールに 貼って ください。<br />
+                　　<b>リンクが 鍵です。本人にだけ 渡してください。</b><br />
+                <b>まとめて 紙で 配るなら</b><br />
+                　… <b>全員分の QRを 印刷</b>（スマホを 持っていない人 用）。
+              </div>
+              <div style="margin: 10px 0 0">
+                <b>忘れた／漏れた ときは</b><br />
+                　… その人の <b>作り直す</b> を 押してください。<br />
+                　　<b>前の リンクは その場で 使えなくなります。</b><br />
+                <b>やめた人は</b><br />
+                　… <b>「従業員」から 外す</b>と、その人は 見られなく なります。
+              </div>
+            </div>
+          </details>
           <div class="oshi" style="display: flex; gap: 10px; flex-wrap: wrap">
             <button class="btn" id="btnHaifu" type="button">配る</button>
             <button class="btn sub2" id="btnHaifuPrint" type="button" disabled>
@@ -1585,12 +1613,50 @@
         //   ★その場で 本人の スマホに 読ませて 終わり★（紙も 送信も 要らない）
         //   ★大きさは 窓に 合わせる★＝パソコンでも スマホでも 読める
         //   ★どこを 押しても 閉じる★／★Esc でも 閉じる★
+        // ★大きい 窓を 出す（中身は 呼ぶ側が 決める）★
+        function haifuMado(naka) {
+          var furui = document.getElementById('haifuMise');
+          if (furui) furui.parentNode.removeChild(furui);
+          var d = document.createElement('div');
+          d.id = 'haifuMise';
+          d.className = 'noprint';
+          d.setAttribute(
+            'style',
+            'position:fixed;inset:0;z-index:9999;background:#fff;' +
+              'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer'
+          );
+          d.innerHTML = naka;
+          function tojiru() {
+            if (d.parentNode) d.parentNode.removeChild(d);
+            document.removeEventListener('keydown', kii);
+          }
+          function kii(ev) {
+            if (ev.key === 'Escape') tojiru();
+          }
+          d.onclick = tojiru;
+          document.addEventListener('keydown', kii);
+          document.body.appendChild(d);
+          return d;
+        }
+
         function haifuMiseru(eid) {
           var x = null;
           for (var i = 0; i < HAIFU.length; i++) {
             if (String(HAIFU[i].employee_id) === String(eid)) x = HAIFU[i];
           }
-          if (!x) return;
+          if (!x) {
+            // ★★黙って 何も 起きない のを やめる★★ 2026-09-04
+            //   ★押したのに 無反応★は「壊れている」と 同じに 見えます。
+            //   （その人が 配る 一覧に 居ない＝「従業員」から 外れている 等）
+            haifuMado(
+              '<div id="haifuMiseNai" style="font-weight:800;font-size:18px;text-align:center;max-width:20em">' +
+                'この人の QR は 作れませんでした</div>' +
+                '<div class="note" style="text-align:center;max-width:22em">' +
+                '「従業員」に 今 居るか 確かめてください。</div>' +
+                '<div class="note">（どこかを 押すと 閉じます）</div>'
+            );
+            return;
+          }
           // ★$() は 使いません★＝この 箱は ★その場で 作る★物で HTML に 書いていない
           //   （$() の 相手は HTML に 在る事、という 見張りが 在る）
           var furui = document.getElementById('haifuMise');
@@ -1642,6 +1708,24 @@
           d.onclick = tojiru;
           document.addEventListener('keydown', kii);
           document.body.appendChild(d);
+        }
+
+        // ★★明細の「QRを 見せる」★★ 2026-09-04（司さん）
+        //   ★まだ 配っていない時は その場で 配ってから 見せます★
+        //   （事務所の 人に「先に 設定を 開け」と 言わせない）
+        function meisaiQr(eid) {
+          if (!eid) return;
+          var aru = false;
+          for (var i = 0; i < HAIFU.length; i++) {
+            if (String(HAIFU[i].employee_id) === String(eid)) aru = true;
+          }
+          if (aru) {
+            haifuMiseru(eid);
+            return;
+          }
+          haifuGo().then(function () {
+            haifuMiseru(eid);
+          });
         }
 
         function haifuErr(t) {
@@ -1713,6 +1797,13 @@
             );
           }).join('');
         }
+
+        // ★明細の 札から 押された時★（1か所で 受ける）
+        document.addEventListener('click', function (ev) {
+          var t = ev.target;
+          var q = t && t.getAttribute && t.getAttribute('data-meisai-qr');
+          if (q) meisaiQr(q);
+        });
 
         function haifuGo() {
           haifuErr('');
@@ -2843,13 +2934,18 @@
               '</span><span class="mid">' +
               hrs(e.totalHours) +
               ' 時間</span></div>' +
-              // ★右のかたまり★（幅合わせ＋この人のPDF）
+              // ★右のかたまり★（幅合わせ＋その人の QR）
               //   ★紙でもボタンが消えるだけで この箱は残す★＝紙でも真ん中がずれない
               '<div class="sh-r">' +
-              // ★この人だけのPDF★ 2026-08-25（司さん「給料は1人ごとにPDFとして送る」）
-              '<button class="btn ghost noprint" onclick="printOne(' +
-              ei +
-              ')">この人のPDF</button>' +
+              // ★★「この人のPDF」を やめました★★ 2026-09-04（司さん）
+              //   「明細の この人のPDFを 消して QRコードか URLを 配るボタン 作って」
+              //   ⇒ ★紙を 作って 送るのでは なく、その場で QR を 見せる★
+              //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
+              (HONNIN
+                ? ''
+                : '<button class="btn ghost noprint" data-meisai-qr="' +
+                  esc(e.employee_id || '') +
+                  '">QRを 見せる</button>') +
               '</div>' +
               '</div>';
 

@@ -26,7 +26,7 @@ const FIX = JSON.parse(
 );
 const LIST = [
   {
-    employee_id: 'e1',
+    employee_id: 'ec8d275b-38c0-4d9f-b471-eeb10226a6a9',
     name: 'テスト太郎',
     token: '7c4383b6aaaa1111bbbb2222cccc3333',
     init_code: '07041B0C',
@@ -34,7 +34,7 @@ const LIST = [
     sort_order: 1,
   },
   {
-    employee_id: 'e2',
+    employee_id: '46a60d53-02b7-47ef-829e-6fd03cee1a31',
     name: 'テスト次郎',
     token: '3b7433a6dddd4444eeee5555ffff6666',
     init_code: null,
@@ -66,6 +66,117 @@ function tsukuru(dir) {
     'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
 }
+// ★★明細タブからも 出せる★★ 2026-09-04（司さん）
+//   「★明細の この人のPDFを 消して QRコードか URLを 配るボタン 作って★」
+//   ★まだ 配っていなくても、押すと その場で 配ってから 出す★
+test('★明細の「QRを 見せる」で その人の QR が 出る★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(__dirname),
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/kyuryo.html');
+  await page.waitForTimeout(1800);
+  // ★明細タブの まま★（設定タブは 開かない＝配る を 押していない）
+  const botan = page.locator('[data-meisai-qr]').first();
+  await botan.waitFor({ state: 'visible', timeout: 8000 });
+  console.log('★明細の ボタンの 字★ ' + (await botan.textContent()).trim());
+  // ★字も 見る★（空の ボタンでも 押せてしまい 緑に なる のを 防ぐ）
+  expect((await botan.textContent()).trim(), '★ボタンの 字が 違います★').toBe('QRを 見せる');
+  // ★もう「この人のPDF」は 出さない★（司さん 2026-09-04）
+  expect(
+    await page.locator('#paneSlip').innerText(),
+    '★この人のPDF が 残っています★'
+  ).not.toContain('この人のPDF');
+  await botan.click();
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => {
+    const o = document.getElementById('haifuMise');
+    if (!o) return null;
+    const sv = o.querySelector('svg');
+    return {
+      qr: Math.round(sv.getBoundingClientRect().width),
+      namae: (o.textContent || '').trim().slice(0, 20),
+    };
+  });
+  console.log('★出た QR★ ' + JSON.stringify(r));
+  console.log('★落ち★ ' + err.length + '件 ' + JSON.stringify(err.slice(0, 2)));
+  expect(r, '★明細から QR が 出ません★').toBeTruthy();
+  expect(r.qr, '★小さすぎます★').toBeGreaterThan(200);
+  expect(err, '★画面が 落ちました★').toEqual([]);
+  await page.screenshot({
+    path: 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/shot-meisai-qr.png',
+  });
+});
+
+// ★★説明書が 出る★★ 2026-09-04（司さん「説明書 書いて 見せろ」）
+//   ★★わざと壊して 赤に なる事を 見た★★ … 説明書の 箱を 消す ⇒ ★赤★
+test('★説明書（使い方）が 在る★', async ({ page }) => {
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(__dirname),
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/kyuryo.html');
+  await page.waitForTimeout(1800);
+  await page.locator('.tab[data-tab="set"]').click();
+  await page.waitForTimeout(400);
+  await page.locator('#haifuSetsumei summary').scrollIntoViewIfNeeded();
+  await page.locator('#haifuSetsumei summary').click();
+  await page.waitForTimeout(400);
+  const ji = await page.locator('#haifuSetsumei').innerText();
+  console.log('★説明書の 字数★ ' + ji.replace(/s+/g, '').length);
+  ['配る', '大きく 見せる', 'QRを 見せる', 'コピー', '作り直す', 'リンクが 鍵'].forEach((k) => {
+    expect(ji, '★説明書に「' + k + '」が ありません★').toContain(k);
+  });
+  await page
+    .locator('#haifuSetsumei')
+    .screenshot({ path: 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/shot-setsumei.png' });
+});
+
+// ★★居ない人を 押しても 黙らない★★ 2026-09-04
+//   ★押したのに 無反応★は「壊れている」と 同じに 見える。
+//   ⇒ 同じ 大きい 窓に「作れませんでした」と 出す。
+//   ★★わざと壊して 赤に なる事を 見た★★ … 何も 出さない（return だけ）に 戻す ⇒ ★赤★
+test('★配る 一覧に 居ない人は「作れませんでした」と 出る★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(__dirname),
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/kyuryo.html');
+  await page.waitForTimeout(1800);
+  // ★居ない人の id で 押す★（一覧に 無い＝従業員から 外れた 人）
+  await page.evaluate(() => {
+    const b = document.querySelector('[data-meisai-qr]');
+    b.setAttribute('data-meisai-qr', 'inai-hito-9999');
+    b.click();
+  });
+  await page.waitForTimeout(1800);
+  const r = await page.evaluate(() => {
+    const o = document.getElementById('haifuMise');
+    return o ? o.textContent.replace(/s+/g, ' ').trim() : null;
+  });
+  console.log('★出た 字★ ' + JSON.stringify(r));
+  console.log('★落ち★ ' + err.length + '件');
+  expect(r, '★黙って 何も 起きていません★').toBeTruthy();
+  expect(r, '★作れなかった事を 言っていません★').toContain('作れませんでした');
+  expect(err, '★画面が 落ちました★').toEqual([]);
+});
+
 for (const d of [
   { na: 'パソコン', w: 1280, h: 800 },
   { na: 'スマホ', w: 390, h: 844 },
