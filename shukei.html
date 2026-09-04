@@ -229,7 +229,9 @@
            ⇒ ★px で 決めて どの 端末でも 10日ぶん★
            ★小さい 端末で 画面を 食い過ぎない★よう 窓の 60% を 上限に する。 */
         max-height: min(447px, 60vh);
-        overflow-y: auto;
+        overflow: auto;
+
+        /* ★台数が 多い時は 横にも すべる★（20台で 表 1,612px＝箱の 5倍） */
         -webkit-overflow-scrolling: touch;
       }
 
@@ -239,6 +241,57 @@
         top: 0;
         background: #fff;
         z-index: 1;
+      }
+
+      /* ★★台数が 多い時（甲）★★ 2026-09-05
+         ★実測（直す前・スマホ 390px・箱 320px）★
+           5台 表 517px ／ 10台 891px ／ ★20台 1,612px＝箱の 5倍★
+         ⇒ ★右へ すべらせると「月」も「合計」も 流れて 行く★
+         ⇒ ★何月の 何か 分からなくなる★
+         ★直し★ ★月★と★合計★を ★左に 貼り付ける★（合計は 月の 隣へ 動かす） */
+      .kyori-sc .kotei1,
+      .kyori-sc .kotei2 {
+        position: sticky;
+        background: #fff;
+        z-index: 2;
+      }
+
+      .kyori-sc .kotei1 {
+        left: 0;
+      }
+
+      .kyori-sc .kotei2 {
+        /* ★左端から「月」の 幅ぶん 右★（幅は 中身で 変わるので 測って 入れる） */
+        left: var(--kotei1w, 56px);
+        box-shadow: 6px 0 6px -6px rgb(0 0 0 / 28%);
+      }
+
+      /* ★見出しの 行は もっと 手前★（縦にも 横にも 貼り付くので 重なりが 起きる） */
+      .kyori-sc thead .kotei1,
+      .kyori-sc thead .kotei2 {
+        z-index: 3;
+      }
+
+      /* ★まだ 右に 在る合図★（右端の 薄い 影・すべり切ったら 消す）
+         ★最初 ::after で 描こうとして 失敗しました★＝
+         箱の 高さが 中身任せなので height:100% が 決まらず ★高さ0＝何も 描かれなかった★
+         （数字は 緑なのに ★絵を 見たら 影が 無かった★・2026-09-05 実測）
+         ⇒ ★箱の 内側の 影★に する＝中身と 一緒に 動かず、必ず 描かれる */
+      .kyori-sc.migi-aru {
+        box-shadow: inset -16px 0 12px -12px rgb(0 0 0 / 30%);
+      }
+
+      /* ★紙では 貼り付けない★（全部 並べて 刷る） */
+      @media print {
+        .kyori-sc .kotei1,
+        .kyori-sc .kotei2 {
+          position: static;
+          box-shadow: none;
+        }
+
+        .kyori-sc.migi-aru {
+          box-shadow: none;
+        }
       }
 
       /* ★紙では 全部 出す★（切れない） */
@@ -380,6 +433,35 @@
       <div class="card">
         <div class="ttl" id="oneTtl">1ヶ月の内訳</div>
         <div class="kpis" id="kpis"></div>
+      </div>
+
+      <!-- ★★売上★★ 2026-09-05（司さん）
+           「売上は 車ごととか 全体とか 日別や 月別や 年別で 分けれとんか？」
+           「ないといかんやろ」
+           ★距離と 同じ 形★（同じ 場所・同じ 押し方）
+           ★数え方は 元と 同じ★＝実費を 引いた後（js/getsuji-agg.js と 同じ 式） -->
+      <div class="card">
+        <div class="ttl">売上</div>
+        <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button class="btn sub2" type="button" data-uri="year">年間</button>
+          <button class="btn" type="button" data-uri="month">月ごと</button>
+          <button class="btn sub2" type="button" data-uri="day">日ごと</button>
+        </div>
+        <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px">
+          <button class="btn" type="button" data-uriwake="zentai">全体</button>
+          <button class="btn sub2" type="button" data-uriwake="kuruma">車ごと</button>
+        </div>
+        <div class="scroller kyori-sc" style="margin-top: 10px">
+          <table id="uriTbl">
+            <thead id="uriHead"></thead>
+            <tbody id="uriBody"></tbody>
+          </table>
+        </div>
+        <div class="note">
+          <b>売上</b
+          >＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<br />
+          <b>オーナーの車も入ります。</b>
+        </div>
       </div>
 
       <!-- ★★距離★★ 2026-09-05（司さん）
@@ -725,6 +807,230 @@
           return j.toISOString().slice(0, 10);
         }
 
+        // ★★売上（年間／月ごと／日ごと × 全体／車ごと）★★ 2026-09-05（司さん）
+        //   ★数え方は 元と 同じ★＝ctx.byDate[日付][車] の sales − expense（実費を 引いた後）
+        //   ＝ js/getsuji-agg.js:105 と 同じ 式（★食い違わない★）
+        var URI_MODE = 'month';
+        var URI_WAKE = 'zentai';
+
+        // ★日付ごと・車ごとの 売上を 1か所で 作る★
+        function uriHibi() {
+          var out = {};
+          var by = (CTX && CTX.byDate) || {};
+          Object.keys(by).forEach(function (d) {
+            var cars = by[d] || {};
+            Object.keys(cars).forEach(function (dev) {
+              var c = cars[dev] || {};
+              var en = (Number(c.sales) || 0) - (Number(c.expense) || 0);
+              if (!out[d]) out[d] = {};
+              out[d][dev] = (out[d][dev] || 0) + en;
+            });
+          });
+          return out;
+        }
+
+        function uriKuruma() {
+          var by = uriHibi();
+          var d = {};
+          Object.keys(by).forEach(function (h) {
+            Object.keys(by[h]).forEach(function (dev) {
+              d[dev] = true;
+            });
+          });
+          return Object.keys(d).sort();
+        }
+
+        function renderUri() {
+          var head = $('uriHead');
+          var body = $('uriBody');
+          if (!head || !body) return;
+
+          // ★押されている 物を 見た目に 出す★
+          [
+            ['data-uri', URI_MODE],
+            ['data-uriwake', URI_WAKE],
+          ].forEach(function (x) {
+            Array.prototype.forEach.call(document.querySelectorAll('[' + x[0] + ']'), function (b) {
+              var on = b.getAttribute(x[0]) === x[1];
+              b.className = on ? 'btn' : 'btn sub2';
+              if (on) b.setAttribute('aria-current', 'true');
+              else b.removeAttribute('aria-current');
+            });
+          });
+
+          var by = uriHibi();
+          var kuruma = URI_WAKE === 'kuruma' ? uriKuruma() : [];
+          // ★車の 名前は 1か所の 決まりで 作る★（js/car-name.js）
+          //   ★UUID は 出さない★／名前が 無ければ「車1」など
+          var namae =
+            window.CarName && CTX ? CarName.nameMap(uriKuruma(), (RAW && RAW.labels) || []) : {};
+          var retsu =
+            URI_WAKE === 'kuruma'
+              ? kuruma.map(function (d) {
+                  return namae[d] || '車';
+                })
+              : ['売上'];
+
+          // ★どの 行に するか★（年／月／日）
+          var gyou = [];
+          function tasu(na, hi) {
+            var v = [];
+            if (URI_WAKE === 'kuruma') {
+              kuruma.forEach(function (dev) {
+                var g = 0;
+                hi.forEach(function (h) {
+                  g += (by[h] && by[h][dev]) || 0;
+                });
+                v.push(g);
+              });
+            } else {
+              var g2 = 0;
+              hi.forEach(function (h) {
+                Object.keys(by[h] || {}).forEach(function (dev) {
+                  g2 += by[h][dev] || 0;
+                });
+              });
+              v.push(g2);
+            }
+            gyou.push({ na: na, v: v });
+          }
+
+          var zenHi = Object.keys(by).sort();
+          var midashi1;
+          if (URI_MODE === 'year') {
+            midashi1 = '年';
+            tasu(YEAR + '年', zenHi);
+          } else if (URI_MODE === 'month') {
+            midashi1 = '月';
+            for (var mm = 1; mm <= 12; mm++) {
+              var m2 = (mm < 10 ? '0' : '') + mm;
+              tasu(
+                mm + '月',
+                zenHi.filter(function (h) {
+                  return h.slice(5, 7) === m2;
+                })
+              );
+            }
+          } else {
+            // ★日ごとは 1ヶ月ぶんだけ★（距離と 同じ 決まり）
+            var tsuki = ONE || new Date(Date.now() + 9 * 3600 * 1000).getUTCMonth() + 1;
+            var m3 = (tsuki < 10 ? '0' : '') + tsuki;
+            midashi1 = tsuki + '月の 日';
+            zenHi
+              .filter(function (h) {
+                return h.slice(5, 7) === m3;
+              })
+              .forEach(function (h) {
+                tasu(h.slice(8) + '日', [h]);
+              });
+          }
+
+          head.innerHTML =
+            // ★★合計は 右端では なく「月」の 隣★★ 2026-09-05（甲）
+            //   ★20台で 表が 1,612px＝箱の 5倍★＝右端の 合計は 見えない
+            //   ⇒ ★左に 貼り付けた 2列（月・合計）は いつでも 見える★
+            '<tr><th class="kotei1">' +
+            esc(midashi1) +
+            '</th>' +
+            (URI_WAKE === 'kuruma' ? '<th class="kotei2">合計</th>' : '') +
+            retsu
+              .map(function (r) {
+                return '<th>' + esc(r) + '</th>';
+              })
+              .join('') +
+            '</tr>';
+
+          // ★1件も 無い時に 黙って 空に しない★
+          if (!gyou.length) {
+            body.innerHTML =
+              '<tr><td colspan="9" class="note">この 月に 売上が ありません（0件）。上の「月ごと」で 別の 月を 押してください。</td></tr>';
+            return;
+          }
+
+          var gou = retsu.map(function () {
+            return 0;
+          });
+          var hyou = gyou
+            .map(function (r) {
+              var wa = 0;
+              var td = r.v
+                .map(function (x, i) {
+                  gou[i] += x;
+                  wa += x;
+                  return '<td>' + (x ? yen(x) : '—') + '</td>';
+                })
+                .join('');
+              return (
+                '<tr><td class="kotei1">' +
+                esc(r.na) +
+                '</td>' +
+                (URI_WAKE === 'kuruma'
+                  ? '<td class="kotei2">' + (wa ? yen(wa) : '—') + '</td>'
+                  : '') +
+                td +
+                '</tr>'
+              );
+            })
+            .join('');
+
+          var zenGou = gou.reduce(function (a, b) {
+            return a + b;
+          }, 0);
+          body.innerHTML =
+            hyou +
+            '<tr><td class="kotei1"><b>合計</b></td>' +
+            (URI_WAKE === 'kuruma' ? '<td class="kotei2"><b>' + yen(zenGou) + '</b></td>' : '') +
+            gou
+              .map(function (x) {
+                return '<td><b>' + yen(x) + '</b></td>';
+              })
+              .join('') +
+            '</tr>';
+
+          uriSuberu();
+        }
+
+        // ★★横に すべる時の 合図と 貼り付け位置★★ 2026-09-05（甲）
+        //   ★「月」の 幅は 中身で 変わる★ので 測って 入れる（決め打ちは 隙間/重なりに なる）
+        //   ★右に まだ 在る間だけ 影を 出す★＝すべり切ったら 消える（嘘の 合図に しない）
+        function uriSuberu() {
+          var t = $('uriTbl');
+          if (!t) return;
+          var box = t.closest('.kyori-sc');
+          if (!box) return;
+          var h1 = t.querySelector('thead .kotei1');
+          if (h1)
+            box.style.setProperty('--kotei1w', Math.round(h1.getBoundingClientRect().width) + 'px');
+          var miru = function () {
+            var nokori = box.scrollWidth - box.clientWidth - box.scrollLeft;
+            box.classList.toggle('migi-aru', nokori > 2);
+          };
+          if (!box.dataset.suberuBound) {
+            box.addEventListener('scroll', miru);
+            window.addEventListener('resize', miru);
+            box.dataset.suberuBound = '1';
+          }
+          miru();
+        }
+
+        (function () {
+          document.addEventListener('click', function (ev) {
+            var t = ev.target;
+            if (!t || !t.getAttribute) return;
+            var a = t.getAttribute('data-uri');
+            if (a) {
+              URI_MODE = a;
+              renderUri();
+              return;
+            }
+            var b = t.getAttribute('data-uriwake');
+            if (b) {
+              URI_WAKE = b;
+              renderUri();
+            }
+          });
+        })();
+
         function renderKyori() {
           var head = $('kyoriHead');
           var body = $('kyoriBody');
@@ -847,6 +1153,7 @@
               .join('') +
             '<th>給料 合計</th><th>経費</th><th>積立金</th><th>未収</th><th>現金</th><th>会社に残る分</th></tr>';
           $('thead').innerHTML = th;
+          renderUri(); // ★売上の 表も 一緒に 出す★
           renderKyori(); // ★距離の 表も 一緒に 出す★
 
           var html = '';
@@ -913,8 +1220,9 @@
             tr.onclick = function () {
               ONE = parseInt(tr.getAttribute('data-m'), 10) || 0;
               renderOne();
-              // ★日ごとの 距離も その月に 合わせる★ 2026-09-05
+              // ★日ごとの 売上／距離も その月に 合わせる★ 2026-09-05
               //   （日ごとは その月の 日数だけ 出す ので）
+              renderUri();
               renderKyori();
             };
           });

@@ -286,8 +286,12 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   await page.locator('[data-kyori="day"]').click();
   await page.waitForTimeout(600);
   const r = await page.evaluate(() => {
-    const box = document.querySelector('.kyori-sc');
+    // ★★箱は 表から 辿る★★ 2026-09-05
+    //   ★.kyori-sc は 売上と 距離の 2つ あります★（売上の箱が 先）
+    //   querySelector で 先頭を 掴むと ★売上の 箱を 測って しまい★
+    //   中に #kyoriBody の 行が 無いので ★見える 日数 0★に なりました（実際に なった）
     const t2 = document.getElementById('kyoriTbl');
+    const box = t2.closest('.kyori-sc');
     box.scrollTop = 99999;
     return {
       gyou: document.querySelectorAll('#kyoriBody tr').length,
@@ -309,7 +313,7 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   //   ★前は vh で 決めていて 端末で 6〜8行に ぶれた★（iPhone13 8／SE 6）
   //   ⇒ px で 決めて どの 端末でも 10日ぶん（★小さい SE だけ 8日★＝窓の 60%で 止める）
   const mieru = await page.evaluate(() => {
-    const box = document.querySelector('.kyori-sc');
+    const box = document.getElementById('kyoriTbl').closest('.kyori-sc');
     box.scrollTop = 0;
     const b2 = box.getBoundingClientRect();
     const th = box.querySelector('thead th').getBoundingClientRect();
