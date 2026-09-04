@@ -48,6 +48,9 @@ input/
 # 新: ローカル npm run test:replay で毎回更新・複数 push の rebase conflict 多発で除外化
 # CI artifact / Sentry release tag で代替記録
 data/test-results/
+# ★実機の 走行データ（材料）は git に 入れない★ 2026-09-04
+#   ★人の 走った 道＝個人情報★。tests/lib/trace-zairyou.js が ここを 読みます。
+data/traces/
 
 # Stryker mutation testing 生成物 (2026-05-18 追加・P5)
 # sandbox はテスト毎に dir 名がランダム生成・コミット追跡不要
