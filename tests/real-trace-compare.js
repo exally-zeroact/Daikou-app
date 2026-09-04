@@ -2,7 +2,7 @@
 'use strict';
 
 // tests/real-trace-compare.js
-// 実機 debug trace (Firebase /debug_traces・public read) を自動取得し、
+// 実機 debug trace (★手元の data/traces/*.json★) を読み、
 // 実走距離 (raw haversine) / ダイコメ報告値 (console business) / OSRM 道なり / Google 道なり
 // の 4 系統を突き合わせて精度を自動検証する。
 //
@@ -21,7 +21,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const DB = 'https://daikou-app-c821a-default-rtdb.asia-southeast1.firebasedatabase.app';
+// ★★Firebase は 使いません（司さん 2026-08-30「読む為にも 使うな」）★★
+//   前は ここに Firebase RTDB の 住所が 書いてあり、
+//   ★毎日 2つの repo（本番・テスト）が 読んでいました★。
+//   材料（実機の GPS trace）は ★手元の ファイル★から 受け取ります。
+//     REAL_TRACE_FILE=<path>  … その ファイルを 読む
+//     REAL_TRACE_KEY=<名前>   … data/traces/<名前>.json を 読む
+//     どちらも 無ければ data/traces/ の 一番 新しい .json
+//   ★材料が 無い時は 何処へも 繋がずに ★未測定★ と 言って 終わります★
+const TRACE_DIR = path.join(__dirname, '..', 'data', 'traces');
+const TRACE_FILE = (process.env.REAL_TRACE_FILE || '').trim();
 const OUT_DIR = path.join(__dirname, '..', 'data', 'test-results');
 const OUT_FILE = path.join(OUT_DIR, 'real-trace-latest.json');
 
@@ -72,21 +81,32 @@ async function getJson(url) {
   }
 }
 
-// ── 最新 GPS trace (= meta に kind なし) の key を自動選択 ──
-async function findLatestGpsTrace() {
-  if (FORCED_KEY) return FORCED_KEY;
-  const keysObj = await getJson(DB + '/debug_traces.json?shallow=true');
-  const keys = Object.keys(keysObj || {}).sort();
-  // 新しい順に meta を見て kind が無いもの (= 生 GPS trace) を探す
-  for (let i = keys.length - 1; i >= 0 && i >= keys.length - 60; i--) {
-    try {
-      const meta = await getJson(DB + '/debug_traces/' + keys[i] + '/meta.json');
-      if (meta && meta.kind == null && meta.watch_options) return keys[i];
-    } catch (_) {
-      // skip unreadable
-    }
+// ── 材料（GPS trace）を 手元から 読む ──
+//   ★外へは 繋ぎません★。無ければ null を 返す（＝未測定）
+function traceWoYomu() {
+  let p = null;
+  if (TRACE_FILE)
+    p = path.isAbsolute(TRACE_FILE) ? TRACE_FILE : path.join(__dirname, '..', TRACE_FILE);
+  else if (FORCED_KEY) p = path.join(TRACE_DIR, FORCED_KEY + '.json');
+  else if (fs.existsSync(TRACE_DIR)) {
+    const l = fs
+      .readdirSync(TRACE_DIR)
+      .filter((x) => x.endsWith('.json'))
+      .sort();
+    if (l.length) p = path.join(TRACE_DIR, l[l.length - 1]);
   }
-  return null;
+  if (!p || !fs.existsSync(p)) return null;
+  let j;
+  try {
+    j = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) {
+    console.error('[real-compare] 材料が 読めません: ' + p + ' / ' + e.message);
+    return null;
+  }
+  // ★形は 2通り 受ける★ … 点の 並び そのもの ／ { samples: [...] }
+  const samples = Array.isArray(j) ? j : Array.isArray(j && j.samples) ? j.samples : null;
+  if (!samples) return null;
+  return { key: path.basename(p), samples: samples };
 }
 
 // ── trip 分割し最大走行 segment を返す ──
@@ -113,35 +133,21 @@ function pickMainTrip(samples) {
   return { trip: best, rawDistanceM: bestDist > 0 ? bestDist : 0 };
 }
 
-// ── console_log から ダイコメ報告 business 距離 (km) の最大値を best-effort 抽出 ──
-async function extractDaikomeBusinessKm() {
-  try {
-    const keysObj = await getJson(DB + '/debug_traces.json?shallow=true');
-    const keys = Object.keys(keysObj || {}).sort();
-    let maxKm = 0;
-    let found = false;
-    for (let i = keys.length - 1; i >= 0 && i >= keys.length - 40; i--) {
-      let samples;
-      try {
-        samples = await getJson(DB + '/debug_traces/' + keys[i] + '/samples.json');
-      } catch (_) {
-        continue;
-      }
-      if (!Array.isArray(samples) || !samples[0] || !('m' in samples[0])) continue;
-      for (const x of samples) {
-        if (!x.m) continue;
-        const mt = x.m.match(/\[Business\] total=([\d.]+)km/);
-        if (mt) {
-          found = true;
-          const km = parseFloat(mt[1]);
-          if (km > maxKm) maxKm = km;
-        }
-      }
-    }
-    return found ? maxKm : null;
-  } catch (_) {
-    return null;
+// ── ダイコメ報告 business 距離 (km) の最大値を ★同じ 材料の 中から★ 拾う ──
+//   ★前は ここでも 別に Firebase を 読んでいました★（もう 繋ぎません）
+function extractDaikomeBusinessKm(samples) {
+  if (!Array.isArray(samples)) return null;
+  let maxKm = 0;
+  let found = false;
+  for (const x of samples) {
+    if (!x || !x.m) continue;
+    const mt = String(x.m).match(/\[Business\] total=([\d.]+)km/);
+    if (!mt) continue;
+    found = true;
+    const km = parseFloat(mt[1]);
+    if (km > maxKm) maxKm = km;
   }
+  return found ? maxKm : null;
 }
 
 // ── OSRM /match (自前 endpoint・100 点間引き) ──
@@ -234,16 +240,20 @@ function pct(a, b) {
 }
 
 async function main() {
-  const key = await findLatestGpsTrace();
+  const zairyou = traceWoYomu();
+  const key = zairyou ? zairyou.key : null;
   if (!key) {
     // ★2026-08-28: 黙って 0 で終わると 合格に見えます ⇒ ★未測定★ と はっきり言う
-    console.error('★[real-compare] ★未測定★ GPS trace が 見つかりません（遠くの倉庫が要ります）★');
-    console.error('[real-compare] MISOKUTEI=1 reason=trace-not-found');
+    console.error('★[real-compare] ★未測定★ 材料（GPS trace）が 手元に ありません★');
+    console.error(
+      '  置き場: data/traces/*.json ／ REAL_TRACE_FILE=<path> ／ REAL_TRACE_KEY=<名前>'
+    );
+    console.error('[real-compare] MISOKUTEI=1 reason=zairyou-nashi');
     console.error('  ⇒「測っていない」であって「異常なし」ではありません。');
     process.exit(0);
   }
   console.log('[real-compare] trace key =', key);
-  const samples = await getJson(DB + '/debug_traces/' + key + '/samples.json');
+  const samples = zairyou.samples;
   if (!Array.isArray(samples) || samples.length < 2) {
     console.error('★[real-compare] ★未測定★ 実物が 空／読めません★');
     console.error('[real-compare] MISOKUTEI=1 reason=samples-empty');
@@ -257,11 +267,8 @@ async function main() {
   }
   const durSec = (trip[trip.length - 1].t - trip[0].t) / 1000;
 
-  const [daikomeKm, osrm, google] = await Promise.all([
-    extractDaikomeBusinessKm(),
-    osrmMatch(trip),
-    googleDirections(trip),
-  ]);
+  const daikomeKm = extractDaikomeBusinessKm(samples);
+  const [osrm, google] = await Promise.all([osrmMatch(trip), googleDirections(trip)]);
   console.log('[real-compare] google_detail:', JSON.stringify(google));
   console.log('[real-compare] osrm_detail:', JSON.stringify(osrm));
 

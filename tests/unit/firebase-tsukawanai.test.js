@@ -124,6 +124,47 @@ describe('★Firebase は 使わない★', () => {
     });
   });
 
+  // ★★⑥ 会社の 道具（CI が 毎日 走らせる 物）も 数える★★ 2026-09-04
+  //   ★①〜⑤は 画面（html）しか 見ていませんでした★
+  //   ⇒ ★毎日 走る .github の 見張りが Firebase を 読んでいたのを 見逃していました★
+  //     tests/real-trace-compare.js … cron 0 0 * * *（本番・テストの ★2つの repo で★）
+  //     実測（2026-09-04）… 直近8回とも success ＝ ★毎日 Firebase を 読んで「未測定」と 返していた★
+  //   ⇒ 材料を ★手元の data/traces/*.json★ から 読む形に 直しました
+  it('★★⑥ CI が 走らせる js に Firebase の 送り先が 1つも 無い★★', () => {
+    const WF = path.join(ROOT, '.github', 'workflows');
+    expect(fs.existsSync(WF), '★.github/workflows が ありません★').toBe(true);
+    const kesu = (x) =>
+      x
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/\/\*[\s\S]*?\*\//g, ' ')
+        .replace(
+          new RegExp(
+            '(^|[^:])//[^' + String.fromCharCode(10) + String.fromCharCode(13) + ']*',
+            'g'
+          ),
+          '$1 '
+        );
+    const ATENA = /firebasedatabase\.app|firebaseio\.com|gstatic\.com\/firebasejs|firebasestorage/;
+    const warui = [];
+    let mita = 0;
+    for (const y of fs.readdirSync(WF)) {
+      const yml = fs.readFileSync(path.join(WF, y), 'utf8');
+      const files = [...new Set(yml.match(/[A-Za-z0-9_./-]+\.(js|mjs|cjs)/g) || [])];
+      // ★飛ばす書き方は しない★（無い物を 黙って 通すと 見張りが 嘘に なる）
+      const aru = files.filter((rel) => {
+        const p = path.join(ROOT, rel);
+        return fs.existsSync(p) && fs.statSync(p).isFile();
+      });
+      for (const rel of aru) {
+        const p = path.join(ROOT, rel);
+        mita++;
+        if (ATENA.test(kesu(fs.readFileSync(p, 'utf8')))) warui.push(y + ' → ' + rel);
+      }
+    }
+    // ★数えた 数も 出す★（0本を 見ただけで 緑に しない＝何も 見ていない のと 区別する）
+    expect(mita, '★CI が 走らせる js を 1本も 見つけられていません★').toBeGreaterThan(10);
+    expect(warui, '★CI が Firebase を 読んでいます★').toEqual([]);
+  });
   it('★⑤ 使わないだけ＝ファイルは 消していない（戻せる）★', () => {
     ['js/firebase.js', 'js/firebase-config.js', 'js/training-uploader.js'].forEach((f) => {
       expect(fs.existsSync(path.join(ROOT, f)), '★' + f + ' を 消しています★').toBe(true);
