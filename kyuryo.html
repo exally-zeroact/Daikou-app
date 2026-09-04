@@ -1258,11 +1258,32 @@
         function _carNames() {
           if (_CAR_NAMES) return _CAR_NAMES;
           var ids = [];
+          // ★★名前を 付けた 車は 走っていなくても 数える★★ 2026-09-04（司さん）
+          //   「★なんで 1173って 登録しとるやつが 反映されてないんど★」
+          //   ★実測★ 1173（端末 22849fdb）は 倉庫に 登録ずみ。
+          //     でも 最後に 走ったのは ★8/3★ ⇒ 9月の 記録には 出てこない
+          //     ⇒ ここで 名前の 元に 入らず ★「車」と 出ていた★
+          //   ★nameMap の 決まりは「その会社の端末ID全部」★（js/car-name.js）
+          //     ＝★走った 記録だけ 渡していたのが 間違い★
+          // ★★選ぶ欄に 出す 車と 同じ 元を 使う★★（別々に 数えない）
+          //   CTX.devices ＝ 名前を 付けた 車 ＋ 走った 車 ＋ 手で 入れた 車
+          //   ★前は ここだけ「走った 記録」しか 見ておらず、
+          //     ★登録しただけの 1173 が 「車」と 出ていました★（司さん 2026-09-04）
+          ((CTX && CTX.devices) || []).forEach(function (d) {
+            if (typeof d === 'string' && d) ids.push(d);
+          });
+          // ★CTX が まだ 出来ていない時の 逃げ道★（同じ 物を 直に 集める）
+          (RAW.labels || []).forEach(function (l) {
+            if (l && typeof l.device_id === 'string' && l.device_id) ids.push(l.device_id);
+          });
           (RAW.shifts || []).forEach(function (s) {
             if (s && typeof s.device_id === 'string' && s.device_id) ids.push(s.device_id);
           });
           (RAW.workHours || []).forEach(function (w) {
             if (w && typeof w.device_id === 'string' && w.device_id) ids.push(w.device_id);
+          });
+          (RAW.manualDays || []).forEach(function (m) {
+            if (m && typeof m.device_id === 'string' && m.device_id) ids.push(m.device_id);
           });
           _CAR_NAMES = window.CarName ? window.CarName.nameMap(ids, RAW.labels) : {};
           return _CAR_NAMES;
