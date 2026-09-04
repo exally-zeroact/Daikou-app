@@ -25,6 +25,10 @@
       "destination": "https://daikou-app.vercel.app/js/daiko-payroll.js"
     },
     {
+      "source": "/js/jimusho-footer.js",
+      "destination": "https://daikou-app-test.vercel.app/js/jimusho-footer.js"
+    },
+    {
       "source": "/js/dk-config.js",
       "destination": "https://daikou-app.vercel.app/js/dk-config.js"
     },

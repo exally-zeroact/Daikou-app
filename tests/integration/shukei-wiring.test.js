@@ -138,15 +138,27 @@ describe('★実物の月別シートと同じ列が出る★', () => {
 });
 
 describe('★事務所の画面どうしが行き来できる★', () => {
-  const pages = {
-    'uriage.html': ['kyuryo.html', 'shukei.html', 'dashboard.html'],
-    'kyuryo.html': ['uriage.html', 'shukei.html', 'dashboard.html'],
-    'shukei.html': ['uriage.html', 'kyuryo.html', 'dashboard.html'],
-  };
-  Object.keys(pages).forEach((from) => {
-    it(from + ' から他の画面へ行ける', () => {
+  // ★★2026-09-04（司さん）下の 帯に した★★
+  //   「この事務所だけ 他の アプリと 違う 型式なんを 同じに しろや」
+  //   「フッター 作って 各ページに 飛ぶようにしろ」「分かりにくいって 前から いやろが」
+  //   ★前は 画面ごとに 手書きの リンクを 並べていた★（中身が バラバラ）
+  //     uriage → 給料/月次集計/会社設定 ／ kyuryo → 売上表/月次集計/会社設定 …
+  //     ★dashboard は どこへも 行けない（行き止まり）★
+  //     ★料金表へ 入る 口が 1枚も 無い★
+  //   ⇒ ★行き先は js/jimusho-footer.js の 1か所★に した
+  //   ⇒ ここでは ★どの 画面も その 帯を 読んでいる事★を 見る
+  const GAMEN = ['uriage.html', 'kyuryo.html', 'shukei.html', 'dashboard.html', 'ryokinhyou.html'];
+  GAMEN.forEach((from) => {
+    it(from + ' は 下の 帯を 読んでいる（＝どこへでも 行ける）', () => {
       const src = fs.readFileSync(path.join(ROOT, from), 'utf8');
-      pages[from].forEach((to) => expect(src).toContain(to));
+      expect(src, '★下の 帯を 読んでいません★').toContain('js/jimusho-footer.js');
+    });
+  });
+
+  it('★行き先は 5つ・1か所に 書いてある★', () => {
+    const foot = fs.readFileSync(path.join(ROOT, 'js', 'jimusho-footer.js'), 'utf8');
+    GAMEN.forEach((to) => {
+      expect(foot, '★帯に ' + to + ' が ありません★').toContain(to);
     });
   });
 });

@@ -97,9 +97,13 @@ describe('★中に入った画面は1つのアプリに見える★', () => {
       expect(around).toContain('catch');
     });
 
-    it(p + ' は単体でも開ける（今まで通りのリンク列を持っている）', () => {
-      expect(src).toContain('class="top');
-      expect(src).toContain('dashboard.html');
+    // ★★2026-09-04（司さん）下の 帯に した★★
+    //   「フッター 作って 各ページに 飛ぶようにしろ」
+    //   ★前は 画面ごとに 手書きの リンク列★（中身が バラバラだった）
+    //   ⇒ ★行き先は js/jimusho-footer.js の 1か所★
+    it(p + ' は単体でも開ける（下の 帯から どこへでも 行ける）', () => {
+      expect(src, '★上の 帯が ありません★').toContain('class="top');
+      expect(src, '★下の 帯を 読んでいません★').toContain('js/jimusho-footer.js');
     });
   });
 });

@@ -398,9 +398,6 @@
       <div class="top">
         <div><span class="logo">ダイコメ</span><span class="tag">売上表</span></div>
         <div>
-          <button class="linkbtn" onclick="location.href = 'kyuryo.html'">給料</button>
-          <button class="linkbtn" onclick="location.href = 'shukei.html'">月次集計</button>
-          <button class="linkbtn" onclick="location.href = 'dashboard.html'">会社設定</button>
           <button class="linkbtn" id="btnLogout">ログアウト</button>
         </div>
       </div>
@@ -982,5 +979,10 @@
         }
       })();
     </script>
+    <!-- ★★事務所の 下の 帯（各ページへ 飛ぶ）★★ 2026-09-04（司さん）
+         「この事務所だけ 他の アプリと 違う 型式なんを 同じに しろや」
+         「フッター 作って 各ページに 飛ぶようにしろ」
+         ★行き先は js/jimusho-footer.js の 1か所★（画面ごとに 手書きしない） -->
+    <script src="js/jimusho-footer.js"></script>
   </body>
 </html>
