@@ -71,7 +71,6 @@ const NOKORI = [
   'tests/unit/obd-ratchet.test.js',
   'tests/unit/obd-tire-coldstart-k0.test.js',
   'tests/unit/obd-wheelspeed-identify.test.js',
-  'tests/unit/office-allow-list.test.js',
   'tests/unit/office-qr-side-guard.test.js',
   'tests/unit/scripts-registered.test.js',
   'tests/unit/test-band.test.js',
@@ -111,6 +110,9 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
     ).toEqual([]);
   });
 
+  // ★2026-09-05：office-allow-list.test.js を 名簿から 外しました（46→45）
+  //   ★「行き先が 本番とテスト線で 混ざっていないか」を 足し、
+  //     ★わざと 1行を 逆の 側にして 赤に なる事を 見た★ ので 記録が 出来ました。
   it('★③ 名簿は 増えない・黙って 減らない★', () => {
     // ★本番と テスト線で 試験の 本数が 少し 違います★（片方にしか 無い 試験が 在る）。
     //   ★この repo に 無い 物は 数えません★（「直した」ではなく「元から 無い」ので）。
@@ -121,7 +123,7 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
       '★名簿の 物を 直したなら 名簿から 消してください（黙って 減らさない）★'
     ).toBe(0);
     expect(NOKORI.length, '★名簿を 増やさないでください（新しい 見張りには 記録を 書く）★').toBe(
-      46
+      45
     );
   });
 });

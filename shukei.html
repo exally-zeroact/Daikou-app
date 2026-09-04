@@ -168,6 +168,15 @@
         font-family: inherit;
       }
 
+      /* ★選ばれていない ボタン★ 2026-09-05
+         ★この画面には 薄い ボタンの 見た目が 無く、3つとも 同じ 色に 見えた★
+         （絵を 開いて 気づいた） */
+      .btn.sub2 {
+        background: #fff;
+        color: var(--blue);
+        border: 1px solid var(--line);
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -339,6 +348,30 @@
       <div class="card">
         <div class="ttl" id="oneTtl">1ヶ月の内訳</div>
         <div class="kpis" id="kpis"></div>
+      </div>
+
+      <!-- ★★距離★★ 2026-09-05（司さん）
+           「Excelの 代行計算表2026の 距離の シートのように
+             回数、総走行距離、実車距離は どこに いれてる？」
+           「年間と 月ごと 日ごと 同じように ボタンで 切り替えて 見れるようにして」
+           ★実物の Excel と 同じ 3つ★＝回数／実車距離／総距離 -->
+      <div class="card">
+        <div class="ttl">距離</div>
+        <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button class="btn sub2" type="button" data-kyori="year">年間</button>
+          <button class="btn" type="button" data-kyori="month">月ごと</button>
+          <button class="btn sub2" type="button" data-kyori="day">日ごと</button>
+        </div>
+        <div class="scroller" style="margin-top: 10px">
+          <table id="kyoriTbl">
+            <thead id="kyoriHead"></thead>
+            <tbody id="kyoriBody"></tbody>
+          </table>
+        </div>
+        <div class="note">
+          <b>回数</b>＝お客さんを 乗せた 回数。<b>実車距離</b>＝お客さんを 乗せて 走った 分。<br />
+          <b>総走行距離</b>＝迎えや 戻りも 入れた ぜんぶ（空車も 入ります）。
+        </div>
       </div>
 
       <div class="card noprint">
@@ -538,7 +571,11 @@
 
           Promise.all([
             soft(
-              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count' +
+              // ★距離の 3つも 読む★ 2026-09-05（司さん「距離の シートのように」）
+              //   total_distance_m … ★総走行距離★（空車も 入る）
+              //   actual_total_m … ★実車距離★（お客さんを 乗せて 走った 分）
+              //   trip_count …… ★回数★
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,total_distance_m,actual_total_m' +
                 '&started_at=gte.' +
                 encodeURIComponent(from) +
                 '&started_at=lt.' +
@@ -620,6 +657,130 @@
         }
 
         // ---------- 描画 ----------
+        // ★★距離（年間／月ごと／日ごと）★★ 2026-09-05（司さん）
+        //   ★実物の Excel「距離」シートと 同じ 3つ★
+        //     ★回数★（trip_count）
+        //     ★実車距離★（actual_total_m＝お客さんを 乗せて 走った 分）
+        //     ★総走行距離★（total_distance_m＝迎え・戻りも 入れた ぜんぶ）
+        //   ★数字は 1か所で 足す★（年も 月も 日も 同じ 足し方＝食い違わない）
+        var KYORI_MODE = 'month';
+
+        function kyoriTasu(list) {
+          var k = { kaisuu: 0, jissha: 0, sou: 0 };
+          (list || []).forEach(function (x) {
+            if (!x || x.excluded) return;
+            k.kaisuu += Number(x.trip_count) || 0;
+            k.jissha += Number(x.actual_total_m) || 0;
+            k.sou += Number(x.total_distance_m) || 0;
+          });
+          return k;
+        }
+
+        // ★km は 小数1桁★（Excel と 同じ 出し方）
+        function km(m) {
+          return (Math.round((Number(m) || 0) / 100) / 10).toFixed(1);
+        }
+
+        // ★その 勤務が どの 日か★（始めた 時刻の 日本時間）
+        function kyoriHi(x) {
+          var d = new Date(x.started_at);
+          if (isNaN(d)) return '';
+          var j = new Date(d.getTime() + 9 * 3600 * 1000);
+          return j.toISOString().slice(0, 10);
+        }
+
+        function renderKyori() {
+          var head = $('kyoriHead');
+          var body = $('kyoriBody');
+          if (!head || !body) return;
+          var all = (RAW.shifts || []).filter(function (x) {
+            return x && !x.excluded;
+          });
+
+          // ★どのボタンが 押されているか 見た目に 出す★
+          Array.prototype.forEach.call(document.querySelectorAll('[data-kyori]'), function (b) {
+            var on = b.getAttribute('data-kyori') === KYORI_MODE;
+            b.className = on ? 'btn' : 'btn sub2';
+            if (on) b.setAttribute('aria-current', 'true');
+            else b.removeAttribute('aria-current');
+          });
+
+          var midashi = '<tr><th>%1</th><th>回数</th><th>実車距離</th><th>総走行距離</th></tr>';
+          var gyou = [];
+
+          if (KYORI_MODE === 'year') {
+            head.innerHTML = midashi.replace('%1', '年');
+            var y = kyoriTasu(all);
+            gyou.push({ na: YEAR + '年', k: y });
+          } else if (KYORI_MODE === 'month') {
+            head.innerHTML = midashi.replace('%1', '月');
+            for (var m = 1; m <= 12; m++) {
+              var mm = (m < 10 ? '0' : '') + m;
+              var no = all.filter(function (x) {
+                return kyoriHi(x).slice(5, 7) === mm;
+              });
+              gyou.push({ na: m + '月', k: kyoriTasu(no) });
+            }
+          } else {
+            head.innerHTML = midashi.replace('%1', '日');
+            var hibi = {};
+            all.forEach(function (x) {
+              var h = kyoriHi(x);
+              if (!h) return;
+              if (!hibi[h]) hibi[h] = [];
+              hibi[h].push(x);
+            });
+            Object.keys(hibi)
+              .sort()
+              .forEach(function (h) {
+                gyou.push({ na: h.slice(5).replace('-', '/'), k: kyoriTasu(hibi[h]) });
+              });
+          }
+
+          // ★1件も 無い時に 黙って 空に しない★（「0件」と 言う）
+          if (!gyou.length) {
+            body.innerHTML =
+              '<tr><td colspan="4" class="note">この 年に 走った 記録が ありません（0件）。</td></tr>';
+            return;
+          }
+
+          var gou = kyoriTasu(all);
+          body.innerHTML =
+            gyou
+              .map(function (r) {
+                return (
+                  '<tr><td>' +
+                  esc(r.na) +
+                  '</td><td>' +
+                  (r.k.kaisuu || 0) +
+                  '</td><td>' +
+                  km(r.k.jissha) +
+                  ' km</td><td>' +
+                  km(r.k.sou) +
+                  ' km</td></tr>'
+                );
+              })
+              .join('') +
+            // ★合計は どの 出し方でも 同じ★（食い違ったら すぐ 分かる）
+            '<tr><td><b>合計</b></td><td><b>' +
+            (gou.kaisuu || 0) +
+            '</b></td><td><b>' +
+            km(gou.jissha) +
+            ' km</b></td><td><b>' +
+            km(gou.sou) +
+            ' km</b></td></tr>';
+        }
+
+        (function () {
+          document.addEventListener('click', function (ev) {
+            var t = ev.target;
+            var m = t && t.getAttribute && t.getAttribute('data-kyori');
+            if (!m) return;
+            KYORI_MODE = m;
+            renderKyori();
+          });
+        })();
+
         function render() {
           $('yearLabel').textContent = YEAR + '年';
           var periods = (YR && YR.total.periods) || [];
@@ -633,6 +794,7 @@
               .join('') +
             '<th>給料 合計</th><th>経費</th><th>積立金</th><th>未収</th><th>現金</th><th>会社に残る分</th></tr>';
           $('thead').innerHTML = th;
+          renderKyori(); // ★距離の 表も 一緒に 出す★
 
           var html = '';
           YR.months.forEach(function (m) {
