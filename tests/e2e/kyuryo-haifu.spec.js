@@ -134,6 +134,22 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
     '★URLを 写せていません★'
   ).toContain('写しました');
 
+  // ★★絵は「押す前の 顔」で 撮る★★ 2026-09-04（指示役の 指摘）
+  //   ★前は 押した 直後（1.5秒だけ「写しました」に なる 間）に 撮っていました★
+  //   ⇒ 絵を 見た 人に ★ボタンの 字が 2通り 在る★ように 見えていました（★私の 撮り方が 悪い★）
+  //   ⇒ ★字が 元（URLを 写す）に 戻るまで 待ってから 撮ります★
+  await page.waitForFunction(
+    () => {
+      const b = document.querySelector('[data-hcopy]');
+      return b && b.textContent.indexOf('写しました') < 0;
+    },
+    { timeout: 5000 }
+  );
+  expect(
+    await page.locator('[data-hcopy]').first().textContent(),
+    '★字が 元に 戻っていません★'
+  ).toContain('URLを 写す');
+
   await page.locator('#haifuList').scrollIntoViewIfNeeded();
   await page
     .locator('#haifuList')
