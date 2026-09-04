@@ -4666,7 +4666,18 @@
         cursor: pointer;
         text-align: center;
         letter-spacing: 0.5px;
+        /* ★★出ても 画面を ずらさない★★ 2026-09-05（司さん）
+           「警告のせいで ボタン押せんとか ないようにしろ」
+           ★実測（直す前）★ 赤バー 42px ／ 業務終了ボタン 502px → 544px
+           ＝★押そうとした 瞬間に 42px 動く★（押し間違え・反応しない）
+           ⇒ ★上に 重ねる★＝★下の 中身は 1px も 動かない★
+           ★警告は そのまま 出す★（走っている時の 測り漏れは 守る） */
+        position: fixed;
+        left: 0;
+        right: 0;
+        z-index: 70;
       "
+      data-obd-bar-ukasu="1"
     >
       ⚠ OBDが切れました — タップで再接続
     </div>
@@ -17443,7 +17454,15 @@
             var _showRecon =
               _obdDropped && _obdDropSince != null && Date.now() - _obdDropSince > 4000;
             var reconBar = document.getElementById('obdReconnectBar');
-            if (reconBar) reconBar.style.display = _showRecon ? 'flex' : 'none';
+            if (reconBar) {
+              reconBar.style.display = _showRecon ? 'flex' : 'none';
+              // ★青バーの すぐ下に 浮かせる★（重ねるので 下の 中身は 動かない）
+              if (_showRecon) {
+                var _ab = document.getElementById('appbar');
+                var _shita = _ab ? Math.round(_ab.getBoundingClientRect().bottom) : 0;
+                reconBar.style.top = (_shita > 0 ? _shita : 0) + 'px';
+              }
+            }
             if (obdChipEl) obdChipEl.classList.toggle('reconnect', _showRecon);
             var obdChipLabelEl = document.getElementById('obdChipLabel');
             if (obdChipLabelEl) obdChipLabelEl.textContent = _showRecon ? 'OBD 再接続' : 'OBD';
