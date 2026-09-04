@@ -29,10 +29,13 @@
 
 (function () {
   // ★行き先は ここだけ★
+  // ★★並びは 司さんの 決め★★ 2026-09-05「月と給料 入れ替えて」
+  //   前 … 給料／売上表／月次集計／料金表／会社設定
+  //   後 … ★月次集計★／売上表／★給料★／料金表／会社設定
   const SAKI = [
-    { f: 'kyuryo.html', ic: '💰', na: '給料' },
-    { f: 'uriage.html', ic: '📊', na: '売上表' },
     { f: 'shukei.html', ic: '🧾', na: '月次集計' },
+    { f: 'uriage.html', ic: '📊', na: '売上表' },
+    { f: 'kyuryo.html', ic: '💰', na: '給料' },
     { f: 'ryokinhyou.html', ic: '💴', na: '料金表' },
     { f: 'dashboard.html', ic: '⚙️', na: '会社設定' },
   ];

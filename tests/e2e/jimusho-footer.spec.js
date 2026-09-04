@@ -66,7 +66,8 @@ const GAMEN = [
   { f: 'shukei.html', na: '月次集計' },
   { f: 'ryokinhyou.html', na: '料金表' },
 ];
-const SAKI = ['給料', '売上表', '月次集計', '料金表', '会社設定'];
+// ★並びは 司さんの 決め★ 2026-09-05「月と給料 入れ替えて」
+const SAKI = ['月次集計', '売上表', '給料', '料金表', '会社設定'];
 
 for (const g of GAMEN) {
   test('★下の 帯（' + g.f + '）★', async ({ page }) => {
