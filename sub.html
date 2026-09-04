@@ -126,6 +126,13 @@
       <div class="fare-thanks">ありがとうございました</div>
     </div>
 
+    <!-- ★今は 動いていません★（黙って 空車を 出し続けない） -->
+    <div class="screen" id="screenTomatte">
+      <div class="idle-text" style="font-size: 32px; line-height: 1.6">
+        この画面は<br />ただいま ご利用いただけません
+      </div>
+    </div>
+
     <!-- 通信確認 -->
     <div class="offline-msg" id="offlineMsg">通信確認中...</div>
 
@@ -137,24 +144,36 @@
       <option value="v4">4号車</option>
     </select>
 
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-    <script src="js/firebase-config.js"></script>
-    <script src="js/firebase.js"></script>
+    <!-- ★★Firebase の 読み込み 4本を 外しました（2026-09-04）★★
+         司さんの 恒久ルール「Firebaseは 2度と 使うな＝読む為にも 使わない」（2026-08-30）
+         この 画面は ★車の 今の 様子を 生で 受け取る★ 作りでした。
+         その 材料は Firebase にしか 無く、倉庫（Supabase）にも 在りません
+         （dk_shifts は ★後から まとめて 上げる★ 形で、生の 様子では ない）。
+         ⇒ ★今は 動きません★。黙って「空車」を 出し続けると 嘘に なるので
+           ★はっきり そう 出します★。ファイルは 消していません（戻せます）。 -->
     <script>
       let lastUpdate = 0;
       let offlineTimer = null;
 
       function showScreen(name) {
-        ['Idle', 'Driving', 'Fare'].forEach((n) => {
+        ['Idle', 'Driving', 'Fare', 'Tomatte'].forEach((n) => {
           document
             .getElementById('screen' + n)
             .classList.toggle('active', n.toLowerCase() === name);
         });
       }
 
-      function watchVehicle(vid) {
-        FB.watchVehicle(vid, (data) => {
+      // ★★Firebase を 見に 行っていた 所★★（もう 呼びません・戻せるように 残す）
+      //   ここを 生かすには ★車の 今の 様子を 倉庫へ 上げる 仕組み★ が 要ります。
+      //   ＝★司さんの 決め事★（作るか どうか）
+      //   ★受け取り口（uketori）を 渡された時だけ 動きます★
+      //   ＝今は ★誰も 渡していない★ ので 1度も 動きません。
+      function watchVehicle(vid, uketori) {
+        if (typeof uketori !== 'function') {
+          showScreen('tomatte');
+          return;
+        }
+        uketori((data) => {
           if (!data) {
             showScreen('idle');
             return;
@@ -185,21 +204,17 @@
         }
       }, 1000);
 
-      // 車両切替
+      // ★車を 選び直しても 見に 行く 相手が 居ません★（止まっている画面の まま）
       document.getElementById('vehicleSel').addEventListener('change', function () {
-        watchVehicle(this.value);
+        showScreen('tomatte');
       });
 
-      // URLパラメータで車両指定
+      // ★★今は 動きません（材料の 受け取り口が 無い）★★
+      //   前は ここで Firebase を 見に 行っていました。
+      //   ★空車の まま 置いておくと「動いている」と 見えます★ ⇒ はっきり 言う。
       const v = new URLSearchParams(location.search).get('v');
-      if (v) {
-        document.getElementById('vehicleSel').value = v;
-        watchVehicle(v);
-      } else {
-        watchVehicle('v1');
-      }
-
-      showScreen('idle');
+      if (v) document.getElementById('vehicleSel').value = v;
+      showScreen('tomatte');
     </script>
   </body>
 </html>

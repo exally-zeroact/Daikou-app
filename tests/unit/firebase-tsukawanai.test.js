@@ -52,6 +52,28 @@ function yomu(rel) {
   return fs.readFileSync(p, 'utf8');
 }
 
+// ★★repo の 画面を 全部 集める★★ 2026-09-04
+//   ★前は 手書きの 名簿でした★（index + 事務所5枚 ＝ 6枚）。
+//   実際は ★21枚★ 在り、名簿に 無い ★sub.html★ が
+//   ★Firebase の SDK 2本 + firebase-config.js + firebase.js を 読み込んだまま★
+//   ★本番で 生きていました★（HTTP 200・どこからも リンクは 無い）。
+//   ⇒ ★名簿を やめて 機械に 全部 数えさせます★
+function zenGamen() {
+  const deta = [];
+  const oku = ['node_modules', '.git', 'coverage', 'data', 'dist'];
+  (function aruku(d, fukasa) {
+    if (fukasa > 4) return;
+    for (const na of fs.readdirSync(d)) {
+      if (oku.indexOf(na) >= 0) continue;
+      const p = path.join(d, na);
+      const st = fs.statSync(p);
+      if (st.isDirectory()) aruku(p, fukasa + 1);
+      else if (na.endsWith('.html')) deta.push(path.relative(ROOT, p).split(path.sep).join('/'));
+    }
+  })(ROOT, 0);
+  return deta.sort();
+}
+
 // ★画面が 読み込む 物だけを 見る★（説明文に 名前が 出るのは 構わない）
 function yomikomu(html) {
   return (html.match(/<script[^>]+src="([^"]+)"/g) || []).map((t) =>
@@ -79,13 +101,17 @@ describe('★Firebase は 使わない★', () => {
     });
   });
 
-  it('★③ 事務所の 画面も 読み込まない★', () => {
-    ['dashboard.html', 'kyuryo.html', 'uriage.html', 'shukei.html', 'ryokinhyou.html'].forEach(
-      (f) => {
-        const warui = yomikomu(yomu(f)).filter((u) => /firebase/i.test(u));
-        expect(warui, '★' + f + ' が Firebase を 読み込んでいます★').toEqual([]);
-      }
-    );
+  // ★★③ 手書きの 名簿を やめた（2026-09-04）★★ 事務所5枚 → ★repo の 画面 全部★
+  it('★★③ repo の 画面が 1枚も Firebase を 読み込まない★★', () => {
+    const gamen = zenGamen();
+    // ★何枚 見たかも 数える★（0枚を 見て 緑に しない）
+    expect(gamen.length, '★画面を 1枚も 見つけられていません★').toBeGreaterThan(15);
+    const warui = [];
+    for (const f of gamen) {
+      const uso = yomikomu(yomu(f)).filter((u) => /firebase/i.test(u));
+      if (uso.length) warui.push(f + ' → ' + uso.join(','));
+    }
+    expect(warui, '★Firebase を 読み込んでいる 画面が あります★').toEqual([]);
   });
 
   it('★④ 上げられないのに「送ります」と 聞かない（同意の 帯を 出さない）★', () => {
@@ -108,14 +134,7 @@ describe('★Firebase は 使わない★', () => {
         .replace(/\/\*[\s\S]*?\*\//g, ' ')
         .replace(new RegExp('(^|[^:])//[^' + String.fromCharCode(10) + ']*', 'g'), '$1 ');
     const ATENA = /firebasedatabase\.app|firebaseio\.com|gstatic\.com\/firebasejs|firebasestorage/;
-    [
-      'index.html',
-      'dashboard.html',
-      'kyuryo.html',
-      'uriage.html',
-      'shukei.html',
-      'ryokinhyou.html',
-    ].forEach((f) => {
+    zenGamen().forEach((f) => {
       const naka = kesu(yomu(f));
       expect(
         ATENA.test(naka),
