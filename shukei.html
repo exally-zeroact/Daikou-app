@@ -722,29 +722,46 @@
               gyou.push({ na: m + '月', k: kyoriTasu(no) });
             }
           } else {
-            head.innerHTML = midashi.replace('%1', '日');
+            // ★★日ごとは 1ヶ月ぶんだけ★★ 2026-09-05（司さん）
+            //   ★前は 1年ぶん 出していました★（実測 336日＝表 13,787px＝画面 20枚ぶん）
+            //   ⇒ ★年は 1個・月ごとは 12個・日ごとは その月の 日数だけ★
+            //   どの 月かは ★上の「月ごと」で 押した 月★（ONE）。
+            //   まだ 押していない（0）時は ★今の 月★を 出す。
+            var tsuki = ONE || new Date(Date.now() + 9 * 3600 * 1000).getUTCMonth() + 1;
+            var mm2 = (tsuki < 10 ? '0' : '') + tsuki;
+            head.innerHTML = midashi.replace('%1', tsuki + '月の 日');
             var hibi = {};
             all.forEach(function (x) {
               var h = kyoriHi(x);
               if (!h) return;
+              if (h.slice(5, 7) !== mm2) return; // ★その月だけ★
               if (!hibi[h]) hibi[h] = [];
               hibi[h].push(x);
             });
             Object.keys(hibi)
               .sort()
               .forEach(function (h) {
-                gyou.push({ na: h.slice(5).replace('-', '/'), k: kyoriTasu(hibi[h]) });
+                gyou.push({ na: h.slice(8) + '日', k: kyoriTasu(hibi[h]) });
               });
           }
 
           // ★1件も 無い時に 黙って 空に しない★（「0件」と 言う）
           if (!gyou.length) {
             body.innerHTML =
-              '<tr><td colspan="4" class="note">この 年に 走った 記録が ありません（0件）。</td></tr>';
+              KYORI_MODE === 'day'
+                ? '<tr><td colspan="4" class="note">この 月に 走った 記録が ありません（0件）。上の「月ごと」で 別の 月を 押してください。</td></tr>'
+                : '<tr><td colspan="4" class="note">この 年に 走った 記録が ありません（0件）。</td></tr>';
             return;
           }
 
-          var gou = kyoriTasu(all);
+          // ★合計は 出している 分と 同じ★（日ごとは その月だけ）
+          //   ★年の 合計を 出すと 上の 行と 足し算が 合わない＝嘘に なる★
+          var gou = { kaisuu: 0, jissha: 0, sou: 0 };
+          gyou.forEach(function (r) {
+            gou.kaisuu += r.k.kaisuu;
+            gou.jissha += r.k.jissha;
+            gou.sou += r.k.sou;
+          });
           body.innerHTML =
             gyou
               .map(function (r) {
@@ -860,6 +877,9 @@
             tr.onclick = function () {
               ONE = parseInt(tr.getAttribute('data-m'), 10) || 0;
               renderOne();
+              // ★日ごとの 距離も その月に 合わせる★ 2026-09-05
+              //   （日ごとは その月の 日数だけ 出す ので）
+              renderKyori();
             };
           });
 

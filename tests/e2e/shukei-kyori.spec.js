@@ -147,21 +147,33 @@ test('★年間／月ごと／日ごと で 切り替わり、合計は どれ�
   expect(r.rows[0][2], '★年の 実車距離が 違います★').toBe(KOTAE.jissha.toFixed(1) + ' km');
   expect(r.rows[0][3], '★年の 総走行距離が 違います★').toBe(KOTAE.sou.toFixed(1) + ' km');
 
-  // ★日ごと★
+  // ★★日ごとは 1ヶ月ぶんだけ★★ 2026-09-05（司さん「日毎は 1ヶ月分だけに しろや」）
+  //   ★前は 1年ぶん 出していた★（実測 336日＝表 13,787px＝★画面 20枚ぶん★）
+  //   ⇒ ★上の「月ごと」で 押した 月★の 日数だけ 出す
+  //   ⇒ 押していない 時は ★今の 月★（この 見本には 記録が 無いので 0件と 言う）
   await page.locator('[data-kyori="day"]').click();
   await page.waitForTimeout(400);
   r = await yomu(page);
-  console.log('★日ごと★ ' + JSON.stringify(r.rows));
-  expect(r.head[0], '★見出しが 日に なっていません★').toBe('日');
-  expect(r.rows.length, '★走った 日の 数が 違います★').toBe(SHIFTS.length + 1); // 3日 + 合計
-  expect(r.rows[0][0], '★日付の 出し方が 違います★').toBe('01/02');
+  console.log('★日ごと（月を 押す前）★ ' + JSON.stringify(r.rows));
+  expect(r.rows[0][0], '★0件を 黙って 空に しています★').toContain('0件');
+
+  // ★1月の 行を 押す ⇒ 日ごとも 1月に なる★
+  await page.locator('#tbody tr[data-m="1"]').click();
+  await page.waitForTimeout(500);
+  r = await yomu(page);
+  console.log('★日ごと（1月）★ ' + JSON.stringify(r));
+  expect(r.head[0], '★見出しに 月が 出ていません★').toBe('1月の 日');
+  expect(r.rows.length, '★1月に 走った 日の 数が 違います★').toBe(2 + 1); // 2日 + 合計
+  expect(r.rows[0][0], '★日付の 出し方が 違います★').toBe('02日');
   expect(r.rows[0][1], '★1/2 の 回数が 違います★').toBe('18');
   expect(r.rows[0][2], '★1/2 の 実車距離が 違います★').toBe('106.7 km');
   expect(r.rows[0][3], '★1/2 の 総走行距離が 違います★').toBe('218.0 km');
 
-  // ★★どの 出し方でも 合計は 同じ★★（食い違ったら 数え方が 壊れている）
+  // ★★合計は「出している 分」と 同じ★★（年の 合計を 出すと 足し算が 合わない）
   const dGou = gou(r.rows);
-  expect(dGou.slice(1), '★日ごとの 合計が 月ごとと 違います★').toEqual(mGou.slice(1));
+  expect(dGou[1], '★1月の 合計の 回数が 違います★').toBe(String(18 + 14));
+  expect(dGou[2], '★1月の 合計の 実車距離が 違います★').toBe('234.4 km');
+  expect(dGou[3], '★1月の 合計の 総走行距離が 違います★').toBe('475.6 km');
 
   expect(err, '★画面が 落ちました★').toEqual([]);
   await page.locator('#kyoriTbl').scrollIntoViewIfNeeded();
