@@ -176,6 +176,27 @@ test('★年間／月ごと／日ごと で 切り替わり、合計は どれ�
   expect(dGou[3], '★1月の 合計の 総走行距離が 違います★').toBe('475.6 km');
 
   expect(err, '★画面が 落ちました★').toEqual([]);
+  // ★★多い時は 箱の 中で スクロール★★ 2026-09-05（司さん）
+  //   「それを 多いけん スクロールして 見せるようにしろ」
+  //   ★ページを 伸ばさない★＝下の 帯や 他の 箱が 遠くへ 行かない
+  const sc = await page.evaluate(() => {
+    const box = document.querySelector('.kyori-sc');
+    const t = document.getElementById('kyoriTbl');
+    const cs = getComputedStyle(box);
+    const th = box.querySelector('thead th');
+    return {
+      overflowY: cs.overflowY,
+      hakoH: Math.round(box.getBoundingClientRect().height),
+      hyouH: Math.round(t.getBoundingClientRect().height),
+      mado: window.innerHeight,
+      thKotei: th ? getComputedStyle(th).position : null,
+    };
+  });
+  console.log('★スクロール★ ' + JSON.stringify(sc));
+  expect(sc.overflowY, '★縦に スクロールしません★').toBe('auto');
+  expect(sc.hakoH, '★箱が 窓より 大きい（ページが 伸びます）★').toBeLessThan(sc.mado);
+  expect(sc.thKotei, '★見出しが 貼り付いていません★').toBe('sticky');
+
   await page.locator('#kyoriTbl').scrollIntoViewIfNeeded();
   await page.screenshot({
     path: 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/shot-kyori.png',
@@ -215,4 +236,71 @@ test('★押した ボタンが どれか 分かる★', async ({ page }) => {
     sonota.filter((x) => x === erabareta[0]),
     '★選ばれている 物と 同じ 色の ボタンが あります（見分けが つきません）★'
   ).toEqual([]);
+});
+
+// ★★行が 多い時に 箱の 中で 止まるか★★ 2026-09-05（司さん）
+//   「それを 多いけん スクロールして 見せるようにしろ」
+//   ★上の 見本は 3日ぶんで 元から 窓に 収まる★ので 別に 1ヶ月ぶんで 見る
+//   ★実測（直す前）★ 1ヶ月＝29行で 表 1,222px ⇒ ページ 5.4画面
+//   ★★わざと壊して 赤に なる事を 見た★★ … max-height を none に する ⇒ ★赤★
+test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
+  const HITOTSUKI = [];
+  for (let d = 1; d <= 28; d++) {
+    const dd = (d < 10 ? '0' : '') + d;
+    HITOTSUKI.push({
+      shift_id: 's' + dd,
+      device_id: 'd1',
+      started_at: '2026-01-' + dd + 'T10:00:00+09:00',
+      ended_at: '2026-01-' + dd + 'T18:00:00+09:00',
+      elapsed_sec: 28800,
+      fare_total_yen: 20000,
+      trip_count: 18,
+      actual_total_m: 106700,
+      total_distance_m: 218000,
+    });
+  }
+  const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
+  const co = { company_id: CO, name: '見張り用' };
+  const t =
+    moto +
+    ';(function(){var S=window.DKSession;var co=' +
+    JSON.stringify(co) +
+    ';var SH=' +
+    JSON.stringify(HITOTSUKI) +
+    ';' +
+    'function rows(p){ if(p.indexOf("dk_shifts")===0)return SH; return [];}' +
+    'S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
+    'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
+    'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
+    'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
+    'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();';
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: t })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+  await page.locator('#kyoriTbl').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForTimeout(1200);
+  await page.locator('#tbody tr[data-m="1"]').click();
+  await page.waitForTimeout(400);
+  await page.locator('[data-kyori="day"]').click();
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => {
+    const box = document.querySelector('.kyori-sc');
+    const t2 = document.getElementById('kyoriTbl');
+    box.scrollTop = 99999;
+    return {
+      gyou: document.querySelectorAll('#kyoriBody tr').length,
+      hakoH: Math.round(box.getBoundingClientRect().height),
+      hyouH: Math.round(t2.getBoundingClientRect().height),
+      sukuroru: box.scrollTop > 0,
+      page: Math.round(document.body.scrollHeight),
+      mado: window.innerHeight,
+    };
+  });
+  console.log('★1ヶ月ぶん★ ' + JSON.stringify(r) + ' ＝ ' + (r.page / r.mado).toFixed(1) + '画面');
+  expect(r.gyou, '★1ヶ月ぶん 出ていません★').toBe(29);
+  expect(r.hyouH, '★表が 短すぎます（見本が 効いていません）★').toBeGreaterThan(1000);
+  expect(r.hakoH, '★箱が 窓より 大きい（ページが 伸びます）★').toBeLessThan(r.mado);
+  expect(r.sukuroru, '★中で スクロールしません★').toBe(true);
 });

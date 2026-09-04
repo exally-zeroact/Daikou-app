@@ -217,6 +217,32 @@
         overflow-x: auto;
       }
 
+      /* ★距離の 表は 箱の 中で 縦に スクロール★ 2026-09-05（司さん）
+         「それを 多いけん スクロールして 見せるようにしろ」
+         ★実測★ 1ヶ月ぶん（29行）で 表 1,222px ⇒ ★ページが 5.4画面★に なる
+         ⇒ ★箱を 窓の 半分ぐらいに 止めて、中で スクロール★ */
+      .kyori-sc {
+        max-height: 46vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* ★見出しは 貼り付ける★（何の 列か 分からなく ならない） */
+      .kyori-sc thead th {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 1;
+      }
+
+      /* ★紙では 全部 出す★（切れない） */
+      @media print {
+        .kyori-sc {
+          max-height: none;
+          overflow: visible;
+        }
+      }
+
       .msg {
         text-align: center;
         color: var(--muted);
@@ -362,7 +388,11 @@
           <button class="btn" type="button" data-kyori="month">月ごと</button>
           <button class="btn sub2" type="button" data-kyori="day">日ごと</button>
         </div>
-        <div class="scroller" style="margin-top: 10px">
+        <!-- ★★多い時は 箱の 中で スクロール★★ 2026-09-05（司さん）
+             「それを 多いけん スクロールして 見せるようにしろ」
+             ★ページを 伸ばさない★＝下の 帯や 他の 箱が 遠くへ 行かない
+             ★見出しは 貼り付ける★（スクロールしても 何の 列か 分かる） -->
+        <div class="scroller kyori-sc" style="margin-top: 10px">
           <table id="kyoriTbl">
             <thead id="kyoriHead"></thead>
             <tbody id="kyoriBody"></tbody>
