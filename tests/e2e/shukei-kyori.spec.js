@@ -303,4 +303,22 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   expect(r.hyouH, '★表が 短すぎます（見本が 効いていません）★').toBeGreaterThan(1000);
   expect(r.hakoH, '★箱が 窓より 大きい（ページが 伸びます）★').toBeLessThan(r.mado);
   expect(r.sukuroru, '★中で スクロールしません★').toBe(true);
+
+  // ★★何日ぶん 見えるか★★ 2026-09-05（司さん「何日分の 窓に しとんど」「バランス考えて」）
+  //   ★締めの 区切りが 1〜10日／11〜20日／21〜末日★なので ★10日★で 揃えた
+  //   ★前は vh で 決めていて 端末で 6〜8行に ぶれた★（iPhone13 8／SE 6）
+  //   ⇒ px で 決めて どの 端末でも 10日ぶん（★小さい SE だけ 8日★＝窓の 60%で 止める）
+  const mieru = await page.evaluate(() => {
+    const box = document.querySelector('.kyori-sc');
+    box.scrollTop = 0;
+    const b2 = box.getBoundingClientRect();
+    const th = box.querySelector('thead th').getBoundingClientRect();
+    return [...box.querySelectorAll('#kyoriBody tr')].filter((tr) => {
+      const q = tr.getBoundingClientRect();
+      return q.top >= th.bottom - 1 && q.bottom <= b2.bottom + 1;
+    }).length;
+  });
+  console.log('★見える 日数★ ' + mieru + '日ぶん');
+  expect(mieru, '★見える 日数が 減りました★').toBeGreaterThanOrEqual(8);
+  expect(mieru, '★大きすぎます（下の 箱が 隠れます）★').toBeLessThanOrEqual(12);
 });
