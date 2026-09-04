@@ -25,7 +25,7 @@ const FIX = JSON.parse(
 const OUT = 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/';
 const LIST = [
   {
-    employee_id: 'e1',
+    employee_id: 'ec8d275b-38c0-4d9f-b471-eeb10226a6a9',
     name: 'テスト太郎',
     token: '7c4383b6aaaa1111bbbb2222cccc3333',
     init_code: '07041B0C',
@@ -33,7 +33,7 @@ const LIST = [
     sort_order: 1,
   },
   {
-    employee_id: 'e2',
+    employee_id: '46a60d53-02b7-47ef-829e-6fd03cee1a31',
     name: 'テスト次郎',
     token: '3b7433a6dddd4444eeee5555ffff6666',
     init_code: null,
@@ -67,6 +67,13 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
     'S.pickCompany=function(){return {mode:"one",company:co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p,o){' +
+    // ★1人ぶんの 口★（2026-09-04 司さん「従業員毎に 配るんやないんか」）
+    //   ★一覧に 居る 2人だけ 鍵を 返す★／3人目は not_yours ＝「まだ 配っていません」の まま
+    '  if(String(p).indexOf("rpc/dk_kyuryo_haifu_hitori")===0){' +
+    '    var eid=JSON.parse(o.body).p_employee_id;var L=' +
+    JSON.stringify(LIST) +
+    ';var h=null;L.forEach(function(y){if(y.employee_id===eid)h=y;});' +
+    '    return Promise.resolve({ok:true,json:function(){return Promise.resolve(h?{ok:true,hito:h}:{ok:false,reason:"not_yours"});}});}' +
     '  if(String(p).indexOf("rpc/dk_kyuryo_haifu")===0)return Promise.resolve({json:function(){return Promise.resolve({ok:true,list:' +
     JSON.stringify(LIST) +
     '});}});' +
@@ -83,7 +90,23 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   await page.waitForTimeout(1800);
   await page.locator('.tab[data-tab="set"]').click();
   await page.waitForTimeout(600);
-  await page.locator('#btnHaifu').click();
+  // ★★配るのは 人ごと★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+  //   ★全員に 効く ボタンは 在りません★＝★人ごとの〔配る〕を 押す★
+  expect(await page.locator('#btnHaifu').count(), '★全員に 効く「配る」が 戻っています★').toBe(0);
+  // ★★配る前の 顔★★（従業員 全員が 出て、みんな「まだ 配っていません」）
+  await page.locator('#haifuList').scrollIntoViewIfNeeded();
+  await page
+    .locator('#haifuList')
+    .locator('xpath=ancestor::div[contains(@class,"card")][1]')
+    .screenshot({ path: 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/shot-haifu-mae.png' });
+  const machi = await page.locator('[data-hhito]').count();
+  // eslint-disable-next-line no-console
+  console.log('★まだ 配っていない人★ ' + machi + '人');
+  expect(machi, '★人ごとの「配る」が 出ていません★').toBeGreaterThan(0);
+  for (let i = 0; i < machi; i++) {
+    await page.locator('[data-hhito]').first().click();
+    await page.waitForTimeout(500);
+  }
   await page.waitForTimeout(900);
   const n = await page.locator('#haifuList .card').count();
   const svg = await page.locator('#haifuList svg').count();
@@ -101,7 +124,19 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   );
   // eslint-disable-next-line no-console
   u2.forEach((t) => console.log('   URL … ' + t.slice(0, 100)));
-  expect(n, '★人ごとの 枚数が 合いません★').toBe(2);
+  // ★★一覧は 従業員 全員★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+  //   ★配る前から 名前が 出る★＝誰に 配ってあるかが 一目で 分かる
+  //   ⇒ 札の 数 ＝ ★今 居る 従業員の 数★（この 見本は 3人）
+  const inHito = await page.evaluate(() => (window.__EMP_KAZU__ = null));
+  void inHito;
+  expect(n, '★札が 従業員の 数と 合いません★').toBe(3);
+  // ★鍵が 出来ているのは 2人だけ★（この 見本の 決め）
+  expect(u2.length, '★鍵の 数が 合いません★').toBe(2);
+  // ★残り 1人は「まだ 配っていません」★
+  expect(
+    await page.locator('#haifuList [data-hhito]').count(),
+    '★まだ 配っていない人が 出ていません★'
+  ).toBe(1);
   // ★★2026-09-04（司さん）「一気に 見せる メリット ないやろが」★★
   //   ★一覧には QR を 出さない★（小さくて 読めない／全員ぶんを 撮られる）
   //   ⇒ 出すのは ★1人ずつ「大きく 見せる」★の 時だけ

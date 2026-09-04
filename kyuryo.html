@@ -1188,15 +1188,16 @@
           <!-- ★★説明書★★ 2026-09-04（司さん「説明書 書いて 見せろ」）
                ★渡し方は 3手で 終わる★事を 先に 書く（読まなくても 出来るように） -->
           <div class="note" style="margin: 0 0 10px">
-            <b>配る</b>を押すと、今いる人ぶんが 一覧に 出ます。<br />
+            今いる人が 一覧に 出ます。<b>その人の「配る」</b>を押すと、その人ぶんの QR が
+            用意できます。<br />
             渡すのは <b>その人の「大きく 見せる」</b>（読ませるだけ）か
             <b>「コピー」</b>（LINE等）です。
           </div>
           <details id="haifuSetsumei" style="margin: 0 0 10px">
             <summary style="cursor: pointer; font-weight: 700">使い方（3手で 終わります）</summary>
             <div class="note" style="margin: 8px 0 0; line-height: 1.9">
-              <b>① 配る</b> を 押す<br />
-              　… 今いる人が 一覧に 出ます（QR は まだ 出ません）。<br />
+              <b>① その人の「配る」</b> を 押す<br />
+              　… <b>その人ぶんだけ</b> 用意します（他の人の 鍵は 作りません）。<br />
               　　もう 配ってある人は <b>そのまま</b>（作り直しには なりません）。<br />
               <b>② その人の「大きく 見せる」</b> を 押す<br />
               　… 画面いっぱいの QR が 出ます。<b>本人に 読ませるだけ</b>。<br />
@@ -1225,9 +1226,9 @@
                  ・その場に 居る人 … その人の「大きく 見せる」＝読ませるだけ
                  ・居ない人 ……… その人の「コピー」＝LINE や メールに 貼る
                ★紙は 1度も 要りません★（司さん「なんで 印刷せないかんのど」） -->
-          <div class="oshi" style="display: flex; gap: 10px; flex-wrap: wrap">
-            <button class="btn" id="btnHaifu" type="button">配る</button>
-          </div>
+          <!-- ★★「配る」は 人ごとです★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+               ★全員に 効く ボタンは 置きません★
+               ＝渡していない 人の 鍵まで 作らない（鍵は 渡す 相手 1人にだけ） -->
           <div class="err" id="haifuErr" style="display: none"></div>
           <div id="haifuList"></div>
         </div>
@@ -1727,7 +1728,7 @@
             haifuMiseru(eid);
             return;
           }
-          haifuGo().then(function () {
+          haifuHitori(eid).then(function () {
             haifuMiseru(eid);
           });
         }
@@ -1739,16 +1740,55 @@
           e.textContent = t || '';
         }
 
+        // ★★一覧は 従業員 全員★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+        //   ★配る前から 名前が 出ます★（誰に 配ってあるかが 一目で 分かる）
+        //   鍵が 出来ている人 … 〔大きく 見せる〕〔コピー〕〔作り直す〕
+        //   まだの人 ……………… 〔配る〕（★その人だけ★）
+        function haifuHito(eid) {
+          for (var i = 0; i < HAIFU.length; i++) {
+            if (String(HAIFU[i].employee_id) === String(eid)) return HAIFU[i];
+          }
+          return null;
+        }
+
         function renderHaifu() {
           var box = $('haifuList');
           if (!box) return;
-          if (!HAIFU.length) {
-            box.innerHTML = '';
-
+          var hitobito = (RAW.employees || []).filter(function (e) {
+            return e && e.employee_id && e.active !== false;
+          });
+          if (!hitobito.length) {
+            box.innerHTML =
+              '<div class="note">今いる人が 居ません（「従業員」で 登録してください）。</div>';
             return;
           }
 
-          box.innerHTML = HAIFU.map(function (x) {
+          box.innerHTML = hitobito
+            .map(function (e) {
+              var x = haifuHito(e.employee_id);
+              // ★まだ 配っていない人★
+              if (!x) {
+                return (
+                  '<div class="card" style="margin:10px 0 0">' +
+                  '<div style="font-weight:800">' +
+                  esc(e.name || '') +
+                  '　殿</div>' +
+                  '<div class="note" style="margin:2px 0 8px">まだ 配っていません</div>' +
+                  '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:2px">' +
+                  '<button class="btn chi" type="button" data-hhito="' +
+                  esc(e.employee_id) +
+                  '">配る</button>' +
+                  '</div></div>'
+                );
+              }
+              return haifuFuda(x);
+            })
+            .join('');
+        }
+
+        // ★配ってある人の 札★（前と 同じ 中身）
+        function haifuFuda(x) {
+          return (function (x) {
             var url = haifuUrl(x);
             return (
               '<div class="card" style="margin:10px 0 0">' +
@@ -1800,7 +1840,7 @@
               '</div>' +
               '</div></div></div>'
             );
-          }).join('');
+          })(x);
         }
 
         // ★明細の 札から 押された時★（1か所で 受ける）
@@ -1810,18 +1850,28 @@
           if (q) meisaiQr(q);
         });
 
-        function haifuGo() {
+        // ★★1人ぶんだけ 配る★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+        //   ★渡していない 人の 鍵まで 作らない★（鍵は 渡す 相手 1人にだけ）
+        //   ★もう 在る人は そのまま★（作り直しでは ない＝押しても 壊れない）
+        function haifuHitori(eid) {
           haifuErr('');
-          var b = $('btnHaifu');
-          b.disabled = true;
-          b.textContent = '用意中…';
-          return DKSession.rest(SESS, 'rpc/dk_kyuryo_haifu', { method: 'POST', body: '{}' })
+          var b = document.querySelector('[data-hhito="' + eid + '"]');
+          if (b) {
+            b.disabled = true;
+            b.textContent = '用意中…';
+          }
+          return DKSession.rest(SESS, 'rpc/dk_kyuryo_haifu_hitori', {
+            method: 'POST',
+            body: JSON.stringify({ p_employee_id: eid }),
+          })
             .then(function (r) {
               return r.json();
             })
             .then(function (j) {
-              b.disabled = false;
-              b.textContent = '配る';
+              if (b) {
+                b.disabled = false;
+                b.textContent = '配る';
+              }
               if (!j || j.ok !== true) {
                 // ★出来なかった事を 0件で 隠さない★（「0人 配った」に 見せない）
                 haifuErr(
@@ -1831,20 +1881,30 @@
                 );
                 return;
               }
-              HAIFU = j.list || [];
-              if (!HAIFU.length) haifuErr('今いる人が 居ません（「従業員」で 登録してください）。');
+              // ★その人ぶんだけ 差し替える★（他の 人は 触らない）
+              var h = j.hito;
+              if (h && h.employee_id) {
+                var atta = false;
+                for (var i = 0; i < HAIFU.length; i++) {
+                  if (String(HAIFU[i].employee_id) === String(h.employee_id)) {
+                    HAIFU[i] = h;
+                    atta = true;
+                  }
+                }
+                if (!atta) HAIFU.push(h);
+              }
               renderHaifu();
             })
             .catch(function () {
-              b.disabled = false;
-              b.textContent = '配る';
+              if (b) {
+                b.disabled = false;
+                b.textContent = '配る';
+              }
               haifuErr('配れませんでした（通信）。もう一度 お試しください。');
             });
         }
 
         (function () {
-          var b = document.getElementById('btnHaifu');
-          if (b) b.onclick = haifuGo;
           var box = document.getElementById('haifuList');
           if (!box) return;
           box.onclick = function (ev) {
@@ -1853,6 +1913,11 @@
             var mi = t.getAttribute && t.getAttribute('data-hmise');
             if (mi) {
               haifuMiseru(mi);
+              return;
+            }
+            var hh = t.getAttribute && t.getAttribute('data-hhito');
+            if (hh) {
+              haifuHitori(hh);
               return;
             }
             var cp = t.getAttribute && t.getAttribute('data-hcopy');
@@ -1884,7 +1949,8 @@
                     haifuErr('作り直せませんでした（' + ((j && j.reason) || '理由不明') + '）。');
                     return;
                   }
-                  haifuGo(); // ★作り直した後の 一覧を 出し直す★
+                  // ★作り直した後の 札を 出し直す★（その人だけ）
+                  haifuHitori(sai);
                 })
                 .catch(function () {
                   t.disabled = false;
@@ -2006,6 +2072,10 @@
             SET = (res[2] && res[2][0]) || null;
             RAW.payrollSettings = SET;
             RAW.salesSettings = (res[3] && res[3][0]) || null;
+            // ★★配る 一覧を 最初から 出す★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+            //   ★前は「配る」を 押すまで 何も 出なかった★（全員ぶんを 一度に 作る 作りだった）
+            //   ⇒ ★今は 従業員 全員を 出して、その人の〔配る〕を 押す★
+            if (!HONNIN) renderHaifu();
             loadPeriod();
           });
         }

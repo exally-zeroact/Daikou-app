@@ -61,7 +61,9 @@ function tsukuru(dir) {
     'var S=window.DKSession;S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
     'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
-    'S.rest=function(s,p,o){if(String(p).indexOf("rpc/dk_kyuryo_haifu")===0)return Promise.resolve({ok:true,json:function(){return Promise.resolve({ok:true,list:L});}});' +
+    'S.rest=function(s,p,o){' +
+    '  if(String(p).indexOf("rpc/dk_kyuryo_haifu_hitori")===0){var eid=JSON.parse(o.body).p_employee_id;var h=null;L.forEach(function(y){if(y.employee_id===eid)h=y;});return Promise.resolve({ok:true,json:function(){return Promise.resolve(h?{ok:true,hito:h}:{ok:false,reason:"not_yours"});}});}' +
+    '  if(String(p).indexOf("rpc/dk_kyuryo_haifu")===0)return Promise.resolve({ok:true,json:function(){return Promise.resolve({ok:true,list:L});}});' +
     'return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
     'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
@@ -196,7 +198,12 @@ for (const d of [
     await page.waitForTimeout(1600);
     await page.locator('.tab[data-tab="set"]').click();
     await page.waitForTimeout(400);
-    await page.locator('#btnHaifu').click();
+    // ★配るのは 人ごと★（2026-09-04 司さん）
+    const machi = await page.locator('[data-hhito]').count();
+    for (let i = 0; i < machi; i++) {
+      await page.locator('[data-hhito]').first().click();
+      await page.waitForTimeout(400);
+    }
     await page.waitForTimeout(900);
     // ★札の 中の QR（小さい方）★
     // ★★ボタンが 引っ付いていないか（縦も 横も）★★ 2026-09-04（司さん）
