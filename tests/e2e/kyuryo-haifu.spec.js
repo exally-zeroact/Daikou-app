@@ -116,10 +116,10 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   // eslint-disable-next-line no-console
   console.log('★1人目の 字★ ' + String(url).trim().slice(0, 60));
   // ★★URL は 画面に 出しません★★（2026-09-04 司さん「一気に 見せる メリット ないやろが」）
-  //   ⇒ 渡す 中身は ★コピーボタンが 持っている★ ので そこから 取る
+  //   ⇒ 渡す 中身は ★「送る」ボタンが 持っている★ ので そこから 取る
   const u2 = await page.evaluate(() =>
-    [...document.querySelectorAll('#haifuList [data-hcopy]')].map((e) =>
-      e.getAttribute('data-hcopy')
+    [...document.querySelectorAll('#haifuList [data-hokuru]')].map((e) =>
+      e.getAttribute('data-hokuru')
     )
   );
   // eslint-disable-next-line no-console
@@ -163,13 +163,13 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   //   （別に 出すと「2つ目の 鍵」に 見えて、本人が 打つ 物だと 思われる）
   expect(naka, '★リンクが 鍵だと 言っていません★').toContain('リンクは 本人にだけ 渡してください');
   // ★URL の 中（?c=）には 在る事★＝本人は 打たなくてよい（上の u2 で 見ている）
-  const url1 = await page.locator('[data-hcopy]').first().getAttribute('data-hcopy');
+  const url1 = await page.locator('[data-hokuru]').first().getAttribute('data-hokuru');
   expect(url1, '★URL に 初回コードが 埋まっていません★').toContain('&c=07041B0C');
 
   // ★★「全員分の QRを 印刷」を やめました★★ 2026-09-04（司さん「これいらんやろが」）
   //   ★渡し方は 2つだけ★
   //     ・その場に 居る人 … その人の「大きく 見せる」＝読ませるだけ
-  //     ・居ない人 ……… その人の「コピー」＝LINE や メールに 貼る
+  //     ・居ない人 ……… その人の「送る」＝LINE・メール等で 送る
   //   ★紙は 1度も 要りません★（司さん「なんで 印刷せないかんのど」）
   //   ⇒ ★ボタンが 戻っていない事★を 見る（前は 紙が 出るかを 見ていた）
   expect(
@@ -181,29 +181,29 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
     '★印刷の ボタンの 字が 残っています★'
   ).not.toContain('全員分の QRを 印刷');
 
-  // ★コピー★
-  await page.locator('[data-hcopy]').first().click();
+  // ★送る（この 台では 共有シートが 無いので コピーに 落ちる）★
+  await page.locator('[data-hokuru]').first().click();
   await page.waitForTimeout(300);
   expect(
-    await page.locator('[data-hcopy]').first().textContent(),
+    await page.locator('[data-hokuru]').first().textContent(),
     '★URLを 写せていません★'
   ).toContain('コピーしました');
 
   // ★★絵は「押す前の 顔」で 撮る★★ 2026-09-04（指示役の 指摘）
   //   ★前は 押した 直後（1.5秒だけ「コピーしました」に なる 間）に 撮っていました★
   //   ⇒ 絵を 見た 人に ★ボタンの 字が 2通り 在る★ように 見えていました（★私の 撮り方が 悪い★）
-  //   ⇒ ★字が 元（コピー）に 戻るまで 待ってから 撮ります★
+  //   ⇒ ★字が 元（送る）に 戻るまで 待ってから 撮ります★
   await page.waitForFunction(
     () => {
-      const b = document.querySelector('[data-hcopy]');
+      const b = document.querySelector('[data-hokuru]');
       return b && b.textContent.indexOf('コピーしました') < 0;
     },
     { timeout: 5000 }
   );
   expect(
-    await page.locator('[data-hcopy]').first().textContent(),
+    await page.locator('[data-hokuru]').first().textContent(),
     '★字が 元に 戻っていません★'
-  ).toContain('コピー');
+  ).toContain('送る');
 
   await page.locator('#haifuList').scrollIntoViewIfNeeded();
   await page

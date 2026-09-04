@@ -136,7 +136,7 @@ test('★説明書（使い方）が 在る★', async ({ page }) => {
   await page.waitForTimeout(400);
   const ji = await page.locator('#haifuSetsumei').innerText();
   console.log('★説明書の 字数★ ' + ji.replace(/s+/g, '').length);
-  ['配る', '大きく 見せる', 'QRを 見せる', 'コピー', '作り直す', 'リンクが 鍵'].forEach((k) => {
+  ['配る', '大きく 見せる', 'QRを 見せる', '送る', '作り直す', 'リンクが 鍵'].forEach((k) => {
     expect(ji, '★説明書に「' + k + '」が ありません★').toContain(k);
   });
   await page
@@ -236,7 +236,7 @@ for (const d of [
     expect(suki.kazu, '★ボタンを 数えられていません★').toBeGreaterThan(3);
     expect(suki.yoko, '★横が 引っ付いています★').toBeGreaterThanOrEqual(6);
     expect(suki.tate, '★縦が 引っ付いています★').toBeGreaterThanOrEqual(6);
-    expect(suki.ji.join(','), '★「コピー」に なっていません★').toContain('コピー');
+    expect(suki.ji.join(','), '★「送る」に なっていません★').toContain('送る');
 
     // ★一覧には もう QR を 出しません★（2026-09-04 司さん）
     //   ⇒ 比べる 相手は ★前の 大きさ（152px）★を そのまま 数に して 置く

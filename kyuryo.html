@@ -1191,7 +1191,7 @@
             今いる人が 一覧に 出ます。<b>その人の「配る」</b>を押すと、その人ぶんの QR が
             用意できます。<br />
             渡すのは <b>その人の「大きく 見せる」</b>（読ませるだけ）か
-            <b>「コピー」</b>（LINE等）です。
+            <b>「送る」</b>（LINE・メール等）です。
           </div>
           <details id="haifuSetsumei" style="margin: 0 0 10px">
             <summary style="cursor: pointer; font-weight: 700">使い方（3手で 終わります）</summary>
@@ -1207,7 +1207,8 @@
               　… 初回だけ。次からは その パスワードだけで 見られます。
               <div style="margin: 10px 0 0">
                 <b>その場に 居ない人には</b><br />
-                　… <b>コピー</b> を 押して LINE や メールに 貼って ください。<br />
+                　… <b>送る</b> を 押すと <b>LINE・メール・メッセージ</b> が 選べます。<br />
+                　　（選べない 端末では <b>コピー</b>に なります。貼って ください）<br />
                 　　<b>リンクが 鍵です。本人にだけ 渡してください。</b><br />
                 <b>紙は 要りません</b><br />
                 　… その場で 読ませるか、リンクを 送るかの <b>どちらか</b>です。
@@ -1224,7 +1225,7 @@
           <!-- ★★「全員分の QRを 印刷」を やめました★★ 2026-09-04（司さん「これいらんやろが」）
                ★渡し方は 2つだけ★
                  ・その場に 居る人 … その人の「大きく 見せる」＝読ませるだけ
-                 ・居ない人 ……… その人の「コピー」＝LINE や メールに 貼る
+                 ・居ない人 ……… その人の「送る」＝LINE・メール等で 送る
                ★紙は 1度も 要りません★（司さん「なんで 印刷せないかんのど」） -->
           <!-- ★★「配る」は 人ごとです★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
                ★全員に 効く ボタンは 置きません★
@@ -1742,7 +1743,7 @@
 
         // ★★一覧は 従業員 全員★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
         //   ★配る前から 名前が 出ます★（誰に 配ってあるかが 一目で 分かる）
-        //   鍵が 出来ている人 … 〔大きく 見せる〕〔コピー〕〔作り直す〕
+        //   鍵が 出来ている人 … 〔大きく 見せる〕〔送る〕〔作り直す〕
         //   まだの人 ……………… 〔配る〕（★その人だけ★）
         function haifuHito(eid) {
           for (var i = 0; i < HAIFU.length; i++) {
@@ -1806,7 +1807,7 @@
               //   ・一覧の 小さい QR（152px）は ★離れて 読めない★＝使い道が 無い
               //   ・★リンクが 鍵★＝7人ぶんを 一度に 出すと
               //     ★その場に 居る 誰でも 全員ぶんを 撮れる★
-              //   ⇒ 一覧は ★名前と 様子と ボタンだけ★。URL は「コピー」で 渡す。
+              //   ⇒ 一覧は ★名前と 様子と ボタンだけ★。URL は「送る」で 渡す。
               '<div>' +
               '<div style="flex:1 1 200px;min-width:0">' +
               // ★★初回コードは 画面に 出しません★★ 2026-09-04（司さん）
@@ -1830,10 +1831,15 @@
               '<button class="btn chi" type="button" data-hmise="' +
               esc(x.employee_id) +
               '">大きく 見せる</button>' +
-              // ★「写す」では なく「コピー」★（司さん 2026-09-04）
-              '<button class="btn sub2 chi" type="button" data-hcopy="' +
+              // ★★「コピー」→「送る」★★ 2026-09-04（司さん「送るに 変えて」）
+              //   ・使える台（スマホ等）… ★共有シートが 出る★（LINE・メール等を 選ぶ）
+              //   ・使えない台 ………… ★コピーに 落ちる★（今までと 同じ）
+              //   ★誰の 分か 名前も 一緒に 送る★（渡し間違いを 防ぐ）
+              '<button class="btn sub2 chi" type="button" data-hokuru="' +
               esc(url) +
-              '">コピー</button>' +
+              '" data-hna="' +
+              esc(x.name || '') +
+              '">送る</button>' +
               '<button class="btn sub2 chi" type="button" data-hsai="' +
               esc(x.employee_id) +
               '">作り直す</button>' +
@@ -1920,17 +1926,37 @@
               haifuHitori(hh);
               return;
             }
-            var cp = t.getAttribute && t.getAttribute('data-hcopy');
-            if (cp) {
-              try {
-                navigator.clipboard.writeText(cp);
-                t.textContent = 'コピーしました';
-                setTimeout(function () {
-                  t.textContent = 'コピー';
-                }, 1500);
-              } catch (e) {
-                /* 写せなくても 字は 出ている */
+            var ok = t.getAttribute && t.getAttribute('data-hokuru');
+            if (ok) {
+              var na = t.getAttribute('data-hna') || '';
+              // ★誰の 分か 分かる 文にする★（渡し間違いを 防ぐ）
+              var bun =
+                na +
+                'さん の 給料明細です。' +
+                'この リンクは 本人にだけ お使いください（リンクが 鍵です）。';
+              // ★使える台なら 共有シート★（LINE・メール・メッセージ を 選べる）
+              if (typeof navigator.share === 'function') {
+                t.textContent = '送っています…';
+                navigator
+                  .share({ title: '給料明細', text: bun, url: ok })
+                  .catch(function () {
+                    // ★やめた／送れなかった★ … 黙って 元に 戻す（責めない）
+                  })
+                  .then(function () {
+                    t.textContent = '送る';
+                  });
+                return;
               }
+              // ★使えない台★ … コピーに 落ちる（今までと 同じ）
+              try {
+                navigator.clipboard.writeText(bun + ' ' + ok);
+                t.textContent = 'コピーしました';
+              } catch (e) {
+                t.textContent = 'コピーできません';
+              }
+              setTimeout(function () {
+                t.textContent = '送る';
+              }, 1500);
               return;
             }
             var sai = t.getAttribute && t.getAttribute('data-hsai');
