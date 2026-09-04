@@ -142,29 +142,29 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   expect(ookisa, '★紙が 小さすぎる＝絵が 貼れていない（中身が 無い）★').toBeGreaterThan(50000);
   fs.unlinkSync(p2);
 
-  // ★URLを 写す★
+  // ★コピー★
   await page.locator('[data-hcopy]').first().click();
   await page.waitForTimeout(300);
   expect(
     await page.locator('[data-hcopy]').first().textContent(),
     '★URLを 写せていません★'
-  ).toContain('写しました');
+  ).toContain('コピーしました');
 
   // ★★絵は「押す前の 顔」で 撮る★★ 2026-09-04（指示役の 指摘）
-  //   ★前は 押した 直後（1.5秒だけ「写しました」に なる 間）に 撮っていました★
+  //   ★前は 押した 直後（1.5秒だけ「コピーしました」に なる 間）に 撮っていました★
   //   ⇒ 絵を 見た 人に ★ボタンの 字が 2通り 在る★ように 見えていました（★私の 撮り方が 悪い★）
-  //   ⇒ ★字が 元（URLを 写す）に 戻るまで 待ってから 撮ります★
+  //   ⇒ ★字が 元（コピー）に 戻るまで 待ってから 撮ります★
   await page.waitForFunction(
     () => {
       const b = document.querySelector('[data-hcopy]');
-      return b && b.textContent.indexOf('写しました') < 0;
+      return b && b.textContent.indexOf('コピーしました') < 0;
     },
     { timeout: 5000 }
   );
   expect(
     await page.locator('[data-hcopy]').first().textContent(),
     '★字が 元に 戻っていません★'
-  ).toContain('URLを 写す');
+  ).toContain('コピー');
 
   await page.locator('#haifuList').scrollIntoViewIfNeeded();
   await page

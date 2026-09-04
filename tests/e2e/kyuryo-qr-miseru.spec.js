@@ -88,6 +88,38 @@ for (const d of [
     await page.locator('#btnHaifu').click();
     await page.waitForTimeout(900);
     // ★札の 中の QR（小さい方）★
+    // ★★ボタンが 引っ付いていないか（縦も 横も）★★ 2026-09-04（司さん）
+    //   「前から 色んな アプリで いよるけど なんで ボタンが 引っ付くんど」
+    //   ★裸で 並べると 折り返した時に 縦の 隙間が 0 に なる★
+    //   ⇒ ★描かれた 場所で 数える★（CSS の 字では 見ない）
+    const suki = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#haifuList button')].map((x) => {
+        const r = x.getBoundingClientRect();
+        return { l: r.left, r: r.right, t: r.top, b: r.bottom, ji: x.textContent.trim() };
+      });
+      let yoko = 999,
+        tate = 999;
+      for (let i = 0; i < b.length; i++) {
+        for (let j = 0; j < b.length; j++) {
+          if (i === j) continue;
+          // ★同じ 段（縦が 重なる）で 隣★
+          if (b[j].t < b[i].b - 1 && b[j].b > b[i].t + 1 && b[j].l >= b[i].r) {
+            yoko = Math.min(yoko, Math.round(b[j].l - b[i].r));
+          }
+          // ★上下の 段（横が 重なる）★
+          if (b[j].l < b[i].r - 1 && b[j].r > b[i].l + 1 && b[j].t >= b[i].b) {
+            tate = Math.min(tate, Math.round(b[j].t - b[i].b));
+          }
+        }
+      }
+      return { kazu: b.length, yoko: yoko, tate: tate, ji: b.map((x) => x.ji) };
+    });
+    console.log('★ボタンの すきま★ ' + JSON.stringify(suki));
+    expect(suki.kazu, '★ボタンを 数えられていません★').toBeGreaterThan(3);
+    expect(suki.yoko, '★横が 引っ付いています★').toBeGreaterThanOrEqual(6);
+    expect(suki.tate, '★縦が 引っ付いています★').toBeGreaterThanOrEqual(6);
+    expect(suki.ji.join(','), '★「コピー」に なっていません★').toContain('コピー');
+
     const chiisai = await page.evaluate(() =>
       Math.round(document.querySelector('#haifuList svg').getBoundingClientRect().width)
     );
