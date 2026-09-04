@@ -113,6 +113,21 @@
         margin-bottom: 14px;
       }
 
+      /* ★保存を 下に 貼り付ける★ 2026-09-04（3.4画面 スクロールしないと 押せなかった）
+         ★紙には 出さない★（noprint）／★元の 保存ボタンは 残す★ */
+      .save-bar {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        background: rgb(242 247 255 / 94%);
+        border-top: 1px solid var(--line);
+        padding: 10px 0;
+        margin-top: -6px;
+      }
+
       .tabs {
         display: flex;
         gap: 8px;
@@ -1138,6 +1153,16 @@
             <b>バ1〜10 / バ11〜20 / バ21〜31</b> がこの3回で、バ21〜31 は給料明細（21日〜末日）の
             人数ぶんの合計と一致します。
           </div>
+        </div>
+
+        <!-- ★★保存は どこからでも 押せる★★ 2026-09-04（司さん「ごちゃごちゃして 何がどこにあるか 分からん」）
+             ★実測（2026-09-04）★ 給料の設定タブ ＝ 高さ 3,457px（★3.8画面ぶん★）
+               保存ボタンは 上から 3,032px ＝ ★3.4画面 スクロールしないと 押せない★
+             ⇒ ★下に 貼り付ける★＝直したら その場で 押せる（★押す手間は 増えない★）
+             ★元の 保存ボタンは 消していません★（前から 在る物を 2段に 落とさない） -->
+        <div class="save-bar noprint" id="saveBar">
+          <button class="btn" id="btnSaveSet2" type="button">保存する</button>
+          <span class="saved" id="setSaved2"></span>
         </div>
 
         <!-- ★★従業員へ 配る（QR・URL）★★ 2026-09-03（司さん）
@@ -3712,6 +3737,17 @@
           renderSet();
         };
 
+        // ★下に 貼り付けた「保存する」は ★元の ボタンを 押すだけ★★ 2026-09-04
+        //   ★保存の 決まりを 2か所に 書かない★（片方だけ 直って 食い違うのを 防ぐ）
+        (function () {
+          var b2 = document.getElementById('btnSaveSet2');
+          if (!b2) return;
+          b2.onclick = function () {
+            var b = document.getElementById('btnSaveSet');
+            if (b && b.onclick) b.onclick();
+          };
+        })();
+
         $('btnSaveSet').onclick = function () {
           if (!COMPANY) return;
           var st = PayrollDaily.normSettings(SET);
@@ -3736,6 +3772,9 @@
               SET = body;
               RAW.payrollSettings = SET;
               flash('setSaved', '保存しました');
+              // ★下に 貼り付けた 側にも 同じ 合図を 出す★ 2026-09-04
+              //   （下のボタンから 押した時に ★何も 起きていない様に 見える★のを 防ぐ）
+              if (document.getElementById('setSaved2')) flash('setSaved2', '保存しました');
               loadPeriod(); // 期間が変わることがあるので読み直す
             })
             .catch(function () {
