@@ -21,54 +21,71 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const DASH = read('dashboard.html');
 
-describe('★入口は管理画面ひとつ★', () => {
-  it('タブが5つある（会社の設定 / 売上表 / 給料 / 月次集計 / 請求書）', () => {
-    ['dash', 'uriage', 'kyuryo', 'shukei', 'seikyu'].forEach((t) => {
-      expect(DASH).toContain('data-otab="' + t + '"');
+// ★事務所の 画面（帯が 出る 所）★
+const GAMEN = ['shukei.html', 'uriage.html', 'kyuryo.html', 'ryokinhyou.html', 'dashboard.html'];
+const FOOT = read(path.join('js', 'jimusho-footer.js'));
+
+describe('★事務所の 行き先は 下の 帯 ただ1つ★', () => {
+  // ★★なぜ 変えたか（2026-09-05）★★
+  //   前の 決まり（2026-08-01）＝★入口は 管理画面の 1つ★
+  //     ⇒ 売上表／給料／月次集計を ★管理画面の 中の 窓（iframe）に はめ込む★ 形だった。
+  //   2026-09-04 に 司さんの 指示で ★下の 帯（各ページへ 飛ぶ）★ を 足した。
+  //     ⇒ ★上の タブ★ と ★下の 帯★ が ★同じ 仕事を 2回★ するように なった。
+  //     ⇒ 会社設定の 画面で 月次集計を 開くと
+  //        ★上は「月次集計」・下は「会社設定」が 光る★＝★食い違う★
+  //     ⇒ 司さん 2026-09-05「★まず 設定タブが おかしい★」
+  //   ★今の 決まり★
+  //     ①行き先は ★下の 帯 ただ1つ★（js/jimusho-footer.js）
+  //     ②上に 残すのは ★請求書 だけ★（別のアプリ・別ログインなので 帯に 入れられない）
+  //     ③★はめ込む 窓（iframe）は 使わない★＝死にコードを 残さない
+  //   ★押す 回数は 増えていません★（前も 今も 1押しで 行けます）
+  //
+  //   ★★わざと壊して 赤に なる事を 見た（2026-09-05 実測）★★
+  //     ①dashboard に data-otab="uriage" を 戻す … ★赤★
+  //     ②iframe（id="oframe"）を 戻す ………………… ★赤★
+  //     ③帯の 名簿から 1枚 抜く …………………………… ★赤★
+
+  it('★① 帯が 5枚 全部を 持っている（0本でも 緑、に しない）★', () => {
+    expect(GAMEN.length, '★名簿が 空です＝何も 見ていません★').toBe(5);
+    GAMEN.forEach((g) => {
+      expect(fs.existsSync(path.join(ROOT, g)), '★' + g + ' が ありません★').toBe(true);
+      expect(FOOT, '★帯の 名簿に ' + g + ' が ありません★').toContain(g);
+      expect(read(g), '★' + g + ' が 帯を 読み込んでいません★').toContain('jimusho-footer.js');
     });
   });
 
-  it('タブの行き先のファイルが実在する', () => {
-    ['uriage.html', 'kyuryo.html', 'shukei.html'].forEach((f) => {
-      expect(DASH).toContain("'" + f + "'");
-      expect(fs.existsSync(path.join(ROOT, f))).toBe(true);
+  it('★★② 上に タブを 2つ 置かない（下の 帯と 食い違う）★★', () => {
+    ['uriage', 'kyuryo', 'shukei', 'ryokin', 'dash'].forEach((t) => {
+      expect(
+        DASH,
+        '★上に「' + t + '」の タブが 戻っています＝下の 帯と 光る 場所が 食い違います★'
+      ).not.toContain('data-otab="' + t + '"');
+    });
+    // ★請求書 だけは 残す★（別のアプリ・別ログイン）
+    expect(DASH, '★請求書へ 行けなくなっています★').toContain('data-otab="seikyu"');
+  });
+
+  it('★★③ はめ込む 窓（iframe）を 使わない／死にコードを 残さない★★', () => {
+    expect(DASH, '★iframe が 戻っています★').not.toContain('id="oframe"');
+    expect(DASH, '★iframe が 戻っています★').not.toContain('class="oframe"');
+    ['function fitFrame', 'function markTab', 'dk_office_tab', 'frame-mode'].forEach((x) => {
+      expect(
+        DASH,
+        '★使わなくなった 仕掛け「' + x + '」が 残っています★＝誰かが「使っている」と 読みます'
+      ).not.toContain(x);
     });
   });
 
-  it('中に出す入れ物（iframe）がある', () => {
-    expect(DASH).toContain('id="oframe"');
-    expect(DASH).toContain('class="oframe"');
-  });
-
-  it('★請求書は別アプリ・別ログインなので新しいタブで開く（中に埋め込まない）★', () => {
-    // ★2026-08-09 仕様変更★: 行き先を画面に直書きせず js/dk-config.js の SEIKYU_BASE から読む。
-    //   旧は exally-test の住所が直書きで、★本番repo も テストrepo も同じ「本番の請求書」★へ
-    //   飛んでいた（しかも名前に -test と入っているのに中身は本番）。司さん 2026-08-09 指摘。
-    //   どちらを指すべきかは tests/unit/seikyu-link-pointer.test.js が repo ごとに見張る。
+  it('★請求書は 別アプリ・別ログインなので 新しいタブで 開く★', () => {
+    // ★行き先を 画面に 直書きしない★（2026-08-09・本番もテストも 本番の請求書へ 飛んでいた）
     expect(DASH).toContain('DKConfig.SEIKYU_BASE');
     expect(DASH).toContain("'/daikou-seikyu.html'");
     expect(DASH).toMatch(/window\.open\(SEIKYU_URL/);
-    // iframe の行き先に請求書を入れていないこと
-    expect(DASH).not.toMatch(/TABS\s*=\s*\{[^}]*seikyu/);
   });
 
-  it('★会社が登録できるまでタブを出さない★', () => {
+  it('★会社が 登録できるまで 請求書の ボタンを 出さない★', () => {
     expect(DASH).toContain("show('otabs', true)");
     expect(DASH).toContain("show('otabs', false)");
-  });
-
-  it('同じタブを押し直しても読み込み直さない（入力中の値を消さない）', () => {
-    expect(DASH).toContain("getAttribute('data-src') !== want");
-  });
-
-  it('開いていたタブを覚える', () => {
-    expect(DASH).toContain('dk_office_tab');
-    expect(DASH).toContain('localStorage');
-  });
-
-  it('画面の高さいっぱいに広げる（下が切れない）', () => {
-    expect(DASH).toContain('function fitFrame');
-    expect(DASH).toContain("window.addEventListener('resize', fitFrame)");
   });
 });
 

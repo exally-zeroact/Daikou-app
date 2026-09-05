@@ -49,12 +49,6 @@
         padding: 22px 18px 60px;
       }
 
-      /* ── 事務所のタブ（売上表 / 給料 / 月次集計）を出している時は幅いっぱい使う ── */
-      body.frame-mode .wrap {
-        max-width: none;
-        padding-bottom: 0;
-      }
-
       .a2hs {
         background: #fff8e6;
         border: 1px solid #ffe0a3;
@@ -95,27 +89,19 @@
         background: #fff;
         border: 1px solid var(--line);
         border-radius: 999px;
-        padding: 7px 18px;
-        font-size: 14px;
+
+        /* ★詰めた★ 2026-09-05 */
+        padding: 7px 14px;
+        font-size: 13px;
         font-weight: 700;
         color: var(--muted);
         cursor: pointer;
         font-family: inherit;
       }
 
-      .otab.on {
-        background: var(--blue);
-        border-color: var(--blue);
-        color: #fff;
-      }
-
-      .oframe {
-        width: 100%;
-        border: 0;
-        display: block;
-        background: var(--bg);
-        height: 70vh;
-      }
+      /* ★上の タブは 請求書 1つだけ★ 2026-09-05
+         （売上表／給料／月次集計／料金表は ★下の 帯★ に 在る。
+           2つ 置くと 上と 下で 光る 場所が 食い違います） */
 
       .top {
         display: flex;
@@ -126,7 +112,9 @@
 
       .logo {
         font-weight: 800;
-        font-size: 20px;
+
+        /* ★詰めた★ 2026-09-05（20px→17px・他のアプリと 同じ 並び） */
+        font-size: 17px;
         color: var(--blue-d);
       }
 
@@ -177,9 +165,11 @@
       .card {
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 16px;
-        padding: 20px 18px;
-        margin-bottom: 16px;
+        border-radius: 12px;
+
+        /* ★詰めた★ 2026-09-05（他の 画面と 同じ 数字に 揃える） */
+        padding: 12px;
+        margin-bottom: 10px;
       }
 
       .card h2 {
@@ -223,7 +213,9 @@
       .btn {
         background: var(--blue-d);
         color: #fff;
-        padding: 9px 16px;
+
+        /* ★詰めた★ 2026-09-05 */
+        padding: 7px 14px;
         font-size: 13px;
       }
 
@@ -430,18 +422,14 @@
         <button class="a2hs-x" id="a2hsClose" type="button">閉じる</button>
       </div>
 
-      <!-- ★事務所の入口をここ1つにまとめる（会社が登録できてから出す）★ -->
+      <!-- ★★事務所の 行き先は 下の 帯 ただ1つ★★ 2026-09-05（司さん「設定タブがおかしい」）
+           前は ここに 6つ タブが 在り、中の 小さい窓（iframe）に はめ込んで いました。
+           ⇒ 下の 帯と ★同じ 物を 2回★ 出していて、上は「月次集計」下は「会社設定」と
+             ★光る 場所が 食い違って いました★。
+           ⇒ 上は 消し、★請求書 だけ 残す★（別のアプリ・別ログインなので 帯に 入らない） -->
       <div class="otabs" id="otabs" style="display: none">
-        <button class="otab on" data-otab="dash" type="button">会社の設定</button>
-        <button class="otab" data-otab="uriage" type="button">売上表</button>
-        <button class="otab" data-otab="kyuryo" type="button">給料</button>
-        <button class="otab" data-otab="shukei" type="button">月次集計</button>
-        <button class="otab" data-otab="ryokin" type="button">料金表</button>
         <button class="otab" data-otab="seikyu" type="button">請求書 ↗</button>
       </div>
-
-      <!-- 売上表 / 給料 / 月次集計 をここに出す（それぞれ単体URLでも今まで通り開ける） -->
-      <iframe class="oframe" id="oframe" title="事務所の画面" style="display: none"></iframe>
 
       <div id="loading">読み込み中…</div>
 
@@ -618,25 +606,16 @@
           location.replace('login.html');
         }
 
-        // ─── 事務所のタブ（売上表 / 給料 / 月次集計 / 請求書）─────────────
+        // ─── 請求書へ 飛ぶ だけ ───────────────────────────────
+        //   ★2026-09-05 に「中に はめ込む」形を やめました★（司さん「設定タブがおかしい」）
+        //     売上表／給料／月次集計／料金表は ★下の 帯★ で 行きます（1押しのまま）。
         //   ★中身は今まで通りの1枚ずつの画面をそのまま出している★
         //     （単体URLでも開ける＝壊れたら1枚だけ切り離せる）
         //   請求書だけは別のアプリ・別のログインなので、新しいタブで開く。
-        var TAB_KEY = 'dk_office_tab';
-        var TABS = {
-          uriage: 'uriage.html',
-          kyuryo: 'kyuryo.html',
-          shukei: 'shukei.html',
-          // ★料金表は 事務所が 正しい 置き場★ 2026-08-31
-          //   （前は メーターの「設定 → 料金設定」だけ＝運転する人の 端末でしか 変えられなかった）
-          ryokin: 'ryokinhyou.html',
-        };
         // ★2026-08-09: 行き先を repo ごとの設定から読む★
         //   旧: exally-test.vercel.app 直書き＝★本番もテストも 本番の請求書★へ飛んでいた。
-        //   しかも名前に -test と入っているのに中身は本番。テストのつもりで本物を触る事故のもと。
         var SEIKYU_URL =
           ((window.DKConfig && window.DKConfig.SEIKYU_BASE) || '') + '/daikou-seikyu.html';
-        var curTab = 'dash';
 
         // ★ホーム画面に追加のすすめを出すか★
         //   iPhone/iPad の Safari で開いていて、まだホーム画面アプリになっていない時だけ。
@@ -656,82 +635,20 @@
           }
         }
 
-        function loadTab() {
+        // ★請求書へ 飛ぶ★（別のアプリ・別ログインなので 新しいタブ）
+        function openSeikyu() {
           try {
-            var v = localStorage.getItem(TAB_KEY);
-            return v && (v === 'dash' || TABS[v]) ? v : 'dash';
+            window.open(SEIKYU_URL, '_blank', 'noopener');
           } catch (_) {
-            return 'dash';
-          }
-        }
-        function saveTab(t) {
-          try {
-            localStorage.setItem(TAB_KEY, t);
-          } catch (_) {
-            /* 保存できなくても動く */
-          }
-        }
-
-        // 中の画面が下まで見えるように、残りの高さいっぱいに広げる
-        function fitFrame() {
-          try {
-            var f = $('oframe');
-            if (!f || f.style.display === 'none') return;
-            var top = f.getBoundingClientRect().top;
-            var h = Math.max(360, window.innerHeight - top - 12);
-            f.style.height = h + 'px';
-          } catch (_) {
-            /* ignore */
-          }
-        }
-        window.addEventListener('resize', fitFrame);
-
-        function openTab(t) {
-          if (t === 'seikyu') {
-            // 別のアプリ（別ログイン）なので新しいタブで開く。タブの選択は戻す。
-            try {
-              window.open(SEIKYU_URL, '_blank', 'noopener');
-            } catch (_) {
-              location.href = SEIKYU_URL;
-            }
-            markTab(curTab);
-            return;
-          }
-          curTab = t === 'dash' || TABS[t] ? t : 'dash';
-          saveTab(curTab);
-          markTab(curTab);
-
-          var isFrame = curTab !== 'dash';
-          document.body.classList.toggle('frame-mode', isFrame);
-          show('main', !isFrame);
-          show('foot', !isFrame);
-          show('oframe', isFrame);
-          if (isFrame) {
-            var f = $('oframe');
-            var want = TABS[curTab];
-            // 同じ画面を開き直した時に読み込み直さない（入力中の値を消さないため）
-            if (f.getAttribute('data-src') !== want) {
-              f.setAttribute('data-src', want);
-              f.src = want;
-            }
-            fitFrame();
-            setTimeout(fitFrame, 250);
-          }
-        }
-
-        function markTab(t) {
-          var bs = document.querySelectorAll('[data-otab]');
-          for (var i = 0; i < bs.length; i++) {
-            bs[i].className = 'otab' + (bs[i].getAttribute('data-otab') === t ? ' on' : '');
+            location.href = SEIKYU_URL;
           }
         }
 
         (function wireTabs() {
+          // ★上に 残したのは 請求書 1つだけ★（他は 下の 帯）
           var bs = document.querySelectorAll('[data-otab]');
           for (var i = 0; i < bs.length; i++) {
-            bs[i].onclick = function () {
-              openTab(this.getAttribute('data-otab'));
-            };
+            bs[i].onclick = openSeikyu;
           }
         })();
 
@@ -908,9 +825,8 @@
           show('loading', false);
           show('register', false);
           show('main', true);
-          show('otabs', true); // ★会社が登録できてから事務所のタブを出す★
+          show('otabs', true); // ★会社が登録できてから 請求書のボタンを出す★
           maybeShowA2HS();
-          openTab(loadTab());
           $('coName').textContent = COMPANY.name || '(会社名なし)';
           show('statusOff', COMPANY.status === 'off');
           // ★地元の市★（空なら空欄。書かなければ 今治市あつかい）
@@ -1067,9 +983,7 @@
           show('loading', false);
           show('main', false);
           show('register', true);
-          show('otabs', false); // 会社がまだ無いうちは事務所のタブを出さない
-          show('oframe', false);
-          document.body.classList.remove('frame-mode');
+          show('otabs', false); // 会社がまだ無いうちは 請求書のボタンも 出さない
         }
 
         // ★2026-08-08: 会社の選び方を直した★
