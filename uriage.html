@@ -888,8 +888,8 @@
           var hi = MODE === 'day';
           $('kamiTtl').textContent = hi ? '日ごと' : '車ごと';
           $('kamiHead').innerHTML = hi
-            ? '<tr><th>日</th><th>売上</th><th>回数</th><th>実車距離</th><th>総走行距離</th></tr>'
-            : '<tr><th>車</th><th>売上</th><th>実費</th><th>回数</th><th>実車距離</th><th>総走行距離</th></tr>';
+            ? '<tr><th>日</th><th>売上</th><th>回数</th><th>実車<br />km</th><th>総走行<br />km</th></tr>'
+            : '<tr><th>車</th><th>売上</th><th>実費</th><th>回数</th><th>実車<br />km</th><th>総走行<br />km</th></tr>';
           var g = { net: 0, deduct: 0, trip: 0, act: 0, tot: 0 };
           var h = '';
           rows.forEach(function (r) {
