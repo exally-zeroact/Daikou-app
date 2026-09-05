@@ -1,12 +1,26 @@
 name: Real Trace Compare
 
-# 実機 debug trace を自動取得し、実走 / ダイコメ / OSRM / Google 道なり距離を突き合わせる。
-# 手動操作ゼロ: 毎日 cron + 手動 dispatch。REAL_TRACE_KEY を渡せば特定 trace を検証可。
+# 実走 / ダイコメ / OSRM / Google 道なり距離を突き合わせる。
+#
+# ★★毎日 走らせるのを 止めました（司さん 2026-09-05「止めろや」）★★
+#   ★理由＝毎日 走って 毎日 緑なのに ★中身は 0★だった★
+#     ・前は Firebase から 走行の 記録を 読んでいた
+#     ・司さんの「Firebaseは 2度と 使うな（読む為にも）」で 読むのを やめた
+#     ・今は data/traces/*.json を 読む形だが ★そこは 0本★
+#     ⇒ ★MISOKUTEI=1 reason=zairyou-nashi と 出して 緑で 終わる★
+#     ⇒ ★実測 2026-08-30〜09-04 の 6日とも 緑・中身 0★
+#     ⇒ ★「緑だから 大丈夫」と 読まれる＝一番 危ない 形★
+#   ★お金の 話（実測 2026-09-05）★
+#     ★外へ 問い合わせた 回数 0回★＝★API の クレジットは 1円も 使っていない★
+#     （材料が 無いので Google に 聞く 手前で 止まっていた）
+#     この repo の 鍵は ANTHROPIC_API_KEY 1本だけ＝
+#     ★GOOGLE_DIRECTIONS_API_KEY も OSRM_ENDPOINT も 未登録★
+#   ★手で 押せば いつでも 動きます★（下の workflow_dispatch）
+#   ★また 毎日に 戻す 時★＝★先に data/traces/ に 走行の 記録を 置く 道を 作る★
+#     置いてから schedule を 戻す。★材料より 先に 定時を 戻さない★
 
 on:
-  schedule:
-    # 毎日 09:00 JST (= 00:00 UTC) に最新 trace を自動検証
-    - cron: '0 0 * * *'
+  # ★schedule は 外してあります★（上の 理由）
   workflow_dispatch:
     inputs:
       trace_key:
