@@ -401,6 +401,10 @@
       <div class="msg" id="msg">読み込み中…</div>
 
       <div id="honbun" style="display: none">
+        <!-- ★★会社設定から 来た時の「戻る」★★ 2026-09-06（司さん「全ページで戻るボタンすらない」） -->
+        <div id="modoruSet" style="display: none; margin: 0 0 12px">
+          <a class="btn ghost" href="dashboard.html">← 会社設定へ 戻る</a>
+        </div>
         <div class="card">
           <div class="ttl">今の 料金表</div>
           <div class="itsuno" id="itsuno">—</div>
@@ -1114,6 +1118,9 @@
 
         function dashiwake() {
           var h = henshuKa();
+          // ★会社設定から 来た時だけ 戻る所を 出す★ 2026-09-06（司さん）
+          var md = $('modoruSet');
+          if (md) md.style.display = h ? '' : 'none';
           // ★1枚目（今の 料金）は いつでも 出す★／2枚目から 下が 入力
           var cards = document.querySelectorAll('#honbun > .card');
           for (var i = 1; i < cards.length; i++) cards[i].style.display = h ? '' : 'none';

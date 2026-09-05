@@ -970,6 +970,15 @@
           padding: 1.4em 0 2em;
         }
       }
+
+      /* ★★会社設定から 来た時の 戻る帯★★ 2026-09-06（司さん） */
+      .modoru-bar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 0 0 12px;
+      }
     </style>
   </head>
   <body>
@@ -983,6 +992,13 @@
         </div>
       </div>
       <div class="sub noprint" id="sub">読み込み中…</div>
+
+      <!-- ★★会社設定から 来た時の「戻る」★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
+           ★入口は 会社設定の チップ ただ1つ★＝ここでは タブの 行を 出さない。 -->
+      <div class="modoru-bar noprint" id="modoruSet" style="display: none">
+        <a class="btn ghost" href="dashboard.html">← 会社設定へ 戻る</a>
+        <b id="modoruMidashi"></b>
+      </div>
 
       <div class="tabs noprint" id="tabs">
         <button class="tab on" data-tab="slip">明細</button>
@@ -2203,6 +2219,21 @@
                 Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
                   x.className = 'tab' + (x === b2 ? ' on' : '');
                 });
+                // ★★入口を 2つに しない★★ 2026-09-06（司さん）
+                //   ★司さんの言葉★「従業員と給料の設定がなんで2個もある」
+                //   ★私の しくじり★ 会社設定に チップを 足した時、★中身を 移さず リンクで 済ませた★
+                //     ⇒ 同じ物への 入口が「会社設定の チップ」と「給料の タブ」で ★2つ★に なった。
+                //   ⇒★会社設定から 来た時は タブの 行を 出さない★＝入口は チップ ただ1つ。
+                var tabs = document.getElementById('tabs');
+                if (tabs) tabs.style.display = 'none';
+                // ★★戻る所を 作る★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
+                //   ★会社設定から 来たのに 会社設定へ 帰れませんでした★
+                var modoru = document.getElementById('modoruSet');
+                if (modoru) {
+                  modoru.style.display = '';
+                  var mi = document.getElementById('modoruMidashi');
+                  if (mi) mi.textContent = doko === 'emp' ? '従業員' : '給料の設定（車）';
+                }
               }
             }
             return;

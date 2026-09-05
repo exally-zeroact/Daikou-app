@@ -86,19 +86,42 @@ test('★★① 給料は ふだん「明細」「時数を入れる」だけ★
   expect(r.tab.join(','), '★決める タブが 出ています★').not.toContain('給料の設定');
 });
 
-test('★★② ?henshu=1 で「従業員」「給料の設定」も 出る★★', async ({ page }) => {
+// ★★★見張りの 中身を 変えました（黙って 数だけ 動かさない）★★★ 2026-09-06
+//   ★前★「?henshu=1 なら タブが 4つ 出る」＝★私が 昨日 作った 形★
+//   ★司さん★「従業員と給料の設定がなんで2個もある」「全ページで戻るボタンすらない」
+//   ⇒ 会社設定の チップと 給料の タブで ★同じ物への 入口が 2つ★に なっていた。
+//   ★今★「会社設定から 来たら ★タブの行は 出さない★／★戻る所が 在る★」
+test('★★② 会社設定から 来たら 入口は 1つ＋戻るが 在る★★', async ({ page }) => {
   await kyuryoHiraku(page, '?henshu=1#emp');
-  const r = await tabYomu(page);
+  const r = await page.evaluate(() => {
+    const t = document.getElementById('tabs');
+    const m = document.getElementById('modoruSet');
+    const a = m ? m.querySelector('a') : null;
+    const emp = document.querySelector('[data-pane="emp"], #paneEmp, #empWrap');
+    return {
+      tabMieru: !!(t && t.offsetHeight > 0),
+      modoruMieru: !!(m && m.offsetHeight > 0),
+      iki: a ? a.getAttribute('href') : null,
+      midashi: (document.getElementById('modoruMidashi') || {}).textContent || '',
+      empAru: !!emp,
+    };
+  });
   // eslint-disable-next-line no-console
-  console.log('★従業員を 決める★ ' + JSON.stringify(r));
-  expect(r.tab.length, '★決める タブが 出ていません★').toBe(4);
-  expect(r.tab.join(','), '★従業員の タブが 選ばれていません★').toContain('従業員★');
+  console.log('★会社設定から 来た時（従業員）★ ' + JSON.stringify(r));
+  expect(r.tabMieru, '★タブの 行が 出ています＝入口が 2つ★').toBe(false);
+  expect(r.modoruMieru, '★戻る所が ありません★').toBe(true);
+  expect(r.iki, '★戻り先が 会社設定では ありません★').toBe('dashboard.html');
+  expect(r.midashi, '★今 何を 決めているか 出ていません★').toContain('従業員');
 
   await kyuryoHiraku(page, '?henshu=1#set');
-  const r2 = await tabYomu(page);
+  const r2 = await page.evaluate(() => ({
+    tabMieru: !!(document.getElementById('tabs') || {}).offsetHeight,
+    midashi: (document.getElementById('modoruMidashi') || {}).textContent || '',
+  }));
   // eslint-disable-next-line no-console
-  console.log('★車を 決める★ ' + JSON.stringify(r2));
-  expect(r2.tab.join(','), '★給料の設定が 選ばれていません★').toContain('給料の設定★');
+  console.log('★会社設定から 来た時（給料の設定）★ ' + JSON.stringify(r2));
+  expect(r2.tabMieru, '★タブの 行が 出ています＝入口が 2つ★').toBe(false);
+  expect(r2.midashi, '★今 何を 決めているか 出ていません★').toContain('給料の設定');
 });
 
 test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async ({ page }) => {
