@@ -61,7 +61,9 @@
 
       .logo {
         font-weight: 800;
-        font-size: 20px;
+
+        /* ★詰めた★ 2026-09-05（20px→17px・他のアプリと 同じ 並び） */
+        font-size: 17px;
         color: var(--blue-d);
       }
 
@@ -82,7 +84,9 @@
       .sub {
         color: var(--muted);
         font-size: 13px;
-        margin-bottom: 16px;
+
+        /* ★詰めた★ 2026-09-05（16px→8px） */
+        margin-bottom: 8px;
       }
 
       .linkbtn {
@@ -108,9 +112,11 @@
       .card {
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 14px;
+        border-radius: 12px;
+
+        /* ★詰めた★ 2026-09-05（司さん「デカすぎる」）16px→12px / 14px→10px */
+        padding: 12px;
+        margin-bottom: 10px;
       }
 
       /* ★保存を 下に 貼り付ける★ 2026-09-04（3.4画面 スクロールしないと 押せなかった）
@@ -131,7 +137,9 @@
       .tabs {
         display: flex;
         gap: 8px;
-        margin-bottom: 14px;
+
+        /* ★詰めた★ 2026-09-05（14px→8px） */
+        margin-bottom: 8px;
         flex-wrap: wrap;
       }
 
@@ -139,8 +147,10 @@
         background: #fff;
         border: 1px solid var(--line);
         border-radius: 999px;
-        padding: 7px 18px;
-        font-size: 14px;
+
+        /* ★詰めた★ 2026-09-05 */
+        padding: 7px 14px;
+        font-size: 13px;
         font-weight: 700;
         color: var(--muted);
         cursor: pointer;
@@ -153,19 +163,37 @@
         color: #fff;
       }
 
+      /* ★★日付を 左右の ボタンで 挟む★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+         ★前は flex-wrap: wrap★ だったので、日付の 字が 長い（実測 328px）と
+         ★折り返して 日付が 上・ボタンが 下★の 2段に なっていました。
+         ⇒ ★折り返さない★＝ボタンは 左右に 固定、日付は 真ん中で 縮む。 */
       .monthbar {
         display: flex;
         align-items: center;
-        gap: 10px;
-        justify-content: center;
+        gap: 8px;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+      }
+
+      /* ★折れるなら 月と 日付の 間で★ 2026-09-05 */
+      .monthbar .m .mb-1,
+      .monthbar .m .mb-2 {
+        white-space: nowrap;
+        display: inline-block;
+      }
+
+      .monthbar .m .mb-2 {
+        font-weight: 700;
       }
 
       .monthbar .m {
-        font-size: 18px;
+        /* ★詰めた★ 2026-09-05（18px→16px） */
+        font-size: 16px;
         font-weight: 800;
-        flex: 0 1 12em; /* 広い時は今まで通り 12em・狭い時だけ縮む */
+        flex: 1 1 auto; /* ★真ん中で 縮む★ 2026-09-05 */
         min-width: 0;
         text-align: center;
+        overflow-wrap: anywhere;
       }
 
       /* ★狭い画面で 押す物の字が1文字ずつ縦に割れる★（2026-08-25 実測・375px）
@@ -175,18 +203,18 @@
                押す物だけが縮められていた（flex は 押す物から縮める）。
          直し方：月(年)の字を 上の行へ落として、押す物は 横1行で並べる。
                  ★480px より広い画面は 今まで通り（1文字も変えない）★ */
-      @media (max-width: 480px) {
-        .monthbar {
-          flex-wrap: wrap;
-        }
 
+      /* ★★狭い画面でも 挟む形の まま★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+         ★前は ここで 日付を order:-1 で 上の 段へ 追い出していました★
+         ⇒ 日付が 上・ボタンが 下の 2段（実測 日付 top=144 / ボタン top=179）
+         ⇒ ★1段に 収める★＝日付の 字だけ 少し 小さくして 左右の ボタンで 挟む */
+      @media (max-width: 480px) {
         .monthbar .m {
-          order: -1;
-          flex: 1 0 100%;
+          font-size: 15px;
         }
 
         .navb {
-          flex: 1 1 auto;
+          padding: 6px 10px;
         }
       }
 
@@ -194,7 +222,9 @@
         display: flex;
         gap: 8px;
         justify-content: center;
-        margin-top: 12px;
+
+        /* ★詰めた★ 2026-09-05（12px→8px） */
+        margin-top: 8px;
         flex-wrap: wrap;
       }
 
@@ -226,15 +256,19 @@
         color: var(--blue-d);
         cursor: pointer;
         font-family: inherit;
-        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */
-        flex: 0 0 auto; /* ★押す物は縮めない★ */
+        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */ /* ★押す物は縮めない★ */
+
+        /* ★挟む形★ 左右の ボタンは 縮まない（2026-09-05） */
+        flex: 0 0 auto;
       }
 
       .btn {
         background: var(--blue);
         border: none;
         border-radius: 10px;
-        padding: 8px 18px;
+
+        /* ★詰めた★ 2026-09-05（8px 18px→7px 14px） */
+        padding: 7px 14px;
         font-size: 14px;
         font-weight: 700;
         color: #fff;
@@ -248,9 +282,14 @@
         color: var(--blue-d);
       }
 
+      /* ★★数字の 表を「紙」に 寄せる★★ 2026-09-05（司さん「PDFっぽく 見せてるよな？」）
+         ★数字の 幅を 揃える★＝1と8で 幅が 変わらない＝★縦に 揃って 比べられる★
+         （紙の 帳票と 同じ 見え方。字の 大きさは 変えていません） */
       table {
         width: 100%;
         border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: 'tnum' 1;
         font-size: 14px;
       }
 
@@ -263,6 +302,8 @@
       }
 
       th {
+        /* ★紙の 表と 同じ★＝見出しに 薄い 地色（2026-09-05） */
+        background: #f7fafd;
         font-size: 12px;
         color: var(--muted);
         font-weight: 700;
@@ -710,6 +751,30 @@
          ★左のかたまりと 右のかたまりを 同じ幅にして 合計を 真ん中に置く★
          （1度目：余った所の真ん中にしたら ★右に寄って見えた★＝直っていなかった）
          ★右のかたまりは 紙でも残す★＝ボタンが消えても 真ん中がずれない。 */
+
+      /* ★印刷する人を えらぶ チェック★ 2026-09-05（紙には 出さない） */
+
+      /* ★押せない 時は 押せない 顔に する★ 2026-09-05
+         （青いままだと ★押せると 思って 押す★＝何も 起きなくて 不安に なる） */
+      .btn.btn-off,
+      .btn:disabled {
+        background: #eef3fa;
+        color: #90a2ba;
+        cursor: default;
+      }
+
+      .slip-pick-wrap {
+        display: flex;
+        align-items: center;
+        margin-right: 8px;
+      }
+
+      .slip-pick {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--blue);
+      }
+
       .slip .shead {
         display: flex;
         align-items: baseline;
@@ -943,15 +1008,23 @@
 
       <!-- 明細 -->
       <div id="paneSlip">
+        <!-- ★★印刷は 1行に する★★ 2026-09-05（司さん「デカすぎ・バランス悪すぎ」）
+             ★前は 箱を 1つ 使って 説明文を 2行 出していました★＝明細が 画面の 外へ 押し出される。
+             ⇒ ★ボタンと 短い 一言を 1行に★（詳しい 説明は 押した 後の 紙に 出ます） -->
+        <!-- ★★印刷は「全員」と「選んだ人」★★ 2026-09-05（司さん）
+             ★前は 押したら 必ず 全員ぶん★＝1人 刷り直すだけでも 全員 出ていました。
+             ⇒ 明細の 1人ずつに チェックを 付け、選んだ人だけ 出せるように します。
+             ★1つも 選んでいない時は 全員★（前と 同じ 動き） -->
         <div
           class="card noprint"
           id="printCard"
-          style="display: flex; gap: 10px; align-items: center"
+          style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap"
         >
-          <button class="btn" id="btnPrint">印刷する</button>
-          <span class="note" style="margin: 0">
-            1人ずつ、実物の給料明細と同じ並びで出ます。休んだ日は空欄です。
-          </span>
+          <button class="btn" id="btnPrint">全員を 印刷</button>
+          <button class="btn btn-off" id="btnPrintSel" disabled>選んだ人を 印刷</button>
+          <span class="note" style="margin: 0" id="printNote"
+            >1人ずつ 実物と 同じ 並びで 出ます。</span
+          >
         </div>
         <div id="slips"></div>
       </div>
@@ -2036,8 +2109,39 @@
         //   ここも window.print() だった＝★URL・日付・ページ番号が刷られ、戻れない★。
         //   1人1枚で ★全員ぶんを1つのPDF★にする（他アプリと同じ「複数人=複数ページ」）。
         $('btnPrint').onclick = function () {
-          printAll();
+          printAll(null); // ★全員★
         };
+        $('btnPrintSel').onclick = function () {
+          printAll(erandaHito()); // ★選んだ人だけ★
+        };
+
+        // ★★選ばれている 人の id を 集める★★ 2026-09-05
+        //   ★画面に 描かれた チェックを 数える★（内側の 変数を 信じない）
+        function erandaHito() {
+          var out = [];
+          Array.prototype.forEach.call(document.querySelectorAll('.slip-pick'), function (c) {
+            if (c.checked) out.push(c.getAttribute('data-emp'));
+          });
+          return out;
+        }
+
+        // ★選んだ 数を そのまま 見せる★（何人 出るのか 押す前に 分かる）
+        function nurikae() {
+          var n2 = erandaHito().length;
+          var b = $('btnPrintSel');
+          var t = $('printNote');
+          if (b) {
+            b.disabled = n2 === 0;
+            b.textContent = n2 === 0 ? '選んだ人を 印刷' : '選んだ ' + n2 + '人を 印刷';
+          }
+          if (t)
+            t.textContent =
+              n2 === 0 ? '1人ずつ 実物と 同じ 並びで 出ます。' : '選んだ ' + n2 + '人ぶん 出ます。';
+        }
+        document.addEventListener('change', function (ev) {
+          if (ev.target && ev.target.classList && ev.target.classList.contains('slip-pick'))
+            nurikae();
+        });
         $('prevM').onclick = function () {
           YM = PayrollPeriod.shift(YM, -1);
           PIDX = 0;
@@ -2226,8 +2330,15 @@
 
         // ---------- 描画 ----------
         function render() {
-          $('monthLabel').textContent = PERIOD
-            ? PERIOD.year + '年 ' + PERIOD.label + '　' + PERIOD.rangeLabel
+          // ★★折れる 場所を 決める★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+          //   ★前は 1つの 字の 塊★だったので 狭い 画面で「9/1」と「~ 9/10」の 間で 折れていた。
+          //   ⇒ ★2つに 分け、それぞれは 折らない★＝折れるなら ★月と 日付の 間★で 折れる。
+          $('monthLabel').innerHTML = PERIOD
+            ? '<span class="mb-1">' +
+              esc(PERIOD.year + '年 ' + PERIOD.label) +
+              '</span> <span class="mb-2">' +
+              esc(PERIOD.rangeLabel) +
+              '</span>'
             : '—';
           renderPeriodBar();
           $('monthCard').style.display = TAB === 'slip' || TAB === 'hours' ? '' : 'none';
@@ -2838,11 +2949,18 @@
 
         // ★全員ぶんを 1つのPDFに★（1人1ページ・A4横）
         //   給与アプリと同じ「複数人=複数ページ」。作り方は printOne と同じ。
-        function printAll() {
+        // ★誰を 出すか★ null＝全員／配列＝その人だけ（2026-09-05 司さん）
+        function printAll(dake) {
           // ★数えるのは 人の数★（画面の枚数ではない＝紙は人ごとに組む）
-          var boxes = REP && REP.employees ? REP.employees : [];
+          var zenin = REP && REP.employees ? REP.employees : [];
+          var boxes =
+            dake && dake.length
+              ? zenin.filter(function (e) {
+                  return dake.indexOf(String(e.employee_id)) >= 0;
+                })
+              : zenin;
           if (!boxes.length) {
-            showErr('明細がありません。');
+            showErr(dake && dake.length ? '選んだ人の 明細が ありません。' : '明細がありません。');
             return;
           }
           var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
@@ -2857,7 +2975,8 @@
                   showMsg('');
                   return Promise.resolve();
                 }
-                var emp2 = REP.employees[i];
+                // ★選んだ人だけの 並びから 取る★（前は 全員の 並びから 取っていた）
+                var emp2 = boxes[i];
                 return _addEmp(doc, emp2, slipCars(REP.cars, emp2.employee_id), i === 0).then(
                   function (d) {
                     doc = d;
@@ -2978,6 +3097,14 @@
               // ★左のかたまり★（題＋期間＋名前）
               //   ★名前は「給料明細」のすぐ右★ 2026-08-25（司さん「赤丸の所に名前もってきて」）
               '<div class="sh-l">' +
+              // ★★印刷する 人を 選ぶ チェック★★ 2026-09-05（司さん「チェックボタン 作って」）
+              //   ★紙には 出しません★（noprint）＝刷った 紙に チェック欄は 要らない
+              //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
+              (HONNIN
+                ? ''
+                : '<label class="slip-pick-wrap noprint"><input type="checkbox" class="slip-pick" data-emp="' +
+                  esc(String(e.employee_id)) +
+                  '" aria-label="印刷する人に えらぶ" /></label>') +
               '<div><div class="title">給料明細</div>' +
               '<div>' +
               esc(PERIOD.label) +

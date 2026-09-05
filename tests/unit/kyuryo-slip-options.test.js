@@ -238,8 +238,23 @@ describe('★①1人ごとにPDF★', () => {
       (HTML.match(/_openPdf\(/g) || []).length,
       '★開く所が 1本になっていない★'
     ).toBeGreaterThanOrEqual(3);
-    expect(HTML, '★「印刷する」が まだブラウザ印刷★').toMatch(
-      /\$\('btnPrint'\)\.onclick = function \(\) \{\s*printAll\(\);/
+    // ★★2026-09-05 印刷が 2つに なりました★★（司さん「チェックボタン 作って 全体と 選んだ人」）
+    //   ★全員を 印刷★ … printAll(null)
+    //   ★選んだ人を 印刷★ … printAll(erandaHito())
+    //   ★どちらも 同じ printAll★＝紙の 作り方は 1本のまま（二度書かない）
+    expect(HTML, '★「全員を 印刷」が まだブラウザ印刷★').toMatch(
+      /\$\('btnPrint'\)\.onclick = function \(\) \{\s*printAll\(null\);/
+    );
+    expect(HTML, '★「選んだ人を 印刷」が 無い／別の 作り方に なっている★').toMatch(
+      /\$\('btnPrintSel'\)\.onclick = function \(\) \{\s*printAll\(erandaHito\(\)\);/
+    );
+    // ★選ぶのは「画面に 描かれた チェック」から★（内側の 変数を 信じない）
+    expect(HTML, '★選んだ人を 画面から 数えていない★').toMatch(
+      /function erandaHito\(\)[\s\S]{0,300}querySelectorAll\('\.slip-pick'\)/
+    );
+    // ★1つも 選んでいない時は 全員★（前と 同じ 動き＝押す 回数を 増やさない）
+    expect(HTML, '★選んでいない時に 全員に ならない★').toMatch(
+      /function printAll\(dake\)[\s\S]{0,500}: zenin;/
     );
   });
 
