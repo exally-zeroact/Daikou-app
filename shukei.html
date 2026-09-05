@@ -53,7 +53,9 @@
 
       .logo {
         font-weight: 800;
-        font-size: 20px;
+
+        /* ★詰めた★ 2026-09-05（20px→17px・他のアプリと 同じ 並び） */
+        font-size: 17px;
         color: var(--blue-d);
       }
 
@@ -74,7 +76,9 @@
       .sub {
         color: var(--muted);
         font-size: 13px;
-        margin-bottom: 16px;
+
+        /* ★詰めた★ 2026-09-05（16px→8px） */
+        margin-bottom: 8px;
       }
 
       .linkbtn {
@@ -100,24 +104,32 @@
       .card {
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 14px;
+        border-radius: 12px;
+
+        /* ★詰めた★ 2026-09-05（司さん「デカすぎる」）16px→12px / 14px→10px */
+        padding: 12px;
+        margin-bottom: 10px;
       }
 
+      /* ★★日付を 左右の ボタンで 挟む★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+         ★前は flex-wrap: wrap★ だったので、日付の 字が 長い（実測 328px）と
+         ★折り返して 日付が 上・ボタンが 下★の 2段に なっていました。
+         ⇒ ★折り返さない★＝ボタンは 左右に 固定、日付は 真ん中で 縮む。 */
       .monthbar {
         display: flex;
         align-items: center;
-        gap: 10px;
-        justify-content: center;
+        gap: 8px;
+        justify-content: space-between;
+        flex-wrap: nowrap;
       }
 
       .monthbar .m {
         font-size: 18px;
         font-weight: 800;
-        flex: 0 1 7em; /* 広い時は今まで通り 7em・狭い時だけ縮む */
+        flex: 1 1 auto; /* ★真ん中で 縮む★ 2026-09-05 */
         min-width: 0;
         text-align: center;
+        overflow-wrap: anywhere;
       }
 
       /* ★狭い画面で 押す物の字が1文字ずつ縦に割れる★（2026-08-25 実測・375px）
@@ -127,18 +139,18 @@
                押す物だけが縮められていた（flex は 押す物から縮める）。
          直し方：月(年)の字を 上の行へ落として、押す物は 横1行で並べる。
                  ★480px より広い画面は 今まで通り（1文字も変えない）★ */
-      @media (max-width: 480px) {
-        .monthbar {
-          flex-wrap: wrap;
-        }
 
+      /* ★★狭い画面でも 挟む形の まま★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+         ★前は ここで 日付を order:-1 で 上の 段へ 追い出していました★
+         ⇒ 日付が 上・ボタンが 下の 2段（実測 日付 top=144 / ボタン top=179）
+         ⇒ ★1段に 収める★＝日付の 字だけ 少し 小さくして 左右の ボタンで 挟む */
+      @media (max-width: 480px) {
         .monthbar .m {
-          order: -1;
-          flex: 1 0 100%;
+          font-size: 15px;
         }
 
         .navb {
-          flex: 1 1 auto;
+          padding: 6px 10px;
         }
       }
 
@@ -152,15 +164,19 @@
         color: var(--blue-d);
         cursor: pointer;
         font-family: inherit;
-        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */
-        flex: 0 0 auto; /* ★押す物は縮めない★ */
+        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */ /* ★押す物は縮めない★ */
+
+        /* ★挟む形★ 左右の ボタンは 縮まない（2026-09-05） */
+        flex: 0 0 auto;
       }
 
       .btn {
         background: var(--blue);
         border: none;
         border-radius: 10px;
-        padding: 8px 18px;
+
+        /* ★詰めた★ 2026-09-05（8px 18px→7px 14px） */
+        padding: 7px 14px;
         font-size: 14px;
         font-weight: 700;
         color: #fff;
@@ -177,9 +193,14 @@
         border: 1px solid var(--line);
       }
 
+      /* ★★数字の 表を「紙」に 寄せる★★ 2026-09-05（司さん「PDFっぽく 見せてるよな？」）
+         ★数字の 幅を 揃える★＝1と8で 幅が 変わらない＝★縦に 揃って 比べられる★
+         （紙の 帳票と 同じ 見え方。字の 大きさは 変えていません） */
       table {
         width: 100%;
         border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: 'tnum' 1;
         font-size: 14px;
       }
 
@@ -192,6 +213,8 @@
       }
 
       th {
+        /* ★紙の 表と 同じ★＝見出しに 薄い 地色（2026-09-05） */
+        background: #f7fafd;
         font-size: 12px;
         color: var(--muted);
         font-weight: 700;

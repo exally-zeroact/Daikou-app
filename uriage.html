@@ -53,7 +53,9 @@
 
       .logo {
         font-weight: 800;
-        font-size: 20px;
+
+        /* ★詰めた★ 2026-09-05（20px→17px・他のアプリと 同じ 並び） */
+        font-size: 17px;
         color: var(--blue-d);
       }
 
@@ -74,7 +76,9 @@
       .sub {
         color: var(--muted);
         font-size: 13px;
-        margin-bottom: 16px;
+
+        /* ★詰めた★ 2026-09-05（16px→8px） */
+        margin-bottom: 8px;
       }
 
       .linkbtn {
@@ -100,24 +104,32 @@
       .card {
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 14px;
+        border-radius: 12px;
+
+        /* ★詰めた★ 2026-09-05（司さん「デカすぎる」）16px→12px / 14px→10px */
+        padding: 12px;
+        margin-bottom: 10px;
       }
 
+      /* ★★日付を 左右の ボタンで 挟む★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+         ★前は flex-wrap: wrap★ だったので、日付の 字が 長い（実測 328px）と
+         ★折り返して 日付が 上・ボタンが 下★の 2段に なっていました。
+         ⇒ ★折り返さない★＝ボタンは 左右に 固定、日付は 真ん中で 縮む。 */
       .monthbar {
         display: flex;
         align-items: center;
-        gap: 10px;
-        justify-content: center;
+        gap: 8px;
+        justify-content: space-between;
+        flex-wrap: nowrap;
       }
 
       .monthbar .m {
         font-size: 18px;
         font-weight: 800;
-        flex: 0 1 9em; /* 広い時は今まで通り 9em・狭い時だけ縮む */
+        flex: 1 1 auto; /* ★真ん中で 縮む★ 2026-09-05 */
         min-width: 0;
         text-align: center;
+        overflow-wrap: anywhere;
       }
 
       /* ★狭い画面で 押す物の字が1文字ずつ縦に割れる★（2026-08-25 実測・375px）
@@ -127,18 +139,18 @@
                押す物だけが縮められていた（flex は 押す物から縮める）。
          直し方：月(年)の字を 上の行へ落として、押す物は 横1行で並べる。
                  ★480px より広い画面は 今まで通り（1文字も変えない）★ */
-      @media (max-width: 480px) {
-        .monthbar {
-          flex-wrap: wrap;
-        }
 
+      /* ★★狭い画面でも 挟む形の まま★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+         ★前は ここで 日付を order:-1 で 上の 段へ 追い出していました★
+         ⇒ 日付が 上・ボタンが 下の 2段（実測 日付 top=144 / ボタン top=179）
+         ⇒ ★1段に 収める★＝日付の 字だけ 少し 小さくして 左右の ボタンで 挟む */
+      @media (max-width: 480px) {
         .monthbar .m {
-          order: -1;
-          flex: 1 0 100%;
+          font-size: 15px;
         }
 
         .navb {
-          flex: 1 1 auto;
+          padding: 6px 10px;
         }
       }
 
@@ -151,8 +163,10 @@
         font-weight: 700;
         color: var(--blue-d);
         cursor: pointer;
-        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */
-        flex: 0 0 auto; /* ★押す物は縮めない★ */
+        white-space: nowrap; /* ★1文字ずつ縦に割れない★ */ /* ★押す物は縮めない★ */
+
+        /* ★挟む形★ 左右の ボタンは 縮まない（2026-09-05） */
+        flex: 0 0 auto;
       }
 
       /* ===== 読める一覧＋バー (2026-08-09) =====
@@ -403,27 +417,26 @@
       </div>
       <div class="sub" id="sub">読み込み中…</div>
 
+      <!-- ★★操作は 1つの 箱に まとめる★★ 2026-09-05（司さん「デカすぎ・バランス悪すぎ」）
+           ★前は 月えらび／引くもの／車ごと・日ごと が ★3つの 箱に 分かれて★ いました。
+           ★実測★ 数字の 1行目まで ★447px＝1画面の 53%★＝★半分が 上の 塊★
+           ⇒ 1つに まとめる。★中身は 1つも 減らしていません／押す 回数も 同じ★ -->
       <div class="card">
         <div class="monthbar">
           <button class="navb" id="prevM">‹ 前の月</button>
           <div class="m" id="monthLabel">—</div>
           <button class="navb" id="nextM">次の月 ›</button>
         </div>
-      </div>
-
-      <div class="card">
-        <div class="setrow">
+        <div class="setrow" style="margin-top: 10px">
           <span class="setlabel">売上から引くもの</span>
           <label class="chk"><input type="checkbox" id="dToll" /> 高速代</label>
           <label class="chk"><input type="checkbox" id="dBridge" /> 橋代</label>
           <label class="chk"><input type="checkbox" id="dOther" /> その他</label>
           <span class="saved" id="setSaved"></span>
         </div>
-      </div>
 
-      <!-- ★車ごと／日ごと の切り替え (2026-08-09 司さん「1日おきと車おきで見れないかん」)★ -->
-      <div class="card">
-        <div class="seg">
+        <!-- ★車ごと／日ごと の切り替え (2026-08-09 司さん「1日おきと車おきで見れないかん」)★ -->
+        <div class="seg" style="margin-top: 10px">
           <button class="segb on" id="segCar" type="button">車ごと</button>
           <button class="segb" id="segDay" type="button">日ごと</button>
         </div>

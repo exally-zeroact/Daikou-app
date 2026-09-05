@@ -60,16 +60,30 @@ describe('★狭い画面で 字が縦に割れない★', () => {
     expect(m, `★${f}：min-width で 押す物を潰す形に戻っています★`).not.toMatch(
       /min-width:\s*\d+(\.\d+)?em/
     );
-    expect(m, `★${f}：縮んでよい形になっていません★`).toMatch(/flex:\s*0 1 \d+(\.\d+)?em/);
+    // ★★2026-09-05 形が 変わりました★★（司さん「挟む 形に したら スッキリ」）
+    //   前 … `flex: 0 1 ◯em`（決めた 幅から 縮む）
+    //   今 … `flex: 1 1 auto`（真ん中で 余りを 取り、狭ければ 縮む）
+    //   ★どちらでも「押す物を 先に 潰さない」は 守れます★
+    expect(m, `★${f}：縮んでよい形になっていません★`).toMatch(
+      /flex:\s*(0 1 \d+(\.\d+)?em|1 1 auto)/
+    );
   });
 
-  it.each(BAR_PAGES)('%s … 狭い画面の決まりが在る（月の字を上の行へ落とす）', (f) => {
+  // ★★2026-09-05 決まりが 変わりました★★（司さん）
+  //   「前の月と 次の月の ボタンは 上の 日付を ★挟む 形★に したら もっと スッキリならんか？」
+  //   ★前★ 狭い画面では 日付を order:-1 で ★上の 段へ 落として★ いた
+  //        ⇒ 実測 日付 top=144 / ボタン top=179 ＝★2段★
+  //   ★今★ ★1段のまま 左右の ボタンで 挟む★（日付の 字だけ 少し 小さくする）
+  //   ★実測（375px・2026-09-05）★
+  //        ボタン ★83x35（1行）★／日付 130px／★横の はみ出し 0★
+  it.each(BAR_PAGES)('%s … 狭い画面でも 挟む形の まま（上の 段へ 落とさない）', (f) => {
     const html = read(f);
     const i = html.indexOf('@media (max-width: 480px)');
     expect(i, `★${f}：狭い画面の決まりが無い★`).toBeGreaterThan(-1);
     const block = html.slice(i, i + 400);
-    expect(block, `★${f}：折り返していない★`).toContain('flex-wrap: wrap');
-    expect(block, `★${f}：月の字を上の行へ落としていない★`).toContain('order: -1');
+    expect(block, `★${f}：日付を 上の 段へ 落とす 形に 戻っています★`).not.toContain('order: -1');
+    const bar = ruleOf(html, '      .monthbar');
+    expect(bar, `★${f}：折り返さない 指定が ありません★`).toContain('flex-wrap: nowrap');
   });
 
   it.each(TAG_PAGES)('%s … 上の札（給料／売上表…）の字が 縦に割れない', (f) => {
@@ -81,8 +95,6 @@ describe('★狭い画面で 字が縦に割れない★', () => {
   it.each(BAR_PAGES)('%s … 上の帯は 狭い時 上下に分かれる（名前と行き先が押し合わない）', (f) => {
     const top = ruleOf(read(f), '      .top');
     expect(top, `★${f} に .top が無い★`).toBeTruthy();
-    expect(top, `★${f}：名前と行き先ボタンが 押し合って字が割れます★`).toContain(
-      'flex-wrap: wrap'
-    );
+    expect(top, `★${f}：名前と行き先ボタンが 押し合って字が割れます★`).toContain('flex-wrap: wrap');
   });
 });
