@@ -127,7 +127,11 @@ test('★説明書（使い方）が 在る★', async ({ page }) => {
     })
   );
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto('/kyuryo.html');
+  // ★★2026-09-06 給料は「見るだけ」に なりました★★（司さん）
+  //   「設定画面の 中に チップで 車、料金、従業員マスタ つくったら 各ページ 見やすくなるやろ」
+  //   ⇒ ★「従業員」「給料の設定」は ?henshu=1 の 時だけ 出ます★
+  //     （会社設定 →「車」「従業員」チップから 来る 道）
+  await page.goto('/kyuryo.html?henshu=1');
   await page.waitForTimeout(1800);
   await page.locator('.tab[data-tab="set"]').click();
   await page.waitForTimeout(400);
@@ -194,7 +198,11 @@ for (const d of [
       })
     );
     await page.setViewportSize({ width: d.w, height: d.h });
-    await page.goto('/kyuryo.html');
+    // ★★2026-09-06 給料は「見るだけ」に なりました★★（司さん）
+    //   「設定画面の 中に チップで 車、料金、従業員マスタ つくったら 各ページ 見やすくなるやろ」
+    //   ⇒ ★「従業員」「給料の設定」は ?henshu=1 の 時だけ 出ます★
+    //     （会社設定 →「車」「従業員」チップから 来る 道）
+    await page.goto('/kyuryo.html?henshu=1');
     await page.waitForTimeout(1600);
     await page.locator('.tab[data-tab="set"]').click();
     await page.waitForTimeout(400);

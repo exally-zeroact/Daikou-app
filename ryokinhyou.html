@@ -352,6 +352,40 @@
         flex-wrap: wrap;
         align-items: center;
       }
+
+      /* ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+         ★4列までなら 1列 82pxで 収まる★（画面 390px・箱 328px） */
+      table.kami {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        margin-top: 6px;
+      }
+
+      table.kami > thead > tr > th,
+      table.kami > tbody > tr > td {
+        border: 1px solid #b9c6d8;
+        padding: 3px 4px;
+        text-align: right;
+        white-space: nowrap;
+        line-height: 1.3;
+      }
+
+      table.kami > thead > tr > th {
+        background: #eef3fa;
+        color: var(--ink);
+        font-weight: 700;
+        text-align: center;
+        font-size: 10px;
+        white-space: normal;
+      }
+
+      table.kami > thead > tr > th:first-child,
+      table.kami > tbody > tr > td:first-child {
+        text-align: left;
+      }
     </style>
   </head>
   <body>
@@ -370,7 +404,21 @@
         <div class="card">
           <div class="ttl">今の 料金表</div>
           <div class="itsuno" id="itsuno">—</div>
+          <!-- ★★今 いくらかを 紙で 出す★★ 2026-09-05（司さん「紙にして」）
+               下の 入力の 所は ★打ち込む 画面★なので そのままです。 -->
+          <table class="kami" id="imaTbl">
+            <thead id="imaHead"></thead>
+            <tbody id="imaBody"></tbody>
+          </table>
           <div class="note" id="motoNote"></div>
+          <!-- ★★見るだけの 時★★ 2026-09-05（司さん「会社の設定で 料金 触るようにしろ」）
+               ★決めるのは 会社設定★＝ここは 今 いくらかを 見る 所。 -->
+          <div id="miruDake" style="display: none; margin-top: 10px">
+            <a class="btn" id="kimeruBtn" href="dashboard.html">料金を 変える（会社設定）</a>
+            <div class="note" style="margin-top: 6px">
+              料金は <b>会社設定 →「料金」</b>で 決めます。ここは 今の 料金を 見る 所です。
+            </div>
+          </div>
         </div>
 
         <div class="card">
@@ -1010,7 +1058,73 @@
         //   ⇒ ★部品側の 1か所（FareConfigStore.fudaKaeta → _hiduke）を そのまま 使います★。
         //     「2つの 札で 別々に 書くと すぐ 食い違う」は ★私が 部品に そう 書いた★のに
         //     ★自分で 破っていました★。
+        // ★★今の 中身を 紙の 表で 出す★★ 2026-09-05（司さん）
+        //   ★今 入っている 値を そのまま 並べるだけ★＝計算は 1行も 触っていません
+        //   ★4列まで★＝横に すべりません（実測 1列 82px）
+        function imaKami() {
+          var c = ZENBU || {};
+          var h = '<tr><th>区分</th><th>いくら</th><th>どこまで</th><th>それ以降</th></tr>';
+          $('imaHead').innerHTML = h;
+          var b = '';
+          function gyou(na, a, b2, c2) {
+            return (
+              '<tr><td>' +
+              na +
+              '</td><td>' +
+              a +
+              '</td><td>' +
+              (b2 || '—') +
+              '</td><td>' +
+              (c2 || '—') +
+              '</td></tr>'
+            );
+          }
+          // ★名前は 実物（KO の key と autoSurcharges）から 取る★ 2026-09-05
+          //   ★1度 間違えた★＝base_fare_yen と 書いたが 実物は base_fare
+          b += gyou('基本料金', yen(c.base_fare), km(c.base_distance_m), '—');
+          b += gyou('加算', yen(c.add_fare), '—', km(c.add_distance_m) + ' ごと');
+          var a = c.autoSurcharges || {};
+          if (a.night && a.night.enabled)
+            b += gyou(
+              '深夜割増',
+              Math.round((a.night.rate || 1) * 100 - 100) + '%増',
+              (a.night.from || 0) + '時〜' + (a.night.to || 0) + '時',
+              '—'
+            );
+          if (a.weekend && a.weekend.enabled)
+            b += gyou(
+              '土日割増',
+              Math.round((a.weekend.rate || 1) * 100 - 100) + '%増',
+              '土・日',
+              '—'
+            );
+          $('imaBody').innerHTML = b;
+        }
+
+        // ★★「見るだけ」か「決める」か★★ 2026-09-05（司さん）
+        //   ★?henshu=1 が 付いている時だけ 入力を 出す★
+        //   （会社設定 →「料金」チップから 来ると 付いています）
+        function henshuKa() {
+          try {
+            return new URLSearchParams(location.search).get('henshu') === '1';
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function dashiwake() {
+          var h = henshuKa();
+          // ★1枚目（今の 料金）は いつでも 出す★／2枚目から 下が 入力
+          var cards = document.querySelectorAll('#honbun > .card');
+          for (var i = 1; i < cards.length; i++) cards[i].style.display = h ? '' : 'none';
+          var m = $('miruDake');
+          if (m) m.style.display = h ? 'none' : '';
+          // ★保存の ボタンは 一番 下の card の 中に 在る★＝上の 繰り返しで 一緒に 消えます
+        }
+
         function fuda() {
+          imaKami();
+          dashiwake();
           $('itsuno').textContent = window.FareConfigStore.fudaKaeta(
             { updated_at: UPDATED_AT, updated_by: UPDATED_BY },
             null // ★事務所なので「この端末」の 判定は しない★

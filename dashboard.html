@@ -395,6 +395,41 @@
         font-size: 12px;
         margin-top: 20px;
       }
+
+      /* ★★会社設定の 中の チップ★★ 2026-09-05（司さん
+         「設定画面の 中に チップで 車、料金、従業員マスタ つくったら
+           各ページ 見やすくなるやろ」）
+         ★決める所を ここに 集める★＝他の 画面は 見るだけに なる */
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 10px 0 12px;
+      }
+
+      .chip {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--muted);
+        cursor: pointer;
+        font-family: inherit;
+      }
+
+      .chip.on {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
+
+      .mada {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
     </style>
   </head>
   <body>
@@ -452,82 +487,143 @@
 
       <!-- 会社がある時: ダッシュボード（「会社の設定」タブの中身） -->
       <div id="main" style="display: none">
-        <h1 class="co" id="coName">—</h1>
-        <div class="status-off" id="statusOff" style="display: none">
-          ⚠ 現在ご利用が停止されています。事務所（ダイコメ）にご確認ください。
+        <!-- ★★決める所は ここに 集める★★ 2026-09-05（司さん）
+             「設定画面の 中に チップで 車、料金、従業員マスタ つくったら
+               各ページ 見やすくなるやろ」
+             ★他の 画面（月次集計・売上表・料金表・給料明細）は 見るだけ★ -->
+        <div class="chips" id="chips">
+          <button class="chip on" type="button" data-chip="kaisha">会社</button>
+          <button class="chip" type="button" data-chip="kuruma">車</button>
+          <button class="chip" type="button" data-chip="ryokin">料金</button>
+          <button class="chip" type="button" data-chip="hito">従業員</button>
         </div>
 
-        <!-- 配布用URL/QR -->
-        <div class="card">
-          <h2>ドライバーに配るURL／QR</h2>
-          <div class="desc">
-            随伴車のスマホでこのURL（またはQR）を開くと、その端末が使えるようになります。
+        <!-- ★会社★（今まで 在った 中身） -->
+        <div data-pane="kaisha">
+          <h1 class="co" id="coName">—</h1>
+          <div class="status-off" id="statusOff" style="display: none">
+            ⚠ 現在ご利用が停止されています。事務所（ダイコメ）にご確認ください。
           </div>
-          <div class="url-box" id="coUrl">—</div>
-          <!-- ★取り違えた時に出す知らせ（2026-08-21）★
+
+          <!-- 配布用URL/QR -->
+          <div class="card">
+            <h2>ドライバーに配るURL／QR</h2>
+            <div class="desc">
+              随伴車のスマホでこのURL（またはQR）を開くと、その端末が使えるようになります。
+            </div>
+            <div class="url-box" id="coUrl">—</div>
+            <!-- ★取り違えた時に出す知らせ（2026-08-21）★
                ここが出ている間は QR もコピーも出さない＝読ませてしまう事を物理的に止める -->
-          <div
-            id="qrSideWarn"
-            style="
-              display: none;
-              margin: 10px 0 0;
-              padding: 10px 12px;
-              border: 2px solid #c62828;
-              border-radius: 8px;
-              background: #fff5f5;
-              color: #333;
-              line-height: 1.7;
-            "
-          ></div>
-          <div class="row">
-            <button class="btn" id="copyUrl" type="button">URLをコピー</button>
-            <button class="btn ghost" id="toggleQr" type="button">QRを表示</button>
-          </div>
-          <div id="qr" style="display: none"></div>
-        </div>
-
-        <!-- 地元の市（請求書の行き先の書き方） -->
-        <div class="card">
-          <h2 style="margin: 0 0 8px">地元の市</h2>
-          <div class="desc" style="margin: 0 0 10px">
-            請求書の行き先で、この市名は落として町名だけにします。 市外はそのまま市名を付けます（例:
-            松山市道後町）。空なら 今治市。
-          </div>
-          <div class="row">
-            <input
-              id="homeCity"
-              type="text"
-              placeholder="今治市"
+            <div
+              id="qrSideWarn"
               style="
-                flex: 1;
-                padding: 10px;
-                border: 1px solid #cfe0ff;
-                border-radius: 10px;
-                font-size: 15px;
+                display: none;
+                margin: 10px 0 0;
+                padding: 10px 12px;
+                border: 2px solid #c62828;
+                border-radius: 8px;
+                background: #fff5f5;
+                color: #333;
+                line-height: 1.7;
               "
-            />
-            <button class="btn" id="saveHomeCity" type="button">保存</button>
+            ></div>
+            <div class="row">
+              <button class="btn" id="copyUrl" type="button">URLをコピー</button>
+              <button class="btn ghost" id="toggleQr" type="button">QRを表示</button>
+            </div>
+            <div id="qr" style="display: none"></div>
           </div>
-          <div id="homeCityMsg" class="desc" style="margin: 8px 0 0"></div>
+
+          <!-- 地元の市（請求書の行き先の書き方） -->
+          <div class="card">
+            <h2 style="margin: 0 0 8px">地元の市</h2>
+            <div class="desc" style="margin: 0 0 10px">
+              請求書の行き先で、この市名は落として町名だけにします。
+              市外はそのまま市名を付けます（例: 松山市道後町）。空なら 今治市。
+            </div>
+            <div class="row">
+              <input
+                id="homeCity"
+                type="text"
+                placeholder="今治市"
+                style="
+                  flex: 1;
+                  padding: 10px;
+                  border: 1px solid #cfe0ff;
+                  border-radius: 10px;
+                  font-size: 15px;
+                "
+              />
+              <button class="btn" id="saveHomeCity" type="button">保存</button>
+            </div>
+            <div id="homeCityMsg" class="desc" style="margin: 8px 0 0"></div>
+          </div>
+
+          <!-- 台数 -->
+          <div class="card">
+            <div class="seat-head">
+              <h2 style="margin: 0">使用台数</h2>
+              <div class="seat-num"><b id="seatUsed">0</b> / <span id="seatMax">0</span> 台</div>
+            </div>
+            <div class="bar"><span id="seatBar" style="width: 0%"></span></div>
+            <div class="desc" style="margin: 10px 0 0">
+              契約台数まで有効化できます。どの車でも使えます。空きが無い時は、下で使っていない端末を外してください。
+            </div>
+          </div>
+
+          <!-- 端末一覧 -->
+          <div class="card">
+            <h2>有効化した端末</h2>
+            <div class="desc">機種変・入れ替えの時は「外す」で席を空けられます。</div>
+            <div id="devList"></div>
+          </div>
+        </div>
+        <!-- ★車★（次の 回で uriage / kyuryo から 移します） -->
+        <div data-pane="kuruma" style="display: none">
+          <div class="card">
+            <div style="font-weight: 800; margin-bottom: 6px">車</div>
+            <div class="mada">
+              車の <b>名前</b>と <b>並び</b>を ここで 決めます。<br />
+              決めた 物は <b>給料明細の「売上1・売上2…」</b>と <b>売上表</b>に そのまま 出ます。
+            </div>
+            <div style="margin-top: 10px">
+              <a class="btn" href="kyuryo.html?henshu=1#set">車を 決める</a>
+            </div>
+          </div>
         </div>
 
-        <!-- 台数 -->
-        <div class="card">
-          <div class="seat-head">
-            <h2 style="margin: 0">使用台数</h2>
-            <div class="seat-num"><b id="seatUsed">0</b> / <span id="seatMax">0</span> 台</div>
+        <!-- ★料金★（次の 回で ryokinhyou から 移します） -->
+        <div data-pane="ryokin" style="display: none">
+          <div class="card">
+            <div style="font-weight: 800; margin-bottom: 6px">料金</div>
+            <div class="mada">
+              基本料金・加算・割増を ここで 決めます。<br />
+              決めた 物は <b>料金表</b>の 画面と <b>メーター</b>に そのまま 出ます。
+            </div>
+            <div style="margin-top: 10px">
+              <a class="btn" href="ryokinhyou.html?henshu=1">料金を 決める</a>
+            </div>
           </div>
-          <div class="bar"><span id="seatBar" style="width: 0%"></span></div>
-          <div class="desc" style="margin: 10px 0 0">
-            契約台数まで有効化できます。どの車でも使えます。空きが無い時は、下で使っていない端末を外してください。
+          <div class="card">
+            <div style="font-weight: 800; margin-bottom: 6px">今の 料金</div>
+            <div class="mada">
+              <a href="ryokinhyou.html">料金表を 見る</a>（今 いくらかを 紙で 出します）
+            </div>
           </div>
         </div>
 
-        <!-- 端末一覧 -->
-        <div class="card">
-          <h2>有効化した端末</h2>
-          <div class="desc">機種変・入れ替えの時は「外す」で席を空けられます。</div>
-          <div id="devList"></div>
+        <!-- ★従業員★（次の 回で kyuryo から 移します） -->
+        <div data-pane="hito" style="display: none">
+          <div class="card">
+            <div style="font-weight: 800; margin-bottom: 6px">従業員</div>
+            <div class="mada">
+              従業員の <b>名前・時給・歩合</b>を ここで 決めます。<br />
+              決めた 物は <b>給料明細</b>に そのまま 出ます。
+            </div>
+            <div style="margin-top: 10px">
+              <a class="btn" href="kyuryo.html?henshu=1#emp">従業員を 決める</a>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -643,6 +739,39 @@
             location.href = SEIKYU_URL;
           }
         }
+
+        // ★★会社設定の 中の チップ★★ 2026-09-05（司さん）
+        //   ★押した 物だけ 出す★／★押した 場所を 覚える★（開き直しても 同じ 所）
+        (function wireChips() {
+          var KEY = 'dk_dash_chip';
+          function ima() {
+            try {
+              var v = localStorage.getItem(KEY);
+              return v && document.querySelector('[data-pane="' + v + '"]') ? v : 'kaisha';
+            } catch (_) {
+              return 'kaisha';
+            }
+          }
+          function dasu(na) {
+            Array.prototype.forEach.call(document.querySelectorAll('[data-chip]'), function (b) {
+              b.className = 'chip' + (b.getAttribute('data-chip') === na ? ' on' : '');
+            });
+            Array.prototype.forEach.call(document.querySelectorAll('[data-pane]'), function (d) {
+              d.style.display = d.getAttribute('data-pane') === na ? '' : 'none';
+            });
+            try {
+              localStorage.setItem(KEY, na);
+            } catch (_) {
+              /* 覚えられなくても 動く */
+            }
+          }
+          Array.prototype.forEach.call(document.querySelectorAll('[data-chip]'), function (b) {
+            b.onclick = function () {
+              dasu(b.getAttribute('data-chip'));
+            };
+          });
+          dasu(ima());
+        })();
 
         (function wireTabs() {
           // ★上に 残したのは 請求書 1つだけ★（他は 下の 帯）

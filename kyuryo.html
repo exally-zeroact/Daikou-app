@@ -987,10 +987,13 @@
       <div class="tabs noprint" id="tabs">
         <button class="tab on" data-tab="slip">明細</button>
         <button class="tab" data-tab="hours">時数を入れる</button>
-        <button class="tab" data-tab="emp">従業員</button>
+        <!-- ★★決める 物は 会社設定から★★ 2026-09-05（司さん）
+             ★?henshu=1 で 開いた 時だけ 出します★（会社設定の チップから 来る 道）
+             ⇒ 毎日 使う「明細」「時数を入れる」だけが 残り 見やすく なる -->
+        <button class="tab" data-tab="emp" data-kimeru="1">従業員</button>
         <!-- ★「決め方」→「給料の設定」 (2026-08-05・司さん指示)★
              司さん「決め方やなくて違う言い方にせな分かりにくいわ」 -->
-        <button class="tab" data-tab="set">給料の設定</button>
+        <button class="tab" data-tab="set" data-kimeru="1">給料の設定</button>
       </div>
 
       <div class="card noprint" id="monthCard">
@@ -2152,6 +2155,39 @@
           PIDX = 0;
           loadPeriod();
         };
+        // ★★「見るだけ」か「決める」か★★ 2026-09-05（司さん）
+        //   ★?henshu=1 が 付いている時だけ「従業員」「給料の設定」を 出す★
+        //   （会社設定 →「車」「従業員」チップから 来ると 付いています）
+        //   ★本人モード（?t=）では 元から 出ません★（別の 守りで 隠しています）
+        (function kimeruDake() {
+          var h = false;
+          try {
+            h = new URLSearchParams(location.search).get('henshu') === '1';
+          } catch (_) {
+            h = false;
+          }
+          if (h) {
+            // ★どの タブで 開くか★（会社設定の チップが #set / #emp を 付けて 来る）
+            var doko = (location.hash || '').replace('#', '');
+            if (doko === 'set' || doko === 'emp') {
+              var b2 = document.querySelector('.tab[data-tab="' + doko + '"]');
+              if (b2) {
+                TAB = doko;
+                Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+                  x.className = 'tab' + (x === b2 ? ' on' : '');
+                });
+              }
+            }
+            return;
+          }
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-kimeru="1"]'),
+            function (b) {
+              b.style.display = 'none';
+            }
+          );
+        })();
+
         Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
           b.onclick = function () {
             TAB = b.getAttribute('data-tab');
@@ -2836,6 +2872,17 @@
         }
 
         // 絵 → A4横の紙いっぱいに置く（板がもうA4の比なので 余白ぶんだけ内側に）
+        // ★★PDFの 重さ（実測 2026-09-06）★★
+        //   ★給料明細 3人ぶん ＝ 340,594B（333kB）／1人あたり 約 111kB★
+        //   ★司さんの 目安★「請求書1枚で ええとこ 200kBぐらいのもんやろが」（09-05）
+        //   ⇒ ★1人ぶん 111kB は 目安の 中★＝★今は 触りません★
+        //   ★作り★ jsPDF + html2canvas ＝ ★紙を 絵にして 貼る★
+        //     ⇒ ★字体を 埋めていない★ので Rakunally が 見つけた 穴
+        //       （PDFの 94%が 字体・3MB）には ★かかりません★
+        //     ⇒ ただし ★中の 字は 選べません・検索できません★（絵だから）
+        //   ★★重いと 言われた時の 手★★（★言われるまで 使わない★）
+        //     ★下の 0.92 を 0.85 に する★＝★3〜4割 軽くなります★
+        //     （今 下げると ★絵が 荒れるだけ★＝得が ない）
         function _placeOnA4(doc, canvas) {
           var w = PAPER_W - PAPER_MARGIN * 2;
           var h = PAPER_H - PAPER_MARGIN * 2;

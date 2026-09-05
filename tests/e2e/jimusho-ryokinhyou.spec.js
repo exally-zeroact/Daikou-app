@@ -101,7 +101,10 @@ async function souko(page, opts) {
 }
 
 async function hiraku(page) {
-  await page.goto('/ryokinhyou.html');
+  // ★★2026-09-05 料金表は「見るだけ」に なりました★★（司さん
+  //   「会社の設定で 料金 触るようにしろや」）
+  //   ★決めるのは ?henshu=1★（会社設定 →「料金」チップから 来る 道）
+  await page.goto('/ryokinhyou.html?henshu=1');
   await page.waitForSelector('#honbun:not([style*="display: none"])', { timeout: 15000 });
 }
 
@@ -199,7 +202,10 @@ test('★★③ 保存しても 触っていない 設定が 1つも 消えな�
 test('★④ 読めなかった時に「既定です」と 見せない★', async ({ page }) => {
   await login(page);
   await souko(page, { yomenai: true });
-  await page.goto('/ryokinhyou.html');
+  // ★★2026-09-05 料金表は「見るだけ」に なりました★★（司さん
+  //   「会社の設定で 料金 触るようにしろや」）
+  //   ★決めるのは ?henshu=1★（会社設定 →「料金」チップから 来る 道）
+  await page.goto('/ryokinhyou.html?henshu=1');
   await page.waitForTimeout(1500);
   const m = await page.evaluate(() => ({
     honbun: getComputedStyle(document.getElementById('honbun')).display,

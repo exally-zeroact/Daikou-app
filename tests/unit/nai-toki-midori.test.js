@@ -86,6 +86,7 @@ function kazoeru(dir, deta) {
 //   ⇒ ★対象外に 移す時は 必ず 1行の理由を 書く★（黙って 名簿から 消さない）
 const NOKORI = [
   'tests/e2e/env-badge.spec.js',
+  'tests/e2e/jimusho-kimeru-basho.spec.js',
   'tests/integration/adaptive-mode-distance.test.js',
   'tests/integration/meisai-autopush-row.test.js',
   'tests/integration/overcount-zero-routing.test.js',
@@ -101,6 +102,12 @@ const NOKORI = [
 
 // ★対象外＝そのままで よい物と その理由★（★11本とも 理由が 要ります★）
 const RIYUU = {
+  'tests/e2e/jimusho-kimeru-basho.spec.js':
+    '★材料の話では ない★ … env-badge と 同じ 形で、' +
+    '実物の dk-session.js を 読んで その後ろに 上書きを 足しているだけ' +
+    '（readFileSync の 後ろに return が 在るのを 数え方が 拾っただけ）。' +
+    '★中身が 無ければ この試験自体が 落ちます★' +
+    '（タブの 数・チップの 数・入口の 行き先を 数えている）。',
   'tests/e2e/env-badge.spec.js':
     '★材料の話では ない★ … 実物の dk-session.js を 読んで その後ろに 上書きを 足しているだけ' +
     '（readFileSync の 後ろに return が 在るのを 数え方が 拾っただけ）。' +
