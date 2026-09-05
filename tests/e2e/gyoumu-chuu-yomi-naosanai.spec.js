@@ -136,3 +136,21 @@ test('★★③ 一度 繋いだ事を 端末に 覚える（読み直しても 
     '★読み直した時に 覚えた分を 読んでいません★'
   ).toBe(true);
 });
+
+test('★★④ OBD の 赤バーが 青バー・overlay より 上に 居る★★', async () => {
+  // ★司さんの 元の 指示（2026-06-30）★「全部の画面に 途切れたら 出して」
+  //   ★私が 09-05 に z-index を 70 に して、青バー(120)・overlay(80) の 下に 潜らせた★
+  //   ⇒ 出ない 画面が 出来た＝OBD が 切れても 運転手が 気づけない
+  const bar = SRC.slice(SRC.indexOf('id="obdReconnectBar"'));
+  const m = bar.match(/z-index:\s*(\d+)/);
+  const z = m ? parseInt(m[1], 10) : -1;
+  // ★比べる 相手も 実物から 読む★（数を 手で 書かない）
+  const ov = SRC.match(/\.spa-overlay\s*\{[\s\S]{0,400}?z-index:\s*(\d+)/);
+  const zov = ov ? parseInt(ov[1], 10) : -1;
+  // eslint-disable-next-line no-console
+  console.log('★赤バー z=' + z + '／overlay z=' + zov + '★');
+  expect(z, '★赤バーの z-index が 読めません★').toBeGreaterThan(0);
+  expect(zov, '★overlay の z-index が 読めません★').toBeGreaterThan(0);
+  expect(z, '★赤バーが overlay の 下に 潜っています★').toBeGreaterThan(zov);
+  expect(z, '★赤バーが 常駐青バー(120) の 下に 潜っています★').toBeGreaterThan(120);
+});
