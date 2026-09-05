@@ -7562,6 +7562,25 @@
 
       // ─── 設定読み込み ───
       function loadSettings() {
+        // ★★★代行の 距離係数は ★一番 先に★ 当てる★★★ 2026-09-06（司さん「距離が少ない」）
+        //   ★なぜ ここに 移したか（実測で 見つけた 落とし穴）★
+        //     この係数は 前は ★この関数の 終わりの方（旧7620行）★で 当てていました。
+        //     ところが 手前に ★try で 守られていない `JSON.parse`★ が 在ります
+        //     （`daikou_settings` を 読む所）。そこが 1回でも こければ
+        //       ・呼ぶ側（旧10418行）が try/catch で ★黙って 飲み込む★
+        //       ・⇒ ★この行まで 来ない★ ⇒ 係数は 既定の ★1.0 のまま★
+        //     ★1.0 のままだと 2つ 同時に 起きます★
+        //       ①代行の +0.85% が 乗らない
+        //       ②js/meter.js:137 `daikouMode: _daikouDistFactor > 1.0` が ★false★ に なり、
+        //         pipeline の OBD天井の 分位が ★p50 → p25★ に 落ちる。
+        //         ★その差は コードに 実測で 書いてある＝「実走検証で -16%判明」★
+        //         （js/pipeline-distance.js 199行）
+        //     ⇒★★合わせて 約 -17%。画面にも 記録にも 何も 出ません★★
+        //   ★だから 何より 先に 当てる★＝手前に 何が 在っても 影響を 受けない。
+        //   ★数字は 1つも 変えていません（1.0085 のまま・当てる 順番だけ）★
+        if (typeof Meter !== 'undefined' && typeof Meter.setDaikouDistanceFactor === 'function') {
+          Meter.setDaikouDistanceFactor(1.0085);
+        }
         // ★★料金表（2026-08-30・Firebase → Supabase）★★
         //   ①★まず 手元の 写しを 当てる（通信 0回）★＝★圏外でも 料金が 出る★
         //   ②その後で 倉庫から 取り直す。取れなければ ①のまま（★写しは 消さない★）
@@ -7588,21 +7607,31 @@
           localStorage.setItem('daikou_discounts', JSON.stringify([])); // ★値引きプリセット(空で開始)
         }
 
+        // ★★ここで こけても 後ろを 止めない★★ 2026-09-06（司さん）
+        //   `daikou_settings` が 壊れていると JSON.parse が こけます。
+        //   前は それが ★関数ごと 落とし★、呼ぶ側の try/catch が 黙って 飲み込み、
+        //   後ろの 設定が まるごと 当たっていませんでした（★何も 出ない★）。
+        //   ⇒ ★ここだけで 受け止めて 先へ 進む★／★出来なかった事は 記録に 出す★
         const s = localStorage.getItem('daikou_settings');
-        if (s) {
-          const obj = JSON.parse(s);
-          surchargeEnabled = obj.surchargeEnabled || false;
-          surchargeRate = obj.surchargeRate || 1.2;
-          vehicleId = obj.vehicleId || 'v1';
-          // localStorageから料金設定も読み込む（Firebase未接続時の保険）
-          if (obj.baseFare) {
-            Meter.setFareConfig({
-              base_fare: obj.baseFare || 1300,
-              base_distance_m: obj.baseDistanceM || 1000,
-              add_distance_m: obj.addDistanceM || 420,
-              add_fare: obj.addFare || 100,
-            });
+        try {
+          if (s) {
+            const obj = JSON.parse(s);
+            surchargeEnabled = obj.surchargeEnabled || false;
+            surchargeRate = obj.surchargeRate || 1.2;
+            vehicleId = obj.vehicleId || 'v1';
+            // localStorageから料金設定も読み込む（Firebase未接続時の保険）
+            if (obj.baseFare) {
+              Meter.setFareConfig({
+                base_fare: obj.baseFare || 1300,
+                base_distance_m: obj.baseDistanceM || 1000,
+                add_distance_m: obj.addDistanceM || 420,
+                add_fare: obj.addFare || 100,
+              });
+            }
           }
+        } catch (e) {
+          // ★黙って 飲み込まない★（何が こけたか 分かるように 残す）
+          console.error('[設定] daikou_settings が 読めません:', e);
         }
         // ★代行距離係数(現行の狙い=DM Light基準 +0.2%着地)をシステム固定値で自動適用 (2026-06-18/06-22/07-04更新)★:
         //   距離計算式に乗算し distance_m をメーター機(随伴車DM)基準に着地→料金/表示/総走行が追従。料金には係数を掛けない。

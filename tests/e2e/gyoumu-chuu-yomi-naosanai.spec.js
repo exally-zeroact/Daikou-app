@@ -39,10 +39,11 @@ const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf
 //   ＝ index.html を 丸ごと 開くと 位置情報や Bluetooth が 要るので、
 //     ★守りたい 段だけ★ を 取り出して 動かす。
 function toriDasu() {
+  // ★改行の 形に 依らない★（手元は CRLF・GitHub は LF＝今日 3回 踏んだ）
   const hajime = SRC.indexOf('const _hadSWController');
-  const owari = SRC.indexOf('navigator.serviceWorker' + '\n          .register');
-  const src = hajime >= 0 && owari > hajime ? SRC.slice(hajime, owari) : '';
-  return src;
+  if (hajime < 0) return '';
+  const m = /navigator\.serviceWorker\r?\n {10}\.register/.exec(SRC.slice(hajime));
+  return m ? SRC.slice(hajime, hajime + m.index) : '';
 }
 
 test('★★① 業務中は 読み直さない／② 終わったら 読み直す★★', async ({ page }) => {
