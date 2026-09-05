@@ -196,6 +196,7 @@
       /* ★★数字の 表を「紙」に 寄せる★★ 2026-09-05（司さん「PDFっぽく 見せてるよな？」）
          ★数字の 幅を 揃える★＝1と8で 幅が 変わらない＝★縦に 揃って 比べられる★
          （紙の 帳票と 同じ 見え方。字の 大きさは 変えていません） */
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -247,11 +248,15 @@
       .kyori-sc {
         /* ★10日ぶん 見える 高さ★ 2026-09-05（司さん「バランス考えて」）
            ★締めの 区切りが 1〜10日／11〜20日／21〜末日★なので 10日で 揃える。
-           ★実測★ 見出し 37px ＋ 1行 41px × 10 ＝ 447px
+           ★実測（前）★ 見出し 37px ＋ 1行 41px × 10 ＝ 447px
            ★vh では 端末で 6〜8行に ぶれた★（iPhone13 8行／SE 6行）
            ⇒ ★px で 決めて どの 端末でも 10日ぶん★
-           ★小さい 端末で 画面を 食い過ぎない★よう 窓の 60% を 上限に する。 */
-        max-height: min(447px, 60vh);
+           ★小さい 端末で 画面を 食い過ぎない★よう 窓の 60% を 上限に する。
+           ★★2026-09-05 紙の 表に した ので 測り直しました★★（司さん「紙にして」）
+             字 13px→11px・ますの 余白 8px→3px
+             ⇒ ★見出し 20px ＋ 1行 21px × 10 ＝ 230px★
+             （447px の ままだと ★20日ぶん 見えて しまい 下の 箱を 隠す★） */
+        max-height: min(230px, 60vh);
         overflow: auto;
 
         /* ★台数が 多い時は 横にも すべる★（20台で 表 1,612px＝箱の 5倍） */
@@ -272,10 +277,16 @@
          ⇒ ★右へ すべらせると「月」も「合計」も 流れて 行く★
          ⇒ ★何月の 何か 分からなくなる★
          ★直し★ ★月★と★合計★を ★左に 貼り付ける★（合計は 月の 隣へ 動かす） */
+
+      /* ★★貼り付いた 列の 下に 車の 列が 潜り込む のを 止める★★ 2026-09-05
+         ★100台で 実際に 見た★＝合計の 右に「4号」「:00」と
+         ★下の 列の 字が 顔を 出していた★（絵で 気づいた）
+         ⇒ ★白で 塗り、右に 線を 引く★＝下の 字が 出て こない */
       .kyori-sc .kotei1,
       .kyori-sc .kotei2 {
         position: sticky;
         background: #fff;
+        background-clip: padding-box;
         z-index: 2;
       }
 
@@ -292,6 +303,9 @@
       /* ★見出しの 行は もっと 手前★（縦にも 横にも 貼り付くので 重なりが 起きる） */
       .kyori-sc thead .kotei1,
       .kyori-sc thead .kotei2 {
+        /* ★見出しも 白で 塗る★（下の 列の 字が 出て こない） */
+        background: #f7fbff;
+        background-clip: padding-box;
         z-index: 3;
       }
 
@@ -412,6 +426,65 @@
           padding: 0 0 14px;
         }
       }
+
+      /* ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+         ★司さんの 代行計算表2026.xlsb「月別」と 同じ 11列★
+           月／売上／(締め3つ)／給料合計／経費／積立金／未収／現金／会社に残る分
+         ★横に すべらせない★＝列の 幅を 決めて（table-layout: fixed）
+           字 11px・ますの 余白 2px で 幅の 中に 収める。
+         ★列は 1つも 減らしていません★
+         ★書き方を 詳しく している 理由★＝後ろに 置くと 決まりの 順番に 引っかかる為 */
+      .kami-ttl {
+        font-weight: 800;
+        margin: 10px 0 4px;
+        border-left: 4px solid var(--blue);
+        padding-left: 7px;
+      }
+
+      table.kami {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      table.kami > thead > tr > th,
+      table.kami > tbody > tr > td {
+        border: 1px solid #b9c6d8;
+        padding: 3px 2px;
+        text-align: right;
+
+        /* ★★数字を 切らない★★ 2026-09-05
+           ★1度 やって 外した★＝nowrap＋overflow:hidden で
+           「28,400」が ★28,40★、「-9,920」が ★-9,92★ と ★切れて 出ていた★（絵で 見た）
+           ⇒ ★切らずに 折り返す★（桁を 落とすより 2行に なる方が まし）
+           ⇒ 千の 位の 区切りの 所で 折れる ように する */
+
+        /* ★6列なら 1列 57px＝「1,298,210」（56px）が 1行で 入る★ 2026-09-05 */
+        white-space: nowrap;
+        line-height: 1.3;
+      }
+
+      table.kami > thead > tr > th {
+        background: #eef3fa;
+        color: var(--ink);
+        font-weight: 700;
+        text-align: center;
+        font-size: 10px;
+        line-height: 1.25;
+        white-space: normal;
+      }
+
+      table.kami > thead > tr > th:first-child,
+      table.kami > tbody > tr > td:first-child {
+        text-align: left;
+      }
+
+      table.kami > tbody > tr.sum > td {
+        font-weight: 800;
+        background: #f7fbff;
+      }
     </style>
   </head>
   <body>
@@ -437,12 +510,18 @@
 
       <div class="card">
         <div class="ttl">月ごと</div>
-        <div class="scroller">
-          <table id="tbl">
-            <thead id="thead"></thead>
-            <tbody id="tbody"></tbody>
-          </table>
-        </div>
+        <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+             ★横に すべらせる 箱（scroller）は 使いません★＝列の 幅を 決めて 幅の 中に 収めます。 -->
+        <div class="kami-ttl">売上</div>
+        <table id="tbl" class="kami">
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div class="kami-ttl">お金</div>
+        <table id="tbl2" class="kami">
+          <thead id="thead2"></thead>
+          <tbody id="tbody2"></tbody>
+        </table>
         <div class="note">
           <b>売上</b>＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<b
             >オーナーの車も入ります。</b
@@ -475,7 +554,7 @@
           <button class="btn sub2" type="button" data-uriwake="kuruma">車ごと</button>
         </div>
         <div class="scroller kyori-sc" style="margin-top: 10px">
-          <table id="uriTbl">
+          <table id="uriTbl" class="kami">
             <thead id="uriHead"></thead>
             <tbody id="uriBody"></tbody>
           </table>
@@ -504,7 +583,7 @@
              ★ページを 伸ばさない★＝下の 帯や 他の 箱が 遠くへ 行かない
              ★見出しは 貼り付ける★（スクロールしても 何の 列か 分かる） -->
         <div class="scroller kyori-sc" style="margin-top: 10px">
-          <table id="kyoriTbl">
+          <table id="kyoriTbl" class="kami">
             <thead id="kyoriHead"></thead>
             <tbody id="kyoriBody"></tbody>
           </table>
@@ -894,6 +973,17 @@
                 })
               : ['売上'];
 
+          // ★★列が 多い時は 紙に しない★★ 2026-09-05（実測）
+          //   ★実測（2026-09-05・iPhone 390px／箱 328px）★
+          //     3台＝6列 … 1列 55px … ★切れ 0個★  ⇒ 紙で よい
+          //     4台＝7列 … 1列 47px … ★切れ 5個★  ⇒ 紙に できない
+          //     5台＝8列 … 1列 37px …（元の形に 切り替わる）
+          //   ⇒ ★6列まで 紙／7列からは 元の 形★
+          //     元の 形＝月と 合計を 貼り付けて 横に すべる
+          //     （2026-09-05 に 指示役の 裁定「甲」で 決めた 物）
+          var zenRetsu = retsu.length + (URI_WAKE === 'kuruma' ? 2 : 1);
+          $('uriTbl').className = zenRetsu <= 6 ? 'kami' : '';
+
           // ★どの 行に するか★（年／月／日）
           var gyou = [];
           function tasu(na, hi) {
@@ -1167,26 +1257,39 @@
           $('yearLabel').textContent = YEAR + '年';
           var periods = (YR && YR.total.periods) || [];
 
-          var th =
+          // ★★1ヶ月＝1枚の 札に する★★ 2026-09-05（司さん）
+          //   ★見出しの 行は 使いません★（項目の 名前は 札の 中に 出ます）
+          // ★★紙を 2枚に 分ける★★ 2026-09-05
+          //   ★11列は 390pxに 入らない★（実測 1列 31px／「1,298,210」は 56px）
+          //   ⇒ 6列ずつ 2枚に する＝1列 57px ＝ 1円まで そのまま 出る
+          $('thead').innerHTML =
             '<tr><th>月</th><th>売上</th>' +
             periods
               .map(function (p) {
                 return '<th>' + esc(p.name) + '</th>';
               })
               .join('') +
-            '<th>給料 合計</th><th>経費</th><th>積立金</th><th>未収</th><th>現金</th><th>会社に残る分</th></tr>';
-          $('thead').innerHTML = th;
+            '<th>給料 合計</th></tr>';
+          $('thead2').innerHTML =
+            '<tr><th>月</th><th>経費</th><th>積立金</th><th>未収</th><th>現金</th>' +
+            '<th>会社に残る分</th></tr>';
           renderUri(); // ★売上の 表も 一緒に 出す★
           renderKyori(); // ★距離の 表も 一緒に 出す★
 
+          // ★★紙を 2枚★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+          //   ①売上の 紙 … 月／売上／締め／給料 合計
+          //   ②お金の 紙 … 月／経費／積立金／未収／現金／会社に残る分
+          //   ★data-m は 両方に 残す★＝日ごとの 月えらび（押す）が どちらでも 動く
+          //   ★数字の 計算は 1行も 触っていません★
           var html = '';
+          var html2 = '';
           YR.months.forEach(function (m) {
             var has = m.salesTotal || m.payTotal;
             html +=
               '<tr data-m="' +
               m.month +
               '"><td>' +
-              m.label +
+              esc(m.label) +
               '</td><td>' +
               cell(m.salesTotal) +
               '</td>' +
@@ -1200,6 +1303,12 @@
                 .join('') +
               '<td>' +
               cell(m.payTotal) +
+              '</td></tr>';
+            html2 +=
+              '<tr data-m="' +
+              m.month +
+              '"><td>' +
+              esc(m.label) +
               '</td><td>' +
               cell(m.expense) +
               '</td><td>' +
@@ -1225,7 +1334,9 @@
               .join('') +
             '<td>' +
             yen(t.payTotal) +
-            '</td><td>' +
+            '</td></tr>';
+          html2 +=
+            '<tr class="sum"><td>合計</td><td>' +
             yen(t.expense) +
             '</td><td>' +
             yen(t.reserve) +
@@ -1236,6 +1347,7 @@
             '</td><td>' +
             yen(t.ownerShare) +
             '</td></tr>';
+          $('tbody2').innerHTML = html2;
           $('tbody').innerHTML = html;
 
           Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (tr) {

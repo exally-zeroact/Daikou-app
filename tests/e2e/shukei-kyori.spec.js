@@ -158,7 +158,7 @@ test('★年間／月ごと／日ごと で 切り替わり、合計は どれ�
   expect(r.rows[0][0], '★0件を 黙って 空に しています★').toContain('0件');
 
   // ★1月の 行を 押す ⇒ 日ごとも 1月に なる★
-  await page.locator('#tbody tr[data-m="1"]').click();
+  await page.locator('#tbody [data-m="1"]').click();
   await page.waitForTimeout(500);
   r = await yomu(page);
   console.log('★日ごと（1月）★ ' + JSON.stringify(r));
@@ -281,7 +281,7 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
   await page.locator('#kyoriTbl').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(1200);
-  await page.locator('#tbody tr[data-m="1"]').click();
+  await page.locator('#tbody [data-m="1"]').click();
   await page.waitForTimeout(400);
   await page.locator('[data-kyori="day"]').click();
   await page.waitForTimeout(600);
@@ -304,7 +304,11 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   });
   console.log('★1ヶ月ぶん★ ' + JSON.stringify(r) + ' ＝ ' + (r.page / r.mado).toFixed(1) + '画面');
   expect(r.gyou, '★1ヶ月ぶん 出ていません★').toBe(29);
-  expect(r.hyouH, '★表が 短すぎます（見本が 効いていません）★').toBeGreaterThan(1000);
+  // ★★2026-09-05 紙の 表に なりました★★（司さん「紙にして スクロールせんでええようにしろ」）
+  //   ★字 13px→11px・ますの 余白 8px→3px★に なったので 表の 高さが 縮みました
+  //   ★実測★ 1,222px → ★638px★（29行）
+  //   ⇒ ★中で 縦に スクロールする★事は 変わらない（箱 447px より 高い）
+  expect(r.hyouH, '★表が 短すぎます（見本が 効いていません）★').toBeGreaterThan(500);
   expect(r.hakoH, '★箱が 窓より 大きい（ページが 伸びます）★').toBeLessThan(r.mado);
   expect(r.sukuroru, '★中で スクロールしません★').toBe(true);
 
