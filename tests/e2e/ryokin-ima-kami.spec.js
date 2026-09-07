@@ -217,6 +217,15 @@ test('★★何キロで いくらの 表が 出る（金額は 計算機と 同
         : [];
     return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   });
+  // ★★時計を 止める★★ 2026-09-07
+  //   ★何が 起きていたか（実測）★
+  //     この 表は ★今の 時間の 金額★を 出す（深夜 22時〜5時 は 1.2倍・土日は 1.1倍）。
+  //     なのに 比べる 先は ★割増の 無い 素の 基本料金★だった。
+  //     ⇒ ★21時に 走らせると 緑・23時に 走らせると 赤★（1,300 → 1,560）。
+  //       2026-09-07 の 夜に 実際に 赤に なった。★私の 直しとは 関係が 無い★。
+  //   ⇒ ★何時に 走らせても 同じ 答え★に する＝★平日の 昼★で 止める。
+  //     （2026-09-07 は 月曜。土日割増も 深夜割増も 掛からない 時刻）
+  await page.clock.install({ time: new Date('2026-09-07T12:00:00+09:00') });
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/ryokinhyou.html', { waitUntil: 'domcontentloaded' });
   await page.locator('#kmBody tr').first().waitFor({ state: 'visible', timeout: 25000 });
