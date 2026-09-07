@@ -215,14 +215,22 @@ describe('★①1人ごとにPDF★', () => {
     expect(honbun.length, '★本文の字が 13px未満★').toBeGreaterThan(0);
   });
 
-  it('★④その期間に売上が1件も無い車は 紙に出さない★（番号は詰めて振り直す）', () => {
-    expect(HTML, '★空の売上行を 外していない★').toContain('function _paperCars');
+  // ★★★中身を 変えました（黙って 数だけ 動かさない）★★★ 2026-09-06（司さん）
+  //   ★前★「その期間に 売上が 1件も無い車は 紙に出さない」
+  //   ★司さんの言葉★「入ってなくても明細に出すってチェックしとんやけん
+  //                   車の名前の行がないのがおかしいやろが」
+  //   ⇒★選んだ 車は 中身が 0でも 行を 出す★に 変えた
+  //     （画面側は 前から ★slipCars＝明細に出す印★で 出していた＝紙だけ 違っていた）
+  it('★④「明細に出す」を 選んだ 車は 中身が 0でも 紙に 出す★', () => {
+    expect(HTML, '★_paperCars が ありません★').toContain('function _paperCars');
     const i = HTML.indexOf('function _paperCars');
-    const block = HTML.slice(i, i + 600);
-    expect(block, '★1件でも在るかを 見ていない★').toContain('e.cells.some(');
-    expect(block, '★0円を 在る扱いにしている★').toContain('v !== 0');
-    // 詰めて振り直す（i ではなく n）
-    expect(HTML, '★番号を詰めていない★').toMatch(/lbl: '売上' \+ \(n \+ 1\)/);
+    const block = HTML.slice(i, i + 400);
+    // ★中身で ふるいに かけていない事★
+    expect(block, '★中身で 車を 消しています★').not.toContain('e.cells.some(');
+    // ★渡された 車を そのまま 返す★
+    expect(block, '★選んだ 車を そのまま 返していません★').toMatch(/return \(cars \|\| \[\]\)/);
+    // ★番号は 1から 順に（前と 同じ）★
+    expect(HTML, '★番号を 振り直していない★').toMatch(/lbl: '売上' \+ \(n \+ 1\)/);
   });
 
   it('★1人ぶんも 全員ぶんも 同じ作り方（二度書かない）★', () => {

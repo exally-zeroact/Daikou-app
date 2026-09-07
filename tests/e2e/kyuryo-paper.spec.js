@@ -137,7 +137,7 @@ async function hakaru(page, ei) {
       hamidashi: 0,
       hamidashiDoko: '',
       minPt: 999,
-      karaUriage: 0,
+      naNashi: 0,
       kake: 0,
       hidariYose: 0,
       hidariYoseDoko: '',
@@ -206,9 +206,18 @@ async function hakaru(page, ei) {
       });
 
       const trs = [...sh.querySelectorAll('tbody tr')];
-      out.karaUriage += trs.filter((tr) => {
-        if (!tr.querySelector('th').textContent.trim().startsWith('売上')) return false;
-        return [...tr.querySelectorAll('td')].every((td) => !td.textContent.trim());
+      // ★★中身を 変えました（黙って 数だけ 動かさない）★★ 2026-09-06（司さん）
+      //   ★前★「中身が 空の 売上行は 0本」＝★売上が 0の 車の 行を 出すな★
+      //   ★司さんの言葉★「入ってなくても明細に出すってチェックしとんやけん
+      //                   車の名前の行がないのがおかしいやろが」
+      //   ⇒ ★選んだ 車は 中身が 0でも 行を 出す★に 変えた（画面と 同じ 出方に そろえた）。
+      //   ⇒ 空の 行は ★数えません★。代わりに ★車の 名前が 出ているか★ を 見ます
+      //     （行だけ 出て 名前が 無いと 誰の 行か 分からない＝それは 赤に する）。
+      out.naNashi += trs.filter((tr) => {
+        const th = tr.querySelector('th');
+        if (!th.textContent.trim().startsWith('売上')) return false;
+        const sub = th.lastElementChild;
+        return !sub || !sub.textContent.trim();
       }).length;
 
       const kin = trs.find((tr) => tr.querySelector('th').textContent.trim().startsWith('金額'));
@@ -248,7 +257,7 @@ test.describe('★給料明細の紙(PDF)★', () => {
         r.hamidashi,
         `★${ei}人め：枠線より右に「${r.hamidashiDoko}」が ${r.hamidashi}px 出ている★`
       ).toBeLessThanOrEqual(0.5);
-      expect(r.karaUriage, `★${ei}人め：中身が空の売上行が ${r.karaUriage}本★`).toBe(0);
+      expect(r.naNashi, `★${ei}人め：車の名前が無い売上行が ${r.naNashi}本★`).toBe(0);
       expect(r.kake, `★${ei}人め：項目の字が欠けている★`).toBe(0);
       // ★紙の字どうしで検算する（中の値で閉じない）★
       expect(r.tashita, `★${ei}人め：紙の金額を足した数と 紙の合計の字が 食い違う★`).toBe(
@@ -288,7 +297,8 @@ test.describe('★給料明細の紙(PDF)★', () => {
         r.hidariYose,
         `★項目「${r.hidariYoseDoko}」が 中央揃えでない（${r.hidariYose}px）★`
       ).toBeLessThanOrEqual(1);
-      expect(r.karaUriage, '★中身が空の売上行が在る★').toBe(0);
+      // ★中身を 変えました★ 2026-09-06（司さん「入ってなくても…行がないのがおかしい」）
+      expect(r.naNashi, '★車の名前が無い売上行が在る★').toBe(0);
       expect(r.maisu * r.per, `★${days}日ぶんが 紙に載り切っていない★`).toBeGreaterThanOrEqual(
         days
       );
@@ -332,6 +342,40 @@ test.describe('★給料明細の紙(PDF)★', () => {
     // ★中の言葉を客に見せない／嘘を出さない★
     expect(r.msg, '★時間切れなのに「道具が読めない」と嘘を出す★').not.toContain('道具が読めません');
     expect(r.msg).not.toMatch(/html2canvas|jsPDF|Error/);
+  });
+
+  // ★★「明細に出す」を 選んだ 車は 中身が 0でも 行を 出す★★ 2026-09-06（司さん）
+  //   ★司さんの言葉★「入ってなくても明細に出すってチェックしとんやけん
+  //                   車の名前の行がないのがおかしいやろが」
+  //   ★前★ 紙だけ「売上が 1件も無い車は 出さない」＝★画面と 出方が 違った★
+  //     ⇒ 9月は 時数 0件 なので ★車の行が 1本も 出なかった★（選んでいるのに）
+  //   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
+  //     _paperCars を「中身が 在る車だけ」に 戻す … ★赤★
+  test('★★中身が 0でも 選んだ車の 行は 出る★★', async ({ page }) => {
+    await openKyuryo(page);
+    const r = await page.evaluate(() => {
+      // ★売上を 全部 空に する★（時数が 1件も 入っていない 9月と 同じ 形）
+      const e = window.__paper.emp(0);
+      (e.cells || []).forEach((c) => {
+        if (c.carSales) c.carSales = c.carSales.map(() => null);
+      });
+      const sheet = window.__paper.build(0, 0, 10, 1, 1);
+      document.body.appendChild(sheet);
+      const th = [...sheet.querySelectorAll('tbody tr')].map((tr) =>
+        tr.querySelector('th').textContent.replace(/\s+/g, ' ').trim()
+      );
+      const kuruma = window.__paper.slipCars(0).map((x) => x.car.label);
+      sheet.remove();
+      return { th: th, kuruma: kuruma };
+    });
+    // eslint-disable-next-line no-console
+    console.log('★中身 0 の 紙の 行★ ' + JSON.stringify(r));
+    const uriage = r.th.filter((x) => x.indexOf('売上') === 0);
+    expect(uriage.length, '★選んだ 車の 行が 出ていません★').toBe(r.kuruma.length);
+    // ★車の 名前も 出ている★（行だけ 出て 名前が 無いと 誰の 行か 分からない）
+    r.kuruma.forEach((na) => {
+      expect(uriage.join(' / '), '★車の 名前が 出ていません：' + na + '★').toContain(na);
+    });
   });
 
   test('★車名が長くても 列を広げない（2行に折る・切ったら「…」）★', async ({ page }) => {

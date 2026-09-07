@@ -32,7 +32,6 @@ const JIBUN = 'tests/unit/mihari-kowashita-kiroku.test.js';
 const NOKORI = [
   'tests/drift-static/distance-m-update-paths-anchor.test.js',
   'tests/e2e/jimusho-ryokinhyou.spec.js',
-  'tests/e2e/kyuryo-paper.spec.js',
   'tests/integration/adaptive-mode-distance.test.js',
   'tests/integration/billing-gates-live.test.js',
   'tests/integration/gap-routing-validation.test.js',
@@ -110,6 +109,11 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
     ).toEqual([]);
   });
 
+  // ★★2026-09-06：kyuryo-paper.spec.js を 名簿から 外しました（45→44）★★
+  //   ★司さん★「入ってなくても明細に出すってチェックしとんやけん
+  //             車の名前の行がないのがおかしいやろが」
+  //   ⇒「選んだ 車は 中身が 0でも 行を 出す」に 直し、
+  //     ★わざと 前の 形（中身が 在る車だけ）に 戻して 赤に なる事を 見た★ ので 記録が 出来ました。
   // ★2026-09-05：office-allow-list.test.js を 名簿から 外しました（46→45）
   //   ★「行き先が 本番とテスト線で 混ざっていないか」を 足し、
   //     ★わざと 1行を 逆の 側にして 赤に なる事を 見た★ ので 記録が 出来ました。
@@ -123,7 +127,7 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
       '★名簿の 物を 直したなら 名簿から 消してください（黙って 減らさない）★'
     ).toBe(0);
     expect(NOKORI.length, '★名簿を 増やさないでください（新しい 見張りには 記録を 書く）★').toBe(
-      45
+      44
     );
   });
 });
