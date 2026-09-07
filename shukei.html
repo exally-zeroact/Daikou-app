@@ -525,6 +525,43 @@
         background: #eef5ff;
         font-weight: 800;
       }
+
+      /* ★★月ごと／日ごと の 切り替え★★ 2026-09-06（司さん「毎日 入れれるように」）
+         ★売上表の 実費入力と 同じ 形★に そろえる */
+      .seg {
+        display: flex;
+        gap: 6px;
+        background: #eef3fa;
+        border-radius: 11px;
+        padding: 3px;
+        margin: 0 0 10px;
+      }
+
+      .segb {
+        flex: 1;
+        border: none;
+        background: none;
+        border-radius: 9px;
+        padding: 8px 4px;
+        font-size: 14px;
+        font-weight: 700;
+        font-family: inherit;
+        color: var(--blue-d);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .segb.on {
+        background: var(--blue);
+        color: #fff;
+      }
+
+      /* ★日ごとを 入れた 月は 月ごとの 欄が 効かない★ 2026-09-06 */
+      .pp-muko {
+        margin-top: 3px;
+        font-size: 11px;
+        color: #8a6d3b;
+      }
     </style>
   </head>
   <body>
@@ -644,13 +681,22 @@
 
       <div class="card noprint">
         <div class="ttl">PayPay で受け取った分（手入力）</div>
+        <!-- ★★日ごとにも 入れられるように する★★ 2026-09-06（司さん
+             「毎日 入れれるように しろよ 前から いよろが 入力タブ作れって」）
+             ★前★ ★月に 1マス★ だけ ⇒ いつ 受け取ったか 分からない
+             ★今★ ★月ごと／日ごと★ を 選べる（実費入力と 同じ 形）
+             ★前に 入れた 月ごとの 分は 消しません★
+               ⇒ その月に 日ごとが 1件でも 在れば ★日ごとを 使う★（二重に 数えない） -->
+        <div class="seg" id="ppSeg">
+          <button class="segb on" id="ppSegM" type="button">月ごと</button>
+          <button class="segb" id="ppSegD" type="button">日ごと</button>
+        </div>
         <div class="scroller">
-          <table>
-            <thead>
+          <table class="kami">
+            <thead id="ppHead">
               <tr>
                 <th>月</th>
                 <th>PayPay</th>
-                <th></th>
               </tr>
             </thead>
             <tbody id="ppBody"></tbody>
@@ -707,6 +753,9 @@
         };
         var PAYMENTS = []; // 日ごとの 請求書 / PayPay
         var PP = {}; // 月ごとの PayPay 手入力（'2026-01' → 円）
+        // ★★日ごとの PayPay★★ 2026-09-06（司さん「毎日 入れれるように」）
+        //   '2026-09-02' → 円。★月ごとの 分は 消していません★
+        var PPD = {};
         var CTX = null;
         var YR = null;
         var ONE = 0; // 内訳を出す月（0=年間合計）
@@ -872,6 +921,8 @@
                 '&limit=5000'
             ),
             soft('dk_month_extras?select=*&limit=200'),
+            // ★★日ごとの PayPay★★ 2026-09-06
+            soft('dk_day_extras?select=*&limit=500'),
             soft(
               'dk_manual_days?select=*&work_date=gte.' +
                 YEAR +
@@ -887,7 +938,7 @@
             RAW.workHours = res[4] || [];
             RAW.payrollSettings = (res[5] && res[5][0]) || null;
             RAW.salesSettings = (res[6] && res[6][0]) || null;
-            RAW.manualDays = res[9] || []; // 手で入れた1日分（スマホが無い日も数える）
+            RAW.manualDays = res[10] || []; // 手で入れた1日分（スマホが無い日も数える）
 
             // 請求書払いを日ごとにまとめる
             var byDate = {};
@@ -905,6 +956,11 @@
             (res[8] || []).forEach(function (r) {
               if (r && r.ym) PP[r.ym] = num(r.paypay_yen);
             });
+            // ★★PayPay の手入力（日ごと）★★ 2026-09-06（司さん「毎日 入れれるように」）
+            PPD = {};
+            (res[9] || []).forEach(function (r) {
+              if (r && r.pay_date) PPD[String(r.pay_date).slice(0, 10)] = num(r.paypay_yen);
+            });
 
             showMsg('');
             recalc();
@@ -915,10 +971,21 @@
 
         function recalc() {
           CTX = PayrollDaily.buildCtx(RAW);
-          // 月ごとの PayPay 手入力を「その月の1日ぶん」として足す
           var pays = PAYMENTS.slice();
+          // ★★日ごとが 在る 月は 日ごとを 使う（二重に 数えない）★★ 2026-09-06
+          //   ★司さん★「毎日 入れれるように しろ」
+          //   ★前に 入れた 月ごとの 分は 消していません★ので、
+          //   ★その月に 日ごとが 1件でも 在れば 月ごとは 使わない★
+          var higotoNoTsuki = {};
+          Object.keys(PPD).forEach(function (d) {
+            if (d.indexOf(YEAR + '-') !== 0 || !PPD[d]) return;
+            higotoNoTsuki[d.slice(0, 7)] = true;
+            pays.push({ pay_date: d, invoice_yen: 0, paypay_yen: PPD[d] });
+          });
+          // 月ごとの PayPay 手入力を「その月の1日ぶん」として足す
           Object.keys(PP).forEach(function (k) {
             if (k.indexOf(YEAR + '-') !== 0 || !PP[k]) return;
+            if (higotoNoTsuki[k]) return; // ★日ごとが 在る 月は 足さない★
             pays.push({ pay_date: k + '-01', invoice_yen: 0, paypay_yen: PP[k] });
           });
           YR = GetsujiAgg.year(YEAR, CTX, pays);
@@ -1407,6 +1474,7 @@
               //   （日ごとは その月の 日数だけ 出す ので）
               renderUri();
               renderKyori();
+              renderPP(); // ★日ごとの PayPay も その月に 合わせる★ 2026-09-06
             };
           });
 
@@ -1454,6 +1522,7 @@
             renderOne();
             renderUri();
             renderKyori();
+            renderPP(); // ★日ごとの PayPay も その月に 合わせる★ 2026-09-06
           };
         }
 
@@ -1500,18 +1569,56 @@
             '</tbody></table>';
         }
 
+        // ★★月ごと／日ごと の 切り替え★★ 2026-09-06（司さん「毎日 入れれるように」）
+        //   ★日ごとは その月の 日数ぶん★（上で 選んだ 月。全体なら 今月）
+        var PP_MODE = 'm'; // 'm' = 月ごと / 'd' = 日ごと
         function renderPP() {
           var html = '';
-          for (var m = 1; m <= 12; m++) {
-            var key = ym(m);
-            html +=
-              '<tr><td>' +
-              m +
-              '月</td><td><input class="yen" data-pp="' +
-              key +
-              '" value="' +
-              (PP[key] || '') +
-              '"></td><td></td></tr>';
+          $('ppSegM').className = 'segb' + (PP_MODE === 'm' ? ' on' : '');
+          $('ppSegD').className = 'segb' + (PP_MODE === 'd' ? ' on' : '');
+          if (PP_MODE === 'm') {
+            $('ppHead').innerHTML = '<tr><th>月</th><th>PayPay</th></tr>';
+            // ★日ごとを 入れた 月は 日ごとを 使う（二重に 数えない）★
+            //   ⇒ その月の 月ごとの 欄は ★効いていない★ ので、そう 書く
+            var higoto = {};
+            Object.keys(PPD).forEach(function (d) {
+              if (PPD[d]) higoto[d.slice(0, 7)] = true;
+            });
+            for (var m = 1; m <= 12; m++) {
+              var key = ym(m);
+              html +=
+                '<tr><td>' +
+                m +
+                '月</td><td><input class="yen" data-pp="' +
+                key +
+                '" value="' +
+                (PP[key] || '') +
+                '">' +
+                (higoto[key] ? '<div class="pp-muko">日ごとを 使っています</div>' : '') +
+                '</td></tr>';
+            }
+          } else {
+            // ★どの月の 日を 出すか★＝上で 選んだ 月（全体なら 今月）
+            var tsuki = ONE || new Date().getMonth() + 1;
+            var nissuu = new Date(YEAR, tsuki, 0).getDate();
+            $('ppHead').innerHTML =
+              '<tr><th>' + YEAR + '年 ' + tsuki + '月の 日</th><th>PayPay</th></tr>';
+            for (var d = 1; d <= nissuu; d++) {
+              var hi = YEAR + '-' + ('0' + tsuki).slice(-2) + '-' + ('0' + d).slice(-2);
+              var w = new Date(hi + 'T00:00:00');
+              html +=
+                '<tr><td>' +
+                tsuki +
+                '/' +
+                d +
+                '(' +
+                '日月火水木金土'.charAt(w.getDay()) +
+                ')</td><td><input class="yen" data-ppd="' +
+                hi +
+                '" value="' +
+                (PPD[hi] || '') +
+                '"></td></tr>';
+            }
           }
           $('ppBody').innerHTML = html;
           Array.prototype.forEach.call(document.querySelectorAll('[data-pp]'), function (i) {
@@ -1519,6 +1626,53 @@
               savePP(i.getAttribute('data-pp'), i.value);
             };
           });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-ppd]'), function (i) {
+            i.onchange = function () {
+              savePPD(i.getAttribute('data-ppd'), i.value);
+            };
+          });
+        }
+        (function wirePP() {
+          var a1 = $('ppSegM');
+          var a2 = $('ppSegD');
+          if (a1)
+            a1.onclick = function () {
+              PP_MODE = 'm';
+              renderPP();
+            };
+          if (a2)
+            a2.onclick = function () {
+              PP_MODE = 'd';
+              renderPP();
+            };
+        })();
+
+        // ★★日ごとの PayPay を 保存する★★ 2026-09-06（司さん「毎日 入れれるように」）
+        //   ★月ごとと 同じ 形★（棚だけ 違う）
+        function savePPD(hi, value) {
+          if (!COMPANY) return;
+          var v = num(value);
+          if (v < 0) v = 0;
+          DKSession.rest(SESS, 'dk_day_extras?on_conflict=company_id,pay_date', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              pay_date: hi,
+              paypay_yen: v,
+              updated_at: new Date().toISOString(),
+            }),
+          })
+            .then(function (r) {
+              if (!r.ok) return saveErr('PayPay の分を保存できませんでした。', r);
+              showErr('');
+              PPD[hi] = v;
+              recalc();
+              render();
+            })
+            .catch(function () {
+              showErr('PayPay の分を保存できませんでした。');
+            });
         }
 
         function savePP(key, value) {

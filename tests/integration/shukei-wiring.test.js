@@ -71,9 +71,14 @@ describe('★元データは書き換えない★', () => {
   let m;
   while ((m = re.exec(HTML)) !== null) writes.push({ target: m[1], method: m[2] });
 
-  it('書き込み口は「PayPayの手入力」1つだけ', () => {
-    expect(writes.length).toBe(1);
-    expect(writes[0].target).toContain('dk_month_extras');
+  // ★★2026-09-06 に 1つ 増えた★★（司さん「毎日 入れれるように しろ」）
+  //   月ごと(dk_month_extras) と 日ごと(dk_day_extras) の ★2つだけ★。
+  //   ★ここが 3つに なったら 止める★＝知らない 書き込み口が 増えた 合図。
+  it('書き込み口は「PayPayの手入力」2つだけ（月ごと・日ごと）', () => {
+    const saki = writes.map((w) => w.target.replace(/[\s\S]*?'([^']+)'[\s\S]*/, '$1'));
+    expect(writes.length, '★知らない 書き込み口が 増えました★ ' + saki.join(' / ')).toBe(2);
+    expect(saki.some((t) => t.indexOf('dk_month_extras') === 0)).toBe(true);
+    expect(saki.some((t) => t.indexOf('dk_day_extras') === 0)).toBe(true);
   });
 
   it('★dk_shifts / dk_trips / 給料の棚には書かない★', () => {
