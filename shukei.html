@@ -702,10 +702,13 @@
             <tbody id="ppBody"></tbody>
           </table>
         </div>
+        <!-- ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」） -->
+        <div class="note" id="ppMichi"></div>
         <div class="note">
           メーターは今「現金」と「請求書」しか分けていません。<b
             >PayPay で受け取った分はここに入れてください。</b
           ><br />
+          日ごとに 入れたい ときは <b>売上表の「入力」</b>で 打てます。<br />
           請求書の分は、実車中に請求書ボタンで会社を選んだ代行から自動で集まります。
         </div>
       </div>
@@ -1599,6 +1602,9 @@
             }
           } else {
             // ★どの月の 日を 出すか★＝上で 選んだ 月（全体なら 今月）
+            // ★★ここは 見るだけ★★ 2026-09-06（司さん「入力タブは」）
+            //   ★打つ 所は 1か所★＝売上表の「入力」。
+            //   ⇒ 同じ 物を 2か所で 打てると ★どちらが 本当か 分からなく なる★
             var tsuki = ONE || new Date().getMonth() + 1;
             var nissuu = new Date(YEAR, tsuki, 0).getDate();
             $('ppHead').innerHTML =
@@ -1613,22 +1619,19 @@
                 d +
                 '(' +
                 '日月火水木金土'.charAt(w.getDay()) +
-                ')</td><td><input class="yen" data-ppd="' +
-                hi +
-                '" value="' +
-                (PPD[hi] || '') +
-                '"></td></tr>';
+                ')</td><td>' +
+                (PPD[hi] ? yen(PPD[hi]) : '') +
+                '</td></tr>';
             }
           }
           $('ppBody').innerHTML = html;
+          $('ppMichi').textContent =
+            PP_MODE === 'd'
+              ? '日ごとの PayPay は 売上表の「入力」で 打てます（ここは 見るだけ）。'
+              : '';
           Array.prototype.forEach.call(document.querySelectorAll('[data-pp]'), function (i) {
             i.onchange = function () {
               savePP(i.getAttribute('data-pp'), i.value);
-            };
-          });
-          Array.prototype.forEach.call(document.querySelectorAll('[data-ppd]'), function (i) {
-            i.onchange = function () {
-              savePPD(i.getAttribute('data-ppd'), i.value);
             };
           });
         }
@@ -1646,34 +1649,6 @@
               renderPP();
             };
         })();
-
-        // ★★日ごとの PayPay を 保存する★★ 2026-09-06（司さん「毎日 入れれるように」）
-        //   ★月ごとと 同じ 形★（棚だけ 違う）
-        function savePPD(hi, value) {
-          if (!COMPANY) return;
-          var v = num(value);
-          if (v < 0) v = 0;
-          DKSession.rest(SESS, 'dk_day_extras?on_conflict=company_id,pay_date', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
-            body: JSON.stringify({
-              company_id: COMPANY.company_id,
-              pay_date: hi,
-              paypay_yen: v,
-              updated_at: new Date().toISOString(),
-            }),
-          })
-            .then(function (r) {
-              if (!r.ok) return saveErr('PayPay の分を保存できませんでした。', r);
-              showErr('');
-              PPD[hi] = v;
-              recalc();
-              render();
-            })
-            .catch(function () {
-              showErr('PayPay の分を保存できませんでした。');
-            });
-        }
 
         function savePP(key, value) {
           if (!COMPANY) return;

@@ -16,6 +16,10 @@
 //     ①二重防ぎ（日ごとが 在る 月は 足さない）を 外す … ★赤 60,000★
 //     ②日ごとを 読まない ……………………………… ★赤 57,000★（月ごとだけに 戻る）
 //     戻した後 … ★緑 10,000★
+//
+//   ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」）
+//     打つ … ★売上表の「入力」★（tests/e2e/uriage-paypay.spec.js で 見張る）
+//     見る … 月次集計（★ここには 打つ 欄を 置かない★）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -126,26 +130,29 @@ test('★★日ごとが 在る 月は 月ごとを 足さない（二重に 数
   expect(err, '★画面が 落ちています★').toEqual([]);
 });
 
-test('★★日ごとの 欄が 「その月の 日数」ぶん 出る★★', async ({ page }) => {
+test('★★月次集計の 日ごとは 見るだけ（打つ 欄が 無い）★★', async ({ page }) => {
   const nen = await nenWoKiku(page);
   await hiraku(page, nen);
 
-  // ★3月を 選ぶ★（31日）
   await page.selectOption('#tsukiSel', '3');
   await page.waitForTimeout(400);
   await page.click('#ppSegD');
   await page.waitForTimeout(300);
 
   const r = await page.evaluate(() => ({
-    kazu: document.querySelectorAll('#ppBody [data-ppd]').length,
-    hitotsume: (document.querySelector('#ppBody [data-ppd]') || {}).value,
-    atama: (document.getElementById('ppHead') || {}).textContent || '',
+    ran: document.querySelectorAll('#ppBody input').length,
+    gyou: document.querySelectorAll('#ppBody tr').length,
+    ji: (document.getElementById('ppBody') || {}).textContent || '',
+    michi: (document.getElementById('ppMichi') || {}).textContent || '',
   }));
   // eslint-disable-next-line no-console
-  console.log('★日ごとの 欄★ ' + JSON.stringify(r));
-  expect(r.kazu, '★3月は 31日ぶん 出るはず★').toBe(31);
-  expect(r.hitotsume, '★3/1 に 入れた 1,000 が 出ていません★').toBe('1000');
-  expect(r.atama, '★見出しに 月が 書いてありません★').toContain('3月');
+  console.log(
+    '★月次集計の 日ごと★ ' + JSON.stringify({ ran: r.ran, gyou: r.gyou, michi: r.michi })
+  );
+  expect(r.ran, '★打つ 欄が 2か所に なっています★（打つ 所は 売上表の「入力」だけ）').toBe(0);
+  expect(r.gyou, '★3月は 31日ぶん 出るはず★').toBe(31);
+  expect(r.ji, '★3/1 の 1,000 が 出ていません★').toContain('1,000');
+  expect(r.michi, '★打つ 所への 道順が 書いてありません★').toContain('売上表');
 });
 
 test('★★月ごとの 表に「日ごとを 使っています」と 出る★★', async ({ page }) => {

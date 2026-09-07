@@ -465,6 +465,33 @@
         font-weight: 800;
         background: #f7fbff;
       }
+
+      /* ★★日の 帯（そこに PayPay）★★ 2026-09-06（司さん「入力タブは」）
+         ★1日ぶんが 1かたまり★に 見えるように、日の 行だけ 色を 変える。 */
+      #kamiBody .hi-obi td {
+        background: #eef3fa;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      #kamiBody .hi-ji {
+        font-weight: 700;
+        color: var(--blue-d, #123);
+        white-space: nowrap;
+      }
+
+      #kamiBody .pp-ji {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      #kamiBody .pp-yen {
+        width: 7em;
+        flex: 0 0 auto;
+      }
     </style>
   </head>
   <body>
@@ -503,7 +530,7 @@
                ★前は 車の札を 開かないと 出て こなかった★＝在るのに 見つからない。
                ⇒ ★1つの タブに して、日ごとに 1行 そのまま 打てる★ようにする。
                ★入れる 中身（toll_yen / bridge_yen / other_yen）は 前と 同じ★ -->
-          <button class="segb" id="segIn" type="button">実費入力</button>
+          <button class="segb" id="segIn" type="button">入力</button>
         </div>
       </div>
 
@@ -522,8 +549,8 @@
              ★入れる 所は 前から 在りました★。ただ 下の 札を 開かないと 出て こない。
              ⇒ ★表の すぐ下に 道順を 書く★＝探さなくて よい。 -->
         <div class="note" id="jippiNote">
-          <b>実費（高速代・橋代）</b>は、上の <b>「実費入力」</b>を 押すと 日ごとに その場で
-          入れられます。
+          <b>実費（高速代・橋代）</b>と <b>PayPay で 受け取った 分</b>は、上の <b>「入力」</b>を
+          押すと 日ごとに その場で 入れられます。
         </div>
         <div id="list"></div>
         <div class="msg" id="msg" style="display: none"></div>
@@ -569,6 +596,13 @@
         var OPEN = {}; // 開いている行（車ごとは端末ID・日ごとは日付）
         var SETTINGS = null; // 売上から何を引くか（会社ごと）
         var RAW = { shifts: [], edits: [], labels: [] };
+        // ★★PayPay で 受け取った 分（日ごと）★★ 2026-09-06（司さん「入力タブは」）
+        //   '2026-03-01' → 円。★打つ 所は 入力タブ★（月次集計は 見るだけ）
+        var PPD = {};
+        function num(v) {
+          var n = parseInt(v, 10);
+          return isFinite(n) && n > 0 ? n : 0;
+        }
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -731,6 +765,9 @@
             // ★★実費の 名前（会社が 決めた 一覧）★★ 2026-09-06（司さん「自由に 足せる ように」）
             soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
             soft('dk_manual_days?select=*&limit=2000'),
+            // ★★PayPay で 受け取った 分（日ごと）★★ 2026-09-06（司さん「入力タブは」）
+            //   ★打つ 所は ここ（入力タブ）★。月次集計は 見るだけ に した。
+            soft('dk_day_extras?select=*&limit=500'),
           ])
             .then(function (res) {
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
@@ -761,6 +798,11 @@
                     String(sh.started_at).slice(0, 10) === m.work_date
                   );
                 });
+              });
+              // ★★PayPay（日ごと）★★ 2026-09-06（司さん「入力タブは」）
+              PPD = {};
+              (Array.isArray(res[6]) ? res[6] : []).forEach(function (r) {
+                if (r && r.pay_date) PPD[String(r.pay_date).slice(0, 10)] = num(r.paypay_yen);
               });
               var conv = PayrollDaily.manualAsShifts(manual);
               RAW.shifts = RAW.shifts.concat(conv.shifts);
@@ -1017,18 +1059,22 @@
             });
             if (!shifts.length) {
               list.innerHTML = '';
-              $('kamiTtl').textContent = '実費を 入れる';
+              $('kamiTtl').textContent = 'その日に 入れる 分';
               $('kamiHead').innerHTML = '';
               $('kamiBody').innerHTML = '';
               showMsg('この月は まだ 記録が ありません。');
               return;
             }
             showMsg('');
-            $('kamiTtl').textContent = '実費を 入れる';
+            $('kamiTtl').textContent = 'その日に 入れる 分';
             // ★★見出しも 欄も 会社が 決めた 一覧から 作る★★ 2026-09-06（司さん「ウ」）
             var kinds = RAW.kinds || [];
+            // ★★日で 束ねる★★ 2026-09-06（司さん「入力タブは」）
+            //   ★前★ 日が 行ごとに 何度も 出て、PayPay を 置く 場所が 無かった。
+            //   ★今★ ★日の 行★（そこに PayPay）＋ その下に 車ごとの 実費。
+            //   ⇒ ★1日ぶんが 1かたまり★＝毎日 打つのが これ 1枚で 済む。
             $('kamiHead').innerHTML =
-              '<tr><th>日</th><th>車</th>' +
+              '<tr><th>車</th>' +
               kinds
                 .map(function (k) {
                   return '<th>' + esc(k.label) + '</th>';
@@ -1036,7 +1082,24 @@
                 .join('') +
               '</tr>';
             var hi2 = '';
+            var maeNoHi = '';
+            var haba = kinds.length + 1; // 車 ＋ 実費の 数
             shifts.forEach(function (x) {
+              // ★日が 変わったら 日の 行を 出す（そこに PayPay）★
+              if (x.hi !== maeNoHi) {
+                maeNoHi = x.hi;
+                hi2 +=
+                  '<tr class="hi-obi"><td colspan="' +
+                  haba +
+                  '"><span class="hi-ji">' +
+                  dayLabel(x.hi) +
+                  '</span><span class="pp-ji">PayPay</span>' +
+                  '<input class="yen pp-yen" data-ppd="' +
+                  esc(x.hi) +
+                  '" value="' +
+                  (PPD[x.hi] || '') +
+                  '"></td></tr>';
+              }
               var e2 = (window.__editsById || {})[x.s.shift_id] || {};
               function box(kindId) {
                 return (
@@ -1051,8 +1114,6 @@
               }
               hi2 +=
                 '<tr><td>' +
-                dayLabel(x.hi) +
-                '</td><td>' +
                 esc(x.sha || '') +
                 '</td>' +
                 kinds
@@ -1156,9 +1217,40 @@
         function bindYen() {
           Array.prototype.forEach.call(document.querySelectorAll('.yen'), function (i) {
             i.onchange = function () {
+              // ★★PayPay の 欄は 別の 棚へ★★ 2026-09-06（司さん「入力タブは」）
+              if (i.hasAttribute('data-ppd')) {
+                savePPD(i.getAttribute('data-ppd'), i.value);
+                return;
+              }
               saveEdit(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
             };
           });
+        }
+
+        // ★★PayPay で 受け取った 分（日ごと）を 保存する★★ 2026-09-06（司さん「入力タブは」）
+        //   ★入れる 棚★ daikome.dk_day_extras（会社×日）
+        //   ★元データ（dk_shifts / dk_trips）には 1行も 書きません★
+        function savePPD(hi, value) {
+          if (!COMPANY) return;
+          var v = num(value);
+          DKSession.rest(SESS, 'dk_day_extras?on_conflict=company_id,pay_date', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates' },
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              pay_date: hi,
+              paypay_yen: v,
+              updated_at: new Date().toISOString(),
+            }),
+          })
+            .then(function (r) {
+              if (!r.ok) return saveErr('PayPay の分を保存できませんでした。', r);
+              showErr('');
+              PPD[hi] = v;
+            })
+            .catch(function () {
+              showErr('PayPay の分を保存できませんでした。');
+            });
         }
 
         // ---------- 保存（手入力ぶん・元データは触らない） ----------

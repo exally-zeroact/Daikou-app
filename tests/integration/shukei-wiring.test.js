@@ -71,14 +71,25 @@ describe('★元データは書き換えない★', () => {
   let m;
   while ((m = re.exec(HTML)) !== null) writes.push({ target: m[1], method: m[2] });
 
-  // ★★2026-09-06 に 1つ 増えた★★（司さん「毎日 入れれるように しろ」）
-  //   月ごと(dk_month_extras) と 日ごと(dk_day_extras) の ★2つだけ★。
-  //   ★ここが 3つに なったら 止める★＝知らない 書き込み口が 増えた 合図。
-  it('書き込み口は「PayPayの手入力」2つだけ（月ごと・日ごと）', () => {
+  // ★★2026-09-06 … 一度 2つに して、また 1つに 戻した★★
+  //   ★司さん★「入力タブは」
+  //   ⇒ 日ごとの PayPay を ここでも 打てるように したが、
+  //     ★打つ 所が 2か所★に なると どちらが 本当か 分からなく なる。
+  //   ⇒ ★打つ 所は 売上表の「入力」1か所★。ここ（月次集計）の 日ごとは ★見るだけ★。
+  it('書き込み口は「PayPayの手入力（月ごと）」1つだけ', () => {
     const saki = writes.map((w) => w.target.replace(/[\s\S]*?'([^']+)'[\s\S]*/, '$1'));
-    expect(writes.length, '★知らない 書き込み口が 増えました★ ' + saki.join(' / ')).toBe(2);
-    expect(saki.some((t) => t.indexOf('dk_month_extras') === 0)).toBe(true);
-    expect(saki.some((t) => t.indexOf('dk_day_extras') === 0)).toBe(true);
+    expect(writes.length, '★知らない 書き込み口が 増えました★ ' + saki.join(' / ')).toBe(1);
+    expect(saki[0].indexOf('dk_month_extras')).toBe(0);
+  });
+
+  // ★★日ごとを ここで 打てるように 戻していないか★★
+  it('★日ごと(dk_day_extras)へ 書かない（見るだけ）★', () => {
+    expect(
+      /dk_day_extras[^']*'[\s\S]{0,200}?method:\s*'POST'/.test(HTML),
+      '★月次集計から 日ごとの PayPay を 書いています★' +
+        '  ⇒ ★打つ 所は 売上表の「入力」1か所★（司さん 2026-09-06）'
+    ).toBe(false);
+    expect(HTML.indexOf('data-ppd'), '★見るだけ なのに 打つ 欄が 在ります★').toBe(-1);
   });
 
   it('★dk_shifts / dk_trips / 給料の棚には書かない★', () => {
