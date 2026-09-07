@@ -39,7 +39,7 @@ const SH = [
   {
     shift_id: 's1',
     device_id: 'd1',
-    started_at: '2026-09-02T10:00:00Z',
+    started_at: '2026-09-02T10:00:00+09:00',
     ended_at: '2026-09-02T18:00:00Z',
     fare_total_yen: 18800,
     trip_count: 9,
@@ -105,25 +105,23 @@ test('★★② 会社が 足した 名前が 欄に 出る★★', async ({ pag
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/nyuryoku.html', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2400);
+  await page.waitForTimeout(1800);
+  // ★見たい 日に 合わせる★（今日が 何日でも 同じ 答えに する）
+  await page.fill('#hiSel', '2026-09-02');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(1200);
   const r = await page.evaluate(() => ({
-    head: [...document.querySelectorAll('#kamiHead th')].map((x) => x.textContent.trim()),
-    hako: document.querySelectorAll('#kamiBody input.yen').length,
-    pp: document.querySelectorAll('#kamiBody [data-ppd]').length,
-    sha: [...document.querySelectorAll('#kamiBody tr:not(.hi-obi) td:first-child')].map((x) =>
-      x.textContent.trim()
-    ),
+    na: [...document.querySelectorAll('#shaList .flabel')].map((x) => x.textContent.trim()),
+    ran: document.querySelectorAll('#shaList [data-sid]').length,
+    sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
   }));
   // eslint-disable-next-line no-console
   console.log('★入力の 画面★ ' + JSON.stringify(r));
-  expect(r.head.join(','), '★足した 名前が 出ていません★').toContain('駐車場代');
-  expect(r.head.join(','), '★使わない 印の 物が 出ています★').not.toContain('使わない物');
-  // ★車 ＋ 使う 名前 4つ ＝ 5★
-  expect(r.head.length, '★見出しの 数が 合いません★').toBe(5);
-  expect(r.head[0], '★見出しの 1つ目は 車★').toBe('車');
-  // ★実費 4つ ＋ PayPay 1つ ＝ 5★
-  expect(r.hako, '★欄の 数が 合いません★').toBe(5);
-  expect(r.pp, '★PayPay の 欄が ありません★').toBe(1);
+  expect(r.na.join(','), '★足した 名前が 出ていません★').toContain('駐車場代');
+  expect(r.na.join(','), '★使わない 印の 物が 出ています★').not.toContain('使わない物');
+  // ★車1台 × 使う 名前 4つ ＝ 4つの 欄★
+  expect(r.ran, '★欄の 数が 合いません★').toBe(4);
+  expect(r.na.length, '★ラベルの 数が 合いません★').toBe(4);
   // ★UUIDは 画面に 出さない★（車の名前は js/car-name.js が 決める）
   expect(r.sha.join(','), '★車の 名前が 出ていません★').toContain('4987');
   expect(/[0-9a-f]{8}-[0-9a-f]{4}/.test(r.sha.join(',')), '★端末IDが そのまま 出ています★').toBe(

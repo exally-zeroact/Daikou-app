@@ -96,10 +96,12 @@ test('★★② 帯の「入力」を 押すと 入力の 画面へ 行く★★
   expect(url, '★入力の 画面へ 行きません★').toContain('nyuryoku.html');
   const r = await page.evaluate(() => ({
     fuda: (document.querySelector('.tag') || {}).textContent || '',
-    hyou: !!document.getElementById('kamiTbl'),
+    // ★★2026-09-08★★ 表を やめました（司さん「はみ出てたりぐちゃぐちゃ」）
+    //   ⇒ 見るのは ★日を 選ぶ 所★と ★PayPay の 欄★（打つ 画面の 印）
+    hyou: !!document.getElementById('hiSel') && !!document.getElementById('ppYen'),
   }));
   expect(r.fuda, '★入力の 画面では ありません★').toContain('入力');
-  expect(r.hyou, '★打つ 表が ありません★').toBe(true);
+  expect(r.hyou, '★打つ 所が ありません★').toBe(true);
 });
 
 test('★★③ 売上表には もう 打つ 所が 無い（2か所に しない）★★', async () => {

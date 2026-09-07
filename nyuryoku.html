@@ -10,14 +10,23 @@
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>"
     />
     <!-- ============================================================
-         ★★その日に 入れる 分（入力）★★ 2026-09-07
-           ★司さんの言葉★「フッターに作れってこやろがぼけ」
-             ⇒ 入力は ★下の 帯（フッター）の 1枚★。売上表の 中の 札では ない。
+         ★★その日に 入れる 分（入力）★★ 2026-09-08
+           ★司さん★「フッターに作れってこやろがぼけ」
+             ⇒ 入力は ★下の 帯（フッター）の 1枚★。
+           ★司さん★「なんなんどはみ出てたりぐちゃぐちゃになんど
+                     他のアプリは入力どやってしよんどぼけ」
+             ⇒ ★表（table）を やめました★
+               表に 日の 帯を 混ぜたので 列が 合わず、欄が はみ出ていた。
+             ⇒ ★飲み屋（Castally）の 入力と 同じ 形★に そろえる
+               ＝ nomiya-uriage.html の .frow（★ラベルを 上・欄を 下★に 縦に 並べる）
+               ＝ 代行請求書アプリも 同じ（finput / type="date"）
+           ★司さん（前の 指示）★「カレンダーで日付選んでできるようにしろ
+                                  その日だけ見せてスッキリさせろ」
+             ⇒ ★1日ぶんだけ★ 出す（月ぜんぶを 並べない）
            ★何を 入れるか★
              ・PayPay で 受け取った 分 …… 日ごと（dk_day_extras）
              ・実費（高速代・橋代・会社が 足した 物）… 1回の 業務ごと（dk_shift_edits）
            ★読み書きの 決まりは js/jippi-hozon.js の 1か所★
-             （売上表と 同じ 決まりを 2か所に 書かない）
            ★元データ（dk_shifts / dk_trips）には 1行も 書きません★
            ★お金の 計算（料金・距離）は この 画面に 在りません★
          ============================================================ -->
@@ -99,111 +108,105 @@
         margin-bottom: 12px;
       }
 
-      .monthbar {
+      .card-ttl {
+        font-size: 15px;
+        font-weight: 800;
+        border-left: 5px solid var(--blue);
+        padding-left: 8px;
+        margin-bottom: 10px;
+      }
+
+      /* ★★入力の 形は 飲み屋（Castally）と 同じ★★ 2026-09-08
+         ★司さん★「他のアプリは入力どやってしよんどぼけ」
+         nomiya-uriage.css の .frow / .flabel / .finput を そのまま 借りています。
+         ★ラベルを 上・欄を 下★＝どんな 幅でも 折り返さない・はみ出さない。 */
+      .frow {
         display: flex;
-        align-items: center;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 5px;
+        margin-bottom: 10px;
+      }
+
+      .flabel {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--muted);
+      }
+
+      .finput {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1.5px solid var(--line);
+        border-radius: 10px;
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--ink);
+        background: #fff;
+        outline: none;
+      }
+
+      .finput:focus {
+        border-color: var(--blue);
+      }
+
+      .fnum {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .f2 {
+        display: flex;
         gap: 8px;
+        align-items: center;
+      }
+
+      /* ★日を 選ぶ（1日ぶんだけ 見せる）★ */
+      .hibar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
       }
 
       .navb {
         background: #eef3fa;
         border: none;
-        border-radius: 9px;
-        padding: 8px 12px;
-        font-size: 13px;
+        border-radius: 10px;
+        padding: 11px 12px;
+        font-size: 14px;
         font-weight: 700;
         font-family: inherit;
         color: var(--blue-d);
         cursor: pointer;
         white-space: nowrap;
+        flex: 0 0 auto;
       }
 
-      .m {
+      .hiji {
         font-size: 16px;
         font-weight: 800;
+        text-align: center;
+        margin-top: 8px;
       }
 
-      .kami-ttl {
-        font-size: 15px;
+      /* ★車ごとの かたまり★ */
+      .sha {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      .sha-na {
+        font-size: 14px;
         font-weight: 800;
-        border-left: 5px solid var(--blue);
-        padding-left: 8px;
+        color: var(--blue-d);
         margin-bottom: 8px;
       }
 
-      table.kami {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
+      .hint {
         font-size: 11px;
-        font-variant-numeric: tabular-nums;
-      }
-
-      table.kami > thead > tr > th,
-      table.kami > tbody > tr > td {
-        border: 1px solid #b9c6d8;
-        padding: 3px 2px;
-        text-align: right;
-        white-space: nowrap;
-        line-height: 1.3;
-      }
-
-      table.kami > thead > tr > th {
-        background: #eef3fa;
-        font-weight: 700;
-        text-align: center;
-        font-size: 10px;
-        line-height: 1.25;
-        white-space: normal;
-      }
-
-      table.kami > thead > tr > th:first-child,
-      table.kami > tbody > tr > td:first-child {
-        text-align: left;
-      }
-
-      /* ★★日の 帯（そこに PayPay）★★ 2026-09-07
-         ★1日ぶんが 1かたまり★に 見えるように、日の 行だけ 色を 変える。 */
-      #kamiBody .hi-obi td {
-        background: #eef3fa;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      #kamiBody .hi-ji {
-        font-weight: 700;
-        color: var(--blue-d);
-        white-space: nowrap;
-      }
-
-      #kamiBody .pp-ji {
-        margin-left: auto;
-        font-size: 12px;
         color: var(--muted);
-        white-space: nowrap;
-      }
-
-      .yen {
-        width: 100%;
-        min-width: 0;
-        text-align: right;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 4px 6px;
-        font-size: 13px;
-        font-family: inherit;
-      }
-
-      .yen:focus {
-        outline: none;
-        border-color: var(--blue);
-      }
-
-      #kamiBody .pp-yen {
-        width: 7em;
-        flex: 0 0 auto;
+        line-height: 1.6;
       }
 
       .note {
@@ -216,8 +219,8 @@
       .msg {
         text-align: center;
         color: var(--muted);
-        padding: 26px 10px;
-        font-size: 14px;
+        padding: 18px 10px;
+        font-size: 13px;
       }
 
       .err {
@@ -241,26 +244,32 @@
       </div>
       <div class="sub" id="sub">読み込み中…</div>
 
+      <!-- ★日を 選ぶ★（司さん「カレンダーで日付選んで／その日だけ見せてスッキリ」） -->
       <div class="card">
-        <div class="monthbar">
-          <button class="navb" id="prevM">‹ 前の月</button>
-          <div class="m" id="monthLabel">—</div>
-          <button class="navb" id="nextM">次の月 ›</button>
+        <div class="hibar">
+          <button class="navb" id="prevD" type="button">‹ 前の日</button>
+          <input class="finput" type="date" id="hiSel" />
+          <button class="navb" id="nextD" type="button">次の日 ›</button>
+        </div>
+        <div class="hiji" id="hiJi">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-ttl">PayPay で 受け取った 分</div>
+        <div class="frow">
+          <span class="flabel">この日に 受け取った 分（円）</span>
+          <input class="finput fnum" type="number" inputmode="numeric" min="0" id="ppYen" />
+          <span class="hint">現金でも 請求書でもない 分。打つと すぐ 保存されます。</span>
         </div>
       </div>
 
       <div class="card">
-        <div class="kami-ttl" id="kamiTtl">その日に 入れる 分</div>
-        <table class="kami" id="kamiTbl">
-          <thead id="kamiHead"></thead>
-          <tbody id="kamiBody"></tbody>
-        </table>
+        <div class="card-ttl">高速代・橋代 など（車ごと）</div>
+        <div id="shaList"></div>
         <div class="msg" id="msg" style="display: none"></div>
         <div class="err" id="err" style="display: none"></div>
         <div class="note">
-          <b>PayPay</b> は その日に 受け取った 分を 日の 帯に 入れます。<br />
-          <b>高速代・橋代</b> などは 車ごとの 行に 入れます。<br />
-          打つと すぐ 保存されます（<b>売上・距離の 数字は 変わりません</b>）。
+          その日に 走った 車が 出ます。<b>売上・距離の 数字は 変わりません</b>。
         </div>
       </div>
     </div>
@@ -277,12 +286,11 @@
         var SESS = null;
         var COMPANY = null;
         var LOAD = DKSession.newLoadState();
-        var MONTH = new Date();
-        var RAW = { shifts: [], edits: [], labels: [], kinds: [] };
+        var HI = ''; // 'YYYY-MM-DD'（今 見ている 日）
+        var RAW = { shifts: [], labels: [], kinds: [] };
         var EDITS = {}; // shift_id → 手で入れた1行
-        var PPD = {}; // '2026-09-02' → 円
-        var HIZUKE = []; // 画面に 出す 順（日 → 車）
         var NAMAE = {}; // 端末ID → 車の名前
+        var PP = 0; // その日の PayPay
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -314,20 +322,41 @@
           return showErr(msg);
         }
 
-        function ymLabel(d) {
-          return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
-        }
-        function monthRange(d) {
-          var from = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0);
-          var to = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0);
-          return { from: from.toISOString(), to: to.toISOString() };
-        }
-        function dayLabel(ymd) {
-          var d = new Date(ymd + 'T00:00:00');
+        function hiKey(d) {
           return (
-            d.getMonth() + 1 + '/' + d.getDate() + '(' + '日月火水木金土'.charAt(d.getDay()) + ')'
+            d.getFullYear() +
+            '-' +
+            ('0' + (d.getMonth() + 1)).slice(-2) +
+            '-' +
+            ('0' + d.getDate()).slice(-2)
           );
         }
+        function hiLabel(ymd) {
+          var d = new Date(ymd + 'T00:00:00');
+          return (
+            d.getFullYear() +
+            '年' +
+            (d.getMonth() + 1) +
+            '月' +
+            d.getDate() +
+            '日（' +
+            '日月火水木金土'.charAt(d.getDay()) +
+            '）'
+          );
+        }
+        function ugokasu(ymd, n) {
+          var d = new Date(ymd + 'T00:00:00');
+          d.setDate(d.getDate() + n);
+          return hiKey(d);
+        }
+        // ★その日の 0時から 次の日の 0時まで★（端末の 時間で 切る＝画面と 同じ 感覚）
+        function hiRange(ymd) {
+          var d = new Date(ymd + 'T00:00:00');
+          var to = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0);
+          return { from: d.toISOString(), to: to.toISOString() };
+        }
+
+        HI = hiKey(new Date());
 
         // ---------- 起動 ----------
         DKSession.ensure().then(function (s) {
@@ -339,16 +368,31 @@
         $('btnLogout').onclick = function () {
           DKSession.logout();
         };
-        $('prevM').onclick = function () {
-          MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() - 1, 1);
-          render();
+        $('prevD').onclick = function () {
+          HI = ugokasu(HI, -1);
+          hiWoDasu();
           load();
         };
-        $('nextM').onclick = function () {
-          MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() + 1, 1);
-          render();
+        $('nextD').onclick = function () {
+          HI = ugokasu(HI, 1);
+          hiWoDasu();
           load();
         };
+        $('hiSel').onchange = function () {
+          if (!$('hiSel').value) return;
+          HI = $('hiSel').value;
+          hiWoDasu();
+          load();
+        };
+        $('ppYen').onchange = function () {
+          savePP($('ppYen').value);
+        };
+
+        function hiWoDasu() {
+          $('hiSel').value = HI;
+          $('hiJi').textContent = hiLabel(HI);
+        }
+        hiWoDasu();
 
         function loadCompany() {
           DKSession.myCompanies(SESS, 'company_id,name')
@@ -378,7 +422,7 @@
 
         function load() {
           if (!COMPANY) return;
-          var r = monthRange(MONTH);
+          var r = hiRange(HI);
           var q =
             'dk_shifts?select=shift_id,device_id,started_at&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
@@ -386,7 +430,7 @@
             encodeURIComponent(r.from) +
             '&started_at=lt.' +
             encodeURIComponent(r.to) +
-            '&order=started_at.asc&limit=2000';
+            '&order=started_at.asc&limit=200';
           function soft(path) {
             return DKSession.softList(SESS, path, LOAD);
           }
@@ -398,11 +442,10 @@
             soft('dk_shift_edits?select=*&limit=2000'),
             soft('dk_device_labels?select=*&limit=500'),
             soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
-            soft('dk_day_extras?select=*&limit=500'),
+            soft('dk_day_extras?select=*&pay_date=eq.' + encodeURIComponent(HI) + '&limit=5'),
           ])
             .then(function (res) {
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
-              RAW.edits = Array.isArray(res[1]) ? res[1] : [];
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
               // ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
               RAW.kinds = (Array.isArray(res[3]) ? res[3] : []).filter(function (k) {
@@ -416,16 +459,15 @@
                 ];
               }
               EDITS = {};
-              RAW.edits.forEach(function (e) {
+              (Array.isArray(res[1]) ? res[1] : []).forEach(function (e) {
                 if (e && e.shift_id) EDITS[e.shift_id] = e;
               });
-              PPD = {};
+              PP = 0;
               (Array.isArray(res[4]) ? res[4] : []).forEach(function (x) {
-                if (x && x.pay_date) {
-                  PPD[String(x.pay_date).slice(0, 10)] = JippiHozon.seisuu(x.paypay_yen);
+                if (x && String(x.pay_date).slice(0, 10) === HI) {
+                  PP = JippiHozon.seisuu(x.paypay_yen);
                 }
               });
-              narabe();
               render();
               DKSession.showUnknownBar(LOAD, load);
             })
@@ -434,101 +476,61 @@
             });
         }
 
-        // ★日 → 車 の 順に 並べる★（1日ぶんが 1かたまりに なる）
-        function narabe() {
+        function render() {
+          $('ppYen').value = PP || '';
           var ids = [];
           RAW.shifts.forEach(function (s) {
             if (s && s.device_id && ids.indexOf(s.device_id) < 0) ids.push(s.device_id);
           });
           // ★車の 名前は 1か所（js/car-name.js）で 決める★＝UUIDは 画面に 出さない
           NAMAE = CarName.nameMap(ids, RAW.labels);
-          HIZUKE = RAW.shifts
-            .filter(function (s) {
-              return s && s.shift_id && s.started_at;
-            })
-            .map(function (s) {
-              return { hi: String(s.started_at).slice(0, 10), sid: s.shift_id, dev: s.device_id };
-            })
-            .sort(function (a, b) {
-              if (a.hi !== b.hi) return a.hi < b.hi ? -1 : 1;
-              var an = NAMAE[a.dev] || '';
-              var bn = NAMAE[b.dev] || '';
-              return an < bn ? -1 : an > bn ? 1 : 0;
-            });
-        }
 
-        function render() {
-          $('monthLabel').textContent = ymLabel(MONTH);
-          if (!HIZUKE.length) {
-            $('kamiHead').innerHTML = '';
-            $('kamiBody').innerHTML = '';
-            showMsg('この月は まだ 記録が ありません。');
+          if (!RAW.shifts.length) {
+            $('shaList').innerHTML = '';
+            showMsg('この日は まだ 走った 記録が ありません。（PayPay は 上に 入れられます）');
             return;
           }
           showMsg('');
           var kinds = RAW.kinds;
-          $('kamiHead').innerHTML =
-            '<tr><th>車</th>' +
-            kinds
-              .map(function (k) {
-                return '<th>' + esc(k.label) + '</th>';
-              })
-              .join('') +
-            '</tr>';
-
-          var haba = kinds.length + 1; // 車 ＋ 実費の 数
-          var maeNoHi = '';
           var html = '';
-          HIZUKE.forEach(function (x) {
-            // ★日が 変わったら 日の 帯を 出す（そこに PayPay）★
-            if (x.hi !== maeNoHi) {
-              maeNoHi = x.hi;
-              html +=
-                '<tr class="hi-obi"><td colspan="' +
-                haba +
-                '"><span class="hi-ji">' +
-                dayLabel(x.hi) +
-                '</span><span class="pp-ji">PayPay</span>' +
-                '<input class="yen pp-yen" data-ppd="' +
-                esc(x.hi) +
-                '" value="' +
-                (PPD[x.hi] || '') +
-                '"></td></tr>';
-            }
-            var e = EDITS[x.sid] || {};
+          RAW.shifts.forEach(function (s) {
+            var e = EDITS[s.shift_id] || {};
             html +=
-              '<tr><td>' +
-              esc(NAMAE[x.dev] || '車') +
-              '</td>' +
+              '<div class="sha"><div class="sha-na">' +
+              esc(NAMAE[s.device_id] || '車') +
+              '</div>' +
               kinds
                 .map(function (k) {
                   return (
-                    '<td><input class="yen" data-sid="' +
-                    esc(x.sid) +
+                    '<div class="frow"><span class="flabel">' +
+                    esc(k.label) +
+                    '（円）</span>' +
+                    '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+                    ' data-sid="' +
+                    esc(s.shift_id) +
                     '" data-f="' +
                     esc(k.kind_id) +
                     '" value="' +
-                    JippiHozon.ima(e, k.kind_id) +
-                    '"></td>'
+                    (JippiHozon.ima(e, k.kind_id) || '') +
+                    '"></div>'
                   );
                 })
                 .join('') +
-              '</tr>';
+              '</div>';
           });
-          $('kamiBody').innerHTML = html;
+          $('shaList').innerHTML = html;
           bindYen();
         }
 
         function bindYen() {
-          Array.prototype.forEach.call(document.querySelectorAll('.yen'), function (i) {
-            i.onchange = function () {
-              if (i.hasAttribute('data-ppd')) {
-                savePP(i.getAttribute('data-ppd'), i.value);
-                return;
-              }
-              saveJippi(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
-            };
-          });
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-sid]'),
+            function (i) {
+              i.onchange = function () {
+                saveJippi(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
+              };
+            }
+          );
         }
 
         // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
@@ -544,12 +546,13 @@
             });
         }
 
-        function savePP(hi, value) {
+        function savePP(value) {
           if (!COMPANY) return;
-          JippiHozon.savePaypay(SESS, COMPANY.company_id, hi, value)
+          JippiHozon.savePaypay(SESS, COMPANY.company_id, HI, value)
             .then(function (v) {
               showErr('');
-              PPD[hi] = v;
+              PP = v;
+              $('ppYen').value = v || '';
             })
             .catch(function (r) {
               saveErr('PayPay の分を保存できませんでした。', r);
