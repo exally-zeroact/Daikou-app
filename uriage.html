@@ -728,6 +728,8 @@
             soft('dk_shift_edits?select=*&limit=2000'),
             soft('dk_device_labels?select=*&limit=500'),
             soft('dk_sales_settings?select=*&limit=1'),
+            // ★★実費の 名前（会社が 決めた 一覧）★★ 2026-09-06（司さん「自由に 足せる ように」）
+            soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
             soft('dk_manual_days?select=*&limit=2000'),
           ])
             .then(function (res) {
@@ -735,9 +737,21 @@
               RAW.edits = Array.isArray(res[1]) ? res[1] : [];
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
               var st = Array.isArray(res[3]) && res[3].length ? res[3][0] : null;
+              // ★★実費の 名前★★ 2026-09-06（司さん「自由に 足せる ように」）
+              //   ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
+              RAW.kinds = (Array.isArray(res[4]) ? res[4] : []).filter(function (k) {
+                return k && k.active !== false;
+              });
+              if (!RAW.kinds.length) {
+                RAW.kinds = [
+                  { kind_id: 'toll', label: '高速代', sort_order: 10 },
+                  { kind_id: 'bridge', label: '橋代', sort_order: 20 },
+                  { kind_id: 'other', label: 'その他', sort_order: 30 },
+                ];
+              }
               // ★手で入れた1日分も同じ数字で出す（給料・月次集計と食い違わないように）★
               //   メーターの記録がある車は出さない＝二重計上しない。
-              var manual = (Array.isArray(res[4]) ? res[4] : []).filter(function (m) {
+              var manual = (Array.isArray(res[5]) ? res[5] : []).filter(function (m) {
                 if (!m || !m.work_date) return false;
                 var inMonth = String(m.work_date).slice(0, 7) === ymKey(MONTH);
                 if (!inMonth) return false;
@@ -1011,19 +1025,27 @@
             }
             showMsg('');
             $('kamiTtl').textContent = '実費を 入れる';
+            // ★★見出しも 欄も 会社が 決めた 一覧から 作る★★ 2026-09-06（司さん「ウ」）
+            var kinds = RAW.kinds || [];
             $('kamiHead').innerHTML =
-              '<tr><th>日</th><th>車</th><th>高速</th><th>橋</th><th>その他</th></tr>';
+              '<tr><th>日</th><th>車</th>' +
+              kinds
+                .map(function (k) {
+                  return '<th>' + esc(k.label) + '</th>';
+                })
+                .join('') +
+              '</tr>';
             var hi2 = '';
             shifts.forEach(function (x) {
               var e2 = (window.__editsById || {})[x.s.shift_id] || {};
-              function box(f) {
+              function box(kindId) {
                 return (
                   '<input class="yen" data-sid="' +
                   esc(x.s.shift_id) +
                   '" data-f="' +
-                  f +
+                  esc(kindId) +
                   '" value="' +
-                  (e2[f] || 0) +
+                  jippiIma(e2, kindId) +
                   '">'
                 );
               }
@@ -1032,13 +1054,13 @@
                 dayLabel(x.hi) +
                 '</td><td>' +
                 esc(x.sha || '') +
-                '</td><td>' +
-                box('toll_yen') +
-                '</td><td>' +
-                box('bridge_yen') +
-                '</td><td>' +
-                box('other_yen') +
-                '</td></tr>';
+                '</td>' +
+                kinds
+                  .map(function (k) {
+                    return '<td>' + box(k.kind_id) + '</td>';
+                  })
+                  .join('') +
+                '</tr>';
             });
             $('kamiBody').innerHTML = hi2;
             list.innerHTML = '';
@@ -1161,6 +1183,28 @@
             });
         }
 
+        // ★★古い 3つと 新しい 物を 1か所で 束ねる★★ 2026-09-06（司さん「ウ」）
+        //   ★古い 3つ（toll/bridge/other）は 列★／★足した 物は expenses（名前つき）★
+        //   ⇒ ★読む所を 1つに する★＝画面の あちこちで 食い違わない
+        //   ★古い 列は 消しません★（前の 記録が 読めなくなる 事故を 防ぐ）
+        var JIPPI_FURUI = { toll: 'toll_yen', bridge: 'bridge_yen', other: 'other_yen' };
+        function jippiIma(e, kindId) {
+          if (!e) return 0;
+          var f = JIPPI_FURUI[kindId];
+          if (f) return e[f] || 0;
+          var x = e.expenses || {};
+          return x[kindId] || 0;
+        }
+        // ★1回ぶんの 実費の 合計★（★売上から 引く 物★は 呼ぶ側が 選ぶ）
+        function jippiGoukei(e, kinds, hiku) {
+          var g = 0;
+          (kinds || []).forEach(function (k) {
+            if (hiku && !hiku(k)) return;
+            g += jippiIma(e, k.kind_id) || 0;
+          });
+          return g;
+        }
+
         function saveEdit(shiftId, field, value) {
           if (!COMPANY) return;
           var v = parseInt(value, 10);
@@ -1172,9 +1216,21 @@
             toll_yen: cur.toll_yen || 0,
             bridge_yen: cur.bridge_yen || 0,
             other_yen: cur.other_yen || 0,
+            expenses: cur.expenses || {},
             updated_at: new Date().toISOString(),
           };
-          body[field] = v;
+          // ★★古い 3つは 列へ／足した 物は expenses へ★★ 2026-09-06（司さん「ウ」）
+          //   ★どちらも 同じ ボタンから 来ます★（画面は 名前しか 知らない）
+          if (JIPPI_FURUI[field]) {
+            body[JIPPI_FURUI[field]] = v;
+          } else if (field.indexOf('_yen') > 0) {
+            body[field] = v; // ★前からの 呼び方（toll_yen 等）も そのまま 通す★
+          } else {
+            var x = {};
+            for (var k in body.expenses) x[k] = body.expenses[k];
+            x[field] = v;
+            body.expenses = x;
+          }
 
           DKSession.rest(SESS, 'dk_shift_edits?on_conflict=shift_id', {
             method: 'POST',

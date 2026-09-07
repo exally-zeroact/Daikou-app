@@ -84,9 +84,12 @@ test('★★④ 入力タブが 在り、開かずに 打てる★★', async ()
   const i = SRC.indexOf("MODE === 'in'");
   expect(i, '★入力タブの 中身が ありません★').toBeGreaterThan(0);
   const naka = SRC.slice(i, i + 3000);
-  ['toll_yen', 'bridge_yen', 'other_yen'].forEach(function (f) {
-    expect(naka.indexOf(f), '★入力タブに ' + f + ' が ありません★').toBeGreaterThan(0);
-  });
+  // ★★中身を 変えました（黙って 数だけ 動かさない）★★ 2026-09-06
+  //   ★前★ toll_yen / bridge_yen / other_yen を 直に 書いていた（★3つ 固定★）
+  //   ★今★ ★会社が 決めた 一覧（RAW.kinds）から 欄を 作る★
+  //     （司さん「この項目ってユーザーは自由に決めれるん？」→「ウ」）
+  expect(naka.indexOf('RAW.kinds'), '★一覧から 欄を 作っていません★').toBeGreaterThan(0);
+  expect(naka.indexOf('k.kind_id'), '★名前ごとの 欄に なっていません★').toBeGreaterThan(0);
   // ★打った物が 保存に 行くか★＝bindYen を 呼んでいる
   expect(naka.indexOf('bindYen()'), '★打っても 保存に 行きません★').toBeGreaterThan(0);
   // ★保存の 決まりは 1か所だけ★（2か所に 書かない）
@@ -94,4 +97,75 @@ test('★★④ 入力タブが 在り、開かずに 打てる★★', async ()
     (SRC.match(/saveEdit\(i\.getAttribute/g) || []).length,
     '★保存の 決まりが 2か所に 在ります★'
   ).toBe(1);
+});
+
+// ★★足した 名前が 入力タブに 出る★★ 2026-09-06（司さん「自由に 足せる ように」→「ウ」）
+//   ★前は 高速代・橋代・その他の 3つ 固定★（倉庫の 列が 3本）
+//   ⇒ 会社が 決めた 一覧（dk_expense_kinds）から 見出しも 欄も 作る。
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
+//     ①一覧を 読まない（RAW.kinds を 使わない）… ★赤★
+test('★★⑤ 会社が 足した 名前が 入力タブに 出る★★', async ({ page }) => {
+  const KINDS = [
+    { kind_id: 'toll', label: '高速代', sort_order: 10, active: true },
+    { kind_id: 'bridge', label: '橋代', sort_order: 20, active: true },
+    { kind_id: 'other', label: 'その他', sort_order: 30, active: true },
+    { kind_id: 'k1', label: '駐車場代', sort_order: 40, active: true },
+    { kind_id: 'k2', label: '使わない物', sort_order: 50, active: false },
+  ];
+  const SH = [
+    {
+      shift_id: 's1',
+      device_id: 'd1',
+      started_at: '2026-09-02T10:00:00Z',
+      ended_at: '2026-09-02T18:00:00Z',
+      fare_total_yen: 18800,
+      trip_count: 9,
+      actual_total_m: 54700,
+      total_distance_m: 124700,
+    },
+  ];
+  const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
+  const co = { company_id: 'c1', name: 'ZERO代行' };
+  const stub =
+    moto +
+    ';(function(){var co=' +
+    JSON.stringify(co) +
+    ';var K=' +
+    JSON.stringify(KINDS) +
+    ';var SH=' +
+    JSON.stringify(SH) +
+    ';var S=window.DKSession;' +
+    'function rows(p){ if(p.indexOf("dk_expense_kinds")===0)return K; if(p.indexOf("dk_shifts")===0)return SH;' +
+    ' if(p.indexOf("dk_device_labels")===0)return [{company_id:"c1",device_id:"d1",label:"4987",sort_order:1}]; return [];}' +
+    'S.ensure=function(){return Promise.resolve({access_token:"t"});};S.goLogin=function(){};S.logout=function(){};' +
+    'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
+    'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
+    'S.rest=function(s,p,o){return Promise.resolve({ok:true,status:200,text:function(){return Promise.resolve("");},json:function(){return Promise.resolve(rows(p));}});};' +
+    'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();';
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: stub,
+    })
+  );
+  await page.route('**/auth/v1/**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"u1"}' })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/uriage.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2400);
+  await page.click('#segIn');
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => ({
+    head: [...document.querySelectorAll('#kamiHead th')].map((x) => x.textContent.trim()),
+    hako: document.querySelectorAll('#kamiBody input.yen').length,
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★入力タブの 見出し★ ' + JSON.stringify(r));
+  expect(r.head.join(','), '★足した 名前が 出ていません★').toContain('駐車場代');
+  expect(r.head.join(','), '★使わない 印の 物が 出ています★').not.toContain('使わない物');
+  // ★日・車 ＋ 使う 名前 4つ★
+  expect(r.head.length, '★見出しの 数が 合いません★').toBe(6);
+  expect(r.hako, '★欄の 数が 合いません★').toBe(4);
 });

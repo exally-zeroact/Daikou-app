@@ -225,3 +225,18 @@ SELECT id,
     is_revert
    FROM daikome.dk_fare_config_history;
 alter view public.dk_fare_config_history set (security_invoker = true);
+
+-- ★★実費の 名前の 窓★★ 2026-09-06（司さん
+--   「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ（自由に）」）
+--   ★前は 高速代・橋代・その他の 3つ 固定★（dk_shift_edits の 列が 3本 だった）
+--   ⇒ 会社ごとに 足す／消す／並べ替えが 出来る 一覧を 持つ。
+--   ★中身を 当てたのは supabase/apply-jippi-jiyuu.sql★／ここは ★元の 定義★として 残す。
+create or replace view public.dk_expense_kinds as
+SELECT company_id,
+    kind_id,
+    label,
+    sort_order,
+    active,
+    updated_at
+   FROM daikome.dk_expense_kinds;
+alter view public.dk_expense_kinds set (security_invoker = true);

@@ -67,14 +67,32 @@
 
   // ★売上から引く額（1件ぶん）★
   //   売上表も給料も★必ずこれを通す★。別々に書くと片方だけ直して金額が食い違う。
+  // ★★会社が 足した 実費も 引く★★ 2026-09-06（司さん
+  //   「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ」）
+  //   ★古い 3つ（toll/bridge/other）は 今まで通り 列から・チェックで 引くか 決める★
+  //   ★足した 物は edit.expenses（名前つき）から 全部 引く★
+  //     ＝足した 物に「引く/引かない」の チェックは 在りません（足した＝引く 物）。
+  //   ★★1円も 変わらない事★★
+  //     expenses が 無い 行（今まで 全部）は ★足す 物が 0★＝前と 同じ 数字。
+  //     2026-09-06 実測 … dk_shift_edits 1行／実費が 入った 行 0行／合計 0円
   function deductOf(edit, settings) {
     try {
       const st = normSettings(settings);
       const e = edit || {};
+      let soto = 0;
+      const x = e.expenses;
+      if (x && typeof x === 'object') {
+        Object.keys(x).forEach((k) => {
+          // ★古い 3つは 上で 数えるので ここでは 数えない（二重に しない）★
+          if (k === 'toll' || k === 'bridge' || k === 'other') return;
+          soto += n(x[k]);
+        });
+      }
       return (
         (st.deduct_toll ? n(e.toll_yen) : 0) +
         (st.deduct_bridge ? n(e.bridge_yen) : 0) +
-        (st.deduct_other ? n(e.other_yen) : 0)
+        (st.deduct_other ? n(e.other_yen) : 0) +
+        soto
       );
     } catch (_) {
       return 0;

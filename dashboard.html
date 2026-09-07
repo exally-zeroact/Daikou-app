@@ -430,6 +430,43 @@
         font-size: 13px;
         line-height: 1.7;
       }
+
+      /* ★★実費の 一覧（紙の 表）★★ 2026-09-06（司さん「自由に 足せる ように」）
+         ★他の 画面（月次集計・売上表・料金表）と 同じ 形★に そろえる */
+      table.kami {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      table.kami > thead > tr > th,
+      table.kami > tbody > tr > td {
+        border: 1px solid #b9c6d8;
+        padding: 5px 4px;
+        text-align: left;
+        line-height: 1.4;
+      }
+
+      table.kami > thead > tr > th {
+        background: #eef3fa;
+        font-weight: 700;
+        text-align: center;
+        font-size: 12px;
+      }
+
+      table.kami input[type='text'],
+      table.kami input[type='number'] {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        font-family: inherit;
+        font-size: 13px;
+        padding: 3px 5px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
     </style>
   </head>
   <body>
@@ -496,6 +533,11 @@
           <button class="chip" type="button" data-chip="kuruma">車</button>
           <button class="chip" type="button" data-chip="ryokin">料金</button>
           <button class="chip" type="button" data-chip="hito">従業員</button>
+          <!-- ★★実費の 名前を 自由に する★★ 2026-09-06（司さん
+               「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ」）
+               ★前は 高速代・橋代・その他の ★3つ 固定★でした★（倉庫の 列が 3本）
+               ⇒ 会社ごとに 足す／消す／並べ替えが 出来るように します。 -->
+          <button class="chip" type="button" data-chip="jippi">実費</button>
         </div>
 
         <!-- ★会社★（今まで 在った 中身） -->
@@ -609,6 +651,34 @@
             <div class="mada">
               <a href="ryokinhyou.html">料金表を 見る</a>（今 いくらかを 紙で 出します）
             </div>
+          </div>
+        </div>
+
+        <!-- ★★実費の 名前★★ 2026-09-06（司さん「自由に 足せる ように」） -->
+        <div data-pane="jippi" style="display: none">
+          <div class="card">
+            <div style="font-weight: 800; margin-bottom: 6px">実費（売上から 引く物）</div>
+            <div class="mada">
+              <b>高速代・橋代</b>など、売上から 引く 物の 名前を ここで 決めます。<br />
+              決めた 物は <b>売上表 →「実費入力」</b>に そのまま 出ます。<br />
+              <b>消しても 前に 入れた 金額は 消えません</b>（使わない 印を 付けるだけ）。
+            </div>
+            <table class="kami" id="jippiTbl" style="margin-top: 10px">
+              <thead>
+                <tr>
+                  <th>名前</th>
+                  <th>並び</th>
+                  <th>使う</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="jippiBody"></tbody>
+            </table>
+            <div class="row" style="margin-top: 10px">
+              <input id="jippiNew" placeholder="足す 名前（例）駐車場代" />
+              <button class="btn" id="jippiAdd" type="button">足す</button>
+            </div>
+            <div class="mada" id="jippiMsg" style="margin-top: 8px"></div>
           </div>
         </div>
 
@@ -740,6 +810,141 @@
           }
         }
 
+        // ★★実費の 名前を 足す／消す／並べ替える★★ 2026-09-06（司さん
+        //   「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ」）
+        //   ★前は 高速代・橋代・その他の 3つ 固定★（倉庫の 列が 3本 だった）
+        //   ⇒ dk_expense_kinds（会社ごとの 名前の 一覧）から 出す。
+        //   ★消しても 前に 入れた 金額は 消しません★＝active=false に するだけ
+        //     （金額は dk_shift_edits に 名前つきで 残る＝後から 読み直せる）
+        var JIPPI = [];
+        // ★打った 字を そのまま 画面に 出さない★（< や " を 無害に する）
+        function esc(v) {
+          return String(v == null ? '' : v).replace(/[<>&"]/g, function (c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+          });
+        }
+        function jippiMsg(t) {
+          var n = $('jippiMsg');
+          if (n) n.textContent = t || '';
+        }
+        function jippiRead() {
+          if (!SESS || !COMPANY) return;
+          api('/dk_expense_kinds?select=*&order=sort_order.asc&limit=200')
+            .then(function (r) {
+              return r.ok ? r.json() : [];
+            })
+            .then(function (j) {
+              JIPPI = j || [];
+              jippiDraw();
+            })
+            .catch(function () {
+              jippiMsg('実費の 名前を 読めませんでした。');
+            });
+        }
+        function jippiDraw() {
+          var tb = $('jippiBody');
+          if (!tb) return;
+          var h = '';
+          JIPPI.forEach(function (k) {
+            h +=
+              '<tr><td><input type="text" data-k="' +
+              esc(k.kind_id) +
+              '" data-f="label" value="' +
+              esc(k.label) +
+              '"></td><td><input type="number" data-k="' +
+              esc(k.kind_id) +
+              '" data-f="sort_order" value="' +
+              (k.sort_order || 0) +
+              '"></td><td style="text-align:center"><input type="checkbox" data-k="' +
+              esc(k.kind_id) +
+              '" data-f="active"' +
+              (k.active === false ? '' : ' checked') +
+              '></td><td style="text-align:center"><button class="btn ghost" type="button" data-keshi="' +
+              esc(k.kind_id) +
+              '">消す</button></td></tr>';
+          });
+          tb.innerHTML = h;
+          Array.prototype.forEach.call(tb.querySelectorAll('[data-k]'), function (i) {
+            i.onchange = function () {
+              var f = i.getAttribute('data-f');
+              var v =
+                f === 'active' ? i.checked : f === 'sort_order' ? Number(i.value) || 0 : i.value;
+              jippiSave(i.getAttribute('data-k'), f, v);
+            };
+          });
+          Array.prototype.forEach.call(tb.querySelectorAll('[data-keshi]'), function (b) {
+            b.onclick = function () {
+              // ★消す＝使わない 印★（前に 入れた 金額は 消さない）
+              jippiSave(b.getAttribute('data-keshi'), 'active', false);
+            };
+          });
+        }
+        function jippiSave(kindId, field, value) {
+          if (!COMPANY) return;
+          var body = {
+            company_id: COMPANY.company_id,
+            kind_id: kindId,
+            updated_at: new Date().toISOString(),
+          };
+          body[field] = value;
+          api('/dk_expense_kinds?on_conflict=company_id,kind_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify(body),
+          })
+            .then(function (r) {
+              if (!r.ok) {
+                return r.text().then(function (t) {
+                  jippiMsg('保存できませんでした。[' + r.status + '] ' + String(t).slice(0, 160));
+                });
+              }
+              jippiMsg('保存しました');
+              jippiRead();
+            })
+            .catch(function () {
+              jippiMsg('保存できませんでした。');
+            });
+        }
+        (function wireJippi() {
+          var b = $('jippiAdd');
+          if (!b) return;
+          b.onclick = function () {
+            var na = ($('jippiNew').value || '').trim();
+            if (!na) return jippiMsg('名前を 入れてください。');
+            // ★id は 機械が 作る★（人が 打つと ぶつかる）
+            var id = 'k' + Date.now().toString(36);
+            var tsugi = 10;
+            JIPPI.forEach(function (k) {
+              if ((k.sort_order || 0) + 10 > tsugi) tsugi = (k.sort_order || 0) + 10;
+            });
+            var body = {
+              company_id: COMPANY.company_id,
+              kind_id: id,
+              label: na,
+              sort_order: tsugi,
+              active: true,
+              updated_at: new Date().toISOString(),
+            };
+            api('/dk_expense_kinds', {
+              method: 'POST',
+              headers: { Prefer: 'return=minimal' },
+              body: JSON.stringify(body),
+            })
+              .then(function (r) {
+                if (!r.ok) {
+                  return r.text().then(function (t) {
+                    jippiMsg('足せませんでした。[' + r.status + '] ' + String(t).slice(0, 160));
+                  });
+                }
+                $('jippiNew').value = '';
+                jippiMsg('足しました');
+                jippiRead();
+              })
+              .catch(function () {
+                jippiMsg('足せませんでした。');
+              });
+          };
+        })();
         // ★★会社設定の 中の チップ★★ 2026-09-05（司さん）
         //   ★押した 物だけ 出す★／★押した 場所を 覚える★（開き直しても 同じ 所）
         (function wireChips() {
@@ -957,6 +1162,7 @@
           show('otabs', true); // ★会社が登録できてから 請求書のボタンを出す★
           maybeShowA2HS();
           $('coName').textContent = COMPANY.name || '(会社名なし)';
+          jippiRead(); // ★実費の 名前を 読む★ 2026-09-06
           show('statusOff', COMPANY.status === 'off');
           // ★地元の市★（空なら空欄。書かなければ 今治市あつかい）
           if ($('homeCity')) $('homeCity').value = COMPANY.home_city || '';
