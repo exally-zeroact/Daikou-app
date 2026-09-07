@@ -501,6 +501,13 @@
           <thead id="kamiHead"></thead>
           <tbody id="kamiBody"></tbody>
         </table>
+        <!-- ★★どこで 入れるかを 書く★★ 2026-09-06（司さん「橋代や高速代など入力するタブは？」）
+             ★入れる 所は 前から 在りました★。ただ 下の 札を 開かないと 出て こない。
+             ⇒ ★表の すぐ下に 道順を 書く★＝探さなくて よい。 -->
+        <div class="note" id="jippiNote">
+          <b>実費（高速代・橋代）</b>は、下の 車の 札の
+          <b>「日ごと ▾（高速代・橋代を 入れる）」</b>を 押すと、日ごとに 入れられます。
+        </div>
         <div id="list"></div>
         <div class="msg" id="msg" style="display: none"></div>
         <div class="err" id="err" style="display: none"></div>
@@ -1001,7 +1008,10 @@
                 max: max,
                 sub: subText(r),
                 open: !!OPEN[r.device_id],
-                openText: '日ごと ▾',
+                // ★★中に 何が 在るか 名前に 書く★★ 2026-09-06（司さん「橋代や高速代など入力するタブは？」）
+                //   ★入れる 所は 前から 在りました★。ただ ★『日ごと ▾』の 中に 隠れていて 見つからない★。
+                //   ⇒ ★名前に 何が 出来るかを 書く★＝開かなくても 分かる。
+                openText: '日ごと ▾（高速代・橋代を 入れる）',
                 detail: r.shifts.map(shiftLine).join(''),
               });
             }
