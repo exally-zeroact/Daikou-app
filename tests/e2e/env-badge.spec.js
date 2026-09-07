@@ -44,6 +44,25 @@ async function loginZumi(page) {
     'window.DKSession.goLogin=function(){};' +
     'if(window.DKSession.rest)window.DKSession.rest=function(){return Promise.resolve([]);};' +
     '})();';
+  // ★★外（本番の 倉庫）へ 出さない★★ 2026-09-06
+  //   ★これは「赤を 緑に する 直し」では ありません★
+  //   ★試験が 本番の 倉庫を 叩いていたのを 止めます★
+  //   ★実測（2026-09-06）★
+  //     dashboard.html:808 が SB_URL + '/auth/v1/user' を 直に 叩きます。
+  //     ★手元（外へ 出られる）★ … 本番の supabase が ★403★
+  //        ⇒ dashboard.html:1344 `if (!u || !u.id) return goLogin();`
+  //        ⇒ ★login.html へ 飛ぶ★ ⇒ 帯を 見る前に 終わる（15秒 時間切れ）
+  //     ★CI（外へ 出られない）★ … fetch が 落ちる ⇒ catch の 側 ⇒ 飛ばない ⇒ 緑
+  //   ⇒★★手元の 赤も CI の 緑も、どちらも 中身を 見ていませんでした★★
+  //   ⇒★手元でも CI でも ★同じ 道★ を 通す★
+  await page.route('**/auth/v1/**', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'u1', email: 'mihari@example.com' }),
+    })
+  );
+
   await page.route('**/js/dk-session.js*', (route) =>
     route.fulfill({
       status: 200,
