@@ -54,6 +54,9 @@ test('★★② 実費を 入れる 所が 紙の 表の すぐ下に 書いて�
   const ji = SRC.slice(n, n + 400).replace(/\s+/g, '');
   expect(ji, '★高速代・橋代と 書いていません★').toContain('高速代');
   expect(ji, '★高速代・橋代と 書いていません★').toContain('橋代');
+  // ★★道順は「入力タブ」を 指す★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
+  //   ★前★「下の 札を 開け」と 書いていた ⇒ ★開かないと 打てない のは 同じ★だった
+  expect(ji, '★入力タブを 指していません★').toContain('実費入力');
 });
 
 test('★★③ 入れる 欄そのものは 前から 在る（消していない）★★', async () => {
@@ -63,4 +66,32 @@ test('★★③ 入れる 欄そのものは 前から 在る（消していな�
       0
     );
   });
+});
+
+// ★★入力タブ★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
+//   ★札の 名前を 変えただけでは 足りませんでした★＝開かないと 打てない のは 同じ。
+//   ⇒ ★車ごと／日ごと の 横に「実費を 入れる」を 足し、日ごとに 1行 そのまま 打てる★
+//   ★入れる 先も 保存の 仕方も 前と 同じ★（data-sid / data-f / saveEdit）
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
+//     ①segIn のボタンを 消す ………… ★赤★
+//     ②入力タブの 中で bindYen() を 呼ばない … ★赤★（打っても 保存に 行かない）
+test('★★④ 入力タブが 在り、開かずに 打てる★★', async () => {
+  // ★ボタンが 3つ 在るか★（実物の 中身で 見る）
+  ['segCar', 'segDay', 'segIn'].forEach(function (id) {
+    expect(SRC.indexOf('id="' + id + '"'), '★' + id + ' が ありません★').toBeGreaterThan(0);
+  });
+  // ★入力タブの 中で 3つの 欄を 作っているか★
+  const i = SRC.indexOf("MODE === 'in'");
+  expect(i, '★入力タブの 中身が ありません★').toBeGreaterThan(0);
+  const naka = SRC.slice(i, i + 3000);
+  ['toll_yen', 'bridge_yen', 'other_yen'].forEach(function (f) {
+    expect(naka.indexOf(f), '★入力タブに ' + f + ' が ありません★').toBeGreaterThan(0);
+  });
+  // ★打った物が 保存に 行くか★＝bindYen を 呼んでいる
+  expect(naka.indexOf('bindYen()'), '★打っても 保存に 行きません★').toBeGreaterThan(0);
+  // ★保存の 決まりは 1か所だけ★（2か所に 書かない）
+  expect(
+    (SRC.match(/saveEdit\(i\.getAttribute/g) || []).length,
+    '★保存の 決まりが 2か所に 在ります★'
+  ).toBe(1);
 });

@@ -185,8 +185,12 @@
         border: none;
         background: none;
         border-radius: 9px;
-        padding: 9px 6px;
-        font-size: 15px;
+        padding: 9px 4px;
+
+        /* ★★札が 3つに なったので 字を 詰める★★ 2026-09-06（司さん「入力タブつくれよ」）
+           ★実測★ 390px で 15px だと「実費を 入れる」が 2行に 割れた ⇒ 14px・折り返さない */
+        font-size: 14px;
+        white-space: nowrap;
         font-weight: 700;
         font-family: inherit;
         color: var(--blue-d);
@@ -353,6 +357,14 @@
         border-color: var(--blue);
       }
 
+      /* ★★入力タブの ますの 中では 幅いっぱい★★ 2026-09-06（司さん）
+         ★実測★ 6.5em 固定だと 390px の 表から はみ出て 数字が 見えなかった */
+      #kamiBody .yen {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+      }
+
       .msg {
         text-align: center;
         color: var(--muted);
@@ -487,6 +499,11 @@
         <div class="seg" style="margin-top: 10px">
           <button class="segb on" id="segCar" type="button">車ごと</button>
           <button class="segb" id="segDay" type="button">日ごと</button>
+          <!-- ★★入力タブ★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
+               ★前は 車の札を 開かないと 出て こなかった★＝在るのに 見つからない。
+               ⇒ ★1つの タブに して、日ごとに 1行 そのまま 打てる★ようにする。
+               ★入れる 中身（toll_yen / bridge_yen / other_yen）は 前と 同じ★ -->
+          <button class="segb" id="segIn" type="button">実費入力</button>
         </div>
       </div>
 
@@ -505,8 +522,8 @@
              ★入れる 所は 前から 在りました★。ただ 下の 札を 開かないと 出て こない。
              ⇒ ★表の すぐ下に 道順を 書く★＝探さなくて よい。 -->
         <div class="note" id="jippiNote">
-          <b>実費（高速代・橋代）</b>は、下の 車の 札の
-          <b>「日ごと ▾（高速代・橋代を 入れる）」</b>を 押すと、日ごとに 入れられます。
+          <b>実費（高速代・橋代）</b>は、上の <b>「実費入力」</b>を 押すと 日ごとに その場で
+          入れられます。
         </div>
         <div id="list"></div>
         <div class="msg" id="msg" style="display: none"></div>
@@ -633,6 +650,9 @@
         };
         $('segDay').onclick = function () {
           setMode('day');
+        };
+        $('segIn').onclick = function () {
+          setMode('in');
         };
 
         function loadCompany() {
@@ -965,8 +985,67 @@
           $('monthLabel').textContent = ymLabel(MONTH);
           $('segCar').className = 'segb' + (MODE === 'car' ? ' on' : '');
           $('segDay').className = 'segb' + (MODE === 'day' ? ' on' : '');
+          $('segIn').className = 'segb' + (MODE === 'in' ? ' on' : '');
 
           var list = $('list');
+
+          // ★★入力タブ★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
+          //   ★開かずに その場で 打てる★＝日ごとに 1行、高速／橋／その他 の 3つ。
+          //   ★入れる 先も 保存の 仕方も 前と 同じ★（data-sid / data-f を そのまま 使う）
+          if (MODE === 'in') {
+            var shifts = [];
+            (DAYS || []).forEach(function (d) {
+              (d.cars || []).forEach(function (c) {
+                (c.shifts || []).forEach(function (sh) {
+                  if (!sh.isManual) shifts.push({ hi: d.date, sha: c.label, s: sh });
+                });
+              });
+            });
+            if (!shifts.length) {
+              list.innerHTML = '';
+              $('kamiTtl').textContent = '実費を 入れる';
+              $('kamiHead').innerHTML = '';
+              $('kamiBody').innerHTML = '';
+              showMsg('この月は まだ 記録が ありません。');
+              return;
+            }
+            showMsg('');
+            $('kamiTtl').textContent = '実費を 入れる';
+            $('kamiHead').innerHTML =
+              '<tr><th>日</th><th>車</th><th>高速</th><th>橋</th><th>その他</th></tr>';
+            var hi2 = '';
+            shifts.forEach(function (x) {
+              var e2 = (window.__editsById || {})[x.s.shift_id] || {};
+              function box(f) {
+                return (
+                  '<input class="yen" data-sid="' +
+                  esc(x.s.shift_id) +
+                  '" data-f="' +
+                  f +
+                  '" value="' +
+                  (e2[f] || 0) +
+                  '">'
+                );
+              }
+              hi2 +=
+                '<tr><td>' +
+                dayLabel(x.hi) +
+                '</td><td>' +
+                esc(x.sha || '') +
+                '</td><td>' +
+                box('toll_yen') +
+                '</td><td>' +
+                box('bridge_yen') +
+                '</td><td>' +
+                box('other_yen') +
+                '</td></tr>';
+            });
+            $('kamiBody').innerHTML = hi2;
+            list.innerHTML = '';
+            bindYen();
+            return;
+          }
+
           var rows = MODE === 'day' ? DAYS : ROWS;
           if (!rows.length) {
             list.innerHTML = '';
@@ -1045,6 +1124,14 @@
               saveLabel(i.getAttribute('data-dev'), i.value);
             };
           });
+          bindYen();
+        }
+
+        // ★実費の 欄を 繋ぐ★（★2か所から 呼ぶので 1つに 出した★ 2026-09-06）
+        //   ・車の札を 開いた 時（前から 在る 道）
+        //   ・★入力タブ★（司さん「入力するなら入力タブつくれよ」）
+        //   ★保存の 決まりを 2か所に 書かない★＝片方だけ 直って 食い違うのを 防ぐ
+        function bindYen() {
           Array.prototype.forEach.call(document.querySelectorAll('.yen'), function (i) {
             i.onchange = function () {
               saveEdit(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
