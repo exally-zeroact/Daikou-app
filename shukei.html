@@ -604,7 +604,7 @@
             >オーナーの車も入ります。</b
           ><br />
           <b>給料</b
-          >は払う回ごとに分けて出しています。<b>未収</b>＝請求書＋PayPay（まだ現金になっていない分）。<br />
+          >は払う回ごとに分けて出しています。<b>未収</b>＝請求書＋電子決済（まだ現金になっていない分）。<br />
           <b>会社に残る分</b>＝売上 − 給料 − 積立金。日ごとに出した分を足した物と一致します。
         </div>
       </div>
@@ -680,7 +680,7 @@
       </div>
 
       <div class="card noprint">
-        <div class="ttl">PayPay で受け取った分（手入力）</div>
+        <div class="ttl">電子決済で受け取った分（手入力）</div>
         <!-- ★★日ごとにも 入れられるように する★★ 2026-09-06（司さん
              「毎日 入れれるように しろよ 前から いよろが 入力タブ作れって」）
              ★前★ ★月に 1マス★ だけ ⇒ いつ 受け取ったか 分からない
@@ -696,7 +696,7 @@
             <thead id="ppHead">
               <tr>
                 <th>月</th>
-                <th>PayPay</th>
+                <th>電子決済</th>
               </tr>
             </thead>
             <tbody id="ppBody"></tbody>
@@ -706,9 +706,9 @@
         <div class="note" id="ppMichi"></div>
         <div class="note">
           メーターは今「現金」と「請求書」しか分けていません。<b
-            >PayPay で受け取った分はここに入れてください。</b
+            >電子決済（PayPay・楽天ペイ・交通系など）で受け取った分はここに入れてください。</b
           ><br />
-          日ごとに 入れたい ときは <b>売上表の「入力」</b>で 打てます。<br />
+          日ごとに 入れたい ときは <b>下の 帯の「入力」</b>で 打てます。<br />
           請求書の分は、実車中に請求書ボタンで会社を選んだ代行から自動で集まります。
         </div>
       </div>
@@ -1540,9 +1540,9 @@
             { k: 'うち 税抜き', v: m.exTax },
             { k: 'うち 消費税（内税10%）', v: m.tax },
             { k: '現金', v: m.cash },
-            { k: '未収（請求書＋PayPay）', v: m.unpaid },
+            { k: '未収（請求書＋電子決済）', v: m.unpaid },
             { k: '　請求書', v: m.invoice },
-            { k: '　PayPay', v: m.paypay },
+            { k: '　電子決済', v: m.paypay },
             { k: '給料 合計', v: m.payTotal },
             { k: '経費（高速・橋など）', v: m.expense },
             { k: '積立金', v: m.reserve },
@@ -1580,7 +1580,7 @@
           $('ppSegM').className = 'segb' + (PP_MODE === 'm' ? ' on' : '');
           $('ppSegD').className = 'segb' + (PP_MODE === 'd' ? ' on' : '');
           if (PP_MODE === 'm') {
-            $('ppHead').innerHTML = '<tr><th>月</th><th>PayPay</th></tr>';
+            $('ppHead').innerHTML = '<tr><th>月</th><th>電子決済</th></tr>';
             // ★日ごとを 入れた 月は 日ごとを 使う（二重に 数えない）★
             //   ⇒ その月の 月ごとの 欄は ★効いていない★ ので、そう 書く
             var higoto = {};
@@ -1608,7 +1608,7 @@
             var tsuki = ONE || new Date().getMonth() + 1;
             var nissuu = new Date(YEAR, tsuki, 0).getDate();
             $('ppHead').innerHTML =
-              '<tr><th>' + YEAR + '年 ' + tsuki + '月の 日</th><th>PayPay</th></tr>';
+              '<tr><th>' + YEAR + '年 ' + tsuki + '月の 日</th><th>電子決済</th></tr>';
             for (var d = 1; d <= nissuu; d++) {
               var hi = YEAR + '-' + ('0' + tsuki).slice(-2) + '-' + ('0' + d).slice(-2);
               var w = new Date(hi + 'T00:00:00');
@@ -1627,7 +1627,7 @@
           $('ppBody').innerHTML = html;
           $('ppMichi').textContent =
             PP_MODE === 'd'
-              ? '日ごとの PayPay は 売上表の「入力」で 打てます（ここは 見るだけ）。'
+              ? '日ごとの 電子決済は 下の 帯の「入力」で 打てます（ここは 見るだけ）。'
               : '';
           Array.prototype.forEach.call(document.querySelectorAll('[data-pp]'), function (i) {
             i.onchange = function () {
@@ -1665,14 +1665,14 @@
             }),
           })
             .then(function (r) {
-              if (!r.ok) return saveErr('PayPay の分を保存できませんでした。', r);
+              if (!r.ok) return saveErr('電子決済の分を保存できませんでした。', r);
               showErr('');
               PP[key] = v;
               recalc();
               render();
             })
             .catch(function () {
-              showErr('PayPay の分を保存できませんでした。');
+              showErr('電子決済の分を保存できませんでした。');
             });
         }
       })();

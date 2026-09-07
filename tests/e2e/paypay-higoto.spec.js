@@ -18,6 +18,8 @@
 //     戻した後 … ★緑 10,000★
 //
 //   ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」）
+//   ★★画面の 字は「電子決済」★★ 2026-09-08（司さん「PayPayやなくて電子決済にして」）
+//     ⇒ ★倉庫の 列は paypay_yen の まま★（名前を 変えると 前の 分が 読めなくなる）
 //     打つ … ★売上表の「入力」★（tests/e2e/uriage-paypay.spec.js で 見張る）
 //     見る … 月次集計（★ここには 打つ 欄を 置かない★）
 // ============================================================
@@ -104,7 +106,7 @@ async function nenWoKiku(page) {
 function paypayWoYomu(page) {
   return page.evaluate(() => {
     const tr = [...document.querySelectorAll('#kpis tr')].find(
-      (x) => (x.children[0] || {}).textContent && x.children[0].textContent.indexOf('PayPay') >= 0
+      (x) => (x.children[0] || {}).textContent && x.children[0].textContent.indexOf('電子決済') >= 0
     );
     return tr ? Number((tr.children[1].textContent || '').replace(/[^\d-]/g, '')) : null;
   });
@@ -152,7 +154,8 @@ test('★★月次集計の 日ごとは 見るだけ（打つ 欄が 無い）�
   expect(r.ran, '★打つ 欄が 2か所に なっています★（打つ 所は 売上表の「入力」だけ）').toBe(0);
   expect(r.gyou, '★3月は 31日ぶん 出るはず★').toBe(31);
   expect(r.ji, '★3/1 の 1,000 が 出ていません★').toContain('1,000');
-  expect(r.michi, '★打つ 所への 道順が 書いてありません★').toContain('売上表');
+  // ★★道順も 直した★★ 2026-09-08（入力は ★下の 帯★／売上表では ない）
+  expect(r.michi, '★打つ 所への 道順が 書いてありません★').toContain('下の 帯');
 });
 
 test('★★月ごとの 表に「日ごとを 使っています」と 出る★★', async ({ page }) => {
