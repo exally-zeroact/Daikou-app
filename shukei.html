@@ -485,6 +485,41 @@
         font-weight: 800;
         background: #f7fbff;
       }
+
+      /* ★★月を 選ぶ 帯★★ 2026-09-06（司さん「月を選んだら全体選んだりのボタンで」） */
+      .tsukibar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin: 0 0 12px;
+      }
+
+      .tsukib {
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 9px;
+        padding: 7px 10px;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: inherit;
+        color: var(--blue-d);
+        cursor: pointer;
+        min-width: 44px;
+      }
+
+      .tsukib.on {
+        background: var(--blue);
+        border-color: var(--blue);
+        color: #fff;
+      }
+
+      /* ★中身が 在る 月には 印★（押す前に 分かる） */
+      .tsukib.ari::after {
+        content: '●';
+        font-size: 9px;
+        margin-left: 3px;
+        vertical-align: super;
+      }
     </style>
   </head>
   <body>
@@ -534,6 +569,12 @@
 
       <div class="card">
         <div class="ttl" id="oneTtl">1ヶ月の内訳</div>
+        <!-- ★★月を ボタンで 選ぶ★★ 2026-09-06（司さん）
+             ★司さんの言葉★「これを 代行請求書アプリのように 月を 選んだら
+                             全体選んだりのボタンで やらせろや」
+             ★前★ ★上の 表の 行を 押す★しか 道が 無かった（押せると 分からない）
+             ⇒ ★全体／1月…12月★の ボタンを ここに 出す。表の 行を 押す 道も 残す。 -->
+        <div class="tsukibar" id="tsukibar"></div>
         <div class="kpis" id="kpis"></div>
       </div>
 
@@ -1366,11 +1407,49 @@
           renderPP();
         }
 
+        // ★★月を ボタンで 選ぶ★★ 2026-09-06（司さん）
+        //   ★司さんの言葉★「月を 選んだら 全体選んだりの ボタンで やらせろや」
+        //   ★前★ 上の 表の 行を 押す しか 道が 無く、★押せると 分からない★
+        //   ⇒ ここに ★全体／1月…12月★の ボタンを 出す（表の 行を 押す 道も 残す）
+        //   ★中身が 在る 月には ●★（押す前に 分かる）
+        function tsukibar() {
+          var n = $('tsukibar');
+          if (!n || !YR) return;
+          var h =
+            '<button class="tsukib' +
+            (ONE ? '' : ' on') +
+            '" type="button" data-tsuki="0">全体</button>';
+          for (var i = 1; i <= 12; i++) {
+            var mm = YR.months[i - 1] || {};
+            var ari = Number(mm.net_fare_yen || 0) > 0;
+            h +=
+              '<button class="tsukib' +
+              (ONE === i ? ' on' : '') +
+              (ari ? ' ari' : '') +
+              '" type="button" data-tsuki="' +
+              i +
+              '">' +
+              i +
+              '月</button>';
+          }
+          n.innerHTML = h;
+          Array.prototype.forEach.call(n.querySelectorAll('[data-tsuki]'), function (b) {
+            b.onclick = function () {
+              ONE = parseInt(b.getAttribute('data-tsuki'), 10) || 0;
+              // ★表の 行を 押した 時と 同じ 事を する★（決まりを 2か所に 書かない）
+              renderOne();
+              renderUri();
+              renderKyori();
+            };
+          });
+        }
+
         function renderOne() {
           var m = ONE ? YR.months[ONE - 1] : YR.total;
+          tsukibar();
           $('oneTtl').textContent = ONE
-            ? YEAR + '年 ' + ONE + '月の内訳（月の行を押すと切り替わります）'
-            : YEAR + '年 まるごとの内訳（月の行を押すとその月に切り替わります）';
+            ? YEAR + '年 ' + ONE + '月の内訳'
+            : YEAR + '年 まるごとの内訳';
           var items = [
             { k: '売上（実費を引いた後）', v: m.salesTotal, hi: true },
             { k: 'うち 税抜き', v: m.exTax },

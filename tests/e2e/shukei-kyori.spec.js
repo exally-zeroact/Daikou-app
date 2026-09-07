@@ -330,3 +330,41 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   expect(mieru, '★見える 日数が 減りました★').toBeGreaterThanOrEqual(8);
   expect(mieru, '★大きすぎます（下の 箱が 隠れます）★').toBeLessThanOrEqual(12);
 });
+
+// ★★月を ボタンで 選ぶ★★ 2026-09-06（司さん）
+//   ★司さんの言葉★「これを 代行請求書アプリのように 月を 選んだら
+//                   全体選んだりのボタンで やらせろや」
+//   ★前★ ★上の 表の 行を 押す★ しか 道が 無く、★押せると 分からない★
+//   ⇒ 内訳の 頭に ★全体／1月…12月★の ボタンを 出す（表の 行を 押す 道も 残す）
+//   ★中身が 在る 月には ●★（押す前に 分かる）
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
+//     ①tsukibar() の 呼び出しを 消す … ★赤★
+//     ②押しても 月が 変わらない ように する … ★赤★
+test('★★月の ボタンで 内訳が 切り替わる★★', async ({ page }) => {
+  await hiraku(page);
+  const mae = await page.evaluate(() => ({
+    fuda: document.querySelectorAll('#tsukibar .tsukib').length,
+    on: (document.querySelector('#tsukibar .tsukib.on') || {}).textContent || '',
+    ttl: (document.getElementById('oneTtl') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★はじめ★ ' + JSON.stringify(mae));
+  expect(mae.fuda, '★月の ボタンが 13個（全体＋12ヶ月）ありません★').toBe(13);
+  expect(mae.on, '★はじめは「全体」が 選ばれていません★').toBe('全体');
+  expect(mae.ttl, '★まるごとの 内訳に なっていません★').toContain('まるごと');
+
+  // ★9月を 押す★
+  await page.evaluate(() => {
+    const b = document.querySelector('#tsukibar [data-tsuki="9"]');
+    if (b) b.click();
+  });
+  await page.waitForTimeout(400);
+  const ato = await page.evaluate(() => ({
+    on: (document.querySelector('#tsukibar .tsukib.on') || {}).textContent || '',
+    ttl: (document.getElementById('oneTtl') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★9月を 押した後★ ' + JSON.stringify(ato));
+  expect(ato.on, '★押した 月が 選ばれていません★').toBe('9月');
+  expect(ato.ttl, '★内訳が その月に 切り替わっていません★').toContain('9月の内訳');
+});
