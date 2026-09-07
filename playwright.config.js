@@ -22,6 +22,15 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     headless: true,
     trace: 'retain-on-failure',
+    // ★★落ちた 時の 証拠を 残す★★ 2026-09-06（指示役）
+    //   ★なぜ 要るか★
+    //     『たまに 赤』は ★明日には いつもの 赤★に なり、★いつもの 赤は 誰も 見なく なる★。
+    //     （今日 飲み屋が 87時間 赤だったのは そこから）
+    //   ★足跡（trace）だけでは 開かないと 分からない★ので
+    //   ★絵と 動画★も 残す。★落ちた 回だけ★＝緑の 回は 1バイトも 増えません。
+    //   ★試験の 判定は 1文字も 変えていません★（残す 物が 増えるだけ）
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
   projects: [
     {
