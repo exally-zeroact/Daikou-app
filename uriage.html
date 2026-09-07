@@ -465,33 +465,6 @@
         font-weight: 800;
         background: #f7fbff;
       }
-
-      /* ★★日の 帯（そこに PayPay）★★ 2026-09-06（司さん「入力タブは」）
-         ★1日ぶんが 1かたまり★に 見えるように、日の 行だけ 色を 変える。 */
-      #kamiBody .hi-obi td {
-        background: #eef3fa;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      #kamiBody .hi-ji {
-        font-weight: 700;
-        color: var(--blue-d, #123);
-        white-space: nowrap;
-      }
-
-      #kamiBody .pp-ji {
-        margin-left: auto;
-        font-size: 12px;
-        color: var(--muted);
-        white-space: nowrap;
-      }
-
-      #kamiBody .pp-yen {
-        width: 7em;
-        flex: 0 0 auto;
-      }
     </style>
   </head>
   <body>
@@ -526,11 +499,10 @@
         <div class="seg" style="margin-top: 10px">
           <button class="segb on" id="segCar" type="button">車ごと</button>
           <button class="segb" id="segDay" type="button">日ごと</button>
-          <!-- ★★入力タブ★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
-               ★前は 車の札を 開かないと 出て こなかった★＝在るのに 見つからない。
-               ⇒ ★1つの タブに して、日ごとに 1行 そのまま 打てる★ようにする。
-               ★入れる 中身（toll_yen / bridge_yen / other_yen）は 前と 同じ★ -->
-          <button class="segb" id="segIn" type="button">入力</button>
+          <!-- ★★入力は フッターの「入力」へ 出しました★★ 2026-09-07
+               ★司さん★「フッターに作れってこやろがぼけ」
+               ⇒ ここ（売上表）は ★見る 所★／打つ 所は ★下の 帯の「入力」★。
+               ★打つ 所が 2か所 在ると どちらが 本当か 分からなく なる★ -->
         </div>
       </div>
 
@@ -549,8 +521,8 @@
              ★入れる 所は 前から 在りました★。ただ 下の 札を 開かないと 出て こない。
              ⇒ ★表の すぐ下に 道順を 書く★＝探さなくて よい。 -->
         <div class="note" id="jippiNote">
-          <b>実費（高速代・橋代）</b>と <b>PayPay で 受け取った 分</b>は、上の <b>「入力」</b>を
-          押すと 日ごとに その場で 入れられます。
+          <b>実費（高速代・橋代）</b>と <b>PayPay で 受け取った 分</b>は、下の 帯の
+          <b>「入力」</b>で 日ごとに 入れられます。
         </div>
         <div id="list"></div>
         <div class="msg" id="msg" style="display: none"></div>
@@ -569,6 +541,8 @@
     <script src="js/dk-session.js"></script>
     <!-- ★画面に出す車の名前を1箇所で決める (2026-08-04)★ 名前が無い時にUUIDを出さない -->
     <script src="js/car-name.js"></script>
+    <!-- ★★実費の 読み書きの 決まりは 1か所★★ 2026-09-07（入力画面と 同じ 物を 使う） -->
+    <script src="js/jippi-hozon.js"></script>
     <script src="js/uriage-agg.js"></script>
     <script src="js/daiko-payroll.js"></script>
     <script src="js/payroll-period.js"></script>
@@ -596,13 +570,6 @@
         var OPEN = {}; // 開いている行（車ごとは端末ID・日ごとは日付）
         var SETTINGS = null; // 売上から何を引くか（会社ごと）
         var RAW = { shifts: [], edits: [], labels: [] };
-        // ★★PayPay で 受け取った 分（日ごと）★★ 2026-09-06（司さん「入力タブは」）
-        //   '2026-03-01' → 円。★打つ 所は 入力タブ★（月次集計は 見るだけ）
-        var PPD = {};
-        function num(v) {
-          var n = parseInt(v, 10);
-          return isFinite(n) && n > 0 ? n : 0;
-        }
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -685,9 +652,6 @@
         $('segDay').onclick = function () {
           setMode('day');
         };
-        $('segIn').onclick = function () {
-          setMode('in');
-        };
 
         function loadCompany() {
           // ★2026-08-08: 自分の会社だけを、決まった順で取る★
@@ -765,9 +729,6 @@
             // ★★実費の 名前（会社が 決めた 一覧）★★ 2026-09-06（司さん「自由に 足せる ように」）
             soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
             soft('dk_manual_days?select=*&limit=2000'),
-            // ★★PayPay で 受け取った 分（日ごと）★★ 2026-09-06（司さん「入力タブは」）
-            //   ★打つ 所は ここ（入力タブ）★。月次集計は 見るだけ に した。
-            soft('dk_day_extras?select=*&limit=500'),
           ])
             .then(function (res) {
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
@@ -798,11 +759,6 @@
                     String(sh.started_at).slice(0, 10) === m.work_date
                   );
                 });
-              });
-              // ★★PayPay（日ごと）★★ 2026-09-06（司さん「入力タブは」）
-              PPD = {};
-              (Array.isArray(res[6]) ? res[6] : []).forEach(function (r) {
-                if (r && r.pay_date) PPD[String(r.pay_date).slice(0, 10)] = num(r.paypay_yen);
               });
               var conv = PayrollDaily.manualAsShifts(manual);
               RAW.shifts = RAW.shifts.concat(conv.shifts);
@@ -1041,93 +997,13 @@
           $('monthLabel').textContent = ymLabel(MONTH);
           $('segCar').className = 'segb' + (MODE === 'car' ? ' on' : '');
           $('segDay').className = 'segb' + (MODE === 'day' ? ' on' : '');
-          $('segIn').className = 'segb' + (MODE === 'in' ? ' on' : '');
 
           var list = $('list');
 
-          // ★★入力タブ★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
-          //   ★開かずに その場で 打てる★＝日ごとに 1行、高速／橋／その他 の 3つ。
-          //   ★入れる 先も 保存の 仕方も 前と 同じ★（data-sid / data-f を そのまま 使う）
-          if (MODE === 'in') {
-            var shifts = [];
-            (DAYS || []).forEach(function (d) {
-              (d.cars || []).forEach(function (c) {
-                (c.shifts || []).forEach(function (sh) {
-                  if (!sh.isManual) shifts.push({ hi: d.date, sha: c.label, s: sh });
-                });
-              });
-            });
-            if (!shifts.length) {
-              list.innerHTML = '';
-              $('kamiTtl').textContent = 'その日に 入れる 分';
-              $('kamiHead').innerHTML = '';
-              $('kamiBody').innerHTML = '';
-              showMsg('この月は まだ 記録が ありません。');
-              return;
-            }
-            showMsg('');
-            $('kamiTtl').textContent = 'その日に 入れる 分';
-            // ★★見出しも 欄も 会社が 決めた 一覧から 作る★★ 2026-09-06（司さん「ウ」）
-            var kinds = RAW.kinds || [];
-            // ★★日で 束ねる★★ 2026-09-06（司さん「入力タブは」）
-            //   ★前★ 日が 行ごとに 何度も 出て、PayPay を 置く 場所が 無かった。
-            //   ★今★ ★日の 行★（そこに PayPay）＋ その下に 車ごとの 実費。
-            //   ⇒ ★1日ぶんが 1かたまり★＝毎日 打つのが これ 1枚で 済む。
-            $('kamiHead').innerHTML =
-              '<tr><th>車</th>' +
-              kinds
-                .map(function (k) {
-                  return '<th>' + esc(k.label) + '</th>';
-                })
-                .join('') +
-              '</tr>';
-            var hi2 = '';
-            var maeNoHi = '';
-            var haba = kinds.length + 1; // 車 ＋ 実費の 数
-            shifts.forEach(function (x) {
-              // ★日が 変わったら 日の 行を 出す（そこに PayPay）★
-              if (x.hi !== maeNoHi) {
-                maeNoHi = x.hi;
-                hi2 +=
-                  '<tr class="hi-obi"><td colspan="' +
-                  haba +
-                  '"><span class="hi-ji">' +
-                  dayLabel(x.hi) +
-                  '</span><span class="pp-ji">PayPay</span>' +
-                  '<input class="yen pp-yen" data-ppd="' +
-                  esc(x.hi) +
-                  '" value="' +
-                  (PPD[x.hi] || '') +
-                  '"></td></tr>';
-              }
-              var e2 = (window.__editsById || {})[x.s.shift_id] || {};
-              function box(kindId) {
-                return (
-                  '<input class="yen" data-sid="' +
-                  esc(x.s.shift_id) +
-                  '" data-f="' +
-                  esc(kindId) +
-                  '" value="' +
-                  jippiIma(e2, kindId) +
-                  '">'
-                );
-              }
-              hi2 +=
-                '<tr><td>' +
-                esc(x.sha || '') +
-                '</td>' +
-                kinds
-                  .map(function (k) {
-                    return '<td>' + box(k.kind_id) + '</td>';
-                  })
-                  .join('') +
-                '</tr>';
-            });
-            $('kamiBody').innerHTML = hi2;
-            list.innerHTML = '';
-            bindYen();
-            return;
-          }
+          // ★★入力（打つ 所）は ここに 在りません★★ 2026-09-07
+          //   ★司さん★「フッターに作れってこやろがぼけ」
+          //   ⇒ ★下の 帯の「入力」（nyuryoku.html）★へ 出しました。
+          //   ここ（売上表）は ★見る 所★＝車ごと／日ごと の 2つだけ。
 
           var rows = MODE === 'day' ? DAYS : ROWS;
           if (!rows.length) {
@@ -1217,40 +1093,9 @@
         function bindYen() {
           Array.prototype.forEach.call(document.querySelectorAll('.yen'), function (i) {
             i.onchange = function () {
-              // ★★PayPay の 欄は 別の 棚へ★★ 2026-09-06（司さん「入力タブは」）
-              if (i.hasAttribute('data-ppd')) {
-                savePPD(i.getAttribute('data-ppd'), i.value);
-                return;
-              }
               saveEdit(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
             };
           });
-        }
-
-        // ★★PayPay で 受け取った 分（日ごと）を 保存する★★ 2026-09-06（司さん「入力タブは」）
-        //   ★入れる 棚★ daikome.dk_day_extras（会社×日）
-        //   ★元データ（dk_shifts / dk_trips）には 1行も 書きません★
-        function savePPD(hi, value) {
-          if (!COMPANY) return;
-          var v = num(value);
-          DKSession.rest(SESS, 'dk_day_extras?on_conflict=company_id,pay_date', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
-            body: JSON.stringify({
-              company_id: COMPANY.company_id,
-              pay_date: hi,
-              paypay_yen: v,
-              updated_at: new Date().toISOString(),
-            }),
-          })
-            .then(function (r) {
-              if (!r.ok) return saveErr('PayPay の分を保存できませんでした。', r);
-              showErr('');
-              PPD[hi] = v;
-            })
-            .catch(function () {
-              showErr('PayPay の分を保存できませんでした。');
-            });
         }
 
         // ---------- 保存（手入力ぶん・元データは触らない） ----------
@@ -1275,65 +1120,23 @@
             });
         }
 
-        // ★★古い 3つと 新しい 物を 1か所で 束ねる★★ 2026-09-06（司さん「ウ」）
-        //   ★古い 3つ（toll/bridge/other）は 列★／★足した 物は expenses（名前つき）★
-        //   ⇒ ★読む所を 1つに する★＝画面の あちこちで 食い違わない
-        //   ★古い 列は 消しません★（前の 記録が 読めなくなる 事故を 防ぐ）
-        var JIPPI_FURUI = { toll: 'toll_yen', bridge: 'bridge_yen', other: 'other_yen' };
+        // ★★実費の 読み書きの 決まりは js/jippi-hozon.js の 1か所★★ 2026-09-07
+        //   ★司さん★「フッターに作れってこやろがぼけ」で 入力画面が 別に できた。
+        //   ⇒ ★同じ 決まりを 2か所に 書かない★（片方だけ 直って 食い違うのを 防ぐ）
+        //   ★古い 3つ（toll/bridge/other）は 列／足した 物は expenses★ も その中。
         function jippiIma(e, kindId) {
-          if (!e) return 0;
-          var f = JIPPI_FURUI[kindId];
-          if (f) return e[f] || 0;
-          var x = e.expenses || {};
-          return x[kindId] || 0;
+          return JippiHozon.ima(e, kindId);
         }
-        // ★1回ぶんの 実費の 合計★（★売上から 引く 物★は 呼ぶ側が 選ぶ）
         function jippiGoukei(e, kinds, hiku) {
-          var g = 0;
-          (kinds || []).forEach(function (k) {
-            if (hiku && !hiku(k)) return;
-            g += jippiIma(e, k.kind_id) || 0;
-          });
-          return g;
+          return JippiHozon.goukei(e, kinds, hiku);
         }
 
+        // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
         function saveEdit(shiftId, field, value) {
           if (!COMPANY) return;
-          var v = parseInt(value, 10);
-          if (!isFinite(v) || v < 0) v = 0;
           var cur = (window.__editsById || {})[shiftId] || {};
-          var body = {
-            shift_id: shiftId,
-            company_id: COMPANY.company_id,
-            toll_yen: cur.toll_yen || 0,
-            bridge_yen: cur.bridge_yen || 0,
-            other_yen: cur.other_yen || 0,
-            expenses: cur.expenses || {},
-            updated_at: new Date().toISOString(),
-          };
-          // ★★古い 3つは 列へ／足した 物は expenses へ★★ 2026-09-06（司さん「ウ」）
-          //   ★どちらも 同じ ボタンから 来ます★（画面は 名前しか 知らない）
-          if (JIPPI_FURUI[field]) {
-            body[JIPPI_FURUI[field]] = v;
-          } else if (field.indexOf('_yen') > 0) {
-            body[field] = v; // ★前からの 呼び方（toll_yen 等）も そのまま 通す★
-          } else {
-            var x = {};
-            for (var k in body.expenses) x[k] = body.expenses[k];
-            x[field] = v;
-            body.expenses = x;
-          }
-
-          DKSession.rest(SESS, 'dk_shift_edits?on_conflict=shift_id', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
-            body: JSON.stringify(body),
-          })
-            .then(function (r) {
-              if (!r.ok) {
-                showErr('保存できませんでした。通信を確認してください。');
-                return;
-              }
+          JippiHozon.saveJippi(SESS, shiftId, COMPANY.company_id, cur, field, value)
+            .then(function (body) {
               showErr('');
               window.__editsById[shiftId] = body;
               recalc(); // 売上（差引後）と合計に即反映

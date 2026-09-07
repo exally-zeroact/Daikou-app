@@ -42,7 +42,15 @@ const CACHE_NAME_ROADS = 'daikome-roads-v1';
 //   理由: メーター側の同名URLは 308 で事務所へ送るが、SW がキャッシュから返すと 308 が届かず、
 //         「事務所を開いたのに古い画面が出る／直したのに変わらない」になる。
 //   ドライバーの圏外運用には無関係(メーター本体は今まで通りキャッシュから出る)。
-const OFFICE_PATHS = /^\/(dashboard|kyuryo|uriage|shukei)\.html$/;
+// ★★事務所の 画面（メーターの SW が 預からない）★★
+//   ★2026-09-07 に 2つ 足りていなかった★
+//     ・ryokinhyou.html … 2026-08-31 に 事務所へ 移した時の 足し忘れ
+//     ・nyuryoku.html …… 今日 足した 画面（司さん「フッターに作れ」）
+//   ★足りないと どうなるか★ 電波が 揺れた 時に
+//   ★事務所の URL なのに メーターが 身代わりに 出る★（README の 一番こわい間違い）
+//   ⇒ 見張り（tests/unit/dk-config-app-base-host.test.js）は
+//     ★scripts/office-allow.mjs の 名簿から 数える★ように 直した＝もう 置いていかれない。
+const OFFICE_PATHS = /^\/(dashboard|kyuryo|uriage|shukei|ryokinhyou|nyuryoku)\.html$/;
 
 const PRECACHE_FILES = [
   '/',

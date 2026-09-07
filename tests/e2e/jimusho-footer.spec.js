@@ -82,11 +82,15 @@ const GAMEN = [
   { f: 'dashboard.html', na: '会社設定' },
   { f: 'kyuryo.html', na: '給料' },
   { f: 'uriage.html', na: '売上表' },
+  // ★★入力（フッターに 1枚）★★ 2026-09-07（司さん「フッターに作れってこやろがぼけ」）
+  { f: 'nyuryoku.html', na: '入力' },
   { f: 'shukei.html', na: '月次集計' },
   { f: 'ryokinhyou.html', na: '料金表' },
 ];
 // ★並びは 司さんの 決め★ 2026-09-05「月と給料 入れ替えて」
-const SAKI = ['月次集計', '売上表', '給料', '料金表', '会社設定'];
+// ★★2026-09-07 に 1つ 増えた★★（司さん「フッターに作れってこやろがぼけ」）
+//   毎日 打つ 物（PayPay・高速代・橋代…）を 入れる 1枚。
+const SAKI = ['月次集計', '売上表', '入力', '給料', '料金表', '会社設定'];
 
 for (const g of GAMEN) {
   test('★下の 帯（' + g.f + '）★', async ({ page }) => {
@@ -124,7 +128,7 @@ for (const g of GAMEN) {
     expect(r.kotei, '★下に 貼り付いていません★').toBe('fixed');
     expect(r.shita, '★下に ぴったり 付いていません★').toBeLessThanOrEqual(1);
     expect(r.hamidashi, '★横に はみ出しています★').toBe(false);
-    // ★行き先は 5つ・どの画面でも 同じ★
+    // ★行き先は 6つ・どの画面でも 同じ★
     expect(
       r.items.map((x) => x.ji),
       '★行き先が 画面ごとに 違います★'

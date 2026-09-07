@@ -1,15 +1,16 @@
 // ============================================================
-// ★★PayPay を 打つ 所は「入力」タブ★★ 2026-09-06
+// ★★PayPay を 打つ 所は フッターの「入力」★★ 2026-09-07
 //
-//   ★司さんの言葉★「入力タブは」
+//   ★司さんの言葉★「入力タブは」→「★フッターに作れってこやろがぼけ★」
 //
 //   ★何が 悪かったか★
 //     日ごとの PayPay を ★月次集計★に 付けてしまった。
-//     司さんが 毎日 打つのは ★売上表の「入力」★。
+//     次に 売上表の 中の 札に した。それも 違う。
+//     司さんが 毎日 打つのは ★下の 帯（フッター）の「入力」＝nyuryoku.html★。
 //     ⇒ 打つ 所が 2か所に 在ると ★どちらが 本当か 分からなく なる★。
 //
 //   ★決めた 事★
-//     打つ … ★売上表の「入力」だけ★（ここで 見張る）
+//     打つ … ★フッターの「入力」だけ★（ここで 見張る）
 //     見る … 月次集計（★打つ 欄は 置かない★＝paypay-higoto.spec.js で 見張る）
 //
 //   ★形★ 1日ぶんが 1かたまり
@@ -105,10 +106,8 @@ async function hiraku(page) {
     r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"u1"}' })
   );
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/uriage.html', { waitUntil: 'domcontentloaded' });
+  await page.goto('/nyuryoku.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2400);
-  await page.click('#segIn');
-  await page.waitForTimeout(600);
 }
 
 test('★★① 入力タブに 日ごとの PayPay の 欄が 在る★★', async ({ page }) => {

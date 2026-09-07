@@ -35,6 +35,11 @@
   const SAKI = [
     { f: 'shukei.html', ic: '🧾', na: '月次集計' },
     { f: 'uriage.html', ic: '📊', na: '売上表' },
+    // ★★入力（フッターに 1枚）★★ 2026-09-07
+    //   ★司さん★「フッターに作れってこやろがぼけ」
+    //   ⇒ 毎日 打つ 物（PayPay・高速代・橋代…）は ★ここ 1か所★。
+    //   ★飲み屋（Castally）の ✍️入力 と 同じ 場所・同じ 印★
+    { f: 'nyuryoku.html', ic: '✍️', na: '入力' },
     { f: 'kyuryo.html', ic: '💰', na: '給料' },
     { f: 'ryokinhyou.html', ic: '💴', na: '料金表' },
     { f: 'dashboard.html', ic: '⚙️', na: '会社設定' },

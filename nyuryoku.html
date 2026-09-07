@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>ダイコメ 入力</title>
+    <meta name="robots" content="noindex" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>"
+    />
+    <!-- ============================================================
+         ★★その日に 入れる 分（入力）★★ 2026-09-07
+           ★司さんの言葉★「フッターに作れってこやろがぼけ」
+             ⇒ 入力は ★下の 帯（フッター）の 1枚★。売上表の 中の 札では ない。
+           ★何を 入れるか★
+             ・PayPay で 受け取った 分 …… 日ごと（dk_day_extras）
+             ・実費（高速代・橋代・会社が 足した 物）… 1回の 業務ごと（dk_shift_edits）
+           ★読み書きの 決まりは js/jippi-hozon.js の 1か所★
+             （売上表と 同じ 決まりを 2か所に 書かない）
+           ★元データ（dk_shifts / dk_trips）には 1行も 書きません★
+           ★お金の 計算（料金・距離）は この 画面に 在りません★
+         ============================================================ -->
+    <style>
+      :root {
+        --blue: #007aff;
+        --blue-d: #0a5fd0;
+        --ink: #14243d;
+        --muted: #5a6b82;
+        --bg: #f2f7ff;
+        --line: #dbe7f7;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        text-size-adjust: 100%;
+      }
+
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 12px 12px 18px;
+      }
+
+      .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .logo {
+        font-size: 19px;
+        font-weight: 800;
+        color: var(--blue-d);
+      }
+
+      .tag {
+        margin-left: 7px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #fff;
+        background: var(--blue);
+        border-radius: 999px;
+        padding: 3px 9px;
+        vertical-align: middle;
+      }
+
+      .linkbtn {
+        background: none;
+        border: none;
+        color: var(--blue);
+        font-size: 13px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+      }
+
+      .sub {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+
+      .card {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .monthbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .navb {
+        background: #eef3fa;
+        border: none;
+        border-radius: 9px;
+        padding: 8px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: inherit;
+        color: var(--blue-d);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .m {
+        font-size: 16px;
+        font-weight: 800;
+      }
+
+      .kami-ttl {
+        font-size: 15px;
+        font-weight: 800;
+        border-left: 5px solid var(--blue);
+        padding-left: 8px;
+        margin-bottom: 8px;
+      }
+
+      table.kami {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      table.kami > thead > tr > th,
+      table.kami > tbody > tr > td {
+        border: 1px solid #b9c6d8;
+        padding: 3px 2px;
+        text-align: right;
+        white-space: nowrap;
+        line-height: 1.3;
+      }
+
+      table.kami > thead > tr > th {
+        background: #eef3fa;
+        font-weight: 700;
+        text-align: center;
+        font-size: 10px;
+        line-height: 1.25;
+        white-space: normal;
+      }
+
+      table.kami > thead > tr > th:first-child,
+      table.kami > tbody > tr > td:first-child {
+        text-align: left;
+      }
+
+      /* ★★日の 帯（そこに PayPay）★★ 2026-09-07
+         ★1日ぶんが 1かたまり★に 見えるように、日の 行だけ 色を 変える。 */
+      #kamiBody .hi-obi td {
+        background: #eef3fa;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      #kamiBody .hi-ji {
+        font-weight: 700;
+        color: var(--blue-d);
+        white-space: nowrap;
+      }
+
+      #kamiBody .pp-ji {
+        margin-left: auto;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .yen {
+        width: 100%;
+        min-width: 0;
+        text-align: right;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-size: 13px;
+        font-family: inherit;
+      }
+
+      .yen:focus {
+        outline: none;
+        border-color: var(--blue);
+      }
+
+      #kamiBody .pp-yen {
+        width: 7em;
+        flex: 0 0 auto;
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.7;
+        margin-top: 10px;
+      }
+
+      .msg {
+        text-align: center;
+        color: var(--muted);
+        padding: 26px 10px;
+        font-size: 14px;
+      }
+
+      .err {
+        background: #fdecea;
+        color: #a1281e;
+        border: 1px solid #f5c2bd;
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: 13px;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div><span class="logo">ダイコメ</span><span class="tag">入力</span></div>
+        <div>
+          <button class="linkbtn" id="btnLogout">ログアウト</button>
+        </div>
+      </div>
+      <div class="sub" id="sub">読み込み中…</div>
+
+      <div class="card">
+        <div class="monthbar">
+          <button class="navb" id="prevM">‹ 前の月</button>
+          <div class="m" id="monthLabel">—</div>
+          <button class="navb" id="nextM">次の月 ›</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="kami-ttl" id="kamiTtl">その日に 入れる 分</div>
+        <table class="kami" id="kamiTbl">
+          <thead id="kamiHead"></thead>
+          <tbody id="kamiBody"></tbody>
+        </table>
+        <div class="msg" id="msg" style="display: none"></div>
+        <div class="err" id="err" style="display: none"></div>
+        <div class="note">
+          <b>PayPay</b> は その日に 受け取った 分を 日の 帯に 入れます。<br />
+          <b>高速代・橋代</b> などは 車ごとの 行に 入れます。<br />
+          打つと すぐ 保存されます（<b>売上・距離の 数字は 変わりません</b>）。
+        </div>
+      </div>
+    </div>
+
+    <script src="js/dk-config.js"></script>
+    <script src="js/dk-env-badge.js" data-modoru="office"></script>
+    <script src="js/dk-session.js"></script>
+    <script src="js/car-name.js"></script>
+    <script src="js/jippi-hozon.js"></script>
+    <script>
+      (function () {
+        'use strict';
+
+        var SESS = null;
+        var COMPANY = null;
+        var LOAD = DKSession.newLoadState();
+        var MONTH = new Date();
+        var RAW = { shifts: [], edits: [], labels: [], kinds: [] };
+        var EDITS = {}; // shift_id → 手で入れた1行
+        var PPD = {}; // '2026-09-02' → 円
+        var HIZUKE = []; // 画面に 出す 順（日 → 車）
+        var NAMAE = {}; // 端末ID → 車の名前
+
+        var $ = function (id) {
+          return document.getElementById(id);
+        };
+        function esc(s) {
+          return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+          });
+        }
+        function showErr(m) {
+          $('err').textContent = m;
+          $('err').style.display = m ? 'block' : 'none';
+        }
+        function showMsg(m) {
+          $('msg').textContent = m;
+          $('msg').style.display = m ? 'block' : 'none';
+        }
+        // ★断られた 時に「どの会社に 書こうとして 断られたか」まで 出す★
+        function saveErr(msg, r) {
+          try {
+            var st = r && r.status;
+            if (st === 401 || st === 403) {
+              var nm = (COMPANY && COMPANY.name) || '(会社が選ばれていません)';
+              return showErr(msg + ' ' + nm + ' には書き込めません。');
+            }
+          } catch (_) {
+            /* 名前が 出せなくても 元の 言い方は 出す */
+          }
+          return showErr(msg);
+        }
+
+        function ymLabel(d) {
+          return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+        }
+        function monthRange(d) {
+          var from = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0);
+          var to = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0);
+          return { from: from.toISOString(), to: to.toISOString() };
+        }
+        function dayLabel(ymd) {
+          var d = new Date(ymd + 'T00:00:00');
+          return (
+            d.getMonth() + 1 + '/' + d.getDate() + '(' + '日月火水木金土'.charAt(d.getDay()) + ')'
+          );
+        }
+
+        // ---------- 起動 ----------
+        DKSession.ensure().then(function (s) {
+          if (!s) return DKSession.goLogin();
+          SESS = s;
+          loadCompany();
+        });
+
+        $('btnLogout').onclick = function () {
+          DKSession.logout();
+        };
+        $('prevM').onclick = function () {
+          MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() - 1, 1);
+          render();
+          load();
+        };
+        $('nextM').onclick = function () {
+          MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() + 1, 1);
+          render();
+          load();
+        };
+
+        function loadCompany() {
+          DKSession.myCompanies(SESS, 'company_id,name')
+            .then(function (r) {
+              if (r && r.noUid) return 'unknown';
+              if (!r || !r.ok) return null;
+              return r.json();
+            })
+            .then(function (j) {
+              if (j === 'unknown') {
+                $('sub').textContent = '会社が分かりません。もう一度ログインしてください。';
+                return;
+              }
+              var pick = DKSession.pickCompany(j);
+              if (!pick || pick.mode !== 'one') {
+                $('sub').textContent = '会社が選ばれていません。会社設定から選んでください。';
+                return;
+              }
+              COMPANY = pick.company;
+              $('sub').textContent = COMPANY.name || '';
+              load();
+            })
+            .catch(function () {
+              $('sub').textContent = '会社が読めませんでした。';
+            });
+        }
+
+        function load() {
+          if (!COMPANY) return;
+          var r = monthRange(MONTH);
+          var q =
+            'dk_shifts?select=shift_id,device_id,started_at&company_id=eq.' +
+            encodeURIComponent(COMPANY.company_id) +
+            '&started_at=gte.' +
+            encodeURIComponent(r.from) +
+            '&started_at=lt.' +
+            encodeURIComponent(r.to) +
+            '&order=started_at.asc&limit=2000';
+          function soft(path) {
+            return DKSession.softList(SESS, path, LOAD);
+          }
+          Promise.all([
+            DKSession.rest(SESS, q).then(function (x) {
+              if (!x.ok) throw new Error('shifts');
+              return x.json();
+            }),
+            soft('dk_shift_edits?select=*&limit=2000'),
+            soft('dk_device_labels?select=*&limit=500'),
+            soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
+            soft('dk_day_extras?select=*&limit=500'),
+          ])
+            .then(function (res) {
+              RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
+              RAW.edits = Array.isArray(res[1]) ? res[1] : [];
+              RAW.labels = Array.isArray(res[2]) ? res[2] : [];
+              // ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
+              RAW.kinds = (Array.isArray(res[3]) ? res[3] : []).filter(function (k) {
+                return k && k.active !== false;
+              });
+              if (!RAW.kinds.length) {
+                RAW.kinds = [
+                  { kind_id: 'toll', label: '高速代', sort_order: 10 },
+                  { kind_id: 'bridge', label: '橋代', sort_order: 20 },
+                  { kind_id: 'other', label: 'その他', sort_order: 30 },
+                ];
+              }
+              EDITS = {};
+              RAW.edits.forEach(function (e) {
+                if (e && e.shift_id) EDITS[e.shift_id] = e;
+              });
+              PPD = {};
+              (Array.isArray(res[4]) ? res[4] : []).forEach(function (x) {
+                if (x && x.pay_date) {
+                  PPD[String(x.pay_date).slice(0, 10)] = JippiHozon.seisuu(x.paypay_yen);
+                }
+              });
+              narabe();
+              render();
+              DKSession.showUnknownBar(LOAD, load);
+            })
+            .catch(function () {
+              showErr('読み込めませんでした。通信を確認してください。');
+            });
+        }
+
+        // ★日 → 車 の 順に 並べる★（1日ぶんが 1かたまりに なる）
+        function narabe() {
+          var ids = [];
+          RAW.shifts.forEach(function (s) {
+            if (s && s.device_id && ids.indexOf(s.device_id) < 0) ids.push(s.device_id);
+          });
+          // ★車の 名前は 1か所（js/car-name.js）で 決める★＝UUIDは 画面に 出さない
+          NAMAE = CarName.nameMap(ids, RAW.labels);
+          HIZUKE = RAW.shifts
+            .filter(function (s) {
+              return s && s.shift_id && s.started_at;
+            })
+            .map(function (s) {
+              return { hi: String(s.started_at).slice(0, 10), sid: s.shift_id, dev: s.device_id };
+            })
+            .sort(function (a, b) {
+              if (a.hi !== b.hi) return a.hi < b.hi ? -1 : 1;
+              var an = NAMAE[a.dev] || '';
+              var bn = NAMAE[b.dev] || '';
+              return an < bn ? -1 : an > bn ? 1 : 0;
+            });
+        }
+
+        function render() {
+          $('monthLabel').textContent = ymLabel(MONTH);
+          if (!HIZUKE.length) {
+            $('kamiHead').innerHTML = '';
+            $('kamiBody').innerHTML = '';
+            showMsg('この月は まだ 記録が ありません。');
+            return;
+          }
+          showMsg('');
+          var kinds = RAW.kinds;
+          $('kamiHead').innerHTML =
+            '<tr><th>車</th>' +
+            kinds
+              .map(function (k) {
+                return '<th>' + esc(k.label) + '</th>';
+              })
+              .join('') +
+            '</tr>';
+
+          var haba = kinds.length + 1; // 車 ＋ 実費の 数
+          var maeNoHi = '';
+          var html = '';
+          HIZUKE.forEach(function (x) {
+            // ★日が 変わったら 日の 帯を 出す（そこに PayPay）★
+            if (x.hi !== maeNoHi) {
+              maeNoHi = x.hi;
+              html +=
+                '<tr class="hi-obi"><td colspan="' +
+                haba +
+                '"><span class="hi-ji">' +
+                dayLabel(x.hi) +
+                '</span><span class="pp-ji">PayPay</span>' +
+                '<input class="yen pp-yen" data-ppd="' +
+                esc(x.hi) +
+                '" value="' +
+                (PPD[x.hi] || '') +
+                '"></td></tr>';
+            }
+            var e = EDITS[x.sid] || {};
+            html +=
+              '<tr><td>' +
+              esc(NAMAE[x.dev] || '車') +
+              '</td>' +
+              kinds
+                .map(function (k) {
+                  return (
+                    '<td><input class="yen" data-sid="' +
+                    esc(x.sid) +
+                    '" data-f="' +
+                    esc(k.kind_id) +
+                    '" value="' +
+                    JippiHozon.ima(e, k.kind_id) +
+                    '"></td>'
+                  );
+                })
+                .join('') +
+              '</tr>';
+          });
+          $('kamiBody').innerHTML = html;
+          bindYen();
+        }
+
+        function bindYen() {
+          Array.prototype.forEach.call(document.querySelectorAll('.yen'), function (i) {
+            i.onchange = function () {
+              if (i.hasAttribute('data-ppd')) {
+                savePP(i.getAttribute('data-ppd'), i.value);
+                return;
+              }
+              saveJippi(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
+            };
+          });
+        }
+
+        // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
+        function saveJippi(shiftId, field, value) {
+          if (!COMPANY) return;
+          JippiHozon.saveJippi(SESS, shiftId, COMPANY.company_id, EDITS[shiftId], field, value)
+            .then(function (body) {
+              showErr('');
+              EDITS[shiftId] = body;
+            })
+            .catch(function (r) {
+              saveErr('保存できませんでした。通信を確認してください。', r);
+            });
+        }
+
+        function savePP(hi, value) {
+          if (!COMPANY) return;
+          JippiHozon.savePaypay(SESS, COMPANY.company_id, hi, value)
+            .then(function (v) {
+              showErr('');
+              PPD[hi] = v;
+            })
+            .catch(function (r) {
+              saveErr('PayPay の分を保存できませんでした。', r);
+            });
+        }
+      })();
+    </script>
+    <script src="js/jimusho-footer.js"></script>
+  </body>
+</html>

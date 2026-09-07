@@ -286,15 +286,27 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
 });
 
 describe('★事務所の画面をメーターのSWが預からないこと★', () => {
-  it('sw.js に OFFICE_PATHS があり、4画面を含む', () => {
+  // ★★見る 範囲を 先に 数える★★ 2026-09-07
+  //   ★前★ ここに ★4画面を 手で 書いていた★
+  //     ⇒ 事務所の 画面が 増えても ★この 見張りは 気づかない★
+  //     ⇒ 実際 ryokinhyou.html（2026-08-31 に 移した）が ★1年 近く 抜けていた★
+  //   ★今★ ★名簿（scripts/office-allow.mjs の OFFICE_PAGES）から 数える★
+  //     ＝画面を 足したら 自動で ここも 増える（置いていかれない）
+  it('sw.js の OFFICE_PATHS が 事務所の 画面を 全部 含む', async () => {
+    const OA = await import('../../scripts/office-allow.mjs');
     const src = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
     const m = src.match(/const\s+OFFICE_PATHS\s*=\s*(\/.+\/)\s*;/);
     expect(m, 'OFFICE_PATHS が無い').toBeTruthy();
     // eslint-disable-next-line no-eval
     const re = eval(m[1]);
-    ['/dashboard.html', '/kyuryo.html', '/uriage.html', '/shukei.html'].forEach((p) => {
-      expect(re.test(p), p + ' が OFFICE_PATHS に入っていない').toBe(true);
-    });
+    // ★login.html は 事務所の 画面では ない（誰でも 開く 入口）ので 外す★
+    const gamen = OA.OFFICE_PAGES.filter((f) => f !== 'login.html');
+    expect(gamen.length, '★名簿が 読めていません★').toBeGreaterThan(4);
+    const nai = gamen.filter((f) => !re.test('/' + f));
+    expect(
+      nai,
+      '★OFFICE_PATHS に 入っていない 事務所の 画面が あります★ ⇒ 電波が 揺れた 時に ★メーターが 身代わりに 出ます★'
+    ).toEqual([]);
     // メーター本体は絶対に含めない（含めたら圏外で業務が止まる）
     ['/', '/index.html', '/sw.js'].forEach((p) => {
       expect(re.test(p), '★' + p + ' を含めてはいけない（圏外運用が壊れる）★').toBe(false);
