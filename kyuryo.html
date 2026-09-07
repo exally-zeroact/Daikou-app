@@ -1123,7 +1123,11 @@
                        司さん「個人個人で給料明細に載せるかも選びたいんや
                                山田太郎は車1、山田花子は車2と3とかカスタムしたい」
                        ★何も付けなければ 会社の決まりどおり★ -->
-                  <th>明細に出す車<span class="th-sub">何も付けない=会社の決まりどおり</span></th>
+                  <th>
+                    明細に出す車<span class="th-sub"
+                      >この人だけ／何も付けない=会社の決まりどおり</span
+                    >
+                  </th>
                 </tr>
               </thead>
               <tbody id="empBody" class="emp-body"></tbody>
@@ -1190,7 +1194,11 @@
                   <th>今の呼び方</th>
                   <th>名前<span class="th-sub">空欄=車1・車2…</span></th>
                   <th>並び<span class="th-sub">小さい順</span></th>
-                  <th>明細に出す<span class="th-sub">外すと出ません</span></th>
+                  <!-- ★★同じ名前で 2か所 在り 混乱の元だった★★ 2026-09-06（司さん
+                       「なぜここにも明細に出すチェック欄がある」）
+                       ★別物です★ … ここは ★会社ぜんぶ★／従業員タブのは ★その人だけ★
+                       ⇒ ★名前で 分かるように する★（消さない・中身も 変えない） -->
+                  <th>明細に出す<span class="th-sub">会社ぜんぶ／外すと出ません</span></th>
                 </tr>
               </thead>
               <tbody id="carBody" class="car-body"></tbody>
@@ -1264,28 +1272,33 @@
 
         <div class="card kv-pane">
           <div class="title" style="font-weight: 800; margin-bottom: 10px">明細の期間</div>
+          <!-- ★★払い方を 先に 選ぶ★★ 2026-09-06（司さん「明細の期間のやり方がまったく理解できない」）
+               ★前★ 「何日から」「払い方」「日数」が ★同じ 重さで 3つ 並んでいた★
+                 ⇒ どれが どれに 効くのか 見えない（月3回なら 2つとも 要らない）
+               ★今★ ★払い方を 一番 上に★ ⇒ ★選んだ 物に 要る 欄だけ 出す★ -->
           <table>
             <tbody>
-              <tr>
-                <td>何日から（月1回・日数で切るとき）</td>
-                <td><input class="hrs" id="pStart" /> 日</td>
-              </tr>
               <tr>
                 <td>払い方</td>
                 <td>
                   <select id="pMode">
                     <option value="thirds">月3回（1〜10日 / 11〜20日 / 21日〜末日）</option>
-                    <option value="month_end">月1回（下の「何日から」〜末日）</option>
+                    <option value="month_end">月1回（何日から〜末日）</option>
                     <option value="days">日数で切る</option>
                   </select>
                 </td>
               </tr>
-              <tr>
-                <td>日数（日数で切るとき）</td>
+              <tr id="pStartRow">
+                <td>何日から</td>
+                <td><input class="hrs" id="pStart" /> 日</td>
+              </tr>
+              <tr id="pDaysRow">
+                <td>何日ごとに 切る</td>
                 <td><input class="hrs" id="pDays" /> 日</td>
               </tr>
             </tbody>
           </table>
+          <div class="note" id="pMsg" style="margin-top: 8px"></div>
           <div style="margin-top: 12px">
             <button class="btn" id="btnSaveSet">保存する</button>
             <span class="saved" id="setSaved"></span>
@@ -4146,8 +4159,44 @@
         }
 
         // ── 決め方 ─────────────────────────────
+        // ★★払い方で 要る 欄だけ 出す★★ 2026-09-06（司さん
+        //   「明細の期間のやり方がまったく理解できない」）
+        //   ★前★ 3つが 同じ 重さで 並び、どれが どれに 効くか 見えなかった
+        //     （月3回なら「何日から」も「日数」も 使わないのに 出ていた）
+        //   ★今★ 払い方を 選ぶ ⇒ ★その 払い方に 要る 欄だけ★ 出す ＋ 今の 区切りを 字で 出す
+        function kikanDashiwake() {
+          var m = ($('pMode') || {}).value || 'thirds';
+          var s1 = $('pStartRow');
+          var s2 = $('pDaysRow');
+          var ms = $('pMsg');
+          // ★月3回★ … 区切りは 決まっている（1〜10 / 11〜20 / 21〜末日）＝欄は 要らない
+          // ★月1回★ … 「何日から」だけ 要る
+          // ★日数で切る★ … 「何日から」と「何日ごと」の 両方
+          if (s1) s1.style.display = m === 'thirds' ? 'none' : '';
+          if (s2) s2.style.display = m === 'days' ? '' : 'none';
+          if (!ms) return;
+          var d1 = Number(($('pStart') || {}).value) || 21;
+          var d2 = Number(($('pDays') || {}).value) || 11;
+          if (m === 'thirds') {
+            ms.textContent = '今の 区切り … 1〜10日 ／ 11〜20日 ／ 21日〜末日（月3回）';
+          } else if (m === 'month_end') {
+            ms.textContent = '今の 区切り … ' + d1 + '日 〜 翌月の 前日（月1回）';
+          } else {
+            ms.textContent = '今の 区切り … ' + d1 + '日から ' + d2 + '日ごと';
+          }
+        }
+        (function wireKikan() {
+          ['pMode', 'pStart', 'pDays'].forEach(function (id) {
+            var n = $(id);
+            if (!n) return;
+            n.addEventListener('change', kikanDashiwake);
+            n.addEventListener('input', kikanDashiwake);
+          });
+        })();
+
         function renderSet() {
           var st = PayrollDaily.normSettings(SET);
+          kikanDashiwake();
           var html = '';
           // data-l は★スマホで1行1枚にした時の見出し★（横スクロールさせない）
           Object.keys(st.roles).forEach(function (r) {
