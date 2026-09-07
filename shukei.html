@@ -513,6 +513,18 @@
       .fselect:focus {
         border-color: #007aff;
       }
+
+      /* ★★内訳の 紙★★ 2026-09-06（司さん「なんで紙で見せるになってないんど」）
+         ★大事な 行（売上・会社に残る分）だけ 薄く 塗る★＝前の「hi」と 同じ 意味 */
+      #kpis td.kk {
+        text-align: left;
+        white-space: normal;
+      }
+
+      #kpis tr.hi > td {
+        background: #eef5ff;
+        font-weight: 800;
+      }
     </style>
   </head>
   <body>
@@ -1464,19 +1476,28 @@
             { k: '積立金', v: m.reserve },
             { k: '会社に残る分', v: m.ownerShare, hi: true },
           ];
-          $('kpis').innerHTML = items
-            .map(function (i) {
-              return (
-                '<div class="kpi' +
-                (i.hi ? ' hi' : '') +
-                '"><div class="k">' +
-                esc(i.k) +
-                '</div><div class="v">¥' +
-                yen(i.v) +
-                '</div></div>'
-              );
-            })
-            .join('');
+          // ★★内訳も 紙で 見せる★★ 2026-09-06（司さん「なんで紙で見せるになってないんど」）
+          //   ★前★ 1つ 1つが 大きい 箱＝★11個で 画面 3枚ぶん★（スクロールしないと 読めない）
+          //   ★司さんの 前の 指示★「給料明細以外は 分かりやすいように 紙にして
+          //                         スクロールせんでええようにしろ」
+          //   ⇒ 月ごと・売上表・料金表と ★同じ table.kami★（罫線の 紙）に そろえる
+          //   ★数字は 1つも 変えていません★（出す 順も 同じ）
+          $('kpis').innerHTML =
+            '<table class="kami"><thead><tr><th>項目</th><th>金額</th></tr></thead><tbody>' +
+            items
+              .map(function (i) {
+                return (
+                  '<tr' +
+                  (i.hi ? ' class="hi"' : '') +
+                  '><td class="kk">' +
+                  esc(i.k) +
+                  '</td><td>¥' +
+                  yen(i.v) +
+                  '</td></tr>'
+                );
+              })
+              .join('') +
+            '</tbody></table>';
         }
 
         function renderPP() {

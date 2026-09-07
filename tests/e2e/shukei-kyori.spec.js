@@ -379,3 +379,40 @@ test('★★月を 選ぶと 内訳が 切り替わる（代行請求書と 同�
   expect(ato.ima, '★選んだ 月が 残っていません★').toBe('9');
   expect(ato.ttl, '★内訳が その月に 切り替わっていません★').toContain('9月の内訳');
 });
+
+// ★★内訳も 紙で 見せる★★ 2026-09-06（司さん「なんで紙で見せるになってないんど」）
+//   ★前★ 1つ 1つが 大きい 箱＝11個で ★画面 3枚ぶん★（スクロールしないと 読めない）
+//   ★司さんの 前の 指示★「給料明細以外は 分かりやすいように 紙にして
+//                         スクロールせんでええようにしろ」
+//   ⇒ 月ごと・売上表・料金表と ★同じ table.kami★（罫線の 紙）に そろえる
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
+//     ①紙を やめて 元の 箱に 戻す … ★赤★
+//     ②項目を 1つ 減らす ……… ★赤★（11行 の 数が 合わない）
+test('★★内訳が 紙（罫線の表）で 出る／短い★★', async ({ page }) => {
+  await hiraku(page);
+  const r = await page.evaluate(() => {
+    const box = document.getElementById('kpis');
+    const t = box ? box.querySelector('table.kami') : null;
+    const tr = t ? [...t.querySelectorAll('tbody tr')] : [];
+    return {
+      kami: !!t,
+      head: t ? [...t.querySelectorAll('thead th')].map((x) => x.textContent.trim()) : [],
+      gyou: tr.length,
+      hi: t ? t.querySelectorAll('tbody tr.hi').length : 0,
+      atama: tr.length ? tr[0].children[0].textContent.trim() : '',
+      takasa: box ? Math.round(box.getBoundingClientRect().height) : 0,
+      hamidashi: box ? box.scrollWidth - box.clientWidth : 0,
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★内訳の 紙★ ' + JSON.stringify(r));
+  expect(r.kami, '★紙（罫線の表）に なっていません★').toBe(true);
+  expect(r.head, '★見出しが 違います★').toEqual(['項目', '金額']);
+  expect(r.gyou, '★項目の 数が 合いません★').toBe(11);
+  expect(r.hi, '★大事な 行（売上・会社に残る分）の 印が ありません★').toBe(2);
+  expect(r.atama, '★1行目が 売上では ありません★').toContain('売上');
+  // ★横に すべらない★（司さんの 決め）
+  expect(r.hamidashi, '★横に はみ出しています★').toBeLessThanOrEqual(1);
+  // ★短い★＝1画面（844px）に 収まる
+  expect(r.takasa, '★長すぎます（画面に 収まりません）★').toBeLessThan(844);
+});
