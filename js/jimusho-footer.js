@@ -106,33 +106,36 @@
       '.dk-foot-i.on{color:#1e6bff}' +
       '.dk-foot-ic{font-size:18px;line-height:1}' +
       '.dk-foot-lb{font-size:10px;font-weight:700;white-space:nowrap}' +
-      // ★★戻る（下の 帯の すぐ上）★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
-      '.dk-modoru{position:fixed;bottom:66px;left:10px;z-index:61;' +
+      // ★★戻る（頭の 一番 左）★★ 2026-09-06（司さん「なんでこんなとこおいとんど」）
+      //   ★浮かせません★＝中身を 1px も 隠さない
+      '.dk-modoru{margin-right:8px;vertical-align:middle;' +
       'background:#fff;border:1px solid #d7e3f5;border-radius:999px;' +
-      'padding:7px 14px;font-size:13px;font-weight:700;color:#1e6bff;' +
-      "cursor:pointer;font-family:'Noto Sans JP',sans-serif;" +
-      'box-shadow:0 2px 8px rgba(30,80,140,.12)}' +
-      // ★帯に 隠れないように 下を 空ける★（戻るの 分も 入れて）
-      'body{padding-bottom:104px}' +
+      'padding:5px 11px;font-size:13px;font-weight:700;color:#1e6bff;' +
+      "cursor:pointer;font-family:'Noto Sans JP',sans-serif}" +
+      // ★帯に 隠れないように 下を 空ける★
+      'body{padding-bottom:62px}' +
       '@media print{.dk-foot,.dk-modoru{display:none!important}body{padding-bottom:0}}';
     document.head.appendChild(css);
     document.body.appendChild(nav);
 
     // ★★戻る（全部の 画面）★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
-    //   ★行き先と 同じで ★ここ 1か所★★（画面ごとに 手書きしない＝バラバラに ならない）
-    //   ★出し方★ 下の 帯の ★すぐ上★ に 小さく 置く（帯と 重ならない）
-    //   ★何をするか★ ①前の 画面へ 戻る（history が 在る時）
-    //                 ②無ければ ★会社設定★ へ（事務所の 入口）
-    //   ★紙には 出しません★（noprint）／★本人モードでは そもそも 帯ごと 出ません★
+    //   ★★置き場所を 直しました★★ 2026-09-06（司さん「なんでこんなとこおいとんど」）
+    //     ★前★ 画面の 左下に ★浮かせていた★
+    //       ⇒ 中身の 上に 被る／下の 帯と 近い／★探す 所では ない★
+    //     ★今★ ★頭（ロゴの 左）★に 入れる＝★他の アプリと 同じ 場所★
+    //       ⇒ 浮かせない＝中身を 1px も 隠しません
+    //   ★行き先は ここ 1か所★（画面ごとに 手書きしない）
+    //   ★何をするか★ ①前の 画面へ 戻る ②無ければ ★会社設定★ へ
+    //   ★紙には 出しません★／★本人モードでは そもそも 帯ごと 出ません★
     if (!document.getElementById('dkModoru')) {
       const b = document.createElement('button');
       b.id = 'dkModoru';
       b.type = 'button';
       b.className = 'dk-modoru noprint';
       b.textContent = '← 戻る';
+      b.setAttribute('aria-label', '前の画面へ戻る');
       b.onclick = function () {
         try {
-          // ★この 画面に 来る前が 在るか★（新しい タブで 開いた時は 無い）
           if (window.history.length > 1) {
             window.history.back();
             return;
@@ -142,7 +145,13 @@
         }
         window.location.href = 'dashboard.html';
       };
-      document.body.appendChild(b);
+      // ★頭の 一番 左★（ロゴの 前）に 入れる
+      //   ★5枚とも 同じ 形★＝<div class="top"> の 中の 1つ目の かたまり
+      const top = document.querySelector('.top');
+      const hidari = top ? top.firstElementChild : null;
+      if (hidari) hidari.insertBefore(b, hidari.firstChild);
+      else if (top) top.insertBefore(b, top.firstChild);
+      else document.body.appendChild(b); // ★頭が 無い 画面でも 出す（最後の 手）★
     }
   }
 
