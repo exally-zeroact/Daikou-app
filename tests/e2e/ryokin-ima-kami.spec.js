@@ -192,3 +192,51 @@ test('★決める（?henshu=1）＝入力が 出る★', async ({ page }) => {
   expect(r2.nyuryoku, '★入力が 出ていません★').toBeGreaterThan(5);
   expect(r2.hozon, '★保存が 出ていません★').toBe(true);
 });
+
+// ★★何キロで いくらの 表★★ 2026-09-06（司さん）
+//   ★司さんの言葉★「なぜ料金表ってゆうて何キロ走って何円の表がここに出ない」
+//   ★この表は メーター（index.html）の 中にしか 在りませんでした★（2026-09-01）。
+//   ⇒ 料金表の 画面にも 出す。★計算は js/fare-calc.js（メーターと 同じ 1か所）★を 呼ぶ
+//     ＝★表の 金額と 実際に 取る 金額が ずれない★
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
+//     ①kmKami() の 呼び出しを 消す … ★赤★
+//     ②基本料金を 1300→9999 に した 表と 突き合わせる … ★赤★（数が 動く）
+test('★★何キロで いくらの 表が 出る（金額は 計算機と 同じ）★★', async ({ page }) => {
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(),
+    })
+  );
+  await page.route('**/rest/v1/**', (r) => {
+    const u = r.request().url();
+    const body =
+      u.indexOf('dk_fare_config') >= 0
+        ? [{ config: CFG, updated_at: '2026-09-05T10:00:00Z', updated_by: null }]
+        : [];
+    return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/ryokinhyou.html', { waitUntil: 'domcontentloaded' });
+  await page.locator('#kmBody tr').first().waitFor({ state: 'visible', timeout: 25000 });
+  const r = await page.evaluate(() => {
+    const tr = [...document.querySelectorAll('#kmBody tr')];
+    const yomu = (t) => Number(String(t || '').replace(/[^0-9]/g, ''));
+    return {
+      gyou: tr.length,
+      atama: tr.length ? tr[0].children[0].textContent.trim() : '',
+      hajime: tr.length ? yomu(tr[0].children[1].textContent) : null,
+      tsugi: tr.length > 1 ? yomu(tr[1].children[1].textContent) : null,
+      note: (document.getElementById('kmNote') || {}).textContent || '',
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★何キロで いくら★ ' + JSON.stringify(r));
+  expect(r.gyou, '★表が 出ていません★').toBeGreaterThan(5);
+  expect(r.atama, '★1行目が「最初の」で 始まっていません★').toContain('最初の');
+  // ★金額は 料金表の 中身と 合っているか★（自分で 数字を 書かない＝CFG から 出す）
+  expect(r.hajime, '★最初の 金額が 基本料金と 違います★').toBe(CFG.base_fare);
+  expect(r.tsugi, '★2行目が 基本料金＋加算に なっていません★').toBe(CFG.base_fare + CFG.add_fare);
+  expect(r.note, '★いつの 金額かが 書いてありません★').toContain('今の 時間');
+});

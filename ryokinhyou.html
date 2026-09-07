@@ -415,6 +415,23 @@
             <tbody id="imaBody"></tbody>
           </table>
           <div class="note" id="motoNote"></div>
+          <!-- ★★何キロ 走ったら 何円★★ 2026-09-06（司さん）
+               ★司さんの言葉★「なぜ料金表ってゆうて何キロ走って何円の表がここに出ない」
+               ★この表は メーターの 中にしか 在りませんでした★（index.html・2026-09-01）。
+               ⇒ 料金表の 画面にも 出します。
+               ★計算は js/fare-calc.js（メーターと 同じ 1か所）を 呼びます★
+                 ＝★表に 出る 金額と 実際に 取る 金額が ずれません★ -->
+          <div class="kami-ttl" style="margin-top: 14px">何キロで いくら</div>
+          <table class="kami" id="kmTbl">
+            <thead>
+              <tr>
+                <th>ここまで</th>
+                <th>いくら</th>
+              </tr>
+            </thead>
+            <tbody id="kmBody"></tbody>
+          </table>
+          <div class="note" id="kmNote"></div>
           <!-- ★★見るだけの 時★★ 2026-09-05（司さん「会社の設定で 料金 触るようにしろ」）
                ★決めるのは 会社設定★＝ここは 今 いくらかを 見る 所。 -->
           <div id="miruDake" style="display: none; margin-top: 10px">
@@ -1065,6 +1082,50 @@
         // ★★今の 中身を 紙の 表で 出す★★ 2026-09-05（司さん）
         //   ★今 入っている 値を そのまま 並べるだけ★＝計算は 1行も 触っていません
         //   ★4列まで★＝横に すべりません（実測 1列 82px）
+        // ★★何キロで いくら（メーターと 同じ 計算機を 呼ぶ）★★ 2026-09-06（司さん）
+        //   ★自分で 計算しません★＝FareCalc.keisan（js/fare-calc.js）に 渡すだけ。
+        //   ★今の 時間で 出します★（深夜・土日・冬の 割増が 効く 時間なら その分も 入る）
+        function kmKami() {
+          var tb = $('kmBody');
+          var note = $('kmNote');
+          if (!tb) return;
+          tb.innerHTML = '';
+          var c = ZENBU;
+          if (!c) {
+            if (note) note.textContent = '料金表が まだ 取れていません。';
+            return;
+          }
+          var base = typeof c.base_distance_m === 'number' ? c.base_distance_m : 1000;
+          var add = c.add_distance_m > 0 ? c.add_distance_m : 420;
+          var MAX = 22000;
+          var now = new Date();
+          var li = [];
+          for (var d = base; d <= MAX; d += add) li.push(d);
+          if (li[li.length - 1] < MAX) li.push(MAX);
+          var h = '';
+          li.forEach(function (m, i) {
+            var en = null;
+            try {
+              en = FareCalc.keisan(m, c, null, new Set(), 0, now);
+            } catch (_) {
+              en = null;
+            }
+            h +=
+              '<tr><td>' +
+              (i === 0 ? '最初の ' : '') +
+              (m >= 1000 ? (m / 1000).toFixed(2) + ' km' : m + ' m') +
+              '</td><td>' +
+              (en == null ? '—' : en.toLocaleString('ja-JP') + '円') +
+              '</td></tr>';
+          });
+          tb.innerHTML = h;
+          if (note) {
+            note.textContent =
+              '★今の 時間で 出した 金額★です（深夜・土日・冬の 割増が 効く 時間帯なら その分も 入っています）。' +
+              '待ち時間・追加料金・値引きは 入っていません。';
+          }
+        }
+
         function imaKami() {
           var c = ZENBU || {};
           var h = '<tr><th>区分</th><th>いくら</th><th>どこまで</th><th>それ以降</th></tr>';
@@ -1131,6 +1192,7 @@
 
         function fuda() {
           imaKami();
+          kmKami();
           dashiwake();
           $('itsuno').textContent = window.FareConfigStore.fudaKaeta(
             { updated_at: UPDATED_AT, updated_by: UPDATED_BY },
