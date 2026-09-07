@@ -39,6 +39,17 @@
 //   終了コード: 0=全部一致 / 1=違いあり
 // ============================================================
 import { HOSTS, sideOf } from './dk-hosts.mjs';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+// ★★この repo が どちら側かは 1か所から 出す★★ 2026-09-06
+//   ★手で 書くと 反対側に なります★（実際に なっていました＝2026-09-06 に 見つかった）
+//   ⇒ ★お客さんの 画面が 使う js/dk-config.js★ を そのまま 読む。
+const DK_CFG = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '..', 'js', 'dk-config.js'),
+  'utf8'
+);
 
 // 事務所で必ず開けなければいけない画面
 export const OFFICE_SCREENS = [
@@ -284,8 +295,22 @@ if (isMain) {
   //   ★本番の repo の中に テスト倉庫へ繋ぐ字が在る★状態で、
   //   「倉庫の向き先」の見張りに 正しく引っかかった。
   //   ⇒ ★自分の倉庫だけ書く。反対側は そちらの repo で回す★（環境を混ぜない）
-  const MY_SIDE = 'test';
-  const MY_AUTH = 'https://khawdrnvssdenumbiwfg.supabase.co';
+  // ★★2026-09-06：本番の repo なのに ★テスト側★ に なっていました★★
+  //   ★指示役の 週1の 見張りが 見つけました★（倉庫の 向き先を 数える 物）
+  //   ★何が 悪かったか★
+  //     `--side` を 付けずに 走らせると `MY_SIDE` の 側だけを 見ます。
+  //     ここが 'test' だった ⇒★本番側の 戻り先を ★一度も 見ていませんでした★★
+  //     ＝『守っているつもりで 何も 見ていない』（今日 決まりに した 形）
+  //   ★すぐ上に 私が 自分で「自分の倉庫だけ書く」と 書いていたのに 破っていました★
+  //   ⇒ 人が 気を つけるでは 止まらないので
+  //     ★tests/unit/dougu-no-mukisaki.test.js★（repo の 向き先と 道具の 向き先が
+  //     同じかを 機械が 数える）を 置きました。
+  //   ★向き先は 1か所（js/dk-config.js）から 出す★＝二度と 手で 書かない。
+  const MY_SIDE = DK_CFG.includes('tnfwipbgfgjaymlszeid') ? 'prod' : 'test';
+  const MY_AUTH =
+    MY_SIDE === 'prod'
+      ? 'https://tnfwipbgfgjaymlszeid.supabase.co'
+      : 'https://khawdrnvssdenumbiwfg.supabase.co';
   if (asked && asked !== MY_SIDE) {
     console.log(
       `★この repo は ${MY_SIDE} 側だけを見ます★（--side ${asked} は見ません）
