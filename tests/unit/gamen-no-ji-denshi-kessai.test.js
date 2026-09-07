@@ -6,7 +6,8 @@
 //
 //   ★決めた 事★
 //     ・★お客さん（司さん）に 見える 字★ … ★電子決済★
-//       （例として「PayPay・楽天ペイ・交通系など」と 添えるのは よい）
+//       ★2026-09-08 に もっと きつく した★（司さん「書いてるとこ全部」）
+//       ⇒ ★例として 添えるのも だめ★＝画面に PayPay の 字を 1つも 出さない
 //     ・★倉庫の 列の 名前★ ……………… ★paypay_yen の まま★
 //       ⇒ 名前を 変えると ★前に 入れた 分が 読めなくなる★（事故）
 //
@@ -49,22 +50,19 @@ describe('★画面に 出す 字は「電子決済」★', () => {
     });
   });
 
-  it('★③ 「PayPay」を 見出し・ラベルに 使っていない★', () => {
+  it('★③ 画面に PayPay の 字が 1つも 無い★', () => {
     const warui = [];
     GAMEN.forEach((f) => {
       const h = honbun(f);
-      // ★例として 挙げる のは よい★＝「電子決済＝PayPay・楽天ペイ…」の 形だけ 許す
       const re = /PayPay/g;
       let m;
       while ((m = re.exec(h))) {
-        const mae = h.slice(Math.max(0, m.index - 30), m.index);
-        const rei = mae.indexOf('電子決済') >= 0;
-        if (!rei) warui.push(f + ' … 「' + h.slice(m.index - 20, m.index + 20).trim() + '」');
+        warui.push(f + ' … 「' + h.slice(m.index - 20, m.index + 20).trim() + '」');
       }
     });
     expect(
       warui,
-      '★PayPay が 見出し／ラベルに 残っています★ ⇒ 司さん「PayPayやなくて電子決済にして」'
+      '★PayPay の 字が 画面に 残っています★ ⇒ 司さん「PayPayって書いてるとこ全部電子決済にしてな」'
     ).toEqual([]);
   });
 

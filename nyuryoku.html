@@ -263,7 +263,7 @@
           <span class="flabel">この日に 受け取った 分（円）</span>
           <input class="finput fnum" type="number" inputmode="numeric" min="0" id="ppYen" />
           <span class="hint"
-            >電子決済＝PayPay・楽天ペイ・交通系など。現金でも 請求書でもない 分。<br />
+            >現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
             打つと すぐ 保存されます。</span
           >
         </div>
@@ -296,7 +296,7 @@
         var RAW = { shifts: [], labels: [], kinds: [] };
         var EDITS = {}; // shift_id → 手で入れた1行
         var NAMAE = {}; // 端末ID → 車の名前
-        var PP = 0; // その日の PayPay
+        var PP = 0; // その日の 電子決済
 
         var $ = function (id) {
           return document.getElementById(id);

@@ -267,7 +267,7 @@ create table if not exists dk_payroll_settings (
   updated_at                 timestamptz default now()
 );
 
--- 6-7) 月次集計の手入力ぶん（PayPay など。メーターが区別していない受け取り方）
+-- 6-7) 月次集計の手入力ぶん（電子決済 など。メーターが区別していない受け取り方）
 create table if not exists dk_month_extras (
   company_id uuid not null references dk_companies(company_id) on delete cascade,
   ym         text not null,                       -- '2026-01'

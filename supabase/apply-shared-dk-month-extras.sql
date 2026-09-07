@@ -7,17 +7,17 @@
 --       ★1バイトも触らない★
 --
 --   ▼何のためか
---     実物『売上表』シートは 現金 / 請求書 / PayPay の3つに分けている。
+--     実物『売上表』シートは 現金 / 請求書 / 電子決済 の3つに分けている。
 --       ・請求書 … 実車中に請求書ボタンで会社を選んだ代行から自動で集まる（dk_trips）
 --       ・現金   … 売上合計 − 未収 で出せる
---       ・PayPay … ★メーターが区別していないので手入力する場所が要る★
+--       ・電子決済 … ★メーターが区別していないので手入力する場所が要る★
 --     月ごとに1行だけ持つ。日ごとに要るようになったら別表を足す（この表は壊さない）。
 -- ============================================================================
 
 create table if not exists dk_month_extras (
   company_id uuid not null references dk_companies(company_id) on delete cascade,
   ym         text not null,                       -- '2026-01'
-  paypay_yen double precision not null default 0, -- PayPayで受け取った分（手入力）
+  paypay_yen double precision not null default 0, -- 電子決済で受け取った分（手入力）
   note       text default '',
   updated_at timestamptz default now(),
   primary key (company_id, ym)

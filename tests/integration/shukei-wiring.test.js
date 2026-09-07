@@ -73,10 +73,10 @@ describe('★元データは書き換えない★', () => {
 
   // ★★2026-09-06 … 一度 2つに して、また 1つに 戻した★★
   //   ★司さん★「入力タブは」
-  //   ⇒ 日ごとの PayPay を ここでも 打てるように したが、
+  //   ⇒ 日ごとの 電子決済 を ここでも 打てるように したが、
   //     ★打つ 所が 2か所★に なると どちらが 本当か 分からなく なる。
   //   ⇒ ★打つ 所は 売上表の「入力」1か所★。ここ（月次集計）の 日ごとは ★見るだけ★。
-  it('書き込み口は「PayPayの手入力（月ごと）」1つだけ', () => {
+  it('書き込み口は「電子決済の手入力（月ごと）」1つだけ', () => {
     const saki = writes.map((w) => w.target.replace(/[\s\S]*?'([^']+)'[\s\S]*/, '$1'));
     expect(writes.length, '★知らない 書き込み口が 増えました★ ' + saki.join(' / ')).toBe(1);
     expect(saki[0].indexOf('dk_month_extras')).toBe(0);
@@ -86,7 +86,7 @@ describe('★元データは書き換えない★', () => {
   it('★日ごと(dk_day_extras)へ 書かない（見るだけ）★', () => {
     expect(
       /dk_day_extras[^']*'[\s\S]{0,200}?method:\s*'POST'/.test(HTML),
-      '★月次集計から 日ごとの PayPay を 書いています★' +
+      '★月次集計から 日ごとの 電子決済 を 書いています★' +
         '  ⇒ ★打つ 所は 売上表の「入力」1か所★（司さん 2026-09-06）'
     ).toBe(false);
     expect(HTML.indexOf('data-ppd'), '★見るだけ なのに 打つ 欄が 在ります★').toBe(-1);
@@ -142,7 +142,7 @@ describe('★実物の月別シートと同じ列が出る★', () => {
     expect(HTML).toContain('esc(p.name)');
   });
 
-  it('PayPay は手入力できる（メーターが区別していないため）', () => {
+  it('電子決済 は手入力できる（メーターが区別していないため）', () => {
     expect(HTML).toContain('dk_month_extras');
     expect(HTML).toContain('data-pp=');
   });

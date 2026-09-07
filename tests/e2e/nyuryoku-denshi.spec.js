@@ -10,7 +10,7 @@
 //   ★何が 悪かったか（実測 2026-09-08・司さんの 実機の 写真）★
 //     ★表（table）に 日の 帯を 混ぜた★
 //       ・table-layout:fixed の ますの 中で display:flex を 使った
-//       ・⇒ 列が 合わず PayPay の 欄が 隣の 列に はみ出し、
+//       ・⇒ 列が 合わず 電子決済 の 欄が 隣の 列に はみ出し、
 //         その 行だけ ますが 足りず ★見た目が ぐちゃぐちゃ★に なった。
 //
 //   ★直し（自分で 考えず 他の アプリに 合わせた）★
@@ -23,7 +23,7 @@
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-08 実測）★★
 //     ①欄を 画面より 広く する（前と 同じ 壊れ方）… ★赤★
 //        ＝横に 106px すべり、欄が 5つ はみ出た（司さんの 写真と 同じ 事）
-//     ②前に 入れた PayPay を 読まない ………… ★赤 2本★
+//     ②前に 入れた 電子決済 を 読まない ………… ★赤 2本★
 //     ③前の日 ボタンが 動かない ………………… ★赤★
 //     戻した後 … ★緑 5本★
 // ============================================================
@@ -101,7 +101,7 @@ async function hiraku(page) {
   await page.waitForTimeout(1200);
 }
 
-test('★★① その日ぶんだけ 出る（PayPay と 車ごとの 実費）★★', async ({ page }) => {
+test('★★① その日ぶんだけ 出る（電子決済 と 車ごとの 実費）★★', async ({ page }) => {
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
   await hiraku(page);
@@ -185,7 +185,7 @@ test('★★④ 実費は 前と 同じ 所へ 行く★★', async ({ page }) =
   expect(JSON.parse(ed[0].body).toll_yen, '★高速代が 入っていません★').toBe(800);
   expect(
     okutta.filter((x) => x.saki.indexOf('dk_day_extras') === 0).length,
-    '★実費を 打ったのに PayPay の 棚へ 行っています★'
+    '★実費を 打ったのに 電子決済 の 棚へ 行っています★'
   ).toBe(0);
 });
 
@@ -201,7 +201,7 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   // eslint-disable-next-line no-console
   console.log('★前の日★ ' + JSON.stringify(a));
   expect(a.hi, '★前の日に 動いていません★').toContain('9月1日');
-  expect(a.pp, '★別の 日の PayPay が 残っています★').toBe('');
+  expect(a.pp, '★別の 日の 電子決済 が 残っています★').toBe('');
   expect(a.msg, '★記録が 無い 日に 何も 言っていません★').toContain('記録が ありません');
 
   await page.click('#nextD');
@@ -213,5 +213,5 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   // eslint-disable-next-line no-console
   console.log('★次の日★ ' + JSON.stringify(b));
   expect(b.hi, '★戻っていません★').toContain('9月2日');
-  expect(b.pp, '★戻った 日の PayPay が 出ていません★').toBe('3200');
+  expect(b.pp, '★戻った 日の 電子決済 が 出ていません★').toBe('3200');
 });

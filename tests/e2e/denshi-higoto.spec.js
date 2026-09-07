@@ -1,5 +1,5 @@
 // ============================================================
-// ★★PayPay を「日ごと」に 入れられる（二重に 数えない）★★ 2026-09-06
+// ★★電子決済 を「日ごと」に 入れられる（二重に 数えない）★★ 2026-09-06
 //
 //   ★司さんの言葉★「毎日 入れれるようにしろよ 前から いよろが 入力タブ作れって」
 //
@@ -102,7 +102,7 @@ async function nenWoKiku(page) {
   return m[1];
 }
 
-// ★内訳の PayPay の 行を 読む★
+// ★内訳の 電子決済 の 行を 読む★
 function paypayWoYomu(page) {
   return page.evaluate(() => {
     const tr = [...document.querySelectorAll('#kpis tr')].find(
@@ -121,10 +121,10 @@ test('★★日ごとが 在る 月は 月ごとを 足さない（二重に 数
 
   const v = await paypayWoYomu(page);
   // eslint-disable-next-line no-console
-  console.log('★年まるごとの PayPay★ ' + v + '（年 ' + nen + '）');
+  console.log('★年まるごとの 電子決済★ ' + v + '（年 ' + nen + '）');
   expect(
     v,
-    '★PayPay が 合いません★\n' +
+    '★電子決済 が 合いません★\n' +
       '  3月 … 月ごと 50,000 ＋ 日ごと 1,000/2,000 ⇒ ★日ごとだけ 3,000★\n' +
       '  5月 … 月ごと 7,000 ⇒ 7,000\n' +
       '  ⇒ 正しくは 10,000。53,000+7,000=57,000 に なっていたら ★二重に 数えています★'

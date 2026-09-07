@@ -279,7 +279,7 @@ calcFare を 7-step pipeline 化 (tiers/fallback → vehicle → manual → auto
 
 | ID | 機能 | 詳細 |
 |----|------|------|
-| B7 | 決済種別記録 | 現金 / PayPay / クレカ |
+| B7 | 決済種別記録 | 現金 / 電子決済 / クレカ |
 | B10 | 車両管理 | 複数車両切替 |
 | P1 | iOS Web Push 通知 | - |
 | P7 | Brotli 圧縮 | - |

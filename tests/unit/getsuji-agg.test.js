@@ -4,7 +4,7 @@
 //
 //   材料 = tests/fixtures/daiko-month-jan2026.json
 //     『計算』シート 2〜32行（1/1〜1/31 まるごと）と
-//     『売上表』の請求書/PayPay（手入力ぶん）を、クラウドに入る形へ置き直した物。
+//     『売上表』の請求書/電子決済（手入力ぶん）を、クラウドに入る形へ置き直した物。
 //
 //   答え = 『月別』シート R2（1月の行）と『売上表』1月の合計。
 //     売上合計 1,298,210 / 経費 24,790 / 積立金 65,058.5 / 未収 240,200 /
@@ -41,9 +41,9 @@ describe('★1月の月次集計が実物の『月別』と一致★', () => {
     expect(m.reserve).toBeCloseTo(W.積立金, 4);
   });
 
-  it(`未収 ${W.未収.toLocaleString()}（請求書 ${W.請求書.toLocaleString()} + PayPay ${W.PayPay.toLocaleString()}）`, () => {
+  it(`未収 ${W.未収.toLocaleString()}（請求書 ${W.請求書.toLocaleString()} + 電子決済 ${W.電子決済.toLocaleString()}）`, () => {
     expect(m.invoice).toBeCloseTo(W.請求書, 4);
-    expect(m.paypay).toBeCloseTo(W.PayPay, 4);
+    expect(m.paypay).toBeCloseTo(W.電子決済, 4);
     expect(m.unpaid).toBeCloseTo(W.未収, 4);
   });
 
