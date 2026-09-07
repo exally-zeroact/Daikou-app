@@ -486,39 +486,32 @@
         background: #f7fbff;
       }
 
-      /* ★★月を 選ぶ 帯★★ 2026-09-06（司さん「月を選んだら全体選んだりのボタンで」） */
-      .tsukibar {
+      /* ★★月の 選び方は 代行請求書アプリと 同じ 形★★ 2026-09-06（司さん）
+         ★司さんの言葉★「代行請求書のアプリの月選ぶボタン見てこい」
+         ★実物を 見ました★ … daikou-seikyu.html 3290-3296行
+           <div class="filterbar"> の 中に <select class="fselect"> が 2つ
+           （「― 月を選択 ―」／「全社」）＝★12個 並べる 形では ない★
+         ⇒ 同じ 形に そろえる（幅・角・字も 実物と 同じ 数字） */
+      .filterbar {
         display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
+        gap: 8px;
         margin: 0 0 12px;
       }
 
-      .tsukib {
-        border: 1px solid var(--line);
-        background: #fff;
-        border-radius: 9px;
-        padding: 7px 10px;
-        font-size: 13px;
-        font-weight: 700;
+      .fselect {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1.5px solid #dbe7f7;
+        border-radius: 10px;
+        font-size: 16px;
         font-family: inherit;
-        color: var(--blue-d);
-        cursor: pointer;
-        min-width: 44px;
+        color: #333;
+        outline: none;
+        background: #fff;
       }
 
-      .tsukib.on {
-        background: var(--blue);
-        border-color: var(--blue);
-        color: #fff;
-      }
-
-      /* ★中身が 在る 月には 印★（押す前に 分かる） */
-      .tsukib.ari::after {
-        content: '●';
-        font-size: 9px;
-        margin-left: 3px;
-        vertical-align: super;
+      .fselect:focus {
+        border-color: #007aff;
       }
     </style>
   </head>
@@ -574,7 +567,9 @@
                              全体選んだりのボタンで やらせろや」
              ★前★ ★上の 表の 行を 押す★しか 道が 無かった（押せると 分からない）
              ⇒ ★全体／1月…12月★の ボタンを ここに 出す。表の 行を 押す 道も 残す。 -->
-        <div class="tsukibar" id="tsukibar"></div>
+        <div class="filterbar">
+          <select class="fselect" id="tsukiSel"></select>
+        </div>
         <div class="kpis" id="kpis"></div>
       </div>
 
@@ -1412,36 +1407,42 @@
         //   ★前★ 上の 表の 行を 押す しか 道が 無く、★押せると 分からない★
         //   ⇒ ここに ★全体／1月…12月★の ボタンを 出す（表の 行を 押す 道も 残す）
         //   ★中身が 在る 月には ●★（押す前に 分かる）
+        // ★★月の 選び方は 代行請求書アプリと 同じ★★ 2026-09-06（司さん）
+        //   ★司さんの言葉★「代行請求書のアプリの月選ぶボタン見てこい」
+        //   ★実物を 見て 合わせました★ … daikou-seikyu.html 3290-3296行
+        //     <div class="filterbar"> の 中に <select class="fselect">
+        //     1行目は「― 月を選択 ―」＝★12個 ボタンを 並べる 形では ない★
+        //   ⇒ ここも ★選ぶ 1つ★に する（全体＝年まるごと）
+        //   ★中身が 在る 月には ●★（開かなくても 分かる）
         function tsukibar() {
-          var n = $('tsukibar');
+          var n = $('tsukiSel');
           if (!n || !YR) return;
-          var h =
-            '<button class="tsukib' +
-            (ONE ? '' : ' on') +
-            '" type="button" data-tsuki="0">全体</button>';
+          var h = '<option value="0">― 全体（年まるごと）―</option>';
           for (var i = 1; i <= 12; i++) {
             var mm = YR.months[i - 1] || {};
             var ari = Number(mm.net_fare_yen || 0) > 0;
             h +=
-              '<button class="tsukib' +
-              (ONE === i ? ' on' : '') +
-              (ari ? ' ari' : '') +
-              '" type="button" data-tsuki="' +
+              '<option value="' +
               i +
-              '">' +
+              '"' +
+              (ONE === i ? ' selected' : '') +
+              '>' +
+              YEAR +
+              '年 ' +
               i +
-              '月</button>';
+              '月' +
+              (ari ? ' ●' : '') +
+              '</option>';
           }
           n.innerHTML = h;
-          Array.prototype.forEach.call(n.querySelectorAll('[data-tsuki]'), function (b) {
-            b.onclick = function () {
-              ONE = parseInt(b.getAttribute('data-tsuki'), 10) || 0;
-              // ★表の 行を 押した 時と 同じ 事を する★（決まりを 2か所に 書かない）
-              renderOne();
-              renderUri();
-              renderKyori();
-            };
-          });
+          n.value = String(ONE || 0);
+          n.onchange = function () {
+            ONE = parseInt(n.value, 10) || 0;
+            // ★表の 行を 押した 時と 同じ 事を する★（決まりを 2か所に 書かない）
+            renderOne();
+            renderUri();
+            renderKyori();
+          };
         }
 
         function renderOne() {
