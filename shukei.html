@@ -597,30 +597,32 @@
         <div class="ttl">月ごと</div>
         <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
              ★横に すべらせる 箱（scroller）は 使いません★＝列の 幅を 決めて 幅の 中に 収めます。 -->
-        <!-- ★★12ヶ月の 表は 窓の 中★★ 2026-09-08
-             ★司さん★「月ごとの12ヶ月が窓ないでスクロールせんでええ縦幅に合わせろや」
-             ⇒ 表ごとに ★高さの 決まった 窓★＝ページは 伸びない・見出しは 貼り付く -->
-        <div class="kami-ttl">売上</div>
-        <div class="scroller kyori-sc">
+        <!-- ★★12ヶ月は 丸ごと 出す（スクロール 0）★★ 2026-09-08
+             ★司さん★「12ヶ月をスクロールせんでええように見せろや」
+             ★前★ 窓（高さ 230px）に 入れた ⇒ 中身 297px ＝★窓の 中で まだ すべった★
+             ★今★ ①窓を やめて ★12ヶ月＋合計を 丸ごと★ 出す
+                   ②3枚を ★札で 切り替え★＝一度に 1枚だけ ⇒ ページも 伸びない
+             ★日ごとの 表（31行）は 窓の まま★＝丸ごとは 画面に 入らない ので -->
+        <div class="seg" id="tsukiSeg">
+          <button class="segb on" id="segUri" type="button">売上</button>
+          <button class="segb" id="segKyu" type="button">給料</button>
+          <button class="segb" id="segNokori" type="button">会社に残る分</button>
+        </div>
+        <div data-tsuki="uri">
           <table id="tbl" class="kami">
             <thead id="thead"></thead>
             <tbody id="tbody"></tbody>
           </table>
         </div>
-        <!-- ★★給料は 給料の 表★★ 2026-09-08（司さん「売上になんで給料があるんど」） -->
-        <div class="kami-ttl">給料</div>
-        <div class="scroller kyori-sc">
+        <div data-tsuki="kyu" style="display: none">
           <table id="tbl3" class="kami">
             <thead id="thead3"></thead>
             <tbody id="tbody3"></tbody>
           </table>
+          <div class="note" id="kyuryoNote" style="display: none"></div>
         </div>
-        <div class="note" id="kyuryoNote" style="display: none"></div>
-        <!-- ★★会社に残る分は 式が 読める 形★★ 2026-09-08
-             ★司さん★「なぜ会社に残るお金が給料を引いた額やないんど」
-             ⇒ ★売上 − 給料 − 積立金 = 会社に残る分★ を そのまま 並べる -->
-        <div class="kami-ttl">会社に残る分（売上 − 給料 − 積立金）</div>
-        <div class="scroller kyori-sc">
+        <div data-tsuki="nokori" style="display: none">
+          <div class="kami-ttl">会社に残る分（売上 − 給料 − 積立金）</div>
           <table id="tbl2" class="kami">
             <thead id="thead2"></thead>
             <tbody id="tbody2"></tbody>
@@ -1598,6 +1600,27 @@
             '会社に残る分＝<b>売上 − 給料 − 積立金</b>で 出しています。' +
             '時数を 入れると ここに 給料が 出て、会社に残る分が その分 減ります。';
         }
+
+        // ★★月ごとの 3枚を 札で 切り替える★★ 2026-09-08
+        //   ★司さん★「12ヶ月をスクロールせんでええように見せろや」
+        //   ⇒ 一度に 1枚だけ 出す＝12ヶ月が 丸ごと 画面に 入る。
+        (function wireTsuki() {
+          var b = { uri: $('segUri'), kyu: $('segKyu'), nokori: $('segNokori') };
+          function dasu(na) {
+            Object.keys(b).forEach(function (k) {
+              if (b[k]) b[k].className = 'segb' + (k === na ? ' on' : '');
+            });
+            Array.prototype.forEach.call(document.querySelectorAll('[data-tsuki]'), function (d) {
+              d.style.display = d.getAttribute('data-tsuki') === na ? '' : 'none';
+            });
+          }
+          Object.keys(b).forEach(function (k) {
+            if (!b[k]) return;
+            b[k].onclick = function () {
+              dasu(k);
+            };
+          });
+        })();
 
         function renderOne() {
           var m = ONE ? YR.months[ONE - 1] : YR.total;

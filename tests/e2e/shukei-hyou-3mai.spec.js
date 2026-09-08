@@ -21,6 +21,11 @@
 //         会社に残る分 … 月／★売上／− 給料／− 積立金★／答え
 //     ③給料が 0 の 時は ★その 訳を 画面に 書く★
 //
+//   ★★2026-09-08（2回目）★★ 司さん「12ヶ月をスクロールせんでええように見せろや」
+//     ★窓（230px）に 入れた だけでは 足りなかった★＝中身 297px ＝ 窓の 中で すべる
+//     ⇒ ①窓を やめて ★12ヶ月＋合計を 丸ごと★ 出す（スクロール 0）
+//       ②3枚を ★札で 切り替え★＝一度に 1枚だけ ⇒ ページも 伸びない
+//
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-08 実測 ＝ 下に 書く）★★
 // ============================================================
 const { test, expect } = require('@playwright/test');
@@ -70,33 +75,62 @@ async function hiraku(page) {
   await page.waitForTimeout(2200);
 }
 
-test('★★① 12ヶ月の 表は 窓の 中（ページが 伸びない）★★', async ({ page }) => {
+test('★★① 12ヶ月は スクロール 0 で 全部 見える★★', async ({ page }) => {
   await hiraku(page);
   const r = await page.evaluate(() => {
     const out = [];
-    ['tbl', 'tbl3', 'tbl2', 'uriTbl', 'kyoriTbl'].forEach((id) => {
+    const seg = { tbl: 'segUri', tbl3: 'segKyu', tbl2: 'segNokori' };
+    Object.keys(seg).forEach((id) => {
+      const b = document.getElementById(seg[id]);
+      if (b) b.click();
       const t = document.getElementById(id);
       if (!t) return out.push({ id: id, aru: false });
-      const mado = t.parentElement;
-      const st = getComputedStyle(mado);
+      const oya = t.parentElement;
+      const st = getComputedStyle(oya);
       out.push({
         id: id,
         aru: true,
-        // ★窓か★＝中で スクロールできる／高さが 決まっている
+        // ★12ヶ月＋見出し＋合計＝14行 全部 在る★
+        gyou: t.querySelectorAll('tbody tr').length,
+        // ★中で スクロールしない★（中身が 入れ物に 収まっている）
+        suberu: Math.max(0, oya.scrollHeight - oya.clientHeight),
         mado: st.overflowY === 'auto' || st.overflowY === 'scroll',
-        takasa: Math.round(mado.getBoundingClientRect().height),
-        nakami: Math.round(t.getBoundingClientRect().height),
+        takasa: Math.round(t.getBoundingClientRect().height),
       });
     });
+    const su = document.getElementById('segUri');
+    if (su) su.click();
     return { hyou: out, gamen: window.innerHeight };
   });
   // eslint-disable-next-line no-console
-  console.log('★表と 窓★ ' + JSON.stringify(r));
+  console.log('★12ヶ月の 表★ ' + JSON.stringify(r));
   r.hyou.forEach((x) => {
     expect(x.aru, '★' + x.id + ' の 表が ありません★').toBe(true);
-    expect(x.mado, '★' + x.id + ' が 窓に 入っていません★').toBe(true);
-    expect(x.takasa, '★' + x.id + ' の 窓が 画面より 高い★').toBeLessThan(r.gamen);
+    expect(x.gyou, '★' + x.id + ' に 12ヶ月＋合計が 出ていません★').toBe(13);
+    expect(x.suberu, '★' + x.id + ' は まだ スクロールが 要ります★').toBe(0);
+    expect(x.mado, '★' + x.id + ' が 窓の ままです（丸ごと 出す）★').toBe(false);
+    expect(x.takasa, '★' + x.id + ' が 画面より 高い★').toBeLessThan(r.gamen);
   });
+});
+
+// ★★一度に 1枚だけ★★ 2026-09-08（3枚 並べると ページが 伸びる）
+test('★★①-2 月ごとの 表は 一度に 1枚だけ★★', async ({ page }) => {
+  await hiraku(page);
+  const r = await page.evaluate(() => {
+    const mieru = () =>
+      [...document.querySelectorAll('[data-tsuki]')].filter((d) => d.offsetHeight > 0).length;
+    const out = { hajime: mieru(), oshita: [] };
+    ['segKyu', 'segNokori', 'segUri'].forEach((id) => {
+      const b = document.getElementById(id);
+      if (b) b.click();
+      out.oshita.push(mieru());
+    });
+    return out;
+  });
+  // eslint-disable-next-line no-console
+  console.log('★出ている 枚数★ ' + JSON.stringify(r));
+  expect(r.hajime, '★はじめから 2枚 以上 出ています★').toBe(1);
+  r.oshita.forEach((n) => expect(n, '★押した後に 2枚 以上 出ています★').toBe(1));
 });
 
 test('★★② 売上の 表に 給料は 無い／給料は 給料の 表★★', async ({ page }) => {
