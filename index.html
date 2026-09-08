@@ -8690,6 +8690,20 @@
       //   司さん仕様「業務開始から1日の総距離もほしい」に合致
       //   業務開始 = 1日の業務スタート = 全GPS情報を取り始める
       function onBusinessStart() {
+        // ★★OBD を ここで 繋ぐ（押す 回数を 増やさない）★★ 2026-09-08
+        //   ★司さん★「ユーザーにめんどくさいことやらすな」
+        //   ★訳★ 起動時の 自動接続は ★端末の 設定次第で 黙って 失敗する★。
+        //     すると 運転手は 毎回「OBDを接続」を 押して 一覧から 選ぶ 羽目に なる。
+        //   ⇒ ★もともと 必ず 押す この ボタンに ぶら下げる★
+        //     ・Web Bluetooth は ★人が 押した 瞬間★でないと 機械を 選べない 決まり
+        //       なので ★一番 先に★ 呼ぶ（後ろで 待つと 権利が 切れる）
+        //     ・★前に OBD を 使った 端末だけ★（使っていない 人には 何も 出さない）
+        //     ・★業務開始は 絶対に 止めない★（選ぶのを やめても そのまま 始まる）
+        try {
+          window._obdGyoumuKaishiDeTsunagu();
+        } catch (_) {
+          /* 繋げなくても 業務は 始める */
+        }
         // ★起動計測ログ Phase 0 (2026-05-25): 業務開始 button 押下 mark (= read-only)
         try {
           if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
@@ -17533,13 +17547,40 @@
               } else doConnect();
             });
           }
+          // ★★業務開始の 時に 繋ぎに 行く★★ 2026-09-08（司さん「めんどくさいことやらすな」）
+          //   ★押す 回数は 増やさない★＝もともと 押す ボタンに ぶら下げるだけ
+          window._obdGyoumuKaishiDeTsunagu = function () {
+            if (!O || typeof O.isSupported !== 'function' || !O.isSupported()) return;
+            if (O.isConnected && O.isConnected()) return; // もう 繋がっている
+            if (O.getStatus && O.getStatus() === 'connecting') return; // 繋ぎに 行っている
+            // ★前に OBD を 使った 端末だけ★（使っていない 人に 一覧を 出さない）
+            if (!_obdWasConnected) return;
+            // ★人が 押した この 瞬間に 呼ぶ★（後ろで 待つと 選べなく なる）
+            try {
+              O.connect().catch(function () {
+                /* 選ぶのを やめても 業務は 始まる */
+              });
+            } catch (_) {
+              /* 業務は 止めない */
+            }
+          };
           // ★起動時 自動接続 (2026-06-18・司さん要望「1回繋いだら自動で繋がる」)★:
           //   前回ペアリング済みデバイスへ navigator.bluetooth.getDevices() で選択ダイアログ無しに自動接続。
           //   切れても自動再接続(obd-client内 _scheduleReconnect)。Android Chromeのみ・失敗は静かにidle(手動connect可)。
           if (O.isSupported() && typeof O.tryAutoConnect === 'function') {
-            O.tryAutoConnect().catch(function () {
-              /* 自動接続不可は手動 connect で */
-            });
+            O.tryAutoConnect()
+              .then(function (ok) {
+                // ★★黙って 諦めない★★ 2026-09-08
+                //   前は 失敗を 握りつぶしていた ので
+                //   ★繋がっていない 事に 気づけなかった★
+                if (!ok && _obdWasConnected) {
+                  window._obdSusumiJi = 'OBDは 業務開始の 時に つなぎます';
+                  window._obdSusumiMade = 0;
+                }
+              })
+              .catch(function () {
+                /* 自動接続不可は 業務開始の 時に 繋ぐ */
+              });
           }
           // 速度表示 + 距離源インジケータを 500ms 毎に更新 (鮮度切れは GPS 扱い)
           setInterval(function () {
