@@ -67,7 +67,7 @@
       periods: [],
       payTotal: 0,
       invoice: 0,
-      paypay: 0,
+      denshi: 0,
       unpaid: 0,
       cash: 0,
       ownerShare: 0,
@@ -81,7 +81,7 @@
 
   // ★1ヶ月ぶん★
   //   ctx      … PayrollDaily.buildCtx(...) の戻り
-  //   payments … [{pay_date, invoice_yen, paypay_yen}]（手入力ぶん）
+  //   payments … [{pay_date, invoice_yen, denshi_yen}]（手入力ぶん）
   function month(year, month_, ctx, payments) {
     const out = emptyMonth(year, month_);
     try {
@@ -146,9 +146,9 @@
       arr(payments).forEach(function (p) {
         if (!p || !inMonth[p.pay_date]) return;
         out.invoice += n(p.invoice_yen);
-        out.paypay += n(p.paypay_yen);
+        out.denshi += n(p.denshi_yen);
       });
-      out.unpaid = out.invoice + out.paypay;
+      out.unpaid = out.invoice + out.denshi;
       out.cash = out.salesTotal - out.unpaid;
 
       // ── 会社に残る分 ──
@@ -174,7 +174,7 @@
         'reserve',
         'payTotal',
         'invoice',
-        'paypay',
+        'denshi',
         'unpaid',
         'cash',
         'ownerShare',

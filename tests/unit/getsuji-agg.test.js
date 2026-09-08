@@ -43,7 +43,7 @@ describe('★1月の月次集計が実物の『月別』と一致★', () => {
 
   it(`未収 ${W.未収.toLocaleString()}（請求書 ${W.請求書.toLocaleString()} + 電子決済 ${W.電子決済.toLocaleString()}）`, () => {
     expect(m.invoice).toBeCloseTo(W.請求書, 4);
-    expect(m.paypay).toBeCloseTo(W.電子決済, 4);
+    expect(m.denshi).toBeCloseTo(W.電子決済, 4);
     expect(m.unpaid).toBeCloseTo(W.未収, 4);
   });
 

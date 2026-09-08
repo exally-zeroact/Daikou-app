@@ -98,7 +98,7 @@ test('★★② 帯の「入力」を 押すと 入力の 画面へ 行く★★
     fuda: (document.querySelector('.tag') || {}).textContent || '',
     // ★★2026-09-08★★ 表を やめました（司さん「はみ出てたりぐちゃぐちゃ」）
     //   ⇒ 見るのは ★日を 選ぶ 所★と ★電子決済 の 欄★（打つ 画面の 印）
-    hyou: !!document.getElementById('hiSel') && !!document.getElementById('ppYen'),
+    hyou: !!document.getElementById('hiSel') && !!document.getElementById('denshiYen'),
   }));
   expect(r.fuda, '★入力の 画面では ありません★').toContain('入力');
   expect(r.hyou, '★打つ 所が ありません★').toBe(true);
@@ -106,7 +106,7 @@ test('★★② 帯の「入力」を 押すと 入力の 画面へ 行く★★
 
 test('★★③ 売上表には もう 打つ 所が 無い（2か所に しない）★★', async () => {
   const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'uriage.html'), 'utf8');
-  expect(SRC.indexOf('data-ppd'), '★売上表に 電子決済 の 欄が 残っています★').toBe(-1);
+  expect(SRC.indexOf('data-denshi-hi'), '★売上表に 電子決済 の 欄が 残っています★').toBe(-1);
   expect(SRC.indexOf('dk_day_extras'), '★売上表が 電子決済 の 棚を 触っています★').toBe(-1);
   expect(SRC.indexOf('id="segIn"'), '★売上表に 入力の 札が 残っています★').toBe(-1);
   // ★道順は 残す★（探さなくて よい ように）

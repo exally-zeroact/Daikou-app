@@ -19,8 +19,8 @@
 //
 //   ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」）
 //   ★★画面の 字は「電子決済」★★ 2026-09-08（司さん「PayPayやなくて電子決済にして」）
-//     ⇒ ★倉庫の 列は paypay_yen の まま★（名前を 変えると 前の 分が 読めなくなる）
-//     打つ … ★売上表の「入力」★（tests/e2e/uriage-paypay.spec.js で 見張る）
+//     ⇒ ★倉庫の 列は denshi_yen の まま★（名前を 変えると 前の 分が 読めなくなる）
+//     打つ … ★売上表の「入力」★（tests/e2e/uriage-denshi.spec.js で 見張る）
 //     見る … 月次集計（★ここには 打つ 欄を 置かない★）
 // ============================================================
 const { test, expect } = require('@playwright/test');
@@ -41,14 +41,14 @@ function tsukuru(nen) {
   // ★5月★… 月ごと 7,000 のみ            ⇒ ★7,000★
   const tsuki = nen
     ? [
-        { company_id: CO, ym: nen + '-03', paypay_yen: 50000 },
-        { company_id: CO, ym: nen + '-05', paypay_yen: 7000 },
+        { company_id: CO, ym: nen + '-03', denshi_yen: 50000 },
+        { company_id: CO, ym: nen + '-05', denshi_yen: 7000 },
       ]
     : [];
   const hi = nen
     ? [
-        { company_id: CO, pay_date: nen + '-03-01', paypay_yen: 1000 },
-        { company_id: CO, pay_date: nen + '-03-02', paypay_yen: 2000 },
+        { company_id: CO, pay_date: nen + '-03-01', denshi_yen: 1000 },
+        { company_id: CO, pay_date: nen + '-03-02', denshi_yen: 2000 },
       ]
     : [];
   return (
@@ -88,7 +88,7 @@ async function hiraku(page, nen) {
   );
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
-  await page.locator('#ppBody').waitFor({ state: 'attached', timeout: 15000 });
+  await page.locator('#dkBody').waitFor({ state: 'attached', timeout: 15000 });
   await page.waitForTimeout(1500);
 }
 
@@ -103,7 +103,7 @@ async function nenWoKiku(page) {
 }
 
 // ★内訳の 電子決済 の 行を 読む★
-function paypayWoYomu(page) {
+function denshiWoYomu(page) {
   return page.evaluate(() => {
     const tr = [...document.querySelectorAll('#kpis tr')].find(
       (x) => (x.children[0] || {}).textContent && x.children[0].textContent.indexOf('電子決済') >= 0
@@ -119,7 +119,7 @@ test('★★日ごとが 在る 月は 月ごとを 足さない（二重に 数
   const nen = await nenWoKiku(page);
   await hiraku(page, nen);
 
-  const v = await paypayWoYomu(page);
+  const v = await denshiWoYomu(page);
   // eslint-disable-next-line no-console
   console.log('★年まるごとの 電子決済★ ' + v + '（年 ' + nen + '）');
   expect(
@@ -138,14 +138,14 @@ test('★★月次集計の 日ごとは 見るだけ（打つ 欄が 無い）�
 
   await page.selectOption('#tsukiSel', '3');
   await page.waitForTimeout(400);
-  await page.click('#ppSegD');
+  await page.click('#dkSegD');
   await page.waitForTimeout(300);
 
   const r = await page.evaluate(() => ({
-    ran: document.querySelectorAll('#ppBody input').length,
-    gyou: document.querySelectorAll('#ppBody tr').length,
-    ji: (document.getElementById('ppBody') || {}).textContent || '',
-    michi: (document.getElementById('ppMichi') || {}).textContent || '',
+    ran: document.querySelectorAll('#dkBody input').length,
+    gyou: document.querySelectorAll('#dkBody tr').length,
+    ji: (document.getElementById('dkBody') || {}).textContent || '',
+    michi: (document.getElementById('dkMichi') || {}).textContent || '',
   }));
   // eslint-disable-next-line no-console
   console.log(
@@ -162,11 +162,11 @@ test('★★月ごとの 表に「日ごとを 使っています」と 出る�
   const nen = await nenWoKiku(page);
   await hiraku(page, nen);
 
-  await page.click('#ppSegM');
+  await page.click('#dkSegM');
   await page.waitForTimeout(300);
   const r = await page.evaluate(() => {
     const t = (n) => {
-      const i = document.querySelector('#ppBody [data-pp$="-' + n + '"]');
+      const i = document.querySelector('#dkBody [data-denshi-tsuki$="-' + n + '"]');
       return i ? (i.parentElement.textContent || '').trim() : null;
     };
     return { san: t('03'), go: t('05') };

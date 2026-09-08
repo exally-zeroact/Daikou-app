@@ -109,7 +109,7 @@ alter view public.dk_manual_days set (security_invoker = true);
 create or replace view public.dk_month_extras as
 SELECT company_id,
     ym,
-    paypay_yen,
+    denshi_yen,
     note,
     updated_at
    FROM daikome.dk_month_extras;

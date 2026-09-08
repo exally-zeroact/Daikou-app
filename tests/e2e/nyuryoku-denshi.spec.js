@@ -40,7 +40,7 @@ const SH = [
   { shift_id: 's1', device_id: 'd1', started_at: HI + 'T10:00:00+09:00' },
   { shift_id: 's2', device_id: 'd2', started_at: HI + 'T11:00:00+09:00' },
 ];
-const PPD = [{ company_id: 'c1', pay_date: HI, paypay_yen: 3200 }];
+const DENSHI_HI = [{ company_id: 'c1', pay_date: HI, denshi_yen: 3200 }];
 const ED = [
   { shift_id: 's1', company_id: 'c1', toll_yen: 1200, bridge_yen: 300, other_yen: 0, expenses: {} },
 ];
@@ -56,7 +56,7 @@ function stub() {
     co: { company_id: 'c1', name: 'ZERO代行' },
     K: KINDS,
     SH: SH,
-    PPD: PPD,
+    DENSHI_HI: DENSHI_HI,
     ED: ED,
     L: LABELS,
     HI: HI,
@@ -69,7 +69,7 @@ function stub() {
     'function rows(p){' +
     ' if(p.indexOf("dk_expense_kinds")===0)return D.K;' +
     ' if(p.indexOf("dk_shifts")===0)return (p.indexOf(D.HI)>=0?D.SH:[]);' +
-    ' if(p.indexOf("dk_day_extras")===0)return (p.indexOf(D.HI)>=0?D.PPD:[]);' +
+    ' if(p.indexOf("dk_day_extras")===0)return (p.indexOf(D.HI)>=0?D.DENSHI_HI:[]);' +
     ' if(p.indexOf("dk_shift_edits")===0)return D.ED;' +
     ' if(p.indexOf("dk_device_labels")===0)return D.L; return [];}' +
     'S.ensure=function(){return Promise.resolve({access_token:"t"});};S.goLogin=function(){};S.logout=function(){};' +
@@ -107,7 +107,7 @@ test('★★① その日ぶんだけ 出る（電子決済 と 車ごとの 実
   await hiraku(page);
   const r = await page.evaluate(() => ({
     hi: (document.getElementById('hiJi') || {}).textContent || '',
-    pp: (document.getElementById('ppYen') || {}).value,
+    pp: (document.getElementById('denshiYen') || {}).value,
     sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
     ran: [...document.querySelectorAll('#shaList [data-sid]')].map((x) => ({
       f: x.getAttribute('data-f'),
@@ -153,8 +153,8 @@ test('★★② 横に はみ出さない（司さんの「ぐちゃぐちゃ」
 
 test('★★③ 打つと 日ごとの 棚へ 行く（元データは 触らない）★★', async ({ page }) => {
   await hiraku(page);
-  await page.fill('#ppYen', '4500');
-  await page.dispatchEvent('#ppYen', 'change');
+  await page.fill('#denshiYen', '4500');
+  await page.dispatchEvent('#denshiYen', 'change');
   await page.waitForTimeout(500);
   const okutta = await page.evaluate(() => window.__okutta || []);
   // eslint-disable-next-line no-console
@@ -163,7 +163,7 @@ test('★★③ 打つと 日ごとの 棚へ 行く（元データは 触らな
   expect(pp.length, '★日ごとの 棚へ 行っていません★').toBe(1);
   const body = JSON.parse(pp[0].body);
   expect(body.pay_date, '★日が 違います★').toBe(HI);
-  expect(body.paypay_yen, '★打った 額が 違います★').toBe(4500);
+  expect(body.denshi_yen, '★打った 額が 違います★').toBe(4500);
   expect(body.company_id, '★会社が 入っていません★').toBe('c1');
   expect(
     okutta.filter((x) => /dk_shifts|dk_trips|dk_work_hours|dk_employees/.test(x.saki)).length,
@@ -195,7 +195,7 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   await page.waitForTimeout(900);
   const a = await page.evaluate(() => ({
     hi: (document.getElementById('hiJi') || {}).textContent || '',
-    pp: (document.getElementById('ppYen') || {}).value,
+    pp: (document.getElementById('denshiYen') || {}).value,
     msg: (document.getElementById('msg') || {}).textContent || '',
   }));
   // eslint-disable-next-line no-console
@@ -208,7 +208,7 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   await page.waitForTimeout(900);
   const b = await page.evaluate(() => ({
     hi: (document.getElementById('hiJi') || {}).textContent || '',
-    pp: (document.getElementById('ppYen') || {}).value,
+    pp: (document.getElementById('denshiYen') || {}).value,
   }));
   // eslint-disable-next-line no-console
   console.log('★次の日★ ' + JSON.stringify(b));

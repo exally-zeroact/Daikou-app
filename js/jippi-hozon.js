@@ -84,7 +84,7 @@
   }
 
   // ★電子決済（その日に 受け取った 分）を 保存する★
-  function savePaypay(sess, companyId, hi, value) {
+  function saveDenshi(sess, companyId, hi, value) {
     const v = seisuu(value);
     return global.DKSession.rest(sess, 'dk_day_extras?on_conflict=company_id,pay_date', {
       method: 'POST',
@@ -92,7 +92,7 @@
       body: JSON.stringify({
         company_id: companyId,
         pay_date: hi,
-        paypay_yen: v,
+        denshi_yen: v,
         updated_at: new Date().toISOString(),
       }),
     }).then(function (r) {
@@ -108,6 +108,6 @@
     goukei: goukei,
     karada: karada,
     saveJippi: saveJippi,
-    savePaypay: savePaypay,
+    saveDenshi: saveDenshi,
   };
 })(window);

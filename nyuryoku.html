@@ -26,7 +26,7 @@
            ★何を 入れるか★
              ・電子決済で 受け取った 分 … 日ごと（dk_day_extras）
                ★司さん 2026-09-08「PayPayやなくて電子決済にして」★
-               ⇒ ★画面の 字だけ 変えました★。倉庫の 列は paypay_yen の まま。
+               ⇒ ★画面の 字だけ 変えました★。倉庫の 列は denshi_yen の まま。
                  （名前を 変えると ★前に 入れた 分が 読めなくなる★）
              ・実費（高速代・橋代・会社が 足した 物）… 1回の 業務ごと（dk_shift_edits）
            ★読み書きの 決まりは js/jippi-hozon.js の 1か所★
@@ -261,7 +261,7 @@
         <div class="card-ttl">電子決済で 受け取った 分</div>
         <div class="frow">
           <span class="flabel">この日に 受け取った 分（円）</span>
-          <input class="finput fnum" type="number" inputmode="numeric" min="0" id="ppYen" />
+          <input class="finput fnum" type="number" inputmode="numeric" min="0" id="denshiYen" />
           <span class="hint"
             >現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
             打つと すぐ 保存されます。</span
@@ -390,8 +390,8 @@
           hiWoDasu();
           load();
         };
-        $('ppYen').onchange = function () {
-          savePP($('ppYen').value);
+        $('denshiYen').onchange = function () {
+          saveDenshi($('denshiYen').value);
         };
 
         function hiWoDasu() {
@@ -471,7 +471,7 @@
               PP = 0;
               (Array.isArray(res[4]) ? res[4] : []).forEach(function (x) {
                 if (x && String(x.pay_date).slice(0, 10) === HI) {
-                  PP = JippiHozon.seisuu(x.paypay_yen);
+                  PP = JippiHozon.seisuu(x.denshi_yen);
                 }
               });
               render();
@@ -483,7 +483,7 @@
         }
 
         function render() {
-          $('ppYen').value = PP || '';
+          $('denshiYen').value = PP || '';
           var ids = [];
           RAW.shifts.forEach(function (s) {
             if (s && s.device_id && ids.indexOf(s.device_id) < 0) ids.push(s.device_id);
@@ -552,13 +552,13 @@
             });
         }
 
-        function savePP(value) {
+        function saveDenshi(value) {
           if (!COMPANY) return;
-          JippiHozon.savePaypay(SESS, COMPANY.company_id, HI, value)
+          JippiHozon.saveDenshi(SESS, COMPANY.company_id, HI, value)
             .then(function (v) {
               showErr('');
               PP = v;
-              $('ppYen').value = v || '';
+              $('denshiYen').value = v || '';
             })
             .catch(function (r) {
               saveErr('電子決済の分を保存できませんでした。', r);

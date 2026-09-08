@@ -1428,122 +1428,122 @@
     {
       "pay_date": "2026-01-02",
       "invoice_yen": 7000,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-03",
       "invoice_yen": 1000,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-06",
       "invoice_yen": 7300,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-07",
       "invoice_yen": 6500,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-08",
       "invoice_yen": 2900,
-      "paypay_yen": 2900
+      "denshi_yen": 2900
     },
     {
       "pay_date": "2026-01-09",
       "invoice_yen": 9100,
-      "paypay_yen": 1300
+      "denshi_yen": 1300
     },
     {
       "pay_date": "2026-01-10",
       "invoice_yen": 26400,
-      "paypay_yen": 2000
+      "denshi_yen": 2000
     },
     {
       "pay_date": "2026-01-13",
       "invoice_yen": 18100,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-14",
       "invoice_yen": 5900,
-      "paypay_yen": 4000
+      "denshi_yen": 4000
     },
     {
       "pay_date": "2026-01-15",
       "invoice_yen": 11000,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-16",
       "invoice_yen": 16900,
-      "paypay_yen": 2500
+      "denshi_yen": 2500
     },
     {
       "pay_date": "2026-01-17",
       "invoice_yen": 9500,
-      "paypay_yen": 2600
+      "denshi_yen": 2600
     },
     {
       "pay_date": "2026-01-19",
       "invoice_yen": 7500,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-20",
       "invoice_yen": 5600,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-21",
       "invoice_yen": 1200,
-      "paypay_yen": 3000
+      "denshi_yen": 3000
     },
     {
       "pay_date": "2026-01-22",
       "invoice_yen": 4900,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-23",
       "invoice_yen": 5400,
-      "paypay_yen": 4800
+      "denshi_yen": 4800
     },
     {
       "pay_date": "2026-01-24",
       "invoice_yen": 17600,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-26",
       "invoice_yen": 9900,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-27",
       "invoice_yen": 2500,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-28",
       "invoice_yen": 14700,
-      "paypay_yen": 1900
+      "denshi_yen": 1900
     },
     {
       "pay_date": "2026-01-29",
       "invoice_yen": 1100,
-      "paypay_yen": 0
+      "denshi_yen": 0
     },
     {
       "pay_date": "2026-01-30",
       "invoice_yen": 7500,
-      "paypay_yen": 2800
+      "denshi_yen": 2800
     },
     {
       "pay_date": "2026-01-31",
       "invoice_yen": 7300,
-      "paypay_yen": 5600
+      "denshi_yen": 5600
     }
   ],
   "payrollSettings": {

@@ -3,9 +3,9 @@
 --
 --   ★司さん★「毎日 入れれるように しろよ 前から いよろが 入力タブ作れって」
 --
---   ★今まで★ `dk_month_extras`（company_id, ym, paypay_yen）＝★月に 1マス★
+--   ★今まで★ `dk_month_extras`（company_id, ym, denshi_yen）＝★月に 1マス★
 --     ⇒ いつ 受け取ったか 分からない／日ごとの 突き合わせが 出来ない
---   ★これから★ `dk_day_extras`（company_id, pay_date, paypay_yen）＝★日ごと★
+--   ★これから★ `dk_day_extras`（company_id, pay_date, denshi_yen）＝★日ごと★
 --
 --   ★★古い 月ごとの 棚は 消しません★★
 --     ・前に 入れた 分が 読めなくなる 事故を 防ぐ
@@ -20,7 +20,7 @@
 create table if not exists daikome.dk_day_extras (
   company_id  uuid    not null references daikome.dk_companies (company_id) on delete cascade,
   pay_date    date    not null,
-  paypay_yen  integer not null default 0,
+  denshi_yen  integer not null default 0,
   note        text,
   updated_at  timestamptz default now(),
   primary key (company_id, pay_date)
@@ -57,5 +57,5 @@ grant select, insert, update, delete on daikome.dk_day_extras to anon;
 
 create or replace view public.dk_day_extras
   with (security_invoker = true) as
-  select company_id, pay_date, paypay_yen, note, updated_at
+  select company_id, pay_date, denshi_yen, note, updated_at
     from daikome.dk_day_extras;

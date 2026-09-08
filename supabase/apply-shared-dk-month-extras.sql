@@ -17,7 +17,7 @@
 create table if not exists dk_month_extras (
   company_id uuid not null references dk_companies(company_id) on delete cascade,
   ym         text not null,                       -- '2026-01'
-  paypay_yen double precision not null default 0, -- 電子決済で受け取った分（手入力）
+  denshi_yen double precision not null default 0, -- 電子決済で受け取った分（手入力）
   note       text default '',
   updated_at timestamptz default now(),
   primary key (company_id, ym)

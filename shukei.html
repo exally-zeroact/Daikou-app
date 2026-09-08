@@ -557,7 +557,7 @@
       }
 
       /* ★日ごとを 入れた 月は 月ごとの 欄が 効かない★ 2026-09-06 */
-      .pp-muko {
+      .dk-muko {
         margin-top: 3px;
         font-size: 11px;
         color: #8a6d3b;
@@ -688,22 +688,22 @@
              ★前に 入れた 月ごとの 分は 消しません★
                ⇒ その月に 日ごとが 1件でも 在れば ★日ごとを 使う★（二重に 数えない） -->
         <div class="seg" id="ppSeg">
-          <button class="segb on" id="ppSegM" type="button">月ごと</button>
-          <button class="segb" id="ppSegD" type="button">日ごと</button>
+          <button class="segb on" id="dkSegM" type="button">月ごと</button>
+          <button class="segb" id="dkSegD" type="button">日ごと</button>
         </div>
         <div class="scroller">
           <table class="kami">
-            <thead id="ppHead">
+            <thead id="dkHead">
               <tr>
                 <th>月</th>
                 <th>電子決済</th>
               </tr>
             </thead>
-            <tbody id="ppBody"></tbody>
+            <tbody id="dkBody"></tbody>
           </table>
         </div>
         <!-- ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」） -->
-        <div class="note" id="ppMichi"></div>
+        <div class="note" id="dkMichi"></div>
         <div class="note">
           メーターは今「現金」と「請求書」しか分けていません。<b
             >電子決済で受け取った分はここに入れてください。</b
@@ -758,7 +758,7 @@
         var PP = {}; // 月ごとの 電子決済 手入力（'2026-01' → 円）
         // ★★日ごとの 電子決済★★ 2026-09-06（司さん「毎日 入れれるように」）
         //   '2026-09-02' → 円。★月ごとの 分は 消していません★
-        var PPD = {};
+        var DENSHI_HI = {};
         var CTX = null;
         var YR = null;
         var ONE = 0; // 内訳を出す月（0=年間合計）
@@ -951,18 +951,18 @@
               byDate[d] = (byDate[d] || 0) + num(t.fare_yen);
             });
             PAYMENTS = Object.keys(byDate).map(function (d) {
-              return { pay_date: d, invoice_yen: byDate[d], paypay_yen: 0 };
+              return { pay_date: d, invoice_yen: byDate[d], denshi_yen: 0 };
             });
 
             // 電子決済 の手入力（月ごと）
             PP = {};
             (res[8] || []).forEach(function (r) {
-              if (r && r.ym) PP[r.ym] = num(r.paypay_yen);
+              if (r && r.ym) PP[r.ym] = num(r.denshi_yen);
             });
             // ★★電子決済 の手入力（日ごと）★★ 2026-09-06（司さん「毎日 入れれるように」）
-            PPD = {};
+            DENSHI_HI = {};
             (res[9] || []).forEach(function (r) {
-              if (r && r.pay_date) PPD[String(r.pay_date).slice(0, 10)] = num(r.paypay_yen);
+              if (r && r.pay_date) DENSHI_HI[String(r.pay_date).slice(0, 10)] = num(r.denshi_yen);
             });
 
             showMsg('');
@@ -980,16 +980,16 @@
           //   ★前に 入れた 月ごとの 分は 消していません★ので、
           //   ★その月に 日ごとが 1件でも 在れば 月ごとは 使わない★
           var higotoNoTsuki = {};
-          Object.keys(PPD).forEach(function (d) {
-            if (d.indexOf(YEAR + '-') !== 0 || !PPD[d]) return;
+          Object.keys(DENSHI_HI).forEach(function (d) {
+            if (d.indexOf(YEAR + '-') !== 0 || !DENSHI_HI[d]) return;
             higotoNoTsuki[d.slice(0, 7)] = true;
-            pays.push({ pay_date: d, invoice_yen: 0, paypay_yen: PPD[d] });
+            pays.push({ pay_date: d, invoice_yen: 0, denshi_yen: DENSHI_HI[d] });
           });
           // 月ごとの 電子決済 手入力を「その月の1日ぶん」として足す
           Object.keys(PP).forEach(function (k) {
             if (k.indexOf(YEAR + '-') !== 0 || !PP[k]) return;
             if (higotoNoTsuki[k]) return; // ★日ごとが 在る 月は 足さない★
-            pays.push({ pay_date: k + '-01', invoice_yen: 0, paypay_yen: PP[k] });
+            pays.push({ pay_date: k + '-01', invoice_yen: 0, denshi_yen: PP[k] });
           });
           YR = GetsujiAgg.year(YEAR, CTX, pays);
         }
@@ -1477,12 +1477,12 @@
               //   （日ごとは その月の 日数だけ 出す ので）
               renderUri();
               renderKyori();
-              renderPP(); // ★日ごとの 電子決済 も その月に 合わせる★ 2026-09-06
+              renderDenshi(); // ★日ごとの 電子決済 も その月に 合わせる★ 2026-09-06
             };
           });
 
           renderOne();
-          renderPP();
+          renderDenshi();
         }
 
         // ★★月を ボタンで 選ぶ★★ 2026-09-06（司さん）
@@ -1525,7 +1525,7 @@
             renderOne();
             renderUri();
             renderKyori();
-            renderPP(); // ★日ごとの 電子決済 も その月に 合わせる★ 2026-09-06
+            renderDenshi(); // ★日ごとの 電子決済 も その月に 合わせる★ 2026-09-06
           };
         }
 
@@ -1542,7 +1542,7 @@
             { k: '現金', v: m.cash },
             { k: '未収（請求書＋電子決済）', v: m.unpaid },
             { k: '　請求書', v: m.invoice },
-            { k: '　電子決済', v: m.paypay },
+            { k: '　電子決済', v: m.denshi },
             { k: '給料 合計', v: m.payTotal },
             { k: '経費（高速・橋など）', v: m.expense },
             { k: '積立金', v: m.reserve },
@@ -1574,30 +1574,30 @@
 
         // ★★月ごと／日ごと の 切り替え★★ 2026-09-06（司さん「毎日 入れれるように」）
         //   ★日ごとは その月の 日数ぶん★（上で 選んだ 月。全体なら 今月）
-        var PP_MODE = 'm'; // 'm' = 月ごと / 'd' = 日ごと
-        function renderPP() {
+        var DENSHI_MODE = 'm'; // 'm' = 月ごと / 'd' = 日ごと
+        function renderDenshi() {
           var html = '';
-          $('ppSegM').className = 'segb' + (PP_MODE === 'm' ? ' on' : '');
-          $('ppSegD').className = 'segb' + (PP_MODE === 'd' ? ' on' : '');
-          if (PP_MODE === 'm') {
-            $('ppHead').innerHTML = '<tr><th>月</th><th>電子決済</th></tr>';
+          $('dkSegM').className = 'segb' + (DENSHI_MODE === 'm' ? ' on' : '');
+          $('dkSegD').className = 'segb' + (DENSHI_MODE === 'd' ? ' on' : '');
+          if (DENSHI_MODE === 'm') {
+            $('dkHead').innerHTML = '<tr><th>月</th><th>電子決済</th></tr>';
             // ★日ごとを 入れた 月は 日ごとを 使う（二重に 数えない）★
             //   ⇒ その月の 月ごとの 欄は ★効いていない★ ので、そう 書く
             var higoto = {};
-            Object.keys(PPD).forEach(function (d) {
-              if (PPD[d]) higoto[d.slice(0, 7)] = true;
+            Object.keys(DENSHI_HI).forEach(function (d) {
+              if (DENSHI_HI[d]) higoto[d.slice(0, 7)] = true;
             });
             for (var m = 1; m <= 12; m++) {
               var key = ym(m);
               html +=
                 '<tr><td>' +
                 m +
-                '月</td><td><input class="yen" data-pp="' +
+                '月</td><td><input class="yen" data-denshi-tsuki="' +
                 key +
                 '" value="' +
                 (PP[key] || '') +
                 '">' +
-                (higoto[key] ? '<div class="pp-muko">日ごとを 使っています</div>' : '') +
+                (higoto[key] ? '<div class="dk-muko">日ごとを 使っています</div>' : '') +
                 '</td></tr>';
             }
           } else {
@@ -1607,7 +1607,7 @@
             //   ⇒ 同じ 物を 2か所で 打てると ★どちらが 本当か 分からなく なる★
             var tsuki = ONE || new Date().getMonth() + 1;
             var nissuu = new Date(YEAR, tsuki, 0).getDate();
-            $('ppHead').innerHTML =
+            $('dkHead').innerHTML =
               '<tr><th>' + YEAR + '年 ' + tsuki + '月の 日</th><th>電子決済</th></tr>';
             for (var d = 1; d <= nissuu; d++) {
               var hi = YEAR + '-' + ('0' + tsuki).slice(-2) + '-' + ('0' + d).slice(-2);
@@ -1620,37 +1620,40 @@
                 '(' +
                 '日月火水木金土'.charAt(w.getDay()) +
                 ')</td><td>' +
-                (PPD[hi] ? yen(PPD[hi]) : '') +
+                (DENSHI_HI[hi] ? yen(DENSHI_HI[hi]) : '') +
                 '</td></tr>';
             }
           }
-          $('ppBody').innerHTML = html;
-          $('ppMichi').textContent =
-            PP_MODE === 'd'
+          $('dkBody').innerHTML = html;
+          $('dkMichi').textContent =
+            DENSHI_MODE === 'd'
               ? '日ごとの 電子決済は 下の 帯の「入力」で 打てます（ここは 見るだけ）。'
               : '';
-          Array.prototype.forEach.call(document.querySelectorAll('[data-pp]'), function (i) {
-            i.onchange = function () {
-              savePP(i.getAttribute('data-pp'), i.value);
-            };
-          });
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-denshi-tsuki]'),
+            function (i) {
+              i.onchange = function () {
+                saveDenshi(i.getAttribute('data-denshi-tsuki'), i.value);
+              };
+            }
+          );
         }
         (function wirePP() {
-          var a1 = $('ppSegM');
-          var a2 = $('ppSegD');
+          var a1 = $('dkSegM');
+          var a2 = $('dkSegD');
           if (a1)
             a1.onclick = function () {
-              PP_MODE = 'm';
-              renderPP();
+              DENSHI_MODE = 'm';
+              renderDenshi();
             };
           if (a2)
             a2.onclick = function () {
-              PP_MODE = 'd';
-              renderPP();
+              DENSHI_MODE = 'd';
+              renderDenshi();
             };
         })();
 
-        function savePP(key, value) {
+        function saveDenshi(key, value) {
           if (!COMPANY) return;
           var v = num(value);
           if (v < 0) v = 0;
@@ -1660,7 +1663,7 @@
             body: JSON.stringify({
               company_id: COMPANY.company_id,
               ym: key,
-              paypay_yen: v,
+              denshi_yen: v,
               updated_at: new Date().toISOString(),
             }),
           })

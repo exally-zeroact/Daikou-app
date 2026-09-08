@@ -89,7 +89,7 @@ describe('★元データは書き換えない★', () => {
       '★月次集計から 日ごとの 電子決済 を 書いています★' +
         '  ⇒ ★打つ 所は 売上表の「入力」1か所★（司さん 2026-09-06）'
     ).toBe(false);
-    expect(HTML.indexOf('data-ppd'), '★見るだけ なのに 打つ 欄が 在ります★').toBe(-1);
+    expect(HTML.indexOf('data-denshi-hi'), '★見るだけ なのに 打つ 欄が 在ります★').toBe(-1);
   });
 
   it('★dk_shifts / dk_trips / 給料の棚には書かない★', () => {
@@ -144,7 +144,7 @@ describe('★実物の月別シートと同じ列が出る★', () => {
 
   it('電子決済 は手入力できる（メーターが区別していないため）', () => {
     expect(HTML).toContain('dk_month_extras');
-    expect(HTML).toContain('data-pp=');
+    expect(HTML).toContain('data-denshi-tsuki=');
   });
 
   it('印刷できる', () => {

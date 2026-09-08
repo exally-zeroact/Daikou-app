@@ -171,8 +171,8 @@ test('★★① 電子決済を 打つと 月次集計の 数字が その分 �
 
   // ★打つ★（5,000円）
   const okutta = await utsu(page, souko, async (p) => {
-    await p.fill('#ppYen', '5000');
-    await p.dispatchEvent('#ppYen', 'change');
+    await p.fill('#denshiYen', '5000');
+    await p.dispatchEvent('#denshiYen', 'change');
   });
   const pp = okutta.filter((x) => x.saki.indexOf('dk_day_extras') === 0);
   expect(pp.length, '★打っても 倉庫へ 行っていません★').toBe(1);
@@ -244,7 +244,7 @@ test('★★③ 打っていない 日の 分は 混ざらない★★', async (
   const mae = await uchiwake(page, souko);
 
   // ★別の 月（8月）の 電子決済★＝9月の 内訳には 出ないはず
-  const yoso = { company_id: CO, pay_date: '2026-08-15', paypay_yen: 99999 };
+  const yoso = { company_id: CO, pay_date: '2026-08-15', denshi_yen: 99999 };
   const ato = await uchiwake(page, Object.assign({}, souko, { dk_day_extras: [yoso] }));
 
   const sa = (ato['電子決済'] || 0) - (mae['電子決済'] || 0);
