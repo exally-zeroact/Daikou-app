@@ -23,7 +23,7 @@ const FIX = JSON.parse(
 );
 const CO = FIX.settings[0].company_id;
 
-function stub() {
+function stub(shashu) {
   const moto = fs.readFileSync(path.join(ROOT, 'js', 'dk-session.js'), 'utf8');
   const co = { company_id: CO, name: 'ZERO代行' };
   return (
@@ -32,8 +32,11 @@ function stub() {
     JSON.stringify(FIX) +
     ';var co=' +
     JSON.stringify(co) +
+    ';var RY=' +
+    JSON.stringify([{ config: shashu ? CFG_SHASHU : CFG, updated_at: '2026-09-05T10:00:00Z' }]) +
     ';' +
-    'function rows(p){ if(p.indexOf("dk_employees")===0)return F.emps||[]; if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +
+    'function rows(p){ if(p.indexOf("dk_fare_config")===0)return RY;' +
+    ' if(p.indexOf("dk_employees")===0)return F.emps||[]; if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +
     ' if(p.indexOf("dk_payroll_settings")===0)return F.settings||[]; if(p.indexOf("dk_shifts")===0)return F.shifts||[];' +
     ' if(p.indexOf("dk_shift_edits")===0)return F.edits||[]; if(p.indexOf("dk_work_hours")===0)return F.workHours||[];' +
     ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[]; return [];}' +
@@ -44,6 +47,24 @@ function stub() {
     'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
 }
+
+// ★車種ごとの 料金を 使う 見本★（司さん「車ごとやのに選ぶとこすらない」）
+const CFG_SHASHU = {
+  base_fare: 1300,
+  base_distance_m: 1000,
+  add_fare: 100,
+  add_distance_m: 420,
+  rounding: 10,
+  vehiclesEnabled: true,
+  vehicles: [
+    { id: 'v1', name: '普通車', multiplier: 1, addon: 0, default: true },
+    { id: 'v2', name: 'ワゴン', multiplier: 1.2, addon: 500 },
+  ],
+  autoSurcharges: {
+    night: { enabled: false, from: 22, to: 5, rate: 1.2 },
+    weekend: { enabled: false, rate: 1.1 },
+  },
+};
 
 const CFG = {
   base_fare: 1300,
@@ -57,9 +78,13 @@ const CFG = {
   },
 };
 
-async function hiraku(page, gamen) {
+async function hiraku(page, gamen, shashu) {
   await page.route('**/js/dk-session.js*', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: stub() })
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: stub(shashu),
+    })
   );
   await page.route('**/auth/v1/**', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"u1"}' })
@@ -68,7 +93,9 @@ async function hiraku(page, gamen) {
     const u = r.request().url();
     let body = '[]';
     if (u.indexOf('dk_fare_config') >= 0) {
-      body = JSON.stringify([{ config: CFG, updated_at: '2026-09-05T10:00:00Z' }]);
+      body = JSON.stringify([
+        { config: shashu ? CFG_SHASHU : CFG, updated_at: '2026-09-05T10:00:00Z' },
+      ]);
     } else if (u.indexOf('dk_companies') >= 0) {
       body = JSON.stringify([{ company_id: CO, name: 'ZERO代行' }]);
     }
@@ -229,4 +256,88 @@ test('★★③ 何キロで いくらが 22km で 止まらない★★', async
   expect(r.gyou, '★行が 少なすぎます★').toBeGreaterThan(100);
   expect(r.km, '★まだ 22km で 止まっています★').toBeGreaterThan(50);
   expect(r.saigo, '★最後の 金額が 出ていません★').toContain('円');
+});
+
+// ★★車種を 選べる／使っていない 時も その事を 出す★★ 2026-09-08
+//   ★司さん★「なぜ車ごとやのに選ぶとこすらない？そもそも見せとけよ」
+//   ★仕組みは 前から 在りました★（config.vehicles / vehiclesEnabled ＝ 倍率・加算）
+//   ⇒ 見る 所にも 選ぶ 所にも 出していなかった。
+test('★★④ 車種ごとの 料金が 使われている 時は 選べる★★', async ({ page }) => {
+  await hiraku(page, 'ryokinhyou.html', true);
+  const mae = await page.evaluate(() => ({
+    mieru: (document.getElementById('shashuHako') || {}).style.display,
+    erabi: [...document.querySelectorAll('#shashuSel option')].map((x) => x.textContent.trim()),
+    hajime: (document.querySelector('#kmBody tr td:nth-child(2)') || {}).textContent,
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★車種（前）★ ' + JSON.stringify(mae));
+  expect(mae.mieru, '★車種を 選ぶ 所が 出ていません★').not.toBe('none');
+  expect(mae.erabi.join(','), '★車種が 出ていません★').toContain('ワゴン');
+
+  // ★★選ぶと 額が その車の 物に なる★★（倍率 1.2 ＋ 加算 500）
+  await page.selectOption('#shashuSel', 'v2');
+  await page.waitForTimeout(500);
+  const ato = await page.evaluate(() => ({
+    hajime: (document.querySelector('#kmBody tr td:nth-child(2)') || {}).textContent,
+    note: (document.getElementById('shashuNote') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★車種（後）★ ' + JSON.stringify(ato));
+  const kazu = (t) => Number(String(t).replace(/[^\d]/g, '')) || 0;
+  expect(kazu(mae.hajime), '★素の 最初の 額が 出ていません★').toBe(1300);
+  // ★1,300 × 1.2 ＋ 500 ＝ 2,060★（10円 まるめ）
+  expect(kazu(ato.hajime), '★車種の 倍率・加算が 効いていません★').toBe(2060);
+  expect(ato.note, '★選んだ 車種の 中身が 書いてありません★').toContain('ワゴン');
+});
+
+// ★★使っていない 時も『在る』事を 出す★★ 2026-09-08（司さん「そもそも見せとけよ」）
+test('★★⑤ 車種を 使っていない 時は その事を 書く★★', async ({ page }) => {
+  await hiraku(page, 'ryokinhyou.html', false);
+  const r = await page.evaluate(() => ({
+    mieru: (document.getElementById('shashuHako') || {}).style.display,
+    note: (document.getElementById('shashuNote') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★車種を 使っていない★ ' + JSON.stringify(r));
+  expect(r.mieru, '★使っていないのに 選び が 出ています★').toBe('none');
+  expect(r.note, '★使っていない事が 書いてありません★').toContain('使っていません');
+  expect(r.note, '★どこで 足すかが 書いてありません★').toContain('料金を 決める');
+});
+
+// ★★「最後に 変えた 人」は 出さない★★ 2026-09-08（司さん「いらん」）
+test('★★⑥ 最後に 変えた 人を 出さない★★', async ({ page }) => {
+  await hiraku(page, 'ryokinhyou.html');
+  const r = await page.evaluate(() => ({
+    aru: !!document.getElementById('itsuno'),
+    ji: document.body.innerText.indexOf('最後に 変えた 人'),
+    ji2: document.body.innerText.indexOf('最後に変えた人'),
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★最後に 変えた 人★ ' + JSON.stringify(r));
+  expect(r.aru, '★消したはずの 入れ物が 残っています★').toBe(false);
+  expect(r.ji, '★「最後に 変えた 人」が 出ています★').toBe(-1);
+  expect(r.ji2, '★「最後に変えた人」が 出ています★').toBe(-1);
+});
+
+// ★★会社設定の 料金＝開いたら すぐ 料金が 見える★★ 2026-09-08
+//   ★司さん★「赤丸のところは上の塊の説明を除けてそこでええやろ」
+test('★★⑦ 会社設定の 料金は 説明を やめて 表を 上に★★', async ({ page }) => {
+  await hiraku(page, 'dashboard.html');
+  await page.locator('[data-chip="ryokin"]').click();
+  await page.waitForTimeout(800);
+  const r = await page.evaluate(() => {
+    const pane = document.querySelector('[data-pane="ryokin"]');
+    const mado = document.getElementById('ryokinMado');
+    return {
+      card: pane ? pane.querySelectorAll('.card').length : 0,
+      setsumei: pane ? pane.innerText.indexOf('ここで 決めます') : -1,
+      ue: mado ? Math.round(mado.getBoundingClientRect().top) : -1,
+      gamen: window.innerHeight,
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★料金の 中身★ ' + JSON.stringify(r));
+  expect(r.card, '★カードが 2枚の ままです（1枚に まとめる）★').toBe(1);
+  expect(r.setsumei, '★説明が 残っています★').toBe(-1);
+  expect(r.ue, '★料金の 窓が 画面の 外に あります★').toBeLessThan(r.gamen);
 });

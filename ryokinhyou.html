@@ -454,7 +454,10 @@
         </div>
         <div class="card">
           <div class="ttl">今の 料金表</div>
-          <div class="itsuno" id="itsuno">—</div>
+          <!-- ★★「最後に 変えた 人」は 消しました★★ 2026-09-08
+               ★司さん★「最後に変えた人とかいらん」
+               ★誰が いつ 変えたかは 倉庫に 残ります★（dk_fare_config.updated_at / updated_by）
+               ⇒ 画面に 出す 必要は 無い。 -->
           <!-- ★★今 いくらかを 紙で 出す★★ 2026-09-05（司さん「紙にして」）
                下の 入力の 所は ★打ち込む 画面★なので そのままです。 -->
           <!-- ★★2つの 表を 別々の 窓に★★ 2026-09-08（司さん「赤丸の所は窓で分とけや」）
@@ -475,7 +478,15 @@
                ⇒ 料金表の 画面にも 出します。
                ★計算は js/fare-calc.js（メーターと 同じ 1か所）を 呼びます★
                  ＝★表に 出る 金額と 実際に 取る 金額が ずれません★ -->
+          <!-- ★★車種を 選ぶ★★ 2026-09-08
+               ★司さん★「なぜ車ごとやのに選ぶとこすらない？そもそも見せとけよ」
+               ★料金の 仕組みには 車種ごと（倍率・加算）が 前から 在ります★。
+               ⇒ ★選べるように する★／★使っていない 時も その事を 出す★ -->
           <div class="kami-ttl" style="margin-top: 14px">何キロで いくら</div>
+          <div id="shashuHako" style="margin: 6px 0">
+            <select class="fselect" id="shashuSel"></select>
+          </div>
+          <div class="note" id="shashuNote"></div>
           <div class="mado mado-tate">
             <table class="kami" id="kmTbl">
               <thead>
@@ -1157,7 +1168,67 @@
         // ★★何キロで いくら（メーターと 同じ 計算機を 呼ぶ）★★ 2026-09-06（司さん）
         //   ★自分で 計算しません★＝FareCalc.keisan（js/fare-calc.js）に 渡すだけ。
         //   ★今の 時間で 出します★（深夜・土日・冬の 割増が 効く 時間なら その分も 入る）
+        // ★★字を そのまま 出さない★★（この 画面には 前から 在りませんでした）
+        //   ★2026-09-08 実測★ esc が 無くて 車種の 選びが ★途中で 落ちていた★
+        //   （選ぶ 箱は 出るのに 中身が 空＝原因が 見えない 壊れ方）
+        function esc(x) {
+          return String(x == null ? '' : x).replace(/[<>&"]/g, function (c) {
+            return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+          });
+        }
+
+        // ★★車種の 選び★★ 2026-09-08（司さん「そもそも見せとけよ」）
+        //   ★使っている 時★ … 車種を 選ぶ（選ぶと 下の 表が その車の 額に なる）
+        //   ★使っていない 時★ … その事を 書く（在るのに 気づけない を なくす）
+        var SHASHU = ''; // 今 選んでいる 車種の id（空＝素の 料金）
+        function shashuDasu() {
+          var hako = $('shashuHako');
+          var note = $('shashuNote');
+          var c = ZENBU;
+          if (!hako || !note) return;
+          var li = c && Array.isArray(c.vehicles) ? c.vehicles : [];
+          var tsukau = !!(c && c.vehiclesEnabled) && li.length > 0;
+          if (!tsukau) {
+            hako.style.display = 'none';
+            note.innerHTML =
+              '車種ごとの 料金は <b>使っていません</b>。' +
+              '（車種で 倍率や 加算を 変えたい ときは <b>料金を 決める</b>で 足せます）';
+            return;
+          }
+          hako.style.display = '';
+          var h = '<option value="">車種を 選ばない（素の 料金）</option>';
+          li.forEach(function (v) {
+            if (!v || !v.id) return;
+            h +=
+              '<option value="' +
+              esc(v.id) +
+              '"' +
+              (SHASHU === v.id ? ' selected' : '') +
+              '>' +
+              esc(v.name || v.id) +
+              '</option>';
+          });
+          $('shashuSel').innerHTML = h;
+          $('shashuSel').value = SHASHU;
+          $('shashuSel').onchange = function () {
+            SHASHU = $('shashuSel').value || '';
+            kmKami();
+          };
+          var ima = li.filter(function (v) {
+            return v && v.id === SHASHU;
+          })[0];
+          note.textContent = ima
+            ? ima.name +
+              ' … 倍率 ' +
+              (typeof ima.multiplier === 'number' ? ima.multiplier : 1) +
+              ' 倍／加算 ' +
+              (typeof ima.addon === 'number' ? ima.addon : 0) +
+              '円'
+            : '車種を 選ぶと その車の 額に なります。';
+        }
+
         function kmKami() {
+          shashuDasu();
           var tb = $('kmBody');
           var note = $('kmNote');
           if (!tb) return;
@@ -1182,7 +1253,8 @@
           li.forEach(function (m, i) {
             var en = null;
             try {
-              en = FareCalc.keisan(m, c, null, new Set(), 0, now);
+              // ★★選んだ 車種で 計算する★★ 2026-09-08（司さん「車ごとやのに」）
+              en = FareCalc.keisan(m, c, SHASHU || null, new Set(), 0, now);
             } catch (_) {
               en = null;
             }
@@ -1270,10 +1342,8 @@
           imaKami();
           kmKami();
           dashiwake();
-          $('itsuno').textContent = window.FareConfigStore.fudaKaeta(
-            { updated_at: UPDATED_AT, updated_by: UPDATED_BY },
-            null // ★事務所なので「この端末」の 判定は しない★
-          );
+          // ★★「最後に 変えた 人」は 出しません★★ 2026-09-08（司さん「いらん」）
+          //   ★倉庫には 残っています★（dk_fare_config.updated_at / updated_by）
         }
 
         function yomikomu() {

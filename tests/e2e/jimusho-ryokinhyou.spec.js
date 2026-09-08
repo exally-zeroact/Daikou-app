@@ -244,9 +244,16 @@ test('★★⑥ uid を 画面にも 倉庫にも 出さない★★', async ({ 
   const okutta = await souko(page);
   await hiraku(page);
 
-  const moji = await page.textContent('#itsuno');
+  // ★★2026-09-08 「最後に 変えた 人」は 画面から 消しました★★（司さん「いらん」）
+  //   ★本命は ここ★＝★uid を どこにも 出さない★（画面にも 倉庫にも）
+  //   ⇒ 画面ぜんぶを 見て uid が 1つも 出ていない事を 見る。
+  // ★★textContent は script の 中まで 数える★★ 2026-09-08（実測）
+  //   説明（コメント）に 書いた 字を 拾って ★偽の 赤★に なりました。
+  //   ⇒ ★innerText（お客さんに 見える 字だけ）★で 見る。
+  const moji = await page.innerText('body');
   expect(moji.indexOf('uid-mihari'), '★画面に uid が そのまま 出ています★').toBe(-1);
-  expect(moji, '★誰かを 言っていません★').toContain('最後に変えた人');
+  expect(moji.indexOf('最後に変えた人'), '★消したはずの 字が 出ています★').toBe(-1);
+  expect(moji.indexOf('最後に 変えた 人'), '★消したはずの 字が 出ています★').toBe(-1);
 
   await page.fill('#fBase', '1500');
   await page.waitForTimeout(150);
@@ -264,22 +271,32 @@ test('★★⑥ uid を 画面にも 倉庫にも 出さない★★', async ({ 
   }
 });
 
-test('★★⑦ 日付の 書き方が 部品と 同じ（自分で 組んでいない）★★', async ({ page }) => {
+test('★★⑦ 日付の 書き方は 部品の 1か所★★', async ({ page }) => {
   await login(page);
   await souko(page);
   await hiraku(page);
-  const moji = await page.textContent('#itsuno');
-  expect(/[0-9]+月[0-9]+日/.test(moji), '★日本語の 日付に なっていません★').toBe(true);
-  expect(moji.indexOf('/'), '★機械の 書き方（2026/08/20）が 出ています★').toBe(-1);
-
-  // ★同じ物を 部品に 直接 聞いて 突き合わせる★（画面が 自前で 組んでいない事）
+  // ★★2026-09-08「最後に 変えた 人」を 画面から 消しました★★（司さん「いらん」）
+  //   ⇒ 画面の 1行では 見られなく なった。
+  //   ★でも 守りたい 決まりは 生きています★＝メーター側は まだ 出す ので
+  //     ★日付の 書き方は 部品（FareConfigStore.fudaKaeta）の 1か所★。
+  //   ⇒ ★部品そのもの★を 見る。
   const buhin = await page.evaluate(() =>
     window.FareConfigStore.fudaKaeta(
       { updated_at: '2026-08-20T02:03:04.000Z', updated_by: 'jimusho:uid-mihari' },
       null
     )
   );
-  expect(moji, '★部品が 作る 1行と 違います（自分で 組んでいます）★').toBe(buhin);
+  // eslint-disable-next-line no-console
+  console.log('★部品が 作る 1行★ ' + buhin);
+  expect(/[0-9]+月[0-9]+日/.test(buhin), '★日本語の 日付に なっていません★').toBe(true);
+  expect(buhin.indexOf('/'), '★機械の 書き方（2026/08/20）です★').toBe(-1);
+  expect(buhin.indexOf('uid-mihari'), '★uid を そのまま 出しています★').toBe(-1);
+  // ★画面は もう 出しません★（司さん「いらん」）
+  // ★★textContent は script の 中まで 数える★★ 2026-09-08（実測）
+  //   説明（コメント）に 書いた 字を 拾って ★偽の 赤★に なりました。
+  //   ⇒ ★innerText（お客さんに 見える 字だけ）★で 見る。
+  const moji = await page.innerText('body');
+  expect(moji.indexOf(buhin), '★消したはずの 1行が 画面に 出ています★').toBe(-1);
 });
 
 // ★★⑧⑨ は 司さんの 2026-09-01「事務所からだけにしたんやないんか」で 足した★★

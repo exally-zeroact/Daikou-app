@@ -654,26 +654,13 @@
 
         <!-- ★料金★（次の 回で ryokinhyou から 移します） -->
         <div data-pane="ryokin" style="display: none">
-          <div class="card">
-            <div style="font-weight: 800; margin-bottom: 6px">料金</div>
-            <div class="mada">
-              基本料金・加算・割増を ここで 決めます。<br />
-              決めた 物は <b>料金表</b>の 画面と <b>メーター</b>に そのまま 出ます。
-            </div>
-            <div style="margin-top: 10px">
-              <a class="btn" href="ryokinhyou.html?henshu=1">料金を 決める</a>
-            </div>
-          </div>
-          <!-- ★★今の 料金を ここに 窓で 出す★★ 2026-09-08
-               ★司さん★「そもそも料金表タブは消してここに窓作って見せるべきでは？」
-                       「料金表は窓つくってスクロールできるようにしてもっと見れるように」
-                       「見切れとるし直してないやないか」
-               ★前★ 別の 画面（料金表タブ）へ 飛ぶ ⇒ ページごと 伸びて ★上が 見切れた★
-               ★今★ ★高さの 決まった 窓★の 中に 料金表を そのまま 入れる
-                     ⇒ スクロールは ★窓の 中だけ★／ページは 伸びない／見切れない
+          <!-- ★★説明を やめて、その 場所に 料金表★★ 2026-09-08
+               ★司さん★「赤丸のところは上の塊の説明を除けてそこでええやろ」
+               ★前★ 上は 説明だけ・料金は 下に スクロール
+               ★今★ ★開いたら すぐ 今の 料金が 見える★（説明は 消した）
                ★中身は 料金表の 画面 そのもの★＝同じ 決まりを 2か所に 書かない -->
           <div class="card">
-            <div style="font-weight: 800; margin-bottom: 6px">今の 料金（何キロで いくら）</div>
+            <div style="font-weight: 800; margin-bottom: 6px">今の 料金</div>
             <iframe
               id="ryokinMado"
               class="mado"
@@ -681,9 +668,11 @@
               title="今の料金"
               loading="lazy"
             ></iframe>
-            <div class="mada" style="margin-top: 8px">
-              上の 窓の 中で スクロールできます。<br />
-              <a href="ryokinhyou.html" target="_blank" rel="noopener">紙で 出す</a>
+            <div class="row" style="margin-top: 10px">
+              <a class="btn" href="ryokinhyou.html?henshu=1">料金を 決める</a>
+              <a class="btn ghost" href="ryokinhyou.html" target="_blank" rel="noopener"
+                >紙で 出す</a
+              >
             </div>
           </div>
         </div>
