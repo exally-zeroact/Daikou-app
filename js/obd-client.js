@@ -695,6 +695,22 @@
     _ecuKotae = false;
     function tryProto() {
       if (pi >= _WARMUP_PROTOS.length) return Promise.resolve(false);
+      // ★★意味の 無い 待ちを 切る★★ 2026-09-08（司さん「短くしろよ」）
+      //   ★繋がる 車の 道は 1つも 短くしていません★（方式1で 通れば 今まで通り）
+      //   ①機械が ★一度も 返事を しない★ ⇒ 方式を 変えても 無駄
+      //     （機械が 死んで いるか、前の 繋がりを 掴んだ まま）
+      //     ⇒ 1つ目で 打ち切る（約80秒 → ★約25秒★）
+      if (pi === 1 && !_ecuKotae) {
+        _susumi('機械が 返事を しません', 0);
+        return Promise.resolve(false);
+      }
+      //   ②ATSP0（自動）は ★機械が 自分で 全部の 方式を 探す★ 物。
+      //     それが 駄目なら ATSP7 は ★同じ 所を もう一度 探すだけ★
+      //     ⇒ 2つ目で 打ち切る（約80秒 → ★約50秒★）
+      if (pi === 2 && _WARMUP_PROTOS[1] === '0') {
+        _susumi('この 車とは 話せませんでした', 0);
+        return Promise.resolve(false);
+      }
       const sp = _WARMUP_PROTOS[pi++];
       // ★今 何番目を 試していて あと どれくらいか★
       _susumi(
