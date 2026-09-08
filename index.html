@@ -17387,6 +17387,20 @@
           });
           O.on('error', function (msg) {
             if (noteEl) noteEl.textContent = 'エラー: ' + msg;
+            // ★★訳を 帯に 出す★★ 2026-09-08（司さん「直せや」）
+            //   ★前★ 何も 出ないので「押しても 反応しない」に 見えた
+            window._obdSusumiJi = String(msg || '');
+            window._obdSusumiMade = 0;
+            if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
+          });
+          // ★★今 何を していて あと 何秒か★★ 2026-09-08（司さん「直せや」）
+          //   ★測った 訳★ 繋ぐのに 最悪 ★約80秒★ かかるのに 画面が 無言だった
+          //     ⇒ 途中で 押し直す ⇒ 最初から やり直し ⇒ ★余計に 繋がらない★
+          O.on('susumi', function (x) {
+            if (!x) return;
+            window._obdSusumiJi = String(x.ji || '');
+            window._obdSusumiMade = x.nokori_ms > 0 ? Date.now() + x.nokori_ms : 0;
+            if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
           });
           // ★OBD距離能力プローブ結果 (2026-06-09・随伴車Tier判定)★:
           //   接続時に1回、この車が高分解能オドメーター(01A6)を出すか等を判定し現地表示。
@@ -17561,9 +17575,22 @@
             }
             var _showRecon =
               _obdDropped && _obdDropSince != null && Date.now() - _obdDropSince > 4000;
+            // ★★繋いでいる 途中は 帯に 進み具合を 出す★★ 2026-09-08
+            var _tsunagichu = _obdSupported && O.getStatus && O.getStatus() === 'connecting';
             var reconBar = document.getElementById('obdReconnectBar');
             if (reconBar) {
-              reconBar.style.display = _showRecon ? 'flex' : 'none';
+              reconBar.style.display = _showRecon || _tsunagichu ? 'flex' : 'none';
+              if (_tsunagichu || window._obdSusumiJi) {
+                var _ji = window._obdSusumiJi || 'つないでいます';
+                var _ato = window._obdSusumiMade
+                  ? Math.max(0, Math.round((window._obdSusumiMade - Date.now()) / 1000))
+                  : 0;
+                reconBar.textContent = _tsunagichu
+                  ? '⏳ OBD ' + _ji + (_ato > 0 ? '（あと 約' + _ato + '秒）' : '')
+                  : _ji;
+              } else {
+                reconBar.textContent = '⚠ OBDが切れました — タップで再接続';
+              }
               // ★青バーの すぐ下に 浮かせる★（重ねるので 下の 中身は 動かない）
               if (_showRecon) {
                 var _ab = document.getElementById('appbar');
@@ -17571,7 +17598,9 @@
                 reconBar.style.top = (_shita > 0 ? _shita : 0) + 'px';
               }
             }
-            if (obdChipEl) obdChipEl.classList.toggle('reconnect', _showRecon);
+            // ★帯を すぐ 書き直せる ように 外へ 出す★ 2026-09-08
+            window._obdBarKakinaosu = window._obdBarKakinaosu || function () {};
+            if (obdChipEl) obdChipEl.classList.toggle('reconnect', _showRecon || _tsunagichu);
             var obdChipLabelEl = document.getElementById('obdChipLabel');
             if (obdChipLabelEl) obdChipLabelEl.textContent = _showRecon ? 'OBD 再接続' : 'OBD';
             // ★業務開始画面のOBD接続ボタン: 接続済=緑/未接続=青枠で状態を反映(司さん2026-06-27)

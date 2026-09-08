@@ -233,6 +233,21 @@
     _emit('status', s);
   }
 
+  // ★★今 何を していて あと どれくらいか★★ 2026-09-08（司さん「直せや」）
+  //   ★前★ 繋ぐのに 最悪 80秒 かかるのに ★画面に 何も 出なかった★
+  //     ⇒ 運転手には「押しても 反応しない」に 見える
+  //     ⇒ 途中で 押し直す ⇒ 最初から やり直し ⇒ ★余計に 繋がらない★
+  //   ★今★ 段ごとに 'susumi' を 出す（画面が そのまま 出せる）
+  //   ★通信の 手順は 1つも 変えていません★（出すだけ）
+  let _susumiT0 = 0;
+  function _susumi(ji, nokoriMs) {
+    _emit('susumi', {
+      ji: ji,
+      keika_ms: _susumiT0 ? Date.now() - _susumiT0 : 0,
+      nokori_ms: nokoriMs || 0,
+    });
+  }
+
   // ─── 純関数: ELM327 応答文字列 → 車速 km/h (単体テスト対象) ──────────────
   //   応答例: "41 0D 3C" / "410D3C" / "SEARCHING...\r41 0D 00" / 複数行・エコー混在。
   //   "41 0D" (Mode01応答 41 + PID 0D) の直後 1 byte を km/h として返す。見つからなければ null。
@@ -425,6 +440,8 @@
     }
     _stopRequested = false;
     _setStatus('connecting');
+    _susumiT0 = Date.now();
+    _susumi('機械を 選んでください', 0);
     return navigator.bluetooth
       .requestDevice({
         // ELM327 は名前が "OBDII"/"Vgate"/"Veepeak" 等まちまち → 全デバイス許可 + 必要 service を optional に
@@ -452,13 +469,23 @@
       /* ignore */
     }
     device.addEventListener('gattserverdisconnected', _onDisconnected);
+    if (!_susumiT0) _susumiT0 = Date.now();
+    _susumi('機械に つないでいます', 5000);
     return device.gatt
       .connect()
+      .catch(function (e) {
+        // ★★ここで こけたら 機械が 前の 繋がりを 掴んだ まま★★ 2026-09-08
+        //   ⇒ 何を すれば よいかを ★名指しで★ 出す
+        _emit('error', 'OBDの 機械に つなげません。★機械を 一度 抜いて 挿し直して★ ください。');
+        throw e;
+      })
       .then(function (server) {
         _server = server;
+        _susumi('話し方を 探しています', 4000);
         return _findProfile(server);
       })
       .then(function () {
+        _susumi('機械を 起こしています', 4000);
         return _initElm();
       })
       .then(function () {
@@ -471,10 +498,23 @@
         // ★確立できた時だけ probe を撃つ★: 未確立で 1.5s の 0100/01A6 を撃つと検出を再中断し
         //   STOPPED 全滅が再発する(監査指摘)。未確立なら probe を飛ばし、自己回復する速度ポーリングへ。
         if (established) {
+          _susumi('つながりました', 0);
           return _probe().catch(function () {
             /* プローブ失敗は致命でない */
           });
         }
+        // ★★車と 話せなかった 時＝訳を 名指しで 出す★★ 2026-09-08（司さん「直せや」）
+        //   ★前★ 80秒 黙って 試した あげく ★何も 言わずに 終わっていた★
+        //   ★今★ どちらかを はっきり 出す
+        //     ①機械は 返事を するが 車が 黙っている ⇒ ★エンジン★
+        //     ②機械が 一度も 返事を しない ⇒ ★機械の 抜き挿し★
+        _emit(
+          'error',
+          _ecuKotae
+            ? '車から 返事が ありません。★エンジンを かけた まま★ もう一度 押してください。'
+            : 'OBDの 機械から 返事が ありません。★一度 抜いて 挿し直して★ もう一度 押してください。'
+        );
+        _susumi('つながりませんでした', 0);
         return undefined;
       })
       .then(function () {
@@ -643,11 +683,24 @@
   //    してチップを idle に戻し、検出割り込みを起こさない。
   //   ③4100(ECU応答)が返れば確立成功。全プロトコル失敗で false(connect側で probe をスキップ)。
   const _WARMUP_PROTOS = ['6', '0', '7']; // ATSP6(CAN11/500)→ATSP0(auto)→ATSP7(CAN29/500)
+  // ★★1つの 方式で かかる 最悪の 時間★★ 2026-09-08（画面に「あと◯秒」を 出す ため）
+  //   ATSP(2.5s) ＋ 落ち着き(0.3s) ＋ 0100 を 3回(7s) ＋ 再送前の 待ち 2回(0.7s)
+  //   ＝ 約25秒／方式。3方式で 約76秒。
+  const _WARMUP_ONE_MS =
+    2500 + 300 + WARMUP_RETRIES * PROTOCOL_TIMEOUT_MS + (WARMUP_RETRIES - 1) * WARMUP_RETRY_WAIT_MS;
+  // ★ECU から 1度も 返事が 無かったか★（＝エンジンが 止まっている 見立て）
+  let _ecuKotae = false;
   function _warmup() {
     let pi = 0;
+    _ecuKotae = false;
     function tryProto() {
       if (pi >= _WARMUP_PROTOS.length) return Promise.resolve(false);
       const sp = _WARMUP_PROTOS[pi++];
+      // ★今 何番目を 試していて あと どれくらいか★
+      _susumi(
+        '車と 話しています（方式 ' + pi + '/' + _WARMUP_PROTOS.length + '）',
+        (_WARMUP_PROTOS.length - pi + 1) * _WARMUP_ONE_MS
+      );
       return _send('ATSP' + sp, 2500)
         .catch(function () {
           return '';
@@ -662,6 +715,8 @@
         return _send('0100', PROTOCOL_TIMEOUT_MS)
           .then(function (resp) {
             const c = (resp || '').replace(/[\s>]/g, '').toUpperCase();
+            // ★何か 返ってきた＝機械は 生きている（車が 黙っているだけ）★
+            if (c) _ecuKotae = true;
             if (/4100/.test(c)) return true; // 確立成功(41 00 = supported PIDs)
             if (t + 1 < WARMUP_RETRIES)
               return _sleep(WARMUP_RETRY_WAIT_MS).then(function () {
