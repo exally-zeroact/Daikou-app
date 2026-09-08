@@ -137,7 +137,10 @@ describe('★実物の月別シートと同じ列が出る★', () => {
       expect(HTML).toContain(x)
     );
     // ★給料は 給料の 表に 在る★（売上の 表では ない）
-    expect(HTML, '★給料の 表が ありません★').toContain('<div class="kami-ttl">給料</div>');
+    //   ★★2026-09-08（2回目）★★ 司さん「12ヶ月をスクロールせんでええように」
+    //     ⇒ 3枚を ★札で 切り替え★に した ので、見出しは ★札の 字★に なった。
+    expect(HTML, '★給料の 札が ありません★').toContain('id="segKyu"');
+    expect(HTML, '★給料の 表が ありません★').toContain('id="tbl3"');
     // ★式が そのまま 読める★
     expect(HTML, '★式が 書いてありません★').toContain('売上 − 給料 − 積立金');
     expect(HTML, '★引き算の 列が ありません★').toContain('− 給料');
