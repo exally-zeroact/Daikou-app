@@ -757,12 +757,33 @@
   //   ★ATZ(リセット)はチップ再起動(~1-2s)を伴うため長timeout+settleを与える(短timeoutだと再起動中に
   //     次の ATE0 が捨てられ echo off が効かない個体がある・監査指摘)。その後 echo/lf/space/headers off。
   function _initElm() {
-    return _send('ATZ', 3000)
-      .catch(function () {
-        /* ATZ 失敗は致命でない */
+    // ★★機械を 丸ごと 起こし直すのは「要る時だけ」★★ 2026-09-08
+    //   ★司さん★「OBDの構造を把握してやり方変え最速にしろや」
+    //   ★前★ 毎回 ATZ（チップの 丸ごと 再起動）＋★必ず 1秒 待つ★
+    //     ⇒ 繋がる 車でも ★毎回 2〜3秒★ 使っていた
+    //   ★今★ まず ATE0 を 1本 投げる（50ms 程度）
+    //     ・ちゃんと 返る ＝ 機械は 起きている ⇒ ★ATZ も 1秒待ちも 飛ばす★
+    //     ・返らない／化けた ＝ おかしい ⇒ ★今まで通り ATZ から★（逃げ道は 残す）
+    return _send('ATE0', 1200)
+      .then(function (r) {
+        const c = String(r || '').toUpperCase();
+        // ★OK か ELM327 の 名乗りが 返れば 起きている★
+        if (/OK|ELM/.test(c)) return true;
+        throw new Error('elm not ready');
       })
-      .then(function () {
-        return _sleep(1000); // リセット後の settle
+      .catch(function () {
+        // ★おかしい 時だけ 丸ごと 起こし直す（前と 同じ 道）★
+        _susumi('機械を 起こし直しています', 4000);
+        return _send('ATZ', 3000)
+          .catch(function () {
+            /* ATZ 失敗は致命でない */
+          })
+          .then(function () {
+            return _sleep(1000); // リセット後の settle
+          })
+          .then(function () {
+            return false;
+          });
       })
       .then(function () {
         let chain = Promise.resolve();

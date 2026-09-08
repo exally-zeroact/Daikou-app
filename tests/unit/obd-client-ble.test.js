@@ -149,7 +149,11 @@ describe('OBDClient BLE 経路 (モック実機)', () => {
     expect(O.isConnected()).toBe(true);
     expect(O.getStatus()).toBe('connected');
     // ELM327 初期化コマンドと速度PIDが送信された
-    expect(mock.writes).toContain('ATZ');
+    // ★★2026-09-08 ATZ は「要る時だけ」に した★★（司さん「最速にしろや」）
+    //   ★前★ 毎回 ATZ（チップの 丸ごと 再起動）＋1秒待ち ＝ 毎回 2〜3秒 損
+    //   ★今★ まず ATE0。返れば ATZ を 飛ばす／返らなければ 今まで通り ATZ
+    //   ⇒ ここは ★機械が 生きている 見本★なので ★ATZ は 来ない のが 正しい★
+    expect(mock.writes).not.toContain('ATZ');
     expect(mock.writes).toContain('ATE0');
     expect(mock.writes).toContain('010D');
     await tick();
