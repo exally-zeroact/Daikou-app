@@ -467,6 +467,24 @@
         border: 1px solid var(--line);
         border-radius: 6px;
       }
+
+      /* ★★窓（中でスクロール・ページは 伸びない）★★ 2026-09-08 */
+      .mado {
+        width: 100%;
+        height: 60vh;
+        min-height: 320px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        display: block;
+      }
+
+      /* ★▲▼（順番）★ 2026-09-08 */
+      .btn.ghost.jun {
+        padding: 4px 8px;
+        margin: 0 2px;
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -646,10 +664,26 @@
               <a class="btn" href="ryokinhyou.html?henshu=1">料金を 決める</a>
             </div>
           </div>
+          <!-- ★★今の 料金を ここに 窓で 出す★★ 2026-09-08
+               ★司さん★「そもそも料金表タブは消してここに窓作って見せるべきでは？」
+                       「料金表は窓つくってスクロールできるようにしてもっと見れるように」
+                       「見切れとるし直してないやないか」
+               ★前★ 別の 画面（料金表タブ）へ 飛ぶ ⇒ ページごと 伸びて ★上が 見切れた★
+               ★今★ ★高さの 決まった 窓★の 中に 料金表を そのまま 入れる
+                     ⇒ スクロールは ★窓の 中だけ★／ページは 伸びない／見切れない
+               ★中身は 料金表の 画面 そのもの★＝同じ 決まりを 2か所に 書かない -->
           <div class="card">
-            <div style="font-weight: 800; margin-bottom: 6px">今の 料金</div>
-            <div class="mada">
-              <a href="ryokinhyou.html">料金表を 見る</a>（今 いくらかを 紙で 出します）
+            <div style="font-weight: 800; margin-bottom: 6px">今の 料金（何キロで いくら）</div>
+            <iframe
+              id="ryokinMado"
+              class="mado"
+              src="ryokinhyou.html?embed=1"
+              title="今の料金"
+              loading="lazy"
+            ></iframe>
+            <div class="mada" style="margin-top: 8px">
+              上の 窓の 中で スクロールできます。<br />
+              <a href="ryokinhyou.html" target="_blank" rel="noopener">紙で 出す</a>
             </div>
           </div>
         </div>
@@ -660,14 +694,18 @@
             <div style="font-weight: 800; margin-bottom: 6px">実費（売上から 引く物）</div>
             <div class="mada">
               <b>高速代・橋代</b>など、売上から 引く 物の 名前を ここで 決めます。<br />
-              決めた 物は <b>売上表 →「実費入力」</b>に そのまま 出ます。<br />
+              決めた 物は <b>下の 帯の「入力」</b>に そのまま 出ます。<br />
+              <b>▲▼</b>で 出す 順番を 変えられます。<br />
               <b>消しても 前に 入れた 金額は 消えません</b>（使わない 印を 付けるだけ）。
             </div>
             <table class="kami" id="jippiTbl" style="margin-top: 10px">
               <thead>
                 <tr>
                   <th>名前</th>
-                  <th>並び</th>
+                  <!-- ★★「並び 10/20/30」を やめた★★ 2026-09-08
+                       ★司さん★「並びの10.20.30って何？」
+                       ⇒ 数字は 見せない。★▲▼で 上下に 動かす★（番号は 機械が 振る） -->
+                  <th>順番</th>
                   <th>使う</th>
                   <th></th>
                 </tr>
@@ -845,17 +883,26 @@
           var tb = $('jippiBody');
           if (!tb) return;
           var h = '';
-          JIPPI.forEach(function (k) {
+          JIPPI.forEach(function (k, i) {
             h +=
+              // ★★「並び」の 数字を やめた★★ 2026-09-08（司さん「10.20.30って何？」）
+              //   ⇒ ★▲▼で 上下に 動かす★。番号（sort_order）は ★機械が 振り直す★。
               '<tr><td><input type="text" data-k="' +
               esc(k.kind_id) +
               '" data-f="label" value="' +
               esc(k.label) +
-              '"></td><td><input type="number" data-k="' +
+              '"></td><td style="text-align:center;white-space:nowrap">' +
+              '<button class="btn ghost jun" type="button" data-ue="' +
               esc(k.kind_id) +
-              '" data-f="sort_order" value="' +
-              (k.sort_order || 0) +
-              '"></td><td style="text-align:center"><input type="checkbox" data-k="' +
+              '"' +
+              (i === 0 ? ' disabled' : '') +
+              '>▲</button>' +
+              '<button class="btn ghost jun" type="button" data-shita="' +
+              esc(k.kind_id) +
+              '"' +
+              (i === JIPPI.length - 1 ? ' disabled' : '') +
+              '>▼</button>' +
+              '</td><td style="text-align:center"><input type="checkbox" data-k="' +
               esc(k.kind_id) +
               '" data-f="active"' +
               (k.active === false ? '' : ' checked') +
@@ -867,9 +914,39 @@
           Array.prototype.forEach.call(tb.querySelectorAll('[data-k]'), function (i) {
             i.onchange = function () {
               var f = i.getAttribute('data-f');
-              var v =
-                f === 'active' ? i.checked : f === 'sort_order' ? Number(i.value) || 0 : i.value;
+              // ★sort_order は もう 打ちません★（▲▼で 動かす）
+              var v = f === 'active' ? i.checked : i.value;
               jippiSave(i.getAttribute('data-k'), f, v);
+            };
+          });
+          // ★★▲▼で 順番を 変える★★ 2026-09-08
+          //   ★入れ替えたら 10・20・30… と 振り直す★（隙間を 空けて 後で 足しやすく）
+          function ugokasu(kindId, muki) {
+            var i = -1;
+            JIPPI.forEach(function (x, k) {
+              if (x.kind_id === kindId) i = k;
+            });
+            var j = i + muki;
+            if (i < 0 || j < 0 || j >= JIPPI.length) return;
+            var t = JIPPI[i];
+            JIPPI[i] = JIPPI[j];
+            JIPPI[j] = t;
+            JIPPI.forEach(function (x, k) {
+              x.sort_order = (k + 1) * 10;
+            });
+            jippiDraw();
+            JIPPI.forEach(function (x) {
+              jippiSave(x.kind_id, 'sort_order', x.sort_order);
+            });
+          }
+          Array.prototype.forEach.call(tb.querySelectorAll('[data-ue]'), function (b) {
+            b.onclick = function () {
+              ugokasu(b.getAttribute('data-ue'), -1);
+            };
+          });
+          Array.prototype.forEach.call(tb.querySelectorAll('[data-shita]'), function (b) {
+            b.onclick = function () {
+              ugokasu(b.getAttribute('data-shita'), 1);
             };
           });
           Array.prototype.forEach.call(tb.querySelectorAll('[data-keshi]'), function (b) {

@@ -41,9 +41,19 @@
     //   ★飲み屋（Castally）の ✍️入力 と 同じ 場所・同じ 印★
     { f: 'nyuryoku.html', ic: '✍️', na: '入力' },
     { f: 'kyuryo.html', ic: '💰', na: '給料' },
-    { f: 'ryokinhyou.html', ic: '💴', na: '料金表' },
+    // ★★料金表の 札は 消しました★★ 2026-09-08
+    //   ★司さん★「そもそも料金表タブは消してここに窓作って見せるべきでは？」
+    //   ⇒ ★会社設定 →「料金」の 中に 窓で 出す★（1画面 減る）
+    //   画面（ryokinhyou.html）は 残します＝紙で 出す 時に 使う。
     { f: 'dashboard.html', ic: '⚙️', na: '会社設定' },
   ];
+
+  // ★★帯を 出す 画面★★ 2026-09-08
+  //   札(SAKI)に 無くても ★事務所の 画面なら 帯と 戻るは 出す★。
+  //   ＝料金表を 単体で 開いた 時（紙で 出す 時）に 行き止まりに しない。
+  const DASU = SAKI.map(function (x) {
+    return x.f;
+  }).concat(['ryokinhyou.html']);
 
   function ima() {
     const p = location.pathname.split('/').pop() || 'dashboard.html';
@@ -61,12 +71,16 @@
     //   ★dashboard は ログインしていないと login.html へ 飛ばします★。
     //     その ★飛ぶ 前の 一瞬★ に 帯が 出ていました（絵で 気づいた）。
     //   ⇒ ★事務所の 画面（下の 名簿に 在る 物）でだけ 出す★
-    if (
-      !SAKI.some(function (x) {
-        return x.f === ima();
-      })
-    ) {
+    if (DASU.indexOf(ima()) < 0) {
       return;
+    }
+    // ★★窓の 中（?embed=1）では 出さない★★ 2026-09-08
+    //   会社設定の「料金」の 中に 料金表を 窓で 入れる ので、
+    //   その 中で 帯を 出すと ★帯が 2つ★に なる。
+    try {
+      if (new URLSearchParams(location.search).get('embed') === '1') return;
+    } catch (e) {
+      /* 古い端末でも 落とさない */
     }
     if (document.getElementById('dkFooter')) return;
 

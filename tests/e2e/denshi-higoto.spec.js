@@ -158,21 +158,31 @@ test('★★月次集計の 日ごとは 見るだけ（打つ 欄が 無い）�
   expect(r.michi, '★打つ 所への 道順が 書いてありません★').toContain('下の 帯');
 });
 
-test('★★月ごとの 表に「日ごとを 使っています」と 出る★★', async ({ page }) => {
+// ★★2026-09-08 … 月ごとも 見るだけ に した★★
+//   ★司さん★「なぜ月次の電子決済は入力タブ作ったのにここで入力できるようになっとんど
+//             しかも月ごとの日ごととで違うし」
+//   ⇒ 月ごとの 欄が 無くなった ので「日ごとを 使っています」の 断りも 要らない。
+//     ★代わりに 月ごとの 数が 日ごとの 合計に なっている事★を 見る。
+test('★★月ごとの 表は 日ごとを 足した 数（打つ 欄は 無い）★★', async ({ page }) => {
   const nen = await nenWoKiku(page);
   await hiraku(page, nen);
 
   await page.click('#dkSegM');
-  await page.waitForTimeout(300);
-  const r = await page.evaluate(() => {
-    const t = (n) => {
-      const i = document.querySelector('#dkBody [data-denshi-tsuki$="-' + n + '"]');
-      return i ? (i.parentElement.textContent || '').trim() : null;
-    };
-    return { san: t('03'), go: t('05') };
-  });
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(() => ({
+    ran: document.querySelectorAll('#dkBody input').length,
+    gyou: [...document.querySelectorAll('#dkBody tr')].map((tr) =>
+      [...tr.children].map((td) => td.textContent.trim())
+    ),
+  }));
   // eslint-disable-next-line no-console
-  console.log('★月ごとの 表★ ' + JSON.stringify(r));
-  expect(r.san, '★日ごとが 在る 3月に 断りが 出ていません★').toContain('日ごとを 使っています');
-  expect(r.go, '★日ごとが 無い 5月に 断りが 出ています★').not.toContain('日ごと');
+  console.log('★月ごと★ ' + JSON.stringify(r.gyou.filter((x) => x[1])));
+  expect(r.ran, '★月ごとに 打つ 欄が 在ります★').toBe(0);
+  // ★3月＝日ごと 1,000＋2,000＝3,000（月ごとの 50,000 は 使わない）★
+  const san = r.gyou[2];
+  expect(san[0], '★3月の 行では ありません★').toContain('3月');
+  expect(san[1], '★3月が 日ごとの 合計に なっていません★').toContain('3,000');
+  // ★5月＝日ごとが 無いので 前に 月で 入れた 7,000★
+  const go = r.gyou[4];
+  expect(go[1], '★5月が 出ていません★').toContain('7,000');
 });

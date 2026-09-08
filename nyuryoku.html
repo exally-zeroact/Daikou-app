@@ -166,16 +166,33 @@
       /* ★日を 選ぶ（1日ぶんだけ 見せる）★ */
       .hibar {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         align-items: center;
+      }
+
+      /* ★★日付＋曜日は 1つの かたまり（縮められる）★★ 2026-09-08
+         ★実測★ 曜日を 足したら ★横に 19px すべった★（390px の 端末）
+         ⇒ 前の日／次の日 は 縮めない・★真ん中だけ 縮む★ ようにする。 */
+      .hidate {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .hidate .finput {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 11px 6px;
       }
 
       .navb {
         background: #eef3fa;
         border: none;
         border-radius: 10px;
-        padding: 11px 12px;
-        font-size: 14px;
+        padding: 11px 8px;
+        font-size: 13px;
         font-weight: 700;
         font-family: inherit;
         color: var(--blue-d);
@@ -184,11 +201,32 @@
         flex: 0 0 auto;
       }
 
-      .hiji {
-        font-size: 16px;
+      /* ★曜日だけ（日付の 欄には 出ない ので）★ 2026-09-08 */
+      .youbi {
+        font-size: 15px;
         font-weight: 800;
-        text-align: center;
-        margin-top: 8px;
+        color: var(--blue-d);
+        white-space: nowrap;
+        flex: 0 0 auto;
+      }
+
+      /* ★単位は 欄の 中（右端）★ 2026-09-08（司さん） */
+      .fen {
+        position: relative;
+      }
+
+      .fen .finput {
+        padding-right: 34px;
+      }
+
+      .fen .en {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 14px;
+        color: var(--muted);
+        pointer-events: none;
       }
 
       /* ★車ごとの かたまり★ */
@@ -249,19 +287,28 @@
 
       <!-- ★日を 選ぶ★（司さん「カレンダーで日付選んで／その日だけ見せてスッキリ」） -->
       <div class="card">
+        <!-- ★★日付は 1つだけ★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
+             ★前★ 日付の 欄（2026/09/03）と その下に「2026年9月3日（木）」＝★二重★
+             ★今★ 下の 行は 消して、★欄に 出ない 曜日だけ★ 右に 出す -->
         <div class="hibar">
           <button class="navb" id="prevD" type="button">‹ 前の日</button>
-          <input class="finput" type="date" id="hiSel" />
+          <div class="hidate">
+            <input class="finput" type="date" id="hiSel" />
+            <span class="youbi" id="hiYoubi"></span>
+          </div>
           <button class="navb" id="nextD" type="button">次の日 ›</button>
         </div>
-        <div class="hiji" id="hiJi">—</div>
       </div>
 
       <div class="card">
         <div class="card-ttl">電子決済で 受け取った 分</div>
         <div class="frow">
-          <span class="flabel">この日に 受け取った 分（円）</span>
-          <input class="finput fnum" type="number" inputmode="numeric" min="0" id="denshiYen" />
+          <!-- ★★単位は 欄の 中★★ 2026-09-08（司さん「（円）を除けて青丸に円やないか？」） -->
+          <span class="flabel">この日に 受け取った 分</span>
+          <div class="fen">
+            <input class="finput fnum" type="number" inputmode="numeric" min="0" id="denshiYen" />
+            <span class="en">円</span>
+          </div>
           <span class="hint"
             >現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
             打つと すぐ 保存されます。</span
@@ -276,6 +323,15 @@
         <div class="err" id="err" style="display: none"></div>
         <div class="note">
           その日に 走った 車が 出ます。<b>売上・距離の 数字は 変わりません</b>。
+        </div>
+        <!-- ★★走った 日へ 飛ぶ★★ 2026-09-08（司さん「高速代とかどこに入れるんど」）
+             高速代は ★1回の 業務（走った 記録）に ぶら下がる★ ので、
+             走っていない 日には 入れる 車が 出ません。
+             ⇒ ★そう 書いて、走った 日へ 1押しで 行ける★ようにする。 -->
+        <div id="hashittaHi" style="display: none">
+          <button class="navb" id="btnLastRun" type="button" style="width: 100%">
+            最後に 走った 日へ
+          </button>
         </div>
       </div>
     </div>
@@ -337,18 +393,10 @@
             ('0' + d.getDate()).slice(-2)
           );
         }
-        function hiLabel(ymd) {
+        // ★曜日だけ★（年月日は 上の 欄が 出す＝二重に しない）
+        function youbi(ymd) {
           var d = new Date(ymd + 'T00:00:00');
-          return (
-            d.getFullYear() +
-            '年' +
-            (d.getMonth() + 1) +
-            '月' +
-            d.getDate() +
-            '日（' +
-            '日月火水木金土'.charAt(d.getDay()) +
-            '）'
-          );
+          return '（' + '日月火水木金土'.charAt(d.getDay()) + '）';
         }
         function ugokasu(ymd, n) {
           var d = new Date(ymd + 'T00:00:00');
@@ -396,7 +444,8 @@
 
         function hiWoDasu() {
           $('hiSel').value = HI;
-          $('hiJi').textContent = hiLabel(HI);
+          // ★日付は 欄が 出す★ ⇒ ここは ★曜日だけ★（司さん「赤丸の日付いらん」）
+          $('hiYoubi').textContent = youbi(HI);
         }
         hiWoDasu();
 
@@ -493,10 +542,19 @@
 
           if (!RAW.shifts.length) {
             $('shaList').innerHTML = '';
-            showMsg('この日は まだ 走った 記録が ありません。（電子決済は 上に 入れられます）');
+            // ★★高速代は 走った 記録に ぶら下がる★★ 2026-09-08
+            //   ★司さん★「高速代とかどこに入れるんど」
+            //   ⇒ ★走っていない 日には 入れる 車が 出ない★ 事を はっきり 書く
+            showMsg(
+              'この日は 走った 記録が ありません。' +
+                '高速代・橋代は ★走った 車ごと★ に 入れる ので、ここには 出ません。' +
+                '（電子決済は 上に 入れられます）'
+            );
+            hashittaHiWoSagasu();
             return;
           }
           showMsg('');
+          $('hashittaHi').style.display = 'none';
           var kinds = RAW.kinds;
           var html = '';
           RAW.shifts.forEach(function (s) {
@@ -507,10 +565,13 @@
               '</div>' +
               kinds
                 .map(function (k) {
+                  // ★★単位は 欄の 中★★ 2026-09-08（司さん「（円）を除けて青丸に円やないか？」）
+                  //   ★電子決済だけ 直して ここを 残していました★（1か所で 終わりに しない）
                   return (
                     '<div class="frow"><span class="flabel">' +
                     esc(k.label) +
-                    '（円）</span>' +
+                    '</span>' +
+                    '<div class="fen">' +
                     '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
                     ' data-sid="' +
                     esc(s.shift_id) +
@@ -518,7 +579,7 @@
                     esc(k.kind_id) +
                     '" value="' +
                     (JippiHozon.ima(e, k.kind_id) || '') +
-                    '"></div>'
+                    '"><span class="en">円</span></div></div>'
                   );
                 })
                 .join('') +
@@ -526,6 +587,35 @@
           });
           $('shaList').innerHTML = html;
           bindYen();
+        }
+
+        // ★★最後に 走った 日へ 飛ぶ★★ 2026-09-08（司さん「どこに入れるんど」）
+        //   ★同じ 月の 中で★ 走った 日を 探して、1押しで そこへ 行く。
+        //   ★見つからない 時は ボタンを 出さない★（押しても 何も 起きない ボタンを 出さない）
+        function hashittaHiWoSagasu() {
+          var hako = $('hashittaHi');
+          hako.style.display = 'none';
+          if (!COMPANY) return;
+          var tsuki = HI.slice(0, 7);
+          var q =
+            'dk_shifts?select=started_at&company_id=eq.' +
+            encodeURIComponent(COMPANY.company_id) +
+            '&started_at=gte.' +
+            encodeURIComponent(tsuki + '-01T00:00:00') +
+            '&order=started_at.desc&limit=1';
+          DKSession.softList(SESS, q, LOAD).then(function (r) {
+            var x = Array.isArray(r) && r.length ? r[0] : null;
+            if (!x || !x.started_at) return;
+            var hi = String(x.started_at).slice(0, 10);
+            if (hi === HI) return;
+            $('btnLastRun').textContent = '走った 日へ（' + hi.slice(5).replace('-', '/') + '）';
+            $('btnLastRun').onclick = function () {
+              HI = hi;
+              hiWoDasu();
+              load();
+            };
+            hako.style.display = 'block';
+          });
         }
 
         function bindYen() {

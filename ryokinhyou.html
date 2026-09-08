@@ -386,11 +386,26 @@
       table.kami > tbody > tr > td:first-child {
         text-align: left;
       }
+
+      /* ★★窓の 中（?embed=1）★★ 2026-09-08 */
+      body.embed .wrap {
+        padding: 0;
+        max-width: none;
+      }
+
+      body.embed {
+        background: transparent;
+        padding-bottom: 0 !important;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <div class="top">
+      <!-- ★★窓の 中に 入る 時（?embed=1）は 頭を 出さない★★ 2026-09-08
+           ★司さん★「料金表タブは消してここに窓作って見せるべきでは？」
+           会社設定の「料金」の 中に この 画面を ★窓で★ 入れます。
+           窓の 中で ロゴ・ログアウト・下の 帯は 要らない（二重に なる）。 -->
+      <div class="top" id="atama">
         <div><span class="logo">ダイコメ</span><span class="tag">料金表</span></div>
         <div>
           <button class="linkbtn" id="btnLogout">ログアウト</button>
@@ -668,6 +683,22 @@
           if (window.self !== window.top) document.body.classList.add('embedded');
         } catch (_) {
           document.body.classList.add('embedded'); // 読めない = 中に 入っている
+        }
+
+        // ★★窓の 中に 入っているか★★ 2026-09-08（会社設定の「料金」の 中）
+        //   ★頭（ロゴ・ログアウト）と 下の 帯は 出さない★＝二重に しない
+        var EMBED = false;
+        try {
+          EMBED = new URLSearchParams(location.search).get('embed') === '1';
+        } catch (_) {
+          EMBED = false;
+        }
+        if (EMBED) {
+          document.body.classList.add('embed');
+          var _a = document.getElementById('atama');
+          if (_a) _a.style.display = 'none';
+          var _s = document.getElementById('sub');
+          if (_s) _s.style.display = 'none';
         }
 
         var SESS = null;

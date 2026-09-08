@@ -481,6 +481,14 @@
         text-align: left;
       }
 
+      /* ★★窓の 中では 見出しを 貼り付ける★★ 2026-09-08
+         スクロールしても どの 列か 分からなく ならない ように。 */
+      .kyori-sc table.kami > thead > tr > th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
       table.kami > tbody > tr.sum > td {
         font-weight: 800;
         background: #f7fbff;
@@ -589,16 +597,35 @@
         <div class="ttl">月ごと</div>
         <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
              ★横に すべらせる 箱（scroller）は 使いません★＝列の 幅を 決めて 幅の 中に 収めます。 -->
+        <!-- ★★12ヶ月の 表は 窓の 中★★ 2026-09-08
+             ★司さん★「月ごとの12ヶ月が窓ないでスクロールせんでええ縦幅に合わせろや」
+             ⇒ 表ごとに ★高さの 決まった 窓★＝ページは 伸びない・見出しは 貼り付く -->
         <div class="kami-ttl">売上</div>
-        <table id="tbl" class="kami">
-          <thead id="thead"></thead>
-          <tbody id="tbody"></tbody>
-        </table>
-        <div class="kami-ttl">お金</div>
-        <table id="tbl2" class="kami">
-          <thead id="thead2"></thead>
-          <tbody id="tbody2"></tbody>
-        </table>
+        <div class="scroller kyori-sc">
+          <table id="tbl" class="kami">
+            <thead id="thead"></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <!-- ★★給料は 給料の 表★★ 2026-09-08（司さん「売上になんで給料があるんど」） -->
+        <div class="kami-ttl">給料</div>
+        <div class="scroller kyori-sc">
+          <table id="tbl3" class="kami">
+            <thead id="thead3"></thead>
+            <tbody id="tbody3"></tbody>
+          </table>
+        </div>
+        <div class="note" id="kyuryoNote" style="display: none"></div>
+        <!-- ★★会社に残る分は 式が 読める 形★★ 2026-09-08
+             ★司さん★「なぜ会社に残るお金が給料を引いた額やないんど」
+             ⇒ ★売上 − 給料 − 積立金 = 会社に残る分★ を そのまま 並べる -->
+        <div class="kami-ttl">会社に残る分（売上 − 給料 − 積立金）</div>
+        <div class="scroller kyori-sc">
+          <table id="tbl2" class="kami">
+            <thead id="thead2"></thead>
+            <tbody id="tbody2"></tbody>
+          </table>
+        </div>
         <div class="note">
           <b>売上</b>＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<b
             >オーナーの車も入ります。</b
@@ -680,7 +707,11 @@
       </div>
 
       <div class="card noprint">
-        <div class="ttl">電子決済で受け取った分（手入力）</div>
+        <!-- ★★ここでは 打てません（見るだけ）★★ 2026-09-08
+             ★司さん★「なぜ月次の電子決済は入力タブ作ったのにここで入力できるようになっとんど
+                       しかも月ごとの日ごととで違うし」
+             ⇒ ★打つ 所は 下の 帯の「入力」1か所★。ここは 月ごとも 日ごとも ★見るだけ★。 -->
+        <div class="ttl">電子決済で受け取った分</div>
         <!-- ★★日ごとにも 入れられるように する★★ 2026-09-06（司さん
              「毎日 入れれるように しろよ 前から いよろが 入力タブ作れって」）
              ★前★ ★月に 1マス★ だけ ⇒ いつ 受け取ったか 分からない
@@ -1380,16 +1411,22 @@
           // ★★紙を 2枚に 分ける★★ 2026-09-05
           //   ★11列は 390pxに 入らない★（実測 1列 31px／「1,298,210」は 56px）
           //   ⇒ 6列ずつ 2枚に する＝1列 57px ＝ 1円まで そのまま 出る
+          // ★★表を 3枚に した★★ 2026-09-08（司さん「売上になんで給料があるんど」）
+          //   ①売上 …… 月／売上／経費／未収／現金
+          //   ②給料 …… 月／締めの 回ごと／合計
+          //   ③会社に残る分 … 月／★売上 − 給料 − 積立金★／答え
           $('thead').innerHTML =
-            '<tr><th>月</th><th>売上</th>' +
+            '<tr><th>月</th><th>売上</th><th>経費</th><th>未収</th><th>現金</th></tr>';
+          $('thead3').innerHTML =
+            '<tr><th>月</th>' +
             periods
               .map(function (p) {
                 return '<th>' + esc(p.name) + '</th>';
               })
               .join('') +
-            '<th>給料 合計</th></tr>';
+            '<th>合計</th></tr>';
           $('thead2').innerHTML =
-            '<tr><th>月</th><th>経費</th><th>積立金</th><th>未収</th><th>現金</th>' +
+            '<tr><th>月</th><th>売上</th><th>− 給料</th><th>− 積立金</th>' +
             '<th>会社に残る分</th></tr>';
           renderUri(); // ★売上の 表も 一緒に 出す★
           renderKyori(); // ★距離の 表も 一緒に 出す★
@@ -1401,16 +1438,25 @@
           //   ★数字の 計算は 1行も 触っていません★
           var html = '';
           var html2 = '';
+          var html3 = '';
           YR.months.forEach(function (m) {
             var has = m.salesTotal || m.payTotal;
+            var atama = '<tr data-m="' + m.month + '"><td>' + esc(m.label) + '</td>';
+            // ①売上
             html +=
-              '<tr data-m="' +
-              m.month +
-              '"><td>' +
-              esc(m.label) +
-              '</td><td>' +
+              atama +
+              '<td>' +
               cell(m.salesTotal) +
-              '</td>' +
+              '</td><td>' +
+              cell(m.expense) +
+              '</td><td>' +
+              cell(m.unpaid) +
+              '</td><td>' +
+              cell(m.cash) +
+              '</td></tr>';
+            // ②給料
+            html3 +=
+              atama +
               periods
                 .map(function (p) {
                   var mine = (m.periods || []).filter(function (x) {
@@ -1422,19 +1468,15 @@
               '<td>' +
               cell(m.payTotal) +
               '</td></tr>';
+            // ③会社に残る分（★式の まま★）
             html2 +=
-              '<tr data-m="' +
-              m.month +
-              '"><td>' +
-              esc(m.label) +
+              atama +
+              '<td>' +
+              cell(m.salesTotal) +
               '</td><td>' +
-              cell(m.expense) +
+              cell(m.payTotal) +
               '</td><td>' +
               cell(m.reserve) +
-              '</td><td>' +
-              cell(m.unpaid) +
-              '</td><td>' +
-              cell(m.cash) +
               '</td><td>' +
               (has ? '<b>' + yen(m.ownerShare) + '</b>' : '<span class="zero">—</span>') +
               '</td></tr>';
@@ -1444,7 +1486,15 @@
           html +=
             '<tr class="sum"><td>合計</td><td>' +
             yen(t.salesTotal) +
-            '</td>' +
+            '</td><td>' +
+            yen(t.expense) +
+            '</td><td>' +
+            yen(t.unpaid) +
+            '</td><td>' +
+            yen(t.cash) +
+            '</td></tr>';
+          html3 +=
+            '<tr class="sum"><td>合計</td>' +
             periods
               .map(function (p) {
                 return '<td>' + yen(p.pay) + '</td>';
@@ -1455,18 +1505,23 @@
             '</td></tr>';
           html2 +=
             '<tr class="sum"><td>合計</td><td>' +
-            yen(t.expense) +
+            yen(t.salesTotal) +
+            '</td><td>' +
+            yen(t.payTotal) +
             '</td><td>' +
             yen(t.reserve) +
-            '</td><td>' +
-            yen(t.unpaid) +
-            '</td><td>' +
-            yen(t.cash) +
             '</td><td>' +
             yen(t.ownerShare) +
             '</td></tr>';
           $('tbody2').innerHTML = html2;
+          $('tbody3').innerHTML = html3;
           $('tbody').innerHTML = html;
+          // ★★給料が 0 の 訳を 書く★★ 2026-09-08
+          //   ★司さん★「なぜ会社に残るお金が給料を引いた額やないんど」
+          //   ★実測（2026-09-08 本番）★ 勤務時数 0件・給料の決め事 0件
+          //     ⇒ 引く 給料が 0 なので「引いていない」ように 見えていた。
+          //   ⇒ ★式は 合っている／材料が 無い★ 事を 画面に 書く。
+          kyuryoNote(t.payTotal);
 
           Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (tr) {
             tr.style.cursor = 'pointer';
@@ -1529,6 +1584,21 @@
           };
         }
 
+        // ★★給料が 0 の 時に その 訳を 書く★★ 2026-09-08
+        function kyuryoNote(payTotal) {
+          var n = $('kyuryoNote');
+          if (!n) return;
+          if (payTotal > 0) {
+            n.style.display = 'none';
+            return;
+          }
+          n.style.display = 'block';
+          n.innerHTML =
+            '<b>給料が 0 です。</b>まだ <b>勤務時数</b>が 1件も 入っていません。<br />' +
+            '会社に残る分＝<b>売上 − 給料 − 積立金</b>で 出しています。' +
+            '時数を 入れると ここに 給料が 出て、会社に残る分が その分 減ります。';
+        }
+
         function renderOne() {
           var m = ONE ? YR.months[ONE - 1] : YR.total;
           tsukibar();
@@ -1580,25 +1650,21 @@
           $('dkSegM').className = 'segb' + (DENSHI_MODE === 'm' ? ' on' : '');
           $('dkSegD').className = 'segb' + (DENSHI_MODE === 'd' ? ' on' : '');
           if (DENSHI_MODE === 'm') {
+            // ★★ここも 見るだけ★★ 2026-09-08（司さん「ここで入力できるようになっとんど」）
+            //   ★打つ 所は 下の 帯の「入力」1か所★＝月ごとも 日ごとも 同じ 顔に する。
             $('dkHead').innerHTML = '<tr><th>月</th><th>電子決済</th></tr>';
-            // ★日ごとを 入れた 月は 日ごとを 使う（二重に 数えない）★
-            //   ⇒ その月の 月ごとの 欄は ★効いていない★ ので、そう 書く
-            var higoto = {};
+            // ★月ごとの 数＝その 月の 日ごとを 足した 物 ＋ 前に 月で 入れた 分★
+            var tsukiGoukei = {};
             Object.keys(DENSHI_HI).forEach(function (d) {
-              if (DENSHI_HI[d]) higoto[d.slice(0, 7)] = true;
+              if (!DENSHI_HI[d]) return;
+              var k = d.slice(0, 7);
+              tsukiGoukei[k] = (tsukiGoukei[k] || 0) + DENSHI_HI[d];
             });
             for (var m = 1; m <= 12; m++) {
               var key = ym(m);
-              html +=
-                '<tr><td>' +
-                m +
-                '月</td><td><input class="yen" data-denshi-tsuki="' +
-                key +
-                '" value="' +
-                (PP[key] || '') +
-                '">' +
-                (higoto[key] ? '<div class="dk-muko">日ごとを 使っています</div>' : '') +
-                '</td></tr>';
+              // ★日ごとが 在れば 日ごと／無ければ 前に 月で 入れた 分★（二重に 数えない）
+              var gaku = tsukiGoukei[key] !== undefined ? tsukiGoukei[key] : PP[key] || 0;
+              html += '<tr><td>' + m + '月</td><td>' + (gaku ? yen(gaku) : '') + '</td></tr>';
             }
           } else {
             // ★どの月の 日を 出すか★＝上で 選んだ 月（全体なら 今月）
@@ -1625,18 +1691,9 @@
             }
           }
           $('dkBody').innerHTML = html;
+          // ★★月ごとも 日ごとも 同じ 言い方★★ 2026-09-08
           $('dkMichi').textContent =
-            DENSHI_MODE === 'd'
-              ? '日ごとの 電子決済は 下の 帯の「入力」で 打てます（ここは 見るだけ）。'
-              : '';
-          Array.prototype.forEach.call(
-            document.querySelectorAll('[data-denshi-tsuki]'),
-            function (i) {
-              i.onchange = function () {
-                saveDenshi(i.getAttribute('data-denshi-tsuki'), i.value);
-              };
-            }
-          );
+            '電子決済は 下の 帯の「入力」で 日ごとに 打ちます（ここは 見るだけ）。';
         }
         (function wirePP() {
           var a1 = $('dkSegM');
@@ -1653,31 +1710,10 @@
             };
         })();
 
-        function saveDenshi(key, value) {
-          if (!COMPANY) return;
-          var v = num(value);
-          if (v < 0) v = 0;
-          DKSession.rest(SESS, 'dk_month_extras?on_conflict=company_id,ym', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
-            body: JSON.stringify({
-              company_id: COMPANY.company_id,
-              ym: key,
-              denshi_yen: v,
-              updated_at: new Date().toISOString(),
-            }),
-          })
-            .then(function (r) {
-              if (!r.ok) return saveErr('電子決済の分を保存できませんでした。', r);
-              showErr('');
-              PP[key] = v;
-              recalc();
-              render();
-            })
-            .catch(function () {
-              showErr('電子決済の分を保存できませんでした。');
-            });
-        }
+        // ★★書き込みは 1つも 在りません★★ 2026-09-08
+        //   ★司さん★「なぜ月次の電子決済は入力タブ作ったのにここで入力できるようになっとんど」
+        //   ⇒ 月次集計は ★見るだけ★。打つのは ★下の 帯の「入力」1か所★。
+        //   （前は ここから dk_month_extras へ 書いていました）
       })();
     </script>
     <!-- ★★事務所の 下の 帯（各ページへ 飛ぶ）★★ 2026-09-04（司さん）

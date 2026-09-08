@@ -106,7 +106,11 @@ test('★★① その日ぶんだけ 出る（電子決済 と 車ごとの 実
   page.on('pageerror', (e) => err.push(e.message));
   await hiraku(page);
   const r = await page.evaluate(() => ({
-    hi: (document.getElementById('hiJi') || {}).textContent || '',
+    // ★★日付は 欄が 出す★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
+    //   ⇒ 見るのは ★欄の 値★＋★曜日★（下の 行は 消しました）
+    hi:
+      ((document.getElementById('hiSel') || {}).value || '') +
+      ((document.getElementById('hiYoubi') || {}).textContent || ''),
     pp: (document.getElementById('denshiYen') || {}).value,
     sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
     ran: [...document.querySelectorAll('#shaList [data-sid]')].map((x) => ({
@@ -118,7 +122,7 @@ test('★★① その日ぶんだけ 出る（電子決済 と 車ごとの 実
   }));
   // eslint-disable-next-line no-console
   console.log('★入力★ ' + JSON.stringify(r));
-  expect(r.hi, '★選んだ 日が 出ていません★').toContain('9月2日');
+  expect(r.hi, '★選んだ 日が 出ていません★').toContain('2026-09-02');
   expect(r.pp, '★前に 入れた 3,200 が 出ていません★').toBe('3200');
   expect(r.sha, '★その日 走った 車が 出ていません★').toEqual(['4987', '1234']);
   expect(r.ran.length, '★車2台 × 実費2つ ＝ 4つの 欄★').toBe(4);
@@ -194,24 +198,32 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   await page.click('#prevD');
   await page.waitForTimeout(900);
   const a = await page.evaluate(() => ({
-    hi: (document.getElementById('hiJi') || {}).textContent || '',
+    // ★★日付は 欄が 出す★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
+    //   ⇒ 見るのは ★欄の 値★＋★曜日★（下の 行は 消しました）
+    hi:
+      ((document.getElementById('hiSel') || {}).value || '') +
+      ((document.getElementById('hiYoubi') || {}).textContent || ''),
     pp: (document.getElementById('denshiYen') || {}).value,
     msg: (document.getElementById('msg') || {}).textContent || '',
   }));
   // eslint-disable-next-line no-console
   console.log('★前の日★ ' + JSON.stringify(a));
-  expect(a.hi, '★前の日に 動いていません★').toContain('9月1日');
+  expect(a.hi, '★前の日に 動いていません★').toContain('2026-09-01');
   expect(a.pp, '★別の 日の 電子決済 が 残っています★').toBe('');
   expect(a.msg, '★記録が 無い 日に 何も 言っていません★').toContain('記録が ありません');
 
   await page.click('#nextD');
   await page.waitForTimeout(900);
   const b = await page.evaluate(() => ({
-    hi: (document.getElementById('hiJi') || {}).textContent || '',
+    // ★★日付は 欄が 出す★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
+    //   ⇒ 見るのは ★欄の 値★＋★曜日★（下の 行は 消しました）
+    hi:
+      ((document.getElementById('hiSel') || {}).value || '') +
+      ((document.getElementById('hiYoubi') || {}).textContent || ''),
     pp: (document.getElementById('denshiYen') || {}).value,
   }));
   // eslint-disable-next-line no-console
   console.log('★次の日★ ' + JSON.stringify(b));
-  expect(b.hi, '★戻っていません★').toContain('9月2日');
+  expect(b.hi, '★戻っていません★').toContain('2026-09-02');
   expect(b.pp, '★戻った 日の 電子決済 が 出ていません★').toBe('3200');
 });

@@ -85,12 +85,14 @@ const GAMEN = [
   // ★★入力（フッターに 1枚）★★ 2026-09-07（司さん「フッターに作れってこやろがぼけ」）
   { f: 'nyuryoku.html', na: '入力' },
   { f: 'shukei.html', na: '月次集計' },
-  { f: 'ryokinhyou.html', na: '料金表' },
+  // ★★2026-09-08 料金表の 札は 消しました★★（司さん「料金表タブは消して」）
+  //   ⇒ 会社設定 →「料金」の 中に ★窓★で 出す。
+  //   画面は 残る ので ★帯は 出る（札は 無い）★ … 下の 別の 試験で 見ます。
 ];
 // ★並びは 司さんの 決め★ 2026-09-05「月と給料 入れ替えて」
 // ★★2026-09-07 に 1つ 増えた★★（司さん「フッターに作れってこやろがぼけ」）
 //   毎日 打つ 物（電子決済・高速代・橋代…）を 入れる 1枚。
-const SAKI = ['月次集計', '売上表', '入力', '給料', '料金表', '会社設定'];
+const SAKI = ['月次集計', '売上表', '入力', '給料', '会社設定'];
 
 for (const g of GAMEN) {
   test('★下の 帯（' + g.f + '）★', async ({ page }) => {
@@ -128,7 +130,7 @@ for (const g of GAMEN) {
     expect(r.kotei, '★下に 貼り付いていません★').toBe('fixed');
     expect(r.shita, '★下に ぴったり 付いていません★').toBeLessThanOrEqual(1);
     expect(r.hamidashi, '★横に はみ出しています★').toBe(false);
-    // ★行き先は 6つ・どの画面でも 同じ★
+    // ★行き先は 5つ・どの画面でも 同じ★
     expect(
       r.items.map((x) => x.ji),
       '★行き先が 画面ごとに 違います★'
@@ -153,16 +155,55 @@ test('★押すと その 画面へ 行く★', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/kyuryo.html', { waitUntil: 'domcontentloaded' });
   await page.locator('#dkFooter').waitFor({ state: 'visible', timeout: 15000 });
-  await page.locator('[data-dkgo="ryokinhyou.html"]').click();
-  await page.waitForURL('**/ryokinhyou.html', { timeout: 15000 });
+  // ★★2026-09-08 料金表の 札は 消しました★★（司さん「料金表タブは消して」）
+  //   ⇒ ここでは ★入力★へ 行けるかを 見ます（毎日 押す 所）。
+  await page.locator('[data-dkgo="nyuryoku.html"]').click();
+  await page.waitForURL('**/nyuryoku.html', { timeout: 15000 });
+  // eslint-disable-next-line no-console
   console.log('★行った先★ ' + new URL(page.url()).pathname);
-  expect(new URL(page.url()).pathname, '★料金表へ 行けません★').toContain('ryokinhyou.html');
-  // ★料金表へ 入る 口は 前は 1枚も 無かった★
+  expect(new URL(page.url()).pathname, '★入力へ 行けません★').toContain('nyuryoku.html');
   await page.locator('#dkFooter').waitFor({ state: 'visible', timeout: 15000 });
   const on = await page.evaluate(() =>
     document.querySelector('#dkFooter .on').getAttribute('data-dkgo')
   );
-  expect(on, '★行った先で 印が 付いていません★').toBe('ryokinhyou.html');
+  expect(on, '★行った先で 印が 付いていません★').toBe('nyuryoku.html');
+});
+
+// ★★料金表は 会社設定の 中に 窓で 在る★★ 2026-09-08
+//   ★司さん★「そもそも料金表タブは消してここに窓作って見せるべきでは？」
+//             「料金表は窓つくってスクロールできるようにしてもっと見れるように」
+//             「見切れとるし直してないやないか」
+//   ★前★ 別の 画面へ 飛ぶ ⇒ ページごと 伸びて ★上が 見切れた★
+//   ★今★ 会社設定 →「料金」の 中の ★高さの 決まった 窓★（中で スクロール）
+test('★料金表は 会社設定の 窓の 中で 見られる★', async ({ page }) => {
+  await hairu(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/dashboard.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2000);
+  // ★「料金」の 札を 押す★
+  await page.locator('[data-chip="ryokin"]').click();
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => {
+    const f = document.getElementById('ryokinMado');
+    if (!f) return { aru: false };
+    const b = f.getBoundingClientRect();
+    return {
+      aru: true,
+      saki: f.getAttribute('src'),
+      takasa: Math.round(b.height),
+      haba: Math.round(b.width),
+      gamen: window.innerHeight,
+      hamidashi: Math.round(b.right) > document.documentElement.clientWidth + 1,
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★料金の 窓★ ' + JSON.stringify(r));
+  expect(r.aru, '★料金表の 窓が ありません★').toBe(true);
+  expect(r.saki, '★窓の 中身が 料金表では ありません★').toContain('ryokinhyou.html');
+  expect(r.saki, '★窓の 中でも 頭と 帯が 出ます★').toContain('embed=1');
+  expect(r.takasa, '★窓に 高さが ありません★').toBeGreaterThan(200);
+  expect(r.takasa, '★窓が 画面より 高い（＝窓の 意味が 無い）★').toBeLessThan(r.gamen);
+  expect(r.hamidashi, '★横に はみ出しています★').toBe(false);
 });
 
 test('★本人の 画面（?t=）には 出さない★', async ({ page }) => {
