@@ -83,6 +83,50 @@
     });
   }
 
+  // ★★走った 記録が 無い 日の 実費★★ 2026-09-08（司さん「入力するとこ出しとけや」）
+  //   ★入れる 棚★ daikome.dk_manual_days（会社×日×車）＝「手で 入れた 1日ぶん」
+  //   ★売上は 0 の まま★（実費だけ 入れる）＝走っていない 日に 売上は 立たない
+  //   ★決まりは 上の karada と 同じ★（古い 3つは 列／足した 物は expenses）
+  function saveTebiki(sess, companyId, hi, deviceId, cur, field, value) {
+    const v = seisuu(value);
+    cur = cur || {};
+    const body = {
+      company_id: companyId,
+      work_date: hi,
+      device_id: deviceId,
+      sales_yen: cur.sales_yen || 0,
+      hours: cur.hours || 0,
+      trip_count: cur.trip_count || 0,
+      toll_yen: cur.toll_yen || 0,
+      bridge_yen: cur.bridge_yen || 0,
+      other_yen: cur.other_yen || 0,
+      expenses: cur.expenses || {},
+      updated_at: new Date().toISOString(),
+    };
+    if (FURUI[field]) {
+      body[FURUI[field]] = v;
+    } else if (field.indexOf('_yen') > 0) {
+      body[field] = v;
+    } else {
+      const x = {};
+      for (const k in body.expenses) x[k] = body.expenses[k];
+      x[field] = v;
+      body.expenses = x;
+    }
+    return global.DKSession.rest(
+      sess,
+      'dk_manual_days?on_conflict=company_id,work_date,device_id',
+      {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates' },
+        body: JSON.stringify(body),
+      }
+    ).then(function (r) {
+      if (!r.ok) throw r;
+      return body;
+    });
+  }
+
   // ★電子決済（その日に 受け取った 分）を 保存する★
   function saveDenshi(sess, companyId, hi, value) {
     const v = seisuu(value);
@@ -108,6 +152,7 @@
     goukei: goukei,
     karada: karada,
     saveJippi: saveJippi,
+    saveTebiki: saveTebiki,
     saveDenshi: saveDenshi,
   };
 })(window);

@@ -353,6 +353,9 @@
         var EDITS = {}; // shift_id → 手で入れた1行
         var NAMAE = {}; // 端末ID → 車の名前
         var PP = 0; // その日の 電子決済
+        // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
+        //   端末ID → dk_manual_days の 1行
+        var TEBIKI = {};
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -498,6 +501,8 @@
             soft('dk_device_labels?select=*&limit=500'),
             soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
             soft('dk_day_extras?select=*&pay_date=eq.' + encodeURIComponent(HI) + '&limit=5'),
+            // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
+            soft('dk_manual_days?select=*&work_date=eq.' + encodeURIComponent(HI) + '&limit=50'),
           ])
             .then(function (res) {
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
@@ -523,6 +528,10 @@
                   PP = JippiHozon.seisuu(x.denshi_yen);
                 }
               });
+              TEBIKI = {};
+              (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
+                if (x && x.device_id) TEBIKI[x.device_id] = x;
+              });
               render();
               DKSession.showUnknownBar(LOAD, load);
             })
@@ -541,15 +550,15 @@
           NAMAE = CarName.nameMap(ids, RAW.labels);
 
           if (!RAW.shifts.length) {
-            $('shaList').innerHTML = '';
-            // ★★高速代は 走った 記録に ぶら下がる★★ 2026-09-08
-            //   ★司さん★「高速代とかどこに入れるんど」
-            //   ⇒ ★走っていない 日には 入れる 車が 出ない★ 事を はっきり 書く
+            // ★★走っていない 日でも 打てるように した★★ 2026-09-08
+            //   ★司さん★「日付選んどんやけん入力するとこ出しとけや」
+            //   ⇒ ★会社の 車を 全部 出す★（手で 入れた 1日ぶん＝dk_manual_days）
+            //   ★売上は 0 の まま★＝走っていない 日に 売上は 立ちません。
             showMsg(
               'この日は 走った 記録が ありません。' +
-                '高速代・橋代は ★走った 車ごと★ に 入れる ので、ここには 出ません。' +
-                '（電子決済は 上に 入れられます）'
+                '下に 会社の 車を 出しています。手で 入れた 分として 保存します（売上は 増えません）。'
             );
+            tebikiWoDasu();
             hashittaHiWoSagasu();
             return;
           }
@@ -618,6 +627,50 @@
           });
         }
 
+        // ★★走った 記録が 無い 日＝会社の 車を 全部 出す★★ 2026-09-08
+        //   ★入れ先は dk_manual_days★（売上 0 の まま／実費だけ）
+        function tebikiWoDasu() {
+          var ids = [];
+          (RAW.labels || []).forEach(function (l) {
+            if (l && l.device_id && ids.indexOf(l.device_id) < 0) ids.push(l.device_id);
+          });
+          if (!ids.length) {
+            $('shaList').innerHTML = '';
+            return;
+          }
+          NAMAE = CarName.nameMap(ids, RAW.labels);
+          var kinds = RAW.kinds;
+          var html = '';
+          ids.forEach(function (dev) {
+            var e = TEBIKI[dev] || {};
+            html +=
+              '<div class="sha"><div class="sha-na">' +
+              esc(NAMAE[dev] || '車') +
+              '</div>' +
+              kinds
+                .map(function (k) {
+                  return (
+                    '<div class="frow"><span class="flabel">' +
+                    esc(k.label) +
+                    '</span>' +
+                    '<div class="fen">' +
+                    '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+                    ' data-dev="' +
+                    esc(dev) +
+                    '" data-f="' +
+                    esc(k.kind_id) +
+                    '" value="' +
+                    (JippiHozon.ima(e, k.kind_id) || '') +
+                    '"><span class="en">円</span></div></div>'
+                  );
+                })
+                .join('') +
+              '</div>';
+          });
+          $('shaList').innerHTML = html;
+          bindYen();
+        }
+
         function bindYen() {
           Array.prototype.forEach.call(
             document.querySelectorAll('#shaList [data-sid]'),
@@ -627,6 +680,36 @@
               };
             }
           );
+          // ★★走った 記録が 無い 日の 分★★ 2026-09-08（手で 入れた 1日ぶん）
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-dev]'),
+            function (i) {
+              i.onchange = function () {
+                saveTebiki(i.getAttribute('data-dev'), i.getAttribute('data-f'), i.value);
+              };
+            }
+          );
+        }
+
+        // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
+        function saveTebiki(deviceId, field, value) {
+          if (!COMPANY) return;
+          JippiHozon.saveTebiki(
+            SESS,
+            COMPANY.company_id,
+            HI,
+            deviceId,
+            TEBIKI[deviceId],
+            field,
+            value
+          )
+            .then(function (body) {
+              showErr('');
+              TEBIKI[deviceId] = body;
+            })
+            .catch(function (r) {
+              saveErr('保存できませんでした。通信を確認してください。', r);
+            });
         }
 
         // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）

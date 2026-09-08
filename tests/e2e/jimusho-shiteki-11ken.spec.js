@@ -32,13 +32,14 @@ function stub(shifts) {
     moto +
     ';(function(){var D=' +
     JSON.stringify(D) +
-    ';var S=window.DKSession;' +
+    ';var S=window.DKSession;window.__okutta=[];' +
     'function rows(p){ if(p.indexOf("dk_expense_kinds")===0)return D.K;' +
+    ' if(p.indexOf("dk_device_labels")===0)return [{company_id:"c1",device_id:"d1",label:"4987",sort_order:1}];' +
     ' if(p.indexOf("dk_shifts")===0){ var qq=decodeURIComponent(p); var iso=qq.match(/\\d{4}-\\d{2}-\\d{2}T[\\d:.]+Z?/g)||[]; if(iso.length<2)return D.SH; var f=+new Date(iso[0]), t=+new Date(iso[1]); return D.SH.filter(function(x){var d=+new Date(x.started_at); return d>=f&&d<t;});} return [];}' +
     'S.ensure=function(){return Promise.resolve({access_token:"t"});};S.goLogin=function(){};S.logout=function(){};' +
     'S.rememberedCompanyId=function(){return D.co.company_id;};S.pickCompany=function(){return {mode:"one",company:D.co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([D.co]);}});};' +
-    'S.rest=function(s,p,o){return Promise.resolve({ok:true,status:200,text:function(){return Promise.resolve("");},json:function(){return Promise.resolve(rows(p));}});};' +
+    'S.rest=function(s,p,o){ if(o&&o.method)window.__okutta.push({saki:p,method:o.method,body:o.body}); return Promise.resolve({ok:true,status:200,text:function(){return Promise.resolve("");},json:function(){return Promise.resolve(rows(p));}});};' +
     'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
 }
@@ -150,8 +151,11 @@ test('★★② 単位「円」は 欄の 中★★', async ({ page }) => {
   expect(zenbu.lab.join(','), '★ラベルに（円）が 残っています★').not.toContain('（円）');
 });
 
-test('★★③ 走った 記録が 無い 日は 訳を 書いて 走った 日へ 飛べる★★', async ({ page }) => {
-  // ★その月に 走った 日が 1日だけ 在る★（今 見ている 日には 無い）
+// ★★2026-09-08（2回目）★★ 司さん「日付選んどんやけん入力するとこ出しとけや」
+//   ★前★ 走っていない 日は ★欄が 1つも 出なかった★（訳を 書いただけ）
+//   ★今★ ★会社の 車を 全部 出して 打てる★（手で 入れた 1日ぶん＝dk_manual_days）
+//         ★売上は 0 の まま★＝走っていない 日に 売上は 立ちません。
+test('★★③ 走った 記録が 無い 日でも 入れる 所が 出る★★', async ({ page }) => {
   await hiraku(page, 'nyuryoku.html', [
     { shift_id: 's1', device_id: 'd1', started_at: '2026-09-20T10:00:00+09:00' },
   ]);
@@ -162,12 +166,44 @@ test('★★③ 走った 記録が 無い 日は 訳を 書いて 走った 日
     msg: (document.getElementById('msg') || {}).textContent || '',
     btn: (document.getElementById('hashittaHi') || {}).style.display,
     ji: (document.getElementById('btnLastRun') || {}).textContent || '',
+    // ★打てる 欄が 出ている★（手で 入れた 1日ぶん）
+    ran: document.querySelectorAll('#shaList [data-dev]').length,
+    sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
   }));
   // eslint-disable-next-line no-console
   console.log('★記録が 無い 日★ ' + JSON.stringify(r));
-  expect(r.msg, '★なぜ 入れられないかが 書いてありません★').toContain('走った 車ごと');
+  expect(r.ran, '★走っていない 日に 打つ 欄が 出ていません★').toBeGreaterThan(0);
+  expect(r.sha.length, '★会社の 車が 出ていません★').toBeGreaterThan(0);
+  expect(r.msg, '★売上が 増えない 事が 書いてありません★').toContain('売上は 増えません');
   expect(r.btn, '★走った 日へ 飛ぶ ボタンが 出ていません★').not.toBe('none');
   expect(r.ji, '★飛び先の 日が 書いてありません★').toContain('9/20');
+});
+
+// ★★打った 分は 手で 入れた 1日ぶんへ 行く★★ 2026-09-08
+test('★★③-2 打つと dk_manual_days へ 行く（売上は 0 の まま）★★', async ({ page }) => {
+  await hiraku(page, 'nyuryoku.html', [
+    { shift_id: 's1', device_id: 'd1', started_at: '2026-09-20T10:00:00+09:00' },
+  ]);
+  await page.fill('#hiSel', '2026-09-03');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(1500);
+  const kou = page.locator('#shaList [data-dev]').first();
+  await kou.fill('1500');
+  await kou.dispatchEvent('change');
+  await page.waitForTimeout(600);
+  const okutta = await page.evaluate(() => window.__okutta || []);
+  // eslint-disable-next-line no-console
+  console.log('★送った 先★ ' + JSON.stringify(okutta.map((x) => x.saki)));
+  const md = okutta.filter((x) => x.saki.indexOf('dk_manual_days') === 0);
+  expect(md.length, '★手で 入れた 1日ぶんへ 行っていません★').toBe(1);
+  const body = JSON.parse(md[0].body);
+  expect(body.work_date, '★日が 違います★').toBe('2026-09-03');
+  expect(body.toll_yen, '★打った 額が 入っていません★').toBe(1500);
+  expect(body.sales_yen, '★売上を 立てています★').toBe(0);
+  expect(
+    okutta.filter((x) => /dk_shifts|dk_trips/.test(x.saki)).length,
+    '★元データに 書いています★'
+  ).toBe(0);
 });
 
 test('★★④ 実費の 順番は ▲▼（数字を 見せない）★★', async ({ page }) => {

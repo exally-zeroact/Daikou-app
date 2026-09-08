@@ -483,6 +483,15 @@
 
       /* ★★窓の 中では 見出しを 貼り付ける★★ 2026-09-08
          スクロールしても どの 列か 分からなく ならない ように。 */
+
+      /* ★★月ごと・年間は 丸ごと 出す（スクロール 0）★★ 2026-09-08
+         ★司さん★「月ごとの窓はスクロールせんようにって言うたことないか？」
+         12行なら 窓に 入れる 意味が 無い。★日ごと（31行）だけ 窓★。 */
+      .kyori-sc.marugoto {
+        max-height: none;
+        overflow-y: visible;
+      }
+
       .kyori-sc table.kami > thead > tr > th {
         position: sticky;
         top: 0;
@@ -1093,7 +1102,19 @@
           return Object.keys(d).sort();
         }
 
+        // ★★月ごと・年間なら 窓を 外す★★ 2026-09-08（司さん）
+        //   ★日ごとは 31行 ある ので 窓の まま★
+        function madoKirikae(tblId, mode) {
+          var t = $(tblId);
+          if (!t) return;
+          var hako = t.parentElement;
+          if (!hako) return;
+          if (mode === 'day') hako.classList.remove('marugoto');
+          else hako.classList.add('marugoto');
+        }
+
         function renderUri() {
+          madoKirikae('uriTbl', URI_MODE);
           var head = $('uriHead');
           var body = $('uriBody');
           if (!head || !body) return;
@@ -1296,6 +1317,7 @@
         })();
 
         function renderKyori() {
+          madoKirikae('kyoriTbl', KYORI_MODE);
           var head = $('kyoriHead');
           var body = $('kyoriBody');
           if (!head || !body) return;

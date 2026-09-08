@@ -397,6 +397,38 @@
         background: transparent;
         padding-bottom: 0 !important;
       }
+
+      /* ★★窓（中で すべる）★★ 2026-09-08（司さん「赤丸の所は窓で分とけや」） */
+      .mado {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
+
+      /* ★★上の 表＝4列を 折り返して 収める★★ 2026-09-08
+         ★横に すべらせるのは 間違い★でした（司さん「横に すべらせるな」／見張りも 在る）。
+         ★見切れていた 訳★ 会社設定の 窓の 中は ★328px★＝画面より 狭い。
+         ⇒ ★字を 折り返して★ 狭い 幅でも 4列 全部 出す。 */
+      .mado-ima table.kami > thead > tr > th,
+      .mado-ima table.kami > tbody > tr > td {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        font-size: 10px;
+        padding: 3px 2px;
+      }
+
+      /* ★下の 表＝何キロでも 出せるように 縦の 窓★ */
+      .mado-tate {
+        max-height: min(320px, 45vh);
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .mado-tate table.kami > thead > tr > th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
     </style>
   </head>
   <body>
@@ -425,10 +457,17 @@
           <div class="itsuno" id="itsuno">—</div>
           <!-- ★★今 いくらかを 紙で 出す★★ 2026-09-05（司さん「紙にして」）
                下の 入力の 所は ★打ち込む 画面★なので そのままです。 -->
-          <table class="kami" id="imaTbl">
-            <thead id="imaHead"></thead>
-            <tbody id="imaBody"></tbody>
-          </table>
+          <!-- ★★2つの 表を 別々の 窓に★★ 2026-09-08（司さん「赤丸の所は窓で分とけや」）
+               ★前★ 2つが 続けて 並び、上の 表の「それ以降」の 列が ★横に 見切れて★ いた。
+               ★今★ ①それぞれ ★自分の 窓★に 入れる
+                     ②上の 表は ★横に すべる 窓★（4列を 削らずに 全部 見せる）
+                     ③下の 表は ★縦に すべる 窓★（何キロでも 出せる） -->
+          <div class="mado mado-ima">
+            <table class="kami" id="imaTbl">
+              <thead id="imaHead"></thead>
+              <tbody id="imaBody"></tbody>
+            </table>
+          </div>
           <div class="note" id="motoNote"></div>
           <!-- ★★何キロ 走ったら 何円★★ 2026-09-06（司さん）
                ★司さんの言葉★「なぜ料金表ってゆうて何キロ走って何円の表がここに出ない」
@@ -437,15 +476,17 @@
                ★計算は js/fare-calc.js（メーターと 同じ 1か所）を 呼びます★
                  ＝★表に 出る 金額と 実際に 取る 金額が ずれません★ -->
           <div class="kami-ttl" style="margin-top: 14px">何キロで いくら</div>
-          <table class="kami" id="kmTbl">
-            <thead>
-              <tr>
-                <th>ここまで</th>
-                <th>いくら</th>
-              </tr>
-            </thead>
-            <tbody id="kmBody"></tbody>
-          </table>
+          <div class="mado mado-tate">
+            <table class="kami" id="kmTbl">
+              <thead>
+                <tr>
+                  <th>ここまで</th>
+                  <th>いくら</th>
+                </tr>
+              </thead>
+              <tbody id="kmBody"></tbody>
+            </table>
+          </div>
           <div class="note" id="kmNote"></div>
           <!-- ★★見るだけの 時★★ 2026-09-05（司さん「会社の設定で 料金 触るようにしろ」）
                ★決めるのは 会社設定★＝ここは 今 いくらかを 見る 所。 -->
@@ -1128,7 +1169,11 @@
           }
           var base = typeof c.base_distance_m === 'number' ? c.base_distance_m : 1000;
           var add = c.add_distance_m > 0 ? c.add_distance_m : 420;
-          var MAX = 22000;
+          // ★★どこまで 出すか★★ 2026-09-08（司さん「なんで22kmまでしかないんど」）
+          //   ★前★ 22km で 打ち切っていた（表が 長く なりすぎない ように）
+          //   ★今★ 窓の 中に 入れた ので ★長くても 邪魔に ならない★
+          //   ⇒ ★100km まで★（0.42km ごとなら 約236行）
+          var MAX = 100000;
           var now = new Date();
           var li = [];
           for (var d = base; d <= MAX; d += add) li.push(d);

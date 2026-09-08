@@ -100,6 +100,7 @@ SELECT company_id,
     toll_yen,
     bridge_yen,
     other_yen,
+    expenses,
     trip_count,
     note,
     updated_at
