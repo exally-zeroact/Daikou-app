@@ -196,7 +196,14 @@ test('★★④ 実費は 前と 同じ 所へ 行く★★', async ({ page }) =
 test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   await hiraku(page);
   await page.click('#prevD');
-  await page.waitForTimeout(900);
+  // ★★決まった 秒 待つのを やめる★★ 2026-09-09（実測）
+  //   手元は 0.9秒で 間に合うが ★CI は 混んでいて 間に合わない★
+  //   ⇒ ★日付が 変わるまで 待つ★
+  await expect(page.locator('#hiSel')).toHaveValue('2026-09-01', { timeout: 15000 });
+  // ★知らせは 後から 出る★ので それも 出るまで 待つ
+  await expect(page.locator('#msg')).toContainText('記録が ありません', {
+    timeout: 15000,
+  });
   const a = await page.evaluate(() => ({
     // ★★日付は 欄が 出す★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
     //   ⇒ 見るのは ★欄の 値★＋★曜日★（下の 行は 消しました）
@@ -213,7 +220,9 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   expect(a.msg, '★記録が 無い 日に 何も 言っていません★').toContain('記録が ありません');
 
   await page.click('#nextD');
-  await page.waitForTimeout(900);
+  // ★戻った 日の 数字が 出るまで 待つ（秒で 待たない）★
+  await expect(page.locator('#hiSel')).toHaveValue('2026-09-02', { timeout: 15000 });
+  await expect(page.locator('#denshiYen')).toHaveValue('3200', { timeout: 15000 });
   const b = await page.evaluate(() => ({
     // ★★日付は 欄が 出す★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
     //   ⇒ 見るのは ★欄の 値★＋★曜日★（下の 行は 消しました）
