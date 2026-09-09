@@ -151,7 +151,10 @@ test('★見るだけ＝入力が 出ない／決める＝出る★', async ({ p
       .length,
     nyuryoku: [...document.querySelectorAll('#honbun input')].filter((i) => i.offsetHeight > 0)
       .length,
-    kimeruBtn: !!(document.getElementById('miruDake') || {}).offsetHeight,
+    // ★★2026-09-09 場所を 変えた★★（司さん「上の 今の料金表の 右横で よくないか？」）
+    //   ★前★ 表の ずっと 下（miruDake の 中）
+    //   ★今★ ★見出しと 同じ 行の 右★
+    kimeruBtn: !!(document.getElementById('kimeruBtn') || {}).offsetHeight,
     hozon: !!(document.getElementById('btnSave') || {}).offsetHeight,
   }));
   // eslint-disable-next-line no-console
@@ -159,6 +162,20 @@ test('★見るだけ＝入力が 出ない／決める＝出る★', async ({ p
   expect(miru.card, '★紙が 出ていません★').toBe(1);
   expect(miru.nyuryoku, '★見るだけなのに 入力が 出ています★').toBe(0);
   expect(miru.kimeruBtn, '★「料金を 変える」が 出ていません★').toBe(true);
+  // ★見出しと 同じ 行の 右に 在る★
+  const basho = await page.evaluate(() => {
+    const b = document.getElementById('kimeruBtn');
+    const t = document.querySelector('.ttl-row .ttl');
+    if (!b || !t) return null;
+    const bb = b.getBoundingClientRect();
+    const tb = t.getBoundingClientRect();
+    return { migi: bb.left > tb.right, onaji_gyou: Math.abs(bb.top - tb.top) < 24 };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★変える ボタンの 場所★ ' + JSON.stringify(basho));
+  expect(basho, '★見出しの 行が ありません★').not.toBeNull();
+  expect(basho.migi, '★見出しの 右横に ありません★').toBe(true);
+  expect(basho.onaji_gyou, '★見出しと 同じ 行に ありません★').toBe(true);
   expect(miru.hozon, '★見るだけなのに 保存が 出ています★').toBe(false);
 });
 
@@ -248,4 +265,26 @@ test('★★何キロで いくらの 表が 出る（金額は 計算機と 同
   expect(r.hajime, '★最初の 金額が 基本料金と 違います★').toBe(CFG.base_fare);
   expect(r.tsugi, '★2行目が 基本料金＋加算に なっていません★').toBe(CFG.base_fare + CFG.add_fare);
   expect(r.note, '★いつの 金額かが 書いてありません★').toContain('今の 時間');
+});
+
+test('★★案内の 字が 本物の ボタン名と 合っている★★', async ({ page }) => {
+  await hiraku(page);
+  const r = await page.evaluate(() => {
+    const b = document.getElementById('kimeruBtn');
+    return {
+      na: b ? b.textContent.trim().replace(/\s+/g, ' ') : null,
+      honbun: (document.getElementById('honbun') || {}).innerHTML || '',
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★ボタンの 名前★ ' + JSON.stringify(r.na));
+  expect(r.na, '★変える ボタンが ありません★').toBeTruthy();
+  // ★古い 名前を 名指している 字が 残っていないか★
+  const furui = '料金を 決める';
+  if (r.na !== furui) {
+    expect(
+      r.honbun.indexOf(furui),
+      '★説明に 古い ボタン名「' + furui + '」が 残っています★（押しても そんな ボタンは 無い）'
+    ).toBe(-1);
+  }
 });

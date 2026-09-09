@@ -238,6 +238,57 @@ test('★★②-2 狭い 窓の 幅でも 4列 切れない★★', async ({ pag
   expect(r.hyou, '★表が 窓より 広い★').toBeLessThanOrEqual(r.hako + 1);
 });
 
+// ★★同じ 物を 2か所に 置かない★★ 2026-09-09
+//   ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
+//   ⇒ 変える 口は ★窓の 中の 見出しの 右横★ 1つだけ
+test('★★⑧ 会社設定の 料金に 同じ ボタンを 並べない★★', async ({ page }) => {
+  await hiraku(page, 'dashboard.html');
+  await page.locator('[data-chip="ryokin"]').click();
+  await page.waitForTimeout(800);
+  const r = await page.evaluate(() => {
+    const pane = document.querySelector('[data-pane="ryokin"]');
+    if (!pane) return { aru: false };
+    const a = [...pane.querySelectorAll('a')].map((x) => x.textContent.trim());
+    return {
+      aru: true,
+      link: a,
+      mado: !!pane.querySelector('#ryokinMado'),
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★会社設定の 料金★ ' + JSON.stringify(r));
+  expect(r.aru, '★料金の 所が ありません★').toBe(true);
+  expect(r.mado, '★料金の 窓が ありません★').toBe(true);
+  expect(r.link.join(','), '★「料金を 決める」が 外に 残っています★').not.toContain(
+    '料金を 決める'
+  );
+  expect(r.link.join(','), '★「紙で 出す」が 残っています★').not.toContain('紙で 出す');
+
+  // ★★見出しを 2つ 並べない★★ 2026-09-09
+  //   ★司さん★「今の料金表も どっちか 消して」
+  //   ★前★ 窓の 外に「今の 料金」／中に「今の 料金表」
+  //   ⇒ 窓の 中の 見出しを ★本物から 取って★ 外に 同じ 字が 無いか 見る
+  const nakaMidashi = await page.frameLocator('#ryokinMado').locator('.ttl-row .ttl').innerText();
+  const sotoJi = await page.evaluate(() => {
+    const pane = document.querySelector('[data-pane="ryokin"]');
+    if (!pane) return '';
+    const f = pane.querySelector('iframe');
+    const c = pane.cloneNode(true);
+    const cf = c.querySelector('iframe');
+    if (cf) cf.remove();
+    void f;
+    return (c.innerText || c.textContent || '').replace(/\s+/g, ' ').trim();
+  });
+  // eslint-disable-next-line no-console
+  console.log('★見出し★ 中=' + JSON.stringify(nakaMidashi) + ' 外=' + JSON.stringify(sotoJi));
+  const kaname = nakaMidashi.replace(/\s+/g, '').replace(/表$/, '');
+  expect(kaname, '★窓の 中の 見出しが ありません★').toBeTruthy();
+  expect(
+    sotoJi.replace(/\s+/g, ''),
+    '★同じ 見出しが 窓の 外にも 出ています★（二重）'
+  ).not.toContain(kaname);
+});
+
 test('★★③ 何キロで いくらが 22km で 止まらない★★', async ({ page }) => {
   await hiraku(page, 'ryokinhyou.html');
   const r = await page.evaluate(() => {
@@ -301,7 +352,19 @@ test('★★⑤ 車種を 使っていない 時は その事を 書く★★', 
   console.log('★車種を 使っていない★ ' + JSON.stringify(r));
   expect(r.mieru, '★使っていないのに 選び が 出ています★').toBe('none');
   expect(r.note, '★使っていない事が 書いてありません★').toContain('使っていません');
-  expect(r.note, '★どこで 足すかが 書いてありません★').toContain('料金を 決める');
+  // ★★本物の ボタン名を 取って 比べる★★ 2026-09-09
+  //   ★前★ 字を 打ち込んでいた ⇒ ボタン名を 変えた だけで 赤に なった
+  //   ★今★ 説明の 字が ★今 実際に 出ている ボタン★を 名指しているかを 見る
+  const btnNa = await page.evaluate(() => {
+    const b = document.getElementById('kimeruBtn');
+    return b ? b.textContent.trim().replace(/\s+/g, ' ') : null;
+  });
+  // eslint-disable-next-line no-console
+  console.log('★本物の ボタン名★ ' + JSON.stringify(btnNa));
+  expect(btnNa, '★変える ボタンが ありません★').toBeTruthy();
+  expect(r.note, '★どこで 足すかが 書いてありません★（または 無い ボタンを 指している）').toContain(
+    btnNa
+  );
 });
 
 // ★★「最後に 変えた 人」は 出さない★★ 2026-09-08（司さん「いらん」）

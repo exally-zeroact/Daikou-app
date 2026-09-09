@@ -429,6 +429,25 @@
         top: 0;
         z-index: 1;
       }
+
+      /* ★★見出しと ボタンを 同じ 行に★★ 2026-09-09（司さん） */
+      .ttl-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .ttl-row .ttl {
+        margin: 0;
+      }
+
+      .btn.kimeru {
+        flex: 0 0 auto;
+        padding: 7px 12px;
+        font-size: 13px;
+        white-space: nowrap;
+      }
     </style>
   </head>
   <body>
@@ -453,7 +472,14 @@
           <a class="btn ghost" href="dashboard.html">← 会社設定へ 戻る</a>
         </div>
         <div class="card">
-          <div class="ttl">今の 料金表</div>
+          <!-- ★★変える ボタンは 見出しの 右横★★ 2026-09-09
+               ★司さん★「赤丸は 上の 今の料金表の 右横で よくないか？」
+               ★前★ 表の ずっと 下（スクロールしないと 見えない）
+               ★今★ ★見出しと 同じ 行の 右★＝一目で 分かる -->
+          <div class="ttl-row">
+            <div class="ttl">今の 料金表</div>
+            <a class="btn kimeru" id="kimeruBtn" href="ryokinhyou.html?henshu=1">料金を 変える</a>
+          </div>
           <!-- ★★「最後に 変えた 人」は 消しました★★ 2026-09-08
                ★司さん★「最後に変えた人とかいらん」
                ★誰が いつ 変えたかは 倉庫に 残ります★（dk_fare_config.updated_at / updated_by）
@@ -501,12 +527,10 @@
           <div class="note" id="kmNote"></div>
           <!-- ★★見るだけの 時★★ 2026-09-05（司さん「会社の設定で 料金 触るようにしろ」）
                ★決めるのは 会社設定★＝ここは 今 いくらかを 見る 所。 -->
-          <div id="miruDake" style="display: none; margin-top: 10px">
-            <a class="btn" id="kimeruBtn" href="dashboard.html">料金を 変える（会社設定）</a>
-            <div class="note" style="margin-top: 6px">
-              料金は <b>会社設定 →「料金」</b>で 決めます。ここは 今の 料金を 見る 所です。
-            </div>
-          </div>
+          <!-- ★★下に 置いていた 分は 消しました★★ 2026-09-09
+               ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
+               ⇒ 変える 口は ★見出しの 右横の 1つだけ★（同じ 物を 2か所に 置かない） -->
+          <div id="miruDake" style="display: none"></div>
         </div>
 
         <div class="card">
@@ -1192,7 +1216,7 @@
             hako.style.display = 'none';
             note.innerHTML =
               '車種ごとの 料金は <b>使っていません</b>。' +
-              '（車種で 倍率や 加算を 変えたい ときは <b>料金を 決める</b>で 足せます）';
+              '（車種で 倍率や 加算を 変えたい ときは <b>料金を 変える</b>で 足せます）';
             return;
           }
           hako.style.display = '';
@@ -1335,6 +1359,21 @@
           for (var i = 1; i < cards.length; i++) cards[i].style.display = h ? '' : 'none';
           var m = $('miruDake');
           if (m) m.style.display = h ? 'none' : '';
+          // ★★「料金を 変える」は 見るだけの 時だけ★★ 2026-09-09（司さん）
+          //   決める 画面（?henshu=1）では ★もう そこに 居る★ ので 出さない
+          var kb = $('kimeruBtn');
+          if (kb) {
+            kb.style.display = h ? 'none' : '';
+            // ★窓（会社設定の 中）から 押した 時は ★窓の 外★を 動かす★
+            //   （窓の 中で 開くと 帯も 頭も 出ない 画面に なる）
+            try {
+              if (new URLSearchParams(location.search).get('embed') === '1') {
+                kb.setAttribute('target', '_top');
+              }
+            } catch (_) {
+              /* 古い端末でも 落とさない */
+            }
+          }
           // ★保存の ボタンは 一番 下の card の 中に 在る★＝上の 繰り返しで 一緒に 消えます
         }
 

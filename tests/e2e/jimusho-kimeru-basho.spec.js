@@ -183,7 +183,30 @@ test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async
   // eslint-disable-next-line no-console
   console.log('★入口★ ' + JSON.stringify(iki));
   expect(iki, '★車の 入口が ありません★').toContain('kyuryo.html?henshu=1#set');
-  expect(iki, '★料金の 入口が ありません★').toContain('ryokinhyou.html?henshu=1');
+  // ★★料金の 入口は 窓の 中へ 移しました★★ 2026-09-09
+  //   ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
+  //   ⇒ 窓の 外の 札は 消し、★窓の 中の 見出しの 右横★ 1つに まとめた。
+  //   ★ここで 守る 事★ 入口が ★本当に 押せる形で 存えているか★
+  //     （札を 消すだけで 緑に するのは 見張りを 殺すのと 同じ）
+  // ★窓は 押すまで 読み込まない（loading="lazy"）★ ⇒ 先に 料金を 開く
+  await page.locator('[data-chip="ryokin"]').click();
+  await page.waitForTimeout(800);
+  const mado = page.frameLocator('#ryokinMado');
+  const kimeru = mado.locator('#kimeruBtn');
+  await kimeru.waitFor({ state: 'visible', timeout: 8000 });
+  const ryokinIri = await kimeru.evaluate((a) => ({
+    href: a.getAttribute('href'),
+    target: a.getAttribute('target'),
+    ji: a.textContent.trim(),
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★料金の 入口（窓の 中）★ ' + JSON.stringify(ryokinIri));
+  expect(ryokinIri.href, '★料金の 入口の 行き先が 違います★').toBe('ryokinhyou.html?henshu=1');
+  // ★窓の 中で 開くと 小さい 箱に 閉じ込められる★
+  expect(ryokinIri.target, '★窓の 中で 開いてしまいます★').toBe('_top');
+
+  // ★窓の 外に 同じ 札を 戻さない★
+  expect(iki.join(','), '★「料金を 決める」が 外に 戻っています★').not.toContain('ryokinhyou.html');
   expect(iki, '★従業員の 入口が ありません★').toContain('kyuryo.html?henshu=1#emp');
 
   expect(err, '★画面が 落ちました★').toEqual([]);
