@@ -20,6 +20,15 @@ export default defineConfig({
   captureGitInfo: { commit: false, diff: false },
   use: {
     baseURL: 'http://localhost:3000',
+    // ★★時間帯は 日本に 固定★★ 2026-09-09（実測）
+    //   ★なぜ 要るか★ CI は UTC で 走るので
+    //     ①深夜割増（22〜5時）が 意図せず 掛かる（1,300 → 1,560）
+    //     ②★日付の 境目が 9時間 ずれる★
+    //   ⇒ ★手元は 緑・CI だけ 赤★ という
+    //     一番 見つけにくい 形に なる。
+    //   ★お客さんは 日本に 居る★ので
+    //   ★試験を 本番に 合わせる★（逆は しない）
+    timezoneId: 'Asia/Tokyo',
     headless: true,
     trace: 'retain-on-failure',
     // ★★落ちた 時の 証拠を 残す★★ 2026-09-06（指示役）
