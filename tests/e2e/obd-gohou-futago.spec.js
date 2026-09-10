@@ -48,6 +48,21 @@ function gyoumuChu() {
   });
 }
 
+// ★★Web Bluetooth が 無い 所でも 同じ 答えに する★★ 2026-09-10（実測）
+//   ★手元（Windows）★ navigator.bluetooth 在り ⇒ isSupported() = true
+//   ★CI（Linux headless）★ 無し ⇒ isSupported() = false
+//   ⇒ 帯の 判定は `_obdSupported` が false だと ★必ず 出ない★
+//   ⇒ ★手元は 緑・CI だけ 赤★ に なっていた（今日 何度も 踏んだ 型）
+//   ★直し★ 本物の OBDClient の isSupported だけ 差し替える。
+//     （毎回の 書き直しで 呼ばれるので 後から でも 効く＝実測）
+async function tsukaeruKotoNiSuru(page) {
+  await page.evaluate(() => {
+    if (window.OBDClient) window.OBDClient.isSupported = () => true;
+  });
+  // ★書き直しの 1回ぶん 待つ★
+  await page.waitForTimeout(1500);
+}
+
 test('★★① 今日 挿さない だけでは 出さない★★', async ({ page }) => {
   await page.addInitScript((bs) => {
     try {
@@ -59,6 +74,8 @@ test('★★① 今日 挿さない だけでは 出さない★★', async ({ p
   }, gyoumuChu());
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  await tsukaeruKotoNiSuru(page);
   // ★猶予の 4秒を 越えて から 見る★
   await page.waitForTimeout(8000);
   const r = await page.evaluate(() => {
@@ -173,6 +190,8 @@ test('★★⑤ 読み直しても 帯が 出る（実ブラウザ）★★', as
   }, gyoumuChu());
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  await tsukaeruKotoNiSuru(page);
   await page.waitForTimeout(8000);
   const r = await page.evaluate(() => {
     const b = document.getElementById('obdReconnectBar');
@@ -225,6 +244,8 @@ test('★★⑥ 業務が 終わった 後は 出さない★★', async ({ page
   }, gyoumuOwari());
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  await tsukaeruKotoNiSuru(page);
   await page.waitForTimeout(8000);
   const r = await page.evaluate(() => {
     const b = document.getElementById('obdReconnectBar');
