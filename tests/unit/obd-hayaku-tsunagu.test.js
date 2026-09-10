@@ -31,7 +31,15 @@
 const fs = require('fs');
 const path = require('path');
 
-const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'obd-client.js'), 'utf8');
+// ★★読んだ 直後に LF へ 揃える★★ 2026-09-10（実測）
+//   Windows は core.autocrlf=true なので ★取り出した ファイルが CRLF★ に なる。
+//   ここは 本物を '\n  }\n' で 切り出して 動かす ので
+//   CRLF だと 切り出せず ★ReferenceError で 赤★に なる。
+//   ★手元だけ 赤・CI（Linux）は 緑★ という 一番 分かりにくい 形。
+//   ★配る ファイルは 1バイトも 触っていません★（読んだ 後の 写しを 揃える だけ）
+const SRC = fs
+  .readFileSync(path.join(__dirname, '..', '..', 'js', 'obd-client.js'), 'utf8')
+  .replace(/\r\n/g, '\n');
 
 // ★本物の _initElm を ファイルから 切り出して 動かす★（写しを 作らない）
 function tsukuru(kotae) {
