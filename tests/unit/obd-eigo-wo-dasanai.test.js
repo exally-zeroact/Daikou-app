@@ -56,6 +56,34 @@ describe('★英語を そのまま 見せない★', () => {
     ).toBe('');
   });
 
+  // ★★2026-09-10 指示役の 監査②で 足した★★
+  //   ★字（message）は 版で 変わる／★名前（name）は 規格★★
+  //   ⇒ 名前で 拾えば 版差に 強い
+  it('★★②-2 AbortError も 何も 言わない（窓を 閉じただけ）★★', () => {
+    const f = honmono();
+    // ★Chrome が 機械選びの 窓を 閉じた 時に 出す 事が 在る★
+    expect(
+      f('AbortError', 'The user aborted a request.'),
+      '★窓を 閉じた だけなのに「挿し直して」と 言っています★'
+    ).toBe('');
+    // ★字が 空でも 名前で 拾える★（版差に 強い形）
+    expect(f('AbortError', ''), '★名前で 拾えていません★').toBe('');
+    expect(f('NotFoundError', ''), '★名前で 拾えていません★').toBe('');
+  });
+
+  it('★★②-3 使えない スマホには「使えません」と 言う★★', () => {
+    const f = honmono();
+    const r = f('NotSupportedError', 'Bluetooth is not supported');
+    // eslint-disable-next-line no-console
+    console.log('★使えない スマホ★ ' + JSON.stringify(r));
+    expect(r, '★何も 言っていません★').toBeTruthy();
+    expect(
+      r.indexOf('挿し直して'),
+      '★挿し直しても 直らないのに「挿し直して」と 言っています★'
+    ).toBe(-1);
+    expect(r.indexOf('使えません'), '★使えない事を 言っていません★').toBeGreaterThan(-1);
+  });
+
   it('★★③ 言わないと 直せない 物は 日本語で 言う★★', () => {
     const f = honmono();
     const ja = /[぀-ヿ一-龯]/;

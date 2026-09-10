@@ -8713,6 +8713,14 @@
         //     ・★前に OBD を 使った 端末だけ★（使っていない 人には 何も 出さない）
         //     ・★業務開始は 絶対に 止めない★（選ぶのを やめても そのまま 始まる）
         try {
+          // ★★業務の 頃合いを 一度 消す★★ 2026-09-10（指示役の 監査①）
+          //   ★この 業務で 繋いだか★ を 始めに 戻す。
+          //   ⇒ 昨日の 印を 引きずって ★切れて いないのに 警告★ を 出さない。
+          try {
+            window._obdGyoumuKaishiDeShirushiKesu();
+          } catch (_) {
+            /* 印が 消せなくても 業務は 始める */
+          }
           window._obdGyoumuKaishiDeTsunagu();
         } catch (_) {
           /* 繋げなくても 業務は 始める */
@@ -12522,6 +12530,13 @@
           //   ★今★ ★-test- も 拾う★（本番の 配り先に -test- は 1つも 無い事を 実測）
           //     daikou-app.vercel.app ／ daikome-jimusho.vercel.app
           if (/-test[.\-]/.test(h) || /-test$/.test(h)) return '★テスト用★';
+          // ★★枝ごとの 配信は『確かめ用』と 出す★★ 2026-09-10（指示役の 監査③）
+          //   ★塞げていなかった 向き★
+          //     daikou-app-git-<枝>-…vercel.app（★本番repo の 枝配信★）は
+          //     -test- を 1つも 含まないので ★本番と 同じ 見た目★だった。
+          //     ⇒ 司さんが 確かめ用の 配信を 開いて ★本番だと 思い込む★。
+          //   ★本番の 配り先は -git- を 持ちません★（試験で 固定）
+          if (/-git-/.test(h)) return '★確かめ用★';
           return '';
         }
         function _withEnv(v) {
@@ -17367,6 +17382,48 @@
             }
           })(); // 一度でも接続したか(手動切断/未接続では再接続バーを出さない用)
           var _obdDropSince = null; // _obdWasConnected中に切断へ入った時刻(猶予4s判定・null=切断でない)
+          // ★★この 業務で 繋いだか★★ 2026-09-10（指示役の 監査①）
+          //   ★実測で 見つかった 誤報★
+          //     昨日 OBD を 使った 端末が 今日 ★OBD を 挿さず★ 業務開始 すると
+          //     4秒後に「OBDが切れました」が 出ていた。
+          //     ★何も 切れて いない★（今日 一度も 繋いでいない だけ）
+          //   ★病気の 元★ _obdWasConnected は
+          //     ★「いつか 一度でも 使った」★（localStorage）で
+          //     ★「今回の 業務で」では ない★。
+          //   ⇒ ★別の 印★を 持つ。
+          //   ★別の 印に した 訳＝★意味を 分ける 為★
+          //     ★いつか 一度でも 使った★（dk_obd_tsunaida）
+          //     ★この 業務で 繋いだ★（dk_obd_kono_gyoumu）
+          //   ★実測（2026-09-10）★ dk_obd_tsunaida は
+          //     ①帯の 判定と ②★業務開始で 繋ぎに 行くかの 門★（_obdGyoumuKaishiDeTsunagu の
+          //     `if (!_obdWasConnected) return;`）の ★2か所★で 使う。
+          //     ★起動時の tryAutoConnect は この 印を 見ていません★
+          //     （getDevices と dk_obd_device_id を 見ている）。
+          var _KONO_GYOUMU_KEY = 'dk_obd_kono_gyoumu';
+          // ★★読み直しても 消えない 所に 持つ★★ 2026-09-10（指示役の 追い監査）
+          //   ★前★ ただの var＝★メモリの 上★
+          //     ⇒ リロード／タスクキルで false に 戻る
+          //     ⇒ その後 本当に 切れても ★帯が 出ない★
+          //     ⇒ ★守ると 決めた 当の 物が 読み直し 1回で 死ぬ★
+          //   ★今★ localStorage に 持つ（start_time と 同じ 寿命）
+          function _konoGyoumuHozon(v) {
+            try {
+              if (v) localStorage.setItem(_KONO_GYOUMU_KEY, '1');
+              else localStorage.removeItem(_KONO_GYOUMU_KEY);
+            } catch (_) {
+              /* 覚えられなくても 業務は 止めない */
+            }
+          }
+          function _konoGyoumuDeTsunaidaKa() {
+            try {
+              return localStorage.getItem(_KONO_GYOUMU_KEY) === '1';
+            } catch (_) {
+              return false;
+            }
+          }
+          window._obdGyoumuKaishiDeShirushiKesu = function () {
+            _konoGyoumuHozon(false);
+          };
           var _obdClearSince = null; // 警告解除ヒステリシスの安定開始時刻
           var JA = {
             idle: '未接続',
@@ -17566,6 +17623,8 @@
             btnD.addEventListener('click', function () {
               _obdLastGoodT = null; // 手動切断 = 警告対象外 (ユーザー意図のOFF)
               _obdWasConnected = false; // 手動切断 = 再接続バーも出さない
+              // ★手で 切ったら この 業務の 印も 消す★ 2026-09-10
+              _konoGyoumuHozon(false);
               _obdTsunaidaHozon(false); // ★覚えている分も 消す★
               O.disconnect();
             });
@@ -17577,6 +17636,8 @@
               if (_obdConnected) {
                 _obdLastGoodT = null; // 手動切断 = 警告対象外
                 _obdWasConnected = false; // 手動切断 = 再接続バーも出さない
+                // ★手で 切ったら この 業務の 印も 消す★ 2026-09-10
+                _konoGyoumuHozon(false);
                 _obdTsunaidaHozon(false); // ★覚えている分も 消す★
                 O.disconnect();
               } else doConnect();
@@ -17643,6 +17704,8 @@
               _obdWasConnected = true;
               _obdTsunaidaHozon(true); // ★読み直しても 覚えている★
             }
+            // ★★この 業務で 一度でも 繋がったら 立てる★★ 2026-09-10
+            if (_obdConnected) _konoGyoumuHozon(true);
             var _obdSupported = typeof O.isSupported === 'function' && O.isSupported();
             // ★★帯は 業務が 始まってから★★ 2026-09-09（実測）
             //   ★司さん★「この警告だして 設定とか ホームの位置 変えるなや」
@@ -17659,11 +17722,29 @@
                 typeof Business !== 'undefined' && typeof Business.getState === 'function'
                   ? Business.getState()
                   : null;
-              _gyoumuChuDaKa = !!(_bs && _bs.start_time);
+              // ★★start_time だけでは 足りない★★ 2026-09-10（実測）
+              //   ★業務終了しても start_time は ★残ります★
+              //     （Business.end() は active=false / ended=true に するだけ。
+              //      「業務再開」ボタンを 出す 為 わざと 残している。index.html:9120）
+              //   ★実測★ 終わった 状態（active:false, ended:true）で
+              //     ★帯が 出た★ ⇒ 仕事が 終わった 後に
+              //     「OBDが切れました」と 言い続ける。
+              //   ⇒ ★active も 見る★（今 本当に 走っているか）
+              _gyoumuChuDaKa = !!(_bs && _bs.start_time && _bs.active && !_bs.ended);
             } catch (_) {
               /* 分からない 時は 出さない */
             }
-            var _obdDropped = _obdSupported && !_obdConnected && _obdWasConnected && _gyoumuChuDaKa;
+            // ★★この 業務で 繋いだ のに 今 切れている★★ の時だけ 出す
+            //   2026-09-10（指示役の 監査①・実測で 再現）
+            //   ★前★ _obdWasConnected＝「いつか 一度でも 使った」だけ
+            //     ⇒ ★今日 挿さない だけで 「切れました」★
+            //   ★今★ ★この 業務で 繋いだ★ 事を 要る
+            var _obdDropped =
+              _obdSupported &&
+              !_obdConnected &&
+              _obdWasConnected &&
+              _gyoumuChuDaKa &&
+              _konoGyoumuDeTsunaidaKa();
             if (_obdDropped) {
               if (_obdDropSince == null) _obdDropSince = Date.now();
             } else {

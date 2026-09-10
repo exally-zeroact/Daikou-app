@@ -42,6 +42,10 @@ test('★本番と テストで 何と 出るか★', async ({ page }) => {
       // ★★枝ごとの 配信★★ 2026-09-09（監査で 見つけた 穴）
       //   前は ここが 素通りして ★「本番」と 出ていた★
       'daikou-app-test-git-obd-exallysupoort-8848s-projects.vercel.app',
+      // ★★本番repo の 枝配信★★ 2026-09-10（指示役の 監査③）
+      //   -test- を 1つも 含まないので ★本番と 同じ 見た目★だった
+      'daikou-app-git-obd-exallysupoort-8848s-projects.vercel.app',
+      'daikome-jimusho-git-shirase-exallysupoort-8848s-projects.vercel.app',
     ].forEach((host) => {
       // eslint-disable-next-line no-new-func
       const f = new Function('location', honmono + '; return _withEnv("daikome-75aedea");');
@@ -69,6 +73,15 @@ test('★本番と テストで 何と 出るか★', async ({ page }) => {
     'daikou-app-test-git-obd-exallysupoort-8848s-projects.vercel.app',
   ].forEach((h) => {
     expect(r[h], '★テストなのに テストと 出ていません★ ' + h).toContain('テスト');
+  });
+
+  // ★★枝ごとの 配信は 本番と 見分けが 付く★★ 2026-09-10（指示役の 監査③）
+  //   ★訳★ 司さんが 確かめ用の 配信を 開いて ★本番だと 思い込む★のを 防ぐ
+  [
+    'daikou-app-git-obd-exallysupoort-8848s-projects.vercel.app',
+    'daikome-jimusho-git-shirase-exallysupoort-8848s-projects.vercel.app',
+  ].forEach((h) => {
+    expect(r[h], '★枝配信が 本番と 同じ 見た目です★ ' + h).toContain('確かめ用');
   });
 });
 

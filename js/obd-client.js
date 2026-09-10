@@ -484,7 +484,16 @@
   function _yakusu(na, nama) {
     const t = String(nama || '');
     // ①機械を 選ぶ 窓を やめた＝間違いでは ない ⇒ 何も 言わない
-    if (/cancel/i.test(t) || na === 'NotFoundError') return '';
+    // ★★字（message）ではなく 名前（name）で 拾う★★ 2026-09-10（指示役の 監査②）
+    //   ★訳★ 字は ブラウザの 版で 変わる／★名前は 規格★で 変わらない。
+    //   ★AbortError★ … Chrome が 機械選びの 窓を 閉じた 時に 出す 事が 在る
+    //     ⇒ 前は ④に 落ちて「機械を 抜いて 挿し直して」＝★誤報★だった
+    if (/cancel/i.test(t) || na === 'NotFoundError' || na === 'AbortError') return '';
+    // ★★この スマホでは 使えない★★ 2026-09-10（指示役の 監査②）
+    //   ★前★ ④に 落ちて「挿し直して」＝★挿し直しても 直らない★
+    if (na === 'NotSupportedError') {
+      return 'この スマホでは OBD が 使えません。★Android の Chrome★ で 開いて ください。';
+    }
     // ②Bluetooth が 切れている
     if (/adapter|turned off|not available|unavailable/i.test(t)) {
       return 'スマホの Bluetooth が 切れています。★入れてから もう一度★ 押して ください。';
