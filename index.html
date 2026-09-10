@@ -12492,13 +12492,28 @@
         // ★どのアプリを開いているか（本番／テスト用）を 版と一緒に出す★ 2026-08-21
         //   ホーム画面アプリ(PWA)は ★アドレスバーが出ない★＝司さんが自分で確かめる道が無かった。
         //   ⇒ ★アプリの中に出す★（判定は location.host＝中の設定を信じない）
+        // ★★本番には 何も 付けない★★ 2026-09-09
+        //   ★司さん★「バージョンも 本番って いれるな
+        //     テスト版には テストって 入れて ええけど」
+        //   ★前★ 版 ＋「本番」＋ 配り先
+        //   ★今★ 本番は ★何も 付けない★（版 ＋ 配り先）
+        //   ★テストは 今まで通り★
+        //   ★一番 高い 事故＝本番に「テスト用」と 出る★ は 今まで通り 起きません
+        //     （判定は location.host＝中の 設定を 信じない）
         function _envLabel() {
           const h = location.host || '';
-          if (/-test\./.test(h) || /-test$/.test(h)) return '★テスト用★';
-          return '本番';
+          // ★★枝ごとの 配信も 拾う★★ 2026-09-09（監査で 見つけた 穴）
+          //   ★前★ /-test\./ と /-test$/ だけ
+          //     ⇒ ★daikou-app-test-git-obd-…vercel.app★（テスト線の 枝ごとの 配信）が
+          //       素通りして ★「本番」と 出ていた★＝一番 危ない 出方。
+          //   ★今★ ★-test- も 拾う★（本番の 配り先に -test- は 1つも 無い事を 実測）
+          //     daikou-app.vercel.app ／ daikome-jimusho.vercel.app
+          if (/-test[.\-]/.test(h) || /-test$/.test(h)) return '★テスト用★';
+          return '';
         }
         function _withEnv(v) {
-          return v + '  /  ' + _envLabel() + '  /  ' + (location.host || '');
+          const e = _envLabel();
+          return v + (e ? '  /  ' + e : '') + '  /  ' + (location.host || '');
         }
         function _loadAppVersion() {
           const el = document.getElementById('_st_appVersionLine');
@@ -17401,9 +17416,16 @@
           });
           O.on('error', function (msg) {
             if (noteEl) noteEl.textContent = 'エラー: ' + msg;
-            // ★★訳を 帯に 出す★★ 2026-09-08（司さん「直せや」）
-            //   ★前★ 何も 出ないので「押しても 反応しない」に 見えた
-            window._obdSusumiJi = String(msg || '');
+            // ★★帯に 出すのは ★日本語の 訳★だけ★★ 2026-09-09
+            //   ★司さん★「なんで 英語に かわったんど」
+            //   ★実物で 出ていた 字★
+            //     "User cancelled the requestDevice() chooser."
+            //     ＝ブラウザが 返す 生の 英語。
+            //   ★やめたのは 間違いでは ない★ので ★何も 出さない★。
+            //   日本語で 書いた 訳だけ 帯に 出す。
+            var _m = String(msg || '');
+            var _nihongo = /[\u3040-\u30ff\u4e00-\u9faf]/.test(_m);
+            window._obdSusumiJi = _nihongo ? _m : '';
             window._obdSusumiMade = 0;
             if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
           });
@@ -17573,10 +17595,11 @@
                 // ★★黙って 諦めない★★ 2026-09-08
                 //   前は 失敗を 握りつぶしていた ので
                 //   ★繋がっていない 事に 気づけなかった★
-                if (!ok && _obdWasConnected) {
-                  window._obdSusumiJi = 'OBDは 業務開始の 時に つなぎます';
-                  window._obdSusumiMade = 0;
-                }
+                // ★★起動した だけで 帯を 出すのを やめました★★ 2026-09-09
+                //   ★司さん★「この警告だして 設定とか ホームの位置変えるなや」
+                //   ★前★ 開いた だけで 赤帯「OBDは 業務開始の 時に つなぎます」
+                //   ★今★ ★何も 出さない★（業務開始で 繋ぐ のは そのまま）
+                void ok;
               })
               .catch(function () {
                 /* 自動接続不可は 業務開始の 時に 繋ぐ */
@@ -17608,7 +17631,26 @@
               _obdTsunaidaHozon(true); // ★読み直しても 覚えている★
             }
             var _obdSupported = typeof O.isSupported === 'function' && O.isSupported();
-            var _obdDropped = _obdSupported && !_obdConnected && _obdWasConnected;
+            // ★★帯は 業務が 始まってから★★ 2026-09-09（実測）
+            //   ★司さん★「この警告だして 設定とか ホームの位置 変えるなや」
+            //   ★前★ 条件は「いつか 一度でも 使った」だけだった
+            //     ⇒ ★開いた だけで 4秒後に 「OBDが切れました」★（何も 切れて いない）
+            //   ★今★ ★業務中★の 時だけ 出す。
+            //   ★訳★ 2026-06-30 の 指示は「★途切れたら★ 出して」。
+            //     まだ 繋いで いないのは 途切れて いない。
+            //     守るのは ★走っている 途中に 切れて 距離が 黙って 減る★ 事。
+            //     始まる 前は 距離を 測って いないので 守る 物が 無い。
+            var _gyoumuChuDaKa = false;
+            try {
+              var _bs =
+                typeof Business !== 'undefined' && typeof Business.getState === 'function'
+                  ? Business.getState()
+                  : null;
+              _gyoumuChuDaKa = !!(_bs && _bs.start_time);
+            } catch (_) {
+              /* 分からない 時は 出さない */
+            }
+            var _obdDropped = _obdSupported && !_obdConnected && _obdWasConnected && _gyoumuChuDaKa;
             if (_obdDropped) {
               if (_obdDropSince == null) _obdDropSince = Date.now();
             } else {
@@ -17632,12 +17674,14 @@
               } else {
                 reconBar.textContent = '⚠ OBDが切れました — タップで再接続';
               }
-              // ★青バーの すぐ下に 浮かせる★（重ねるので 下の 中身は 動かない）
-              if (_showRecon) {
-                var _ab = document.getElementById('appbar');
-                var _shita = _ab ? Math.round(_ab.getBoundingClientRect().bottom) : 0;
-                reconBar.style.top = (_shita > 0 ? _shita : 0) + 'px';
-              }
+              // ★★青バーの すぐ下に ★必ず★ 浮かせる★★ 2026-09-09
+              //   ★司さん★「設定とか ホームの 位置 変えるなや」
+              //   ★前★ 切れた 時だけ top を 入れていたので、
+              //     進み具合を 出す 時は top:auto ＝★置き場所が 成り行き任せ★だった。
+              //   ★今★ ★いつでも 同じ 所★（青バーの 真下に 重ねる）
+              var _ab = document.getElementById('appbar');
+              var _shita = _ab ? Math.round(_ab.getBoundingClientRect().bottom) : 0;
+              reconBar.style.top = (_shita > 0 ? _shita : 0) + 'px';
             }
             // ★帯を すぐ 書き直せる ように 外へ 出す★ 2026-09-08
             window._obdBarKakinaosu = window._obdBarKakinaosu || function () {};

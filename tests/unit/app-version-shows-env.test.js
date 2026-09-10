@@ -22,10 +22,19 @@ describe('★アプリ バージョンの行に 本番/テスト用 と アド�
   it('判定は location.host から作る（設定の文字を信じない）', () => {
     expect(HTML, '★環境の見分けが無い★').toContain('function _envLabel()');
     const i = HTML.indexOf('function _envLabel()');
-    const body = HTML.slice(i, i + 400);
+    // ★★決まった 字数で 切らない★★ 2026-09-09（実測）
+    //   ★前★ i + 400 で 切っていた
+    //     ⇒ 説明を 6行 足した だけで ★中身に 届かず 赤★（中身は 正しいのに）
+    //   ★今★ ★次の 関数の 頭★まで 読む
+    const body = HTML.slice(i, HTML.indexOf('function _withEnv(', i));
     expect(body, '★アドレスから判定していない★').toContain('location.host');
     expect(body).toContain('テスト用');
-    expect(body).toContain('本番');
+    // ★★本番には 何も 付けない★★ 2026-09-09
+    //   ★司さん★「バージョンも 本番って いれるな
+    //             テスト版には テストって 入れて ええけど」
+    //   ⇒ 本番の 戻り値は ★空★（テストの 時だけ 字を 出す）
+    expect(body, '★本番の 所に 字が 残っています★').not.toContain("return '本番'");
+    expect(body, '★本番の 戻り値が 空に なっていません★').toMatch(/return\s*''\s*;/);
   });
 
   it('★版が読めない時も 本番/テスト用 と アドレスを出す★（4通り全部）', () => {
@@ -37,10 +46,12 @@ describe('★アプリ バージョンの行に 本番/テスト用 と アド�
     expect(body, '★版が取れた時に 環境が出ていない★').toContain('_withEnv(ev.data.value)');
   });
 
-  it('出す形は「版 / 本番 / アドレス」', () => {
+  it('出す形は「版 / （テストなら テスト用） / アドレス」', () => {
     const i = HTML.indexOf('function _withEnv(');
     const body = HTML.slice(i, i + 200);
     expect(body).toContain('_envLabel()');
     expect(body).toContain('location.host');
+    // ★空の 時は 区切りごと 出さない★（「版 /  / アドレス」に ならない）
+    expect(body, '★空の 時に 区切りだけ 残ります★').toContain('e ?');
   });
 });

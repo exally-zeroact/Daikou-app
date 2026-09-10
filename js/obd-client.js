@@ -453,7 +453,25 @@
       })
       .catch(function (e) {
         _setStatus('error');
-        _emit('error', (e && e.message) || String(e));
+        // ★★生の 英語を そのまま 出さない★★ 2026-09-09
+        //   ★司さん★「なんで 英語に かわったんど」
+        //   ★実物で 赤帯に 出ていた 字★
+        //     "User cancelled the requestDevice() chooser."
+        //   ⇒ ★やめたのは 間違いでは ない★ので ★何も 言わない★。
+        //   ★ただし 握りつぶすのも 違う★——
+        //     Bluetooth が 切れている 等は ★言わないと 直せない★ので
+        //     ★日本語に して 伝える★。
+        //   ★生の 字は console に 残す★（調べる 時に 要る）
+        const _nama = (e && e.message) || String(e || '');
+        const _na = (e && e.name) || '';
+        try {
+          // eslint-disable-next-line no-console
+          console.warn('[OBD] connect 失敗: ' + _na + ' / ' + _nama);
+        } catch (_) {
+          /* console が 無い 端末でも 落とさない */
+        }
+        const _ji = _yakusu(_na, _nama);
+        if (_ji) _emit('error', _ji);
         _cleanup();
         throw e;
       });
@@ -461,6 +479,24 @@
 
   // ★接続確立を connect()/起動時自動接続/自動再接続 で共有 (2026-06-18)★:
   //   device(requestDevice or getDevices)に対し gatt接続→profile→ELM初期化→warmup→probe→polling。
+  // ★★ブラウザの 英語を 運転手に 分かる 日本語に★★ 2026-09-09
+  //   戻り値が '' なら ★何も 出さない★
+  function _yakusu(na, nama) {
+    const t = String(nama || '');
+    // ①機械を 選ぶ 窓を やめた＝間違いでは ない ⇒ 何も 言わない
+    if (/cancel/i.test(t) || na === 'NotFoundError') return '';
+    // ②Bluetooth が 切れている
+    if (/adapter|turned off|not available|unavailable/i.test(t)) {
+      return 'スマホの Bluetooth が 切れています。★入れてから もう一度★ 押して ください。';
+    }
+    // ③許可が 無い
+    if (/denied|permission|SecurityError/i.test(t) || na === 'SecurityError') {
+      return 'Bluetooth の 許可が ありません。★スマホの 設定 → アプリ → 権限★ で 許可して ください。';
+    }
+    // ④それ以外（生の 字は console に 残してある）
+    return 'OBD に つなげませんでした。★機械を 一度 抜いて 挿し直して★ から もう一度 押して ください。';
+  }
+
   function _establishWith(device) {
     _device = device;
     try {
