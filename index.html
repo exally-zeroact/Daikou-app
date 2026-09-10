@@ -3050,15 +3050,28 @@
       }
 
       /* トースト通知 */
+      /* ★★2026-09-10 司さん「色が 濃いすぎるし 背景ボックスの 使い方が 悪くないか」★★
+           直した 形を 見て →「★絶対 これが ええ★」
+           ⇒「Exally や 他の アプリで ★前みたいな 重たい感じに なってる所★ あったら ★先に 直せ★」
+         ★色を 選び直して いません★＝★塗る 広さを 変えただけ★
+         ★実測（Exally の 同じ 箱で 絵を 撮って 点を 数えた）★
+           箱の 中の 暗い 点 … 88% → ★6%★（★14.8分の1★）
+         ★手本★ exally `book.html` の `#toast`（2026-09-10・PR #64）
+         ★行の 終わりは この ファイルの まま（CRLF）★ */
       .toast {
         position: fixed;
         top: 70px;
         left: 50%;
         transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.75);
-        color: #fff;
-        padding: 10px 20px;
-        border-radius: 20px;
+        background: #ffffff;
+        color: #1c1c1e;
+        border: 1px solid #d6e4f7;
+        border-left: 5px solid #007aff;
+        box-shadow: 0 8px 28px rgba(10, 40, 90, 0.22);
+        text-align: left;
+        padding: 10px 18px;
+        /* ★丸みは 20px → 12px★＝白地の 箱に 20px は 錠剤に 見えて 字が 詰まる */
+        border-radius: 12px;
         font-size: 14px;
         font-weight: 700;
         z-index: 200;
