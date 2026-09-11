@@ -946,14 +946,42 @@
             };
           });
         }
+        // ★★upsert は 行を 丸ごと 置き換える★★ 2026-09-11（司さん「足せるけど 消せない」）
+        //   ★実物で 出ていた 字★
+        //     [400] "null value in column \"label\" … violates not-null constraint"
+        //   ★病気の 元★ 1つの 欄だけ 入れて upsert していた
+        //     ⇒ 入れていない label が ★空★に なり 倉庫が 断る
+        //     ⇒ 名前を 打ち直す 時は 通るので
+        //       ★消す／▲▼／使う だけ 落ちていた★
+        //   ★直し★ ★今の 行の 中身を 全部 そろえてから★ 1つだけ 変えて 送る
         function jippiSave(kindId, field, value) {
           if (!COMPANY) return;
+          // ★今 画面に 出ている 行を 探す★
+          var ima = null;
+          JIPPI.forEach(function (x) {
+            if (x && x.kind_id === kindId) ima = x;
+          });
+          // ★行が 見つからない 時は 送らない★
+          //   （空の label で 上書きして 壊すのを 防ぐ）
+          if (!ima) {
+            jippiMsg('この 行が 見つかりません。一度 開き直して ください。');
+            return;
+          }
           var body = {
             company_id: COMPANY.company_id,
             kind_id: kindId,
+            label: String(ima.label == null ? '' : ima.label),
+            sort_order: Number(ima.sort_order) || 0,
+            active: ima.active !== false,
             updated_at: new Date().toISOString(),
           };
           body[field] = value;
+          // ★名前を 空に する ことは 出来ない★（倉庫の 決まり）
+          if (!String(body.label || '').trim()) {
+            jippiMsg('名前を 空に は できません。');
+            jippiRead();
+            return;
+          }
           api('/dk_expense_kinds?on_conflict=company_id,kind_id', {
             method: 'POST',
             headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
