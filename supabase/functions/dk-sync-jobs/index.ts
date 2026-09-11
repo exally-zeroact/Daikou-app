@@ -194,7 +194,9 @@ Deno.serve(async (req: Request) => {
           device_id,
           s,
           trips,
-          (co.home_city as string | null) || null // ★地元の市★
+          (co.home_city as string | null) || null, // ★地元の市★
+          carLabel, // ★車の名前★ 2026-09-11（渡し忘れていた）
+          carNo // ★並び順★
         )
       );
 
@@ -218,7 +220,16 @@ async function pushToInvoiceApp(
   deviceId: string,
   shift: Record<string, unknown>,
   trips: Record<string, unknown>[],
-  homeCity?: string | null // ★地元の市（空なら既定 今治市）★
+  homeCity?: string | null, // ★地元の市（空なら既定 今治市）★
+  // ★★2026-09-11 ここが 抜けていました★★
+  //   ★2026-09-03 に 車の札を 足した 時、★取る所は 関数の 外・使う所は 中★ に 書いた。
+  //   関数の 中からは 外の 変数が 見えない ので
+  //   ★請求書へ 入れようと した 瞬間に 必ず 落ちる★。
+  //   落ちた 所は「1件 失敗しても 次へ」で 握りつぶされる ので
+  //   ★走行データは 今まで通り 入り、明細だけ 黙って 0件★に なっていた。
+  //   ⇒ 実測 … 9/3〜9/10 の 請求書払い 24件 45,300円 が 入っていない。
+  carLabel?: string | null, // ★車の名前（一覧を 車ごとに 分ける為）★
+  carNo?: number | null // ★事務所で 決めた 並び順★
 ): Promise<string> {
   try {
     // ★★既定オフ (2026-08-01)★★
