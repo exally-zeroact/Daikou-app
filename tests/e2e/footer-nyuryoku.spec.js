@@ -97,11 +97,18 @@ test('★★② 帯の「入力」を 押すと 入力の 画面へ 行く★★
   const r = await page.evaluate(() => ({
     fuda: (document.querySelector('.tag') || {}).textContent || '',
     // ★★2026-09-08★★ 表を やめました（司さん「はみ出てたりぐちゃぐちゃ」）
-    //   ⇒ 見るのは ★日を 選ぶ 所★と ★電子決済 の 欄★（打つ 画面の 印）
-    hyou: !!document.getElementById('hiSel') && !!document.getElementById('denshiYen'),
+    //   ⇒ 見るのは ★日を 選ぶ 所★と ★打つ 欄★（打つ 画面の 印）
+    // ★★2026-09-11 電子決済は 車ごとに なりました★★（司さん「車毎に 出す」）
+    //   ⇒ 日ごとの #denshiYen は ★もう ありません★
+    //   ★ここは 会社の 材料を 渡していません★（帯の 行き先だけ 見る 試験）
+    //   ⇒ 車は 1台も 出ません。★日を 選ぶ 所と 車の 置き場★が 在れば よい。
+    //   ★車ごとの 中身★は tests/e2e/nyuryoku-kuruma-goto.spec.js が 見ます。
+    hyou: !!document.getElementById('hiSel') && !!document.getElementById('shaList'),
   }));
   expect(r.fuda, '★入力の 画面では ありません★').toContain('入力');
-  expect(r.hyou, '★打つ 所が ありません★').toBe(true);
+  // eslint-disable-next-line no-console
+  console.log('★入力の 画面★ ' + JSON.stringify(r));
+  expect(r.hyou, '★打つ 所が ありません★ ' + JSON.stringify(r)).toBe(true);
 });
 
 test('★★③ 売上表には もう 打つ 所が 無い（2か所に しない）★★', async () => {

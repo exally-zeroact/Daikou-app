@@ -41,8 +41,19 @@ const SH = [
   { shift_id: 's2', device_id: 'd2', started_at: HI + 'T11:00:00+09:00' },
 ];
 const DENSHI_HI = [{ company_id: 'c1', pay_date: HI, denshi_yen: 3200 }];
+// ★★電子決済は 車ごとに なりました★★ 2026-09-11（司さん「車毎に 出す」）
+//   ★前★ dk_day_extras（会社×日）に 1つ
+//   ★今★ dk_shift_edits（走った 車）／dk_manual_days（走っていない 車）
 const ED = [
-  { shift_id: 's1', company_id: 'c1', toll_yen: 1200, bridge_yen: 300, other_yen: 0, expenses: {} },
+  {
+    shift_id: 's1',
+    company_id: 'c1',
+    toll_yen: 1200,
+    bridge_yen: 300,
+    other_yen: 0,
+    denshi_yen: 3200,
+    expenses: {},
+  },
 ];
 const LABELS = [
   { company_id: 'c1', device_id: 'd1', label: '4987', sort_order: 1 },
@@ -111,19 +122,22 @@ test('★★① その日ぶんだけ 出る（電子決済 と 車ごとの 実
     hi:
       ((document.getElementById('hiSel') || {}).value || '') +
       ((document.getElementById('hiYoubi') || {}).textContent || ''),
-    pp: (document.getElementById('denshiYen') || {}).value,
+    // ★電子決済は 車ごとの 欄★（2026-09-11）
+    pp: (document.querySelector('#shaList [data-f="denshi_yen"]') || {}).value,
     sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
-    ran: [...document.querySelectorAll('#shaList [data-sid]')].map((x) => ({
-      f: x.getAttribute('data-f'),
-      v: x.value,
-    })),
+    ran: [...document.querySelectorAll('#shaList [data-sid]')]
+      .filter((x) => x.getAttribute('data-f') !== 'denshi_yen')
+      .map((x) => ({
+        f: x.getAttribute('data-f'),
+        v: x.value,
+      })),
     // ★表は 使っていない★（はみ出しの もと）
     hyou: document.querySelectorAll('#shaList table').length,
   }));
   // eslint-disable-next-line no-console
   console.log('★入力★ ' + JSON.stringify(r));
   expect(r.hi, '★選んだ 日が 出ていません★').toContain('2026-09-02');
-  expect(r.pp, '★前に 入れた 3,200 が 出ていません★').toBe('3200');
+  expect(r.pp, '★前に 入れた 3,200 が 出ていません★（車ごとの 欄）').toBe('3200');
   expect(r.sha, '★その日 走った 車が 出ていません★').toEqual(['4987', '1234']);
   expect(r.ran.length, '★車2台 × 実費2つ ＝ 4つの 欄★').toBe(4);
   expect(r.ran[0], '★1台目の 高速代 1,200 が 出ていません★').toEqual({ f: 'toll', v: '1200' });
@@ -155,20 +169,27 @@ test('★★② 横に はみ出さない（司さんの「ぐちゃぐちゃ」
   expect(r.yoko, '★横に すべります★').toBeLessThanOrEqual(0);
 });
 
-test('★★③ 打つと 日ごとの 棚へ 行く（元データは 触らない）★★', async ({ page }) => {
+// ★★2026-09-11 電子決済は 車ごとに なりました★★（司さん「車毎に 出す」）
+//   ★前★ 日ごとの 棚（dk_day_extras）に 1つ
+//   ★今★ ★走った 車は dk_shift_edits★（その 業務に ぶら下がる）
+//   ★見ている 事は 同じ★＝打った 分が 正しい 棚へ 行く／元データは 触らない
+test('★★③ 打つと 車ごとの 棚へ 行く（元データは 触らない）★★', async ({ page }) => {
   await hiraku(page);
-  await page.fill('#denshiYen', '4500');
-  await page.dispatchEvent('#denshiYen', 'change');
+  const den = page.locator('#shaList [data-sid="s1"][data-f="denshi_yen"]');
+  await den.fill('4500');
+  await den.dispatchEvent('change');
   await page.waitForTimeout(500);
   const okutta = await page.evaluate(() => window.__okutta || []);
   // eslint-disable-next-line no-console
   console.log('★送った 先★ ' + JSON.stringify(okutta.map((x) => x.saki)));
-  const pp = okutta.filter((x) => x.saki.indexOf('dk_day_extras') === 0);
-  expect(pp.length, '★日ごとの 棚へ 行っていません★').toBe(1);
+  const pp = okutta.filter((x) => x.saki.indexOf('dk_shift_edits') === 0);
+  expect(pp.length, '★車ごとの 棚へ 行っていません★').toBe(1);
   const body = JSON.parse(pp[0].body);
-  expect(body.pay_date, '★日が 違います★').toBe(HI);
+  expect(body.shift_id, '★どの 業務か 入っていません★').toBe('s1');
   expect(body.denshi_yen, '★打った 額が 違います★').toBe(4500);
   expect(body.company_id, '★会社が 入っていません★').toBe('c1');
+  // ★★他の 欄が 0 に 戻っていない★★（upsert は 行を 置き換える）
+  expect(body.toll_yen, '★高速代が 0 に 戻りました★').toBe(1200);
   expect(
     okutta.filter((x) => /dk_shifts|dk_trips|dk_work_hours|dk_employees/.test(x.saki)).length,
     '★元データに 書いています★'
@@ -210,7 +231,8 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
     hi:
       ((document.getElementById('hiSel') || {}).value || '') +
       ((document.getElementById('hiYoubi') || {}).textContent || ''),
-    pp: (document.getElementById('denshiYen') || {}).value,
+    // ★電子決済は 車ごとの 欄★（2026-09-11）
+    pp: (document.querySelector('#shaList [data-f="denshi_yen"]') || {}).value,
     msg: (document.getElementById('msg') || {}).textContent || '',
   }));
   // eslint-disable-next-line no-console
@@ -222,14 +244,17 @@ test('★★⑤ 前の日／次の日 で 動く★★', async ({ page }) => {
   await page.click('#nextD');
   // ★戻った 日の 数字が 出るまで 待つ（秒で 待たない）★
   await expect(page.locator('#hiSel')).toHaveValue('2026-09-02', { timeout: 15000 });
-  await expect(page.locator('#denshiYen')).toHaveValue('3200', { timeout: 15000 });
+  await expect(page.locator('#shaList [data-f="denshi_yen"]').first()).toHaveValue('3200', {
+    timeout: 15000,
+  });
   const b = await page.evaluate(() => ({
     // ★★日付は 欄が 出す★★ 2026-09-08（司さん「赤丸の日付いらんことないか？」）
     //   ⇒ 見るのは ★欄の 値★＋★曜日★（下の 行は 消しました）
     hi:
       ((document.getElementById('hiSel') || {}).value || '') +
       ((document.getElementById('hiYoubi') || {}).textContent || ''),
-    pp: (document.getElementById('denshiYen') || {}).value,
+    // ★電子決済は 車ごとの 欄★（2026-09-11）
+    pp: (document.querySelector('#shaList [data-f="denshi_yen"]') || {}).value,
   }));
   // eslint-disable-next-line no-console
   console.log('★次の日★ ' + JSON.stringify(b));

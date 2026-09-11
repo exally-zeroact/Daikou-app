@@ -54,6 +54,9 @@
       toll_yen: cur.toll_yen || 0,
       bridge_yen: cur.bridge_yen || 0,
       other_yen: cur.other_yen || 0,
+      // ★★電子決済を 車ごとに 持つ★★ 2026-09-11（司さん「車毎に 出す」）
+      //   ★持ち越さないと 別の 欄を 打った 時に 0 に 戻る★（upsert は 行を 置き換える）
+      denshi_yen: cur.denshi_yen || 0,
       expenses: cur.expenses || {},
       updated_at: new Date().toISOString(),
     };
@@ -100,6 +103,8 @@
       toll_yen: cur.toll_yen || 0,
       bridge_yen: cur.bridge_yen || 0,
       other_yen: cur.other_yen || 0,
+      // ★電子決済を 車ごとに 持つ★ 2026-09-11
+      denshi_yen: cur.denshi_yen || 0,
       expenses: cur.expenses || {},
       updated_at: new Date().toISOString(),
     };

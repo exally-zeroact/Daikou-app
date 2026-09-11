@@ -1021,9 +1021,43 @@
           //   ★司さん★「毎日 入れれるように しろ」
           //   ★前に 入れた 月ごとの 分は 消していません★ので、
           //   ★その月に 日ごとが 1件でも 在れば 月ごとは 使わない★
+          // ★★車ごとの 電子決済★★ 2026-09-11（司さん「車毎に 出す」）
+          //   ★走った 車★ … dk_shift_edits（業務の 日で 数える）
+          //   ★走っていない 車★ … dk_manual_days
+          //   ★お金の 計算式は 変えていません★＝今まで通り 足すだけ
+          // ★shift_id から 業務を 引く★（日の 切り方は PayrollDaily.dateOf の 1か所）
+          var SHIFT_BY_ID = {};
+          (RAW.shifts || []).forEach(function (x) {
+            if (x && x.shift_id) SHIFT_BY_ID[x.shift_id] = x;
+          });
+          var kurumaNoHi = {};
+          (RAW.edits || []).forEach(function (e) {
+            if (!e || !e.denshi_yen) return;
+            var sh = SHIFT_BY_ID[e.shift_id];
+            if (!sh) return;
+            var d = PayrollDaily.dateOf(sh.started_at);
+            if (!d) return;
+            kurumaNoHi[d] = (kurumaNoHi[d] || 0) + num(e.denshi_yen);
+          });
+          (RAW.manualDays || []).forEach(function (m) {
+            if (!m || !m.denshi_yen || !m.work_date) return;
+            var d = String(m.work_date).slice(0, 10);
+            kurumaNoHi[d] = (kurumaNoHi[d] || 0) + num(m.denshi_yen);
+          });
+
           var higotoNoTsuki = {};
+          // ★車ごとが 1件でも 在る 月は ★車ごとだけ★ を 使う（二重に 数えない）
+          var kurumaNoTsuki = {};
+          Object.keys(kurumaNoHi).forEach(function (d) {
+            if (d.indexOf(YEAR + '-') !== 0 || !kurumaNoHi[d]) return;
+            kurumaNoTsuki[d.slice(0, 7)] = true;
+            higotoNoTsuki[d.slice(0, 7)] = true;
+            pays.push({ pay_date: d, invoice_yen: 0, denshi_yen: kurumaNoHi[d] });
+          });
           Object.keys(DENSHI_HI).forEach(function (d) {
             if (d.indexOf(YEAR + '-') !== 0 || !DENSHI_HI[d]) return;
+            // ★車ごとが 在る 月は 日ごとを 足さない★
+            if (kurumaNoTsuki[d.slice(0, 7)]) return;
             higotoNoTsuki[d.slice(0, 7)] = true;
             pays.push({ pay_date: d, invoice_yen: 0, denshi_yen: DENSHI_HI[d] });
           });

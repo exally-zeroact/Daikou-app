@@ -111,8 +111,14 @@ test('★★② 会社が 足した 名前が 欄に 出る★★', async ({ pag
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1200);
   const r = await page.evaluate(() => ({
-    na: [...document.querySelectorAll('#shaList .flabel')].map((x) => x.textContent.trim()),
-    ran: document.querySelectorAll('#shaList [data-sid]').length,
+    // ★★2026-09-11 売上・電子決済が 増えました★★（司さん「車毎に 出す」）
+    //   ⇒ ★実費だけ★を 数える（売上・電子決済は 別の 試験が 見る）
+    na: [...document.querySelectorAll('#shaList .flabel')]
+      .map((x) => x.textContent.trim())
+      .filter((x) => x !== '売上' && x !== '電子決済'),
+    ran: [...document.querySelectorAll('#shaList [data-sid]')].filter(
+      (x) => ['sales_yen', 'denshi_yen'].indexOf(x.getAttribute('data-f')) < 0
+    ).length,
     sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
   }));
   // eslint-disable-next-line no-console

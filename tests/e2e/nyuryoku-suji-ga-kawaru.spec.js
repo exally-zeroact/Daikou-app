@@ -170,18 +170,23 @@ test('★★① 電子決済を 打つと 月次集計の 数字が その分 �
   console.log('★前★ ' + JSON.stringify(mae));
 
   // ★打つ★（5,000円）
+  // ★★2026-09-11 電子決済は 車ごとに なりました★★（司さん「車毎に 出す」）
+  //   ★前★ 日ごとの 棚（dk_day_extras）
+  //   ★今★ ★走った 車は dk_shift_edits★
+  //   ★測る 事は 同じ★＝打った 分が ★月次集計の 数字に そのまま 届く★
   const okutta = await utsu(page, souko, async (p) => {
-    await p.fill('#denshiYen', '5000');
-    await p.dispatchEvent('#denshiYen', 'change');
+    const den = p.locator('#shaList [data-f="denshi_yen"]').first();
+    await den.fill('5000');
+    await den.dispatchEvent('change');
   });
-  const pp = okutta.filter((x) => x.saki.indexOf('dk_day_extras') === 0);
+  const pp = okutta.filter((x) => x.saki.indexOf('dk_shift_edits') === 0);
   expect(pp.length, '★打っても 倉庫へ 行っていません★').toBe(1);
   const gyou = JSON.parse(pp[0].body);
   // eslint-disable-next-line no-console
   console.log('★送られた 中身★ ' + JSON.stringify(gyou));
 
   // ★★送られた 物を そのまま 倉庫に 入れる★★（写しを 作らない）
-  const ato = await uchiwake(page, Object.assign({}, souko, { dk_day_extras: [gyou] }));
+  const ato = await uchiwake(page, Object.assign({}, souko, { dk_shift_edits: [gyou] }));
   // eslint-disable-next-line no-console
   console.log('★後★ ' + JSON.stringify(ato));
 

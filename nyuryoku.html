@@ -300,29 +300,24 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-ttl">電子決済で 受け取った 分</div>
-        <div class="frow">
-          <!-- ★★単位は 欄の 中★★ 2026-09-08（司さん「（円）を除けて青丸に円やないか？」） -->
-          <span class="flabel">この日に 受け取った 分</span>
-          <div class="fen">
-            <input class="finput fnum" type="number" inputmode="numeric" min="0" id="denshiYen" />
-            <span class="en">円</span>
-          </div>
-          <span class="hint"
-            >現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
-            打つと すぐ 保存されます。</span
-          >
-        </div>
-      </div>
+      <!-- ★★日ごとの 「電子決済」は 消しました★★ 2026-09-11
+           ★司さん★「今 まとめとるの 消して ★車毎に 出す★」
+           ⇒ 下の ★車ごとの 卡ード★ に 移しました。
+           ★前に 入れた 分は 消えません★（日ごとの 置き場は そのまま 読みます） -->
 
       <div class="card">
-        <div class="card-ttl">高速代・橋代 など（車ごと）</div>
+        <div class="card-ttl">車ごとに 入れる</div>
         <div id="shaList"></div>
         <div class="msg" id="msg" style="display: none"></div>
         <div class="err" id="err" style="display: none"></div>
         <div class="note">
-          その日に 走った 車が 出ます。<b>売上・距離の 数字は 変わりません</b>。
+          <b>売上</b> … メーターから 読めた 車は その 数字を 出します（ここでは
+          変えられません）。<br />
+          読めていない 車は <b>0</b> で 出ます。★そこは 打ち直せます★。<br />
+          <b>電子決済</b> … 現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
+          <b>高速代・橋代 など</b> … ★名前は <b>会社設定 → 実費</b> で
+          変えられます★（足す・消す・並び替え）。<br />
+          打つと すぐ 保存されます。<b>距離の 数字は 変わりません</b>。
         </div>
         <!-- ★★走った 日へ 飛ぶ★★ 2026-09-08（司さん「高速代とかどこに入れるんど」）
              高速代は ★1回の 業務（走った 記録）に ぶら下がる★ ので、
@@ -441,9 +436,8 @@
           hiWoDasu();
           load();
         };
-        $('denshiYen').onchange = function () {
-          saveDenshi($('denshiYen').value);
-        };
+        // ★★日ごとの 電子決済の 欄は 消しました★★ 2026-09-11（司さん「車毎に 出す」）
+        //   ★欄が 無いのに 触ると 画面が 落ちます★（読み込みの 途中で 止まる）
 
         function hiWoDasu() {
           $('hiSel').value = HI;
@@ -541,7 +535,6 @@
         }
 
         function render() {
-          $('denshiYen').value = PP || '';
           var ids = [];
           RAW.shifts.forEach(function (s) {
             if (s && s.device_id && ids.indexOf(s.device_id) < 0) ids.push(s.device_id);
@@ -564,35 +557,39 @@
           }
           showMsg('');
           $('hashittaHi').style.display = 'none';
-          var kinds = RAW.kinds;
+          // ★★会社の 車を 全部 並べる★★ 2026-09-11（司さん「車毎に 出す」）
+          //   ★走った 車★ … 売上は メーターの 数字（出すだけ）／鍵は shift_id
+          //   ★走っていない 車★ … 売上は 0 で 打ち直せる／鍵は device_id
           var html = '';
-          RAW.shifts.forEach(function (s) {
-            var e = EDITS[s.shift_id] || {};
-            html +=
-              '<div class="sha"><div class="sha-na">' +
-              esc(NAMAE[s.device_id] || '車') +
-              '</div>' +
-              kinds
-                .map(function (k) {
-                  // ★★単位は 欄の 中★★ 2026-09-08（司さん「（円）を除けて青丸に円やないか？」）
-                  //   ★電子決済だけ 直して ここを 残していました★（1か所で 終わりに しない）
-                  return (
-                    '<div class="frow"><span class="flabel">' +
-                    esc(k.label) +
-                    '</span>' +
-                    '<div class="fen">' +
-                    '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
-                    ' data-sid="' +
-                    esc(s.shift_id) +
-                    '" data-f="' +
-                    esc(k.kind_id) +
-                    '" value="' +
-                    (JippiHozon.ima(e, k.kind_id) || '') +
-                    '"><span class="en">円</span></div></div>'
-                  );
-                })
-                .join('') +
-              '</div>';
+          var detaAru = {};
+          RAW.shifts.forEach(function (sh) {
+            if (sh && sh.device_id) detaAru[sh.device_id] = sh;
+          });
+          // ★会社の 車を 全部（札の 順）★
+          var zenbu = [];
+          (RAW.labels || []).forEach(function (l) {
+            if (l && l.device_id && zenbu.indexOf(l.device_id) < 0) zenbu.push(l.device_id);
+          });
+          // ★札の 無い 車も 落とさない★
+          RAW.shifts.forEach(function (sh) {
+            if (sh && sh.device_id && zenbu.indexOf(sh.device_id) < 0) zenbu.push(sh.device_id);
+          });
+          NAMAE = CarName.nameMap(zenbu, RAW.labels);
+          zenbu.forEach(function (dev) {
+            var sh = detaAru[dev];
+            if (sh) {
+              html += shaHitotsu(
+                NAMAE[dev] || '車',
+                sh.shift_id,
+                'data-sid',
+                EDITS[sh.shift_id] || {},
+                sh.fare_total_yen,
+                true
+              );
+            } else {
+              var t = TEBIKI[dev] || {};
+              html += shaHitotsu(NAMAE[dev] || '車', dev, 'data-dev', t, t.sales_yen, false);
+            }
           });
           $('shaList').innerHTML = html;
           bindYen();
@@ -629,6 +626,66 @@
 
         // ★★走った 記録が 無い 日＝会社の 車を 全部 出す★★ 2026-09-08
         //   ★入れ先は dk_manual_days★（売上 0 の まま／実費だけ）
+        // ★★1台ぶんを 描く★★ 2026-09-11（司さん「車毎に 出す」）
+        //   hashitta … 走った 車か（true なら 売上は 出すだけ）
+        function shaHitotsu(na, key, keyAttr, e, uriage, hashitta) {
+          var h = '<div class="sha"><div class="sha-na">' + esc(na) + '</div>';
+          // ★★売上★★
+          //   ★走った 車★ … メーターの 数字を 出すだけ（ここでは 変えられない）
+          //   ★走っていない 車★ … 0 で 出して 打ち直せる
+          if (hashitta) {
+            h +=
+              '<div class="frow"><span class="flabel">売上</span>' +
+              '<div class="fen"><input class="finput fnum" type="number" value="' +
+              JippiHozon.seisuu(uriage) +
+              '" disabled data-yomitori="1"><span class="en">円</span></div>' +
+              '<span class="hint">メーターから 読めています（ここでは 変えられません）。</span></div>';
+          } else {
+            h +=
+              '<div class="frow"><span class="flabel">売上</span>' +
+              '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+              ' ' +
+              keyAttr +
+              '="' +
+              esc(key) +
+              '" data-f="sales_yen" value="' +
+              (JippiHozon.seisuu(uriage) || '') +
+              '"><span class="en">円</span></div>' +
+              '<span class="hint">★読み取れていません★。打ち直せます。</span></div>';
+          }
+          // ★★電子決済★★（どちらの 車でも 打てる）
+          h +=
+            '<div class="frow"><span class="flabel">電子決済</span>' +
+            '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+            ' ' +
+            keyAttr +
+            '="' +
+            esc(key) +
+            '" data-f="denshi_yen" value="' +
+            (JippiHozon.seisuu(e && e.denshi_yen) || '') +
+            '"><span class="en">円</span></div></div>';
+          // ★★実費★★（会社設定で 決めた 名前を そのまま 出す）
+          h += (RAW.kinds || [])
+            .map(function (k) {
+              return (
+                '<div class="frow"><span class="flabel">' +
+                esc(k.label) +
+                '</span><div class="fen">' +
+                '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+                ' ' +
+                keyAttr +
+                '="' +
+                esc(key) +
+                '" data-f="' +
+                esc(k.kind_id) +
+                '" value="' +
+                (JippiHozon.ima(e, k.kind_id) || '') +
+                '"><span class="en">円</span></div></div>'
+              );
+            })
+            .join('');
+          return h + '</div>';
+        }
         function tebikiWoDasu() {
           var ids = [];
           (RAW.labels || []).forEach(function (l) {
@@ -639,33 +696,11 @@
             return;
           }
           NAMAE = CarName.nameMap(ids, RAW.labels);
-          var kinds = RAW.kinds;
+          // ★走っていない 日★＝全部 「読み取れていない 車」
           var html = '';
           ids.forEach(function (dev) {
             var e = TEBIKI[dev] || {};
-            html +=
-              '<div class="sha"><div class="sha-na">' +
-              esc(NAMAE[dev] || '車') +
-              '</div>' +
-              kinds
-                .map(function (k) {
-                  return (
-                    '<div class="frow"><span class="flabel">' +
-                    esc(k.label) +
-                    '</span>' +
-                    '<div class="fen">' +
-                    '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
-                    ' data-dev="' +
-                    esc(dev) +
-                    '" data-f="' +
-                    esc(k.kind_id) +
-                    '" value="' +
-                    (JippiHozon.ima(e, k.kind_id) || '') +
-                    '"><span class="en">円</span></div></div>'
-                  );
-                })
-                .join('') +
-              '</div>';
+            html += shaHitotsu(NAMAE[dev] || '車', dev, 'data-dev', e, e.sales_yen, false);
           });
           $('shaList').innerHTML = html;
           bindYen();
@@ -725,18 +760,9 @@
             });
         }
 
-        function saveDenshi(value) {
-          if (!COMPANY) return;
-          JippiHozon.saveDenshi(SESS, COMPANY.company_id, HI, value)
-            .then(function (v) {
-              showErr('');
-              PP = v;
-              $('denshiYen').value = v || '';
-            })
-            .catch(function (r) {
-              saveErr('電子決済の分を保存できませんでした。', r);
-            });
-        }
+        // ★★日ごとの 電子決済の 保存は この 画面では 使いません★★ 2026-09-11
+        //   ★js/jippi-hozon.js の saveDenshi は 残しています★
+        //   ＝★前に 入れた 分を 読む 所（月次集計）が まだ 使う★ ので 消しません。
       })();
     </script>
     <script src="js/jimusho-footer.js"></script>

@@ -106,7 +106,9 @@ test('★★② 単位「円」は 欄の 中★★', async ({ page }) => {
   const r = await page.evaluate(() => {
     const lab = [...document.querySelectorAll('.flabel')].map((x) => x.textContent.trim());
     const en = document.querySelector('.fen .en');
-    const inp = document.getElementById('denshiYen');
+    // ★★2026-09-11 電子決済は 車ごとに なりました★★
+    //   ⇒ 日ごとの #denshiYen は もう 無い。★車ごとの 欄★で 見る。
+    const inp = document.querySelector('#shaList .fen .finput');
     if (!en || !inp) return { aru: false, lab: lab };
     const eb = en.getBoundingClientRect();
     const ib = inp.getBoundingClientRect();
@@ -187,7 +189,9 @@ test('★★③-2 打つと dk_manual_days へ 行く（売上は 0 の まま�
   await page.fill('#hiSel', '2026-09-03');
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1500);
-  const kou = page.locator('#shaList [data-dev]').first();
+  // ★★2026-09-11 1つ目の 欄は 売上に なりました★★
+  //   ⇒ ★高速代を 名指し★する（並びに 寄りかからない）
+  const kou = page.locator('#shaList [data-dev][data-f="toll"]').first();
   await kou.fill('1500');
   await kou.dispatchEvent('change');
   await page.waitForTimeout(600);
