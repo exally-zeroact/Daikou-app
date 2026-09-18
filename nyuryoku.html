@@ -502,8 +502,12 @@
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
               // ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
+              // ★★「消す」を 押した 物も 出さない★★ 2026-09-18（司さん）
+              //   ★消す は active を 触りません★＝触ると 売上（uriage 740行）が
+              //   その実費を 足さなく なり ★昔の 売上の 数字が 変わる★ ので、
+              //   ★入力から 落とすのは ここ（deleted_at）★で やる。
               RAW.kinds = (Array.isArray(res[3]) ? res[3] : []).filter(function (k) {
-                return k && k.active !== false;
+                return k && k.active !== false && !k.deleted_at;
               });
               if (!RAW.kinds.length) {
                 RAW.kinds = [
