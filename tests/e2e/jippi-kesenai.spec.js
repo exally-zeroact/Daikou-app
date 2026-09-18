@@ -132,8 +132,21 @@ test('★★② 消す を 押したら label も 一緒に 送る★★', async
   ).toBeGreaterThan(0);
   const body = JSON.parse(r[0].body);
   expect(body.label, '★label を 送っていません★（倉庫が 断ります）').toBe('その他2');
-  expect(body.active, '★使わない 印に していません★').toBe(false);
   expect(body.sort_order, '★順番を 送っていません★').toBe(40);
+
+  // ★★2026-09-18 ここの 守る物が 変わりました★★（司さん「消す押したら一覧から消えるようにしろや」）
+  //   ★前★ 消す＝active=false を 書く ⇒ ここは `active === false` を 見ていた。
+  //         でも それは ★「使う」の ✓ を 外すのと 同じ★で ★一覧から 消えなかった★。
+  //   ★今★ 消す＝★deleted_at を 書く／active は 触らない★。
+  //         active を 触らないのは ★「使う」と「消す」を 別の 物に する★ 為。
+  expect(
+    body.deleted_at,
+    '★消した 印（deleted_at）を 送っていません★＝一覧から 消えません'
+  ).toBeTruthy();
+  expect(
+    body.active,
+    '★消す が active を 書き換えています★＝「使う」の ✓ と 同じ 物に なってしまいます'
+  ).toBe(true);
 });
 
 test('★★③ ▲▼でも label が 落ちない★★', async ({ page }) => {
