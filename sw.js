@@ -114,6 +114,7 @@ const CORE_CODE_FILES = [
   '/js/gps.js',
   '/js/business.js',
   '/js/veh-registry.js',
+  '/js/veh-backup.js',
   '/js/obd-client.js',
   '/js/mm-data-pipeline.js',
   '/js/obd-wheelspeed-identify.js',

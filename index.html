@@ -5965,6 +5965,7 @@
     <script src="js/k-calib.js"></script>
     <!-- ★車レジストリ (多台＋車別K永続・2026-06-26)★: 設定の車一覧/追加/削除・業務開始の車選択が使う。 -->
     <script src="js/veh-registry.js"></script>
+    <script src="js/veh-backup.js"></script>
     <!-- ★今回限りの引っ越し（2026-08-22・撤去期限 2026-09-30）★
          テスト版に入ってしまった端末の 較正K・車・端末ID・履歴を 本番へそのまま運ぶ。
          見張り: tests/unit/migrate-removal-deadline.test.js（期限を過ぎたら赤） -->
@@ -12207,6 +12208,24 @@
               } catch (_) {
                 /* ignore */
               }
+              // ★★較正の 控えを 戻す★★ 2026-09-19（司さん「今のが壊れんようにきっちりやれや」）
+              //   ★手元に 1台でも 車が 在れば 何も しません★（VehBackup が 中で 見ている）
+              //   ＝今 動いている 端末は ★1バイトも 変わらない★。
+              //   効くのは ★データを 消した／機種変した 直後の 空の 端末★ だけ。
+              //   車ごとの URL（&d=席）で 同じ席に 戻るので ★その車の 較正が 戻る★。
+              //   失敗しても 何も しない（圏外・控え無し）＝業務は 止めない。
+              try {
+                if (
+                  window.VehBackup &&
+                  window.LicenseActivate &&
+                  typeof window.LicenseActivate.companyId === 'function'
+                ) {
+                  var _co = window.LicenseActivate.companyId();
+                  if (_co) window.VehBackup.modosu(_co, window.LicenseActivate.deviceId());
+                }
+              } catch (_) {
+                /* ignore */
+              }
               // ★請求先マスタ(請求書で選ぶ会社一覧)を取ってくる (2026-08-01)★
               //   代行請求書アプリの companies が唯一の正。裏で取るだけ・失敗しても何も起きない。
               try {
@@ -16566,6 +16585,21 @@
                 }
                 // ★trace に焼く + ログ出力 (型式別解析用・VIN無くても効く)★
                 window.DK_VEHICLE_PROFILE = prof;
+                // ★★較正の 控えを 雲に 預ける★★ 2026-09-19（司さん）
+                //   ★裏で 送るだけ★＝失敗しても 何も 起きない（圏外でも 保存は 済んでいる）。
+                //   ★中身は 作り変えない★（tireRatio と k は 距離に 掛かる）。
+                try {
+                  if (
+                    window.VehBackup &&
+                    window.LicenseActivate &&
+                    typeof window.LicenseActivate.companyId === 'function'
+                  ) {
+                    var _co2 = window.LicenseActivate.companyId();
+                    if (_co2) window.VehBackup.azukeru(_co2, window.LicenseActivate.deviceId());
+                  }
+                } catch (_) {
+                  /* ignore */
+                }
                 if (typeof window._syncWorkerVehicle === 'function') window._syncWorkerVehicle(); // ★保存後 worker._vehicleId 同期(ON時のみ)★
                 _applyTireProfileToUI(prof); // 工場サイズロック + 比表示更新(worker反映は次の業務開始で)
                 try {

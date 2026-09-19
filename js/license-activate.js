@@ -194,6 +194,17 @@
     return _deviceId();
   }
 
+  // ★会社の 番号★（券の 中身から 取る）2026-09-19
+  //   較正の 控えを 預ける／戻す 時に 要る。
+  //   ★券が まだ verify できていなければ null★＝呼ぶ側は 何も しない。
+  function companyId() {
+    try {
+      return (_verifiedPayload && _verifiedPayload.company_id) || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ============================================================
   // ★★席を 引き継ぐ（車ごとの URL / QR）★★ 2026-09-19
   //   ★司さん★「このURLとQRコードは車ごとに出さないかんことないか？
@@ -238,6 +249,7 @@
     getState: getState,
     hasCompany: hasCompany,
     deviceId: deviceId,
+    companyId: companyId,
     adoptDeviceId: adoptDeviceId,
     _refresh: _refresh,
   };
