@@ -179,4 +179,66 @@
   } else {
     tsukuru();
   }
+
+  // ============================================================
+  // ★★戻ってきた時に 新しく する★★ 2026-09-18
+  //   ★司さん★「開いただけではアップデートされんやないか
+  //             タスクキルして初めてアップデートされるけどなんでどぼけ」
+  //
+  //   ★訳（実測 2026-09-18）★
+  //     ・事務所の 5枚は ★サービスワーカーを 1つも 登録していない★
+  //       （メーター index.html だけ controllerchange→reload を 持っている）
+  //     ・ホーム画面に 入れた iPhone の アプリは
+  //       ★画面を 記憶に 持ったまま 復帰する★＝★取りに 行かない★
+  //     ⇒ ★アプリを 切る まで 古いまま★ だった。
+  //
+  //   ★直し方＝ETag（配信物の 指紋）を 見る★
+  //     ・実測 … 事務所/メーター どちらの 入口でも 同じ ETag が 返る
+  //       Cache-Control: public, max-age=0, must-revalidate ＝★毎回 確かめる 設定★
+  //     ・戻ってきた時に ★頭だけ（HEAD）★ 取りに 行き、
+  //       指紋が 変わっていたら ★読み直す★。
+  //   ★新しい ファイルを 作らない★＝事務所の 中継の 名簿（office-host/vercel.json）を
+  //     ★2つの repo で 直す★ 羽目に なる。だから 5枚が 既に 読む この 1本に 入れる。
+  // ============================================================
+  let SHIMON = null; // 開いた 時の 指紋
+  let YONDA = false; // ★1回の 変わり目で 1回だけ 読み直す★（輪に しない）
+
+  function shimonWoToru() {
+    try {
+      return fetch(window.location.href, { method: 'HEAD', cache: 'no-store' })
+        .then(function (r) {
+          return r.ok ? r.headers.get('ETag') || r.headers.get('Last-Modified') : null;
+        })
+        .catch(function () {
+          return null; // ★圏外でも 何も しない★（仕事を 止めない）
+        });
+    } catch (_) {
+      return Promise.resolve(null);
+    }
+  }
+
+  function uchikondeiruka() {
+    // ★打っている 最中は 読み直さない★（打ちかけの 数字を 消さない）
+    const a = document.activeElement;
+    if (!a) return false;
+    const t = (a.tagName || '').toLowerCase();
+    return t === 'input' || t === 'textarea' || t === 'select' || a.isContentEditable === true;
+  }
+
+  function mitekuru() {
+    if (YONDA || document.visibilityState !== 'visible') return;
+    shimonWoToru().then(function (ima) {
+      if (!ima || !SHIMON) return;
+      if (ima === SHIMON) return;
+      if (uchikondeiruka()) return; // ★次に 戻ってきた 時に また 見る★
+      YONDA = true;
+      window.location.reload();
+    });
+  }
+
+  shimonWoToru().then(function (x) {
+    SHIMON = x;
+  });
+  document.addEventListener('visibilitychange', mitekuru);
+  window.addEventListener('pageshow', mitekuru);
 })();

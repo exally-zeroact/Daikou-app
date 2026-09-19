@@ -38,6 +38,14 @@
         max-width: 1180px;
         margin: 0 auto;
         padding: 22px 18px 60px;
+
+        /* ★★iPhone の 時計・電池の 下に 潜るのを 止める★★ 2026-09-18（司さん「見切れとる」）
+           ★viewport-fit=cover を 付けると 画面の 端まで 広がる★＝
+           逃がし（safe-area）を 書かないと ★上の 字が 時計に 重なる★。
+           下の 帯は js/jimusho-footer.js が 既に 逃がしている（padding-bottom）。 */
+        padding-top: max(22px, env(safe-area-inset-top));
+        padding-left: max(18px, env(safe-area-inset-left));
+        padding-right: max(18px, env(safe-area-inset-right));
       }
 
       .top {
