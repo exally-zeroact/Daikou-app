@@ -194,6 +194,41 @@
     return _deviceId();
   }
 
+  // ============================================================
+  // ★★席を 引き継ぐ（車ごとの URL / QR）★★ 2026-09-19
+  //   ★司さん★「このURLとQRコードは車ごとに出さないかんことないか？
+  //             忘れたり消してしまったらもとのメーターに戻れんやないか」
+  //             「車ごとに出さな何のために較正しよんど」
+  //
+  //   ★前まで（会社に URL 1本）★
+  //     端末の 番号は ★そのスマホの 中で 作る ただの 乱数★。
+  //     ⇒ 消す／機種変／入れ直し で ★別の 端末★に なり、
+  //       席が 埋まっていると ★断られる＝現場が 止まる★。
+  //       事務所で 古い席を「外す」まで 動けなかった。
+  //     ⇒ しかも ★較正は 車（VIN）ごと★ なのに 席は スマホごと ＝ 噛み合っていない。
+  //
+  //   ★これから★
+  //     車ごとの URL に ★&d=その席の 番号★ を 付ける。
+  //     開いた 時に ★その番号を 自分の 番号として 引き継ぐ★
+  //     ⇒ 倉庫から 見ると ★同じ 端末が 戻ってきただけ★
+  //       （dk-issue-license は 既に 在る device_id なら ★席を 数え直さない＝冪等★）
+  //     ⇒ ★席は 増えない／事務所の 操作は 要らない★。
+  //
+  //   ★守り★
+  //     ・★c（会社）が 一緒に 無い d は 受けない★＝流れてきた d だけで 乗っ取られない
+  //     ・形が おかしい 物は 受けない（長さ・使える字）
+  //     ・★同じ 番号なら 何も しない★（書き込みを 増やさない）
+  // ============================================================
+  function adoptDeviceId(id) {
+    id = String(id == null ? '' : id).trim();
+    // ★形の 門★：短すぎ/長すぎ・知らない 字は 受けない
+    if (id.length < 8 || id.length > 64) return false;
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) return false;
+    if (_get(DEVICE_ID_KEY) === id) return true; // ★同じ＝何も しない★
+    _set(DEVICE_ID_KEY, id);
+    return true;
+  }
+
   const api = {
     init: init,
     activate: activate,
@@ -203,6 +238,7 @@
     getState: getState,
     hasCompany: hasCompany,
     deviceId: deviceId,
+    adoptDeviceId: adoptDeviceId,
     _refresh: _refresh,
   };
   if (typeof global !== 'undefined') global.LicenseActivate = api;

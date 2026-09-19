@@ -642,7 +642,12 @@
           <!-- 端末一覧 -->
           <div class="card">
             <h2>有効化した端末</h2>
-            <div class="desc">機種変・入れ替えの時は「外す」で席を空けられます。</div>
+            <div class="desc">
+              <b>車ごとの URL／QR を 下に 出しています。</b>
+              その車の スマホで 開けば、データを 消しても 機種変しても
+              <b>同じ 席に 戻ります</b>（席は 増えません）。<br />
+              「外す」は ★その車を やめる 時だけ★ 使ってください（席が 1つ 空きます）。
+            </div>
             <div id="devList"></div>
           </div>
         </div>
@@ -1441,6 +1446,73 @@
                 tools.appendChild(btn);
                 wrap.appendChild(left);
                 wrap.appendChild(tools);
+
+                // ★★車ごとの URL / QR★★ 2026-09-19（司さん）
+                //   ★司さん★「このURLとQRコードは車ごとに出さないかんことないか？
+                //             忘れたり消してしまったらもとのメーターに戻れんやないか」
+                //             「車ごとに出さな何のために較正しよんど」
+                //   ★訳★ 端末の 番号は スマホの 中で 作る 乱数＝消すと ★別の 端末★ に なる。
+                //     席が 埋まっていれば 断られ、★事務所で 外す まで 現場が 止まる★。
+                //     較正は ★車（VIN）ごと★ なのに 席は スマホごと ＝ 噛み合っていなかった。
+                //   ★これ★ この車の URL（&d=席の番号）を 開けば ★同じ席に 戻る★。
+                //     席は 増えない（倉庫から見ると 同じ端末が 戻ってきただけ＝冪等）。
+                //   ★QR_BLOCKED の 時は 出さない★（行き先が 違う 時に 配らない・2026-08-21）
+                if (!QR_BLOCKED && currentUrl) {
+                  var carUrl = currentUrl + '&d=' + encodeURIComponent(d.device_id);
+                  var kuruma = document.createElement('div');
+                  kuruma.style.cssText = 'width:100%;margin-top:8px';
+                  var box = document.createElement('div');
+                  box.className = 'url-box';
+                  box.style.cssText = 'font-size:11.5px;padding:8px 10px';
+                  box.textContent = carUrl;
+                  var bar = document.createElement('div');
+                  bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+                  var cp = document.createElement('button');
+                  cp.className = 'btn';
+                  cp.type = 'button';
+                  cp.textContent = 'この車のURLをコピー';
+                  cp.onclick = function () {
+                    function done() {
+                      cp.textContent = 'コピーしました';
+                      setTimeout(function () {
+                        cp.textContent = 'この車のURLをコピー';
+                      }, 1600);
+                    }
+                    if (navigator.clipboard && navigator.clipboard.writeText)
+                      navigator.clipboard.writeText(carUrl).then(done, done);
+                    else done();
+                  };
+                  var qb = document.createElement('button');
+                  qb.className = 'btn ghost';
+                  qb.type = 'button';
+                  qb.textContent = 'QRを表示';
+                  var qv = document.createElement('div');
+                  qv.style.cssText = 'display:none;margin-top:10px';
+                  qb.onclick = function () {
+                    if (qv.style.display === 'none') {
+                      try {
+                        var qr = window.qrcode(0, 'M');
+                        qr.addData(carUrl);
+                        qr.make();
+                        qv.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2 });
+                      } catch (e) {
+                        qv.innerHTML = '';
+                      }
+                      qv.style.display = 'block';
+                      qb.textContent = 'QRを隠す';
+                    } else {
+                      qv.style.display = 'none';
+                      qb.textContent = 'QRを表示';
+                    }
+                  };
+                  bar.appendChild(cp);
+                  bar.appendChild(qb);
+                  kuruma.appendChild(box);
+                  kuruma.appendChild(bar);
+                  kuruma.appendChild(qv);
+                  wrap.style.flexWrap = 'wrap';
+                  wrap.appendChild(kuruma);
+                }
                 list.appendChild(wrap);
               });
             }); // loadCarNames

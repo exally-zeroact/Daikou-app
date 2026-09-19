@@ -12218,6 +12218,19 @@
               }
             }
             if (_c) {
+              // ★★車ごとの URL（&d=席の番号）を 引き継ぐ★★ 2026-09-19（司さん）
+              //   ★c（会社）が 在る 時だけ★ 受ける＝d だけ 流れてきても 乗っ取られない。
+              //   引き継ぐと 倉庫からは ★同じ 端末が 戻ってきただけ★ に 見える
+              //   ⇒ ★席は 増えない／事務所で 外す 手間が 要らない★。
+              //   ★activate より 前★ に 呼ぶ（activate が 自分の 番号を 読む 前に 差し替える）。
+              try {
+                const _d = new URLSearchParams(location.search).get('d');
+                if (_d && typeof window.LicenseActivate.adoptDeviceId === 'function') {
+                  window.LicenseActivate.adoptDeviceId(_d);
+                }
+              } catch (_) {
+                /* ignore */
+              }
               try {
                 window.LicenseActivate.activate(_c).then(function (r) {
                   _showActivateResult(r);
@@ -12225,6 +12238,7 @@
                   try {
                     const u = new URL(location.href);
                     u.searchParams.delete('c'); // ?c= を履歴/共有に残さない
+                    u.searchParams.delete('d'); // ★席の番号も 残さない★（人に 見せない）
                     history.replaceState(null, '', u.pathname + u.search + u.hash);
                   } catch (_) {
                     /* ignore */
