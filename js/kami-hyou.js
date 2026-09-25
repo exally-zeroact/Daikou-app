@@ -62,7 +62,10 @@
       .map(function (x) {
         return x.label;
       });
-    const ki = K.kikan(k.year, k.month, k.settings);
+    // ★期間の 名前は 画面が 出した 物を 優先★（GetsujiAgg の rangeLabel）
+    //   ＝同じ 区切りを 2か所で 作らない（食い違いの もと）
+    const ki =
+      d.kyuryoNamae && d.kyuryoNamae.length ? d.kyuryoNamae : K.kikan(k.year, k.month, k.settings);
     let h =
       K.atama(k, '月次集計', ym(k)) +
       '<div class="big">' +

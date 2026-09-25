@@ -621,6 +621,30 @@
         </div>
       </div>
 
+      <!-- ★★A4のPDFで 見る★★ 2026-09-25（司さん「月で選んだら項目別で その場で A4サイズPDFで 見せれるようにしろ」）
+           ★window.print は 使わない★＝紙の 下に URL・日付が 出て 消せない（司さん 2026-08-05 決定）。
+           js/kami-pdf.js が 自前で A4 を 組む。 -->
+      <div class="card noprint" id="kamiCard">
+        <h2>PDFで 見る</h2>
+        <div class="desc">月を 選ぶと その月の 紙、「年ぶん」で 12か月の 紙が 出ます。</div>
+        <div class="row" style="gap: 8px; flex-wrap: wrap; align-items: center">
+          <select
+            id="kamiTsuki"
+            aria-label="月を選ぶ"
+            style="
+              padding: 7px 10px;
+              border: 1.5px solid #cfe0ff;
+              border-radius: 8px;
+              font-size: 14px;
+              font-family: inherit;
+            "
+          ></select>
+          <button class="btn" id="kamiMonth" type="button">この月の PDF</button>
+          <button class="btn ghost" id="kamiYear" type="button">年ぶんの PDF</button>
+        </div>
+        <div class="desc" id="kamiMsg" style="margin-top: 8px"></div>
+      </div>
+
       <div class="err noprint" id="err" style="display: none"></div>
       <div class="msg noprint" id="msg" style="display: none"></div>
 
@@ -793,6 +817,11 @@
     <script src="js/payroll-period.js"></script>
     <script src="js/payroll-daily.js"></script>
     <script src="js/getsuji-agg.js"></script>
+    <!-- ★紙（A4のPDF）★ 2026-09-25 … 押した時だけ vendor を読む（js/kami-pdf.js の中） -->
+    <script src="js/kami-kumu.js"></script>
+    <script src="js/kami-hyou.js"></script>
+    <script src="js/kami-shukei.js"></script>
+    <script src="js/kami-pdf.js"></script>
     <script>
       (function () {
         'use strict';
@@ -887,6 +916,94 @@
         $('btnPrint').onclick = function () {
           window.print();
         };
+        // ============================================================
+        // ★★PDFで 見る★★ 2026-09-25（司さん）
+        //   ★数え直さない★＝画面が 出した YR（GetsujiAgg）と CTX を そのまま 渡す。
+        //   ★押した 時だけ★ vendor（html2canvas/jsPDF）を 読む（js/kami-pdf.js の 中）。
+        // ============================================================
+        function kamiMsg(t) {
+          var el = $('kamiMsg');
+          if (el) el.textContent = t || '';
+        }
+        function kamiKaisha(tsuki) {
+          return KamiShukei.kaisha(
+            (COMPANY && COMPANY.name) || '',
+            YEAR,
+            tsuki,
+            RAW.payrollSettings,
+            RAW.salesSettings,
+            // ★この画面は 実費の 一覧（dk_expense_kinds）を 読んでいない★（2026-09-25 実測）
+            //   ⇒ null を 渡すと KamiShukei.kaisha が ★売上設定から 3つ★ を 作る。
+            //   ★勝手に 読みに 行かない★＝1押し1件／読む回に 名指しで 足す。
+            null,
+            true
+          );
+        }
+        function kamiCarsOf(tsuki) {
+          // ★画面が 車ごとに 出している 数を そのまま★（UriageAgg を 通った 物）
+          try {
+            var by = (CTX && CTX.byDate) || {};
+            var matome = {};
+            Object.keys(by).forEach(function (hi) {
+              if (hi.indexOf(YEAR + '-' + ('0' + tsuki).slice(-2)) !== 0) return;
+              var cars = (by[hi] && by[hi].cars) || [];
+              cars.forEach(function (c) {
+                var na = (c && (c.label || c.device_id)) || '車';
+                if (!matome[na]) matome[na] = { name: na, uriage: 0, jippi: 0 };
+                matome[na].uriage += Number(c.sales) || 0;
+                matome[na].jippi += Number(c.expense) || 0;
+              });
+            });
+            return Object.keys(matome).map(function (k2) {
+              return matome[k2];
+            });
+          } catch (_) {
+            return [];
+          }
+        }
+        function kamiDasu(mai, na) {
+          kamiMsg('紙を 作っています…');
+          return KamiPdf.dasu(mai, na)
+            .then(function (r) {
+              kamiMsg('出しました（' + r.mai + '枚）');
+            })
+            .catch(function (e) {
+              kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
+            });
+        }
+        function kamiTsukiSel() {
+          var sel = $('kamiTsuki');
+          if (!sel) return;
+          var ima = sel.value;
+          var h = '';
+          for (var m = 1; m <= 12; m++) h += '<option value="' + m + '">' + m + '月</option>';
+          sel.innerHTML = h;
+          var kyou = new Date();
+          sel.value = ima || (kyou.getFullYear() === YEAR ? kyou.getMonth() + 1 : 1);
+        }
+        if ($('kamiMonth')) {
+          $('kamiMonth').onclick = function () {
+            if (!YR) return kamiMsg('まだ 読み込んでいません。');
+            var tsuki = Number($('kamiTsuki').value) || 1;
+            var m = (YR.months || [])[tsuki - 1];
+            var k = kamiKaisha(tsuki);
+            var cars = kamiCarsOf(tsuki);
+            var mai = KamiHyou.getsuji(k, KamiShukei.getsujiData(m, cars));
+            kamiDasu(
+              mai,
+              (k.name || 'ダイコメ') + '_月次集計_' + YEAR + '-' + ('0' + tsuki).slice(-2)
+            );
+          };
+        }
+        if ($('kamiYear')) {
+          $('kamiYear').onclick = function () {
+            if (!YR) return kamiMsg('まだ 読み込んでいません。');
+            var k = kamiKaisha(1);
+            var mai = KamiHyou.uriageNen(k, KamiShukei.uriageNenData(YR));
+            kamiDasu(mai, (k.name || 'ダイコメ') + '_売上表_' + YEAR + '年');
+          };
+        }
+
         $('prevY').onclick = function () {
           YEAR -= 1;
           load();
@@ -1090,6 +1207,11 @@
             pays.push({ pay_date: k + '-01', invoice_yen: 0, denshi_yen: PP[k] });
           });
           YR = GetsujiAgg.year(YEAR, CTX, pays);
+          try {
+            kamiTsukiSel(); // ★PDFの 月の 選択肢★（年を 変えた 時も 作り直す）
+          } catch (_) {
+            /* 紙が 無くても 画面は 止めない */
+          }
         }
 
         // ---------- 描画 ----------

@@ -76,7 +76,7 @@ describe('★★②曜日と 日曜の 赤★★', () => {
   });
 
   it('★★色は 日曜の 1色だけ（土曜の 決まりを 置かない）★★', () => {
-    expect(K.CSS).toContain('.kami .nichi{background:#fdeaea');
+    expect(K.CSS).toContain('.dk-kami .nichi{background:#fdeaea');
     expect(K.CSS, '★土曜の 色が 残っています★').not.toContain('doyo');
   });
 });
@@ -104,7 +104,8 @@ describe('★★③金額は 円のまま（千円に しない）★★', () =>
 describe('★④先頭の 列の 余白（司さん 2026-09-25）★', () => {
   it('★先頭の 列は 中身の分だけ（width:1%）★', () => {
     expect(
-      K.CSS.indexOf('.kami th:first-child,.kami td:first-child{text-align:left;width:1%') >= 0,
+      K.CSS.indexOf('.dk-kami th:first-child,.dk-kami td:first-child{text-align:left;width:1%') >=
+        0,
       '★先頭の 列を 狭くしていません★＝月の 列に 余白が 戻ります'
     ).toBe(true);
   });

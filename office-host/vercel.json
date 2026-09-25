@@ -25,6 +25,22 @@
       "destination": "https://daikou-app.vercel.app/js/daiko-payroll.js"
     },
     {
+      "source": "/js/kami-kumu.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-kumu.js"
+    },
+    {
+      "source": "/js/kami-hyou.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-hyou.js"
+    },
+    {
+      "source": "/js/kami-shukei.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-shukei.js"
+    },
+    {
+      "source": "/js/kami-pdf.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-pdf.js"
+    },
+    {
       "source": "/js/dk-config.js",
       "destination": "https://daikou-app.vercel.app/js/dk-config.js"
     },
