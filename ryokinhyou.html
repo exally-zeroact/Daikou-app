@@ -182,6 +182,13 @@
       th:first-child,
       td:first-child {
         text-align: left;
+
+        /* ★★先頭の 列（月・車・名前）は 中身の 分だけ★★ 2026-09-25（司さん「月の列の余白を少なくして他に幅を与えろ」）
+           ★width:1% は「一番 狭く」の 決まり文句★＝表が 100% 幅なので
+           余った 幅は ★全部 右の 数字の 列へ★ 回る。字は 折り返さない。 */
+        width: 1%;
+        white-space: nowrap;
+        padding-right: 6px;
       }
 
       .scroller {
@@ -385,6 +392,13 @@
       table.kami > thead > tr > th:first-child,
       table.kami > tbody > tr > td:first-child {
         text-align: left;
+
+        /* ★★先頭の 列（月・車・名前）は 中身の 分だけ★★ 2026-09-25（司さん「月の列の余白を少なくして他に幅を与えろ」）
+           ★width:1% は「一番 狭く」の 決まり文句★＝表が 100% 幅なので
+           余った 幅は ★全部 右の 数字の 列へ★ 回る。字は 折り返さない。 */
+        width: 1%;
+        white-space: nowrap;
+        padding-right: 6px;
       }
 
       /* ★★窓の 中（?embed=1）★★ 2026-09-08 */
