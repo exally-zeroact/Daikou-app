@@ -11,17 +11,21 @@
 //     ⇒ ★自分で A4 を 組んで PDF に する★＝足跡が 出ない。
 //     ⇒ ★新しい 窓を 開かない★（開くと 戻れない）。blob を 新しいタブで 開く。
 //
-//   ★中身は ここに 書かない★
-//     この 1本が 持つのは ★紙 → PDF の 段取りだけ★。
-//     何を 印刷するかは 呼ぶ側が ★出来上がりの div（板）★ を 渡す。
-//     ＝画面ごとに 別々の PDF の 作り方を 書かない（作る道を 2本に しない）。
+//   ★★作り方を 変えた★★ 2026-09-26（司さん「なんで完成形があるのに確かめてやらんのど」）
+//     ★前★ html2canvas で ★絵にして★ jsPDF に 貼っていた。
+//        実測（2026-09-25）… 1枚 224,518〜567,182B／給料の日ごと 2枚で 1,134,363B
+//        司さんの 線「ええとこ200kBぐらい」を ★9種 全部 超えていた★。
+//        絵なので ★字を 選べない・探せない★し、拡大すると ぼける。
+//     ★今★ 代行請求書・Rakually と 同じ★pdf-lib で 本物の 字を 描く★
+//        ＋ lib/font-slim.js で 字体を 軽くする（道具は 4repo と 同じバイト）
+//        ⇒ js/kami-egaku.js。この 1本は ★段取りだけ★ を 持つ。
 //
 //   ★寸法（給料画面 kyuryo.html で 実証済みの 数字を そのまま）★
 //     1px = 0.75pt。★板の 12px = 紙の 9pt★ だから 板では 13px 以上を 使う。
 //       A4縦 … 595×842pt ＝ 板 794×1123px
 //       A4横 … 842×595pt ＝ 板 1123×794px
 //
-//   ★見張り★ tests/unit/kami-pdf.test.js
+//   ★見張り★ tests/unit/kami-pdf.test.js ・ tests/e2e/kami-pdf-dasu.spec.js
 // ============================================================
 
 (function (global) {
@@ -31,11 +35,8 @@
     yoko: { w: 842, h: 595, bw: 1123, bh: 794, muki: 'landscape' },
   };
 
-  // ★html2canvas は 中の <link>/画像が 返らないと いつまでも 返らない★
-  //   ⇒ 時間切れを 付ける（給料画面と 同じ 30秒）
+  // ★字体や 道具が 返らない 時の 時間切れ★（給料画面と 同じ 30秒）
   const MACHI_MS = 30000;
-
-  let _libs = null;
 
   function _matsu(p, ms, na) {
     return new Promise(function (ok, ng) {
@@ -55,83 +56,33 @@
     });
   }
 
-  // ★押した 時だけ 読む★（CDN では なく vendor／版を 固定する為）
+  let _egaku = null;
+
+  // ★描く 1本を 読む★（押した 時だけ）
   function yomu() {
-    if (_libs) return _libs;
-    function one(src, aru) {
-      return new Promise(function (ok, ng) {
-        if (aru()) return ok();
-        const el = document.createElement('script');
-        el.src = src;
-        el.onload = function () {
-          aru() ? ok() : ng(new Error(src));
-        };
-        el.onerror = function () {
-          ng(new Error(src));
-        };
-        document.head.appendChild(el);
+    if (_egaku) return _egaku;
+    _egaku = new Promise(function (ok, ng) {
+      if (global.KamiEgaku) return ok(global.KamiEgaku);
+      const el = document.createElement('script');
+      el.src = 'js/kami-egaku.js';
+      el.onload = function () {
+        global.KamiEgaku ? ok(global.KamiEgaku) : ng(new Error('js/kami-egaku.js'));
+      };
+      el.onerror = function () {
+        ng(new Error('js/kami-egaku.js'));
+      };
+      document.head.appendChild(el);
+    })
+      .then(function (E) {
+        return E.yomu().then(function () {
+          return E;
+        });
+      })
+      .catch(function (e) {
+        _egaku = null; // ★失敗は 次に 押した時に 取り直す★
+        throw e;
       });
-    }
-    _libs = Promise.all([
-      one('vendor/html2canvas.min.js', function () {
-        return !!global.html2canvas;
-      }),
-      one('vendor/jspdf.umd.min.js', function () {
-        return !!(global.jspdf && global.jspdf.jsPDF);
-      }),
-    ]).catch(function (e) {
-      _libs = null; // ★失敗は 次に 押した時に 取り直す★
-      throw e;
-    });
-    return _libs;
-  }
-
-  // ★板を 絵に する★（画面の 外に 置いてから 撮る＝画面が チラつかない）
-  function _ita2e(ita, kata) {
-    ita.style.position = 'fixed';
-    ita.style.left = '-99999px';
-    ita.style.top = '0';
-    ita.style.width = kata.bw + 'px';
-    ita.style.height = kata.bh + 'px';
-    ita.style.background = '#fff';
-    document.body.appendChild(ita);
-    function katazuke() {
-      try {
-        document.body.removeChild(ita);
-      } catch (_) {
-        /* もう 消えている */
-      }
-    }
-    return _matsu(
-      global
-        .html2canvas(ita, {
-          scale: 2, // ★≒192dpi★（紙にして 字が 潰れない）
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          width: kata.bw,
-          height: kata.bh,
-          windowWidth: kata.bw,
-          windowHeight: kata.bh,
-        })
-        .then(function (c) {
-          katazuke();
-          return c;
-        })
-        .catch(function (e) {
-          katazuke();
-          throw e;
-        }),
-      MACHI_MS,
-      'html2canvas'
-    ).catch(function (e) {
-      katazuke(); // ★時間切れで 抜けた 時も 板を 残さない★
-      throw e;
-    });
-  }
-
-  function _oku(doc, canvas, kata) {
-    // 板が もう A4 の 比なので ★紙いっぱいに 置くだけ★
-    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, kata.w, kata.h);
+    return _egaku;
   }
 
   // ============================================================
@@ -141,46 +92,13 @@
   function dasu(itas, namae) {
     itas = [].concat(itas || []);
     if (!itas.length) return Promise.reject(new Error('出す 紙が ありません'));
-    return yomu().then(function () {
-      let doc = null;
-      let tsugi = Promise.resolve();
-      itas.forEach(function (x) {
-        tsugi = tsugi.then(function () {
-          const kata = A4[x.muki === 'yoko' ? 'yoko' : 'tate'];
-          return _ita2e(x.el, kata).then(function (c) {
-            if (!doc) {
-              doc = new global.jspdf.jsPDF({
-                orientation: kata.muki,
-                unit: 'pt',
-                format: [kata.w, kata.h],
-              });
-            } else {
-              doc.addPage([kata.w, kata.h], kata.muki);
-            }
-            _oku(doc, c, kata);
-          });
-        });
-      });
-      return tsugi.then(function () {
-        const blob = doc.output('blob');
-        const url = URL.createObjectURL(blob);
-        // ★blob を 新しいタブで 開く★（iOS の 不具合よけ・給与アプリと 同じ）
-        const w = global.open(url, '_blank');
-        if (!w) {
-          // ★窓を 塞がれている 端末★＝保存に 逃がす
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = (namae || '紙') + '.pdf';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }
-        setTimeout(function () {
-          URL.revokeObjectURL(url);
-        }, 60000);
-        return { mai: itas.length, size: blob.size };
-      });
-    });
+    return _matsu(
+      yomu().then(function (E) {
+        return E.dasu(itas, namae, A4);
+      }),
+      MACHI_MS,
+      'PDF'
+    );
   }
 
   const api = { A4: A4, PX2PT: PX2PT, MACHI_MS: MACHI_MS, yomu: yomu, dasu: dasu };

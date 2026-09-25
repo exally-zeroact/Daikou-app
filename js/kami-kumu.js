@@ -75,7 +75,12 @@
 
   const CSS = [
     '*{box-sizing:border-box;margin:0;padding:0}',
-    ".dk-kami{background:#fff;padding:27px 30px;color:#14243d;display:flex;flex-direction:column;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;font-variant-numeric:tabular-nums}",
+    // ★★字体は PDF と 同じ 物★★ 2026-09-26
+    //   紙は pdf-lib で BIZ UDP ゴシックを 描く（js/kami-egaku.js）。
+    //   ★画面の 並べ方を そのまま 紙に 写す★作りなので、
+    //   画面が 別の 字体で 並べると ★字幅が ずれて 枠から はみ出す★。
+    //   ★DKKami は kami-egaku.js が @font-face で 登録する★（読めなければ 下の 控えに 落ちる）
+    ".dk-kami{background:#fff;padding:27px 30px;color:#14243d;display:flex;flex-direction:column;font-family:'DKKami','Hiragino Kaku Gothic ProN','Noto Sans JP',system-ui,sans-serif;font-variant-numeric:tabular-nums}",
     '.dk-kami .hd{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;border-bottom:2.5px solid #0a5fd0;padding-bottom:9px}',
     '.dk-kami .co{font-size:24px;font-weight:800;min-width:0;flex:1 1 auto;line-height:1.25;word-break:break-word}',
     '.dk-kami .co small{display:block;font-size:13px;font-weight:400;color:#5a6b82;margin-top:3px}',

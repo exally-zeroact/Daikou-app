@@ -25,22 +25,6 @@
       "destination": "https://daikou-app.vercel.app/js/daiko-payroll.js"
     },
     {
-      "source": "/js/kami-kumu.js",
-      "destination": "https://daikou-app.vercel.app/js/kami-kumu.js"
-    },
-    {
-      "source": "/js/kami-hyou.js",
-      "destination": "https://daikou-app.vercel.app/js/kami-hyou.js"
-    },
-    {
-      "source": "/js/kami-shukei.js",
-      "destination": "https://daikou-app.vercel.app/js/kami-shukei.js"
-    },
-    {
-      "source": "/js/kami-pdf.js",
-      "destination": "https://daikou-app.vercel.app/js/kami-pdf.js"
-    },
-    {
       "source": "/js/dk-config.js",
       "destination": "https://daikou-app.vercel.app/js/dk-config.js"
     },
@@ -73,6 +57,26 @@
       "destination": "https://daikou-app.vercel.app/js/jippi-hozon.js"
     },
     {
+      "source": "/js/kami-egaku.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-egaku.js"
+    },
+    {
+      "source": "/js/kami-hyou.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-hyou.js"
+    },
+    {
+      "source": "/js/kami-kumu.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-kumu.js"
+    },
+    {
+      "source": "/js/kami-pdf.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-pdf.js"
+    },
+    {
+      "source": "/js/kami-shukei.js",
+      "destination": "https://daikou-app.vercel.app/js/kami-shukei.js"
+    },
+    {
       "source": "/js/payroll-daily.js",
       "destination": "https://daikou-app.vercel.app/js/payroll-daily.js"
     },
@@ -91,6 +95,14 @@
     {
       "source": "/kyuryo.html",
       "destination": "https://daikou-app.vercel.app/office/kyuryo.html"
+    },
+    {
+      "source": "/lib/font-slim.js",
+      "destination": "https://daikou-app.vercel.app/lib/font-slim.js"
+    },
+    {
+      "source": "/lib/pdf-slim.js",
+      "destination": "https://daikou-app.vercel.app/lib/pdf-slim.js"
     },
     {
       "source": "/login.html",
@@ -117,12 +129,24 @@
       "destination": "https://daikou-app.vercel.app/office/uriage.html"
     },
     {
+      "source": "/vendor/fontkit.umd.min.js",
+      "destination": "https://daikou-app.vercel.app/vendor/fontkit.umd.min.js"
+    },
+    {
+      "source": "/vendor/fonts/BIZUDPGothic-Regular.ttf",
+      "destination": "https://daikou-app.vercel.app/vendor/fonts/BIZUDPGothic-Regular.ttf"
+    },
+    {
       "source": "/vendor/html2canvas.min.js",
       "destination": "https://daikou-app.vercel.app/vendor/html2canvas.min.js"
     },
     {
       "source": "/vendor/jspdf.umd.min.js",
       "destination": "https://daikou-app.vercel.app/vendor/jspdf.umd.min.js"
+    },
+    {
+      "source": "/vendor/pdf-lib.min.js",
+      "destination": "https://daikou-app.vercel.app/vendor/pdf-lib.min.js"
     }
   ]
 }

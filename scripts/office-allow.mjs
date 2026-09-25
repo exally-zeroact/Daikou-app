@@ -116,6 +116,31 @@ export function buildAllowList(root = ROOT) {
     for (const r of refsIn(html)) allow.add(r);
     for (const r of pageLinksIn(html)) allow.add(r);
     for (const r of runtimeRefsIn(html, root)) allow.add(r);
+
+    // ★★HTMLが 読む js の 中も 追う★★ 2026-09-26
+    //   ★また 同じ 穴を 開けかけた★（2026-08-26 と 同じ 形）
+    //     PDFを 本物の 字で 描くように して、js/kami-egaku.js が 押した時に
+    //     vendor/pdf-lib.min.js ／ vendor/fontkit.umd.min.js ／ lib/font-slim.js ／
+    //     lib/pdf-slim.js ／ ★vendor/fonts/BIZUDPGothic-Regular.ttf★ を 読む 形に した。
+    //     runtimeRefsIn は ★HTMLの 中の 字しか 見ない★ので この 5本を 拾わず、
+    //     見張りは 緑のまま、事務所の 住所では ★404★ に なる（＝紙が 出ない）。
+    //   ⇒ ★HTMLが <script src> で 読む 自前の js を 1段 追って、その中の 道も 拾う★
+    //     （借り物 vendor/ の 中は 追わない＝中の 字は 当てに ならない）
+    //   ★1段では 足りない★＝HTML → js/kami-pdf.js → js/kami-egaku.js → 字体
+    //     ⇒ ★新しい 物が 出なくなるまで 追う★（借り物 vendor/ の 中は 追わない）
+    const mita = new Set();
+    const tsugi = [...refsIn(html)].filter((r) => /\.js$/.test(r) && !r.startsWith('/vendor/'));
+    while (tsugi.length) {
+      const r = tsugi.shift();
+      if (mita.has(r)) continue;
+      mita.add(r);
+      const jp = path.join(root, r.slice(1));
+      if (!fs.existsSync(jp)) continue;
+      for (const r2 of runtimeRefsIn(fs.readFileSync(jp, 'utf8'), root)) {
+        allow.add(r2);
+        if (/\.js$/.test(r2) && !r2.startsWith('/vendor/') && !mita.has(r2)) tsugi.push(r2);
+      }
+    }
   }
 
   // ★事務所の画面から行ける先が事務所に無いと、押した瞬間404になる★

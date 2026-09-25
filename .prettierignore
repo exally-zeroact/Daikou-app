@@ -1,1 +1,7 @@
 **/*.min.js
+
+# ★★lib/ は 4repo で ★バイト一致★ を 保つ 借り受け★★ 2026-09-26
+#   lib/font-slim.js ／ lib/pdf-slim.js は 代行請求書・Rakually と 同じバイト。
+#   整形すると sha256 が 変わり ★tests/unit/kami-meibo.test.js が 赤★ に なる。
+#   ★直す時は 正本（rakually-test/lib）で 直して 4repo に 配る★（ここで 触らない）
+lib/

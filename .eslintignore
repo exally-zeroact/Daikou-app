@@ -10,3 +10,8 @@ data/
 .stryker-tmp/
 coverage/
 node_modules/
+
+# ★★lib/ は 4repo で ★バイト一致★ を 保つ 借り受け★★ 2026-09-26
+#   eslint --fix が var → let に 書き換えると sha256 が 変わる（実測 95件）。
+#   ⇒ ★ここでは 直さない★。正本（rakually-test/lib）で 直して 4repo に 配る。
+lib/

@@ -1,37 +1,108 @@
 // ============================================================
-// ★★「PDFで見る」を 実際に 押して PDF の バイト列を 見る★★ 2026-09-25
+// ★★「PDFで見る」を 実際に 押して ★出た PDF の 中身★ を 見る★★ 2026-09-25／26
 //
 //   ★司さん★「月で選んだら 項目別で その場で A4サイズPDFで 見せれるようにしろ」
+//             「PDFの見せ方や作り方は 既存の 代行請求書や Kyually や Rakunally と
+//               一緒にして 変なものが 出んようにしたんか？」
+//             「★なんで完成形があるのに確かめてやらんのど★」
 //
 //   ★「窓が 開いた」で 終わらせない★（[[feedback_print_new_window_not_media_print]]）
-//   ⇒ ★PDF の バイト列★ を 見る：
-//       %PDF- で 始まる／MediaBox が A4／★URL・ホスト名の 字が 入っていない★
 //
-//   ★★わざと壊して 赤に なる事を 見た（2026-09-25 実測 ＝ 下に 書く）★★
-//     ①KamiPdf.dasu を 呼ばない ……………… ★赤★（PDF が 出ない）
-//     ②A4 の 寸法を 変える ………………………★赤★（MediaBox が 合わない）
+//   ★★2026-09-26 に 作り方を 変えた★★
+//     ★前★ html2canvas で ★絵にして★ jsPDF に 貼っていた。
+//        実測 1枚 224,518〜567,182B／日ごと 2枚で 1,134,363B
+//        ＝司さんの 線「ええとこ200kBぐらい」を ★9種 全部 超えていた★。
+//     ★後★ 代行請求書・Rakually と 同じ ★pdf-lib で 本物の 字を 描く★
+//        ＋ lib/font-slim.js で 字体を 軽くする（道具は 4repo と 同じバイト）
+//        実測 1枚 78,974〜88,146B
+//
+//   ★測り方も 変えた★
+//     pdf-lib は ★中身を 固めて いる★ので 生の バイトを 字で 探しても 見えない
+//     （前の jsPDF は PDF 1.3・生のままで 見えていた）。
+//     ⇒ ★pdf-lib で 読み直して 中を 数える★（下の __toru）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-// ★vendor/ の 相対の 道が 要る★＝about:blank だと 取りに 行けない。
-//   ⇒ ★本物の 画面と 同じ 置き場★ から 開く（js/kami-pdf.js は 'vendor/…' と 書く）
-//   ★逆斜線は pathToFileURL に 任せる★（自分で 書くと heredoc で 落ちる）
-const URL_SHUKEI = require('url').pathToFileURL(path.join(ROOT, 'shukei.html')).href;
+// ★★file:// では 字体が 取れない★★ 2026-09-26
+//   紙は vendor/fonts/….ttf を fetch する。file:// は fetch が 使えない
+//   （実測：URL scheme "file" is not supported）⇒ ★本番と 同じ http★ で 開く。
+const URL_SHUKEI = '/shukei.html';
 
-// ★紙を 組んで PDF に する所だけ★ を 実ブラウザで 通す
-//   （画面ぜんぶを 動かすには ログインが 要る＝ここでは 部品を 直に 叩く）
-test('★A4のPDFが 出る（バイト列で 見る）★', async ({ page }) => {
-  // ★vendor/ の 相対の 道が 要る★＝about:blank だと 取りに 行けない。
-  //   ⇒ ★本物の 画面と 同じ 置き場★ から 開く（js/kami-pdf.js は 'vendor/…' と 書く）
-  await page.goto(URL_SHUKEI);
+async function kamiShikomu(page) {
+  await page.goto(URL_SHUKEI, { waitUntil: 'domcontentloaded' });
   for (const f of ['js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-shukei.js', 'js/kami-pdf.js']) {
     await page.addScriptTag({ path: path.join(ROOT, f) });
   }
-  // vendor は 押した時に 読む＝この 試験でも 同じ 道を 通す
-  await page.route('**/vendor/*.js', (r) => r.continue());
 
+  // ★★PDF を 解いて 中を 数える 道具★★
+  //   ・紙の 寸法 …… pdf-lib で 読み直した 本物の 値
+  //   ・絵を 貼っていないか … /Subtype /Image の 物が 1つも 無い事
+  //   ・字を 描いているか … /Type /Font が 在る事
+  //   ・足跡 ………… どこにも http:// が 無い事（window.print なら 必ず 入る）
+  await page.evaluate(() => {
+    window.__toru = async function (mai, na) {
+      let blob = null;
+      const moto = URL.createObjectURL;
+      URL.createObjectURL = function (b) {
+        blob = b;
+        return moto.call(URL, b);
+      };
+      window.open = () => ({});
+      const r = await window.KamiPdf.dasu(mai, na);
+      URL.createObjectURL = moto;
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      let atama = '';
+      for (let i = 0; i < 5; i++) atama += String.fromCharCode(buf[i]);
+
+      const doc = await window.PDFLib.PDFDocument.load(buf);
+      const box = doc.getPages().map(function (pg) {
+        const z = pg.getSize();
+        return [Math.round(z.width), Math.round(z.height)];
+      });
+      let e = 0;
+      let ji = 0;
+      let url = false;
+      doc.context.enumerateIndirectObjects().forEach(function (pair) {
+        const t = String(pair[1]);
+        if (/\/Subtype\s*\/Image/.test(t)) e++;
+        if (/\/Type\s*\/Font/.test(t)) ji++;
+        if (/https?:\/\//.test(t)) url = true;
+      });
+      const si = window.PdfSlim ? window.PdfSlim.lastInfo() : null;
+      return {
+        mai: r.mai,
+        size: buf.length,
+        per: Math.round(buf.length / r.mai),
+        atama: atama,
+        box: box,
+        e: e,
+        ji: ji,
+        url: url,
+        jitai: si && si.ato,
+        marugoto: si && si.marugoto,
+      };
+    };
+  });
+}
+
+// ★どの 紙も 必ず 通る 門★（1か所に まとめる＝新しい 紙を 足しても 同じ 縛り）
+function mon(out, na, box) {
+  expect(out.atama, '★' + na + '：PDF では ありません★').toBe('%PDF-');
+  expect(out.box, '★' + na + '：紙の 寸法が 違います★').toEqual(box);
+  expect(out.ji, '★' + na + '：字体が 入っていません（字を 描いていない）★').toBeGreaterThan(0);
+  expect(out.e, '★' + na + '：絵を 貼っています（html2canvas に 戻った）★').toBe(0);
+  expect(out.marugoto, '★' + na + '：字体を 丸ごと 埋めています★').toBe(false);
+  expect(out.url, '★' + na + '：PDF に URL が 入っています★').toBe(false);
+  // ★司さん 2026-09-05「ええとこ200kBぐらいのもんやろが」★
+  expect(out.per, '★' + na + '：1枚 200kB を 超えています（' + out.per + 'B）★').toBeLessThan(
+    200000
+  );
+}
+
+test('★月次集計＝A4縦 1枚★', async ({ page }) => {
+  await kamiShikomu(page);
   const out = await page.evaluate(async () => {
     const K = window.KamiShukei.kaisha(
       'ZERO代行',
@@ -62,94 +133,40 @@ test('★A4のPDFが 出る（バイト列で 見る）★', async ({ page }) =>
       { name: '1466', uriage: 282400, jippi: 0 },
       { name: '1173', uriage: 45700, jippi: 0 },
     ];
-    const mai = window.KamiHyou.getsuji(K, window.KamiShukei.getsujiData(tsuki, cars));
-
-    // ★window.open を 止めて blob を 掴む★（試験で 新しいタブを 開かない）
-    let blob = null;
-    const moto = URL.createObjectURL;
-    URL.createObjectURL = function (b) {
-      blob = b;
-      return moto.call(URL, b);
-    };
-    window.open = () => ({});
-    await window.KamiPdf.dasu(mai, 'test');
-    URL.createObjectURL = moto;
-    if (!blob) return { err: 'blob が 出来ていない' };
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    let atama = '';
-    for (let i = 0; i < 8; i++) atama += String.fromCharCode(buf[i]);
-    // ★字の 中に URL/ホスト名が 混ざっていないか★（PDF の 生の バイト列で 見る）
-    let zenbu = '';
-    for (let i = 0; i < buf.length; i++) zenbu += String.fromCharCode(buf[i]);
-    const box = /MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(zenbu);
-    return {
-      atama,
-      size: buf.length,
-      w: box ? Math.round(Number(box[1])) : 0,
-      h: box ? Math.round(Number(box[2])) : 0,
-      url: /https?:\/\//.test(zenbu),
-      host: zenbu.indexOf('localhost') >= 0 || zenbu.indexOf('vercel.app') >= 0,
-    };
+    return await window.__toru(
+      window.KamiHyou.getsuji(K, window.KamiShukei.getsujiData(tsuki, cars)),
+      'getsuji'
+    );
   });
-
   // eslint-disable-next-line no-console
-  console.log('★PDF★ ' + JSON.stringify(out));
-  expect(out.err, '★PDF が 出来ていません★').toBeUndefined();
-  expect(out.atama.slice(0, 5), '★PDF では ありません★').toBe('%PDF-');
-  expect(out.size, '★中身が 空です★').toBeGreaterThan(5000);
-  // ★A4縦 595×842pt★
-  expect(out.w, '★紙の 幅が A4縦 では ありません★').toBe(595);
-  expect(out.h, '★紙の 高さが A4縦 では ありません★').toBe(842);
-  // ★足跡が 出ていない★（window.print なら URL と 日付が 必ず 入る）
-  expect(out.url, '★PDF の 中に URL が 入っています★').toBe(false);
-  expect(out.host, '★PDF の 中に ホスト名が 入っています★').toBe(false);
+  console.log('★月次集計★ ' + JSON.stringify(out));
+  mon(out, '月次集計', [[595, 842]]);
 });
 
-test('★A4横の 紙も 出る（売上表）★', async ({ page }) => {
-  // ★vendor/ の 相対の 道が 要る★＝about:blank だと 取りに 行けない。
-  //   ⇒ ★本物の 画面と 同じ 置き場★ から 開く（js/kami-pdf.js は 'vendor/…' と 書く）
-  await page.goto(URL_SHUKEI);
-  for (const f of ['js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-shukei.js', 'js/kami-pdf.js']) {
-    await page.addScriptTag({ path: path.join(ROOT, f) });
-  }
+test('★売上表（月ごと）＝A4横 1枚★', async ({ page }) => {
+  await kamiShikomu(page);
   const out = await page.evaluate(async () => {
     const K = window.KamiShukei.kaisha('ZERO代行', 2026, 9, null, {}, null, true);
-    const mai = window.KamiHyou.uriageTsuki(K, {
-      uriage: 644000,
-      keihi: 0,
-      seikyu: 133500,
-      denshi: 0,
-      genkin: 510500,
-      cars: [{ name: '4987', uriage: 315900, jippi: 0, genkin: 250500, seikyu: 65400, denshi: 0 }],
-      hi: {},
-    });
-    let blob = null;
-    const moto = URL.createObjectURL;
-    URL.createObjectURL = function (b) {
-      blob = b;
-      return moto.call(URL, b);
-    };
-    window.open = () => ({});
-    await window.KamiPdf.dasu(mai, 'test2');
-    URL.createObjectURL = moto;
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    let zenbu = '';
-    for (let i = 0; i < buf.length; i++) zenbu += String.fromCharCode(buf[i]);
-    const box = /MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(zenbu);
-    return { w: box ? Math.round(Number(box[1])) : 0, h: box ? Math.round(Number(box[2])) : 0 };
+    return await window.__toru(
+      window.KamiHyou.uriageTsuki(K, {
+        uriage: 644000,
+        keihi: 0,
+        seikyu: 133500,
+        denshi: 0,
+        genkin: 510500,
+        cars: [{ name: '4987', uriage: 315900, jippi: 0 }],
+        hi: {},
+      }),
+      'uriage'
+    );
   });
   // eslint-disable-next-line no-console
-  console.log('★A4横★ ' + JSON.stringify(out));
-  expect(out.w, '★A4横の 幅★').toBe(842);
-  expect(out.h, '★A4横の 高さ★').toBe(595);
+  console.log('★売上表（月）★ ' + JSON.stringify(out));
+  mon(out, '売上表（月）', [[842, 595]]);
 });
 
-// ★回数・距離（A4横）も 出る★ 2026-09-25（売上表の 画面から）
-test('★回数・距離の 紙も 出る★', async ({ page }) => {
-  await page.goto(URL_SHUKEI);
-  for (const f of ['js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-pdf.js']) {
-    await page.addScriptTag({ path: path.join(ROOT, f) });
-  }
+test('★回数・距離（月ごと）＝A4横 1枚★', async ({ page }) => {
+  await kamiShikomu(page);
   const out = await page.evaluate(async () => {
     const K = {
       name: 'ZERO代行',
@@ -159,84 +176,33 @@ test('★回数・距離の 紙も 出る★', async ({ page }) => {
       kinds: [{ label: '高速代', hiku: true }],
       denshi: false,
     };
-    const mai = window.KamiHyou.soukouTsuki(K, {
-      cars: [{ name: '4987', kaisuu: 130, jissha: 712.7, sou: 1588.8 }],
-      hi: { 1: { kaisuu: 6, jissha: 31.0, sou: 74.3 } },
-      kaisuu: 130,
-      jissha: 712.7,
-      sou: 1588.8,
-    });
-    let blob = null;
-    const moto = URL.createObjectURL;
-    URL.createObjectURL = function (b) {
-      blob = b;
-      return moto.call(URL, b);
-    };
-    window.open = () => ({});
-    await window.KamiPdf.dasu(mai, 'soukou');
-    URL.createObjectURL = moto;
-    const buf = new Uint8Array(await blob.arrayBuffer());
-    let zenbu = '';
-    for (let i = 0; i < buf.length; i++) zenbu += String.fromCharCode(buf[i]);
-    const box = /MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(zenbu);
-    return {
-      size: buf.length,
-      w: box ? Math.round(Number(box[1])) : 0,
-      h: box ? Math.round(Number(box[2])) : 0,
-      url: /https?:\/\//.test(zenbu),
-    };
+    return await window.__toru(
+      window.KamiHyou.soukouTsuki(K, {
+        cars: [{ name: '4987', kaisuu: 130, jissha: 712.7, sou: 1588.8 }],
+        hi: { 1: { kaisuu: 6, jissha: 31.0, sou: 74.3 } },
+        kaisuu: 130,
+        jissha: 712.7,
+        sou: 1588.8,
+      }),
+      'soukou'
+    );
   });
   // eslint-disable-next-line no-console
   console.log('★回数・距離★ ' + JSON.stringify(out));
-  expect(out.w).toBe(842);
-  expect(out.h).toBe(595);
-  expect(out.url, '★PDF に URL が 入っています★').toBe(false);
+  mon(out, '回数・距離', [[842, 595]]);
 });
 
 // ============================================================
-// ★★給料表の 紙も PDF に なる★★ 2026-09-25
-//   ★司さん★「給料表も月毎、年ごと、個別全体で分けて見れるようにしとけ」
-//             「給料表は月の日まで個別で見れるやつも作れよ」
+// ★★給料表＝日付が ★上★ で 前半／後半★★ 2026-09-25（司さん 差し戻し）
+//   「上に日付持ってきて前半後半やなかったか？」
+//   「時間の方も金額のように前半後半に分けて」
+//   「両方日付の横に曜日（月、火など）も入れて ★日曜の列は背景を薄い赤に★」
 //
-//   ★ここで 見るのは 3つ★
-//     ①月ごと（全体）は A4横・個別は A4縦で 出る
-//     ②★日ごとで 10人に なったら 2枚に 分かれ 向きが 揃う★
-//     ③★画面が 出した 期間の 名前が そのまま 紙に 出る★（紙は 区切り直さない）
-//
-//   ★★わざと壊して 赤に なる事を 見た（2026-09-25 実測）★★
-//     ①HITO_1MAI を 20 に する ………… ★赤★（1枚に なる）
-//     ②namae を 見ないように 戻す …… ★赤★（期間の 名前が 出ない）
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-25 実測・1つずつ 手で）★★
+//     ①HITO_1MAI を 20 に する ……… ★赤★（1組に なる）
+//     ②期間の 名前の 受け取りを 外す … ★赤★（9/11 ~ 9/20 が 出ない）
 // ============================================================
-async function kamiShikomu(page) {
-  await page.goto(URL_SHUKEI);
-  for (const f of ['js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-pdf.js']) {
-    await page.addScriptTag({ path: path.join(ROOT, f) });
-  }
-  // ★紙 → PDF の バイト列を 返す 道具を 画面側に 置く★
-  await page.evaluate(() => {
-    window.__toru = async function (mai, na) {
-      let blob = null;
-      const moto = URL.createObjectURL;
-      URL.createObjectURL = function (b) {
-        blob = b;
-        return moto.call(URL, b);
-      };
-      window.open = () => ({});
-      const r = await window.KamiPdf.dasu(mai, na);
-      URL.createObjectURL = moto;
-      const buf = new Uint8Array(await blob.arrayBuffer());
-      let zenbu = '';
-      for (let i = 0; i < buf.length; i++) zenbu += String.fromCharCode(buf[i]);
-      const box = [];
-      const re = /MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/g;
-      let m;
-      while ((m = re.exec(zenbu))) box.push([Math.round(+m[1]), Math.round(+m[2])]);
-      return { mai: r.mai, size: buf.length, box, url: /https?:\/\//.test(zenbu) };
-    };
-  });
-}
-
-test('★給料表（月ごと・個別）の 紙も 出る★', async ({ page }) => {
+test('★給料表（月ごと・個別）＝どちらも A4横★', async ({ page }) => {
   await kamiShikomu(page);
   const out = await page.evaluate(async () => {
     const K = {
@@ -277,11 +243,9 @@ test('★給料表（月ごと・個別）の 紙も 出る★', async ({ page }
   console.log('★給料月ごと★ ' + JSON.stringify(out.a));
   // eslint-disable-next-line no-console
   console.log('★給料個別★ ' + JSON.stringify(out.b));
-  expect(out.a.box, '★月ごとは A4横 1枚★').toEqual([[842, 595]]);
+  mon(out.a, '給料（月ごと）', [[842, 595]]);
   // ★個別も 日付を 上に 並べる★＝15〜16列 並ぶので A4横
-  expect(out.b.box, '★個別は A4横 1枚★').toEqual([[842, 595]]);
-  expect(out.a.url, '★PDF に URL が 入っています★').toBe(false);
-  expect(out.b.url, '★PDF に URL が 入っています★').toBe(false);
+  mon(out.b, '給料（個別）', [[842, 595]]);
   expect(out.namaeDeta, '★画面が 出した 期間の 名前が 紙に 出ていません★').toBe(true);
   // 司さん「そのままでやれや銀行やないんど」＝円のまま
   expect(out.en, '★金額が 円のまま では ありません★').toBe(true);
@@ -301,19 +265,20 @@ test('★給料表（日ごと）は 10人で 4枚に 分かれ 向きが 揃う
     const hi = [];
     for (let d = 1; d <= 30; d++) hi.push(d % 4 === 0 ? 0 : 9600);
     const hito = [];
-    for (let i = 1; i <= 10; i++) hito.push({ name: '人' + i, hi: hi });
+    for (let i = 1; i <= 10; i++) hito.push({ name: '人' + i, hi: hi, hiJikan: hi.map(() => 8) });
     return await window.__toru(window.KamiHyou.kyuryoHi(K, { hito: hito }), 'kyu-hi');
   });
 
   // eslint-disable-next-line no-console
   console.log('★給料日ごと★ ' + JSON.stringify(out));
-  // ★司さん 2026-09-25★「上に日付持ってきて前半後半」に 組み直したので
-  //   1組＝★金額の 紙 ➕ 時間の 紙★。10人＝2組＝★４枚★。
+  // ★1組＝金額の 紙 ＋ 時間の 紙★。10人＝2組＝4枚。
   expect(out.mai, '★十人なら 2組 ×（金額・時間）＝4枚★').toBe(4);
-  expect(out.box.length, '★PDF の 頁数★').toBe(4);
-  expect(new Set(out.box.map((x) => x.join('x'))).size, '★枚で 向きが 違っています★').toBe(1);
-  expect(out.box[0], '★A4横★').toEqual([842, 595]);
-  expect(out.url, '★PDF に URL が 入っています★').toBe(false);
+  mon(out, '給料（日ごと）', [
+    [842, 595],
+    [842, 595],
+    [842, 595],
+    [842, 595],
+  ]);
 });
 
 // ============================================================
