@@ -143,3 +143,171 @@ test('★A4横の 紙も 出る（売上表）★', async ({ page }) => {
   expect(out.w, '★A4横の 幅★').toBe(842);
   expect(out.h, '★A4横の 高さ★').toBe(595);
 });
+
+// ★回数・距離（A4横）も 出る★ 2026-09-25（売上表の 画面から）
+test('★回数・距離の 紙も 出る★', async ({ page }) => {
+  await page.goto(URL_SHUKEI);
+  for (const f of ['js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-pdf.js']) {
+    await page.addScriptTag({ path: path.join(ROOT, f) });
+  }
+  const out = await page.evaluate(async () => {
+    const K = {
+      name: 'ZERO代行',
+      year: 2026,
+      month: 9,
+      settings: null,
+      kinds: [{ label: '高速代', hiku: true }],
+      denshi: false,
+    };
+    const mai = window.KamiHyou.soukouTsuki(K, {
+      cars: [{ name: '4987', kaisuu: 130, jissha: 712.7, sou: 1588.8 }],
+      hi: { 1: { kaisuu: 6, jissha: 31.0, sou: 74.3 } },
+      kaisuu: 130,
+      jissha: 712.7,
+      sou: 1588.8,
+    });
+    let blob = null;
+    const moto = URL.createObjectURL;
+    URL.createObjectURL = function (b) {
+      blob = b;
+      return moto.call(URL, b);
+    };
+    window.open = () => ({});
+    await window.KamiPdf.dasu(mai, 'soukou');
+    URL.createObjectURL = moto;
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let zenbu = '';
+    for (let i = 0; i < buf.length; i++) zenbu += String.fromCharCode(buf[i]);
+    const box = /MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/.exec(zenbu);
+    return {
+      size: buf.length,
+      w: box ? Math.round(Number(box[1])) : 0,
+      h: box ? Math.round(Number(box[2])) : 0,
+      url: /https?:\/\//.test(zenbu),
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★回数・距離★ ' + JSON.stringify(out));
+  expect(out.w).toBe(842);
+  expect(out.h).toBe(595);
+  expect(out.url, '★PDF に URL が 入っています★').toBe(false);
+});
+
+// ============================================================
+// ★★給料表の 紙も PDF に なる★★ 2026-09-25
+//   ★司さん★「給料表も月毎、年ごと、個別全体で分けて見れるようにしとけ」
+//             「給料表は月の日まで個別で見れるやつも作れよ」
+//
+//   ★ここで 見るのは 3つ★
+//     ①月ごと（全体）は A4横・個別は A4縦で 出る
+//     ②★日ごとで 10人に なったら 2枚に 分かれ 向きが 揃う★
+//     ③★画面が 出した 期間の 名前が そのまま 紙に 出る★（紙は 区切り直さない）
+//
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-25 実測）★★
+//     ①HITO_1MAI を 20 に する ………… ★赤★（1枚に なる）
+//     ②namae を 見ないように 戻す …… ★赤★（期間の 名前が 出ない）
+// ============================================================
+async function kamiShikomu(page) {
+  await page.goto(URL_SHUKEI);
+  for (const f of ['js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-pdf.js']) {
+    await page.addScriptTag({ path: path.join(ROOT, f) });
+  }
+  // ★紙 → PDF の バイト列を 返す 道具を 画面側に 置く★
+  await page.evaluate(() => {
+    window.__toru = async function (mai, na) {
+      let blob = null;
+      const moto = URL.createObjectURL;
+      URL.createObjectURL = function (b) {
+        blob = b;
+        return moto.call(URL, b);
+      };
+      window.open = () => ({});
+      const r = await window.KamiPdf.dasu(mai, na);
+      URL.createObjectURL = moto;
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      let zenbu = '';
+      for (let i = 0; i < buf.length; i++) zenbu += String.fromCharCode(buf[i]);
+      const box = [];
+      const re = /MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)/g;
+      let m;
+      while ((m = re.exec(zenbu))) box.push([Math.round(+m[1]), Math.round(+m[2])]);
+      return { mai: r.mai, size: buf.length, box, url: /https?:\/\//.test(zenbu) };
+    };
+  });
+}
+
+test('★給料表（月ごと・個別）の 紙も 出る★', async ({ page }) => {
+  await kamiShikomu(page);
+  const out = await page.evaluate(async () => {
+    const K = {
+      name: 'ZERO代行',
+      year: 2026,
+      month: 9,
+      settings: { period_start_day: 1, period_days: 10 },
+      kinds: [],
+      denshi: false,
+    };
+    // ★画面（PayrollPeriod）が 出した 期間の 名前を そのまま 渡す★
+    const namae = ['9/1 ~ 9/10', '9/11 ~ 9/20', '9/21 ~ 9/30'];
+    const hi = [];
+    for (let d = 1; d <= 30; d++) hi.push(d % 3 === 0 ? 0 : 10400);
+    const hiJikan = hi.map((v) => (v ? 8.5 : 0));
+    const hito = [
+      { name: '山田', kikan: [104000, 93600, 104000], jikan: 76.5, hi: hi, hiJikan: hiJikan },
+      { name: '鈴木', kikan: [88000, 91000, 99000], jikan: 70, hi: hi, hiJikan: hiJikan },
+    ];
+    const a = await window.__toru(
+      window.KamiHyou.kyuryoTsuki(K, { namae: namae, hito: hito }),
+      'kyu-tsuki'
+    );
+    const b = await window.__toru(
+      window.KamiHyou.kyuryoKojin(K, { namae: namae, hito: hito[0] }),
+      'kyu-kojin'
+    );
+    const ji = window.KamiHyou.kyuryoTsuki(K, { namae: namae, hito: hito })[0].el.textContent;
+    return {
+      a: a,
+      b: b,
+      namaeDeta: ji.indexOf('9/11 ~ 9/20') >= 0,
+      en: ji.indexOf('104,000') >= 0,
+    };
+  });
+
+  // eslint-disable-next-line no-console
+  console.log('★給料月ごと★ ' + JSON.stringify(out.a));
+  // eslint-disable-next-line no-console
+  console.log('★給料個別★ ' + JSON.stringify(out.b));
+  expect(out.a.box, '★月ごとは A4横 1枚★').toEqual([[842, 595]]);
+  expect(out.b.box, '★個別は A4縦 1枚★').toEqual([[595, 842]]);
+  expect(out.a.url, '★PDF に URL が 入っています★').toBe(false);
+  expect(out.b.url, '★PDF に URL が 入っています★').toBe(false);
+  expect(out.namaeDeta, '★画面が 出した 期間の 名前が 紙に 出ていません★').toBe(true);
+  // 司さん「そのままでやれや銀行やないんど」＝円のまま
+  expect(out.en, '★金額が 円のまま では ありません★').toBe(true);
+});
+
+test('★給料表（日ごと）は 10人で 2枚に 分かれ 向きが 揃う★', async ({ page }) => {
+  await kamiShikomu(page);
+  const out = await page.evaluate(async () => {
+    const K = {
+      name: 'ZERO代行',
+      year: 2026,
+      month: 9,
+      settings: null,
+      kinds: [],
+      denshi: false,
+    };
+    const hi = [];
+    for (let d = 1; d <= 30; d++) hi.push(d % 4 === 0 ? 0 : 9600);
+    const hito = [];
+    for (let i = 1; i <= 10; i++) hito.push({ name: '人' + i, hi: hi });
+    return await window.__toru(window.KamiHyou.kyuryoHi(K, { hito: hito }), 'kyu-hi');
+  });
+
+  // eslint-disable-next-line no-console
+  console.log('★給料日ごと★ ' + JSON.stringify(out));
+  expect(out.mai, '★十人なら 2枚（1枚 9人まで）★').toBe(2);
+  expect(out.box.length, '★PDF の 頁数★').toBe(2);
+  expect(out.box[0], '★枚で 向きが 違っています（縦と横が 混ざる）★').toEqual(out.box[1]);
+  expect(out.url, '★PDF に URL が 入っています★').toBe(false);
+});

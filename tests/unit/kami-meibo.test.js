@@ -23,7 +23,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const yomu = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
 
 // ★事務所の 5枚が 読む js＝この一覧★（増やしたら ここにも 足す）
-const JIMUSHO_JS = ['js/kami-pdf.js', 'js/kami-kumu.js', 'js/kami-hyou.js'];
+const JIMUSHO_JS = ['js/kami-pdf.js', 'js/kami-kumu.js', 'js/kami-hyou.js', 'js/kami-shukei.js'];
 
 describe('★①sw.js の 先取り名簿★', () => {
   const SW = yomu('sw.js');

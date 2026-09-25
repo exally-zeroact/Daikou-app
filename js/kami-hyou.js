@@ -479,7 +479,9 @@
 
   // ── ⑥給料表・月ごと（全体）A4横 ───────────────────
   function kyuryoTsuki(k, d) {
-    const ki = K.kikan(k.year, k.month, k.settings);
+    // ★期間の 名前は 画面が 出した 物を 優先★（PayrollPeriod が 実際に 区切った 名前）
+    //   ⇒ ★起算日が 21日のような 月をまたぐ 会社でも 列と 中身が ずれない★
+    const ki = d.namae && d.namae.length ? d.namae : K.kikan(k.year, k.month, k.settings);
     const hito = (d.hito || []).map(function (p) {
       const a = (p.kikan || []).slice(0, ki.length);
       while (a.length < ki.length) a.push(0);
@@ -730,7 +732,9 @@
   // ── ⑨給料表・個別（A4縦）──────────────────────────
   function kyuryoKojin(k, d) {
     const p = d.hito || {};
-    const ki = K.kikan(k.year, k.month, k.settings);
+    // ★期間の 名前は 画面が 出した 物を 優先★（PayrollPeriod が 実際に 区切った 名前）
+    //   ⇒ ★起算日が 21日のような 月をまたぐ 会社でも 列と 中身が ずれない★
+    const ki = d.namae && d.namae.length ? d.namae : K.kikan(k.year, k.month, k.settings);
     const last = K.matsubi(k.year, k.month);
     const kk = (p.kikan || []).slice(0, ki.length);
     while (kk.length < ki.length) kk.push(0);
@@ -759,12 +763,22 @@
       K.box('時間', km(p.jikan), true) +
       '</div>' +
       '<h2>払う回ごと</h2>' +
+      // ★時間の 列を 入れる★＝2列だと 右が 丸ごと 空白に なる（2026-09-25 絵で 見た）
       K.hyou(
-        ['<th>期間</th>', '<th>金額</th>'],
+        ['<th>期間</th>', '<th>金額</th>', '<th>時間</th>'],
         ki.map(function (na, i) {
-          return '<tr><td>' + esc(na) + '</td><td>' + en(kk[i]) + '</td></tr>';
+          const hj = n((p.kikanJikan || [])[i]);
+          return (
+            '<tr><td>' +
+            esc(na) +
+            '</td><td>' +
+            en(kk[i]) +
+            '</td><td>' +
+            (hj ? km(hj) : '<span class="z">—</span>') +
+            '</td></tr>'
+          );
         }),
-        '<tr class="sum"><td>合計</td><td>' + en(zen) + '</td></tr>'
+        '<tr class="sum"><td>合計</td><td>' + en(zen) + '</td><td>' + km(p.jikan) + '</td></tr>'
       ) +
       '<h2>日ごと</h2><div class="nibun"><div>' +
       han(1, Math.ceil(last / 2)) +

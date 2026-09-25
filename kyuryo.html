@@ -1093,6 +1093,22 @@
             >1人ずつ 実物と 同じ 並びで 出ます。</span
           >
         </div>
+        <!-- ★★給料表を A4のPDFで 見る★★ 2026-09-25
+             ★司さん★「給料表も月毎、年ごと、個別全体で分けて見れるようにしとけ」
+                       「給料表は月の日まで個別で見れるやつも作れよ」
+             ★上の「印刷」は 実物の 明細（1人1枚）★。ここは ★まとめた 表★。 -->
+        <div class="card noprint" id="kamiCard">
+          <h2 style="margin: 0 0 8px">PDFで 見る（給料表）</h2>
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+            <button class="btn" id="kamiTsuki">月ごと（全体）</button>
+            <button class="btn" id="kamiHi">日ごと（全員）</button>
+            <button class="btn" id="kamiKojin">個別（選んだ人）</button>
+            <button class="btn btn-off" id="kamiNen">年ごと</button>
+          </div>
+          <div class="note" style="margin: 6px 0 0" id="kamiNote">
+            見ている 月の 分を 出します。個別は 明細の チェックで 選んだ 人（無ければ 全員）。
+          </div>
+        </div>
         <div id="slips"></div>
       </div>
 
@@ -2229,6 +2245,317 @@
         $('btnPrintSel').onclick = function () {
           printAll(erandaHito()); // ★選んだ人だけ★
         };
+
+        // ============================================================
+        // ★★給料表を A4の PDF で 出す★★ 2026-09-25
+        //
+        //   ★司さん★「給料表も月毎、年ごと、個別全体で分けて見れるようにしとけ」
+        //             「給料表は月の日まで個別で見れるやつも作れよ」
+        //
+        //   ★★数え直さない★★
+        //     画面と 同じ PayrollDaily.buildCtx / report を 通す。
+        //     自分で 足し算を やり直すと ★紙と 画面で 数が 食い違う★。
+        //
+        //   ★なぜ 取り直すか★
+        //     画面は ★期間 1つ分★しか 読んでいない（loadPeriod）。
+        //     月ごと・日ごとは ★月丸々★ 要るので 押した 時に 取る。
+        //
+        //   ★見張り★ tests/e2e/kami-pdf-dasu.spec.js
+        // ============================================================
+        function kamiMsg(t) {
+          var e = $('kamiNote');
+          if (e) e.textContent = t || '';
+        }
+        function kamiBtn(tomeru) {
+          ['kamiTsuki', 'kamiHi', 'kamiKojin', 'kamiNen'].forEach(function (id) {
+            if ($(id)) $(id).disabled = !!tomeru;
+          });
+        }
+        function kamiPad(v) {
+          return ('0' + v).slice(-2);
+        }
+        function kamiK(y, m) {
+          return {
+            name: (COMPANY && COMPANY.name) || '',
+            year: y,
+            month: m,
+            settings: SET,
+            kinds: [],
+            denshi: false,
+          };
+        }
+
+        // ★その月の 生データを 取って ctx を 作る★（掃く 幅＝期間と 暦の 両方を 包む）
+        function kamiCtx(y, m) {
+          var st = PayrollDaily.normSettings(SET);
+          var ps = PayrollPeriod.periodsOf(y, m, {
+            startDay: st.periodStartDay,
+            endMode: st.periodEndMode,
+            days: st.periodDays,
+          });
+          var matsu = new Date(y, m, 0).getDate();
+          var c1 = y + '-' + kamiPad(m) + '-01';
+          var c2 = y + '-' + kamiPad(m) + '-' + kamiPad(matsu);
+          var start = ps.length && ps[0].start < c1 ? ps[0].start : c1;
+          var end = ps.length && ps[ps.length - 1].end > c2 ? ps[ps.length - 1].end : c2;
+          var from = start + 'T00:00:00+09:00';
+          var toD = new Date(+end.slice(0, 4), +end.slice(5, 7) - 1, +end.slice(8, 10) + 1);
+          var to =
+            toD.getFullYear() +
+            '-' +
+            kamiPad(toD.getMonth() + 1) +
+            '-' +
+            kamiPad(toD.getDate()) +
+            'T00:00:00+09:00';
+          return Promise.all([
+            soft(
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count' +
+                '&started_at=gte.' +
+                encodeURIComponent(from) +
+                '&started_at=lt.' +
+                encodeURIComponent(to) +
+                '&order=started_at.asc&limit=2000'
+            ),
+            soft('dk_shift_edits?select=*&limit=2000'),
+            soft(
+              'dk_work_hours?select=*&work_date=gte.' +
+                start +
+                '&work_date=lte.' +
+                end +
+                '&limit=2000'
+            ),
+            soft(
+              'dk_manual_days?select=*&work_date=gte.' +
+                start +
+                '&work_date=lte.' +
+                end +
+                '&limit=2000'
+            ),
+          ]).then(function (res) {
+            // ★★取り切れを 黙って 通さない★★（limit ちょうどなら 欠けている可能性）
+            var kire = (res[0] || []).length >= 2000 || (res[2] || []).length >= 2000;
+            var ctx = PayrollDaily.buildCtx({
+              shifts: res[0] || [],
+              edits: res[1] || [],
+              workHours: res[2] || [],
+              manualDays: res[3] || [],
+              labels: RAW.labels,
+              employees: RAW.employees,
+              salesSettings: RAW.salesSettings,
+              payrollSettings: SET,
+            });
+            var hibi = [];
+            for (var i = 1; i <= matsu; i++) hibi.push(y + '-' + kamiPad(m) + '-' + kamiPad(i));
+            return {
+              ps: ps,
+              matsu: matsu,
+              kire: kire,
+              kikanRep: ps.map(function (x) {
+                return PayrollDaily.report(x.dates, ctx);
+              }),
+              hiRep: PayrollDaily.report(hibi, ctx),
+            };
+          });
+        }
+
+        // ★人ごとに まとめる★：kikan＝払う回ごとの 額 / hi・hiJikan＝暦の 日ごと
+        function kamiHito(r) {
+          var idx = {};
+          var out = [];
+          function hiro(id, na) {
+            if (!idx[id]) {
+              idx[id] = {
+                id: id,
+                name: na || '',
+                kikan: [],
+                kikanJikan: [],
+                jikan: 0,
+                hi: [],
+                hiJikan: [],
+              };
+              out.push(idx[id]);
+            }
+            return idx[id];
+          }
+          r.kikanRep.forEach(function (rep, pi) {
+            (rep.employees || []).forEach(function (e) {
+              var o = hiro(e.employee_id, e.name);
+              o.kikan[pi] = (o.kikan[pi] || 0) + (e.totalPay || 0);
+              o.kikanJikan[pi] = (o.kikanJikan[pi] || 0) + (e.totalHours || 0);
+            });
+          });
+          ((r.hiRep && r.hiRep.employees) || []).forEach(function (e) {
+            var o = hiro(e.employee_id, e.name);
+            o.jikan += e.totalHours || 0;
+            (e.cells || []).forEach(function (c) {
+              var dd = Number(String(c.date || '').slice(8, 10));
+              if (!dd) return;
+              o.hi[dd - 1] = (o.hi[dd - 1] || 0) + (c.pay || 0);
+              o.hiJikan[dd - 1] = (o.hiJikan[dd - 1] || 0) + (c.hours || 0);
+            });
+          });
+          out.forEach(function (o) {
+            for (var i = 0; i < r.ps.length; i++) {
+              if (!o.kikan[i]) o.kikan[i] = 0;
+              if (!o.kikanJikan[i]) o.kikanJikan[i] = 0;
+            }
+          });
+          return out;
+        }
+        function kamiNamae(r) {
+          return r.ps.map(function (x) {
+            return x.rangeLabel || x.label || '';
+          });
+        }
+        function kamiFile(y, m, na) {
+          return ((COMPANY && COMPANY.name) || '給料表') + '_' + na + '_' + y + '-' + kamiPad(m);
+        }
+        function kamiDasu(mai, na, kire) {
+          kamiMsg('紙を 作っています…');
+          kamiBtn(true);
+          return KamiPdf.dasu(mai, na)
+            .then(function (x) {
+              kamiBtn(false);
+              kamiMsg(
+                '出しました（' +
+                  x.mai +
+                  '枚）' +
+                  (kire ? '　★上限 2000件に 当たっています＝欠けているかもしれません★' : '')
+              );
+            })
+            .catch(function (e) {
+              kamiBtn(false);
+              kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
+            });
+        }
+        function kamiJunbi() {
+          if (!COMPANY) {
+            kamiMsg('会社が 選ばれていません。');
+            return null;
+          }
+          return { y: YM.year, m: YM.month };
+        }
+        function kamiKoke(e) {
+          kamiBtn(false);
+          kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
+        }
+
+        if ($('kamiTsuki')) {
+          $('kamiTsuki').onclick = function () {
+            var w = kamiJunbi();
+            if (!w) return;
+            kamiMsg('読み込んでいます…');
+            kamiBtn(true);
+            kamiCtx(w.y, w.m)
+              .then(function (r) {
+                kamiBtn(false);
+                var mai = KamiHyou.kyuryoTsuki(kamiK(w.y, w.m), {
+                  namae: kamiNamae(r),
+                  hito: kamiHito(r),
+                });
+                kamiDasu(mai, kamiFile(w.y, w.m, '給料表_月ごと'), r.kire);
+              })
+              .catch(kamiKoke);
+          };
+        }
+
+        if ($('kamiHi')) {
+          $('kamiHi').onclick = function () {
+            var w = kamiJunbi();
+            if (!w) return;
+            kamiMsg('読み込んでいます…');
+            kamiBtn(true);
+            kamiCtx(w.y, w.m)
+              .then(function (r) {
+                kamiBtn(false);
+                var mai = KamiHyou.kyuryoHi(kamiK(w.y, w.m), { hito: kamiHito(r) });
+                kamiDasu(mai, kamiFile(w.y, w.m, '給料表_日ごと'), r.kire);
+              })
+              .catch(kamiKoke);
+          };
+        }
+
+        if ($('kamiKojin')) {
+          $('kamiKojin').onclick = function () {
+            var w = kamiJunbi();
+            if (!w) return;
+            var eranda = erandaHito();
+            kamiMsg('読み込んでいます…');
+            kamiBtn(true);
+            kamiCtx(w.y, w.m)
+              .then(function (r) {
+                kamiBtn(false);
+                var hito = kamiHito(r);
+                if (eranda.length) {
+                  hito = hito.filter(function (p) {
+                    return eranda.indexOf(p.id) >= 0;
+                  });
+                }
+                if (!hito.length) return kamiMsg('出す 人が いません。');
+                var k = kamiK(w.y, w.m);
+                var na = kamiNamae(r);
+                // ★何人でも 1つの PDF★（1人1枚）
+                var mai = [];
+                hito.forEach(function (p) {
+                  mai = mai.concat(KamiHyou.kyuryoKojin(k, { namae: na, hito: p }));
+                });
+                kamiDasu(mai, kamiFile(w.y, w.m, '給料表_個別'), r.kire);
+              })
+              .catch(kamiKoke);
+          };
+        }
+
+        if ($('kamiNen')) {
+          $('kamiNen').onclick = function () {
+            var w = kamiJunbi();
+            if (!w) return;
+            kamiBtn(true);
+            var tsuki = {};
+            var na = {};
+            var kire = false;
+            var tsugi = Promise.resolve();
+            for (var i = 1; i <= 12; i++) {
+              (function (mm) {
+                tsugi = tsugi.then(function () {
+                  kamiMsg('読み込んでいます… ' + mm + '月 / 12');
+                  return kamiCtx(w.y, mm).then(function (r) {
+                    if (r.kire) kire = true;
+                    var box = {};
+                    kamiHito(r).forEach(function (p) {
+                      var v = p.kikan.reduce(function (a, b) {
+                        return a + (b || 0);
+                      }, 0);
+                      if (!v) return;
+                      box[p.name] = (box[p.name] || 0) + v;
+                      na[p.name] = true;
+                    });
+                    if (Object.keys(box).length) tsuki[mm] = box;
+                  });
+                });
+              })(i);
+            }
+            tsugi
+              .then(function () {
+                kamiBtn(false);
+                var hito = Object.keys(na).map(function (x) {
+                  return { name: x };
+                });
+                var zen = 0;
+                Object.keys(tsuki).forEach(function (mm) {
+                  Object.keys(tsuki[mm]).forEach(function (x) {
+                    zen += tsuki[mm][x];
+                  });
+                });
+                var mai = KamiHyou.kyuryoNen(kamiK(w.y, 1), { hito: hito, tsuki: tsuki, zen: zen });
+                kamiDasu(
+                  mai,
+                  ((COMPANY && COMPANY.name) || '給料表') + '_給料表_年ごと_' + w.y,
+                  kire
+                );
+              })
+              .catch(kamiKoke);
+          };
+        }
 
         // ★★選ばれている 人の id を 集める★★ 2026-09-05
         //   ★画面に 描かれた チェックを 数える★（内側の 変数を 信じない）
@@ -4459,6 +4786,10 @@
          「この事務所だけ 他の アプリと 違う 型式なんを 同じに しろや」
          「フッター 作って 各ページに 飛ぶようにしろ」
          ★行き先は js/jimusho-footer.js の 1か所★（画面ごとに 手書きしない） -->
+    <!-- ★紙（A4のPDF）★ 2026-09-25（司さん「月で選んだら 項目別で その場で A4サイズPDFで 見せれるようにしろ」） -->
+    <script src="js/kami-kumu.js"></script>
+    <script src="js/kami-hyou.js"></script>
+    <script src="js/kami-pdf.js"></script>
     <script src="js/jimusho-footer.js"></script>
   </body>
 </html>

@@ -118,6 +118,7 @@ const CORE_CODE_FILES = [
   '/js/kami-pdf.js',
   '/js/kami-kumu.js',
   '/js/kami-hyou.js',
+  '/js/kami-shukei.js',
   '/js/obd-client.js',
   '/js/mm-data-pipeline.js',
   '/js/obd-wheelspeed-identify.js',

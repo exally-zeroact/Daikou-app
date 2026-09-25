@@ -509,6 +509,15 @@
           <span class="saved" id="setSaved"></span>
         </div>
 
+        <!-- ★★A4のPDFで 見る★★ 2026-09-25（司さん）
+             ★この 画面が 持っている 数だけ 出す★＝回数・距離。
+             ★売上の お金の 内わけ（現金/請求書/電子決済）は この画面に 無い★（実測）
+             ⇒ ★勝手に 読みに 行かない★。お金の 紙は 月次集計の 画面から 出す。 -->
+        <div class="setrow" style="margin-top: 10px; gap: 8px">
+          <button class="btn" id="kamiSoukou" type="button">回数・距離を PDFで 見る</button>
+          <span class="saved" id="kamiMsg"></span>
+        </div>
+
         <!-- ★車ごと／日ごと の切り替え (2026-08-09 司さん「1日おきと車おきで見れないかん」)★ -->
         <div class="seg" style="margin-top: 10px">
           <button class="segb on" id="segCar" type="button">車ごと</button>
@@ -640,6 +649,72 @@
         $('btnLogout').onclick = function () {
           DKSession.logout();
         };
+        // ============================================================
+        // ★★回数・距離を PDFで 見る★★ 2026-09-25（司さん）
+        //   ★数え直さない★＝画面が 出した ROWS / DAYS（UriageAgg）を そのまま 渡す。
+        // ============================================================
+        function kamiMsg(t) {
+          var el = $('kamiMsg');
+          if (el) el.textContent = t || '';
+        }
+        if ($('kamiSoukou')) {
+          $('kamiSoukou').onclick = function () {
+            if (!ROWS || !ROWS.length) return kamiMsg('まだ 読み込んでいません。');
+            var k = {
+              name: (COMPANY && COMPANY.name) || '',
+              year: MONTH.getFullYear(),
+              month: MONTH.getMonth() + 1,
+              settings: null,
+              kinds: (RAW.kinds || []).map(function (x) {
+                return { label: x.label, hiku: true };
+              }),
+              denshi: false,
+            };
+            var cars = ROWS.map(function (r) {
+              return {
+                name: r.label,
+                kaisuu: r.trip_count,
+                jissha: (r.actual_total_m || 0) / 1000,
+                sou: (r.total_distance_m || 0) / 1000,
+              };
+            });
+            var hi = {};
+            (DAYS || []).forEach(function (d) {
+              var n2 = Number(String(d.date || '').slice(8, 10));
+              if (!n2) return;
+              hi[n2] = {
+                kaisuu: d.trip_count,
+                jissha: (d.actual_total_m || 0) / 1000,
+                sou: (d.total_distance_m || 0) / 1000,
+              };
+            });
+            var mai = KamiHyou.soukouTsuki(k, {
+              cars: cars,
+              hi: hi,
+              kaisuu: cars.reduce(function (a2, c) {
+                return a2 + (c.kaisuu || 0);
+              }, 0),
+              jissha: cars.reduce(function (a2, c) {
+                return a2 + (c.jissha || 0);
+              }, 0),
+              sou: cars.reduce(function (a2, c) {
+                return a2 + (c.sou || 0);
+              }, 0),
+            });
+            kamiMsg('紙を 作っています…');
+            KamiPdf.dasu(
+              mai,
+              (k.name || 'ダイコメ') + '_回数距離_' + k.year + '-' + ('0' + k.month).slice(-2)
+            )
+              .then(function (r) {
+                kamiMsg('出しました（' + r.mai + '枚）');
+              })
+              .catch(function (e) {
+                kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
+              });
+          };
+        }
+
         $('prevM').onclick = function () {
           MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() - 1, 1);
           render();
@@ -1166,6 +1241,10 @@
          「この事務所だけ 他の アプリと 違う 型式なんを 同じに しろや」
          「フッター 作って 各ページに 飛ぶようにしろ」
          ★行き先は js/jimusho-footer.js の 1か所★（画面ごとに 手書きしない） -->
+    <!-- ★紙（A4のPDF）★ 2026-09-25 … vendor は 押した時だけ 読む -->
+    <script src="js/kami-kumu.js"></script>
+    <script src="js/kami-hyou.js"></script>
+    <script src="js/kami-pdf.js"></script>
     <script src="js/jimusho-footer.js"></script>
   </body>
 </html>
