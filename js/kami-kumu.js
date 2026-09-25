@@ -118,21 +118,24 @@
       '</span></div></div>'
     );
   }
+  // ★★紙の 下に 要らない 物を 出さない★★ 2026-09-25
+  //   ★司さん★「Castallyや代行請求書のようにPDFの下に要らんものは表示されんようにしろよ」
+  //   ★代行請求書の 実物★（Exally-test/invoice-pdf.js）を 読んだ：
+  //     紙の 下に 在るのは ★自社の 情報だけ★。★ページ番号も 説明書きも 無い★。
+  //   ★私が 勝手に 足していた 物（全部 やめる）★
+  //     ・「日曜は 薄い赤」「点は 勤務なし」等の ★説明書き★
+  //     ・「売上＝メーターの合計 − 選んだ実費」等の ★注記★
+  //     ・「1 / 1」の ★ページ番号★（1枚しか 無い 時も 出していた）
+  //   ★残す のは 何枚に 分かれた 時の「2 / 3枚」だけ★
+  //     ＝どれが 抜けたか 分からないと 困る（代行請求書も 複数ページの 時だけ 出す）。
+  //     1枚の 時は ★何も 出さない★。
   function ashi(k, dai, sub, memo, mai, zen) {
-    return (
-      '<div class="ft"><span>' +
-      esc(k.name || '') +
-      '　' +
-      esc(dai) +
-      '　' +
-      esc(sub) +
-      (memo ? '　／　' + esc(memo) : '') +
-      '</span><span>' +
-      (mai || 1) +
-      ' / ' +
-      (zen || 1) +
-      '</span></div>'
-    );
+    void k;
+    void dai;
+    void sub;
+    void memo; // ★受け取るが 出さない★（呼ぶ側を 直さずに 済ませる）
+    if (!zen || zen <= 1) return '';
+    return '<div class="ft"><span></span><span>' + (mai || 1) + ' / ' + zen + '</span></div>';
   }
   function hyou(ths, rows, sum) {
     return (

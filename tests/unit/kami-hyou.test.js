@@ -288,3 +288,57 @@ describe('★⑩どの 紙も 会社ごとに 変わる★', () => {
     expect(mai[0].el.querySelectorAll('.nibun').length).toBeGreaterThan(0);
   });
 });
+
+// ============================================================
+// ★★紙の 下に 要らない 物を 出さない★★ 2026-09-25（司さん）
+//   「Castallyや代行請求書のようにPDFの下に要らんものは表示されんようにしろよ」
+//   ★代行請求書の 実物を 読んだ★（Exally-test/invoice-pdf.js）
+//     紙の 下に 在るのは ★自社の 情報だけ★。ページ番号も 説明書きも 無い。
+//   ⇒ 私が 足していた ★説明書き・注記・1枚でも 出る ページ番号★ を 全部 やめた。
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-25）★★
+//     ashi に 説明書きを 戻す … ★赤★
+// ============================================================
+describe('★★紙の 下に 要らん物を 出さない★★', () => {
+  const zenbu = () => [
+    ...H.getsuji(KAISHA, D),
+    ...H.uriageTsuki(KAISHA, D),
+    ...H.uriageNen(KAISHA, { tsuki: {}, total: {} }),
+    ...H.soukouTsuki(KAISHA, D),
+    ...H.soukouNen(KAISHA, { tsuki: {}, total: {} }),
+    ...H.kyuryoTsuki(KAISHA, { hito: HITO(4) }),
+    ...H.kyuryoNen(KAISHA, { hito: HITO(3), tsuki: {}, zen: 0 }),
+    ...H.kyuryoHi(KAISHA, { hito: HITO(4) }),
+    ...H.kyuryoKojin(KAISHA, { hito: HITO(1)[0] }),
+  ];
+
+  it('★★説明書き・注記を 紙に 載せない★★', () => {
+    const s = ji(zenbu());
+    [
+      '日曜は 薄い赤',
+      '点は 勤務なし',
+      '空いている 日は 勤務なし',
+      '売上＝メーターの合計',
+      'オーナーの車も入ります',
+      '迎え・戻り km ＝ 総走行 − 実車',
+      '払う回の区切りは 会社設定',
+    ].forEach((w) => {
+      expect(s, '★紙の 下に「' + w + '」が 出ています★').not.toContain(w);
+    });
+  });
+
+  it('★★1枚の 時は ページ番号を 出さない★★', () => {
+    zenbu().forEach((x) => {
+      expect(x.el.querySelectorAll('.ft').length, '★1枚なのに 下の 帯が 出ています★').toBe(0);
+    });
+  });
+
+  it('★何枚かに 分かれた 時だけ「2 / 3」を 出す★', () => {
+    const mai = H.kyuryoHi(KAISHA, { hito: HITO(20) });
+    expect(mai.length).toBe(3);
+    mai.forEach((x, i) => {
+      const ft = x.el.querySelectorAll('.ft');
+      expect(ft.length, '★分かれた 時は 何枚目かを 出す★').toBe(1);
+      expect(ft[0].textContent).toContain(i + 1 + ' / 3');
+    });
+  });
+});
