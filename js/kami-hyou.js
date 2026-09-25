@@ -618,152 +618,274 @@
     return [{ el: K.ita('tate', h), muki: 'tate' }];
   }
 
-  // ── ⑧給料表・日ごと（全員）★1枚 9人まで★ ─────────
+  // ============================================================
+  // ★★日付を ★上★ に 並べる 表（前半／後半）★★ 2026-09-25
+  //
+  //   ★司さん★「上に日付持ってきて前半後半やなかったか？」
+  //             「時間の方も金額のように前半後半に分けて」
+  //             「両方日付の横に曜日（月、火など）も入れて
+  //               ★日曜の列は背景を薄い赤にして★」
+  //
+  //   ★前は 逆だった★＝行に 日付を 置いていた。
+  //     司さんの「日曜の★列★」が 答え★＝日付が 列で ないと
+  //     「日曜の 列」という 言い方に ならない。
+  //
+  //   ★★列の 幅★★ 2026-09-25（司さん「なんで金額の列も自動調整にしとんど
+  //     勝手なことすんなぼけ／前半後半で収まるように固定しとけや
+  //     ★自動調整は名前しか言うてなかろが★」）
+  //     ・日ごとの 列 … ★全部 同じ 幅の 決め打ち★（中身で 伸び縮みさせない）
+  //     ・計の 列 ……… 決め打ち
+  //     ・名前の 列 …… ★ここだけ 中身の 長さで 決める★
+  //     ⇒ 前半（15日）と 後半（16日）で ★日の 列の 幅が 揃う★＝並べて 見比べられる
+  //     ⇒ 余った 幅は 名前の 列に 足して ★どちらの 表も 同じ 右端★ で 終わる
+  //
+  //   rows … [{ name, v:[1日目…末日], fmt }]
+  //   sumNa … 渡すと 一番 下に 合計の 行を 付ける（個別は 要らない）
+  //   haba … { na, hi, kei, ita }（px・呼ぶ側が 先に 決める）
+  // ============================================================
+  function hiYoko(k, a, b, rows, midashi, sumNa, haba) {
+    const kazu = b - a + 1;
+    // ★★前半と 後半で ★名前の 列も 日の 列も 同じ 幅★★★
+    //   ⇒ 縦に 並べた 時に ★列が 縦に 揃う★（司さん「前半後半で収まるように固定しとけや」）
+    //   ⇒ 日数が 少ない 側（31日の 月の 後半＝15日）は ★表が その分 短く 終わる★。
+    //     余りを 名前の 列に 足すと ★列が 横に ずれて 見比べられない★ ので 足さない。
+    const zenHaba = haba.na + haba.hi * kazu + haba.kei;
+    const cols =
+      '<colgroup><col style="width:' +
+      haba.na +
+      'px">' +
+      new Array(kazu + 1).join('<col style="width:' + haba.hi + 'px">') +
+      '<col style="width:' +
+      haba.kei +
+      'px"></colgroup>';
+
+    const ths = ['<th>' + esc(midashi) + '</th>'];
+    for (let d = a; d <= b; d++) ths.push(K.thHi(k.year, k.month, d));
+    ths.push('<th>計</th>');
+
+    const tate = [];
+    for (let d = a; d <= b; d++) tate.push(0);
+    let zen = 0;
+
+    const trs = rows.map(function (r) {
+      const f = r.fmt || en;
+      let s = 0;
+      const tds = [];
+      for (let d = a; d <= b; d++) {
+        const v = n((r.v || [])[d - 1]);
+        s += v;
+        tate[d - a] += v;
+        tds.push(K.tdHi(k.year, k.month, d, f(v)));
+      }
+      zen += s;
+      return '<tr><td>' + esc(r.name) + '</td>' + tds.join('') + '<td>' + f(s) + '</td></tr>';
+    });
+
+    const f0 = (rows[0] && rows[0].fmt) || en;
+    const sum = sumNa
+      ? '<tr class="sum"><td>' +
+        esc(sumNa) +
+        '</td>' +
+        tate
+          .map(function (v, i) {
+            return K.tdHi(k.year, k.month, a + i, f0(v));
+          })
+          .join('') +
+        '<td>' +
+        f0(zen) +
+        '</td></tr>'
+      : null;
+    return (
+      '<div class="hiyoko">' +
+      K.hyou(ths, trs, sum).replace('<table>', '<table style="width:' + zenHaba + 'px">' + cols) +
+      '</div>'
+    );
+  }
+
+  // ★★名前の 列の 幅を 中身から 出す★★（★伸ばすのは ここだけ★）
+  //   全角は 1文字 ≒ 字の 大きさ、半角は その 半分強。左右の 余白 23px を 足す。
+  //   ★実測（2026-09-25・11px）★「山田 太郎」= 78px ／「東海林 けんいちろう」= 125px
+  function naHabaOf(namae, ji) {
+    let w = 0;
+    (namae || []).forEach(function (na) {
+      let x = 0;
+      String(na === null || na === undefined ? '' : na)
+        .split('')
+        .forEach(function (c) {
+          x += c.charCodeAt(0) < 0x2e80 ? ji * 0.55 : ji;
+        });
+      w = Math.max(w, x);
+    });
+    return Math.min(Math.max(78, Math.ceil(w) + 23), 170);
+  }
+
+  // ★A4横の 板から 表に 使える 幅★（.dk-kami の 左右の 余白 30px×2）
+  const ITA_YOKO = 1123 - 60;
+  const KEI_HABA = 78;
+
+  // ★日ごとの 列の 幅＝一番 日数の 多い 側（16日）で 決める★
+  //   ⇒ 前半も 後半も ★同じ 幅★ に なる
+  function hiHabaOf(k, naHaba) {
+    const last = K.matsubi(k.year, k.month);
+    const ooi = Math.max(Math.ceil(last / 2), last - Math.ceil(last / 2));
+    return Math.floor((ITA_YOKO - naHaba - KEI_HABA) / ooi);
+  }
+
+  // ★前半／後半の 切り目と 見出し★（月の 日数で 自動）
+  function hanbun(k) {
+    const last = K.matsubi(k.year, k.month);
+    const naka = Math.ceil(last / 2);
+    return [
+      { a: 1, b: naka, na: '前半（' + k.month + '/1 〜 ' + k.month + '/' + naka + '）' },
+      {
+        a: naka + 1,
+        b: last,
+        na: '後半（' + k.month + '/' + (naka + 1) + ' 〜 ' + k.month + '/' + last + '）',
+      },
+    ];
+  }
+
+  function jikanFmt(v) {
+    return n(v) ? km(v) : '<span class="z">—</span>';
+  }
+
+  // ── ⑧給料表・日ごと（全員）A4横 ───────────────
+  //   ★金額の 紙と 時間の 紙を 分ける★＝4つの 表を 1枚に 入れると
+  //   ★人数が 3人しか 入らない★（実測）ので 2枚に 割る。
   function kyuryoHi(k, d) {
     const hito = d.hito || [];
-    const last = K.matsubi(k.year, k.month);
+    const han = hanbun(k);
     let taba = [];
     for (let i = 0; i < hito.length; i += K.HITO_1MAI) taba.push(hito.slice(i, i + K.HITO_1MAI));
     if (!taba.length) taba = [[]];
-    // ★枚が 分かれる 時は 全部 同じ 向き★（一番 人が 多い 枚に 合わせる）
-    const ooi = taba.reduce(function (m, t) {
-      return Math.max(m, t.length);
-    }, 0);
-    const muki = ooi <= 5 ? 'yoko' : 'tate';
 
-    return taba.map(function (t, mi) {
-      const kei = t.map(function (p) {
-        return (p.hi || []).reduce(function (s, v) {
-          return s + n(v);
-        }, 0);
-      });
-      const sm = kei.reduce(function (s, v) {
-        return s + v;
+    const mai = [];
+    // ★金額の 紙 ＋ 時間の 紙★＝1組で 2枚
+    const zenMai = taba.length * 2;
+    taba.forEach(function (t, mi) {
+      const sm = t.reduce(function (s, p) {
+        return (
+          s +
+          (p.hi || []).reduce(function (x, y) {
+            return x + n(y);
+          }, 0)
+        );
       }, 0);
-      const mj = taba.length > 1 ? '　（' + (mi + 1) + ' / ' + taba.length + '枚）' : '';
-      const ths = ['<th>従業員</th>']
-        .concat(
-          t.map(function (p) {
-            return '<th>' + esc(p.name) + '</th>';
-          })
-        )
-        .concat(['<th>計</th>']);
-      // ★日 × 人★
-      const ths2 = ['<th>日</th>']
-        .concat(
-          t.map(function (p) {
-            return '<th>' + esc(p.name) + '</th>';
-          })
-        )
-        .concat(['<th>計</th>']);
-      function han(a, b, last2) {
-        const rs = [];
-        for (let dd = a; dd <= b; dd++) {
-          const v = t.map(function (p) {
-            return n((p.hi || [])[dd - 1]);
-          });
-          rs.push(
-            '<tr>' +
-              K.tdHi(k.year, k.month, dd, hiJi(k, dd)) +
-              v
-                .map(function (x) {
-                  return K.tdHi(k.year, k.month, dd, en(x));
-                })
-                .join('') +
-              K.tdHi(
-                k.year,
-                k.month,
-                dd,
-                en(
-                  v.reduce(function (s, x) {
-                    return s + x;
-                  }, 0)
+      const jk = t.reduce(function (s, p) {
+        return (
+          s +
+          (p.hiJikan || []).reduce(function (x, y) {
+            return x + n(y);
+          }, 0)
+        );
+      }, 0);
+      const mj = taba.length > 1 ? '　（' + (mi + 1) + ' / ' + taba.length + '組）' : '';
+
+      // ★幅は この 組の 名前で 決める★（日の 列は 全部 同じ・名前だけ 伸びる）
+      const naHaba = naHabaOf(
+        t.map(function (p) {
+          return p.name;
+        }),
+        11
+      );
+      const haba = {
+        na: naHaba,
+        hi: hiHabaOf(k, naHaba),
+        kei: KEI_HABA,
+        ita: ITA_YOKO,
+      };
+
+      function kumu(dai, ba, fmt, mn) {
+        return (
+          K.atama(k, '給料表（日ごと・全員）', ym(k) + '　' + dai + mj) +
+          '<div class="big">' +
+          K.box(dai === '金額' ? '給料 合計' : '時間 合計', dai === '金額' ? en(sm) : km(jk)) +
+          K.box('人数', String(t.length)) +
+          K.box('日数', String(K.matsubi(k.year, k.month)), true) +
+          '</div>' +
+          han
+            .map(function (h) {
+              return (
+                '<h2>' +
+                dai +
+                '　' +
+                h.na +
+                '</h2>' +
+                hiYoko(
+                  k,
+                  h.a,
+                  h.b,
+                  t.map(function (p) {
+                    return { name: p.name, v: ba(p), fmt: fmt };
+                  }),
+                  '従業員',
+                  '合計',
+                  haba
                 )
-              ) +
-              '</tr>'
-          );
-        }
-        return K.hyou(
-          ths2,
-          rs,
-          last2
-            ? '<tr class="sum"><td>' +
-                (taba.length > 1 ? '小計' : '合計') +
-                '</td>' +
-                kei
-                  .map(function (x) {
-                    return '<td>' + en(x) + '</td>';
-                  })
-                  .join('') +
-                '<td>' +
-                en(sm) +
-                '</td></tr>'
-            : null
+              );
+            })
+            .join('') +
+          // ★出すのは 何枚目かだけ★＝金額と 時間で 必ず 2枚に なるので
+          //   「抜けていないか」が 分からないと 困る（覚書きは 1つも 出さない）
+          K.ashi(k, '', '', '', mn, zenMai)
         );
       }
-      const h =
-        K.atama(k, '給料表（日ごと・全員）', ym(k) + mj) +
-        '<div class="big">' +
-        K.box(taba.length > 1 ? 'この枚の 小計' : '給料 合計', en(sm)) +
-        K.box('人数', String(t.length)) +
-        K.box('日数', String(last), true) +
-        '</div>' +
-        '<h2>日 × 人</h2>' +
-        (muki === 'yoko'
-          ? '<div class="nibun"><div>' +
-            han(1, Math.ceil(last / 2), false) +
-            '</div><div>' +
-            han(Math.ceil(last / 2) + 1, last, true) +
-            '</div></div>'
-          : '<div class="nibun">' + han(1, last, true) + '</div>') +
-        K.ashi(
-          k,
-          '給料表（日ごと・全員）',
-          ym(k) + mj,
-          '空いている 日は 勤務なし',
-          mi + 1,
-          taba.length
-        );
-      void ths;
-      return { el: K.ita(muki, h), muki: muki };
+
+      mai.push({
+        el: K.ita(
+          'yoko',
+          kumu(
+            '金額',
+            function (p) {
+              return p.hi;
+            },
+            en,
+            mi * 2 + 1
+          )
+        ),
+        muki: 'yoko',
+      });
+      mai.push({
+        el: K.ita(
+          'yoko',
+          kumu(
+            '時間',
+            function (p) {
+              return p.hiJikan;
+            },
+            jikanFmt,
+            mi * 2 + 2
+          )
+        ),
+        muki: 'yoko',
+      });
     });
+    return mai;
   }
 
-  // ── ⑨給料表・個別（A4縦）──────────────────────────
+  // ── ⑨給料表・個別（A4横）──────────────────
+  //   1人なので 金額と 時間を ★行★ に 並べられる（日付は 上）
   function kyuryoKojin(k, d) {
     const p = d.hito || {};
-    // ★期間の 名前は 画面が 出した 物を 優先★（PayrollPeriod が 実際に 区切った 名前）
-    //   ⇒ ★起算日が 21日のような 月をまたぐ 会社でも 列と 中身が ずれない★
+    // ★期間の 名前は 画面が 出した 物を 優先★
     const ki = d.namae && d.namae.length ? d.namae : K.kikan(k.year, k.month, k.settings);
-    const last = K.matsubi(k.year, k.month);
     const kk = (p.kikan || []).slice(0, ki.length);
     while (kk.length < ki.length) kk.push(0);
     const zen = kk.reduce(function (s, v) {
       return s + n(v);
     }, 0);
-    function han(a, b) {
-      const rs = [];
-      for (let dd = a; dd <= b; dd++) {
-        const v = n((p.hi || [])[dd - 1]);
-        const hh = n((p.hiJikan || [])[dd - 1]);
-        rs.push(
-          '<tr>' +
-            K.tdHi(k.year, k.month, dd, hiJi(k, dd)) +
-            K.tdHi(k.year, k.month, dd, en(v)) +
-            K.tdHi(k.year, k.month, dd, hh ? km(hh) : '<span class="z">—</span>') +
-            '</tr>'
-        );
-      }
-      return K.hyou(['<th>日</th>', '<th>金額</th>', '<th>時間</th>'], rs);
-    }
+    const han = hanbun(k);
+    // ★個別は 左の 列が「金額／時間」の 2語だけ★＝名前の 長さでは 決まらない
+    const naKo = naHabaOf(['金額', '時間'], 11);
+    const habaKo = { na: naKo, hi: hiHabaOf(k, naKo), kei: KEI_HABA, ita: ITA_YOKO };
     const h =
       K.atama(k, '給料表（個別）', ym(k) + '　' + esc(p.name || '')) +
       '<div class="big">' +
       K.box('支給 合計', en(zen)) +
       K.box('時間', km(p.jikan), true) +
       '</div>' +
-      '<h2>払う回ごと</h2>' +
-      // ★時間の 列を 入れる★＝2列だと 右が 丸ごと 空白に なる（2026-09-25 絵で 見た）
+      // ★A4横は 幅が 在るので 3列だけだと 右が 丸ごと 空く★＝半分に 収める
+      '<h2>払う回ごと</h2><div class="hanbun">' +
       K.hyou(
         ['<th>期間</th>', '<th>金額</th>', '<th>時間</th>'],
         ki.map(function (na, i) {
@@ -780,13 +902,30 @@
         }),
         '<tr class="sum"><td>合計</td><td>' + en(zen) + '</td><td>' + km(p.jikan) + '</td></tr>'
       ) +
-      '<h2>日ごと</h2><div class="nibun"><div>' +
-      han(1, Math.ceil(last / 2)) +
-      '</div><div>' +
-      han(Math.ceil(last / 2) + 1, last) +
-      '</div></div>' +
+      '</div>' +
+      han
+        .map(function (x) {
+          return (
+            '<h2>日ごと　' +
+            x.na +
+            '</h2>' +
+            hiYoko(
+              k,
+              x.a,
+              x.b,
+              [
+                { name: '金額', v: p.hi, fmt: en },
+                { name: '時間', v: p.hiJikan, fmt: jikanFmt },
+              ],
+              '',
+              null,
+              habaKo
+            )
+          );
+        })
+        .join('') +
       K.ashi(k, '給料表（個別）', ym(k) + '　' + (p.name || ''));
-    return [{ el: K.ita('tate', h), muki: 'tate' }];
+    return [{ el: K.ita('yoko', h), muki: 'yoko' }];
   }
 
   const api = {

@@ -278,7 +278,8 @@ test('★給料表（月ごと・個別）の 紙も 出る★', async ({ page }
   // eslint-disable-next-line no-console
   console.log('★給料個別★ ' + JSON.stringify(out.b));
   expect(out.a.box, '★月ごとは A4横 1枚★').toEqual([[842, 595]]);
-  expect(out.b.box, '★個別は A4縦 1枚★').toEqual([[595, 842]]);
+  // ★個別も 日付を 上に 並べる★＝15〜16列 並ぶので A4横
+  expect(out.b.box, '★個別は A4横 1枚★').toEqual([[842, 595]]);
   expect(out.a.url, '★PDF に URL が 入っています★').toBe(false);
   expect(out.b.url, '★PDF に URL が 入っています★').toBe(false);
   expect(out.namaeDeta, '★画面が 出した 期間の 名前が 紙に 出ていません★').toBe(true);
@@ -286,7 +287,7 @@ test('★給料表（月ごと・個別）の 紙も 出る★', async ({ page }
   expect(out.en, '★金額が 円のまま では ありません★').toBe(true);
 });
 
-test('★給料表（日ごと）は 10人で 2枚に 分かれ 向きが 揃う★', async ({ page }) => {
+test('★給料表（日ごと）は 10人で 4枚に 分かれ 向きが 揃う★', async ({ page }) => {
   await kamiShikomu(page);
   const out = await page.evaluate(async () => {
     const K = {
@@ -306,8 +307,116 @@ test('★給料表（日ごと）は 10人で 2枚に 分かれ 向きが 揃う
 
   // eslint-disable-next-line no-console
   console.log('★給料日ごと★ ' + JSON.stringify(out));
-  expect(out.mai, '★十人なら 2枚（1枚 9人まで）★').toBe(2);
-  expect(out.box.length, '★PDF の 頁数★').toBe(2);
-  expect(out.box[0], '★枚で 向きが 違っています（縦と横が 混ざる）★').toEqual(out.box[1]);
+  // ★司さん 2026-09-25★「上に日付持ってきて前半後半」に 組み直したので
+  //   1組＝★金額の 紙 ➕ 時間の 紙★。10人＝2組＝★４枚★。
+  expect(out.mai, '★十人なら 2組 ×（金額・時間）＝4枚★').toBe(4);
+  expect(out.box.length, '★PDF の 頁数★').toBe(4);
+  expect(new Set(out.box.map((x) => x.join('x'))).size, '★枚で 向きが 違っています★').toBe(1);
+  expect(out.box[0], '★A4横★').toEqual([842, 595]);
   expect(out.url, '★PDF に URL が 入っています★').toBe(false);
+});
+
+// ============================================================
+// ★★列の 幅は ★実際に 出た 絵★ で 数える★★ 2026-09-25
+//
+//   ★司さん★「なんで金額の列も自動調整にしとんど 勝手なことすんなぼけ
+//             ／前半後半で収まるように固定しとけや
+//             ★自動調整は名前しか言うてなかろが★」
+//
+//   ★なぜ 単体の 試験では 足りないか★
+//     単体は `<col style="width:NNpx">` の ★字★ しか 読めない。
+//     ⇒ ここは ★本物の ブラウザで 出た 幅★ を 数える。
+//     ★これが 見つけた 本物の 穴（2026-09-25）★
+//       31日の 月 ＋ 長い 名前だと 日の 列が 53px。overflow:hidden だったので
+//       ★「108,000」が 黙って 切られていた★（12マス）。⇒ 折り返す ように 直した。
+//
+//   ★★わざと壊して 見た（2026-09-25 実測・1つずつ 手で）★★
+//     ①colgroup と 表の 幅を 外す … ★赤★
+//        「前半 59px ／ 後半 62px で 違います」＋ 長い 名前で 1マス 切れた
+//     ②名前の 幅を 決め打ち(100px) … ★赤★（tests/unit/kami-hyou.test.js の 方）
+//     ③table-layout を auto に 戻す … ★緑のまま★＝★この 門では 見分けが つかない★
+//        （colgroup が 最小幅に なり、数は 折り返すので 結局 同じ 幅に なる）
+//        ⇒ ★守っているのは「出た 幅が 揃っているか」であって 決まりの 字では ない★
+// ============================================================
+test('★日の 列は 全部 同じ 幅／広がるのは 名前の 列だけ★', async ({ page }) => {
+  await kamiShikomu(page);
+  await page.setViewportSize({ width: 1123, height: 794 });
+
+  const hakaru = async (namae) =>
+    await page.evaluate((na) => {
+      const K = {
+        name: 'ZERO代行',
+        year: 2026,
+        month: 10, // ★31日の 月＝前半16日・後半15日★（一番 きつい）
+        settings: null,
+        kinds: [],
+        denshi: false,
+      };
+      const hi = [];
+      const hj = [];
+      for (let d = 1; d <= 31; d++) {
+        hi.push(d % 4 === 0 ? 0 : 108000);
+        hj.push(d % 4 === 0 ? 0 : 12.5);
+      }
+      const hito = na.map((x) => ({ name: x, hi: hi, hiJikan: hj }));
+      const x = window.KamiHyou.kyuryoHi(K, { hito: hito })[0];
+      x.el.style.cssText =
+        'position:absolute;left:0;top:0;width:1123px;height:794px;background:#fff';
+      document.body.appendChild(x.el);
+      const r0 = x.el.getBoundingClientRect();
+      let hami = 0;
+      x.el.querySelectorAll('*').forEach((e) => {
+        const r = e.getBoundingClientRect();
+        if (!r.width && !r.height) return;
+        if (r.right > r0.left + 1123 + 1 || r.bottom > r0.top + 794 + 1) hami++;
+      });
+      const hyou = [...x.el.querySelectorAll('.hiyoko table')].map((t) => {
+        const w = [...t.querySelector('thead tr').children].map((e) =>
+          Math.round(e.getBoundingClientRect().width)
+        );
+        const days = w.slice(1, -1);
+        let kire = 0;
+        t.querySelectorAll('tbody td').forEach((e) => {
+          if (e.scrollWidth > e.clientWidth + 1) kire++;
+        });
+        return {
+          na: w[0],
+          hi: days[0],
+          chigai: Math.max(...days) - Math.min(...days),
+          kazu: days.length,
+          kire: kire,
+        };
+      });
+      x.el.parentNode.removeChild(x.el);
+      return { hami: hami, hyou: hyou };
+    }, namae);
+
+  const mijika = await hakaru(['林', '上', '西']);
+  const naga = await hakaru(['東海林 けんいちろう', '上', '西']);
+  // eslint-disable-next-line no-console
+  console.log('★短い名前★ ' + JSON.stringify(mijika));
+  // eslint-disable-next-line no-console
+  console.log('★長い名前★ ' + JSON.stringify(naga));
+
+  [mijika, naga].forEach((r, i) => {
+    const na = i ? '長い名前' : '短い名前';
+    expect(r.hami, '★' + na + '：紙から はみ出しています★').toBe(0);
+    expect(r.hyou.length, '★' + na + '：前半／後半の 2つに なっていません★').toBe(2);
+    expect(r.hyou[0].kazu, '★前半は 16日★').toBe(16);
+    expect(r.hyou[1].kazu, '★後半は 15日★').toBe(15);
+    r.hyou.forEach((t, j) => {
+      expect(
+        t.chigai,
+        '★' + na + '：' + (j ? '後半' : '前半') + 'の 日の 列が 中身で バラついています★'
+      ).toBe(0);
+      expect(t.kire, '★' + na + '：字が 切れています★').toBe(0);
+    });
+    expect(r.hyou[0].hi, '★' + na + '：前半と 後半で 日の 列の 幅が 違います★').toBe(r.hyou[1].hi);
+    expect(r.hyou[0].na, '★' + na + '：前半と 後半で 名前の 列の 幅が 違います★').toBe(
+      r.hyou[1].na
+    );
+  });
+
+  // ★広がるのは 名前の 列だけ★
+  expect(naga.hyou[0].na > mijika.hyou[0].na, '★名前が 長いのに 列が 広がっていません★').toBe(true);
 });

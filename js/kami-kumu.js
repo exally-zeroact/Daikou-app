@@ -13,10 +13,19 @@
 //     ・日付の 横に ★曜日★／★日曜の 列だけ 薄い 赤★（土曜は 色を 付けない）
 //     ・金額は ★円のまま★「そのままでやれや銀行やないんど」（千円は やめ）
 //
+//   ★★給料の 日ごとは「日付が ★上★」★★ 2026-09-25（司さん 差し戻し）
+//     「上に日付持ってきて前半後半やなかったか？」「時間の方も金額のように前半後半に分けて」
+//     ⇒ 行＝従業員／列＝日付（曜日つき）／★日曜の 列★ が 薄い 赤。
+//     ⇒ 金額の 紙 と 時間の 紙 の ★2枚★（1組）。
+//
+//   ★★列の 幅★★（司さん「自動調整は名前しか言うてなかろが」）
+//     ・日の 列と 計の 列 … ★決め打ちの 同じ 幅★（中身で 伸び縮みさせない）
+//     ・名前の 列 ………… ★ここだけ 中身の 長さで 決める★（js/kami-hyou.js の naHabaOf）
+//     ・入らない 数は ★切らずに 折り返す★（桁が 消える 方が 危ない）
+//
 //   ★1枚に 入る 数（2026-09-25 実測・はみ出し0で 確かめた）★
-//     給料 日ごと（日×人）… A4横で ★1枚 9人まで★（10人以上は 枚を 分ける）
+//     給料 日ごと … A4横で ★1組 9人まで★（10人以上は 組を 分ける／9人で 縦 697px）
 //     車ごと … 7台以上は 2列に 割る（12台で 234px はみ出した）
-//     日ごと … 31日は 前半／後半の 2列（1列だと 508px はみ出した）
 //
 //   ★見張り★ tests/unit/kami-kumu.test.js
 // ============================================================
@@ -77,8 +86,13 @@
     '.dk-kami table{width:100%;border-collapse:collapse;font-size:13.5px}',
     '.dk-kami th,.dk-kami td{border:1px solid #c8d6e8;padding:4px 7px;text-align:right}',
     '.dk-kami th{background:#eef4fc;font-size:12px;color:#43536b;font-weight:700}',
-    // ★先頭の列は 中身の分だけ★（司さん「月の列の余白を少なくして他に幅を与えろ」）
-    '.dk-kami th:first-child,.dk-kami td:first-child{text-align:left;width:1%;white-space:nowrap;padding-right:6px}',
+    // ★先頭の列は ★中身の 長さで 自動★（width:1% + nowrap ＝収まる 最小幅）
+    //   ★司さん 2026-09-25★「名前はもう少し余白いることないか？
+    //     文字数多いとか配慮して自動で幅も調整しろよ」
+    //   ⇒ 幅は 元から 自動（長い 名前の 分だけ 伸びる）。★足りなかったのは 余白★。
+    //   ★実測（2026-09-25）★「山田 太郎」で 左右の 隙間 7px/6px ⇒ 枠に くっついて 見えた。
+    //   ⇒ 左 11px / 右 18px に し、短い 名前でも 見出しが 潰れないよう 最小幅を 置く。
+    '.dk-kami th:first-child,.dk-kami td:first-child{text-align:left;width:1%;white-space:nowrap;padding:4px 18px 4px 11px;min-width:78px}',
     '.dk-kami tr.sum td{font-weight:800;background:#f4f9ff}',
     '.dk-kami .z{color:#b9c6d8}',
     '.dk-kami .futatsu,.dk-kami .nibun{display:flex;gap:12px;align-items:flex-start}',
@@ -87,6 +101,26 @@
     '.dk-kami .nibun table{font-size:12px}',
     '.dk-kami .nibun th,.dk-kami .nibun td{padding:1.5px 6px;line-height:1.3}',
     '.dk-kami .nibun th{font-size:11px}',
+    // ★★日付を 上に 並べる 表（前半／後半）★★ 2026-09-25
+    //   15〜16列 並ぶので 字を 小さくして 余白を 削る（A4横）。
+    //   ★先頭の 名前の 列だけは 余白を 残す★（上の first-child が 効く）
+    // ★日ごとの 列は ★決め打ちの 同じ 幅★（司さん「自動調整は名前しか言うてなかろが」）
+    //   table-layout:fixed ➕ <colgroup> で 幅を 固める。
+    //   ★th:first-child の width:1% を ここだけ 打ち消す★（fixed では 先頭行が colgroup より 強い）
+    '.dk-kami .hiyoko table{font-size:11px;table-layout:fixed}',
+    '.dk-kami .hiyoko th:first-child,.dk-kami .hiyoko td:first-child{width:auto}',
+    // ★桁を 落とすより 2行に なる 方が まし★（画面の 表 table.kami と 同じ 決め）
+    //   ★実測 2026-09-25★ 31日の 月 ➕ 長い 名前だと 日の 列は 53px。
+    //     overflow:hidden だと「108,000」が ★黙って 切られた★（12マス・e2e が 赤に した）。
+    //   ⇒ ★幅は 固定のまま、入らない 数は 折り返す★
+    //     （黙って 切れるより 背が 伸びる 方が 安全。はみ出しは e2e が 見ている）
+    '.dk-kami .hiyoko th,.dk-kami .hiyoko td{padding:2px 3px;line-height:1.35;white-space:normal;word-break:break-all;overflow:visible}',
+    '.dk-kami .hiyoko th{font-size:10px}',
+    // ★名前の 列だけ 余白を 残し、折り返さない★
+    '.dk-kami .hiyoko th:first-child,.dk-kami .hiyoko td:first-child{padding:2px 14px 2px 9px;white-space:nowrap;word-break:normal}',
+    '.dk-kami .hiyoko+h2{margin-top:11px}',
+    // ★列が 少ない 表を A4横いっぱいに 伸ばさない★（右が 丸ごと 空く）
+    '.dk-kami .hanbun{max-width:560px}',
     '.dk-kami .big{display:flex;gap:12px;margin-top:14px}',
     '.dk-kami .big>div{flex:1;border:1.5px solid #dbe7f7;border-radius:8px;padding:9px 12px;background:#f7fbff}',
     '.dk-kami .big .k{font-size:13px;color:#5a6b82;font-weight:700}',

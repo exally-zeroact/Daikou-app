@@ -225,19 +225,75 @@ describe('★⑥⑦⑧⑨給料表★', () => {
     const s = ji(H.kyuryoTsuki(k7, { hito: HITO(4) }));
     expect(s).toContain('29日〜末日');
   });
-  it('★★日ごと＝1枚 9人まで／10人以上は 枚が 増える★★', () => {
-    expect(H.kyuryoHi(KAISHA, { hito: HITO(9) }).length).toBe(1);
-    expect(H.kyuryoHi(KAISHA, { hito: HITO(10) }).length).toBe(2);
-    expect(H.kyuryoHi(KAISHA, { hito: HITO(20) }).length).toBe(3);
+  // ★★2026-09-25 組み直し★★（司さん「上に日付持ってきて前半後半やなかったか？」）
+  //   ★前の 形＝日付が 行★ を 司さんに 差し戻された。
+  //   ⇒ 日付は ★列★・前半／後半の 2つの 表・金額と 時間は ★別の 紙★。
+  it('★★日ごと＝日付が ★列★ で 前半／後半★★', () => {
+    const mai = H.kyuryoHi(KAISHA, { hito: HITO(3) });
+    // 金額の 紙 と 時間の 紙
+    expect(mai.length, '★金額と 時間で 2枚★').toBe(2);
+    const kin = mai[0].el.textContent;
+    expect(kin).toContain('前半');
+    expect(kin).toContain('後半');
+    expect(kin).toContain('金額');
+    expect(mai[1].el.textContent).toContain('時間');
+    // ★左の 列は 従業員／上の 見出しが 日付＋曜日★
+    const th = mai[0].el.querySelectorAll('th');
+    const ji1 = th.map((x) => x.textContent.trim());
+    expect(ji1[0], '★左上は 従業員★').toBe('従業員');
+    expect(ji1.indexOf('1火') >= 0, '★上の 見出しに 日付＋曜日が ありません★').toBe(true);
+  });
+
+  it('★★1枚 9人まで／10人以上は 組が 増える（1組＝2枚）★★', () => {
+    expect(H.kyuryoHi(KAISHA, { hito: HITO(9) }).length).toBe(2);
+    expect(H.kyuryoHi(KAISHA, { hito: HITO(10) }).length).toBe(4);
+    expect(H.kyuryoHi(KAISHA, { hito: HITO(20) }).length).toBe(6);
+  });
+
+  // ★★司さん 2026-09-25★★「なんで金額の列も自動調整にしとんど 勝手なことすんなぼけ
+  //   ／前半後半で収まるように固定しとけや／★自動調整は名前しか言うてなかろが★」
+  it('★★日の 列は 決め打ちで 同じ 幅／伸びるのは 名前だけ★★', () => {
+    // ★表 1つ分ずつ★ 読む（前半／後半で colgroup が 2つ 在る）
+    function haba(el) {
+      return (el.innerHTML.match(/<colgroup>[\s\S]*?<\/colgroup>/g) || []).map((g) =>
+        (g.match(/width:(\d+)px/g) || []).map((x) => Number(x.replace(/\D/g, '')))
+      );
+    }
+    const mijika = haba(H.kyuryoHi(KAISHA, { hito: HITO(3) })[0].el);
+    expect(mijika.length, '★前半／後半の 2つに なっていません★').toBe(2);
+
+    mijika.forEach((w, i) => {
+      const hi = w.slice(1, -1); // [名前, 日…, 計]
+      expect(hi.length, '★日の 列が ありません★').toBeGreaterThan(10);
+      expect(new Set(hi).size, '★' + (i ? '後半' : '前半') + 'の 日の 列が 揃っていません★').toBe(
+        1
+      );
+    });
+    // ★前半と 後半で 日の 列も 名前の 列も 同じ 幅★（縦に 並べて 見比べられる）
+    expect(mijika[0][1], '★前半と 後半で 日の 列の 幅が 違います★').toBe(mijika[1][1]);
+    expect(mijika[0][0], '★前半と 後半で 名前の 列の 幅が 違います★').toBe(mijika[1][0]);
+
+    const naga = haba(
+      H.kyuryoHi(KAISHA, {
+        hito: [{ name: '東海林 けんいちろう', hi: [], hiJikan: [] }],
+      })[0].el
+    );
+    // ★伸びるのは 名前の 列だけ★
+    expect(naga[0][0] > mijika[0][0], '★名前が 長いのに 列が 広がっていません★').toBe(true);
   });
   it('★★枚が 分かれても 向きは 全部 同じ★★', () => {
     const mai = H.kyuryoHi(KAISHA, { hito: HITO(20) });
     const muki = mai.map((x) => x.muki);
     expect(new Set(muki).size, '★枚ごとに 向きが 違います★').toBe(1);
   });
-  it('★枚が 分かれたら「小計」／1枚なら「合計」★', () => {
-    expect(ji(H.kyuryoHi(KAISHA, { hito: HITO(20) }))).toContain('小計');
-    expect(ji(H.kyuryoHi(KAISHA, { hito: HITO(4) }))).toContain('合計');
+  it('★組が 分かれたら 見出しに「1 / 3組」と 出す★', () => {
+    // ★前は「小計」という 言い方だった★＝日付が 行の 頃の 名残。
+    //   今は 頭に「（1 / 3組）」と 出すので どの 組か 分かる。
+    const s20 = ji(H.kyuryoHi(KAISHA, { hito: HITO(20) }));
+    expect(s20).toContain('組）');
+    expect(ji(H.kyuryoHi(KAISHA, { hito: HITO(4) })), '★1組なら 組の 札は 出さない★').not.toContain(
+      '組）'
+    );
   });
   it('★年ごと＝12か月 × 人★', () => {
     const s = ji(
@@ -327,18 +383,21 @@ describe('★★紙の 下に 要らん物を 出さない★★', () => {
   });
 
   it('★★1枚の 時は ページ番号を 出さない★★', () => {
-    zenbu().forEach((x) => {
-      expect(x.el.querySelectorAll('.ft').length, '★1枚なのに 下の 帯が 出ています★').toBe(0);
-    });
+    // ★日ごとは 金額＋時間で 必ず 2枚★なので ここでは 見ない（下の 試験で 見る）
+    zenbu()
+      .filter((x) => x.el.textContent.indexOf('日ごと・全員') < 0)
+      .forEach((x) => {
+        expect(x.el.querySelectorAll('.ft').length, '★1枚なのに 下の 帯が 出ています★').toBe(0);
+      });
   });
 
-  it('★何枚かに 分かれた 時だけ「2 / 3」を 出す★', () => {
+  it('★何枚かに 分かれた 時だけ「2 / 6」を 出す★', () => {
     const mai = H.kyuryoHi(KAISHA, { hito: HITO(20) });
-    expect(mai.length).toBe(3);
+    expect(mai.length).toBe(6); // 3組 × （金額・時間）
     mai.forEach((x, i) => {
       const ft = x.el.querySelectorAll('.ft');
       expect(ft.length, '★分かれた 時は 何枚目かを 出す★').toBe(1);
-      expect(ft[0].textContent).toContain(i + 1 + ' / 3');
+      expect(ft[0].textContent).toContain(i + 1 + ' / 6');
     });
   });
 });
