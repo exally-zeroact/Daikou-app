@@ -484,20 +484,6 @@
         white-space: normal;
       }
 
-      /* ★★「月」の 列だけ 詰める★★ 2026-09-25（司さん「月の列の余白を少なくして他に幅を与えろ」）
-         ★当てる 先を 名指しに する★＝全部の 表に 当てたら
-           距離の 紙が ★844px → 1011px★ に 伸びて CI が 赤で 止めた（実測）。
-         ⇒ 司さんが 見た ★月ごとの 3つ（売上／給料／会社に残る分）だけ★ に 当てる。
-         ⇒ [[feedback_ateru_basho_wo_hitotsuzutsu_tamesu]]「当てる 場所を 1つずつ 試す」 */
-
-      /* ★★月次集計の 紙は もう 詰まりきっている★★（2026-09-25 実測・390px 幅）
-         先頭「月」★18px★／数字の 列 ★58px★／字の 切れ ★0★。
-         ①今のまま ②先頭に 36px ③auto+width:1% ⇒ ★3通りとも 全く 同じ 18px★
-         ＝`table.kami` は `table-layout: fixed` で 既に 最小に なっている。
-         ⇒ ★効かない 決まりを 置かない★（置くと 次の 人が「効いている」と 読む）。
-         ★司さんが 見た「月の列の 余白」は この 紙では ない★
-           ＝実物を もう一度 見て 当てる 先を 決め直す（当てずっぽうで 足さない）。 */
-
       table.kami > thead > tr > th:first-child,
       table.kami > tbody > tr > td:first-child {
         text-align: left;
@@ -525,6 +511,32 @@
         position: sticky;
         top: 0;
         z-index: 1;
+      }
+
+      /* ★★「月」の 列だけ 詰める★★ 2026-09-25（司さん「月の列の余白を少なくして他に幅を与えろ」）
+         ★実測（本物の 画面・390px 幅・2026-09-25）★
+           今 …… 月 73px / 金額 73px（5列）・月 91px / 数字 91px（4列）
+                 ＝★「1月」だけの 列が 金額と 同じ 幅を 取っていた★
+           44px … 月 44px / 金額 80px（5列）・106px（4列）・★字の 切れ 0★
+         ★★前の 覚書は 間違っていた★★
+           「3通りとも 18px＝table.kami は もう 最小」と 書いて あったが、
+           ★別の 表を 測っていた★。本物の 画面で 測り直して 上の 数に なった。
+         ★width:1% は 使わない★＝4px に なり ★「12月」が 切れた★（実測 kire:1）
+           ⇒ ★割合では なく px で 置く★（table-layout:fixed は 最初の 行の 幅を 使う）
+         ★当てる 先を 名指し★＝先頭が 時の 列（年／月／日）の 表だけ。
+           車の 名前や 項目名の 表に 当てると ★字が 切れる★
+           （uriage の 日ごとは「12/31（水）」＝44px では 入らない）
+           ⇒ [[feedback_ateru_basho_wo_hitotsuzutsu_tamesu]]
+         ★置き場★ ここより 上に 置くと stylelint の no-descending-specificity が 赤に なる
+           （id の 方が 強いので 弱い `table.kami …` より 後ろに 書く）
+         ★見張り★ tests/e2e/shukei-tsuki-no-hashira.spec.js */
+      #thead > tr > th:first-child,
+      #thead2 > tr > th:first-child,
+      #thead3 > tr > th:first-child,
+      #uriHead > tr > th:first-child,
+      #kyoriHead > tr > th:first-child,
+      #dkHead > tr > th:first-child {
+        width: 44px;
       }
 
       table.kami > tbody > tr.sum > td {
