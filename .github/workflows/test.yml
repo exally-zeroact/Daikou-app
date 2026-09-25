@@ -28,6 +28,15 @@ jobs:
       - name: Run Vitest (business.js / meter.js ユニットテスト)
         run: npm run test
 
+      # ★★PDFに 字体を 丸ごと 埋めない（全アプリ 共通）★★ 2026-09-26
+      #   ★★実測 2026-09-26★★ この 見張りは 2026-09-05 に 作られたが
+      #     CI に 入っていたのは ★Exally-test と daikou-seikyu-test の 2本だけ★。
+      #     rakually-test ・rakually ・Daikou-app の 3本は ★一度も 走っていなかった★。
+      #     （vitest は tests/**/*.test.js だけ 拾うので .test.mjs は 自動では 入らない）
+      #   ⇒ ★名指しで 走らせる★（--self-test も＝見張りが 生きているか）
+      - name: PDFに 字体を 丸ごと 埋めていないか
+        run: node tests/pdf-font-weight.test.mjs && node tests/pdf-font-weight.test.mjs --self-test
+
       - name: Run replay-mm (MM 回帰テスト)
         run: npm run test:replay
 

@@ -98,10 +98,22 @@ const NOKORI = [
   'tests/tier4-google.js',
   'tests/truedist-kp-gate.js',
   'tests/unit/dk-config-single-source.test.js',
+  'tests/pdf-font-weight.test.mjs',
 ];
 
 // ★対象外＝そのままで よい物と その理由★（★11本とも 理由が 要ります★）
 const RIYUU = {
+  'tests/pdf-font-weight.test.mjs':
+    '★材料の話では ない★ … 全アプリ共通の 見張り（2026-09-26 に ダイコメへ 戻した）。' +
+    '拾われたのは ★repo を 歩いて PDFを 作る所を 探す 輪★の ' +
+    '「readFileSync して 当てはまらなければ continue」＝★探し物の 飛ばし★で、' +
+    '材料が 無いのに 緑で 終わる 形では ありません。' +
+    '★空振りは 別に 赤で 止めています★ … ' +
+    '①「PDFを 作る所が 0か所＝この試験は 空振り」／' +
+    '④「この repo で 1組も 見ていない＝空振り」／' +
+    '③「この repo に lib/… が 無い」。' +
+    '★無い時に 黙って 飛ばしていた 1か所（④の existsSync）は ' +
+    '2026-09-26 に 赤に する 形へ 直しました★。',
   'tests/e2e/jimusho-kimeru-basho.spec.js':
     '★材料の話では ない★ … env-badge と 同じ 形で、' +
     '実物の dk-session.js を 読んで その後ろに 上書きを 足しているだけ' +
