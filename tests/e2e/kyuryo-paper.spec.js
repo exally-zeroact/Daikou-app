@@ -305,14 +305,21 @@ test.describe('★給料明細の紙(PDF)★', () => {
     });
   }
 
-  test('★絵にする所が返らない時 永久に待たない★', async ({ page }) => {
-    test.setTimeout(60000);
+  test('★紙を 作る所が返らない時 永久に待たない★', async ({ page }) => {
+    test.setTimeout(90000);
     await openKyuryo(page);
     const r = await page.evaluate(async () => {
       const ms = window.__paper.timeoutMs();
-      window.html2canvas = function () {
-        return new Promise(function () {});
-      }; // ★永久に返らない★
+      // ★2026-09-26 に 道具が 変わった★ html2canvas → js/kami-egaku.js
+      //   ★止める 相手を 変え忘れると この 門は 何も 見ていない★
+      window.KamiEgaku = {
+        yomu: function () {
+          return Promise.resolve();
+        },
+        dasu: function () {
+          return new Promise(function () {}); // ★永久に返らない★
+        },
+      };
       const mae = document.querySelectorAll('[data-paper]').length;
       const t0 = performance.now();
       window.printOne(0);
@@ -341,7 +348,7 @@ test.describe('★給料明細の紙(PDF)★', () => {
     expect(r.nokori, '★組んだ板が 画面に残っている★').toBe(0);
     // ★中の言葉を客に見せない／嘘を出さない★
     expect(r.msg, '★時間切れなのに「道具が読めない」と嘘を出す★').not.toContain('道具が読めません');
-    expect(r.msg).not.toMatch(/html2canvas|jsPDF|Error/);
+    expect(r.msg).not.toMatch(/html2canvas|jsPDF|pdf-lib|Error/);
   });
 
   // ★★「明細に出す」を 選んだ 車は 中身が 0でも 行を 出す★★ 2026-09-06（司さん）
@@ -518,4 +525,131 @@ test.describe('★給料明細の紙(PDF)★', () => {
       expect(x.iro, `★0円の日「${x.ji}」まで 赤くしている★`).toBe(KURO);
     });
   });
+});
+
+// ============================================================
+// ★★給料明細も ★本物の 字★ で 出す★★ 2026-09-26
+//
+//   ★司さん★「PDFの見せ方や作り方は 既存の 代行請求書や Kyually や Rakunally と
+//             一緒にして 変なものが 出んようにしたんか？」
+//             「★なんで完成形があるのに確かめてやらんのど★」
+//
+//   ★前★ html2canvas で ★絵にして★ 貼っていた（2026-09-06 実測 3人 340,594B）
+//   ★後★ pdf-lib で 本物の 字（2026-09-26 実測 3人 93,586B・★3.6分の1★／0.3秒）
+//
+//   ★★絵で 見つけた 本物の 穴（2026-09-26）★★
+//     明細の 板だけ 'Noto Sans JP' で 並べていた。紙は BIZ UDP ゴシックで 描く。
+//     ⇒ 字幅が ずれて ★「¥18,500」と「18.50 時間」が 重なって 出た★。
+//     ⇒ ①板の 字体を 紙と 同じに する ②描く 字が 測った 幅を 超えたら 小さくする
+//
+//   ★★わざと壊して 赤に なる事を 見た（2026-09-26 実測・1つずつ 手で）★★
+//     ①板の 字体を 'Noto Sans JP' に 戻す … ★赤★（字体が 違います）
+//     ②絵に して 貼る ………………………… ★赤★（/Subtype /Image が 出る）
+// ============================================================
+test('★明細の 紙は 絵では なく 本物の 字（1枚 200kB の 下）★', async ({ page }) => {
+  test.setTimeout(120000);
+  await openKyuryo(page);
+  const out = await page.evaluate(async () => {
+    // ★道具と 字体を 先に 読ませる★（押した 時に 読む 形なので）
+    (await window.KamiEgaku)
+      ? null
+      : await new Promise((ok, ng) => {
+          const el = document.createElement('script');
+          el.src = 'js/kami-egaku.js';
+          el.onload = ok;
+          el.onerror = ng;
+          document.head.appendChild(el);
+        });
+    await window.KamiEgaku.yomu();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    // ★★板が 紙と 同じ 字体で 並んでいるか★★（重なりの 因は ここ）
+    const sheet = window.__paper.build ? window.__paper.build(0) : null;
+    let kazoku = '';
+    let tsukaeru = false;
+    if (sheet) {
+      sheet.style.position = 'fixed';
+      sheet.style.left = '-99999px';
+      document.body.appendChild(sheet);
+      kazoku = getComputedStyle(sheet).fontFamily;
+      document.body.removeChild(sheet);
+    }
+    try {
+      tsukaeru = document.fonts.check('12px DKKami');
+    } catch (_) {
+      tsukaeru = false;
+    }
+
+    let blob = null;
+    const moto = URL.createObjectURL;
+    URL.createObjectURL = function (b) {
+      blob = b;
+      return moto.call(URL, b);
+    };
+    window.open = () => ({});
+    const t0 = performance.now();
+    window.printAll(null);
+    await new Promise((ok) => {
+      const t = setInterval(() => {
+        if (blob) {
+          clearInterval(t);
+          ok();
+        }
+      }, 50);
+      setTimeout(() => {
+        clearInterval(t);
+        ok();
+      }, 60000);
+    });
+    URL.createObjectURL = moto;
+    if (!blob) return { err: 'PDF が 出ませんでした', kazoku, tsukaeru };
+
+    const buf = new Uint8Array(await blob.arrayBuffer());
+    let atama = '';
+    for (let i = 0; i < 5; i++) atama += String.fromCharCode(buf[i]);
+    const doc = await window.PDFLib.PDFDocument.load(buf);
+    let e = 0;
+    let ji = 0;
+    let url = false;
+    doc.context.enumerateIndirectObjects().forEach((pr) => {
+      const t = String(pr[1]);
+      if (/\/Subtype\s*\/Image/.test(t)) e++;
+      if (/\/Type\s*\/Font/.test(t)) ji++;
+      if (/https?:\/\//.test(t)) url = true;
+    });
+    const si = window.PdfSlim ? window.PdfSlim.lastInfo() : null;
+    const mai = doc.getPageCount();
+    return {
+      kazoku,
+      tsukaeru,
+      byo: Math.round((performance.now() - t0) / 100) / 10,
+      atama,
+      mai,
+      byte: buf.length,
+      per: Math.round(buf.length / mai),
+      e,
+      ji,
+      url,
+      marugoto: si && si.marugoto,
+      box: doc.getPages().map((pg) => {
+        const z = pg.getSize();
+        return [Math.round(z.width), Math.round(z.height)];
+      })[0],
+    };
+  });
+
+  // eslint-disable-next-line no-console
+  console.log('★明細の 紙★ ' + JSON.stringify(out));
+  expect(out.err, '★PDF が 出ていません★').toBeUndefined();
+  // ★板と 紙で 同じ 字体★（ここが ずれると 字が 重なる）
+  expect(out.tsukaeru, '★紙の 字体（DKKami）が 読めていません★').toBe(true);
+  expect(out.kazoku, '★板が 紙と 違う 字体で 並んでいます★').toContain('DKKami');
+  expect(out.atama, '★PDF では ありません★').toBe('%PDF-');
+  expect(out.box, '★A4横★').toEqual([842, 595]);
+  expect(out.ji, '★字を 描いていません★').toBeGreaterThan(0);
+  expect(out.e, '★絵を 貼っています（html2canvas に 戻った）★').toBe(0);
+  expect(out.marugoto, '★字体を 丸ごと 埋めています★').toBe(false);
+  expect(out.url, '★PDF に URL が 入っています★').toBe(false);
+  // ★司さん 2026-09-05「ええとこ200kBぐらいのもんやろが」★
+  expect(out.per, '★1枚 200kB を 超えています（' + out.per + 'B）★').toBeLessThan(200000);
 });

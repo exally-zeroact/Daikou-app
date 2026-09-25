@@ -86,7 +86,9 @@ test('★①〜④ 選んだ人だけ 印刷できる★', async ({ page }) => {
   //   ★画面に 出る 知らせを 読む★＝printAll が 何人ぶん 作ろうと しているか
   //   （PDF そのものは 作らせない＝重いので、知らせが 出た 所で 見る）
   // ★本当に PDF を 作らせない★（部品の 取り寄せを 止める＝知らせが 出た 所で 見る）
-  await page.route(/jspdf|html2canvas/, () => {});
+  //   ★2026-09-26 に 道具が 変わった★ jsPDF+html2canvas → pdf-lib+font-slim
+  //   ＝止める 相手も 変える（前の 名前のままだと ★紙が 出来てしまい 知らせが 消える★）
+  await page.route(/pdf-lib|fontkit|font-slim|pdf-slim|\.ttf/, () => {});
   await page.locator('#btnPrintSel').click();
   await page.waitForTimeout(500);
   const shirase = (await page.locator('#msg').textContent()) || '';

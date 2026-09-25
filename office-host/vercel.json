@@ -137,14 +137,6 @@
       "destination": "https://daikou-app.vercel.app/vendor/fonts/BIZUDPGothic-Regular.ttf"
     },
     {
-      "source": "/vendor/html2canvas.min.js",
-      "destination": "https://daikou-app.vercel.app/vendor/html2canvas.min.js"
-    },
-    {
-      "source": "/vendor/jspdf.umd.min.js",
-      "destination": "https://daikou-app.vercel.app/vendor/jspdf.umd.min.js"
-    },
-    {
       "source": "/vendor/pdf-lib.min.js",
       "destination": "https://daikou-app.vercel.app/vendor/pdf-lib.min.js"
     }

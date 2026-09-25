@@ -118,22 +118,27 @@ describe('★①1人ごとにPDF★', () => {
       ikiteru,
       `★実際に動く window.print が ${ikiteru} か所（保険＝1人ぶんと全員ぶんの2か所だけ）★`
     ).toBeLessThanOrEqual(2);
-    expect(HTML, '★自前でPDFを作っていない★').toContain('window.jspdf.jsPDF');
-    expect(HTML, '★画面を絵にしていない★').toContain('window.html2canvas');
+    // ★★2026-09-26 作り方を 変えた★★（司さん「なんで完成形があるのに確かめてやらんのど」）
+    //   前 … jsPDF + html2canvas で ★絵にして★ 貼る（実測 3人 340,594B）
+    //   後 … pdf-lib で ★本物の 字を 描く★（実測 3人 93,586B）＝代行請求書・Rakually と 同じ
+    expect(HTML, '★自前でPDFを作っていない★').toContain("'js/kami-egaku.js'");
+    expect(HTML, '★また 絵にして 貼っています★').not.toMatch(/window\.html2canvas|window\.jspdf/);
   });
 
   it('★A4横で作る★（縦だと 日が最大11列で 見切れる）', () => {
-    expect(HTML, '★A4横になっていない★').toContain("orientation: 'landscape'");
+    // ★2026-09-26★ 向きは 板の muki で 決める（'yoko'）。寸法は 今までどおり。
+    expect(HTML, '★A4横になっていない★').toContain("muki: 'yoko'");
     expect(HTML, '★A4横の寸法(842x595)になっていない★').toMatch(/PAPER_W = 842/);
     expect(HTML, '★A4横の寸法(842x595)になっていない★').toMatch(/PAPER_H = 595/);
-    expect(HTML, '★はみ出さない為の収め方が無い★').toContain('function _placeOnA4');
+    expect(HTML, '★はみ出さない為の収め方が無い★').toContain('KAMI_KATA');
   });
 
   it('★道具は 自分のrepoから読む（外のCDNを使わない）★', () => {
     // ダイコメは ★完全オフライン前提★。実測：kyuryo.html の外部CDN 0件。
     expect(HTML, '★外のCDNを読んでいる★').not.toMatch(/cdn\.jsdelivr|unpkg\.com|cdnjs/);
-    expect(HTML, '★自分のrepoから読んでいない★').toContain("'vendor/jspdf.umd.min.js'");
-    expect(HTML, '★自分のrepoから読んでいない★').toContain("'vendor/html2canvas.min.js'");
+    // ★2026-09-26★ 道具は js/kami-egaku.js が まとめて 自分のrepoから 読む
+    //   （その 1本に vendor/pdf-lib・fontkit・lib/*・字体 が 書いてある）
+    expect(HTML, '★自分のrepoから読んでいない★').toContain("'js/kami-egaku.js'");
     // ★押した時だけ読む★（起動を重くしない）
     expect(HTML, '★起動時に読み込んでいる★').toContain('function loadPdfLibs()');
   });
@@ -234,18 +239,20 @@ describe('★①1人ごとにPDF★', () => {
   });
 
   it('★1人ぶんも 全員ぶんも 同じ作り方（二度書かない）★', () => {
-    // ★紙を組む所は 1本（_addEmp）★＝1人ぶんと全員ぶんで 別々に書かない
+    // ★紙を組む所は 1本（_empSheets）★＝1人ぶんと全員ぶんで 別々に書かない
     expect(HTML, '★1人ぶんが 共通の作り方を使っていない★').toMatch(
-      /function printOne[\s\S]{0,1500}_addEmp\(null, emp,/
+      /function printOne[\s\S]{0,1500}_empSheets\(/
     );
     expect(HTML, '★全員ぶんが 共通の作り方を使っていない★').toMatch(
-      /function printAll[\s\S]{0,2500}_addEmp\([\s\S]{0,40}doc,/
+      /function printAll[\s\S]{0,2500}_empSheets\(/
     );
     // ★新しいタブで開く所も 1本★（片方だけ直す事故を止める）
+    //   ★2026-09-26★ 開く所は js/kami-egaku.js の dasu に 移した＝画面には 無い。
+    //   ⇒ ★どちらも 同じ dasu を 呼んでいる事★ を 数える。
     expect(
-      (HTML.match(/_openPdf\(/g) || []).length,
-      '★開く所が 1本になっていない★'
-    ).toBeGreaterThanOrEqual(3);
+      (HTML.match(/E\.dasu\(/g) || []).length,
+      '★出す所が 1本になっていない★'
+    ).toBeGreaterThanOrEqual(2);
     // ★★2026-09-05 印刷が 2つに なりました★★（司さん「チェックボタン 作って 全体と 選んだ人」）
     //   ★全員を 印刷★ … printAll(null)
     //   ★選んだ人を 印刷★ … printAll(erandaHito())

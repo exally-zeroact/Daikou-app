@@ -2901,42 +2901,39 @@
         //     ★3アプリとも 同じ所でつまずいて 同じ答えに辿り着いていた。読まずに同じ穴に落ちた。★
         //
         //   ▼この形（給与アプリと同じ＝司さんが選んだ A）
-        //     ・jsPDF + html2canvas で ★自分でA4を組む★（URL・日付・ページ番号は 出ない）
+        //     ・★自分でA4を組む★（URL・日付・ページ番号は 出ない）
+        //       ★2026-09-26 に 中身を 入れ替えた★
+        //         前 … jsPDF + html2canvas＝紙を ★絵にして★ 貼る
+        //         今 … pdf-lib で ★本物の 字を 描く★（代行請求書・Rakually と 同じ）
         //     ・★A4横★（明細は 日が最大11列＝縦だと入らない・司さん「表が見切れとん」）
         //     ・道具は ★自分のrepoの vendor/★ から ★押した時だけ★ 読む
         //       （ダイコメは ★完全オフライン前提★＝外のCDNは使わない。実測 0件）
         //     ・出来た紙は ★blob を新しいタブで開く★（iOSの不具合回避・給与アプリと同じ）
         //       ＝画面そのものは動かないので ★戻れる★
         //     ・道具が読めない時だけ ★保険で window.print★（何も出ないよりまし）
-        var _pdfLibs = null;
+        // ★★紙を 描く 1本を 読む★★ 2026-09-26（司さん「なんで完成形があるのに確かめてやらんのど」）
+        //   ★前★ html2canvas で 紙を ★絵にして★ jsPDF に 貼っていた。
+        //   ★今★ 代行請求書・Rakually・集計の 9種と 同じ
+        //        ★pdf-lib で 本物の 字を 描く★（js/kami-egaku.js）。
+        //   ★組み方（_buildPaperSheet）は 1行も 変えていません★
+        //        ★描く 手だけ 差し替えた★＝見た目は そのまま。
         function loadPdfLibs() {
-          if (_pdfLibs) return _pdfLibs;
-          function one(src, has) {
-            return new Promise(function (ok, ng) {
-              if (has()) return ok();
-              var el = document.createElement('script');
-              el.src = src;
-              el.onload = function () {
-                has() ? ok() : ng(new Error(src));
-              };
-              el.onerror = function () {
-                ng(new Error(src));
-              };
-              document.head.appendChild(el);
+          if (window.KamiEgaku) return window.KamiEgaku.yomu().then(() => window.KamiEgaku);
+          return new Promise(function (ok, ng) {
+            var el = document.createElement('script');
+            el.src = 'js/kami-egaku.js';
+            el.onload = function () {
+              window.KamiEgaku ? ok(window.KamiEgaku) : ng(new Error('js/kami-egaku.js'));
+            };
+            el.onerror = function () {
+              ng(new Error('js/kami-egaku.js'));
+            };
+            document.head.appendChild(el);
+          }).then(function (E) {
+            return E.yomu().then(function () {
+              return E;
             });
-          }
-          _pdfLibs = Promise.all([
-            one('vendor/html2canvas.min.js', function () {
-              return !!window.html2canvas;
-            }),
-            one('vendor/jspdf.umd.min.js', function () {
-              return !!(window.jspdf && window.jspdf.jsPDF);
-            }),
-          ]).catch(function (e) {
-            _pdfLibs = null; // 失敗は 次に押した時に 取り直す
-            throw e;
           });
-          return _pdfLibs;
         }
 
         // ★紙は 画面の写しではなく「紙専用の1枚」を組む★ 2026-08-25（指示役の数字どおり）
@@ -3120,7 +3117,13 @@
             'px;padding:' +
             PAD +
             'px;' +
-            "font-family:'Noto Sans JP',sans-serif;color:#333333;";
+            // ★★字体は PDF と 同じ 物★★ 2026-09-26
+            //   紙は pdf-lib で BIZ UDP ゴシックを 描く（js/kami-egaku.js）。
+            //   ★画面の 並べ方を そのまま 紙に 写す★作りなので、
+            //   別の 字体で 並べると ★字幅が ずれて 重なる★。
+            //   ★実測 2026-09-26★ Noto のままだと
+            //     「¥18,500」と「8.50 時間」が 重なって 出た（絵で 見つけた）。
+            "font-family:'DKKami','Noto Sans JP',sans-serif;color:#333333;";
 
           // ── 見出し（画面と同じ並び：給料明細 → 名前 → 合計）──
           var head =
@@ -3270,12 +3273,13 @@
           return { per: per, n: n };
         }
 
-        // 紙1枚 → 絵にする
         // ★返らない時に 永久に待たない★（指示役 2026-08-26）
-        //   html2canvas は 中の <link>/画像が返らないと ★いつまでも返らない★。
         //   ＝押した人は「PDFを作っています…」のまま ★何も起きない★。
-        //   ⇒ ★HTML2CANVAS_TIMEOUT_MS で 打ち切って エラーにする★（保険の印刷へ落ちる）。
-        var HTML2CANVAS_TIMEOUT_MS = 20000;
+        //   ⇒ ★PDF_TIMEOUT_MS で 打ち切って エラーにする★
+        //   ★2026-09-26 実測★ 1人 0.3秒／3人 0.1秒（字体を 軽くする 2回描きを 含む）
+        //     ＝絵にしていた 頃より ★速い★。30秒は 十分 余裕が 在る。
+        //     （集計の 9種を 出す js/kami-pdf.js と 同じ 30秒に 揃えた）
+        var PDF_TIMEOUT_MS = 30000;
         function _withTimeout(pr, ms, name) {
           var tid = null;
           return Promise.race([
@@ -3291,113 +3295,32 @@
           ]);
         }
 
-        function _sheetToCanvas(sheet) {
-          document.body.appendChild(sheet);
-          return _withTimeout(
-            window
-              .html2canvas(sheet, {
-                scale: 2,
-                backgroundColor: '#ffffff',
-                useCORS: true,
-                width: SHEET_W,
-                height: SHEET_H,
-                windowWidth: SHEET_W,
-                windowHeight: SHEET_H,
-              })
-              .then(function (canvas) {
-                document.body.removeChild(sheet);
-                return canvas;
-              })
-              .catch(function (e2) {
-                try {
-                  document.body.removeChild(sheet);
-                } catch (_) {
-                  /* もう消えている */
-                }
-                throw e2;
-              }),
-            HTML2CANVAS_TIMEOUT_MS,
-            'html2canvas'
-          ).catch(function (e3) {
-            // 時間切れで抜けた時も ★板を 画面に残さない★
-            try {
-              if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
-            } catch (_) {
-              /* もう消えている */
-            }
-            throw e3;
-          });
-        }
+        // ★★紙の 重さ（実測）★★
+        //   2026-09-06 絵だった頃 … 3人ぶん 340,594B（1人 約 111kB）
+        //   2026-09-26 字に した 後 … 下の 見張りが 毎回 測る
+        //   ★司さんの 目安★「請求書は ええとこ 200kBぐらいのもんやろが」
+        //
+        // ★紙の 余白★ 四方 20pt。★縦横 同じ 倍率で 縮めて 真ん中★に 置く
+        //   （前の 絵は 縦と横を 別々に 引き伸ばして ★ 2% 歪んでいた★）
+        var KAMI_KATA = {
+          yoko: { w: PAPER_W, h: PAPER_H, bw: SHEET_W, bh: SHEET_H, pad: PAPER_MARGIN },
+          tate: { w: PAPER_H, h: PAPER_W, bw: SHEET_H, bh: SHEET_W, pad: PAPER_MARGIN },
+        };
 
-        // 絵 → A4横の紙いっぱいに置く（板がもうA4の比なので 余白ぶんだけ内側に）
-        // ★★PDFの 重さ（実測 2026-09-06）★★
-        //   ★給料明細 3人ぶん ＝ 340,594B（333kB）／1人あたり 約 111kB★
-        //   ★司さんの 目安★「請求書1枚で ええとこ 200kBぐらいのもんやろが」（09-05）
-        //   ⇒ ★1人ぶん 111kB は 目安の 中★＝★今は 触りません★
-        //   ★作り★ jsPDF + html2canvas ＝ ★紙を 絵にして 貼る★
-        //     ⇒ ★字体を 埋めていない★ので Rakunally が 見つけた 穴
-        //       （PDFの 94%が 字体・3MB）には ★かかりません★
-        //     ⇒ ただし ★中の 字は 選べません・検索できません★（絵だから）
-        //   ★★重いと 言われた時の 手★★（★言われるまで 使わない★）
-        //     ★下の 0.92 を 0.85 に する★＝★3〜4割 軽くなります★
-        //     （今 下げると ★絵が 荒れるだけ★＝得が ない）
-        function _placeOnA4(doc, canvas) {
-          var w = PAPER_W - PAPER_MARGIN * 2;
-          var h = PAPER_H - PAPER_MARGIN * 2;
-          doc.addImage(
-            canvas.toDataURL('image/jpeg', 0.92),
-            'JPEG',
-            PAPER_MARGIN,
-            PAPER_MARGIN,
-            w,
-            h
-          );
-        }
-
-        // ★1人ぶんを doc に足す★（1枚に入らない期間は ★分けて 何枚か★）
+        // ★぀1人ぶんの 板を 作る★（1枚に 入らない 期間は ★分けて 何枚か★）
         //   ★字を小さくして押し込む事はしない★＝入らないなら 紙を増やす。
-        function _addEmp(doc, e, cars, first) {
+        function _empSheets(e, cars) {
           var m = _maisu(e, showCarSalesNow(), cars);
-          var i = 0;
-          function one() {
-            if (i >= m.n) return Promise.resolve(doc);
+          var out = [];
+          for (var i = 0; i < m.n; i++) {
             var from = i * m.per;
             var to = Math.min(e.cells.length, from + m.per);
-            var sheet = _buildPaperSheet(e, showCarSalesNow(), cars, from, to, i + 1, m.n);
-            return _sheetToCanvas(sheet).then(function (canvas) {
-              if (!doc) {
-                doc = new window.jspdf.jsPDF({
-                  orientation: 'landscape',
-                  unit: 'pt',
-                  format: [PAPER_W, PAPER_H],
-                });
-              } else if (!(first && i === 0)) {
-                doc.addPage([PAPER_W, PAPER_H], 'landscape');
-              }
-              _placeOnA4(doc, canvas);
-              i++;
-              return one();
+            out.push({
+              el: _buildPaperSheet(e, showCarSalesNow(), cars, from, to, i + 1, m.n),
+              muki: 'yoko',
             });
           }
-          return one();
-        }
-
-        // 出来た紙を ★新しいタブで開く★（開けない時だけ 保存に落とす）
-        function _openPdf(doc, title) {
-          try {
-            var url = URL.createObjectURL(doc.output('blob'));
-            var w2 = window.open(url, '_blank');
-            if (!w2) doc.save(title + '.pdf');
-            setTimeout(function () {
-              try {
-                URL.revokeObjectURL(url);
-              } catch (_) {
-                /* もう消えている */
-              }
-            }, 60000);
-          } catch (_) {
-            doc.save(title + '.pdf');
-          }
+          return out;
         }
 
         // ★出なかった時の知らせ★（★中身を 場合で書き分ける★）
@@ -3408,11 +3331,11 @@
         //       ＝出さない方がまし。起きた事を そのまま出す。
         function _pdfShippai(err) {
           showMsg('');
-          var jikangire = String((err && err.message) || err || '').indexOf('html2canvas が') === 0;
+          var jikangire = String((err && err.message) || err || '').indexOf('PDF が ') === 0;
           if (jikangire) {
             showErr(
               '紙を作るのに ' +
-                Math.round(HTML2CANVAS_TIMEOUT_MS / 1000) +
+                Math.round(PDF_TIMEOUT_MS / 1000) +
                 '秒 かかっても終わりませんでした。PDFは出していません。'
             );
             return;
@@ -3425,6 +3348,7 @@
           }
         }
 
+        // ★★1人ぶん★★
         function printOne(ei) {
           var box = document.getElementById('slip-' + ei);
           var emp = REP && REP.employees ? REP.employees[ei] : null;
@@ -3438,15 +3362,15 @@
 
           showMsg('PDFを作っています…');
           loadPdfLibs()
-            .then(function () {
-              // ★blob を新しいタブで開く★（給与アプリと同じ・iOSの不具合回避）
-              //   ＝画面そのものは動かないので ★戻れる★。
-              return _addEmp(null, emp, slipCars(REP.cars, emp.employee_id), true).then(
-                function (doc) {
-                  _openPdf(doc, title);
-                  showMsg('');
-                }
+            .then(function (E) {
+              return _withTimeout(
+                E.dasu(_empSheets(emp, slipCars(REP.cars, emp.employee_id)), title, KAMI_KATA),
+                PDF_TIMEOUT_MS,
+                'PDF'
               );
+            })
+            .then(function () {
+              showMsg('');
             })
             .catch(_pdfShippai);
         }
@@ -3471,26 +3395,15 @@
           var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
           showMsg('PDFを作っています…（' + boxes.length + '人ぶん）');
           loadPdfLibs()
+            .then(function (E) {
+              var mai = [];
+              boxes.forEach(function (e2) {
+                mai = mai.concat(_empSheets(e2, slipCars(REP.cars, e2.employee_id)));
+              });
+              return _withTimeout(E.dasu(mai, '給料明細_' + ym, KAMI_KATA), PDF_TIMEOUT_MS, 'PDF');
+            })
             .then(function () {
-              var doc = null;
-              var i = 0;
-              function next() {
-                if (i >= boxes.length) {
-                  _openPdf(doc, '給料明細_' + ym);
-                  showMsg('');
-                  return Promise.resolve();
-                }
-                // ★選んだ人だけの 並びから 取る★（前は 全員の 並びから 取っていた）
-                var emp2 = boxes[i];
-                return _addEmp(doc, emp2, slipCars(REP.cars, emp2.employee_id), i === 0).then(
-                  function (d) {
-                    doc = d;
-                    i++;
-                    return next();
-                  }
-                );
-              }
-              return next();
+              showMsg('');
             })
             .catch(_pdfShippai);
         }
@@ -3535,7 +3448,7 @@
             return slipCars(REP.cars, e.employee_id);
           },
           timeoutMs: function () {
-            return HTML2CANVAS_TIMEOUT_MS;
+            return PDF_TIMEOUT_MS;
           },
         };
 

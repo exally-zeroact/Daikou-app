@@ -190,35 +190,70 @@ describe('★洗い出しの道具そのものが空振りしていないこと�
 //   ⇒ runtimeRefsIn を足した。ここは ★その穴が戻らないこと★ を見張る。
 // ============================================================
 describe('★JSが 後から読む物も 通してある★', () => {
-  it('★紙(PDF)の道具2本が 事務所を通る★（通らないと 押しても紙が出ない）', () => {
+  it('★紙(PDF)の道具が 事務所を通る★（通らないと 押しても紙が出ない）', () => {
+    // ★2026-09-26 に 道具が 変わった★
+    //   jsPDF + html2canvas（絵）→ pdf-lib + font-slim（本物の 字）
+    //   ★字体（.ttf）が 一番 忘れやすい★＝押した時に fetch するので HTMLに 名前が 無い
     const src = sources();
-    ['/vendor/html2canvas.min.js', '/vendor/jspdf.umd.min.js'].forEach((p) => {
-      expect(src, `${p} が通っていない＝事務所で404＝PDFが出ない`).toContain(p);
+    [
+      '/js/kami-egaku.js',
+      '/lib/font-slim.js',
+      '/lib/pdf-slim.js',
+      '/vendor/pdf-lib.min.js',
+      '/vendor/fontkit.umd.min.js',
+      '/vendor/fonts/BIZUDPGothic-Regular.ttf',
+    ].forEach((p2) => {
+      expect(src, `${p2} が通っていない＝事務所で404＝PDFが出ない`).toContain(p2);
     });
   });
 
   it('★引数で渡す形も 拾える★（これが 実際に開いた穴）', () => {
-    // ★実物の書き方★（kyuryo.html の loadPdfLibs）
-    //   function one(src, has) { … el.src = src; … }
-    //   one('vendor/html2canvas.min.js', …)
+    // ★実物の書き方★（js/kami-egaku.js の yomu）
+    //   function _script(src, aru) { … el.src = src; … }
+    //   _script('vendor/pdf-lib.min.js', …)
     //   ＝★el.src = <変わる物>★ なので、src= を見る道具では ★字が出てこない★。
+    //   ★2026-09-26★ 見本を html2canvas から pdf-lib に 変えた
+    //     ＝runtimeRefsIn は ★実物が 在る 物だけ★ 拾う（綴り違いを 通さない為）。
+    //       html2canvas は 使わなくなって 消したので 見本に できない。
     const html =
       '<html><body><script>' +
       'function one(src, has) { var el = document.createElement("script"); el.src = src; }' +
-      "one('vendor/html2canvas.min.js', function () { return !!window.html2canvas; });" +
+      "one('vendor/pdf-lib.min.js', function () { return !!window.PDFLib; });" +
       '</script></body></html>';
     expect([...OA.runtimeRefsIn(html, ROOT)], '★JSが後から読む物を 拾えていない★').toContain(
-      '/vendor/html2canvas.min.js'
+      '/vendor/pdf-lib.min.js'
     );
     // ★src= だけを見る道具では 拾えない★＝だから runtimeRefsIn を足した
-    expect([...OA.refsIn(html)], '前提が変わった').not.toContain('/vendor/html2canvas.min.js');
+    expect([...OA.refsIn(html)], '前提が変わった').not.toContain('/vendor/pdf-lib.min.js');
   });
 
   it('★実物の kyuryo.html でも 拾えている★（見本ではなく 本物で押す）', () => {
     const html = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
     const got = [...OA.runtimeRefsIn(html, ROOT)];
-    ['/vendor/html2canvas.min.js', '/vendor/jspdf.umd.min.js'].forEach((p) => {
-      expect(got, `★本物の画面から ${p} を拾えていない★`).toContain(p);
+    // ★2026-09-26 に 道具が 変わった★
+    //   jsPDF + html2canvas（絵にして 貼る）→ pdf-lib（本物の 字を 描く）
+    //   押した時に 読むのは ★js/kami-egaku.js★ ただ1本（その先は ②で 追う）
+    ['/js/kami-egaku.js'].forEach((f) => {
+      expect(got, `★本物の画面から ${f} を拾えていない★`).toContain(f);
+    });
+  });
+
+  // ★★HTMLが 読む js の 中も 追えているか★★ 2026-09-26
+  //   ★また 同じ 穴を 開けかけた★（2026-08-26 と 同じ 形）
+  //     字体 vendor/fonts/….ttf は js/kami-egaku.js の 中で fetch する。
+  //     HTMLの 字しか 見ない 道具では 拾えず、事務所では ★404＝紙が 出ない★。
+  //   ⇒ ★新しい 物が 出なくなるまで js を 追う★ ように した。
+  it('★★js の 先の 先まで 追えている（字体まで）★★', () => {
+    const { allow } = OA.buildAllowList(ROOT);
+    [
+      '/js/kami-egaku.js',
+      '/lib/font-slim.js',
+      '/lib/pdf-slim.js',
+      '/vendor/pdf-lib.min.js',
+      '/vendor/fontkit.umd.min.js',
+      '/vendor/fonts/BIZUDPGothic-Regular.ttf',
+    ].forEach((f) => {
+      expect(allow, `★${f} が 一覧に 無い＝事務所では 404（紙が 出ない）★`).toContain(f);
     });
   });
 

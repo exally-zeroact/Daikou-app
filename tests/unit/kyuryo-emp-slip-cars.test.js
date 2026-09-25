@@ -78,8 +78,18 @@ describe('★人ごとに 明細に出す車★', () => {
     const call = rs.indexOf('slipCars(REP.cars, e.employee_id)');
     expect(call, '★人の輪の外で 1回だけ決めている（全員 同じになる）★').toBeGreaterThan(loop);
     // 紙も 人ごとに数え直す（紙だけ 全員同じ車になる事故を止める）
-    const kami = HTML.slice(HTML.indexOf('function _addEmp('), HTML.indexOf('function _openPdf('));
+    //   ★2026-09-26 に 名前が 変わった★ _addEmp → _empSheets（絵 → 本物の 字）
+    const i2 = HTML.indexOf('function _empSheets(');
+    expect(i2, '★紙を 組む 所が 見つからない（名前が 変わった？）★').toBeGreaterThan(-1);
+    const kami = HTML.slice(i2, i2 + 900);
     expect(kami, '★紙が 人ごとの車を受け取っていない★').toContain('cars');
+    // ★呼ぶ側も 人ごとに 数え直しているか★（紙だけ 全員同じ車、を 止める）
+    ['printOne', 'printAll'].forEach((f) => {
+      const a = HTML.indexOf('function ' + f + '(');
+      expect(HTML.slice(a, a + 1800), '★' + f + ' が 人ごとの 車を 渡していない★').toContain(
+        'slipCars(REP.cars,'
+      );
+    });
   });
 
   it('★空（打っていない）＝会社の決まりどおり★', () => {

@@ -100,6 +100,11 @@
     return _dougu;
   }
 
+  function n(v) {
+    const x = Number(v);
+    return isFinite(x) ? x : 0;
+  }
+
   function _iro(s) {
     const m = String(s || '').match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
@@ -128,11 +133,25 @@
     const out = { w: kata.w, h: kata.h, nuri: [], sen: [], ji: [] };
     try {
       const r0 = ita.getBoundingClientRect();
+      // ★★紙の 内側に 余白を 取る 時（給料明細）★★ 2026-09-26
+      //   給料明細は 紙の 四方に 20pt の 余白を 取る 決まりだった。
+      //   ★縦横 別々に 引き伸ばすと 字が 歪む★（前の 絵の やり方は 2% 歪んでいた）
+      //   ⇒ ★縦横 同じ 倍率で 縮めて 真ん中に 置く★
+      const pad = n(kata.pad) || 0;
+      let bai = PT;
+      let ox = 0;
+      let oy = 0;
+      if (pad > 0) {
+        bai = Math.min((kata.w - pad * 2) / kata.bw, (kata.h - pad * 2) / kata.bh);
+        ox = (kata.w - kata.bw * bai) / 2;
+        oy = (kata.h - kata.bh * bai) / 2;
+      }
+      out.bai = bai;
       const X = function (px) {
-        return (px - r0.left) * PT;
+        return ox + (px - r0.left) * bai;
       };
       const Y = function (px) {
-        return (kata.bh - (px - r0.top)) * PT;
+        return kata.h - oy - (px - r0.top) * bai;
       };
 
       // ── ①塗り と ②罫 ──────────────────────────
@@ -146,8 +165,8 @@
           out.nuri.push({
             x: X(r.left),
             y: Y(r.bottom),
-            w: r.width * PT,
-            h: r.height * PT,
+            w: r.width * bai,
+            h: r.height * bai,
             c: bg,
           });
         }
@@ -166,7 +185,7 @@
             y1: Y(s[2]),
             x2: X(s[3]),
             y2: Y(s[4]),
-            t: w * PT,
+            t: w * bai,
             c: c,
           });
         });
@@ -174,11 +193,12 @@
 
       // ── ③字 ──────────────────────────────────
       const tw = document.createTreeWalker(ita, NodeFilter.SHOW_TEXT, null);
-      let n;
-      while ((n = tw.nextNode())) {
-        const s = n.nodeValue;
+      // ★名前は node★（外の n() を 隠すと TDZ で 落ちる＝2026-09-26 実測）
+      let node;
+      while ((node = tw.nextNode())) {
+        const s = node.nodeValue;
         if (!s || !s.trim()) continue;
-        const oya = n.parentElement;
+        const oya = node.parentElement;
         if (!oya || oya.tagName === 'STYLE') continue;
         const cs = getComputedStyle(oya);
         if (cs.visibility === 'hidden' || cs.display === 'none') continue;
@@ -187,7 +207,7 @@
         const c = _iro(cs.color) || { r: 0, g: 0, b: 0, a: 1 };
 
         const ran = document.createRange();
-        ran.selectNodeContents(n);
+        ran.selectNodeContents(node);
         const rects = ran.getClientRects();
         if (!rects.length) continue;
 
@@ -195,8 +215,12 @@
           out.ji.push({
             s: s,
             x: X(rects[0].left),
-            y: Y(rects[0].top) - size * PT * BASE,
-            size: size * PT,
+            y: Y(rects[0].top) - size * bai * BASE,
+            size: size * bai,
+            // ★測った 幅★＝描く 字が これより 広ければ 小さく する（下の draw）
+            //   ★画面と 紙で 字体が 違うと 重なる★のを 止める 保険。
+            //   （2026-09-26 実測：給料明細で「¥18,500」と「8.50 時間」が 重なった）
+            w: rects[0].width * bai,
             b: futoi,
             c: c,
           });
@@ -207,8 +231,8 @@
         let ima = null;
         for (let i = 0; i < s.length; i++) {
           const r2 = document.createRange();
-          r2.setStart(n, i);
-          r2.setEnd(n, i + 1);
+          r2.setStart(node, i);
+          r2.setEnd(node, i + 1);
           const rr = r2.getBoundingClientRect();
           if (!rr.width && !rr.height) continue;
           if (!ima || Math.abs(rr.top - ima.top) > 1) {
@@ -216,8 +240,8 @@
             out.ji.push({
               s: '',
               x: X(rr.left),
-              y: Y(rr.top) - size * PT * BASE,
-              size: size * PT,
+              y: Y(rr.top) - size * bai * BASE,
+              size: size * bai,
               b: futoi,
               c: c,
               _i: ima,
@@ -299,17 +323,23 @@
             });
             k.ji.forEach(function (o) {
               const str = _sanitize(o.s, font);
+              let size = o.size;
+              // ★測った 幅を 超えたら 小さく する★（隣と 重ならせない）
+              if (o.w > 1) {
+                const haba = font.widthOfTextAtSize(str, size);
+                if (haba > o.w * 1.01) size = size * (o.w / haba);
+              }
               const opt = {
                 x: o.x,
                 y: o.y,
-                size: o.size,
+                size: size,
                 font: font,
                 color: rgb(o.c.r, o.c.g, o.c.b),
               };
               page.drawText(str, opt);
               // ★太字＝微小ずらし 重ね描き★（代行請求書 invoice-pdf.js と 同じ やり方）
               if (o.b) {
-                const d = o.size * 0.025;
+                const d = size * 0.025;
                 page.drawText(str, Object.assign({}, opt, { x: o.x + d }));
                 page.drawText(str, Object.assign({}, opt, { x: o.x + d * 2 }));
               }
