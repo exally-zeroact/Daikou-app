@@ -658,8 +658,14 @@
               font-family: inherit;
             "
           ></select>
-          <button class="btn" id="kamiMonth" type="button">この月の PDF</button>
-          <button class="btn ghost" id="kamiYear" type="button">年ぶんの PDF</button>
+          <button class="btn" id="kamiMonth" type="button">月次集計（この月）</button>
+          <button class="btn" id="kamiUriM" type="button">売上表（この月）</button>
+          <button class="btn ghost" id="kamiYear" type="button">売上表（年ぶん）</button>
+          <button class="btn ghost" id="kamiSoukouN" type="button">回数・距離（年ぶん）</button>
+        </div>
+        <div class="desc" style="margin-top: 6px">
+          回数・距離の <b>月ごと</b> は
+          <a href="uriage.html" style="color: var(--blue)">売上表の画面</a> から 出せます。
         </div>
         <div class="desc" id="kamiMsg" style="margin-top: 8px"></div>
       </div>
@@ -866,6 +872,7 @@
           salesSettings: null,
           payrollSettings: null,
         };
+        var PAYS = []; // ★日ごとの 請求書／電子決済（recalc が 作る／紙も これを 見る）
         var PAYMENTS = []; // 日ごとの 請求書 / 電子決済
         var PP = {}; // 月ごとの 電子決済 手入力（'2026-01' → 円）
         // ★★日ごとの 電子決済★★ 2026-09-06（司さん「毎日 入れれるように」）
@@ -958,19 +965,31 @@
             true
           );
         }
+        // ★★2026-09-25 直し：読み方が 違っていた★★
+        //   ★前★ `by[日].cars` を 回していた ⇒ ★そんな 物は 無い★ので ★いつも 0台★。
+        //     実物は `ctx.byDate[日][車のID] = {device_id, sales, expense, hours}`
+        //     （js/payroll-daily.js:191 ／ GetsujiAgg も Object.keys で 回している）
+        //   ⇒ 月次集計の 紙の「車ごと」が ★ずっと 空だった★。
+        //   ★車の 名前は ctx.labels★（byDate には 入っていない）
+        //   ★見張り★ tests/unit/kami-shukei.test.js
         function kamiCarsOf(tsuki) {
           // ★画面が 車ごとに 出している 数を そのまま★（UriageAgg を 通った 物）
           try {
             var by = (CTX && CTX.byDate) || {};
+            var na = (CTX && CTX.labels) || {};
+            var pre = YEAR + '-' + ('0' + tsuki).slice(-2);
             var matome = {};
             Object.keys(by).forEach(function (hi) {
-              if (hi.indexOf(YEAR + '-' + ('0' + tsuki).slice(-2)) !== 0) return;
-              var cars = (by[hi] && by[hi].cars) || [];
-              cars.forEach(function (c) {
-                var na = (c && (c.label || c.device_id)) || '車';
-                if (!matome[na]) matome[na] = { name: na, uriage: 0, jippi: 0 };
-                matome[na].uriage += Number(c.sales) || 0;
-                matome[na].jippi += Number(c.expense) || 0;
+              if (hi.indexOf(pre) !== 0) return;
+              var cars = by[hi] || {};
+              Object.keys(cars).forEach(function (dev) {
+                var c = cars[dev];
+                if (!c) return;
+                var nm = na[dev] || dev;
+                if (!matome[nm]) matome[nm] = { name: nm, uriage: 0, jippi: 0 };
+                // ★売上＝メーターの 合計 − 実費★（GetsujiAgg と 同じ 引き方）
+                matome[nm].uriage += (Number(c.sales) || 0) - (Number(c.expense) || 0);
+                matome[nm].jippi += Number(c.expense) || 0;
               });
             });
             return Object.keys(matome).map(function (k2) {
@@ -979,6 +998,71 @@
           } catch (_) {
             return [];
           }
+        }
+
+        // ★★売上表（月ごと）の「日ごと」★★ 2026-09-25
+        //   ★司さん★「売上表は月毎、年ごとでもっと分かりやすくしろや
+        //             現金、請求書、電子決済、経費の欄で見れるようにしとけや」
+        //   ★数え方は 月の 合計と 同じ★（GetsujiAgg:148-152）
+        //     売上＝Σ(メーター − 実費) ／ 未収＝請求書＋電子決済 ／ 現金＝売上 − 未収
+        //   ⇒ 日ごとに 同じ 式を 当てるだけ。★新しい 計算は しない★。
+        function kamiUriageHi(tsuki) {
+          var hi = {};
+          var pre = YEAR + '-' + ('0' + tsuki).slice(-2);
+          function masu(d) {
+            if (!hi[d]) hi[d] = { uriage: 0, keihi: 0, seikyu: 0, denshi: 0, genkin: 0 };
+            return hi[d];
+          }
+          var by = (CTX && CTX.byDate) || {};
+          Object.keys(by).forEach(function (date) {
+            if (date.indexOf(pre) !== 0) return;
+            var d = Number(date.slice(8, 10));
+            if (!d) return;
+            var cars = by[date] || {};
+            var x = masu(d);
+            Object.keys(cars).forEach(function (dev) {
+              var c = cars[dev];
+              if (!c) return;
+              x.uriage += (Number(c.sales) || 0) - (Number(c.expense) || 0);
+              x.keihi += Number(c.expense) || 0;
+            });
+          });
+          (PAYS || []).forEach(function (p2) {
+            if (!p2 || String(p2.pay_date || '').indexOf(pre) !== 0) return;
+            var d = Number(String(p2.pay_date).slice(8, 10));
+            if (!d) return;
+            var x = masu(d);
+            x.seikyu += Number(p2.invoice_yen) || 0;
+            x.denshi += Number(p2.denshi_yen) || 0;
+          });
+          Object.keys(hi).forEach(function (d) {
+            hi[d].genkin = hi[d].uriage - hi[d].seikyu - hi[d].denshi;
+          });
+          return hi;
+        }
+
+        // ★★回数・距離（年ごと）★★ 2026-09-25（司さん「回数や距離はまた別項目で作れや」）
+        //   ★画面の 距離の 表と 同じ 関数を 通す★（kyoriHi / kyoriTasu）
+        //   ＝自分で 数え直すと 画面と 紙で 数が 食い違う
+        function kamiSoukouNenData() {
+          var all = (RAW.shifts || []).filter(function (x) {
+            return x && !x.excluded;
+          });
+          var tsuki = {};
+          for (var m = 1; m <= 12; m++) {
+            var mm = (m < 10 ? '0' : '') + m;
+            var no = all.filter(function (x) {
+              return kyoriHi(x).slice(5, 7) === mm;
+            });
+            if (!no.length) continue; // ★走っていない 月は 行を 作らない（横棒で 出る）★
+            var k2 = kyoriTasu(no);
+            tsuki[m] = { kaisuu: k2.kaisuu, jissha: k2.jissha / 1000, sou: k2.sou / 1000 };
+          }
+          var t = kyoriTasu(all);
+          return {
+            tsuki: tsuki,
+            total: { kaisuu: t.kaisuu, jissha: t.jissha / 1000, sou: t.sou / 1000 },
+          };
         }
         function kamiDasu(mai, na) {
           kamiMsg('紙を 作っています…');
@@ -1012,6 +1096,30 @@
               mai,
               (k.name || 'ダイコメ') + '_月次集計_' + YEAR + '-' + ('0' + tsuki).slice(-2)
             );
+          };
+        }
+        if ($('kamiUriM')) {
+          $('kamiUriM').onclick = function () {
+            if (!YR) return kamiMsg('まだ 読み込んでいません。');
+            var tsuki = Number($('kamiTsuki').value) || 1;
+            var m = (YR.months || [])[tsuki - 1];
+            var k = kamiKaisha(tsuki);
+            var mai = KamiHyou.uriageTsuki(
+              k,
+              KamiShukei.uriageTsukiData(m, kamiCarsOf(tsuki), kamiUriageHi(tsuki))
+            );
+            kamiDasu(
+              mai,
+              (k.name || 'ダイコメ') + '_売上表_' + YEAR + '-' + ('0' + tsuki).slice(-2)
+            );
+          };
+        }
+        if ($('kamiSoukouN')) {
+          $('kamiSoukouN').onclick = function () {
+            if (!YR) return kamiMsg('まだ 読み込んでいません。');
+            var k = kamiKaisha(1);
+            var mai = KamiHyou.soukouNen(k, kamiSoukouNenData());
+            kamiDasu(mai, (k.name || 'ダイコメ') + '_回数距離_' + YEAR + '年');
           };
         }
         if ($('kamiYear')) {
@@ -1174,6 +1282,7 @@
 
         function recalc() {
           CTX = PayrollDaily.buildCtx(RAW);
+          // ★PAYS＝日ごとの 請求書／電子決済★（画面の 数字と 紙で 同じ 物を 使う為に 外へ）
           var pays = PAYMENTS.slice();
           // ★★日ごとが 在る 月は 日ごとを 使う（二重に 数えない）★★ 2026-09-06
           //   ★司さん★「毎日 入れれるように しろ」
@@ -1225,6 +1334,7 @@
             if (higotoNoTsuki[k]) return; // ★日ごとが 在る 月は 足さない★
             pays.push({ pay_date: k + '-01', invoice_yen: 0, denshi_yen: PP[k] });
           });
+          PAYS = pays; // ★紙も ★同じ 物★ を 見る（自分で 作り直さない）
           YR = GetsujiAgg.year(YEAR, CTX, pays);
           try {
             kamiTsukiSel(); // ★PDFの 月の 選択肢★（年を 変えた 時も 作り直す）

@@ -172,14 +172,14 @@
       K.box('経費', en(d.keihi)) +
       '</div>';
 
-    const kths = [
-      '<th>車</th>',
-      '<th>売上</th>',
-      '<th>現金</th>',
-      '<th>請求書</th>',
-      '<th>電子決済</th>',
-      '<th>経費</th>',
-    ];
+    // ★★車ごとは「売上」と「経費」だけ★★ 2026-09-25
+    //   ★現金／請求書／電子決済は ★車ごとには 無い★★（倉庫の 作りがそう）
+    //     ・請求書 … dk_trips の payment_type=invoice を ★日ごと★ に まとめた 物
+    //     ・電子決済 … 手入力（月ごと／日ごと／車ごと）を ★日ごと★ に 直した 物
+    //     ⇒ GetsujiAgg も 月の 合計でしか 持っていない（pay_date が 鍵）
+    //   ★空の 列を 並べると「0円だった」と 読めてしまう★ ので 列ごと 出さない。
+    //   ⇒ 現金／請求書／電子決済は ★上の 札★ と ★下の 日ごとの 表★ に 出る。
+    const kths = ['<th>車</th>', '<th>売上</th>', '<th>経費</th>'];
     const krows = cars.map(function (c) {
       return (
         '<tr><td>' +
@@ -187,32 +187,16 @@
         '</td><td>' +
         en(c.uriage) +
         '</td><td>' +
-        en(c.genkin) +
-        '</td><td>' +
-        en(c.seikyu) +
-        '</td><td>' +
-        en(c.denshi) +
-        '</td><td>' +
         en(c.jippi) +
         '</td></tr>'
       );
     });
     const ksum =
-      '<tr class="sum"><td>合計</td><td>' +
-      en(d.uriage) +
-      '</td><td>' +
-      en(d.genkin) +
-      '</td><td>' +
-      en(d.seikyu) +
-      '</td><td>' +
-      en(d.denshi) +
-      '</td><td>' +
-      en(d.keihi) +
-      '</td></tr>';
+      '<tr class="sum"><td>合計</td><td>' + en(d.uriage) + '</td><td>' + en(d.keihi) + '</td></tr>';
     h +=
       '<h2>車ごと</h2>' +
       (cars.length < K.KURUMA_2RETSU
-        ? K.hyou(kths, krows, ksum)
+        ? '<div class="hanbun">' + K.hyou(kths, krows, ksum) + '</div>'
         : '<div class="nibun"><div>' +
           K.hyou(kths, krows.slice(0, Math.ceil(krows.length / 2))) +
           '</div><div>' +
