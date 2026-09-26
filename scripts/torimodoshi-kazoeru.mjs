@@ -47,7 +47,14 @@ function snapPath(name) {
   return path.join(os.tmpdir(), 'daikome-torimodoshi-' + String(name) + '.json');
 }
 
-async function toru() {
+// ★窓は 動かさない (2026-09-26・出してから 気づいた)★
+//   はじめ「now() - 35日」で 数えていた。★窓が 毎分 前へ ずれる★ので、
+//   何もしていないのに 一番 古い 勤務が 外へ 出て
+//   ★勤務 48→47 / 代行 396→382 / 売上 1,009,800→967,800 円★ と 減って 見えた。
+//   ⇒ 控えを 取った 時の 区切りを 一緒に しまい、--diff は ★同じ区切り★で 引く。
+//   （勤務ごとに 突き合わせているので 嘘の「戻った」は 出ないが、
+//     ★頭の 合計が 減って 見える＝人が 誤読する★。そこを 潰す）
+async function toru(sinceIso) {
   // ★readToken は {token, from} を返す（文字列では ない）★
   //   取り違えて Bearer [object Object] を送り 401 を1回 もらっている（2026-09-26）。
   const kagi = readToken();
@@ -56,13 +63,18 @@ async function toru() {
   }
   const token = kagi.token;
   const ref = projectRef();
+  // 区切りは ★渡されたら それ／無ければ 今から HIBI 日★
+  const since =
+    typeof sinceIso === 'string' && /^\d{4}-\d{2}-\d{2}/.test(sinceIso)
+      ? sinceIso
+      : new Date(Date.now() - HIBI * 24 * 60 * 60 * 1000).toISOString();
   const query = `
     select s.shift_id::text as id, s.device_id as dev,
            s.started_at::text as hajime, s.ended_at::text as owari,
            s.elapsed_sec, s.trip_count, s.fare_total_yen, s.actual_total_m,
            (select count(*) from daikome.dk_trips t where t.shift_id = s.shift_id) as trips
       from daikome.dk_shifts s
-     where s.started_at > now() - interval '${HIBI} days'
+     where s.started_at > '${since}'::timestamptz
      order by s.started_at`;
   if (!/^\s*select\b/i.test(query)) throw new Error('読むだけの文しか投げない');
   const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
@@ -122,9 +134,32 @@ async function okurinaoshi(token, ref) {
   return Array.isArray(r) && r[0] ? r[0] : null;
 }
 
+// 控えを 読む。★新しい形 {since, rows} と 古い形 [rows] の 両方を 受ける★
+function hikaeYomu(p) {
+  const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+  if (Array.isArray(j)) return { since: null, rows: j }; // 古い控え（区切りが 入っていない）
+  return { since: j.since || null, rows: Array.isArray(j.rows) ? j.rows : [] };
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const { ref, token, rows } = await toru();
+
+  // --diff は ★控えと 同じ 区切り★で 引く（窓が ずれて 合計が 減って 見えるのを 防ぐ）
+  let hikae = null;
+  if (args[0] === '--diff') {
+    const p = snapPath(args[1] || 'mae');
+    if (!fs.existsSync(p)) {
+      console.log('★控えが 無い★ ' + p + '（先に --save ' + (args[1] || 'mae') + '）');
+      process.exitCode = 2;
+      return;
+    }
+    hikae = hikaeYomu(p);
+    if (!hikae.since) {
+      console.log('※この控えには 区切りが 入っていません（古い形）。合計は 窓が ずれて 見えます。');
+    }
+  }
+
+  const { ref, token, rows } = await toru(hikae && hikae.since);
   matome(ref, rows);
 
   const on = await okurinaoshi(token, ref);
@@ -138,21 +173,16 @@ async function main() {
 
   if (args[0] === '--save') {
     const name = args[1] || 'mae';
-    fs.writeFileSync(snapPath(name), JSON.stringify(rows, null, 2), 'utf8');
-    console.log('★控えを 取った★ ' + snapPath(name));
+    // ★区切りを 一緒に しまう★（次に 引く 時は この 区切りで 引く）
+    const since = new Date(Date.now() - HIBI * 24 * 60 * 60 * 1000).toISOString();
+    fs.writeFileSync(snapPath(name), JSON.stringify({ since, rows }, null, 2), 'utf8');
+    console.log('★控えを 取った★ ' + snapPath(name) + '（区切り ' + since.slice(0, 19) + '）');
     console.log('  ⇒ 運転手に 端末を 開き直して もらってから --diff ' + name);
     return;
   }
 
   if (args[0] === '--diff') {
-    const name = args[1] || 'mae';
-    const p = snapPath(name);
-    if (!fs.existsSync(p)) {
-      console.log('★控えが 無い★ ' + p + '（先に --save ' + name + '）');
-      process.exitCode = 2;
-      return;
-    }
-    const mae = new Map(JSON.parse(fs.readFileSync(p, 'utf8')).map((r) => [r.id, r]));
+    const mae = new Map(hikae.rows.map((r) => [r.id, r]));
     let modotta = 0;
     let fuetaTrips = 0;
     let fuetaYen = 0;
@@ -179,9 +209,18 @@ async function main() {
         console.log('   ★★減っている＝取り戻しでは 起きないはず。止めて 調べること★★');
       }
     }
+    // ★控えに 在ったのに 今 無い＝消えている（取り戻しでは 起きない）★
+    //   区切りを 揃えてあるので「窓から 外れた」では 説明が つかない。
+    const ima = new Set(rows.map((r) => r.id));
+    const kieta = hikae.rows.filter((r) => !ima.has(r.id));
     console.log('');
     console.log(`★戻った 勤務 ${modotta} 件 / 代行 +${fuetaTrips} 件 / 売上 +${yen(fuetaYen)} 円★`);
     if (atarashii) console.log(`（控えの後に 走った 新しい勤務 ${atarashii} 件は 数に 入れていない）`);
+    if (kieta.length) {
+      console.log(`★★控えに 在った 勤務が ${kieta.length} 件 消えている＝止めて 調べること★★`);
+      kieta.slice(0, 10).forEach((r) => console.log('   ' + r.hajime.slice(0, 16) + ' ' + r.id));
+      process.exitCode = 1;
+    }
     if (modotta === 0) {
       console.log('★0件★ … 端末が まだ 開き直されていない か、欠けが そもそも 無かった。');
       console.log('   ★「0件＝直っている」では ない★（どちらかを 端末側で 確かめること）');
