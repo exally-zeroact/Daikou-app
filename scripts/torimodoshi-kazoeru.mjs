@@ -78,7 +78,7 @@ async function toru() {
   if (!res.ok) {
     throw new Error('倉庫に届かない ' + res.status + ' ' + (await res.text()).slice(0, 200));
   }
-  return { ref, rows: await res.json() };
+  return { ref, token, rows: await res.json() };
 }
 
 const yen = (v) => Number(v || 0).toLocaleString('ja-JP');
@@ -93,10 +93,48 @@ function matome(ref, rows) {
   );
 }
 
+// ★控えが 無くても 送り直しを 見つける (2026-09-26)★
+//   サーバは 送り直しの たびに dk_trips を ★消して 入れ直す★ので、
+//   代行の created_at が ★勤務の created_at より ずっと 後★ に なる。
+//   ＝%TEMP% の 控えが 消えていても「送り直された 勤務」を 数えられる。
+//   2026-09-26 18時 の 本番＝直近35日 396件 中 ★0件★（まだ 1件も 送り直されていない）。
+async function okurinaoshi(token, ref) {
+  const query = `
+    select count(distinct s.shift_id) as shifts,
+           count(*) as trips,
+           max(t.created_at)::text as saigo
+      from daikome.dk_trips t
+      join daikome.dk_shifts s using (shift_id)
+     where s.started_at > now() - interval '${HIBI} days'
+       and t.created_at > s.created_at + interval '5 minutes'`;
+  if (!/^\s*select\b/i.test(query.trim())) throw new Error('読むだけの文しか投げない');
+  const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'daikome-torimodoshi',
+    },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) return null;
+  const r = await res.json();
+  return Array.isArray(r) && r[0] ? r[0] : null;
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const { ref, rows } = await toru();
+  const { ref, token, rows } = await toru();
   matome(ref, rows);
+
+  const on = await okurinaoshi(token, ref);
+  if (on) {
+    console.log(
+      `★送り直された 勤務 ${on.shifts} 件 / 代行 ${on.trips} 件★` +
+        (on.saigo ? `（一番 新しい 書き込み ${String(on.saigo).slice(0, 19)}）` : '') +
+        (Number(on.shifts) === 0 ? '  ＝まだ 端末が 開き直されていない' : '')
+    );
+  }
 
   if (args[0] === '--save') {
     const name = args[1] || 'mae';
