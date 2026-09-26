@@ -35,7 +35,11 @@ const DANGER = [
   },
   { name: 'truncate', re: /\btruncate\b/i },
   { name: 'delete', re: /\bdelete\s+from\b/i },
-  { name: 'update', re: /\bupdate\s+[a-z_][\w.]*\s+set\b/i },
+  // ★2026-09-26 直し★：★別名つきの update を 見逃していた★
+  //   update daikome.dk_expense_kinds ★k★ set label = … ← 棚と set の 間に 別名が 入ると
+  //   前の形 /update\s+[a-z_][\w.]*\s+set/ は 当たらず ★書き換えが 門を すり抜けた★。
+  //   ★試験も 別名なしの 2本しか 無かった★ので 何年も 気付けない 形だった。
+  { name: 'update', re: /\bupdate\s+(?:only\s+)?[a-z_"][\w."]*(?:\s+(?:as\s+)?[a-z_]\w*)?\s+set\b/i },
   { name: 'insert', re: /\binsert\s+into\b/i },
   { name: 'revoke', re: /\brevoke\b/i },
   { name: 'alter-drop', re: /\balter\s+table\s+[^;]*\bdrop\b/i },

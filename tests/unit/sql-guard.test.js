@@ -201,4 +201,41 @@ describe('★部屋つきの棚の名前★', () => {
     expect(G.guard('delete from daikome.dk_trips;').ok).toBe(false);
     expect(G.guard('update daikome.dk_trips set fare_yen = 0;').ok).toBe(false);
   });
+
+  // ── ★2026-09-26 に 見つけた 穴★ ───────────────────────────
+  //   本物の紙 supabase/apply-jippi-jiyuu.sql の
+  //     update daikome.dk_expense_kinds ★k★
+  //        set label = s.other_label
+  //   が ★門を すり抜けていた★（棚と set の 間に 別名が 入る 形）。
+  //   ★上の 2本の 試験は どちらも 別名なし★だったので 誰も 気付けなかった。
+  //   ★わざと 壊して 見た★：直した 形を 前の /update\s+[a-z_][\w.]*\s+set/ に
+  //   戻すと この 5本の うち ★4本が 赤★ に なる（別名なしの 1本だけ 緑）。
+  describe('★別名つきの update も 止める★', () => {
+    const kaku = {
+      別名: 'update daikome.dk_expense_kinds k\n   set label = 1;',
+      'as つき': 'update daikome.dk_trips as t set fare_yen = 0;',
+      'only つき': 'update only daikome.dk_trips set fare_yen = 0;',
+      引用符つき: 'update "daikome"."dk_trips" t set fare_yen = 0;',
+      別名なし: 'update daikome.dk_trips set fare_yen = 0;',
+    };
+    for (const [na, sql] of Object.entries(kaku)) {
+      it(na, () => {
+        expect(
+          G.findDangerous(sql).map((d) => d.kind),
+          na + ' を 見逃した'
+        ).toContain('update');
+        expect(G.guard(sql).ok, na + ' を 門が 通した').toBe(false);
+      });
+    }
+  });
+
+  it('★足すだけの 形を 巻き添えにしない（偽の赤が 出ないか）★', () => {
+    expect(G.guard('alter table if exists daikome.dk_x add column if not exists a int;').ok).toBe(
+      true
+    );
+    expect(
+      G.guard('create or replace view public.dk_y as select a from daikome.dk_x;').ok,
+      '窓を 作るだけで 止めた'
+    ).toBe(true);
+  });
 });
