@@ -113,6 +113,19 @@
 
     <button id="copyBtn" type="button">この内容をコピーする</button>
 
+    <!--
+      ★2026-09-26 追加★ 司さん「バージョンは何が正解なんど」
+        それまで ★この端末が どの版で 動いているかを 見る 場所が 1つも 無かった★。
+        画面に在るのは window.DAIKOME_APP_VERSION = '1.0.0'（★手で書いた固定値★）だけで、
+        押すたびに変わる印ではない＝★新しいのか 古いのか 誰にも 分からない★。
+        ⇒ ★service worker が持っている 刻印 daikome-xxxxxxx を そのまま 出す★。
+        ★「配った」と「端末が 受け取った」は 別★なので、端末の 側で 読む事に 意味がある。
+    -->
+    <div class="card">
+      <h2>★この端末の版（正解と 同じか 見る）★</h2>
+      <table id="tVer"></table>
+    </div>
+
     <div class="card">
       <h2>いまの業務（daikou_business_state）</h2>
       <table id="tState"></table>
@@ -177,6 +190,60 @@
         }
 
         const dump = {};
+
+        // ── ★この端末の版★ (2026-09-26) ──────────────────
+        //   ★押すたびに 変わる 印は service worker の 棚の 名前だけ★
+        //     `daikome-<7桁>` … 配信の たびに 機械が 書き換える（sw.js:23）。
+        //   ★2か所を 出す★
+        //     ①この端末が 今 持っている 棚の 名前（＝★受け取った版★）
+        //     ②今 網から 引いた sw.js の 名前（＝★配られている版＝正解★）
+        //   ★①と②が 違う＝この端末は まだ 古い★＝一度 閉じて 開き直す。
+        const tV = document.getElementById('tVer');
+        row(tV, 'この端末（棚の名前）', '…読んでいます');
+        row(tV, '配られている版（正解）', '…読んでいます');
+        (function () {
+          const nowaRow = (i, v, cls) => {
+            const cells = tV.querySelectorAll('tr td.v');
+            if (cells[i]) {
+              cells[i].textContent = v;
+              cells[i].className = 'v ' + (cls || '');
+            }
+          };
+          // ①端末が 持っている 棚
+          try {
+            if (window.caches && caches.keys) {
+              caches
+                .keys()
+                .then((ks) => {
+                  const mine = (ks || []).filter((k) => /^daikome-/.test(k));
+                  dump.version_tanmatsu = mine;
+                  nowaRow(
+                    0,
+                    mine.length ? mine.join(' / ') : '（棚が 無い）',
+                    mine.length ? 'ok' : 'zero'
+                  );
+                })
+                .catch(() => nowaRow(0, '（読めない）', 'zero'));
+            } else {
+              nowaRow(0, '（この ブラウザは 棚を 持たない）', 'zero');
+            }
+          } catch (_) {
+            nowaRow(0, '（読めない）', 'zero');
+          }
+          // ②配られている sw.js（★棚を 通さず 網から★）
+          try {
+            fetch('sw.js', { cache: 'no-store' })
+              .then((r) => r.text())
+              .then((t) => {
+                const m = t.match(/daikome-[0-9a-f]{7,}/);
+                dump.version_haishin = m ? m[0] : null;
+                nowaRow(1, m ? m[0] : '（見つからない）', m ? 'ok' : 'zero');
+              })
+              .catch(() => nowaRow(1, '（圏外＝くらべられない）', 'zero'));
+          } catch (_) {
+            nowaRow(1, '（圏外＝くらべられない）', 'zero');
+          }
+        })();
 
         // ── いまの業務 ──
         const st = j('daikou_business_state');
