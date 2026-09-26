@@ -56,6 +56,11 @@ const ALLOWED = {
   'office-manifest.json':
     'ホーム画面に 入る 名前。テスト線は ★【テスト用】★ を 付ける' +
     '＝本番と 同じ 顔で 並ぶと 司さんが 踏み違える。',
+  'tests/unit/seikyu-link-pointer.test.js':
+    '★この repo が どちらの 請求書を 指すべきか★の 見張り。' +
+    '本番＝daikou-seikyu.vercel.app ／ テスト線＝daikou-seikyu-test.vercel.app。' +
+    '★揃えると テスト線から 本番の 請求書を 開く★' +
+    '（2026-09-26 に 実際 写してしまい、この 見張りが 赤で 止めた）。',
   'tests/gate-snap-accuracy.baseline.json':
     '★その 線で 測った 基準値★（generatedAt と 実測の 数が 入る）。' +
     '取り直した 日が 違うので 中身が 違って 当たり前。',
