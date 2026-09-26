@@ -67,8 +67,10 @@ create or replace view public.dk_expense_kinds
   select company_id, kind_id, label, sort_order, active, updated_at
     from daikome.dk_expense_kinds;
 
-create or replace view public.dk_shift_edits
-  with (security_invoker = true) as
-  select shift_id, company_id, toll_yen, bridge_yen, other_yen, other_label, note,
-         updated_at, hours, expenses
-    from daikome.dk_shift_edits;
+-- ★public.dk_shift_edits の 窓は ここで 作り直さない★（2026-09-26 実測）
+--   元の apply-jippi-jiyuu.sql は ★10列★（… hours, expenses）で 作り直すが、
+--   その後 supabase/apply-denshi-kuruma-goto.sql が ★denshi_yen を 足して 11列★に した。
+--   10列で 上書きすると Postgres が
+--     ERROR: 42P16 cannot drop columns from view
+--   で 止まる（★1回 実際に 止めた★・当たったのは 0文字＝倉庫は 無傷）。
+--   窓は もう 正しい 形なので 触らない。
