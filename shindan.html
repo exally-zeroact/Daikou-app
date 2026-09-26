@@ -201,6 +201,7 @@
         const tV = document.getElementById('tVer');
         row(tV, 'この端末（棚の名前）', '…読んでいます');
         row(tV, '配られている版（正解）', '…読んでいます');
+        row(tV, '★見立て★', '…読んでいます');
         (function () {
           const nowaRow = (i, v, cls) => {
             const cells = tV.querySelectorAll('tr td.v');
@@ -209,26 +210,56 @@
               cells[i].className = 'v ' + (cls || '');
             }
           };
+          // ★刻印は 押すたびに 変わる★ので「この番号が 正解」と 覚えさせない。
+          //   ★人に くらべさせず 画面が 判じる★（2026-09-26・司さん「バージョンは何が正解なんど」）
+          //   ★判じるのは ここ 1か所だけ★（2つの 行を 見て 人が 決めると 読み違える）
+          let mine = null; // この端末が 持っている 棚
+          let live = null; // 配られている版
+          function mitate() {
+            if (mine === null || live === null) return; // まだ 両方 揃っていない
+            if (!live) {
+              nowaRow(2, '★くらべられない★（圏外／sw.js が 読めない）', 'zero');
+              return;
+            }
+            if (!mine.length) {
+              nowaRow(2, '★まだ 棚が 無い★（1回 開き直すと 入る）', 'zero');
+              return;
+            }
+            if (mine.indexOf(live) >= 0) {
+              nowaRow(2, '★新しい★ この端末は 配られている版で 動いています', 'ok');
+            } else {
+              nowaRow(2, '★古い★ 一度 閉じて 開き直してください', 'zero');
+            }
+          }
           // ①端末が 持っている 棚
           try {
             if (window.caches && caches.keys) {
               caches
                 .keys()
                 .then((ks) => {
-                  const mine = (ks || []).filter((k) => /^daikome-/.test(k));
+                  mine = (ks || []).filter((k) => /^daikome-/.test(k));
                   dump.version_tanmatsu = mine;
                   nowaRow(
                     0,
                     mine.length ? mine.join(' / ') : '（棚が 無い）',
                     mine.length ? 'ok' : 'zero'
                   );
+                  mitate();
                 })
-                .catch(() => nowaRow(0, '（読めない）', 'zero'));
+                .catch(() => {
+                  mine = [];
+                  nowaRow(0, '（読めない）', 'zero');
+                  mitate();
+                });
             } else {
+              mine = [];
               nowaRow(0, '（この ブラウザは 棚を 持たない）', 'zero');
+              mitate();
             }
           } catch (_) {
+            mine = [];
             nowaRow(0, '（読めない）', 'zero');
+            mitate();
           }
           // ②配られている sw.js（★棚を 通さず 網から★）
           try {
@@ -236,12 +267,20 @@
               .then((r) => r.text())
               .then((t) => {
                 const m = t.match(/daikome-[0-9a-f]{7,}/);
+                live = m ? m[0] : '';
                 dump.version_haishin = m ? m[0] : null;
                 nowaRow(1, m ? m[0] : '（見つからない）', m ? 'ok' : 'zero');
+                mitate();
               })
-              .catch(() => nowaRow(1, '（圏外＝くらべられない）', 'zero'));
+              .catch(() => {
+                live = '';
+                nowaRow(1, '（圏外＝くらべられない）', 'zero');
+                mitate();
+              });
           } catch (_) {
+            live = '';
             nowaRow(1, '（圏外＝くらべられない）', 'zero');
+            mitate();
           }
         })();
 
