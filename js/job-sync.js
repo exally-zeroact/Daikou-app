@@ -30,10 +30,19 @@
   //   これが無いと「会社が変わった」ことに気づけない。下の sealForCompanySwitch を見ること。
   const K_SYNC_COMPANY = 'dk_sync_company';
   const DEVICE_ID_KEY = 'DAIKOME_DEVICE_ID';
+  // ★「別の会社の物だから 絶対に 送らない」印 (2026-09-26 追加)★
+  //   それまで dk_synced_shifts には ★意味の違う 2つ★ が 混ざっていた:
+  //     ①サーバが 受け取った（＝中身が 変わったら 送り直してよい）
+  //     ②会社が 変わったので 切り離した（＝★送ったら 別の会社の 売上に なる★）
+  //   下の resendOnce は ①だけを 外す。混ざったままだと ②まで 送ってしまう。
+  const K_SEAL_OTHER_CO = 'dk_seal_other_co';
+  // ★取り戻しを 1回だけ 走らせる 印 (2026-09-26)★
+  const K_RESEND_ONCE = 'dk_resend_once_v1';
 
   const MAX_BATCH = 20; // 1回に送る勤務の上限
   const MAX_WAYPOINTS = 50; // 代行1件あたりの経由地の上限
   const MAX_SYNCED_KEYS = 200; // 送信済み記録の保持数(これを超えたら古い順に間引く)
+  const DRAIN_MAX = 5; // 取り戻しで溜まった分を吐き出す回数の上限(20件×5=100件)
 
   // ─── 小道具 ────────────────────────────────────────────
   function _isNum(v) {
@@ -194,6 +203,20 @@
           } catch (_) {
             /* 保存できなくても業務は止めない */
           }
+          // ★同じ物を「別の会社の物」としても控える (2026-09-26)★
+          //   dk_synced_shifts だけだと「送れた物」と見分けが付かず、
+          //   ★取り戻し(resendOnce)が 前の会社の勤務まで 送ってしまう★。
+          try {
+            let other = [];
+            try {
+              other = _arr(JSON.parse(st.getItem(K_SEAL_OTHER_CO) || '[]'));
+            } catch (_) {
+              other = [];
+            }
+            st.setItem(K_SEAL_OTHER_CO, JSON.stringify(mergeSynced(other, keys)));
+          } catch (_) {
+            /* ignore */
+          }
         }
       }
 
@@ -347,6 +370,98 @@
     }
   }
 
+  // ★★取り戻し＝既に消えている分を もう一度 上げさせる (2026-09-26)★★
+  //
+  //   ★なぜ要るか★ [終了]→(Wi-Fiで送信)→[続ける]→もう何件か→[終了] の時、
+  //     business.js が ★印を外していなかった★ので「続きを足した版」が
+  //     ★二度と上がらなかった★。事務所には途中までの件数・距離・売上・勤務時間しか無い。
+  //     直し(business.js:resume)はこれから起きる分にしか効かない。
+  //     ⇒ ★もう消えている分★は、端末にまだ残っている履歴から送り直す。
+  //
+  //   ★やること★ 「手元の履歴に在る」かつ「送信済みの印が付いている」勤務の印を外す。
+  //     次の sync で送り直され、サーバが ★upsert + dk_trips 入れ直し★ で置き換える。
+  //     中身が既に合っている勤務は ★同じ物で上書きされるだけ＝害が無い★
+  //     （請求書も extra.dk_ref で二重にならない）。
+  //
+  //   ★送ってはいけない物を外さない★
+  //     dk_seal_other_co に入っている勤務は ★前の会社の物★なので絶対に外さない。
+  //
+  //   ★限界(正直に)★ dk_seal_other_co は今日足した記録なので、
+  //     ★今日より前に会社を移った端末★では空になる。
+  //     本番で数えた(2026-09-26): 会社1社・端末3台・★2社にまたがる端末 0台★
+  //     ＝今の本番には当てはまる端末が居ない。テスト線も 0台。
+  //     ★これは「今 居ない」であって「構造上 起きない」ではない★。
+  //     これから会社を移る端末は上の記録で守られる。
+  //
+  //   ★1回だけ★ dk_resend_once_v1 で止める(毎回走らせると通信を無駄に増やす)。
+  function resendOnce(store) {
+    const out = { ran: false, unsealed: 0 };
+    try {
+      const st = store || _ls();
+      if (!st) return out;
+      let done = '';
+      try {
+        done = _str(st.getItem(K_RESEND_ONCE));
+      } catch (_) {
+        done = '';
+      }
+      if (done) return out; // もう走らせた
+      out.ran = true;
+
+      let history = [];
+      let synced = [];
+      let other = [];
+      try {
+        history = _arr(JSON.parse(st.getItem(HISTORY_KEY) || '[]'));
+      } catch (_) {
+        history = [];
+      }
+      try {
+        synced = _arr(JSON.parse(st.getItem(K_SYNCED) || '[]'));
+      } catch (_) {
+        synced = [];
+      }
+      try {
+        other = _arr(JSON.parse(st.getItem(K_SEAL_OTHER_CO) || '[]'));
+      } catch (_) {
+        other = [];
+      }
+
+      const inHistory = {};
+      history.forEach(function (s) {
+        const k = shiftKey(s);
+        if (k) inHistory[k] = true;
+      });
+      const noSend = {};
+      other.forEach(function (k) {
+        noSend[String(k)] = true;
+      });
+
+      const next = synced.filter(function (k) {
+        const key = String(k);
+        if (!inHistory[key]) return true; // 手元に無い＝送り直せない。印はそのまま
+        if (noSend[key]) return true; // ★前の会社の物＝絶対に外さない★
+        return false; // 外す＝次の sync で送り直す
+      });
+      out.unsealed = synced.length - next.length;
+      if (out.unsealed > 0) {
+        try {
+          st.setItem(K_SYNCED, JSON.stringify(next));
+        } catch (_) {
+          return out; // 書けなかった＝印は付いたまま。次の起動でまた試す
+        }
+      }
+      try {
+        st.setItem(K_RESEND_ONCE, String(Date.now()));
+      } catch (_) {
+        /* ignore */
+      }
+      return out;
+    } catch (_) {
+      return out; // ★絶対に throw しない★
+    }
+  }
+
   // 送信済み記録に足す(重複なし・増えすぎたら古い順に間引く)
   function mergeSynced(existing, added) {
     try {
@@ -455,9 +570,37 @@
       //   ★QRを読む前に通る★ので、テスト会社→本番会社の切り替わりを捕まえられる。
       adoptCurrentCompanyOnce(null);
 
+      // ★取り戻し (2026-09-26)★ 消えている分の印を外す。1回だけ。
+      //   ★adoptCurrentCompanyOnce の後★に置くこと
+      //   （先に会社の控えを済ませないと、切り離しの判定が狂う）。
+      resendOnce(null);
+
+      // ★溜まった分を吐き出す (2026-09-26)★
+      //   1回の sync は MAX_BATCH 件までしか送らない。取り戻しで一度に
+      //   20件を超えて印が外れると、★昔は次にアプリを開くまで残りが上がらなかった★。
+      //   満杯で返ってきた間だけ続けて回す(上限 DRAIN_MAX = 空回りしない)。
       const run = function () {
         try {
-          sync();
+          let kai = 0;
+          const tsugi = function () {
+            kai++;
+            let p;
+            try {
+              p = sync();
+            } catch (_) {
+              return;
+            }
+            if (!p || typeof p.then !== 'function') return;
+            p.then(function (r) {
+              if (!r || !r.ok || !r.sent) return; // 送れていない＝繰り返さない
+              if (r.sent < MAX_BATCH) return; // 満杯でない＝もう残っていない
+              if (kai >= DRAIN_MAX) return;
+              tsugi();
+            }).catch(function () {
+              /* ignore */
+            });
+          };
+          tsugi();
         } catch (_) {
           /* ignore */
         }
@@ -480,6 +623,7 @@
     acceptedKeysOf: acceptedKeysOf,
     sealForCompanySwitch: sealForCompanySwitch,
     adoptCurrentCompanyOnce: adoptCurrentCompanyOnce,
+    resendOnce: resendOnce,
     // 実行
     sync: sync,
     init: init,
@@ -487,6 +631,10 @@
     MAX_BATCH: MAX_BATCH,
     MAX_WAYPOINTS: MAX_WAYPOINTS,
     MAX_SYNCED_KEYS: MAX_SYNCED_KEYS,
+    DRAIN_MAX: DRAIN_MAX,
+    K_SYNCED: K_SYNCED,
+    K_SEAL_OTHER_CO: K_SEAL_OTHER_CO,
+    K_RESEND_ONCE: K_RESEND_ONCE,
   };
 
   if (global) global.JobSync = api;

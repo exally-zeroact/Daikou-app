@@ -235,6 +235,19 @@ const Business = (function () {
     //   外さないと、この業務を本当に終えた時に★もう1件積まれて二重になる★。
     if (state.history_pushed) {
       _removeHistory(state.start_time, state.end_time);
+      // ★送信済みの印も外す (2026-09-26・司さんの報告「何件か減る」の根治)★
+      //   ★何が起きていたか（本物の関数で再現した）★
+      //     [終了] → 履歴に積む → ★Wi-Fi に繋がった瞬間 job-sync が事務所へ上げる★
+      //     → dk_synced_shifts に印が付く → [続ける] → もう何件か代行 → [終了]
+      //     ⇒ 履歴は「続きを足した版」に積み直されるのに、印が残っているので
+      //        selectUnsynced が ★1件も選ばない＝二度と上がらない★。
+      //     ⇒ 事務所に残るのは途中までの版。件数だけでなく
+      //        ★終了時刻・距離・売上・勤務時間(elapsed_sec) も途中の値★になる。
+      //   ★なぜ気づけなかったか★ 同じ対処は js/trip-edit.js には入っていた
+      //     （「印を外さないと直しが事務所に届かない」）。★片方だけ直っていた★。
+      //   ★送り直しは安全★ サーバ(dk-sync-jobs)は dk_shifts を upsert し、
+      //     dk_trips は消して入れ直す。請求書は extra.dk_ref で二重にならない。
+      _unsealSynced(state.start_time);
       state.history_pushed = false;
     }
     state.active = true;
@@ -1297,6 +1310,31 @@ const Business = (function () {
     }
   }
 
+  // ★送信済みの印を1件だけ外す (2026-09-26)★
+  //   resume() 専用。★履歴から外すのと 必ず 対で 呼ぶ★
+  //   （外し忘れると「続きを足した版」が二度と事務所へ上がらない）。
+  //   やり方は js/trip-edit.js:unmarkSynced と同じ（印は文字列で入っている）。
+  //   ★絶対に throw しない★ … 印を外せなくても業務は止めない。
+  function _unsealSynced(startTime) {
+    try {
+      if (typeof startTime !== 'number' || !startTime) return false;
+      const raw = localStorage.getItem(SYNCED_KEY);
+      if (!raw) return false;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) return false;
+      const key = String(startTime);
+      const next = list.filter(function (k) {
+        return String(k) !== key;
+      });
+      if (next.length === list.length) return false;
+      localStorage.setItem(SYNCED_KEY, JSON.stringify(next));
+      if (typeof dlog === 'function') dlog('[Business] unseal synced ' + key);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function restoreFromHistory(history) {
     if (!history) return false;
     if (typeof history.start_time !== 'number') return false;
@@ -1367,6 +1405,9 @@ const Business = (function () {
     save,
     load,
     restoreFromHistory,
+    // ★試験が「画面と同じ関数」を呼べるように出す (2026-09-26)★
+    //   真似て書いた写しを測っても、本物が直っている証しにならない。
+    __unsealSynced: _unsealSynced,
     // ★設計変更宣言 (2026-05-23・住所① fine 配線 + 丁目カット表示・test 用 export):
     //   _cutChomeSuffix / _findNearestMunicipality は・pure helper (= 副作用なし)。
     //   test で・unit verify するため・public API に・1 key 経由で・export。
