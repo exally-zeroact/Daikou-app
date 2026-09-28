@@ -15,16 +15,38 @@
 //     ⇒★画面は まとも・距離だけ 少ない★
 //     ⇒★09-04 17:29〜09-05 16:16 に 版が 6回 変わった＝「今までなかった」の 正体★
 //
+//   ★★2026-09-28 直し＝この 紙が 守っていた 物が 広すぎた★★
+//     司さん「タスクキルせな バージョンが 更新されないのを どうにかしろ」
+//     ★この 紙は「業務中＝start_time が 在るか」で 守っていた★。
+//     ところが `start_time` は [業務終了] を 押しても 消えない
+//     （business.js:end は ended=true に するだけ／消えるのは [終了]=abandon か 次の 業務開始）。
+//     ⇒ ★仕事と 仕事の 間 ずっと「業務中」扱い★＝読み直しが 永久に 止まり、
+//       ★タスクキルしか 効かない★ 状態に なっていた。
+//     ⇒ ★この 紙が「実装の 形」を 守っていて「狙い」を 守っていなかった★。
+//
+//     ★狙いは「走行中に 切らない」★（OBD が 切れて 距離が 短く 出る）。
+//     limbo（[業務終了]の 後）は
+//       ・Meter.setBusinessActive(false) 済み ＝★業務の 距離を 積んでいない★
+//       ・onBusinessEnd で stopGPS 済み
+//       ・読み直しても 中身は localStorage から 戻る／★勝手に 再開しない★
+//         （再開は [続ける]＝onResumeFromStart を 押した時だけ）
+//       ・OBD の 警告は 下の ③（_obdTsunaidaHozon）で 読み直しを またいで 残る
+//     ⇒ ★limbo は 読み直してよい★。守るのは ★active（業務が 動いている間）だけ★。
+//
 //   ★この 見張りが 守る 物（1つずつ）★
-//     ①★業務中（Business.getState().start_time が 在る）なら 読み直さない★
-//     ②★業務が 終わったら（start_time が 消えたら）★ちゃんと 読み直す★
+//     ①★業務が 動いている（active）なら 読み直さない★
+//     ②★limbo（[業務終了]の 後）は 読み直す★（タスクキルを 要らなくする）
+//     ③★業務が 終わって 印が 消えたら 待たせた 分を 当てる★
 //        （＝「読み直さない」だけ 入れて 新しい版が 一生 当たらない、を 防ぐ）
-//     ③★一度 OBD に 繋いだ事を 端末に 覚える★（読み直しても 警告が 出る）
+//     ④★一度 OBD に 繋いだ事を 端末に 覚える★（読み直しても 警告が 出る）
 //
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
 //     ①_gyoumuChuu() を () => false に する ……… ★赤★（①の 段）
 //     ②業務終了後の setInterval を 消す ………… ★赤★（②の 段）
 //     ③_obdTsunaidaHozon(true) を 消す ………… ★赤★（③の 段）
+//   ★★2026-09-28 も 見た★★
+//     判定を 前の形（start_time が 在れば 止める）に 戻す
+//       ⇒ ★②の 段が 赤★（limbo で 読み直さない＝タスクキルが 必要に 戻る）
 //
 //   ★この 見張りは 実物の index.html を 読んで 走らせます★
 //     （文字を 探すだけの 見張りは 名前を 変えられたら 死ぬ＝会社の 決まり）
@@ -52,10 +74,11 @@ test('★★① 業務中は 読み直さない／② 終わったら 読み直�
 
   const r = await page.evaluate(
     ({ dan }) => {
-      const out = { chuu: null, ato: null, err: null };
+      const out = { chuu: null, limbo: null, ato: null, err: null };
       try {
         let reloads = 0;
         let start_time = 111; // ★業務中★
+        let active = true; // ★2026-09-28 追加★ 走っているか（limbo と 分ける）
         const kikai = {
           // 読み直しの 代わりに 数える
           location: {
@@ -65,7 +88,7 @@ test('★★① 業務中は 読み直さない／② 終わったら 読み直�
           },
           Business: {
             getState: function () {
-              return { start_time: start_time };
+              return { start_time: start_time, active: active };
             },
           },
           dlog: function () {},
@@ -73,6 +96,12 @@ test('★★① 業務中は 読み直さない／② 終わったら 読み直�
           setInterval: function (fn) {
             this.timers.push(fn);
             return this.timers.length;
+          },
+          // ★2026-09-28★ 段が document.addEventListener('visibilitychange') を 使う
+          //   （待たせた 読み直しを 画面に 戻った時にも 当てる）。渡さないと 段が 落ちる。
+          document: {
+            addEventListener: function () {},
+            visibilityState: 'visible',
           },
         };
         let handler = null;
@@ -91,20 +120,29 @@ test('★★① 業務中は 読み直さない／② 終わったら 読み直�
           'Business',
           'dlog',
           'setInterval',
-          dan + '\n;return { gyoumuChuu: _gyoumuChuu };'
+          'document',
+          dan + '\n;return { yoiKa: _swYominaoshiteYoiKa };'
         );
-        f(nav, kikai, kikai.Business, kikai.dlog, kikai.setInterval.bind(kikai));
+        f(nav, kikai, kikai.Business, kikai.dlog, kikai.setInterval.bind(kikai), kikai.document);
 
-        // ★①業務中に 新しい版が 来た★
+        // ★①業務が 動いている間に 新しい版が 来た★
         handler();
         out.chuu = reloads; // ★0 が 正しい★
 
-        // ★②業務が 終わった → 待っていた 分を 当てる★
+        // ★②[業務終了] を 押した（limbo）→ ここで 当たって ほしい★
+        //   ★start_time は 残ったまま★＝前の 形だと ここで 止まっていた
+        active = false;
+        kikai.timers.forEach(function (fn) {
+          fn();
+        });
+        out.limbo = reloads; // ★1 が 正しい（タスクキルを 要らなくする）★
+
+        // ★③業務が 消えた後も 1回だけ（二重に 読み直さない）★
         start_time = null;
         kikai.timers.forEach(function (fn) {
           fn();
         });
-        out.ato = reloads; // ★1 が 正しい★
+        out.ato = reloads; // ★1 のまま が 正しい★
       } catch (e) {
         out.err = String((e && e.message) || e);
       }
@@ -116,8 +154,12 @@ test('★★① 業務中は 読み直さない／② 終わったら 読み直�
   // eslint-disable-next-line no-console
   console.log('★読み直しの 回数★ ' + JSON.stringify(r));
   expect(r.err, '★段が 動きませんでした★').toBe(null);
-  expect(r.chuu, '★業務中なのに 読み直しました（距離が 消える 形）★').toBe(0);
-  expect(r.ato, '★業務が 終わっても 新しい版を 当てていません★').toBe(1);
+  expect(r.chuu, '★業務が 動いているのに 読み直しました（距離が 消える 形）★').toBe(0);
+  expect(
+    r.limbo,
+    '★[業務終了]の 後（limbo）で 読み直していません＝タスクキルしないと 版が 変わらない★'
+  ).toBe(1);
+  expect(r.ato, '★二度 読み直しています（1回だけで よい）★').toBe(1);
 });
 
 test('★★③ 一度 繋いだ事を 端末に 覚える（読み直しても 警告が 出る）★★', async () => {
