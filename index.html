@@ -11498,7 +11498,59 @@
         //   ★距離にも 料金にも 1文字も 触っていません★（★いつ 読み直すか★ だけ）
         //
         //   ★試験から 呼べるように 外に 出す★（画面の 中だけに 書くと 誰も 測れない）
+        //   ★★2026-09-28 その2＝対立役に 叩かれて 3つ 足した★★
+        //     はじめ 「Business.active だけ」で 止めていた。★それでは 足りない★と 指摘され、
+        //     ★1つずつ 自分で コードを 読んで 裏を 取った★（下の 行番号は その時 数えた 物）:
+        //
+        //     ①★OBD が 繋がっている時★（index.html:8725 が 唯一の 接続点）
+        //        [業務終了] は OBD を 切らない＝limbo でも ★繋がったまま★。
+        //        読み直すと GATT ごと 消えるが ★[続ける](onBusinessResume) は 繋ぎ直さない★。
+        //        自動の 繋ぎ直しは `navigator.bluetooth.getDevices` が 要る＝端末次第で 戻らない。
+        //        ⇒ OBD 無しで 走り出し ★穴が 位置の直線で 埋まって 道より 短く なる★
+        //          ＝2026-09-06 の 実害 そのもの。★繋がっている間は 止める★。
+        //     ②★メーターが 回っている時（Meter.running）★
+        //        課金距離の 門は js/meter.js:383 の `state.running` ★だけ★で
+        //        business_active を 見ていない。しかも index.html:10590 の `_askCarryOver` は
+        //        `Business.end()` を 呼ぶが ★`Meter.businessEnd()` を 呼ばない★
+        //        ⇒ ★active=false なのに 実車の 課金が 回っている★ 状態が 実在する。
+        //     ③★日報（業務報告）を 見ている時★
+        //        起動の 画面分岐は limbo を businessStart に 送る（index.html:10772 の 注記）
+        //        ＝読み直すと ★その勤務の 日報に 二度と 戻れない★。
+        //        送信の 知らせ（_syncAfterEnd の トースト）も ここで 消える。
+        //   ★どれも「いつ 読み直すか」だけ。距離にも 料金にも 1文字も 触っていません★
         function _swYominaoshiteYoiKa() {
+          // ★見えない物は 止める側に 倒さない★（道具が 無い端末で 永久に 古いままに なる）
+          //   ただし ★在るのに 繋がっている／回っている★ 時は 必ず 止める。
+          try {
+            // ★window. を 付けて 呼ぶ★（素の OBDClient だと
+            //   tests/integration/index-inline-noundef.test.js が「未定義」で 赤に する。
+            //   ★一覧に 足して 逃げず★ 呼び方の 方を 直す）
+            if (
+              window.OBDClient &&
+              typeof window.OBDClient.isConnected === 'function' &&
+              window.OBDClient.isConnected()
+            ) {
+              return { ok: false, wake: 'obd_tsunagatteru' };
+            }
+          } catch (_) {
+            /* OBD が 読めない＝繋がっていない扱い */
+          }
+          try {
+            if (typeof Meter !== 'undefined' && typeof Meter.getState === 'function') {
+              const m = Meter.getState();
+              if (m && m.running) return { ok: false, wake: 'meter_mawatteru' };
+            }
+          } catch (_) {
+            /* メーターが 読めない＝回っていない扱い */
+          }
+          try {
+            const el = document.getElementById('screenBusinessReport');
+            if (el && getComputedStyle(el).display !== 'none') {
+              return { ok: false, wake: 'nippou_miteru' };
+            }
+          } catch (_) {
+            /* 画面が 読めない＝見ていない扱い */
+          }
           try {
             const s =
               typeof Business !== 'undefined' && typeof Business.getState === 'function'
@@ -11509,7 +11561,7 @@
             return { ok: true, wake: 'limbo' }; // ★[業務終了]の 後＝止めない★
           } catch (_) {
             // ★分からない時は 読み直してよい＝今まで通り★
-            //   （ここに来るのは Business が まだ 読めていない＝起動直後だけ）
+            //   （ここに来るのは Business が まだ 読めていない＝起動直後＝失う物が 無い）
             return { ok: true, wake: 'wakaranai' };
           }
         }

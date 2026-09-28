@@ -119,16 +119,34 @@
   }
 
   // まだ送っていない勤務を、古い順に、上限まで選ぶ。壊れた行は黙って捨てる。
-  function selectUnsynced(history, syncedKeys) {
+  //
+  // ★★2026-09-28 追加＝okuranai（別の会社の物は ここで 弾く）★★
+  //   ★対立役に 叩かれて 見つかった 穴（私が 開けた）★
+  //     `dk_seal_other_co`（＝前の会社の物だから 絶対に 送らない 印）を
+  //     ★読んでいたのは resendOnce の 中 だけ★だった。
+  //     ところが ★送信済みの印を 外す 道は 3本★ 在る:
+  //       ①business.js resume()（[続ける]）②trip-edit.js（履歴の直し）③resendOnce
+  //     ①②は `dk_synced_shifts` からしか 外さない ので、会社を 移した 端末で
+  //     [続ける] を 押すだけで ★前の会社の 勤務が 新しい会社へ 上がる★。
+  //     実測（本物の関数で 再現）: 切り離し直後 0件 → [続ける] の後 ★1件★。
+  //     ＝2026-08-03 に 塞いだ 事故の 再発。
+  //   ★直し方の 選び方★ 外す 側を 3本とも 直すのでは なく ★送る 直前で 弾く★。
+  //     外す 道は これからも 増えるので、★最後の 門を 1か所★ に した方が 落ちない。
+  function selectUnsynced(history, syncedKeys, okuranai) {
     try {
       const done = {};
       _arr(syncedKeys).forEach(function (k) {
         done[String(k)] = true;
       });
+      const dame = {};
+      _arr(okuranai).forEach(function (k) {
+        dame[String(k)] = true;
+      });
       const out = [];
       _arr(history).forEach(function (s) {
         const key = shiftKey(s);
         if (!key) return; // 識別できない = 送れない
+        if (dame[key]) return; // ★前の会社の物＝絶対に 送らない★
         if (done[key]) return; // 送信済み
         out.push(s);
       });
@@ -519,7 +537,9 @@
 
       const history = _getJson(HISTORY_KEY, []);
       const synced = _getJson(K_SYNCED, []);
-      const targets = selectUnsynced(history, synced);
+      // ★最後の門★ 前の会社の物は 何が あっても 送らない（上の selectUnsynced の 注記を 見る）
+      const okuranai = _getJson(K_SEAL_OTHER_CO, []);
+      const targets = selectUnsynced(history, synced, okuranai);
       if (!targets.length) return { ok: true, sent: 0, reason: 'nothing_to_send' };
 
       const shifts = targets.map(toPayload).filter(Boolean);
@@ -579,30 +599,49 @@
       //   1回の sync は MAX_BATCH 件までしか送らない。取り戻しで一度に
       //   20件を超えて印が外れると、★昔は次にアプリを開くまで残りが上がらなかった★。
       //   満杯で返ってきた間だけ続けて回す(上限 DRAIN_MAX = 空回りしない)。
+      // ★★2026-09-28 直し＝上限が 上限に なっていなかった★★
+      //   ★対立役に 叩かれて 見つかった（私が 開けた 穴）★
+      //     kai は ★run() 1本ごとの 数★ だった。`online` は 車庫や トンネルの 出口で
+      //     ★連発する★ので、鳴るたび kai=0 の 新しい 連鎖が 始まり 上限が 効かない。
+      //     しかも sync() は 送信済みの印を ★始めに 1回 読んで★ 終わりに 書き戻すので、
+      //     同時に 走った 別の 連鎖が 付けた 印を ★消し合う★。
+      //     実測（対立役・本物の init/sync）: POST 27回／のべ 405件（溜まりは 45件）。
+      //     ⇒ 事務所への POST・dk_trips の 入れ直し・請求明細の 書き込みが 何倍にも なる。
+      //   ★直し★ ①★走っている間は 次を 始めない（1本だけ）★ ②数を モジュールで 持つ
+      //     ＝online が 何回 鳴っても 走るのは 1本・上限は 全体で DRAIN_MAX。
+      let _hashitteru = false;
+      let _kai = 0;
       const run = function () {
         try {
-          let kai = 0;
+          if (_hashitteru) return; // ★もう 1本 走っている＝重ねない★
+          _hashitteru = true;
+          _kai = 0;
+          const owari = function () {
+            _hashitteru = false;
+          };
           const tsugi = function () {
-            kai++;
+            _kai++;
             let p;
             try {
               p = sync();
             } catch (_) {
+              owari();
               return;
             }
-            if (!p || typeof p.then !== 'function') return;
+            if (!p || typeof p.then !== 'function') {
+              owari();
+              return;
+            }
             p.then(function (r) {
-              if (!r || !r.ok || !r.sent) return; // 送れていない＝繰り返さない
-              if (r.sent < MAX_BATCH) return; // 満杯でない＝もう残っていない
-              if (kai >= DRAIN_MAX) return;
+              if (!r || !r.ok || !r.sent) return owari(); // 送れていない＝繰り返さない
+              if (r.sent < MAX_BATCH) return owari(); // 満杯でない＝もう残っていない
+              if (_kai >= DRAIN_MAX) return owari();
               tsugi();
-            }).catch(function () {
-              /* ignore */
-            });
+            }).catch(owari);
           };
           tsugi();
         } catch (_) {
-          /* ignore */
+          _hashitteru = false;
         }
       };
       run();

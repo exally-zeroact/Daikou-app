@@ -217,8 +217,14 @@ const Business = (function () {
     // ★ここで履歴に積む（次の業務開始を待たない）★
     const report = getReport();
     if (state.start_time) {
-      _appendHistory(report);
-      state.history_pushed = true;
+      // ★★2026-09-28 直し＝積めた 時だけ 印を 立てる★★
+      //   ★対立役に 叩かれて 見つかった（前から 在る 穴）★
+      //     `_appendHistory` は 中で 例外を 握りつぶす。倉庫が 満杯で
+      //     書けなくても 昔は ★history_pushed = true に なっていた★。
+      //     すると abandon() の 「既に 積んでいれば 積み直さない」が 効いて
+      //     ★その晩の 勤務が 丸ごと 消える★（司さんの「何件か減る」の 別の 因）。
+      //   ⇒ ★積めなかったら 印を 立てない★＝次の abandon() が もう一度 試す。
+      state.history_pushed = _appendHistory(report) === true;
     }
     save();
     if (typeof dlog === 'function') dlog('[Business] end (history saved / resumable)');
@@ -1278,8 +1284,10 @@ const Business = (function () {
             'days retention)'
         );
       }
+      return true; // ★積めた★
     } catch (e) {
       if (typeof dlog === 'function') dlog('[Business] history save error: ' + e.message);
+      return false; // ★積めていない（倉庫が 満杯 など）★
     }
   }
 

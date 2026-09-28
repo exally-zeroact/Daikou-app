@@ -325,3 +325,104 @@ describe('★同じ穴を 二度と 開けない（作りの 見張り）★', (
     );
   });
 });
+
+// ============================================================
+// ★★2026-09-28＝対立役に 叩かれて 塗った 3つ★★
+//   どれも ★本物の 関数で 再現してから★ 直した。
+//   ①★前の会社の 勤務が 新しい会社へ 上がる★（★私が 開けた 穴★）
+//      印を 外す 道は 3本（[続ける]／履歴の直し／取り戻し）あるのに
+//      dk_seal_other_co を 見ていたのは resendOnce だけだった。
+//      実測: 切り離し直後 0件 → [続ける] の後 ★1件★。
+//      ⇒ 外す 側を 3本 直すのでなく ★送る 直前で 弾く★（selectUnsynced の 第3引数）
+//   ②★送信の 暴走★ DRAIN_MAX は run() 1本ごとの 数だった。
+//      online は 車庫や トンネルの 出口で 連発する ⇒ 上限が 効かない。
+//   ③★倉庫が 満杯で 積めなかったのに 「積んだ」事に していた★（前から在る穴）
+//      ⇒ abandon() が 積み直さず ★その晩の 勤務が 丸ごと 消える★
+// ============================================================
+describe('★対立役の 指摘を 塗いだか★', () => {
+  const T = 1756000000000;
+  const tana = () => {
+    const store = Object.create(null);
+    return {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => {
+        store[k] = String(v);
+      },
+      removeItem: (k) => {
+        delete store[k];
+      },
+    };
+  };
+
+  it('①[続ける]で 印を 外しても 前の会社の 勤務は 送らない', () => {
+    const ls = tana();
+    ls.setItem(HISTORY_KEY, JSON.stringify([{ start_time: T, trips: [] }]));
+    ls.setItem('dk_sync_company', 'TESTCO');
+    JobSync.sealForCompanySwitch(ls, 'PRODCO');
+    const other = readJson(ls, JobSync.K_SEAL_OTHER_CO, []);
+    expect(other, '前提: 別の棚に 入っていない').toContain(String(T));
+
+    ls.setItem(JobSync.K_SYNCED, '[]'); // ★[続ける] が 印を 外した★
+    const h = readJson(ls, HISTORY_KEY, []);
+    expect(
+      JobSync.selectUnsynced(h, [], other).length,
+      '★前の会社の 勤務が 新しい会社へ 上がる★'
+    ).toBe(0);
+    // ★門を 外すと 漏れる事★も ここで 数える（偽の緑でない 証し）
+    expect(JobSync.selectUnsynced(h, []).length, '前提: 門が 無ければ 漏れる').toBe(1);
+  });
+
+  it('①取り戻しの 後でも 前の会社の 勤務は 送らない（通し）', () => {
+    const ls = tana();
+    ls.setItem(HISTORY_KEY, JSON.stringify([{ start_time: T, trips: [] }]));
+    ls.setItem('dk_sync_company', 'TESTCO');
+    JobSync.sealForCompanySwitch(ls, 'PRODCO');
+    JobSync.resendOnce(ls);
+    ls.setItem(JobSync.K_SYNCED, '[]'); // さらに [続ける] も 押された
+    expect(
+      JobSync.selectUnsynced(
+        readJson(ls, HISTORY_KEY, []),
+        [],
+        readJson(ls, JobSync.K_SEAL_OTHER_CO, [])
+      ).length
+    ).toBe(0);
+  });
+
+  it('③倉庫が 満杯で 積めなかったら 「積んだ」事に しない', () => {
+    const store = Object.create(null);
+    let manpai = false;
+    const ls = {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => {
+        if (manpai && k === HISTORY_KEY) throw new Error('QuotaExceeded');
+        store[k] = String(v);
+      },
+      removeItem: (k) => {
+        delete store[k];
+      },
+    };
+    const B = loadBusiness(ls);
+    B.start();
+    B.onTripEnd(1000, 2000, Date.now());
+    manpai = true;
+    B.end();
+    expect(
+      B.getState().history_pushed,
+      '★積めていないのに 積んだ事に している＝その晩の 勤務が 消える★'
+    ).toBe(false);
+    manpai = false;
+    B.abandon(); // 次の 業務開始で 走る
+    expect(readJson(ls, HISTORY_KEY, []).length, '★積み直せていない★').toBe(1);
+  });
+
+  it('③普通に 積めた時は 二重に ならない（直しが 別の穴を 開けていないか）', () => {
+    const ls = tana();
+    const B = loadBusiness(ls);
+    B.start();
+    B.onTripEnd(1000, 2000, Date.now());
+    B.end();
+    expect(B.getState().history_pushed).toBe(true);
+    B.abandon();
+    expect(readJson(ls, HISTORY_KEY, []).length, '★二重に 積んだ★').toBe(1);
+  });
+});
