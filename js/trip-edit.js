@@ -226,6 +226,32 @@
           } catch (_) {
             /* ignore */
           }
+          // ★★2026-09-29 追加＝履歴にも 同じ勤務が 居たら そっちも 直す★★
+          //   ★対立役に 叩かれて 見つかった（お金が そのまま ずれる）★
+          //     [業務終了] を 押すと business.js:end が ★履歴にも 積む★。
+          //     でも state.start_time は 残る（limbo）ので findShiftOf は ★current を 先に 返す★。
+          //     ⇒ 直るのは 画面と state だけ。★job-sync が 読むのは 履歴★
+          //       （grep: js/job-sync.js に daikou_business_state の字は 0個）
+          //     ⇒ 値引きが 届かないどころか ★印を 外して 古い額を わざわざ 送り直す★。
+          //     実測: 画面 4,000／state 4,000／★履歴 5,000／送る額 5,000★
+          //       ＝値引き 1,000円 を 余計に 請求する。請求先の 付け直しなら ★その代行の 全額★。
+          //   ★どちらが 使われるかを 当てるのでなく「居る方を 全部 揃える」★
+          try {
+            const hi = _arr(bizHist).findIndex(
+              (x) => x && _num(x.start_time) === _num(found.shiftStart)
+            );
+            if (hi >= 0) {
+              const hTrips = _arr(bizHist[hi].trips).slice();
+              const hti = hTrips.findIndex((t) => _num(t && t.start_time) === tripKey);
+              if (hti >= 0) {
+                hTrips[hti] = applyToTrip(hTrips[hti], newRide);
+                bizHist[hi] = recountShift(Object.assign({}, bizHist[hi], { trips: hTrips }));
+                store.setItem(K_BIZ_HISTORY, JSON.stringify(bizHist));
+              }
+            }
+          } catch (_) {
+            /* 履歴を 直せなくても 画面の 直しは 通す */
+          }
         } else {
           bizHist[found.index] = fixed;
           store.setItem(K_BIZ_HISTORY, JSON.stringify(bizHist));

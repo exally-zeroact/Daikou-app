@@ -539,3 +539,117 @@ describe('★直した印が残ること（あとで見て分かる）★', () =
     expect(out.edited_at).toBe(1785900000000);
   });
 });
+
+// ============================================================
+// ★★2026-09-29＝[業務終了] の 後（limbo）に 直した分が 事務所に 届くか★★
+//   ★対立役に 叩かれて 見つかった★（私も 本物の 関数で 再現した）
+//     [業務終了] を 押すと business.js:end が ★履歴にも 積む★。
+//     でも state.start_time は 残る（limbo）ので findShiftOf は ★current を 先に 返す★。
+//     ⇒ 直るのは 画面と state だけ。★job-sync が 読むのは 履歴★
+//       （grep: js/job-sync.js に daikou_business_state の字は 0個）
+//     ⇒ 値引きが 届かないどころか ★印を 外して 古い額を わざわざ 送り直す★。
+//     実測（直す前）: 画面 4,000／state 4,000／★履歴 5,000／送る額 5,000★
+//     画面には「事務所へ送り直します」と 出るので ★嘘の 安心★ に なっていた。
+// ★わざと壊して 赤に なる事を 見た★
+//   js/trip-edit.js の 「履歴にも 同じ勤務が 居たら そっちも 直す」塊を 消す → ★赤★
+// ============================================================
+describe('★[業務終了]の後に 直した分が 事務所へ 届くか★', () => {
+  const T = 1790000000000;
+  const tsukuru = () => {
+    const store = Object.create(null);
+    const ls = {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => {
+        store[k] = String(v);
+      },
+      removeItem: (k) => {
+        delete store[k];
+      },
+    };
+    const trip = {
+      start_time: T,
+      distance_m: 5000,
+      fare_yen: 5000,
+      customer_id: null,
+      customer_name: null,
+      payment_type: 'cash',
+    };
+    const shift = { start_time: T - 1000, trips: [trip], trip_count: 1, fare_total_yen: 5000 };
+    // ★limbo＝state にも 履歴にも 同じ勤務が 居る★
+    ls.setItem('daikou_business_state', JSON.stringify(shift));
+    ls.setItem('daikou_business_history', JSON.stringify([JSON.parse(JSON.stringify(shift))]));
+    ls.setItem(
+      'daikou_history_x',
+      JSON.stringify([
+        {
+          trip_key: T,
+          start_time: T,
+          distance_m: 5000,
+          fare: 5000,
+          meter_fare: 5000,
+          extras: [],
+          discounts: [],
+        },
+      ])
+    );
+    ls.setItem('dk_synced_shifts', JSON.stringify([String(T - 1000)]));
+    return ls;
+  };
+  const rireki = (ls) => JSON.parse(ls.getItem('daikou_business_history'))[0].trips[0];
+
+  it('値引きが 履歴（事務所へ 上がる方）にも 入る', () => {
+    const ls = tsukuru();
+    const r = TE.apply({
+      store: ls,
+      rideKey: 'daikou_history_x',
+      tripKey: T,
+      edit: { discounts: [{ label: '値引き', amount: 1000 }] },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.total).toBe(4000);
+    expect(rireki(ls).fare_yen, '★履歴が 古いまま＝値引き分を 余計に 請求してしまう★').toBe(4000);
+  });
+
+  it('請求先の 付け直しが 履歴にも 入る（入らないと 全額 請求に 載らない）', () => {
+    const ls = tsukuru();
+    const r = TE.apply({
+      store: ls,
+      rideKey: 'daikou_history_x',
+      tripKey: T,
+      edit: { customer: { customer_id: 'c1', customer_name: '藤原建設' } },
+    });
+    expect(r.ok).toBe(true);
+    expect(rireki(ls).payment_type, '★履歴が 現金のまま＝請求書に 1行も 立たない★').toBe('invoice');
+    expect(rireki(ls).customer_name).toBe('藤原建設');
+  });
+
+  it('state の方も 同じ額に なっている（片方だけ 直していないか）', () => {
+    const ls = tsukuru();
+    TE.apply({
+      store: ls,
+      rideKey: 'daikou_history_x',
+      tripKey: T,
+      edit: { discounts: [{ label: '値引き', amount: 1000 }] },
+    });
+    const st = JSON.parse(ls.getItem('daikou_business_state'));
+    expect(st.trips[0].fare_yen).toBe(4000);
+    expect(rireki(ls).fare_yen).toBe(4000);
+  });
+
+  it('業務中（履歴に まだ 積んでいない）は 今までどおり state だけ', () => {
+    const ls = tsukuru();
+    ls.setItem('daikou_business_history', '[]'); // 業務中＝履歴に 居ない
+    const r = TE.apply({
+      store: ls,
+      rideKey: 'daikou_history_x',
+      tripKey: T,
+      edit: { discounts: [{ label: '値引き', amount: 1000 }] },
+    });
+    expect(r.ok).toBe(true);
+    expect(JSON.parse(ls.getItem('daikou_business_state')).trips[0].fare_yen).toBe(4000);
+    expect(
+      JSON.parse(ls.getItem('daikou_business_history')).length,
+      '★居ないのに 作ってしまっている★'
+    ).toBe(0);
+  });
+});

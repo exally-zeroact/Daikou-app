@@ -426,3 +426,68 @@ describe('★対立役の 指摘を 塗いだか★', () => {
     expect(readJson(ls, HISTORY_KEY, []).length, '★二重に 積んだ★').toBe(1);
   });
 });
+
+// ============================================================
+// ★★2026-09-29＝取り戻しの「1回だけ」が 落ちる 穴★★
+//   ★対立役に 叩かれて 見つかった（私の 片手落ち）★
+//     前は「印を 外す → 1回だけの印を 付ける」の 順で、後者を 握り潰していた。
+//     倉庫が 満杯の 端末は ★新しい鍵だけ 作れない★ので
+//       ・印は 外せる（既に在る鍵・短くなる＝通る）
+//       ・`dk_resend_once_v1` は 付かない
+//     ⇒ ★起動のたび 全件 送り直す★＝事務所の 手直しが 毎晩 消える。
+//     同じ形を business.js:end で 09-28 に 塞いだのに ここは 塞いでいなかった。
+//   ★直し★ 先に 印を 書き、書けなかったら ★1件も 外さずに 帰る★。
+// ============================================================
+describe('★取り戻しの「1回だけ」が 倉庫満杯でも 崩れないか★', () => {
+  const mk = (manpai) => {
+    const store = Object.create(null);
+    return {
+      getItem: (k) => (k in store ? store[k] : null),
+      setItem: (k, v) => {
+        if (manpai && !(k in store)) throw new Error('QuotaExceeded');
+        store[k] = String(v);
+      },
+      removeItem: (k) => {
+        delete store[k];
+      },
+      _s: store,
+    };
+  };
+  const tsumu = (ls) => {
+    ls.setItem(
+      HISTORY_KEY,
+      JSON.stringify([
+        { start_time: 1, trips: [] },
+        { start_time: 2, trips: [] },
+      ])
+    );
+    ls.setItem(JobSync.K_SYNCED, JSON.stringify(['1', '2']));
+  };
+
+  it('ふつうの 倉庫では 1回だけ 走り、印を 外す', () => {
+    const ls = mk(false);
+    tsumu(ls);
+    let go = 0;
+    for (let i = 0; i < 4; i++) if (JobSync.resendOnce(ls).ran) go++;
+    expect(go, '★1回だけの 印が 効いていない★').toBe(1);
+    expect(readJson(ls, JobSync.K_SYNCED, []).length).toBe(0);
+  });
+
+  it('★倉庫が 満杯なら 1件も 外さずに 帰る★（毎晩 上書きしない）', () => {
+    const ls = mk(false);
+    tsumu(ls);
+    const manpai = {
+      getItem: ls.getItem,
+      setItem: (k, v) => {
+        if (!(k in ls._s)) throw new Error('QuotaExceeded');
+        ls._s[k] = String(v);
+      },
+      removeItem: ls.removeItem,
+    };
+    for (let i = 0; i < 4; i++) JobSync.resendOnce(manpai);
+    expect(
+      readJson(manpai, JobSync.K_SYNCED, []).length,
+      '★満杯なのに 印を 外した＝毎晩 事務所の 手直しが 消える★'
+    ).toBe(2);
+  });
+});

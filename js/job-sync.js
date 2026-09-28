@@ -461,6 +461,23 @@
         if (noSend[key]) return true; // ★前の会社の物＝絶対に外さない★
         return false; // 外す＝次の sync で送り直す
       });
+      // ★★2026-09-29 直し＝「1回だけ」の 印を ★先に★ 書く★★
+      //   ★対立役に 叩かれて 見つかった（私の 片手落ち）★
+      //     前は「印を 外す → 1回だけの 印を 付ける」の 順で、後者を try で 握り潰していた。
+      //     倉庫が 満杯の 端末は ★新しい鍵だけ 作れない★ので
+      //       ・印は 外せる（既に 在る鍵・短くなる＝通る）
+      //       ・`dk_resend_once_v1` は 付かない
+      //     ⇒ ★起動の たびに 全件 送り直す★（実測: 5起動 5回とも 走った）
+      //     ⇒ 事務所が 手で 直した 金額が ★毎晩 メーターの値に 戻る★。
+      //   ★同じ形を business.js:end で 09-28 に 塞いだのに ここは 塞いでいなかった★
+      //     ＝[[feedback_mihon_no_michi_ga_futatsu_aru_toki_katahou_dake_naosu_na]]
+      //   ★直し★ 先に 印を 書き、書けなかったら ★1件も 外さずに 帰る★。
+      //     （取り戻しを 1回 やり損ねる方が、毎晩 上書きするより ずっと 安い）
+      try {
+        st.setItem(K_RESEND_ONCE, String(Date.now()));
+      } catch (_) {
+        return out; // ★1回だけの 印が 付けられない＝取り戻しを やらない★
+      }
       out.unsealed = synced.length - next.length;
       if (out.unsealed > 0) {
         try {
@@ -468,11 +485,6 @@
         } catch (_) {
           return out; // 書けなかった＝印は付いたまま。次の起動でまた試す
         }
-      }
-      try {
-        st.setItem(K_RESEND_ONCE, String(Date.now()));
-      } catch (_) {
-        /* ignore */
       }
       return out;
     } catch (_) {
@@ -519,7 +531,27 @@
   }
 
   // 送る。返り値は必ずオブジェクト(throw しない)。
+  // ★★2026-09-29 直し＝錠を sync() 自身に 移した★★
+  //   ★対立役の 2人目に 叩かれて 見つかった（私の 直しが 不完全だった）★
+  //     9/28 に 足した 錠は ★init() の 中の 閉じ込め変数★で、
+  //     init の ドレイン鎖 しか 守っていなかった。
+  //     ところが sync() は ★外から 直に 2本 呼ばれている★:
+  //       index.html:10630（[業務終了]の 直後）／index.html:13593（履歴の 直しの 反映）
+  //     ⇒ 錠を 通らずに 重なる ⇒ K_SYNCED を 始めに 読み 終わりに 書き戻すので
+  //       ★印が 消し合い 同じ勤務が 何度も 飛ぶ★（＝dk_trips の 入れ直しも 何度も 走る）。
+  //   ★直し★ 錠を ★モジュールの 高さ★ に 置き、sync() の 入口で 掛ける。
+  //     ★走っている物を 返す（coalesce）★＝呼んだ側は ちゃんと 結果を 受け取れる
+  //     （「busy」で 帰すと [業務終了]の トーストが 嘘に なる）。
+  let _ugoiteru = null;
   async function sync() {
+    if (_ugoiteru) return _ugoiteru; // ★重ねない・走っている物の 結果を 返す★
+    _ugoiteru = _sync().finally(function () {
+      _ugoiteru = null;
+    });
+    return _ugoiteru;
+  }
+
+  async function _sync() {
     try {
       const companyToken = _get(K_COMPANY);
       const deviceId = _deviceId();
