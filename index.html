@@ -11456,6 +11456,7 @@
         //   初回登録 (controller=null → SW) では reload しない (無限 loop 防止)。
         const _hadSWController = !!navigator.serviceWorker.controller;
         let _swReloaded = false;
+        let _swHatsukaiMita = false; // ★初回登録の controllerchange を 1回だけ 見送る印 (2026-09-28)
         // ★★業務中は 新しい版を 当てない（読み直さない）★★ 2026-09-06（司さん）
         //   ★司さんの言葉★「なんで距離や課金変わらんってあれだけゆうて変わったんど」
         //
@@ -11476,40 +11477,87 @@
         //     ・業務が 終わったら 5秒以内に 自分で 読み直します
         //   ★距離にも 料金にも 1文字も 触っていません★（★いつ 読み直すか★ だけ）
         let _swReloadMachi = false;
-        function _gyoumuChuu() {
+        // ★★2026-09-28 直し★★ 司さん「タスクキルせな バージョンが 更新されない」
+        //
+        //   ★何が 起きていたか（コードを 読んで 特定）★
+        //     ここは 「業務中は 読み直さない」（2026-09-06 司さん・走行中に 読み直すと
+        //     OBD が 切れて 距離が 短く 出た）ために 止めている。
+        //     ところが 判定が `!!(s && s.start_time)` ＝★start_time が 在るか★ だけだった。
+        //     `start_time` は [業務終了] を 押しても ★消えない★（business.js:end は
+        //     ended=true に するだけ・消えるのは [終了]=abandon か 次の 業務開始の 時）。
+        //     ⇒ ★仕事と 仕事の 間ずっと「業務中」扱い★＝読み直しが 永久に 止まる。
+        //     ⇒ 新しい 服（sw.js）は 入っているのに 画面の js が 古いまま
+        //        ＝★タスクキルしないと 変わらない★（司さんが 見ていた 形）。
+        //
+        //   ★直し★ 止めるのは ★業務が 動いている間（active）だけ★ に する。
+        //     ・active=true  … GPS/OBD/メーターが 動いている ⇒ ★読み直さない★（09-06 の 決まりは そのまま）
+        //     ・limbo（[業務終了]を 押した後・active=false）⇒ ★読み直してよい★
+        //       　業務の 中身は localStorage に 在り、読み直しても そのまま 戻る。
+        //       　★勝手に 再開しない★（再開は [続ける] を 押した時だけ＝onResumeFromStart）。
+        //     ・業務なし ⇒ 読み直してよい
+        //   ★距離にも 料金にも 1文字も 触っていません★（★いつ 読み直すか★ だけ）
+        //
+        //   ★試験から 呼べるように 外に 出す★（画面の 中だけに 書くと 誰も 測れない）
+        function _swYominaoshiteYoiKa() {
           try {
             const s =
               typeof Business !== 'undefined' && typeof Business.getState === 'function'
                 ? Business.getState()
                 : null;
-            return !!(s && s.start_time);
+            if (!s || !s.start_time) return { ok: true, wake: 'business_nashi' };
+            if (s.active) return { ok: false, wake: 'gyoumu_chuu' };
+            return { ok: true, wake: 'limbo' }; // ★[業務終了]の 後＝止めない★
           } catch (_) {
-            // ★分からない時は「業務中では ない」＝今まで通り★
+            // ★分からない時は 読み直してよい＝今まで通り★
             //   （ここに来るのは Business が まだ 読めていない＝起動直後だけ）
-            return false;
+            return { ok: true, wake: 'wakaranai' };
           }
         }
-        navigator.serviceWorker.addEventListener('controllerchange', function () {
+        window.__swYominaoshiteYoiKa = _swYominaoshiteYoiKa;
+
+        function _atotemawashi(doko) {
           if (_swReloaded) return;
-          if (!_hadSWController) return; // 初回登録は reload skip
-          if (_gyoumuChuu()) {
+          const h = _swYominaoshiteYoiKa();
+          if (!h.ok) {
             _swReloadMachi = true;
             if (typeof dlog === 'function')
-              dlog('[SW] controllerchange → ★業務中なので 読み直さない★（業務終了まで 待つ）');
+              dlog('[SW] ' + doko + ' → ★業務中なので 読み直さない★（業務が 終わるまで 待つ）');
             return;
           }
           _swReloaded = true;
-          if (typeof dlog === 'function') dlog('[SW] controllerchange → reload (新 code 適用)');
+          if (typeof dlog === 'function')
+            dlog('[SW] ' + doko + ' → reload (新 code 適用・訳=' + h.wake + ')');
           window.location.reload();
+        }
+
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (_swReloaded) return;
+          // ★初回登録（この画面が 服を 着ていなかった）時の 1回目だけ 見送る★
+          //   ★前は `if (!_hadSWController) return;` で ★その画面では 二度と 読み直さなかった★。
+          //   服を 着ていない 状態で 開く事は ふつうに 起きる（初回・強制再読込・服の 入れ替え中）。
+          //   ⇒ 見送るのは ★1回だけ★ に して、2回目からは 当てる。
+          if (!_hadSWController && !_swHatsukaiMita) {
+            _swHatsukaiMita = true;
+            if (typeof dlog === 'function') dlog('[SW] controllerchange（初回）→ 見送る');
+            return;
+          }
+          _atotemawashi('controllerchange');
         });
         // ★業務が 終わったら 当てる★（待たせた 分を 取りに行く）
         setInterval(function () {
-          if (!_swReloadMachi || _swReloaded) return;
-          if (_gyoumuChuu()) return;
-          _swReloaded = true;
-          if (typeof dlog === 'function') dlog('[SW] 業務が 終わったので 新 code を 当てる');
-          window.location.reload();
+          if (!_swReloadMachi) return;
+          _atotemawashi('業務が 終わった');
         }, 5000);
+        // ★画面に 戻った時にも 当てる★（5秒の 待ちを 挟まない・裏で 待たされたままに しない）
+        try {
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState !== 'visible') return;
+            if (!_swReloadMachi) return;
+            _atotemawashi('画面に 戻った');
+          });
+        } catch (_) {
+          /* ignore */
+        }
         navigator.serviceWorker
           .register('/sw.js')
           .then(function (reg) {
