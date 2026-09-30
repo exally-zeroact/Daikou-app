@@ -179,7 +179,15 @@ describe.skipIf(!HAS_FN)('★請求書の備考を、消さずに直せること
 
   const exist = (note) => ({
     id: 'r1',
-    extra: { dk_ref: 'd:1785835513046:1', dk_source: 'daikome', dk_distance_m: 3000 },
+    // ★★2026-09-29 足した＝dk_meter_yen（その時 メーターが 出していた 額）★★
+    //   これが 無いと planMeisaiWrite は 「印を 付け直す」ために 1回 書きに 行く。
+    //   ここは 「同じ名前なら 書きに 行かない」を 見る 紙なので 印も 揃える。
+    extra: {
+      dk_ref: 'd:1785835513046:1',
+      dk_source: 'daikome',
+      dk_distance_m: 3000,
+      dk_meter_yen: 1800,
+    },
     company: '藤原建設株式会社',
     date: '2026-08-04',
     destination: '祇園',

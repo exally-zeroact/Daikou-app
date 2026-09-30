@@ -156,6 +156,15 @@ function buildMeisaiRows(opts) {
         dk_from: placeText(t.start_address, homeCity), // 出発地（標準の列に無い）
         dk_source: 'daikome',
         dk_distance_m: typeof t.distance_m === 'number' ? t.distance_m : null, // ★正確な距離★
+        // ★★メーターが その時 出していた 金額 (2026-09-29)★★
+        //   ★これが 無いと「事務所が 手で 直した」と「メーターが 変わった」を 見分けられない★。
+        //   下の planMeisaiWrite は この 値と くらべて、
+        //   ★メーターが 変わった時だけ amount を 直す★（詳しくは そちらの 注記）。
+        // ★amount と ★同じ 丸め方★ に する（2026-09-29）
+        //   前は amount = Math.round(fare_yen) なのに 印だけ 丸めていなかった。
+        //   今の 本番は fare_yen の 小数 ★0件★（実測）なので まだ 踏んでいないが、
+        //   1件でも 小数が 出た日から ★毎回 「メーターが 変わった」と 読んで 上書きし続ける★。
+        dk_meter_yen: typeof t.fare_yen === 'number' ? Math.round(t.fare_yen) : null,
         // ★車の札 (2026-09-03)★ 取れた時だけ 足す（無い時は キーごと 作らない）
         ...(carLabel === null ? {} : { dk_car: carLabel }),
         ...(carNo === null ? {} : { dk_car_no: carNo }),
@@ -205,8 +214,66 @@ function planMeisaiWrite(rows, existing) {
   (Array.isArray(rows) ? rows : []).forEach((r) => {
     const cur = byRef.get(String(r.extra.dk_ref));
     if (!cur) return inserts.push(r);
+    // ★★事務所が 消した 行には 一切 触らない（2026-09-29）★★
+    //   本番実測：dk_ref 付き 150行中 ★32行が deleted_at 付き★。
+    //   見ていなかったので ★消した 行に 印を 打ち、条件次第で 金額も 戻していた★。
+    //   消したのは 人の 決め なので ★生き返らせない・書き換えない★。
+    //   （insert も しない＝索引が 弾くので どうせ 入らない）
+    if (cur.deleted_at) return;
     const patch = {};
+    // ★★2026-09-29＝金額は「メーターが 変わった時だけ」直す（司さん「1.2両方やれや」）★★
+    //   ★何が 起きていたか（対立役2人＋私が 別々に 数えて 一致）★
+    //     amount は 名簿(UPDATABLE)に 載っているだけで ★守りが 1つも 無かった★。
+    //     ⇒ 事務所（代行請求書アプリ）で 手で 直した 金額が、送り直しの たびに
+    //       ★メーターの 値に 黙って 戻る★。
+    //     本番の 実測(2026-09-29・私が その場で 数え直した):
+    //       dk_ref で 突き合わせた 150行 中 ★143行は 同じ・7行だけ 違う★。
+    //       ★向き★（前に 1回 逆に 書いて 司さんに 逆で 伝えた。ここが 正しい 向き）:
+    //         ・明細が メーターより ★低い★ …… 6行・計 ★1,400円★（＝取りっぱぐれ側）
+    //         ・明細が メーターより ★高い★ …… 1行・  ★2,000円★（＝多く 請求 側）
+    //       ★どちらが 動いたかは 分からない（見立て）★
+    //         … daikou.meisai に updated_at が 無い ので
+    //           「事務所が 直した」のか「メーター側が 後から 変わった」のかは 決められない。
+    //       （全部 8月分＝端末の 30日の 外＝★たまたま 射程外だっただけ★）
+    //   ★見分け方★ 書く時に `extra.dk_meter_yen`（その時の メーターの 額）を 一緒に 残す。
+    //     ・印と 今の メーターが ★同じ★ … メーターは 変わっていない
+    //        ⇒ 金額が 違うのは ★事務所が 直したから★ ⇒ ★触らない★
+    //     ・印と 今の メーターが ★違う★ … 運転手が 値引き等で 直した
+    //        ⇒ ★直す★（今までどおり 届ける）
+    //     ・印が ★無い★（この直しより 前に 入った 行）
+    //        ⇒ ★ここが 2026-09-29 に 対立役に 叩かれて 直った 所★（下に 書く）
+    //   ★備考・人数・名前は 今までどおり 触らない。距離や 日付は 今までどおり 直す。★
+    //
+    //   ★★印が 無い 行の 扱い＝はじめ 逆の 穴を 開けていた（実測で 再現した）★★
+    //     最初の 形は「触らない＋印は 今の メーターの 額に 進める」だった。
+    //     ⇒ 運転手が 値引きを 入れると
+    //        1回目: 金額は 触らず ★印だけ 値引き後の 額に 進む★
+    //        2回目: 印と メーターが 同じ ＝「変わっていない」⇒ ★もう 二度と 直さない★
+    //       ＝★値引きが 一生 届かない★（実測: 請求書 3,000／メーター 2,500／ずれ 500円 固定）
+    //     ★「1回 取りこぼす」では なく「永久に 取りこぼす」だった。★
+    //   ★★印が 無い 行の 扱い＝2回 やり直して ここに 落ち着いた★★
+    //     1回目「触らない＋印を 進める」… ★値引きが 一生 届かない★（実測 500円 固定）
+    //     2回目「触らない＋印も 付けない（人の裁き待ち）」
+    //        … ★交換比が 逆★だった（対立役の 指摘・本番で 数えた）:
+    //          守る 相手 7行（低い6行 1,400円＋高い1行 2,000円）は
+    //            ★全部 30日の 外＝もう 送られない＝元から 安全★
+    //          塞ぐ 相手 83行・169,500円 は ★これから 毎日 使う「値引きが 届く 道」★
+    //        さらに 返事に 出した 裁き待ちは ★誰も 読んでいなかった★（j.meisai の 読み手 0箇所）
+    //        ＝「黙って 放置しない」と 言いながら 実際は 放置。
+    //     3回目（今）★読んで 直すのを やめ 構造で 直す★:
+    //        ・印が 無い 行は ★今までどおり 直す★（＝値引きは 届く）
+    //        ・印は ★書いた 時に 必ず 付く★（buildMeisaiRows）ので 新しい行は 最初から 守られる
+    //        ・既に 在る 行は ★1回きりの 埋め戻し★で 印を 入れる
+    //          （supabase/apply-meisai-dkmeteryen-backfill.sql・印は ★メーターの額★ で 埋めるので
+    //            ずれている 7行も そのまま 守られる）
+    const meterIma = r.amount === undefined ? null : r.amount;
+    const meterMae = cur.extra ? cur.extra.dk_meter_yen : undefined;
+    const inGaAru = meterMae !== undefined && meterMae !== null;
+    // 印が 在る … メーターが 変わった時だけ 直す（＝事務所の 直しを 守る）
+    // 印が 無い … 今までどおり 直す（守りは 埋め戻しが 済むまでの 間だけ 効かない）
+    const kanekoWoNaosu = !inGaAru || !_same(meterMae, meterIma);
     UPDATABLE.forEach((c) => {
+      if (c === 'amount' && !kanekoWoNaosu) return; // ★事務所の 直しを 守る★
       const a = cur[c] === undefined ? null : cur[c];
       const b = r[c] === undefined ? null : r[c];
       if (!_same(a, b)) patch[c] = b;
@@ -220,8 +287,13 @@ function planMeisaiWrite(rows, existing) {
     if (newNote && !_same(cur.note === undefined ? null : cur.note, newNote)) patch.note = newNote;
     // 正確な距離も更新する（extra は自分の物なので、司さんの書いた列とは別）
     const curM = cur.extra ? cur.extra.dk_distance_m : undefined;
-    if (String(curM === undefined ? null : curM) !== String(r.extra.dk_distance_m)) {
+    const kyoriGaChigau =
+      String(curM === undefined ? null : curM) !== String(r.extra.dk_distance_m);
+    // ★メーターの 額の 印★ … 今の メーターの 額に 揃える（無ければ 付く・変われば 進む）
+    const inGaChigau = String(meterMae === undefined ? null : meterMae) !== String(meterIma);
+    if (kyoriGaChigau || inGaChigau) {
       patch.extra = Object.assign({}, cur.extra, { dk_distance_m: r.extra.dk_distance_m });
+      if (inGaChigau) patch.extra.dk_meter_yen = meterIma;
     }
     if (Object.keys(patch).length) updates.push({ id: cur.id, patch: patch });
   });
