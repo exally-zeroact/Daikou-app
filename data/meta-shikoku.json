@@ -1,10 +1,10 @@
 {
   "region": "shikoku",
-  "generated": "2026-09-01T20:35:01.157Z",
+  "generated": "2026-10-01T22:26:46.102Z",
   "prefectures": {
     "tokushima": {
-      "numRoads": 57154,
-      "sizeBytes": 2051931,
+      "numRoads": 57163,
+      "sizeBytes": 2052590,
       "bbox": [
         3324560,
         13392012,
@@ -12,21 +12,21 @@
         13481916
       ],
       "attrCounts": {
-        "oneway": 1425,
+        "oneway": 1412,
         "incline": 15,
-        "lanes": 5226,
-        "width": 9,
-        "layer": 5583,
+        "lanes": 5223,
+        "width": 10,
+        "layer": 5612,
         "access": 39,
-        "maxspeed": 1695,
+        "maxspeed": 1674,
         "track": 0,
         "inclineFromOSM": 15,
         "inclineFromDem": 0
       }
     },
     "kagawa": {
-      "numRoads": 77384,
-      "sizeBytes": 2697945,
+      "numRoads": 77259,
+      "sizeBytes": 2693800,
       "bbox": [
         3381258,
         13352821,
@@ -34,21 +34,21 @@
         13435819
       ],
       "attrCounts": {
-        "oneway": 3228,
+        "oneway": 3230,
         "incline": 72,
-        "lanes": 6931,
+        "lanes": 6948,
         "width": 49,
-        "layer": 5408,
-        "access": 144,
-        "maxspeed": 4387,
+        "layer": 5473,
+        "access": 141,
+        "maxspeed": 4383,
         "track": 0,
         "inclineFromOSM": 72,
         "inclineFromDem": 0
       }
     },
     "ehime": {
-      "numRoads": 117546,
-      "sizeBytes": 4608139,
+      "numRoads": 117519,
+      "sizeBytes": 4608025,
       "bbox": [
         3270859,
         13201828,
@@ -56,11 +56,11 @@
         13332927
       ],
       "attrCounts": {
-        "oneway": 2591,
+        "oneway": 2599,
         "incline": 7,
-        "lanes": 5231,
+        "lanes": 5262,
         "width": 592,
-        "layer": 6216,
+        "layer": 6217,
         "access": 36,
         "maxspeed": 786,
         "track": 0,
@@ -69,8 +69,8 @@
       }
     },
     "kochi": {
-      "numRoads": 56448,
-      "sizeBytes": 2148323,
+      "numRoads": 56460,
+      "sizeBytes": 2148993,
       "bbox": [
         3272272,
         13292826,
@@ -78,13 +78,13 @@
         13412764
       ],
       "attrCounts": {
-        "oneway": 1809,
+        "oneway": 1807,
         "incline": 24,
-        "lanes": 4643,
+        "lanes": 4641,
         "width": 6,
         "layer": 4753,
         "access": 45,
-        "maxspeed": 1804,
+        "maxspeed": 1802,
         "track": 0,
         "inclineFromOSM": 24,
         "inclineFromDem": 0
