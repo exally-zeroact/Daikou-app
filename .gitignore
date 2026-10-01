@@ -74,3 +74,6 @@ PROMPT_NEW_CHAT.md
 
 # supabase CLI が 作る 一時ファイル（2026-08-30・料金表の引っ越しで 紛れ込んだ）
 supabase/.temp/
+
+# ★見せる ための 絵（その場で 作り直せる）＝repo に 置かない★ 2026-10-01
+data/shashin/

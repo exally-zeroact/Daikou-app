@@ -108,20 +108,67 @@ test('★② 2回目＝パスワードだけ（違えば 断る）★', async ({
 });
 
 test('★③ 事務所の 物を 出さない／事務所の 読み込みを 呼ばない★', async ({ page }) => {
+  // ★★2026-10-01 測り方を 変えた：札(style.display)でなく ★本当に 見えるか★★
+  //   前は `btnPrint.style.display === 'none'` を 見ていた。
+  //   だが ★親を 隠しても 子の style は 空のまま★ なので、
+  //   「見えていない のに 赤」にも、「見えている のに 緑」にも なる。
+  //   ＝[[見張りは 印(class)でなく 絵が 変わったか]]。★見えるかで 測る★。
   await page.setViewportSize({ width: 430, height: 900 });
   const kazoe = await nise(page, false);
   await page.fill('#hnPw', 'abcd1234');
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
-  const naka = await page.evaluate(() => ({
-    tabs: document.getElementById('tabs').style.display,
-    print: document.getElementById('btnPrint').style.display,
-    links: document.getElementById('jimushoLinks').style.display,
-  }));
-  expect(naka.tabs, '★タブが 出ています★').toBe('none');
-  expect(naka.print, '★全員印刷が 出ています★').toBe('none');
-  expect(naka.links, '★事務所へのリンクが 出ています★').toBe('none');
+  for (const id of [
+    'tabs',
+    'btnPrint',
+    'jimushoLinks',
+    'monthCard',
+    'paneHours',
+    'paneEmp',
+    'paneSet',
+  ])
+    await expect(page.locator('#' + id), '★本人に 見えています: #' + id + '★').toBeHidden();
   expect(kazoe.jimusho, '★事務所の 読み込みを 呼んでいます★').toBe(0);
+});
+
+test('★★★⑥ 本人の 画面に「他の人を 選べる」口が 1つも 無い★★★', async ({ page }) => {
+  // ★司さん（2026-10-01）★
+  //   「LINEで給料明細送った画面になんで赤丸のところが見えるんど
+  //    個別で送ったんやけん人とか選べたらいかんやろが」
+  //   実際に 本番の 画面で 出ていた：
+  //     「PDFで 見る（給料表）」の #kamiCard
+  //       → 「月ごと（全体）」「日ごと（全員）」「個別（選んだ人）」
+  //   因：本人モードが ★隠す物の 名簿★ だったので、
+  //      後から 足した カードが 名簿に 入らず 漏れた。
+  //   直し：★出してよい 物だけ 出す（白名簿）★に したので
+  //      ★新しい カードを 足しても 既定で 出ない★。
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false);
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+
+  // ① 名指し：問題の カード
+  await expect(page.locator('#kamiCard'), '★PDFの カードが 本人に 見えています★').toBeHidden();
+
+  // ② 字：他人を 選べる 言葉が 1つも 見えていない
+  const mieru = await page.evaluate(() => document.body.innerText || '');
+  for (const w of ['全体', '全員', '選んだ人', '年ごと', '給料表'])
+    expect(mieru.indexOf(w), '★本人に 見えています: ' + w + '★').toBe(-1);
+
+  // ③ ★次に カードを 足しても 漏れない★
+  //   明細の 置き場(#paneSlip)の 中で 見えていてよい のは #slips だけ
+  const hoka = await page.evaluate(() => {
+    const ps = document.getElementById('paneSlip');
+    if (!ps) return ['paneSlip が 無い'];
+    return Array.from(ps.children)
+      .filter((el) => el.id !== 'slips' && el.offsetParent !== null)
+      .map((el) => el.id || el.className || el.tagName);
+  });
+  expect(hoka, '★明細の 置き場に 他の 物が 見えています★').toEqual([]);
+
+  // ④ ★何も 出ていないだけ の 緑に しない★
+  await expect(page.locator('#slips')).toContainText(EMP.name);
 });
 
 test('★★④ 本人に 見せては いけない 物が 出ていない★★', async ({ page }) => {

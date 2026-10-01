@@ -1027,11 +1027,78 @@
         margin-left: 3px;
         vertical-align: super;
       }
+
+      /* ★本人の 画面＝月を 選ぶ 帯と 紙の 枠★ 2026-10-01 */
+      .hn-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin: 2px 0 10px;
+      }
+
+      /* ★要素(b)でなく 名札で 指す★
+         （要素で 指すと stylelint の no-descending-specificity に 当たる） */
+      #hnTsukiJi {
+        font-size: 17px;
+      }
+
+      .hn-ya {
+        min-width: 44px;
+        min-height: 44px;
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 10px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+
+      .hn-ya:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+
+      .hn-kikan {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin: 0 0 10px;
+      }
+
+      .hn-chip {
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 999px;
+        font-family: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .hn-chip.on {
+        background: #0a5fd0;
+        border-color: #0a5fd0;
+        color: #fff;
+        font-weight: 700;
+      }
+
+      /* ★紙は A4 の 大きさで 組まれる★ので 縮めて 入れる（はみ出しを 切らない） */
+      .hn-kami-waku {
+        /* ★横に 送って 見る★（A4横を スマホ幅に 押し込むと 字が 潰れる） */
+        overflow: auto hidden;
+        -webkit-overflow-scrolling: touch;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin: 0 0 12px;
+      }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <div class="top noprint">
+      <div class="top noprint" id="topBar">
         <div><span class="logo">ダイコメ</span><span class="tag">給料</span></div>
         <!-- ★本人モードでは この列ごと 隠す★ 2026-09-03
              （従業員に 事務所の 画面へ 行く 口を 出さない） -->
@@ -1646,28 +1713,48 @@
             });
         }
 
+        // ★★2026-10-01＝「隠す物を 並べる」から「出す物だけ 出す」に 変えた★★
+        //
+        //   ★司さん★「LINEで給料明細送った画面になんで赤丸のところが見えるんど
+        //              個別で送ったんやけん人とか選べたらいかんやろが」
+        //
+        //   ★何が 起きていたか★
+        //     ここは ★隠す物の 名前を 並べた 名簿★ だった:
+        //       tabs / monthCard / paneHours / paneEmp / paneSet / printCard / jimushoLinks
+        //     2026-09-25 に 足した「PDFで 見る（給料表）」(#kamiCard) は
+        //     ★paneSlip の 中★ に 在り、★名簿に 入っていなかった★。
+        //     ⇒ 本人に 配った リンクの 画面に
+        //       ★「月ごと（全体）」「日ごと（全員）」「個別（選んだ人）」が 出ていた★
+        //       ＝★他人を 選べる 口が 本人に 見えていた★。
+        //
+        //   ★名簿に 足すだけでは 直らない★
+        //     次に カードを 足した 人が また 名簿を 忘れる。同じ事が 起きる。
+        //     （今日 SQLの門でも 同じ形を 踏んだ＝黒名簿は 終わらない）
+        //   ⇒ ★出してよい 物だけ 出す（白名簿）★ に した。
+        //     新しい カードを 足しても ★既定で 出ない★。
         function honninStart() {
-          // ★事務所の 物は 出さない★（タブ・全員印刷・会社に残る分・設定）
-          [
-            'tabs',
-            'monthCard',
-            'paneHours',
-            'paneEmp',
-            'paneSet',
-            'printCard',
-            'jimushoLinks',
-          ].forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) el.style.display = 'none';
-          });
-          var pr = document.getElementById('btnPrint');
-          if (pr) pr.style.display = 'none';
+          // ★出してよい 物★ … 画面の 頭／小見出し／明細の 置き場 だけ
+          var DASU_WRAP = { topBar: 1, sub: 1, paneSlip: 1 };
+          var DASU_SLIP = { slips: 1 };
+          var wrap = document.querySelector('.wrap');
+          if (wrap)
+            Array.prototype.forEach.call(wrap.children, function (el) {
+              if (!DASU_WRAP[el.id]) el.style.display = 'none';
+            });
+          var ps = document.getElementById('paneSlip');
+          if (ps) {
+            ps.style.display = '';
+            Array.prototype.forEach.call(ps.children, function (el) {
+              el.style.display = DASU_SLIP[el.id] ? '' : 'none';
+            });
+          }
+          // 頭の 中の 事務所行き（ログアウト等）も 出さない
+          var jl = document.getElementById('jimushoLinks');
+          if (jl) jl.style.display = 'none';
           var lo = document.getElementById('btnLogout');
           if (lo) lo.style.display = 'none';
           var sb = document.getElementById('sub');
           if (sb) sb.textContent = '自分の 給料明細';
-          var ps = document.getElementById('paneSlip');
-          if (ps) ps.style.display = '';
 
           // ★入口の 箱（パスワード）★
           var box = document.getElementById('slips');
@@ -1737,15 +1824,64 @@
         }
 
         // ★材料を 取って 明細を 出す（事務所と 同じ 組み立て）★
+        // ★★2026-10-01＝本人の 画面を「給料明細 そのもの ＋ 月を 選ぶ」に した★★
+        //
+        //   ★司さん★
+        //     「従業員が見る個人の場所その給料明細だけでえんやろが
+        //       月別など選んで見れるようにするのが正解やろが」
+        //
+        //   ★前は どうだったか★
+        //     ・画面用の 一覧（日付と 金額を 縦に 並べた 物）を 出していた
+        //     ・月は ★今月だけ★＝先月の 明細が 見られなかった
+        //   ★今★
+        //     ・★事務所が 印刷/PDF に 使う `_buildPaperSheet` を そのまま 呼ぶ★
+        //       ＝紙と 1文字も 同じ。★明細を 2か所に 書かない★
+        //     ・★月を 選べる★（◀ ▶）。1つの 月に 期間が 2つ以上 在る 会社は
+        //       その 期間も 選べる（締めが 21日 等の 会社）
+        //   ★先の 月は 出さない★（まだ 無い 月を 見せても 空の 紙に なるだけ）
+        var HN_Y = 0;
+        var HN_M = 0;
+        var HN_YOMI = ''; // 今 取ってある 月（二重に 取りに 行かない）
+
+        function _honninHaba(y, m) {
+          // ★締めが 月を またぐ 会社が 在る★ので 前後 1か月 広く 取る
+          var a = new Date(y, m - 2, 1);
+          var b = new Date(y, m + 1, 0);
+          var f = function (d) {
+            return (
+              d.getFullYear() +
+              '-' +
+              String(d.getMonth() + 1).padStart(2, '0') +
+              '-' +
+              String(d.getDate()).padStart(2, '0')
+            );
+          };
+          return { from: f(a), to: f(b) };
+        }
+
         function honninMiru() {
+          var now = new Date();
+          HN_Y = now.getFullYear();
+          HN_M = now.getMonth() + 1;
+          honninTsuki(0);
+        }
+
+        // ★月を 動かす（0＝今の まま／-1＝前の月／+1＝次の月）★
+        function honninTsuki(zure) {
+          var d = new Date(HN_Y, HN_M - 1 + zure, 1);
+          var now = new Date();
+          // ★先の 月へは 行かせない★
+          if (d.getFullYear() * 12 + d.getMonth() > now.getFullYear() * 12 + now.getMonth()) return;
+          HN_Y = d.getFullYear();
+          HN_M = d.getMonth() + 1;
           var box = document.getElementById('slips');
           if (box) box.innerHTML = '<div class="card"><div class="msg">読み込み中…</div></div>';
-          // ★期間は 事務所の 決め方と 同じ★（設定を 取ってから 決める＝2か所に 書かない）
+          var h = _honninHaba(HN_Y, HN_M);
           honninRpc('dk_kyuryo_get', {
             p_token: HONNIN.token,
             p_pw: HONNIN.pw,
-            p_from: _honninHi(-1),
-            p_to: _honninHi(1),
+            p_from: h.from,
+            p_to: h.to,
           }).then(function (r) {
             if (!r || r.ok !== true) {
               if (box)
@@ -1762,9 +1898,9 @@
             RAW.edits = r.edits || [];
             RAW.workHours = r.workHours || [];
             RAW.manualDays = r.manualDays || [];
+            HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET);
-            var now = new Date();
-            PERIODS = PayrollPeriod.periodsOf(now.getFullYear(), now.getMonth() + 1, {
+            PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, {
               startDay: st.periodStartDay,
               endMode: st.periodEndMode,
               days: st.periodDays,
@@ -1773,17 +1909,100 @@
             PERIOD = PERIODS[0];
             recalc();
             TAB = 'slip';
-            renderSlips();
+            honninKami();
           });
         }
 
-        // 期間の 前後を 少し 広めに 取る（月の 切り方が 会社ごとに 違うので）
-        function _honninHi(zure) {
-          var d = new Date();
-          d.setMonth(d.getMonth() + zure);
-          var y = d.getFullYear();
-          var m = String(d.getMonth() + 1).padStart(2, '0');
-          return zure < 0 ? y + '-' + m + '-01' : y + '-' + m + '-28';
+        // ★期間（同じ月の 中の 1〜3枚目）を 選ぶ★
+        function honninKikan(i) {
+          if (!PERIODS || !PERIODS[i]) return;
+          PIDX = i;
+          PERIOD = PERIODS[i];
+          recalc();
+          honninKami();
+        }
+
+        // ★★給料明細を 出す＝事務所の 紙と 同じ 物★★
+        //   `window.__paper` は 印刷/PDF が 使う 口。★明細を 書き直さない★。
+        function honninKami() {
+          var box = document.getElementById('slips');
+          if (!box) return;
+          var atama =
+            '<div class="hn-bar">' +
+            '<button class="hn-ya" id="hnMae" aria-label="前の月">◀</button>' +
+            '<b id="hnTsukiJi">' +
+            HN_Y +
+            '年 ' +
+            HN_M +
+            '月</b>' +
+            '<button class="hn-ya" id="hnTsugi" aria-label="次の月">▶</button>' +
+            '</div>';
+          // 1つの 月に 期間が 2つ以上 在る 会社だけ 出す
+          if (PERIODS && PERIODS.length > 1) {
+            atama += '<div class="hn-kikan">';
+            for (var k = 0; k < PERIODS.length; k++)
+              atama +=
+                '<button class="hn-chip' +
+                (k === PIDX ? ' on' : '') +
+                '" data-k="' +
+                k +
+                '">' +
+                esc(PERIODS[k].rangeLabel || k + 1 + '枚目') +
+                '</button>';
+            atama += '</div>';
+          }
+          box.innerHTML = atama + '<div id="hnKami"></div>';
+
+          var mado = document.getElementById('hnKami');
+          var n = window.__paper && window.__paper.ninzu ? window.__paper.ninzu() : 0;
+          if (!n) {
+            mado.innerHTML =
+              '<div class="card"><div class="msg">この月の 記録は ありません。</div></div>';
+          } else {
+            var m = window.__paper.maisu(0);
+            var hi = window.__paper.hi(0);
+            // ★紙は A4 の 大きさで 組まれる★ので 画面の 幅に 合わせて 縮める
+            var haba = mado.clientWidth || box.clientWidth || 360;
+            // ★幅に 合わせて 縮めるだけだと スマホで 字が 読めない★（実測＝0.32倍）
+            //   ⇒ ★読める 下限まで しか 縮めない★。はみ出た 分は ★横に 送って 見る★。
+            var sc = Math.max(0.62, Math.min(1, haba / 1123));
+            for (var i = 0; i < m.n; i++) {
+              var from = i * m.per;
+              var to = Math.min(hi, from + m.per);
+              var el = window.__paper.build(0, from, to, i + 1, m.n);
+              el.style.position = 'static';
+              el.style.left = 'auto';
+              el.style.top = 'auto';
+              el.style.transformOrigin = 'top left';
+              el.style.transform = 'scale(' + sc + ')';
+              var waku = document.createElement('div');
+              waku.className = 'hn-kami-waku';
+              waku.style.height = Math.ceil(794 * sc) + 'px';
+              el.style.width = '1123px'; // ★縮めても 中身の 組み方は 変えない★
+              waku.appendChild(el);
+              mado.appendChild(waku);
+            }
+          }
+          var mae = document.getElementById('hnMae');
+          if (mae)
+            mae.onclick = function () {
+              honninTsuki(-1);
+            };
+          var tsugi = document.getElementById('hnTsugi');
+          if (tsugi) {
+            var now = new Date();
+            var saki = HN_Y * 12 + HN_M > now.getFullYear() * 12 + (now.getMonth() + 1);
+            tsugi.disabled =
+              saki || HN_Y * 12 + HN_M >= now.getFullYear() * 12 + (now.getMonth() + 1);
+            tsugi.onclick = function () {
+              honninTsuki(1);
+            };
+          }
+          Array.prototype.forEach.call(box.querySelectorAll('.hn-chip'), function (b) {
+            b.onclick = function () {
+              honninKikan(Number(b.getAttribute('data-k')));
+            };
+          });
         }
 
         // ============================================================
