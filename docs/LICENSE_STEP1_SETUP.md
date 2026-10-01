@@ -69,7 +69,12 @@ async function signEd25519(payload, pkcs8Pem) {
 }
 // b64url = base64→url-safe置換+パディング除去 / pemToDer = PEM base64本文をデコード
 ```
-- deploy: `supabase functions deploy dk-issue-license` ＋ secret設定: `supabase secrets set DK_LICENSE_PRIVKEY="<pkcs8 pem>"`
+- deploy: ★`supabase functions deploy dk-issue-license --project-ref <ref>`★
+  ＋ secret設定: ★`supabase secrets set DK_LICENSE_PRIVKEY="<pkcs8 pem>" --project-ref <ref>`★
+  > ★`--project-ref` を 必ず 書く★（2026-09-30）
+  > 無いと CLI は `supabase/.temp/linked-project.json`（★.gitignore★）に 黙って 従う。
+  > その 紙は 差分にも PR にも 出ない ので ★向き先を 選ばずに 押せてしまう★。
+  > 本番 `tnfwipbgfgjaymlszeid` ／ テスト `khawdrnvssdenumbiwfg`
 - anon から POST 可（会社検証はurl_tokenで行う・service_roleはEdge内のみ）。
 
 ## 手順④：疎通確認（テスト先行スクリプト・俺が用意）
@@ -83,7 +88,7 @@ async function signEd25519(payload, pkcs8Pem) {
 ---
 
 ## 役割分担（再開時）
-- ★司さんがやる★: ①鍵生成(node 1コマンド)→PRIVATEをsecret登録・PUBLICを俺に渡す / ②SQL貼る / ③`supabase functions deploy`（or 俺が手順を出す）。
+- ★司さんがやる★: ①鍵生成(node 1コマンド)→PRIVATEをsecret登録・PUBLICを俺に渡す / ②SQL貼る / ③`supabase functions deploy … ★--project-ref <ref>★`（or 俺が手順を出す）。
 - ★俺がやる★: license-v2 に署名検証(crypto)を足す(テスト先行)・PUBLIC鍵を同梱・issue疎通スクリプト・以降STEP3(URL活性化UI+警告+更新ボタン)。
 
 ## 要検証(捏造せず deploy時に実測)

@@ -74,6 +74,56 @@ function konoRepo() {
 //   ★範囲から 漏れると 見張りが 空振りします★（指示役 2026-09-06 の 指摘）
 const MAMORU = ['js/dk-config.js', 'scripts/check-hosts.mjs'];
 
+// ★★★2026-09-30 追加＝supabase CLI の 向き先（★見張りが 1本も 届いていなかった面★）★★★
+//
+//   ★なぜ 見えていなかったか★
+//     `supabase/.temp/linked-project.json` は ★.gitignore に 入っている★。
+//     ⇒ git grep で 出ない ／ 差分に 出ない ／ PR に 出ない ／ 同期も されない。
+//     ★狂っても 誰も 気づかない★。手元で 走る 試験でしか 捕まえられない。
+//
+//   ★なぜ 危ないか★
+//     `js/dk-config.js` の 頭には「他の どの ファイルにも 接続先を 書かない」と 宣言して いるが、
+//     ★supabase CLI は dk-config.js を 読まない★。CLI が 見るのは この 紙 だけ。
+//     ＝★真実の源が 2本 ある★。
+//     しかも docs/LICENSE_STEP1_SETUP.md は
+//     `supabase functions deploy dk-issue-license`（★--project-ref なし★）を
+//     ★司さんが やる★ と 書いて いる。その 道は この 紙に 黙って 従う。
+//
+//   ★わざと壊した 記録（2026-09-30）★
+//     変える前 ………………………………… 赤 0
+//     ref を 反対側の 倉庫に 書き換える … ★赤 1★
+//     紙を 消す（無い時に 緑に ならないか）… ★未測定と 出て 緑（わざと）★
+//       → CLI を 使って いない repo で 赤に すると 偽の赤に なる ので、
+//         ★無い時は 「未測定」と 出して 緑★。黙って 緑に は しない。
+describe('★supabase CLI の 向き先（.gitignore の 中）も 同じか★', () => {
+  const RENKEI = path.join(ROOT, 'supabase', '.temp', 'linked-project.json');
+
+  it('★CLI の ref と js/dk-config.js の 倉庫が 同じ★', () => {
+    if (!fs.existsSync(RENKEI)) {
+      // eslint-disable-next-line no-console
+      console.log('★未測定★ supabase/.temp/linked-project.json が 無い（CLI を 繋いでいない）');
+      return;
+    }
+    const ref = String(JSON.parse(fs.readFileSync(RENKEI, 'utf8')).ref || '');
+    const kono = konoRepo();
+    const beki = kono.side === 'prod' ? PROD : kono.side === 'test' ? TEST : null;
+    expect(kono.side, 'どちら側か 決まらない').not.toBe(null);
+    expect(
+      ref,
+      '★supabase CLI の 向き先が この repo と 違う★\n' +
+        '  js/dk-config.js は ' +
+        kono.side +
+        '(' +
+        beki +
+        ')\n' +
+        '  supabase/.temp/linked-project.json は ' +
+        ref +
+        '\n' +
+        '  ★`supabase functions deploy` を --project-ref なしで 押すと こちらに 配る★'
+    ).toBe(beki);
+  });
+});
+
 describe('★道具の 向き先が repo と 同じか★', () => {
   const kono = konoRepo();
 
