@@ -789,6 +789,41 @@
         accent-color: var(--blue);
       }
 
+      /* ★名前で 選ぶ・出す 所は 箱 1つ★ 2026-10-03（司さん「スッキリさせろ」） */
+      .hitobar {
+        display: flex;
+        justify-content: center;
+        margin-top: 8px;
+      }
+
+      .hito-sel {
+        min-width: 0;
+        width: 100%;
+        max-width: 320px;
+        font-size: 16px; /* iPhone で 押すと 拡大しない 大きさ */
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
+
+      .dasu-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .kami-tatami {
+        margin-top: 10px;
+      }
+
+      .kami-tatami > summary {
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--blue);
+      }
+
       .slip .shead {
         display: flex;
         align-items: baseline;
@@ -1135,6 +1170,15 @@
         </div>
         <!-- ★司さんは月3回払い（1〜10 / 11〜20 / 21〜末日）＝どの期の明細かを選ぶ★ -->
         <div class="periodbar" id="periodBar"></div>
+        <!-- ★★名前で 選ぶ★★ 2026-10-03（司さん「代行請求書の請求書ページと同じ見せ方で
+             月と名前で選んでPDFで見れるように」「ごちゃごちゃしとる スッキリさせろ」）
+             ★前★ 全員の 明細が 縦に ずらっと 並び、1人 見るには 探して チェック。
+             ⇒ 名前を 選ぶと ★その人の 明細だけ★ 出る。「明細を PDFで 見る」も その人だけ。 -->
+        <div class="hitobar">
+          <select id="hitoSel" class="hito-sel" aria-label="名前で 選ぶ">
+            <option value="">全員</option>
+          </select>
+        </div>
       </div>
 
       <div class="err noprint" id="err" style="display: none"></div>
@@ -1149,32 +1193,33 @@
              ★前は 押したら 必ず 全員ぶん★＝1人 刷り直すだけでも 全員 出ていました。
              ⇒ 明細の 1人ずつに チェックを 付け、選んだ人だけ 出せるように します。
              ★1つも 選んでいない時は 全員★（前と 同じ 動き） -->
-        <div
-          class="card noprint"
-          id="printCard"
-          style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap"
-        >
-          <button class="btn" id="btnPrint">全員を 印刷</button>
-          <button class="btn btn-off" id="btnPrintSel" disabled>選んだ人を 印刷</button>
-          <span class="note" style="margin: 0" id="printNote"
-            >1人ずつ 実物と 同じ 並びで 出ます。</span
-          >
-        </div>
-        <!-- ★★給料表を A4のPDFで 見る★★ 2026-09-25
-             ★司さん★「給料表も月毎、年ごと、個別全体で分けて見れるようにしとけ」
-                       「給料表は月の日まで個別で見れるやつも作れよ」
-             ★上の「印刷」は 実物の 明細（1人1枚）★。ここは ★まとめた 表★。 -->
-        <div class="card noprint" id="kamiCard">
-          <h2 style="margin: 0 0 8px">PDFで 見る（給料表）</h2>
-          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
-            <button class="btn" id="kamiTsuki">月ごと（全体）</button>
-            <button class="btn" id="kamiHi">日ごと（全員）</button>
-            <button class="btn" id="kamiKojin">個別（選んだ人）</button>
-            <button class="btn btn-off" id="kamiNen">年ごと</button>
+        <!-- ★★出す 所は 箱 1つ★★ 2026-10-03（司さん「ごちゃごちゃしとる スッキリさせろ」）
+             ★前★ 箱 2つ・ボタン 6つ（全員を印刷／選んだ人を印刷／月ごと／日ごと／個別／年ごと）。
+             ⇒ 表に 出すのは ★「明細を PDFで 見る」1つ★（中身は 前の「全員を 印刷」＝実物の 明細 1人1枚）。
+                名前を 選んでいれば その人だけ。チェックで 選んだ時だけ「選んだ人」が 出る。
+                まとめた 表（月ごと・日ごと・個別・年ごと）は ★畳んで しまう★（消していない）。 -->
+        <div class="card noprint" id="printCard">
+          <div class="dasu-row">
+            <button class="btn" id="btnPrint">明細を PDFで 見る</button>
+            <button class="btn btn-off" id="btnPrintSel" disabled style="display: none">
+              選んだ人を 印刷
+            </button>
+            <span class="note" style="margin: 0" id="printNote">全員ぶん（1人1枚）</span>
           </div>
-          <div class="note" style="margin: 6px 0 0" id="kamiNote">
-            見ている 月の 分を 出します。個別は 明細の チェックで 選んだ 人（無ければ 全員）。
-          </div>
+          <!-- ★★給料表を A4のPDFで 見る★★ 2026-09-25（司さん「月毎、年ごと、個別全体で」）
+               ★上は 実物の 明細★。ここは ★まとめた 表★＝畳んで 置く -->
+          <details id="kamiCard" class="kami-tatami">
+            <summary>給料表（まとめた表）を 出す</summary>
+            <div class="dasu-row" style="margin-top: 8px">
+              <button class="btn" id="kamiTsuki">月ごと（全体）</button>
+              <button class="btn" id="kamiHi">日ごと（全員）</button>
+              <button class="btn" id="kamiKojin">個別</button>
+              <button class="btn btn-off" id="kamiNen">年ごと</button>
+            </div>
+            <div class="note" style="margin: 6px 0 0" id="kamiNote">
+              見ている 月の 分を 出します。個別は 選んだ 人（無ければ 全員）。
+            </div>
+          </details>
         </div>
         <div id="slips"></div>
       </div>
@@ -2700,6 +2745,7 @@
             var w = kamiJunbi();
             if (!w) return;
             var eranda = erandaHito();
+            if (!eranda.length && HITO) eranda = [HITO]; // ★名前で 選んでいれば その人★
             kamiMsg('読み込んでいます…');
             kamiBtn(true);
             kamiCtx(w.y, w.m)
@@ -2779,6 +2825,41 @@
 
         // ★★選ばれている 人の id を 集める★★ 2026-09-05
         //   ★画面に 描かれた チェックを 数える★（内側の 変数を 信じない）
+        // ★★名前で 選ぶ★★ 2026-10-03（司さん「月と名前で選んでPDFで見れるように」）
+        //   HITO＝選んだ 人の employee_id（''＝全員）。明細・PDF・まとめた表の「個別」が この人だけに なる。
+        var HITO = '';
+        function hitoErabiTsukuru() {
+          var s = $('hitoSel');
+          if (!s || HONNIN) return;
+          var hito = REP && REP.employees ? REP.employees : [];
+          if (
+            HITO &&
+            !hito.some(function (e) {
+              return String(e.employee_id) === HITO;
+            })
+          )
+            HITO = '';
+          var h = '<option value="">全員（' + hito.length + '人）</option>';
+          hito.forEach(function (e) {
+            var id = String(e.employee_id);
+            h +=
+              '<option value="' +
+              esc(id) +
+              '"' +
+              (id === HITO ? ' selected' : '') +
+              '>' +
+              esc(e.name || '') +
+              '</option>';
+          });
+          s.innerHTML = h;
+        }
+        if ($('hitoSel')) {
+          $('hitoSel').onchange = function () {
+            HITO = this.value || '';
+            renderSlips();
+            nurikae();
+          };
+        }
         function erandaHito() {
           var out = [];
           Array.prototype.forEach.call(document.querySelectorAll('.slip-pick'), function (c) {
@@ -2794,11 +2875,17 @@
           var t = $('printNote');
           if (b) {
             b.disabled = n2 === 0;
+            // ★選んでいない時は 出さない★（スッキリさせる 2026-10-03）
+            b.style.display = n2 === 0 ? 'none' : '';
             b.textContent = n2 === 0 ? '選んだ人を 印刷' : '選んだ ' + n2 + '人を 印刷';
           }
           if (t)
             t.textContent =
-              n2 === 0 ? '1人ずつ 実物と 同じ 並びで 出ます。' : '選んだ ' + n2 + '人ぶん 出ます。';
+              n2 !== 0
+                ? '選んだ ' + n2 + '人ぶん 出ます。'
+                : HITO
+                  ? 'この人の 明細（1枚）'
+                  : '全員ぶん（1人1枚）';
         }
         document.addEventListener('change', function (ev) {
           if (ev.target && ev.target.classList && ev.target.classList.contains('slip-pick'))
@@ -3052,6 +3139,9 @@
             : '—';
           renderPeriodBar();
           $('monthCard').style.display = TAB === 'slip' || TAB === 'hours' ? '' : 'none';
+          // ★名前の 欄は 明細の 画面だけ★（時数の 画面では 絞らないので 出さない・10-03 対立役）
+          var _hb = document.querySelector('#monthCard .hitobar');
+          if (_hb) _hb.style.display = TAB === 'slip' ? '' : 'none';
           $('paneSlip').style.display = TAB === 'slip' ? '' : 'none';
           $('paneHours').style.display = TAB === 'hours' ? '' : 'none';
           $('paneEmp').style.display = TAB === 'emp' ? '' : 'none';
@@ -3600,6 +3690,7 @@
         //   給与アプリと同じ「複数人=複数ページ」。作り方は printOne と同じ。
         // ★誰を 出すか★ null＝全員／配列＝その人だけ（2026-09-05 司さん）
         function printAll(dake) {
+          if ((!dake || !dake.length) && HITO) dake = [HITO]; // ★名前で 選んだ人だけ（10-03）★
           // ★数えるのは 人の数★（画面の枚数ではない＝紙は人ごとに組む）
           var zenin = REP && REP.employees ? REP.employees : [];
           var boxes =
@@ -3608,6 +3699,11 @@
                   return dake.indexOf(String(e.employee_id)) >= 0;
                 })
               : zenin;
+          // ★「選んだ人」で 呼ばれたのに 選びが 空＝★全員には しない★（10-03 対立役：前は 全員ぶん 出た）
+          if (Array.isArray(dake) && !dake.length) {
+            showErr('選んだ人が いません。明細の チェックで 選んでください。');
+            return;
+          }
           if (!boxes.length) {
             showErr(dake && dake.length ? '選んだ人の 明細が ありません。' : '明細がありません。');
             return;
@@ -3725,13 +3821,20 @@
         function renderSlips() {
           var SHOW_CAR_SALES = showCarSalesNow();
           var box = $('slips');
+          // ★名前の 選ぶ欄を 今の 人で 作り直す★（いなくなった人を 選んだままに しない・0人の 時も）
+          hitoErabiTsukuru();
           if (!REP || !REP.employees.length) {
             box.innerHTML =
               '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
             return;
           }
           var html = '';
+          // ★描き直すと チェックは 消える＝「選んだ人を 印刷」も その場で 揃える★（10-03 対立役：
+          //   前は 月を 変えても「選んだ 1人を 印刷」が 残り、押すと printAll([]) で ★全員ぶん★ 出た）
+          setTimeout(nurikae, 0);
           REP.employees.forEach(function (e, ei) {
+            // ★名前で 選んでいれば その人だけ★ 2026-10-03
+            if (HITO && String(e.employee_id) !== HITO) return;
             // ★出す車は 人ごとに決まる★（その人の指定が無ければ 会社の決まりどおり）
             var cars = slipCars(REP.cars, e.employee_id);
             html +=
