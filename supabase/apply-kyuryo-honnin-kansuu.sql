@@ -127,19 +127,43 @@ begin
           and (sh.started_at at time zone 'Asia/Tokyo')::date between p_from and p_to
       ) x
     ),
+    -- ★★2026-10-02 直し＝★会社全部の 行を 列ごと 丸ごと 返していた★★★
+    --   to_jsonb(行) は ★列を 全部★ 出す。画面に 出ない だけで 本人の 端末には 届いていた：
+    --     dk_work_hours   … ★同僚の employee_id と 時間★
+    --     dk_shift_edits  … ★同僚の 備考(note)・その他の 名前★
+    --     dk_manual_days  … ★備考(note)★
+    --   ★何が 要るかは 計算の 字で 数えた★
+    --     ・edits      … 車ごとの 売上から 引く 額（uriage-agg.js deductOf）と 時数（carHoursOf）
+    --                    ＝ shift_id / toll_yen / bridge_yen / other_yen / expenses / hours
+    --                    ★みんなの売上に 効くので 行は 会社ぶん 要る★（列だけ 絞る）
+    --     ・manualDays … 車ごとの 売上・時数・実費（payroll-daily.js buildCtx）
+    --                    ★これも 行は 会社ぶん 要る★（列だけ 絞る）
+    --     ・workHours  … ★本人の 分だけで よい★。buildCtx は empById に 居ない 人を
+    --                    `if (!emp) return` で 読み捨てる。本人の 画面の empById は 本人 1人。
+    --                    時給の 割り方（poolHours）は 車の 時数から 出す（daiko-payroll.js buildPool）
+    --                    ＝★絞っても 金額は 1円も 変わらない★
     'edits', (
-      select coalesce(jsonb_agg(to_jsonb(ed)), '[]'::jsonb)
-      from daikome.dk_shift_edits ed where ed.company_id = r.company_id
+      select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
+        select ed.shift_id, ed.toll_yen, ed.bridge_yen, ed.other_yen, ed.expenses, ed.hours
+        from daikome.dk_shift_edits ed where ed.company_id = r.company_id
+      ) x
     ),
     'workHours', (
-      select coalesce(jsonb_agg(to_jsonb(w)), '[]'::jsonb)
-      from daikome.dk_work_hours w
-      where w.company_id = r.company_id and w.work_date between p_from and p_to
+      select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
+        select w.work_date, w.employee_id, w.device_id, w.hours
+        from daikome.dk_work_hours w
+        where w.company_id = r.company_id
+          and w.employee_id = r.employee_id
+          and w.work_date between p_from and p_to
+      ) x
     ),
     'manualDays', (
-      select coalesce(jsonb_agg(to_jsonb(m)), '[]'::jsonb)
-      from daikome.dk_manual_days m
-      where m.company_id = r.company_id and m.work_date between p_from and p_to
+      select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
+        select m.work_date, m.device_id, m.sales_yen, m.hours,
+               m.toll_yen, m.bridge_yen, m.other_yen, m.trip_count
+        from daikome.dk_manual_days m
+        where m.company_id = r.company_id and m.work_date between p_from and p_to
+      ) x
     )
   );
 end;
