@@ -115,6 +115,17 @@ begin
       select coalesce(jsonb_agg(to_jsonb(l)), '[]'::jsonb)
       from daikome.dk_device_labels l where l.company_id = r.company_id
     ),
+    -- ★★売上から 何を 引くか（会社の 設定）★★ 2026-10-02 夜（対立役が 見つけた）
+    --   前は 返していなかった＝本人の 画面は ★既定（高速・橋を 引く／その他は 引かない）★ で 計算し、
+    --   事務所は dk_sales_settings を 読む ⇒ ★会社が 設定を 変えると 本人と 事務所で 給料が ずれる★
+    --   （本物の 計算に 通して：既定 8,000円 ／「何も 引かない」 8,835円）
+    'salesSettings', (
+      select to_jsonb(x) from (
+        select ss.deduct_toll, ss.deduct_bridge, ss.deduct_other, ss.other_label
+        from daikome.dk_sales_settings ss where ss.company_id = r.company_id
+        limit 1
+      ) x
+    ),
     -- ★勤務は 会社ぶん 要ります★（売上の 分け方が「みんなの売上」を 使うので）
     --   ★ただし 返すのは 金額と 距離と 端末だけ★（人の 名前は 上の emp だけ）
     'shifts', (

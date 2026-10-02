@@ -20,6 +20,12 @@
 //     ・SQL を 直す前（to_jsonb(行)・本人で 絞らない）に 戻す ⇒ ★赤 4★（① の 4本）
 //     ・edits から hours を 落とす（計算が 読む 列を 削り過ぎ）⇒ ★赤 2★（② 前と同じ／事務所と同じ）
 //     戻すと 8/8 緑。
+//   ★10-02 夜（対立役に 叩かれて 作り直した）★
+//     ・前の ② は ★列の 名簿を 手で 写していた★＝SQL から 列を 消しても 緑。事務所側も 設定 null で
+//       計算していた＝「事務所と 同じ」は 会社の 設定の 点では ★嘘の 緑★ だった。
+//     ・今は 列を ★SQL から 読み★、会社の 設定は ★既定と 違う 形★ で 比べる。
+//     ・わざと壊す：SQL を 直す前（salesSettings 無し）に 戻す ⇒ ★ファイルごと 赤★（列が 読めない）
+//                   edits から expenses を 外す ⇒ ★赤 2★ ／ 戻すと 14/14 緑
 // ============================================================
 const fs = require('fs');
 const path = require('path');
@@ -188,32 +194,39 @@ const FULL = {
 };
 const DATES = ['2026-09-10', '2026-09-11', '2026-09-12'];
 
-// ★新しい 関数が 返す 形★（SQL と 同じ 列だけ・workHours は 本人だけ）
+// ★★新しい 関数が 返す 列は ★SQL から 読み取る★（手で 写さない）★★ 2026-10-02 夜（対立役）
+//   前は 列の 名簿を この 試験に 手で 写していた＝SQL から 列（expenses 等）を 消しても ★緑の まま★。
+//   ⇒ dk_kyuryo_get の 'キー' の select の 並びを 字で 読み、その 列だけ 残す。
+function retsu(key) {
+  const b = block(getBody(), key);
+  // 外側の select coalesce(jsonb_agg(…)) では なく ★棚を 読む 内側の select★
+  const m = b.match(/select\s+((?:(?!select)[\s\S])*?)\s+from\s+daikome\./i);
+  expect(m, '★' + key + ' の 列が 読めない★').toBeTruthy();
+  return m[1].split(',').map((x) => x.trim().replace(/^\w+\./, ''));
+}
+// 会社の「売上から 何を 引くか」＝★既定と 違う★ 形で 比べる（既定だと ずれが 見えない）
+const URIAGE_SETTEI = {
+  company_id: 'c',
+  deduct_toll: false,
+  deduct_bridge: true,
+  deduct_other: true,
+  other_label: '駐車場',
+  updated_at: 't',
+};
 function shibotta(full) {
   const pick = (o, ks) => Object.fromEntries(ks.map((k) => [k, o[k]]));
   return {
     shifts: full.shifts,
-    edits: full.edits.map((e) =>
-      pick(e, ['shift_id', 'toll_yen', 'bridge_yen', 'other_yen', 'expenses', 'hours'])
-    ),
+    edits: full.edits.map((e) => pick(e, retsu('edits'))),
+    // ★本人で 絞るかは ① が SQL の 字で 見る★
     workHours: full.workHours
       .filter((w) => w.employee_id === HONNIN)
-      .map((w) => pick(w, ['work_date', 'employee_id', 'device_id', 'hours'])),
-    manualDays: full.manualDays.map((m) =>
-      pick(m, [
-        'work_date',
-        'device_id',
-        'sales_yen',
-        'hours',
-        'toll_yen',
-        'bridge_yen',
-        'other_yen',
-        'trip_count',
-      ])
-    ),
+      .map((w) => pick(w, retsu('workHours'))),
+    manualDays: full.manualDays.map((m) => pick(m, retsu('manualDays'))),
+    salesSettings: pick(URIAGE_SETTEI, retsu('salesSettings')),
   };
 }
-function honninNoKyuryo(raw, employees) {
+function honninNoKyuryo(raw, employees, salesSettings) {
   const ctx = D.buildCtx({
     shifts: raw.shifts,
     edits: raw.edits,
@@ -222,7 +235,7 @@ function honninNoKyuryo(raw, employees) {
     workHours: raw.workHours,
     manualDays: raw.manualDays,
     payrollSettings: null,
-    salesSettings: null,
+    salesSettings: salesSettings,
   });
   return DATES.map((d) => {
     const r = D.computeDay(d, ctx);
@@ -233,20 +246,43 @@ function honninNoKyuryo(raw, employees) {
 
 describe('② ★絞っても 本人の 給料は 1円も 変わらない★', () => {
   const honninDake = [EMP[1]];
-  const mae = honninNoKyuryo(FULL, honninDake); // 前の 関数（全部 返す）
-  const ato = honninNoKyuryo(shibotta(FULL), honninDake); // 新しい 関数
-  const jimusho = honninNoKyuryo(FULL, EMP); // 事務所の 画面（全員・全部）
+  const s = shibotta(FULL);
+  // ★本人の 画面は 関数が 返した 物だけで 計算する★（kyuryo.html：RAW.salesSettings = r.salesSettings）
+  const ato = honninNoKyuryo(s, honninDake, s.salesSettings); // 新しい 関数
+  const jimusho = honninNoKyuryo(FULL, EMP, URIAGE_SETTEI); // 事務所の 画面（全員・全部・会社の 設定）
+  const maeNoHonnin = honninNoKyuryo(FULL, honninDake, null); // 前の 本人画面（設定を 読まず 既定）
 
   it('★見張りが 空回り していない★（本人に 給料が 出る 日が 3日 在る）', () => {
-    expect(mae.filter((x) => x.pay > 0).length).toBe(3);
+    expect(jimusho.filter((x) => x.pay > 0).length).toBe(3);
   });
-  it('★前と 今で 日ごとに 同じ★', () => {
-    expect(ato).toEqual(mae);
-  });
-  it('★事務所の 画面で 出る 本人の 額とも 同じ★', () => {
+  it('★事務所の 画面で 出る 本人の 額と 日ごとに 同じ★（会社の 設定が 既定と 違っても）', () => {
     expect(ato).toEqual(jimusho);
   });
+  it('★前の 本人画面（設定を 読まない）は 事務所と ずれていた★＝この 試験が ずれを 見分けられる', () => {
+    expect(
+      maeNoHonnin,
+      '★既定と 違う 設定でも ずれない＝試験の 材料が 実費に 当たっていない★'
+    ).not.toEqual(jimusho);
+  });
+  it('★計算が 読む 列は 全部 返している★', () => {
+    for (const k of ['shift_id', 'toll_yen', 'bridge_yen', 'other_yen', 'expenses', 'hours'])
+      expect(retsu('edits'), '★edits に ' + k + ' が 無い★').toContain(k);
+    for (const k of [
+      'work_date',
+      'device_id',
+      'sales_yen',
+      'hours',
+      'toll_yen',
+      'bridge_yen',
+      'other_yen',
+    ])
+      expect(retsu('manualDays'), '★manualDays に ' + k + ' が 無い★').toContain(k);
+    for (const k of ['deduct_toll', 'deduct_bridge', 'deduct_other'])
+      expect(retsu('salesSettings'), '★salesSettings に ' + k + ' が 無い★').toContain(k);
+  });
   it('★同僚の 備考は もう 届かない★', () => {
-    expect(JSON.stringify(shibotta(FULL))).not.toMatch(/備考|駐車場|e1|e3/);
+    // 会社の 設定（salesSettings の other_label）は 同僚の 物では ない＝同僚の 行だけ 見る
+    const { edits, workHours, manualDays } = shibotta(FULL);
+    expect(JSON.stringify({ edits, workHours, manualDays })).not.toMatch(/備考|駐車場|e1|e3/);
   });
 });

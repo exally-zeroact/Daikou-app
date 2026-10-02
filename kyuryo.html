@@ -1893,7 +1893,8 @@
             RAW.employees = r.emp ? [r.emp] : []; // ★自分 1人だけ★
             RAW.labels = r.labels || [];
             RAW.payrollSettings = SET;
-            RAW.salesSettings = null;
+            // ★会社の「売上から 何を 引くか」★（前は null＝既定で 計算し 事務所と ずれ得た・10-02 夜）
+            RAW.salesSettings = r.salesSettings || null;
             RAW.shifts = r.shifts || [];
             RAW.edits = r.edits || [];
             RAW.workHours = r.workHours || [];
