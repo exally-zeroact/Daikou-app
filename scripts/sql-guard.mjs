@@ -41,7 +41,8 @@
 //        ＝「道具が返した0件を根拠にするな」に 正面から 当たっていた。
 //
 //   ★白名簿の 形★
-//     ・stripNoise で ドル引用→コメント→文字列→引用識別子 の ★順に★ 落とす（順番が 命）
+//     ・stripNoise で ドル引用・コメント・文字列・引用識別子 を 落とす
+//       （★10-02 から 左から 1字ずつ 読む 1回の 読み★。「順に 剥がす」は 囲いの 中の 印で ずれた）
 //     ・`;` で ★1文ずつ★ に 分ける（前は 丸ごと 1本の 字として 見ていた）
 //     ・1文ずつ ALLOW の どれかに ★頭から★ 当たらなければ 赤
 //     ・当たっても 中身を もう一度 見る（窓の 名前／grant の 相手／RLS の 向き）
@@ -69,23 +70,115 @@
 // ============================================================
 
 // ★コメントと 文字列と ドル引用を 消す（regex が 中身に 引っかからないように）★
-//   ★順番が 命★：ドル引用 → 行コメント → ブロックコメント → 文字列 → 引用識別子。
-//   前は 文字列を 先に 剥がしていたので、ドル引用の 中の ' が 外の ' と 対に なって
-//   ★1文 まるごと 食われていた★（上の ①）。
+//   09-29 は ★順番が 命★ と して ドル引用 → コメント → 文字列 → 引用識別子 の 順に 剥がした
+//   （その前は 文字列が 先で、ドル引用の 中の ' が 外の ' と 対に なり ★1文 まるごと 食われていた★＝上の ①）。
+//
+// ★★2026-10-02 作り直し＝「順に 剥がす」を やめて ★左から 1字ずつ 読む 1回の 読み★ に した★★
+//   Exally の 席が 字で 読んで 知らせてくれた（ダイコメの 席が 当てて 測った）。
+//   ★「どれを 先に 剥がすか」の 順番が 在る 限り、別の 囲いの 中に 印を 書けば ずれる★：
+//     comment on table daikome.dk_a is '$x$';     ← 文字列の 中の $x$ を ドル引用と 読み、
+//     update daikou.meisai set amount = 0;        ← ★この 1文が 丸ごと 消えて 通った★
+//     comment on table daikome.dk_a is '$x$';
+//   同じく ★"$x$" の 引用名★・★E'it\'s' の 逃がし★ でも 次の 1文が 消えて 通った（3つとも 実測）。
+//   ⇒ PG と 同じく ★先に 出てきた 囲いが 勝つ★ 読み方に した。
+//   ★読めない 物（閉じていない 文字列/コメント/ドル引用）は $yomenai$ を 残して 赤★。
+//     「読めない字を 通す 門」は 盲目と 同じ。
 export function stripNoise(sql) {
-  let s = String(sql == null ? '' : sql);
-  // ドル引用 $$…$$ / $do$…$do$ / $q$…$q$ … ★タグは 何でもよい★
-  //   中身は 読めないので $do$ の 印だけ 残す（DANGER の do-block が 拾う）
-  s = s.replace(/\$(\w*)\$[\s\S]*?\$\1\$/g, () => ' $do$ ');
-  s = s.replace(/--[^\n]*/g, ' '); // 行コメント
-  s = s.replace(/\/\*[\s\S]*?\*\//g, ' '); // ブロックコメント
-  s = s.replace(/'(?:[^']|'')*'/g, "''"); // 文字列
-  // ★引用識別子は 潰さずに 名前に 戻す★（潰すと 棚の壁が 外れる＝上の ②）
-  //   安全な 名前だけ 戻し、空白や 記号入りは _q_（＝どの prefix にも 当たらない）に する
-  s = s.replace(/"((?:[^"]|"")*)"/g, (m, naka) =>
-    /^[A-Za-z_][A-Za-z0-9_$]*$/.test(naka) ? naka : '_q_'
-  );
-  return s;
+  const s = String(sql == null ? '' : sql);
+  const YOMENAI = ' $yomenai$ ';
+  let out = '';
+  let i = 0;
+  const n = s.length;
+  while (i < n) {
+    const c = s[i];
+    const c2 = s[i + 1];
+    // 行コメント
+    if (c === '-' && c2 === '-') {
+      const e = s.indexOf('\n', i);
+      i = e < 0 ? n : e;
+      out += ' ';
+      continue;
+    }
+    // ブロックコメント（PG は ★入れ子★ を 数える）
+    if (c === '/' && c2 === '*') {
+      let depth = 1;
+      let j = i + 2;
+      while (j < n && depth > 0) {
+        if (s[j] === '/' && s[j + 1] === '*') (depth++, (j += 2));
+        else if (s[j] === '*' && s[j + 1] === '/') (depth--, (j += 2));
+        else j++;
+      }
+      if (depth > 0) return out + YOMENAI;
+      out += ' ';
+      i = j;
+      continue;
+    }
+    // 文字列 '…'（E'…' は \ で 逃がせる）
+    if (c === "'") {
+      const prev = out.slice(-1);
+      const eStr = /[eE]/.test(prev) && !/[A-Za-z0-9_$]/.test(out.slice(-2, -1));
+      let j = i + 1;
+      let closed = false;
+      while (j < n) {
+        if (eStr && s[j] === '\\') {
+          j += 2;
+          continue;
+        }
+        if (s[j] === "'") {
+          if (s[j + 1] === "'") {
+            j += 2;
+            continue;
+          }
+          closed = true;
+          break;
+        }
+        j++;
+      }
+      if (!closed) return out + YOMENAI;
+      out += "''";
+      i = j + 1;
+      continue;
+    }
+    // ★引用識別子は 潰さずに 名前に 戻す★（潰すと 棚の壁が 外れる＝上の ②）
+    //   安全な 名前だけ 戻し、空白や 記号入りは _q_（＝どの prefix にも 当たらない）に する
+    if (c === '"') {
+      let j = i + 1;
+      let closed = false;
+      while (j < n) {
+        if (s[j] === '"') {
+          if (s[j + 1] === '"') {
+            j += 2;
+            continue;
+          }
+          closed = true;
+          break;
+        }
+        j++;
+      }
+      if (!closed) return out + YOMENAI;
+      const naka = s.slice(i + 1, j);
+      out += /^[A-Za-z_][A-Za-z0-9_$]*$/.test(naka) ? naka : '_q_';
+      i = j + 1;
+      continue;
+    }
+    // ドル引用 $$…$$ / $do$…$do$ / $q$…$q$ … ★タグは 何でもよい★
+    //   名前の 途中の $（a$b）や $1 は ドル引用では ない（PG と 同じ）
+    //   中身は 読めないので $do$ の 印だけ 残す（DANGER の do-block が 拾う）
+    if (c === '$' && !/[A-Za-z0-9_$]/.test(out.slice(-1))) {
+      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(s.slice(i));
+      if (m) {
+        const tag = m[0];
+        const e = s.indexOf(tag, i + tag.length);
+        if (e < 0) return out + YOMENAI;
+        out += ' $do$ ';
+        i = e + tag.length;
+        continue;
+      }
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
 
 // ★`;` で 1文ずつ に 分ける★（文字列・コメント・ドル引用は もう 落ちている）
@@ -112,6 +205,7 @@ const DANGER = [
   { name: 'revoke', re: /\brevoke\b/i },
   { name: 'alter-drop', re: /\balter\s+table\s+[^;]*\bdrop\b/i },
   { name: 'do-block', re: /\$do\$/ }, // 中身を読めない塊は通さない
+  { name: '読めない(閉じていない 囲い)', re: /\$yomenai\$/ }, // stripNoise が 残す 印
   // ★★2026-09-29 追加＝対立役に 叩かれて 見つけた「今 開いていた 穴」★★
   //   ★`select 1;` を 1行 足すだけで 通っていた★。どれも「足すだけ」では ない。
   //   ※ 札は 白名簿の ★裏打ち★。札だけでは 抜けられる（recursive view 等）ので

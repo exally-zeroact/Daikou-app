@@ -414,3 +414,58 @@ describe('★偽の赤を 出さない（repo の 実績で 確かめる）★',
     expect(G.guard('create policy p on daikome.dk_x for all to anon using (true);').ok).toBe(false);
   });
 });
+
+// ★★2026-10-02 「順に 剥がす」の 穴＝別の 囲いの 中に 印を 書くと 次の 1文が 消えた★★
+//   直す前の 門に 当てて ★3本 通った★（文字列の $x$／引用名の $x$／E'\'' の 逃がし）。
+//   コメントの 中の $x$ は 直す前も 止まったが ★$do$ の 印が 偶然 残った から★＝運で 止まっていた。
+describe('★囲いの 中に 印を 書いて 次の 1文を 消す（通ったら 負け）★', () => {
+  const UPD = 'update daikou.meisai set amount = 0;';
+  const cases = {
+    '文字列の 中の $x$':
+      "comment on table daikome.dk_a is '$x$';\n" +
+      UPD +
+      "\ncomment on table daikome.dk_a is '$x$';",
+    '引用名の 中の $x$':
+      'create table daikome.dk_a ("$x$" int);\n' + UPD + '\ncreate table daikome.dk_b ("$x$" int);',
+    "E'…' の 逃がし":
+      "comment on table daikome.dk_a is E'it\\'s';\n" +
+      UPD +
+      "\ncomment on table daikome.dk_a is 'x';",
+    '行コメントの 中の $x$': '-- $x$\n' + UPD + '\n-- $x$\n',
+    'ブロックコメントの 中の $x$': '/* $x$ */ ' + UPD + ' /* $x$ */',
+    // ※ '/* a /* b */ update … */' は PG では ★丸ごと コメント★（update は 走らない）＝通って 正しい。下の 入れ子の 試験で 見る
+  };
+  for (const [k, sql] of Object.entries(cases)) {
+    it(k + ' でも update を 止める', () => {
+      expect(G.guard(sql).ok, '★' + k + ' で update が 門を 通った★').toBe(false);
+    });
+  }
+  it('★文字列の 中の $x$ でも update が 門から 消えない★', () => {
+    expect(G.stripNoise(cases['文字列の 中の $x$'])).toContain('update daikou.meisai');
+  });
+  it("★E'…' の 逃がしでも update が 門から 消えない★", () => {
+    expect(G.stripNoise(cases["E'…' の 逃がし"])).toContain('update daikou.meisai');
+  });
+  it('★入れ子の コメントの 中身は PG と 同じく コメント★（中の update は 消えて よい・その後の select だけ 残る）', () => {
+    expect(G.stripNoise('/* a /* b */ x */ select 1;').trim()).toBe('select 1;');
+  });
+  for (const [k, sql] of Object.entries({
+    閉じていない文字列: "comment on table daikome.dk_a is 'abc",
+    閉じていないコメント: 'select 1; /* ' + UPD,
+    閉じていないドル引用: 'select 1; $q$ ' + UPD,
+    閉じていない引用名: 'create table daikome.dk_a ("x int);',
+  })) {
+    it('★' + k + 'は 読めない＝赤★', () => {
+      const r = G.guard(sql);
+      expect(r.ok).toBe(false);
+      expect(r.reasons.join()).toContain('読めない');
+    });
+  }
+  it('名前の 途中の $ と $1 は ドル引用と 読まない（偽の赤を 出さない）', () => {
+    expect(G.guard('create table daikome.dk_a (a$b$c int, d text);').ok).toBe(true);
+    expect(G.stripNoise('select $1, $2;')).toBe('select $1, $2;');
+  });
+  it("e で 終わる 名前の 後の ' は E'…' と 読まない", () => {
+    expect(G.stripNoise("select type'\\'; select 1;")).toBe("select type''; select 1;");
+  });
+});
