@@ -44,7 +44,17 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // ★★試験から 本物の 倉庫（*.supabase.co）へ 行かせない★★ 2026-10-02
+        //   本番の repo の 試験 1本で 実測：本物の 本番倉庫へ 4本 出ていた
+        //   （dk-fare-config / dk_check_device_license / ★dk-issue-license★ / dk-customers）。
+        //   ＝試験が ★本番の 倉庫に 端末の 許可を 書き込める★ 形。本番の dk_company_devices の
+        //     試験用の 名札 12件の 出どころの 見立て。重い時は 本物の 返事が 遅れて 試験が 揺れる。
+        //   page.route で 偽の 返事を 用意した 所は ★住所を 引く 前に★ 横取りされるので 今まで通り 動く。
+        //   用意していない 所だけ「見つからない 住所」で すぐ 失敗する（本物には 1本も 届かない）。
+        launchOptions: { args: ['--host-resolver-rules=MAP *.supabase.co ~NOTFOUND'] },
+      },
     },
   ],
   webServer: {
