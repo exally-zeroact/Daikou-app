@@ -461,6 +461,25 @@ describe('★囲いの 中に 印を 書いて 次の 1文を 消す（通った
       expect(r.reasons.join()).toContain('読めない');
     });
   }
+  // ★10-02 夜 対立役が 実測★ タグが 英字 以外だと update が 門から 消えて 通った（直す前 ok=true）
+  for (const tag of ['$あ$', '$é$', '$t日$']) {
+    it('★英字 以外の タグ ' + tag + ' でも update を 止める★', () => {
+      const sql =
+        'comment on table daikome.dk_a is ' +
+        tag +
+        " ' " +
+        tag +
+        ';\n' +
+        UPD +
+        '\n' +
+        'comment on table daikome.dk_a is ' +
+        tag +
+        " ' " +
+        tag +
+        ';';
+      expect(G.guard(sql).ok, '★' + tag + ' で update が 門を 通った★').toBe(false);
+    });
+  }
   it('名前の 途中の $ と $1 は ドル引用と 読まない（偽の赤を 出さない）', () => {
     expect(G.guard('create table daikome.dk_a (a$b$c int, d text);').ok).toBe(true);
     expect(G.stripNoise('select $1, $2;')).toBe('select $1, $2;');

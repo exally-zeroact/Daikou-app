@@ -116,7 +116,7 @@ export function stripNoise(sql) {
     // 文字列 '…'（E'…' は \ で 逃がせる）
     if (c === "'") {
       const prev = out.slice(-1);
-      const eStr = /[eE]/.test(prev) && !/[A-Za-z0-9_$]/.test(out.slice(-2, -1));
+      const eStr = /[eE]/.test(prev) && !/[A-Za-z0-9_$\u0080-￿]/.test(out.slice(-2, -1));
       let j = i + 1;
       let closed = false;
       while (j < n) {
@@ -164,8 +164,11 @@ export function stripNoise(sql) {
     // ドル引用 $$…$$ / $do$…$do$ / $q$…$q$ … ★タグは 何でもよい★
     //   名前の 途中の $（a$b）や $1 は ドル引用では ない（PG と 同じ）
     //   中身は 読めないので $do$ の 印だけ 残す（DANGER の do-block が 拾う）
-    if (c === '$' && !/[A-Za-z0-9_$]/.test(out.slice(-1))) {
-      const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(s.slice(i));
+    //   ★10-02 夜 直し（対立役）★ タグに ★英字 以外（$あ$ / $é$）★ を 使うと
+    //     門は ' を 文字列の 始まりと 読み、次の update を 食べて 通していた。
+    //     PG は 名前に 英字以外（\200-\377）を 許す＝タグにも 使える ⇒ ★英字以外も 名前の 字★として 読む
+    if (c === '$' && !/[A-Za-z0-9_$\u0080-￿]/.test(out.slice(-1))) {
+      const m = /^\$([A-Za-z_\u0080-￿][A-Za-z0-9_\u0080-￿]*)?\$/.exec(s.slice(i));
       if (m) {
         const tag = m[0];
         const e = s.indexOf(tag, i + tag.length);
