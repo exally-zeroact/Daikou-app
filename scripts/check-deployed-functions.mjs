@@ -24,6 +24,7 @@
    ============================================================ */
 import fs from "node:fs";
 import path from "node:path";
+import { readToken, whereWeLooked } from './db-token.mjs';
 
 const ROOT = path.resolve(new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const FN_DIR = path.join(ROOT, "supabase", "functions");
@@ -35,23 +36,14 @@ function projectRef() {
   return m[1];
 }
 
+// ★鍵の 探し場所は db-token.mjs の 1か所だけ★（2026-10-02 直し）
+//   前は ここだけ 自分で %TEMP% の 3つを 探していた。10-02 に %TEMP% が 掃除され、
+//   鍵を ~/.supabase-token に 置き直したら ★この 道具だけ「鍵が無い」と 言った★
+//   （起動の 知らせも この 道具の 字＝鍵が 在るのに 食い違いの 警告が 出続ける）。
 function token() {
-  if (process.env.SUPABASE_ACCESS_TOKEN) return process.env.SUPABASE_ACCESS_TOKEN.trim();
-  const tmp = process.env.TEMP || process.env.TMP || "/tmp";
-  for (const f of ["daikome-db-token.json", "nomiya-db-url-prod.json", "nomiya-db-url.json"]) {
-    const p = path.join(tmp, f);
-    if (fs.existsSync(p)) {
-      try {
-        const t = JSON.parse(fs.readFileSync(p, "utf8")).token;
-        if (t) return t;
-      } catch (_) {
-        /* 次を探す */
-      }
-    }
-  }
-  throw new Error(
-    "鍵が無い（SUPABASE_ACCESS_TOKEN 環境変数、または %TEMP%\\daikome-db-token.json）"
-  );
+  const r = readToken();
+  if (r) return r.token.trim();
+  throw new Error("鍵が無い（探した所: " + whereWeLooked().join(" / ") + "）");
 }
 
 // ソースから「配っても消えない印」を抜く

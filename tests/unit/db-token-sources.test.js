@@ -19,8 +19,17 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPTS = path.join(ROOT, 'scripts');
 
-// 鍵を使う道具（増えたらここに足す）
-const USERS = ['apply-supabase-sql.mjs', 'auth-redirect-allow.mjs', 'db-snapshot.mjs'];
+// 鍵を使う道具
+//   ★2026-10-02 直し★ 前は 名指しの 3本だけ（「増えたらここに足す」）＝★足し忘れた
+//   check-deployed-functions.mjs が 自分で %TEMP% だけを 探していた★。
+//   %TEMP% が 掃除されて 鍵を ~/.supabase-token に 置き直したら その 道具だけ「鍵が無い」。
+//   ⇒ ★倉庫の 管理の 口（api.supabase.com）を 呼ぶ 道具は 全部★ 機械で 拾う。
+//   ★わざと壊して 赤に なるのを 見た（10-02）★ check-deployed-functions.mjs を 直す前に 戻す
+//     ⇒ 赤 2（自分で探し場所を書いている／db-token.mjs を使っていない）。戻すと 5/5 緑。
+const USERS = fs
+  .readdirSync(SCRIPTS)
+  .filter((f) => /\.m?js$/.test(f) && f !== 'db-token.mjs')
+  .filter((f) => /api\.supabase\.com/.test(fs.readFileSync(path.join(SCRIPTS, f), 'utf8')));
 
 function read(f) {
   return fs.readFileSync(path.join(SCRIPTS, f), 'utf8');
@@ -61,7 +70,7 @@ describe('★鍵の探し場所は1箇所だけ★', () => {
       const src = read(f);
       // 自分でファイル名を書いている＝ズレる元
       const writesOwn = /daikome-db-token\.json|nomiya-db-url|\.supabase-token/.test(src);
-      const usesShared = /from '\.\/db-token\.mjs'/.test(src);
+      const usesShared = /from ['"]\.\/db-token\.mjs['"]/.test(src); // ' でも " でも（整形で 変わる）
       if (writesOwn && !usesShared) offenders.push(f + '（自分で探し場所を書いている）');
       if (!usesShared) offenders.push(f + '（db-token.mjs を使っていない）');
     }
