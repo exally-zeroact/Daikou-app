@@ -148,7 +148,9 @@ describe('★名前を 真ん中に★', () => {
     //   ⇒ ★名前は「給料明細」と同じ箱（左のかたまり）に入れて くっつける★。
     expect(HTML, '★左のかたまりが 無い（名前が離れる）★').toContain('<div class="sh-l">');
     const l = HTML.indexOf('<div class="sh-l">');
-    const block = HTML.slice(l, l + 700);
+    // ★10-05★ 事務所の 画面が 紙を 見せる 形に なり、この 作りは 本人の 画面（if の 中）に 入った
+    //   ＝行の 頭の 空白が 増えて 700字では 名前の 印が はみ出した（中身は 同じ）⇒ 900字
+    const block = HTML.slice(l, l + 900);
     expect(block, '★題が 左のかたまりに入っていない★').toContain('給料明細');
     expect(block, '★名前が 左のかたまりに入っていない★').toContain('<div class="who">');
     const i = HTML.indexOf('\n      .slip .shead {');

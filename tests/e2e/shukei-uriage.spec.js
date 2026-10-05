@@ -61,6 +61,8 @@ async function hiraku(page) {
   );
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+  // ★10-05★ 細かい 表は 畳んだ（主役は 紙）＝司さんと 同じく 開いてから 見る
+  await page.locator('#motoHyou > summary').click({ timeout: 15000 });
   await page.locator('#uriTbl').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(1500);
 }
@@ -191,6 +193,8 @@ for (const dai of [5, 10, 20]) {
     );
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+    // ★10-05★ 細かい 表は 畳んだ（主役は 紙）＝司さんと 同じく 開いてから 見る
+    await page.locator('#motoHyou > summary').click({ timeout: 15000 });
     await page.locator('#uriTbl').waitFor({ state: 'visible', timeout: 15000 });
     await page.waitForTimeout(1500);
     await page.locator('[data-uri="month"]').click();
@@ -331,6 +335,8 @@ test('★実費を 引いた 後の 売上か★', async ({ page }) => {
   );
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+  // ★10-05★ 細かい 表は 畳んだ（主役は 紙）＝司さんと 同じく 開いてから 見る
+  await page.locator('#motoHyou > summary').click({ timeout: 15000 });
   await page.locator('#uriTbl').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(1500);
   const r = await yomu(page);

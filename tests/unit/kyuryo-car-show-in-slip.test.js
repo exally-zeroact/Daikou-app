@@ -70,7 +70,9 @@ describe('★車を1台ずつ 明細に出す/出さない★', () => {
     const block = HTML.slice(i, i + 400);
     // false の時だけ 出さない ＝ 空・未設定・true は 出す
     expect(block, '★既定が「出さない」側になっている★').toContain('show_in_slip === false');
-    expect(block, '★出さない側を返していない★').toContain('return !(hit && hit.show_in_slip === false)');
+    expect(block, '★出さない側を返していない★').toContain(
+      'return !(hit && hit.show_in_slip === false)'
+    );
   });
 
   it('★判定は1か所★（設定の画面と 明細で 食い違わない）', () => {
@@ -84,7 +86,9 @@ describe('★車を1台ずつ 明細に出す/出さない★', () => {
     const i = HTML.indexOf('function slipCars(');
     const block = HTML.slice(i, i + 500);
     // 元の並びの何番目か（i）を 一緒に持つ＝carSales の取り違えが起きない
-    expect(block, '★元の何番目かを 持っていない（数字が ずれる）★').toContain('out.push({ car: car, i: i })');
+    expect(block, '★元の何番目かを 持っていない（数字が ずれる）★').toContain(
+      'out.push({ car: car, i: i })'
+    );
     // 2026-08-25：司さんの指示で ★スマホの一覧は 金額と時間だけ★ になったので、
     //   売上を出すのは ★紙（横）だけ★。ここも 横だけを見る。
     expect(HTML, '★横で 振り直していない★').toContain("'売上' + (n + 1) + '（' + x.car.label");
@@ -96,6 +100,27 @@ describe('★車を1台ずつ 明細に出す/出さない★', () => {
       const other = fs.readFileSync(path.join(ROOT, f), 'utf8');
       expect(other, `★${f} まで 車を隠している★`).not.toContain('show_in_slip');
     }
+  });
+
+  // ★★10-05 司さん「つかさは給料明細にださんってだけで他のPDFとかにする明細には出せや」★★
+  //   上は 画面 2つしか 見ていなかった ⇒ ★紙の 作り方（js/ 全部）★と
+  //   ★給料の まとめた 表（月ごと・日ごと・個別・年ごと）★も 見る。
+  //   わざと壊す（10-05）：js/kami-hyou.js に show_in_slip を 1字 足す ⇒ 赤
+  it('★紙の 作り方（js/）も まとめた 表も 車を 隠さない★', () => {
+    const JS = path.join(ROOT, 'js');
+    const naka = fs.readdirSync(JS).filter((f) => f.endsWith('.js'));
+    expect(naka.length, '★js/ が 読めていない（空回り）★').toBeGreaterThan(10);
+    for (const f of naka) {
+      const s = fs.readFileSync(path.join(JS, f), 'utf8');
+      expect(s, `★js/${f} が 車を 隠している★`).not.toMatch(/show_in_slip|carShowsInSlip/);
+    }
+    // 給料の まとめた 表は 画面の 中で 組む ⇒ その 区間で 明細用の 絞り（slipCars）を 使わない
+    const a = HTML.indexOf('★★給料表を A4の PDF で 出す★★');
+    const b = HTML.indexOf('function erandaHito', a);
+    expect(a > 0 && b > a, '★まとめた 表の 区間が 見つからない★').toBe(true);
+    expect(HTML.slice(a, b), '★まとめた 表が 給料明細の 車の 絞りを 使っている★').not.toMatch(
+      /slipCars|carShowsInSlip|show_in_slip/
+    );
   });
 });
 
@@ -112,7 +137,9 @@ describe('★合計を大きく 目立つように★', () => {
     const sums = ruleOf(HTML, '      .slip .sums');
     const big = ruleOf(HTML, '      .slip .sums .big');
     expect(big, '★金額を 目立つ色にしている★').toContain('color: var(--ink)');
-    expect(sums, '★合計の箱に 目立つ色を塗っている★').not.toMatch(/background:\s*(#0|#e0|var\(--blue)/);
+    expect(sums, '★合計の箱に 目立つ色を塗っている★').not.toMatch(
+      /background:\s*(#0|#e0|var\(--blue)/
+    );
   });
 
   it('印を付けた所を 画面が実際に使っている', () => {

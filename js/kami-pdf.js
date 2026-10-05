@@ -101,7 +101,47 @@
     );
   }
 
-  const api = { A4: A4, PX2PT: PX2PT, MACHI_MS: MACHI_MS, yomu: yomu, dasu: dasu };
+  // ★★紙を そのまま 画面に 見せる★★ 2026-10-05
+  //   司さん「PDFつくっとんやけんそれを見せろや」「見切れてめちゃくちゃな所あるし」
+  //   ★PDF に する 紙（{el, muki}）を ★画面の 幅に ぴったり★ 縮めて 並べる★＝PDF と 同じ 見た目。
+  //   押すと osu()（＝PDF を 作って 開く）。代行請求書の 請求書ページと 同じ 見せ方。
+  //   ★PDF に する 時は 紙を 作り直す★こと（ここで 縮めた 板を dasu に 渡すと 測り直しが ずれる）。
+  function mise(mado, itas, osu) {
+    if (!mado) return 0;
+    mado.innerHTML = '';
+    itas = [].concat(itas || []);
+    const haba = mado.clientWidth || 360;
+    itas.forEach(function (x) {
+      const s = A4[x.muki === 'yoko' ? 'yoko' : 'tate'];
+      const sc = Math.min(1, (haba - 2) / s.bw);
+      const el = x.el;
+      el.style.position = 'static';
+      el.style.left = 'auto';
+      el.style.top = 'auto';
+      el.style.width = s.bw + 'px';
+      el.style.minHeight = s.bh + 'px';
+      el.style.background = '#fff';
+      el.style.transformOrigin = 'top left';
+      el.style.transform = 'scale(' + sc + ')';
+      const waku = document.createElement('div');
+      waku.className = 'kami-mise-waku';
+      waku.style.cssText =
+        'height:' +
+        Math.ceil(s.bh * sc) +
+        'px;overflow:hidden;background:#fff;border:1px solid #dbe3ef;border-radius:10px;margin:0 0 12px;';
+      if (typeof osu === 'function') {
+        waku.style.cursor = 'pointer';
+        waku.title = '押すと PDF で 開きます';
+        waku.setAttribute('role', 'button');
+        waku.onclick = osu;
+      }
+      waku.appendChild(el);
+      mado.appendChild(waku);
+    });
+    return itas.length;
+  }
+
+  const api = { A4: A4, PX2PT: PX2PT, MACHI_MS: MACHI_MS, yomu: yomu, dasu: dasu, mise: mise };
   if (typeof global !== 'undefined') global.KamiPdf = api;
   /* eslint-disable no-undef */
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {

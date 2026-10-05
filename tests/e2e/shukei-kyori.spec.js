@@ -95,6 +95,8 @@ async function hiraku(page) {
   );
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+  // ★10-05★ 細かい 表は 畳んだ（主役は 紙）＝司さんと 同じく 開いてから 見る
+  await page.locator('#motoHyou > summary').click({ timeout: 15000 });
   await page.locator('#kyoriTbl').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(1200);
 }
@@ -279,6 +281,8 @@ test('★1ヶ月ぶんでも 箱の 中で 止まる★', async ({ page }) => {
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+  // ★10-05★ 細かい 表は 畳んだ（主役は 紙）＝司さんと 同じく 開いてから 見る
+  await page.locator('#motoHyou > summary').click({ timeout: 15000 });
   await page.locator('#kyoriTbl').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(1200);
   await page.locator('#tbody [data-m="1"]').click();

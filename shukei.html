@@ -620,6 +620,39 @@
         font-size: 11px;
         color: #8a6d3b;
       }
+
+      /* ★紙を 選ぶ 所★ 2026-10-05 */
+      .kami-erabu {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .kami-tsuki {
+        padding: 8px 10px;
+        border: 1.5px solid #cfe0ff;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: inherit;
+        background: #fff;
+      }
+
+      .kami-seg {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+      }
+
+      .kami-mado {
+        margin-top: 10px;
+      }
+
+      .moto-hyou > summary {
+        cursor: pointer;
+        color: var(--blue);
+        font-weight: 700;
+        padding: 10px 4px;
+      }
     </style>
   </head>
   <body>
@@ -643,192 +676,196 @@
       <!-- ★★A4のPDFで 見る★★ 2026-09-25（司さん「月で選んだら項目別で その場で A4サイズPDFで 見せれるようにしろ」）
            ★window.print は 使わない★＝紙の 下に URL・日付が 出て 消せない（司さん 2026-08-05 決定）。
            js/kami-pdf.js が 自前で A4 を 組む。 -->
+      <!-- ★★紙を そのまま 見せる★★ 2026-10-05（司さん「PDFつくっとんやけんそれを見せろや」
+           「何をくどくど訳わからんこと見せとんど」「見切れてめちゃくちゃ」）
+           ★前★ ボタン 4つ＋説明 2行。押すと PDF が 出るだけで 画面には 何も 出なかった。
+           ★今★ 月と 紙の 種類を 選ぶと ★その 紙が 画面に 出る★（PDF と 同じ 物）。紙を 押すと PDF。 -->
       <div class="card noprint" id="kamiCard">
-        <h2>PDFで 見る</h2>
-        <div class="desc">月を 選ぶと その月の 紙、「年ぶん」で 12か月の 紙が 出ます。</div>
-        <div class="row" style="gap: 8px; flex-wrap: wrap; align-items: center">
-          <select
-            id="kamiTsuki"
-            aria-label="月を選ぶ"
-            style="
-              padding: 7px 10px;
-              border: 1.5px solid #cfe0ff;
-              border-radius: 8px;
-              font-size: 14px;
-              font-family: inherit;
-            "
-          ></select>
-          <button class="btn" id="kamiMonth" type="button">月次集計（この月）</button>
-          <button class="btn" id="kamiUriM" type="button">売上表（この月）</button>
-          <button class="btn ghost" id="kamiYear" type="button">売上表（年ぶん）</button>
-          <button class="btn ghost" id="kamiSoukouN" type="button">回数・距離（年ぶん）</button>
+        <div class="kami-erabu">
+          <select id="kamiTsuki" class="kami-tsuki" aria-label="月を選ぶ"></select>
+          <div class="seg kami-seg" id="kamiSeg">
+            <button class="segb on" id="kamiMonth" type="button" data-shu="getsuji">
+              月次集計
+            </button>
+            <button class="segb" id="kamiUriM" type="button" data-shu="uriM">売上表</button>
+            <button class="segb" id="kamiSoukouN" type="button" data-shu="soukouN">
+              回数・距離（年）
+            </button>
+            <button class="segb" id="kamiYear" type="button" data-shu="uriY">売上表（年）</button>
+          </div>
         </div>
-        <div class="desc" style="margin-top: 6px">
-          回数・距離の <b>月ごと</b> は
-          <a href="uriage.html" style="color: var(--blue)">売上表の画面</a> から 出せます。
-        </div>
-        <div class="desc" id="kamiMsg" style="margin-top: 8px"></div>
+        <div id="kamiMado" class="kami-mado"></div>
+        <div class="desc" id="kamiMsg">読み込み中…</div>
       </div>
 
       <div class="err noprint" id="err" style="display: none"></div>
       <div class="msg noprint" id="msg" style="display: none"></div>
 
-      <div class="card">
-        <div class="ttl">月ごと</div>
-        <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+      <!-- ★★細かい 表は 畳む★★ 2026-10-05（司さん「何をくどくど訳わからんこと見せとんど」）
+           画面の 主役は 上の 紙（PDF と 同じ）。表は 消さずに ここへ しまう（電子決済など 紙に 無い 数も 在る）。 -->
+      <details id="motoHyou" class="moto-hyou">
+        <summary>細かい 表で 見る</summary>
+        <div class="card">
+          <div class="ttl">月ごと</div>
+          <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
              ★横に すべらせる 箱（scroller）は 使いません★＝列の 幅を 決めて 幅の 中に 収めます。 -->
-        <!-- ★★12ヶ月は 丸ごと 出す（スクロール 0）★★ 2026-09-08
+          <!-- ★★12ヶ月は 丸ごと 出す（スクロール 0）★★ 2026-09-08
              ★司さん★「12ヶ月をスクロールせんでええように見せろや」
              ★前★ 窓（高さ 230px）に 入れた ⇒ 中身 297px ＝★窓の 中で まだ すべった★
              ★今★ ①窓を やめて ★12ヶ月＋合計を 丸ごと★ 出す
                    ②3枚を ★札で 切り替え★＝一度に 1枚だけ ⇒ ページも 伸びない
              ★日ごとの 表（31行）は 窓の まま★＝丸ごとは 画面に 入らない ので -->
-        <div class="seg" id="tsukiSeg">
-          <button class="segb on" id="segUri" type="button">売上</button>
-          <button class="segb" id="segKyu" type="button">給料</button>
-          <button class="segb" id="segNokori" type="button">会社に残る分</button>
+          <div class="seg" id="tsukiSeg">
+            <button class="segb on" id="segUri" type="button">売上</button>
+            <button class="segb" id="segKyu" type="button">給料</button>
+            <button class="segb" id="segNokori" type="button">会社に残る分</button>
+          </div>
+          <div data-tsuki="uri">
+            <table id="tbl" class="kami">
+              <thead id="thead"></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div data-tsuki="kyu" style="display: none">
+            <table id="tbl3" class="kami">
+              <thead id="thead3"></thead>
+              <tbody id="tbody3"></tbody>
+            </table>
+            <div class="note" id="kyuryoNote" style="display: none"></div>
+          </div>
+          <div data-tsuki="nokori" style="display: none">
+            <div class="kami-ttl">会社に残る分（売上 − 給料 − 積立金）</div>
+            <table id="tbl2" class="kami">
+              <thead id="thead2"></thead>
+              <tbody id="tbody2"></tbody>
+            </table>
+          </div>
+          <div class="note">
+            <b>売上</b
+            >＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<b
+              >オーナーの車も入ります。</b
+            ><br />
+            <b>給料</b
+            >は払う回ごとに分けて出しています。<b>未収</b>＝請求書＋電子決済（まだ現金になっていない分）。<br />
+            <b>会社に残る分</b>＝売上 − 給料 − 積立金。日ごとに出した分を足した物と一致します。
+          </div>
         </div>
-        <div data-tsuki="uri">
-          <table id="tbl" class="kami">
-            <thead id="thead"></thead>
-            <tbody id="tbody"></tbody>
-          </table>
-        </div>
-        <div data-tsuki="kyu" style="display: none">
-          <table id="tbl3" class="kami">
-            <thead id="thead3"></thead>
-            <tbody id="tbody3"></tbody>
-          </table>
-          <div class="note" id="kyuryoNote" style="display: none"></div>
-        </div>
-        <div data-tsuki="nokori" style="display: none">
-          <div class="kami-ttl">会社に残る分（売上 − 給料 − 積立金）</div>
-          <table id="tbl2" class="kami">
-            <thead id="thead2"></thead>
-            <tbody id="tbody2"></tbody>
-          </table>
-        </div>
-        <div class="note">
-          <b>売上</b>＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<b
-            >オーナーの車も入ります。</b
-          ><br />
-          <b>給料</b
-          >は払う回ごとに分けて出しています。<b>未収</b>＝請求書＋電子決済（まだ現金になっていない分）。<br />
-          <b>会社に残る分</b>＝売上 − 給料 − 積立金。日ごとに出した分を足した物と一致します。
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="ttl" id="oneTtl">1ヶ月の内訳</div>
-        <!-- ★★月を ボタンで 選ぶ★★ 2026-09-06（司さん）
+        <div class="card">
+          <div class="ttl" id="oneTtl">1ヶ月の内訳</div>
+          <!-- ★★月を ボタンで 選ぶ★★ 2026-09-06（司さん）
              ★司さんの言葉★「これを 代行請求書アプリのように 月を 選んだら
                              全体選んだりのボタンで やらせろや」
              ★前★ ★上の 表の 行を 押す★しか 道が 無かった（押せると 分からない）
              ⇒ ★全体／1月…12月★の ボタンを ここに 出す。表の 行を 押す 道も 残す。 -->
-        <div class="filterbar">
-          <select class="fselect" id="tsukiSel"></select>
+          <div class="filterbar">
+            <select class="fselect" id="tsukiSel"></select>
+          </div>
+          <div class="kpis" id="kpis"></div>
         </div>
-        <div class="kpis" id="kpis"></div>
-      </div>
 
-      <!-- ★★売上★★ 2026-09-05（司さん）
+        <!-- ★★売上★★ 2026-09-05（司さん）
            「売上は 車ごととか 全体とか 日別や 月別や 年別で 分けれとんか？」
            「ないといかんやろ」
            ★距離と 同じ 形★（同じ 場所・同じ 押し方）
            ★数え方は 元と 同じ★＝実費を 引いた後（js/getsuji-agg.js と 同じ 式） -->
-      <div class="card">
-        <div class="ttl">売上</div>
-        <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap">
-          <button class="btn sub2" type="button" data-uri="year">年間</button>
-          <button class="btn" type="button" data-uri="month">月ごと</button>
-          <button class="btn sub2" type="button" data-uri="day">日ごと</button>
+        <div class="card">
+          <div class="ttl">売上</div>
+          <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button class="btn sub2" type="button" data-uri="year">年間</button>
+            <button class="btn" type="button" data-uri="month">月ごと</button>
+            <button class="btn sub2" type="button" data-uri="day">日ごと</button>
+          </div>
+          <div
+            class="oshi noprint"
+            style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px"
+          >
+            <button class="btn" type="button" data-uriwake="zentai">全体</button>
+            <button class="btn sub2" type="button" data-uriwake="kuruma">車ごと</button>
+          </div>
+          <div class="scroller kyori-sc" style="margin-top: 10px">
+            <table id="uriTbl" class="kami">
+              <thead id="uriHead"></thead>
+              <tbody id="uriBody"></tbody>
+            </table>
+          </div>
+          <div class="note">
+            <b>売上</b
+            >＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<br />
+            <b>オーナーの車も入ります。</b>
+          </div>
         </div>
-        <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px">
-          <button class="btn" type="button" data-uriwake="zentai">全体</button>
-          <button class="btn sub2" type="button" data-uriwake="kuruma">車ごと</button>
-        </div>
-        <div class="scroller kyori-sc" style="margin-top: 10px">
-          <table id="uriTbl" class="kami">
-            <thead id="uriHead"></thead>
-            <tbody id="uriBody"></tbody>
-          </table>
-        </div>
-        <div class="note">
-          <b>売上</b
-          >＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<br />
-          <b>オーナーの車も入ります。</b>
-        </div>
-      </div>
 
-      <!-- ★★距離★★ 2026-09-05（司さん）
+        <!-- ★★距離★★ 2026-09-05（司さん）
            「Excelの 代行計算表2026の 距離の シートのように
              回数、総走行距離、実車距離は どこに いれてる？」
            「年間と 月ごと 日ごと 同じように ボタンで 切り替えて 見れるようにして」
            ★実物の Excel と 同じ 3つ★＝回数／実車距離／総距離 -->
-      <div class="card">
-        <div class="ttl">距離</div>
-        <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap">
-          <button class="btn sub2" type="button" data-kyori="year">年間</button>
-          <button class="btn" type="button" data-kyori="month">月ごと</button>
-          <button class="btn sub2" type="button" data-kyori="day">日ごと</button>
-        </div>
-        <!-- ★★多い時は 箱の 中で スクロール★★ 2026-09-05（司さん）
+        <div class="card">
+          <div class="ttl">距離</div>
+          <div class="oshi noprint" style="display: flex; gap: 8px; flex-wrap: wrap">
+            <button class="btn sub2" type="button" data-kyori="year">年間</button>
+            <button class="btn" type="button" data-kyori="month">月ごと</button>
+            <button class="btn sub2" type="button" data-kyori="day">日ごと</button>
+          </div>
+          <!-- ★★多い時は 箱の 中で スクロール★★ 2026-09-05（司さん）
              「それを 多いけん スクロールして 見せるようにしろ」
              ★ページを 伸ばさない★＝下の 帯や 他の 箱が 遠くへ 行かない
              ★見出しは 貼り付ける★（スクロールしても 何の 列か 分かる） -->
-        <div class="scroller kyori-sc" style="margin-top: 10px">
-          <table id="kyoriTbl" class="kami">
-            <thead id="kyoriHead"></thead>
-            <tbody id="kyoriBody"></tbody>
-          </table>
+          <div class="scroller kyori-sc" style="margin-top: 10px">
+            <table id="kyoriTbl" class="kami">
+              <thead id="kyoriHead"></thead>
+              <tbody id="kyoriBody"></tbody>
+            </table>
+          </div>
+          <div class="note">
+            <b>回数</b>＝お客さんを 乗せた 回数。<b>実車距離</b>＝お客さんを 乗せて 走った 分。<br />
+            <b>総走行距離</b>＝迎えや 戻りも 入れた ぜんぶ（空車も 入ります）。
+          </div>
         </div>
-        <div class="note">
-          <b>回数</b>＝お客さんを 乗せた 回数。<b>実車距離</b>＝お客さんを 乗せて 走った 分。<br />
-          <b>総走行距離</b>＝迎えや 戻りも 入れた ぜんぶ（空車も 入ります）。
-        </div>
-      </div>
 
-      <div class="card noprint">
-        <!-- ★★ここでは 打てません（見るだけ）★★ 2026-09-08
+        <div class="card noprint">
+          <!-- ★★ここでは 打てません（見るだけ）★★ 2026-09-08
              ★司さん★「なぜ月次の電子決済は入力タブ作ったのにここで入力できるようになっとんど
                        しかも月ごとの日ごととで違うし」
              ⇒ ★打つ 所は 下の 帯の「入力」1か所★。ここは 月ごとも 日ごとも ★見るだけ★。 -->
-        <div class="ttl">電子決済で受け取った分</div>
-        <!-- ★★日ごとにも 入れられるように する★★ 2026-09-06（司さん
+          <div class="ttl">電子決済で受け取った分</div>
+          <!-- ★★日ごとにも 入れられるように する★★ 2026-09-06（司さん
              「毎日 入れれるように しろよ 前から いよろが 入力タブ作れって」）
              ★前★ ★月に 1マス★ だけ ⇒ いつ 受け取ったか 分からない
              ★今★ ★月ごと／日ごと★ を 選べる（実費入力と 同じ 形）
              ★前に 入れた 月ごとの 分は 消しません★
                ⇒ その月に 日ごとが 1件でも 在れば ★日ごとを 使う★（二重に 数えない） -->
-        <div class="seg" id="ppSeg">
-          <button class="segb on" id="dkSegM" type="button">月ごと</button>
-          <button class="segb" id="dkSegD" type="button">日ごと</button>
+          <div class="seg" id="ppSeg">
+            <button class="segb on" id="dkSegM" type="button">月ごと</button>
+            <button class="segb" id="dkSegD" type="button">日ごと</button>
+          </div>
+          <div class="scroller">
+            <table class="kami">
+              <thead id="dkHead">
+                <tr>
+                  <th>月</th>
+                  <th>電子決済</th>
+                </tr>
+              </thead>
+              <tbody id="dkBody"></tbody>
+            </table>
+          </div>
+          <!-- ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」） -->
+          <div class="note" id="dkMichi"></div>
+          <div class="note">
+            メーターは今「現金」と「請求書」しか分けていません。<b
+              >電子決済で受け取った分はここに入れてください。</b
+            ><br />
+            日ごとに 入れたい ときは <b>下の 帯の「入力」</b>で 打てます。<br />
+            請求書の分は、実車中に請求書ボタンで会社を選んだ代行から自動で集まります。
+          </div>
         </div>
-        <div class="scroller">
-          <table class="kami">
-            <thead id="dkHead">
-              <tr>
-                <th>月</th>
-                <th>電子決済</th>
-              </tr>
-            </thead>
-            <tbody id="dkBody"></tbody>
-          </table>
-        </div>
-        <!-- ★★打つ 所は 1か所★★ 2026-09-06（司さん「入力タブは」） -->
-        <div class="note" id="dkMichi"></div>
-        <div class="note">
-          メーターは今「現金」と「請求書」しか分けていません。<b
-            >電子決済で受け取った分はここに入れてください。</b
-          ><br />
-          日ごとに 入れたい ときは <b>下の 帯の「入力」</b>で 打てます。<br />
-          請求書の分は、実車中に請求書ボタンで会社を選んだ代行から自動で集まります。
-        </div>
-      </div>
 
-      <div class="card noprint">
-        <button class="btn" id="btnPrint">印刷する</button>
-      </div>
+        <div class="card noprint">
+          <button class="btn" id="btnPrint">印刷する</button>
+        </div>
+      </details>
     </div>
 
     <script src="js/dk-config.js"></script>
@@ -1084,52 +1121,82 @@
           var kyou = new Date();
           sel.value = ima || (kyou.getFullYear() === YEAR ? kyou.getMonth() + 1 : 1);
         }
-        if ($('kamiMonth')) {
-          $('kamiMonth').onclick = function () {
-            if (!YR) return kamiMsg('まだ 読み込んでいません。');
-            var tsuki = Number($('kamiTsuki').value) || 1;
-            var m = (YR.months || [])[tsuki - 1];
-            var k = kamiKaisha(tsuki);
-            var cars = kamiCarsOf(tsuki);
-            var mai = KamiHyou.getsuji(k, KamiShukei.getsujiData(m, cars));
-            kamiDasu(
-              mai,
-              (k.name || 'ダイコメ') + '_月次集計_' + YEAR + '-' + ('0' + tsuki).slice(-2)
-            );
+        // ★★どの 紙を 組むかは ここ 1か所★★ 2026-10-05（見せる 時も PDF に する 時も 同じ 物）
+        var KAMI_SHU = 'getsuji';
+        function kamiTsukuru(shu) {
+          if (!YR) return null;
+          var tsuki = Number($('kamiTsuki').value) || 1;
+          var m = (YR.months || [])[tsuki - 1];
+          var na0 = function (k) {
+            return k.name || 'ダイコメ';
+          };
+          var mm = YEAR + '-' + ('0' + tsuki).slice(-2);
+          if (shu === 'uriM') {
+            var k1 = kamiKaisha(tsuki);
+            return {
+              mai: KamiHyou.uriageTsuki(
+                k1,
+                KamiShukei.uriageTsukiData(m, kamiCarsOf(tsuki), kamiUriageHi(tsuki))
+              ),
+              na: na0(k1) + '_売上表_' + mm,
+            };
+          }
+          if (shu === 'soukouN') {
+            var k2 = kamiKaisha(1);
+            return {
+              mai: KamiHyou.soukouNen(k2, kamiSoukouNenData()),
+              na: na0(k2) + '_回数距離_' + YEAR + '年',
+            };
+          }
+          if (shu === 'uriY') {
+            var k3 = kamiKaisha(1);
+            return {
+              mai: KamiHyou.uriageNen(k3, KamiShukei.uriageNenData(YR)),
+              na: na0(k3) + '_売上表_' + YEAR + '年',
+            };
+          }
+          var k = kamiKaisha(tsuki);
+          return {
+            mai: KamiHyou.getsuji(k, KamiShukei.getsujiData(m, kamiCarsOf(tsuki))),
+            na: na0(k) + '_月次集計_' + mm,
           };
         }
-        if ($('kamiUriM')) {
-          $('kamiUriM').onclick = function () {
-            if (!YR) return kamiMsg('まだ 読み込んでいません。');
-            var tsuki = Number($('kamiTsuki').value) || 1;
-            var m = (YR.months || [])[tsuki - 1];
-            var k = kamiKaisha(tsuki);
-            var mai = KamiHyou.uriageTsuki(
-              k,
-              KamiShukei.uriageTsukiData(m, kamiCarsOf(tsuki), kamiUriageHi(tsuki))
-            );
-            kamiDasu(
-              mai,
-              (k.name || 'ダイコメ') + '_売上表_' + YEAR + '-' + ('0' + tsuki).slice(-2)
-            );
+        // ★選んだ 紙を 画面に 出す★（押すと その場で 作り直して PDF）
+        function kamiMiseru() {
+          Array.prototype.forEach.call(document.querySelectorAll('#kamiSeg .segb'), function (b) {
+            b.classList.toggle('on', b.getAttribute('data-shu') === KAMI_SHU);
+          });
+          // 年の 紙は 月を 使わない
+          if ($('kamiTsuki'))
+            $('kamiTsuki').style.visibility = /N$|Y$/.test(KAMI_SHU) ? 'hidden' : '';
+          var r = kamiTsukuru(KAMI_SHU);
+          if (!r) return kamiMsg('読み込み中…');
+          KamiPdf.mise($('kamiMado'), r.mai, function () {
+            var r2 = kamiTsukuru(KAMI_SHU);
+            if (r2) kamiDasu(r2.mai, r2.na);
+          });
+          kamiMsg('紙を 押すと PDF で 開きます。');
+        }
+        Array.prototype.forEach.call(document.querySelectorAll('#kamiSeg .segb'), function (b) {
+          b.onclick = function () {
+            KAMI_SHU = b.getAttribute('data-shu');
+            kamiMiseru();
+          };
+        });
+        if ($('kamiTsuki')) {
+          $('kamiTsuki').onchange = function () {
+            kamiMiseru();
           };
         }
-        if ($('kamiSoukouN')) {
-          $('kamiSoukouN').onclick = function () {
-            if (!YR) return kamiMsg('まだ 読み込んでいません。');
-            var k = kamiKaisha(1);
-            var mai = KamiHyou.soukouNen(k, kamiSoukouNenData());
-            kamiDasu(mai, (k.name || 'ダイコメ') + '_回数距離_' + YEAR + '年');
-          };
-        }
-        if ($('kamiYear')) {
-          $('kamiYear').onclick = function () {
-            if (!YR) return kamiMsg('まだ 読み込んでいません。');
-            var k = kamiKaisha(1);
-            var mai = KamiHyou.uriageNen(k, KamiShukei.uriageNenData(YR));
-            kamiDasu(mai, (k.name || 'ダイコメ') + '_売上表_' + YEAR + '年');
-          };
-        }
+        // ★幅が 変わったら 縮め方を 決め直す★（10-05 対立役：横向き→縦向きで 紙の 右が 切れた）
+        var _kamiHaba = 0;
+        window.addEventListener('resize', function () {
+          var w = $('kamiMado') ? $('kamiMado').clientWidth : 0;
+          if (!w || w === _kamiHaba || !YR) return;
+          _kamiHaba = w;
+          clearTimeout(window.__kamiT);
+          window.__kamiT = setTimeout(kamiMiseru, 150);
+        });
 
         $('prevY').onclick = function () {
           YEAR -= 1;
@@ -1194,6 +1261,11 @@
           if (!COMPANY) return;
           showErr('');
           showMsg('読み込み中…');
+          // ★読み込み中は 古い 年の 紙を 消す★（10-05 対立役：年を 変えた 直後に 押すと
+          //   札は 新しい 年・数は 古い 年の PDF が 出た）＝読み終わるまで 紙を 出さない・押させない
+          YR = null;
+          if ($('kamiMado')) $('kamiMado').innerHTML = '';
+          kamiMsg('読み込み中…');
           var from = YEAR + '-01-01T00:00:00+09:00';
           var to = YEAR + 1 + '-01-01T00:00:00+09:00';
 
@@ -1338,6 +1410,14 @@
           YR = GetsujiAgg.year(YEAR, CTX, pays);
           try {
             kamiTsukiSel(); // ★PDFの 月の 選択肢★（年を 変えた 時も 作り直す）
+            // ★選んでいる 紙を 画面に 出す★（描き終わった 後＝同じ 数を 使う）2026-10-05
+            setTimeout(function () {
+              try {
+                kamiMiseru();
+              } catch (e2) {
+                kamiMsg('紙を 出せませんでした：' + (e2 && e2.message ? e2.message : e2));
+              }
+            }, 0);
           } catch (_) {
             /* 紙が 無くても 画面は 止めない */
           }

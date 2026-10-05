@@ -818,6 +818,35 @@
         margin-top: 10px;
       }
 
+      /* ★紙の 上の 1行★（チェック＋名前 ／ QR・送る）2026-10-05 */
+      .kami-ue {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 0 0 8px;
+      }
+
+      .kami-ue .slip-pick-wrap {
+        gap: 8px;
+        margin: 0;
+      }
+
+      .kami-ue-na {
+        font-weight: 700;
+      }
+
+      .kami-ue-btn {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .kami-oseru {
+        cursor: pointer;
+      }
+
       .kami-tatami > summary {
         cursor: pointer;
         font-size: 13px;
@@ -1128,6 +1157,10 @@
         border: 1px solid var(--line);
         border-radius: 10px;
         margin: 0 0 12px;
+      }
+
+      .kami-mado .hn-kami-waku {
+        overflow: hidden; /* ★幅に 合わせた ので 横に 送らない★ */
       }
     </style>
   </head>
@@ -3063,6 +3096,8 @@
           PERIOD = PERIODS[PIDX];
           showErr('');
           showMsg('読み込み中…');
+          // ★読み込み中は 古い 月の 紙を 消す★（10-05 対立役：押すと 名前だけ 新しい 月・中身は 古い 月）
+          if (!HONNIN && $('slips')) $('slips').innerHTML = '';
 
           // 期間の日付は日本時間。勤務は開始時刻で数える。
           var from = PERIOD.start + 'T00:00:00+09:00';
@@ -3837,130 +3872,161 @@
             if (HITO && String(e.employee_id) !== HITO) return;
             // ★出す車は 人ごとに決まる★（その人の指定が無ければ 会社の決まりどおり）
             var cars = slipCars(REP.cars, e.employee_id);
-            html +=
-              '<div class="slip" id="slip-' +
-              ei +
-              '"><div class="shead">' +
-              // ★左のかたまり★（題＋期間＋名前）
-              //   ★名前は「給料明細」のすぐ右★ 2026-08-25（司さん「赤丸の所に名前もってきて」）
-              '<div class="sh-l">' +
-              // ★★印刷する 人を 選ぶ チェック★★ 2026-09-05（司さん「チェックボタン 作って」）
-              //   ★紙には 出しません★（noprint）＝刷った 紙に チェック欄は 要らない
-              //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
-              (HONNIN
-                ? ''
-                : '<label class="slip-pick-wrap noprint"><input type="checkbox" class="slip-pick" data-emp="' +
-                  esc(String(e.employee_id)) +
-                  '" aria-label="印刷する人に えらぶ" /></label>') +
-              '<div><div class="title">給料明細</div>' +
-              '<div>' +
-              esc(PERIOD.label) +
-              '　' +
-              esc(PERIOD.rangeLabel) +
-              '</div></div>' +
-              '<div class="who">' +
-              esc(e.name) +
-              '　殿</div>' +
-              '</div>' +
-              // ★合計は 行の 真ん中★ 2026-08-25（司さん「金額は赤丸の中心ぐらいに」）
-              //   左のかたまりと 右のかたまりを ★同じ幅★にして 合計を真ん中に置く。
-              //   （余った所の真ん中では ★右に寄って見える★＝1度 それで直っていなかった）
-              '<div class="sums">合計<span class="big">¥' +
-              yen(e.totalPay) +
-              '</span><span class="mid">' +
-              hrs(e.totalHours) +
-              ' 時間</span></div>' +
-              // ★右のかたまり★（幅合わせ＋その人の QR）
-              //   ★紙でもボタンが消えるだけで この箱は残す★＝紙でも真ん中がずれない
-              '<div class="sh-r">' +
-              // ★★「この人のPDF」を やめました★★ 2026-09-04（司さん）
-              //   「明細の この人のPDFを 消して QRコードか URLを 配るボタン 作って」
-              //   ⇒ ★紙を 作って 送るのでは なく、その場で QR を 見せる★
-              //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
-              // ★★明細にも「送る」を 出します★★ 2026-09-04（司さん「ないやないか」）
-              //   ★渡し方の 2つ（見せる／送る）は 同じ 場所に 並べる★
-              //   ★ボタンは 箱に 入れる★（裸で 並べると 折り返しで くっつく）
-              (HONNIN
-                ? ''
-                : '<div class="noprint" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">' +
-                  '<button class="btn ghost noprint" data-meisai-qr="' +
-                  esc(e.employee_id || '') +
-                  '">QRを 見せる</button>' +
-                  '<button class="btn ghost noprint" data-meisai-okuru="' +
-                  esc(e.employee_id || '') +
-                  '">送る</button>' +
-                  '</div>') +
-              '</div>' +
-              '</div>';
+            // ★★事務所の 画面＝紙の 上は 1行だけ★★ 2026-10-05（司さん「くどくど 見せとんど」）
+            //   名前・期間・合計は ★紙の 中に 書いてある★＝重ねて 出さない。チェックと 渡し方だけ。
+            if (!HONNIN) {
+              html +=
+                '<div class="slip" id="slip-' +
+                ei +
+                '"><div class="kami-ue noprint">' +
+                '<label class="slip-pick-wrap"><input type="checkbox" class="slip-pick" data-emp="' +
+                esc(String(e.employee_id)) +
+                '" aria-label="印刷する人に えらぶ" /><span class="kami-ue-na">' +
+                esc(e.name) +
+                '</span></label>' +
+                '<div class="kami-ue-btn">' +
+                '<button class="btn ghost" data-meisai-qr="' +
+                esc(e.employee_id || '') +
+                '">QRを 見せる</button>' +
+                '<button class="btn ghost" data-meisai-okuru="' +
+                esc(e.employee_id || '') +
+                '">送る</button>' +
+                '</div></div>';
+            } else {
+              html +=
+                '<div class="slip" id="slip-' +
+                ei +
+                '"><div class="shead">' +
+                // ★左のかたまり★（題＋期間＋名前）
+                //   ★名前は「給料明細」のすぐ右★ 2026-08-25（司さん「赤丸の所に名前もってきて」）
+                '<div class="sh-l">' +
+                // ★★印刷する 人を 選ぶ チェック★★ 2026-09-05（司さん「チェックボタン 作って」）
+                //   ★紙には 出しません★（noprint）＝刷った 紙に チェック欄は 要らない
+                //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
+                (HONNIN
+                  ? ''
+                  : '<label class="slip-pick-wrap noprint"><input type="checkbox" class="slip-pick" data-emp="' +
+                    esc(String(e.employee_id)) +
+                    '" aria-label="印刷する人に えらぶ" /></label>') +
+                '<div><div class="title">給料明細</div>' +
+                '<div>' +
+                esc(PERIOD.label) +
+                '　' +
+                esc(PERIOD.rangeLabel) +
+                '</div></div>' +
+                '<div class="who">' +
+                esc(e.name) +
+                '　殿</div>' +
+                '</div>' +
+                // ★合計は 行の 真ん中★ 2026-08-25（司さん「金額は赤丸の中心ぐらいに」）
+                //   左のかたまりと 右のかたまりを ★同じ幅★にして 合計を真ん中に置く。
+                //   （余った所の真ん中では ★右に寄って見える★＝1度 それで直っていなかった）
+                '<div class="sums">合計<span class="big">¥' +
+                yen(e.totalPay) +
+                '</span><span class="mid">' +
+                hrs(e.totalHours) +
+                ' 時間</span></div>' +
+                // ★右のかたまり★（幅合わせ＋その人の QR）
+                //   ★紙でもボタンが消えるだけで この箱は残す★＝紙でも真ん中がずれない
+                '<div class="sh-r">' +
+                // ★★「この人のPDF」を やめました★★ 2026-09-04（司さん）
+                //   「明細の この人のPDFを 消して QRコードか URLを 配るボタン 作って」
+                //   ⇒ ★紙を 作って 送るのでは なく、その場で QR を 見せる★
+                //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
+                // ★★明細にも「送る」を 出します★★ 2026-09-04（司さん「ないやないか」）
+                //   ★渡し方の 2つ（見せる／送る）は 同じ 場所に 並べる★
+                //   ★ボタンは 箱に 入れる★（裸で 並べると 折り返しで くっつく）
+                (HONNIN
+                  ? ''
+                  : '<div class="noprint" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">' +
+                    '<button class="btn ghost noprint" data-meisai-qr="' +
+                    esc(e.employee_id || '') +
+                    '">QRを 見せる</button>' +
+                    '<button class="btn ghost noprint" data-meisai-okuru="' +
+                    esc(e.employee_id || '') +
+                    '">送る</button>' +
+                    '</div>') +
+                '</div>' +
+                '</div>';
+            }
 
             // ★字の作り方は ここ1本★（横＝紙 と 縦＝スマホ画面 で 二度書かない）
             //   2026-08-25：司さん「なんで2日分しか載せてないんど」
             //   実物は 1期＝10〜11日ぶん。横に並べると スマホでは ★2日ぶんしか見えない★。
             var F = SLIP_F;
 
-            // ───────── 横（今まで通り・★紙はこれ★）─────────
-            html += '<div class="yoko scroller"><table><tbody>';
+            // ★★事務所の 画面は ★PDF と 同じ 紙★を そのまま 見せる★★ 2026-10-05
+            //   司さん「PDFつくっとんやけんそれを見せろや」「何をくどくど訳わからんこと見せとんど」
+            //   ★前★ 紙とは 別に 画面用の 横の表・縦の一覧を 組んでいた（＝PDF と 違う 物）。
+            //   ⇒ 紙（__paper.build＝印刷・PDF と 同じ _buildPaperSheet）を 入れる 枠だけ 置き、
+            //     描いた 後に kamiMadoNuru() が 埋める。本人の 画面（HONNIN）は 今まで 通り。
+            if (!HONNIN) {
+              html += '<div class="kami-mado" data-ei="' + ei + '"></div>';
+            } else {
+              // ───────── 横（今まで通り・★紙はこれ★）─────────
+              html += '<div class="yoko scroller"><table><tbody>';
 
-            function row(label, get, aka) {
-              var s = '<tr><th>' + esc(label) + '</th>';
-              e.cells.forEach(function (c) {
-                // ★赤にするかは payByFloor 1か所で決める★（画面と紙で 食い違わない）
-                s +=
-                  '<td' + (aka && payByFloor(c) ? ' class="floor"' : '') + '>' + get(c) + '</td>';
-              });
-              return s + '</tr>';
-            }
-
-            // 日付
-            html += '<tr><th>日付</th>';
-            e.cells.forEach(function (c) {
-              html += '<th>' + mdw(c.date) + '</th>';
-            });
-            html += '</tr>';
-
-            html += row('金額', F.pay, true); // ★最低保証で出た日は 赤★
-            html += row('時間', F.hours);
-            // ★車ごとの売上を載せるか（社長が決める・既定は載せる）★ 2026-08-25
-            if (SHOW_CAR_SALES) {
-              cars.forEach(function (x, n) {
-                html += row('売上' + (n + 1) + '（' + x.car.label + '）', function (c) {
-                  return F.car(c, x.i);
+              function row(label, get, aka) {
+                var s = '<tr><th>' + esc(label) + '</th>';
+                e.cells.forEach(function (c) {
+                  // ★赤にするかは payByFloor 1か所で決める★（画面と紙で 食い違わない）
+                  s +=
+                    '<td' + (aka && payByFloor(c) ? ' class="floor"' : '') + '>' + get(c) + '</td>';
                 });
+                return s + '</tr>';
+              }
+
+              // 日付
+              html += '<tr><th>日付</th>';
+              e.cells.forEach(function (c) {
+                html += '<th>' + mdw(c.date) + '</th>';
               });
+              html += '</tr>';
+
+              html += row('金額', F.pay, true); // ★最低保証で出た日は 赤★
+              html += row('時間', F.hours);
+              // ★車ごとの売上を載せるか（社長が決める・既定は載せる）★ 2026-08-25
+              if (SHOW_CAR_SALES) {
+                cars.forEach(function (x, n) {
+                  html += row('売上' + (n + 1) + '（' + x.car.label + '）', function (c) {
+                    return F.car(c, x.i);
+                  });
+                });
+              }
+              html += row('時間（全台）', F.pool);
+
+              html += '</tbody></table></div>';
+
+              // ───────── 縦（★スマホの画面だけ★・1日1行で 全部の日が見える）─────────
+              //   紙は ★1バイトも変えない★。出し分けは CSS（@media）だけ。
+              html += '<div class="tate">';
+              e.cells.forEach(function (c) {
+                var pay = F.pay(c);
+                var hh = F.hours(c);
+                var yasumi = pay === '' && hh === '';
+                html +=
+                  '<div class="d' +
+                  (yasumi ? ' off' : '') +
+                  '"><div class="dh"><b>' +
+                  mdw(c.date) +
+                  '</b>' +
+                  (yasumi
+                    ? '<span class="dn">—</span>'
+                    : '<span' +
+                      (payByFloor(c) ? ' class="floor"' : '') +
+                      '>¥' +
+                      pay +
+                      '</span><span>' +
+                      hh +
+                      ' 時間</span>') +
+                  '</div></div>';
+                // ★スマホの一覧は 金額と時間だけ★ 2026-08-25（司さん
+                //   「この一覧の所は 赤丸の部分除けて 金額と時間だけにして スマートにしろ」）
+                //   売上・時間（全台）は ★紙（PDF）には 今までどおり出る★。
+                //   ＝この画面は「いくら・何時間」を ざっと見る所、紙が 渡す物。
+              });
+              html += '</div>';
             }
-            html += row('時間（全台）', F.pool);
-
-            html += '</tbody></table></div>';
-
-            // ───────── 縦（★スマホの画面だけ★・1日1行で 全部の日が見える）─────────
-            //   紙は ★1バイトも変えない★。出し分けは CSS（@media）だけ。
-            html += '<div class="tate">';
-            e.cells.forEach(function (c) {
-              var pay = F.pay(c);
-              var hh = F.hours(c);
-              var yasumi = pay === '' && hh === '';
-              html +=
-                '<div class="d' +
-                (yasumi ? ' off' : '') +
-                '"><div class="dh"><b>' +
-                mdw(c.date) +
-                '</b>' +
-                (yasumi
-                  ? '<span class="dn">—</span>'
-                  : '<span' +
-                    (payByFloor(c) ? ' class="floor"' : '') +
-                    '>¥' +
-                    pay +
-                    '</span><span>' +
-                    hh +
-                    ' 時間</span>') +
-                '</div></div>';
-              // ★スマホの一覧は 金額と時間だけ★ 2026-08-25（司さん
-              //   「この一覧の所は 赤丸の部分除けて 金額と時間だけにして スマートにしろ」）
-              //   売上・時間（全台）は ★紙（PDF）には 今までどおり出る★。
-              //   ＝この画面は「いくら・何時間」を ざっと見る所、紙が 渡す物。
-            });
-            html += '</div>';
 
             html += '</div>';
           });
@@ -3986,6 +4052,59 @@
             hrs(REP.poolHoursTotal) +
             ' 時間</div></div>';
           box.innerHTML = html;
+          kamiMadoNuru();
+        }
+
+        // ★幅が 変わったら 紙を 描き直す★（10-05 対立役：PC で 開いて 窓を 縮めると 紙の 右が 切れた）
+        var _slipHaba = 0;
+        window.addEventListener('resize', function () {
+          if (HONNIN || TAB !== 'slip' || !REP) return;
+          var b = $('slips');
+          var w = b ? b.clientWidth : 0;
+          if (!w || w === _slipHaba) return;
+          _slipHaba = w;
+          clearTimeout(window.__slipT);
+          window.__slipT = setTimeout(renderSlips, 150);
+        });
+        // ★明細の 箱に PDF と 同じ 紙を 入れる★（本人の 画面 honninKami と 同じ 縮め方）2026-10-05
+        function kamiMadoNuru() {
+          if (!window.__paper) return;
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#slips .kami-mado'),
+            function (mado) {
+              var ei = Number(mado.getAttribute('data-ei'));
+              var m = window.__paper.maisu(ei);
+              var hi = window.__paper.hi(ei);
+              var haba = mado.clientWidth || 360;
+              // ★紙 1枚が 画面に 全部 入る 大きさ★（見切れさせない・司さん 10-05「見切れてめちゃくちゃ」）
+              //   細かい 字は ★押すと 開く PDF★で 見る（代行請求書の 請求書ページと 同じ）
+              var sc = Math.min(1, (haba - 2) / 1123);
+              var empId = String(window.__paper.emp(ei).employee_id);
+              for (var i = 0; i < m.n; i++) {
+                var from = i * m.per;
+                var to = Math.min(hi, from + m.per);
+                var el = window.__paper.build(ei, from, to, i + 1, m.n);
+                el.style.position = 'static';
+                el.style.left = 'auto';
+                el.style.top = 'auto';
+                el.style.transformOrigin = 'top left';
+                el.style.transform = 'scale(' + sc + ')';
+                el.style.width = '1123px';
+                var waku = document.createElement('div');
+                waku.className = 'hn-kami-waku kami-oseru';
+                waku.style.height = Math.ceil(794 * sc) + 'px';
+                waku.title = '押すと PDF で 開きます';
+                waku.setAttribute('role', 'button');
+                waku.onclick = (function (id) {
+                  return function () {
+                    printAll([id]); // ★押すと その人の PDF★（印刷と 同じ 作り方）
+                  };
+                })(empId);
+                waku.appendChild(el);
+                mado.appendChild(waku);
+              }
+            }
+          );
         }
 
         // ── 時数を入れる ────────────────────────

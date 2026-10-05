@@ -157,6 +157,8 @@ async function osu(page, id, tsuki) {
     window.__kami = [];
   });
   await page.locator('#' + id).click();
+  // ★10-05★ ボタンは 紙を 選ぶだけ＝画面に 出た 紙を 押すと PDF
+  await page.locator('#kamiMado .kami-mise-waku').first().click();
   await page.waitForTimeout(600);
   return await page.evaluate(() => window.__kami);
 }
