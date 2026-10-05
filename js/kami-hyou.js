@@ -410,6 +410,74 @@
     return [{ el: K.ita('yoko', h), muki: 'yoko' }];
   }
 
+  // ── 売上表（車ごと・日ごと）A4横 ── 2026-10-05（売上表の 画面に 出す 紙）──
+  //   ★お金の 欄だけ★（司さんの 決め：回数と 距離は 別の 紙＝soukouTsuki）
+  //   ★売上の 画面が 持つ 数だけ★＝売上（実費を 引いた 後）と 実費。
+  //     現金／請求書／電子決済は ★月次集計の「売上表（月ごと）」の 紙だけ★（2か所に しない）
+  //   d = { uriage, jippi, cars:[{name, uriage, jippi}], hi:{日:{uriage, jippi}} }
+  function uriageHyou(k, d) {
+    const last = K.matsubi(k.year, k.month);
+    const cars = d.cars || [];
+    let h =
+      K.atama(k, '売上表（車ごと・日ごと）', ym(k)) +
+      '<div class="big">' +
+      K.box('売上', en(d.uriage)) +
+      K.box('引いた 実費', en(d.jippi), true) +
+      '</div>';
+    const ths = ['<th>車</th>', '<th>売上</th>', '<th>引いた 実費</th>'];
+    const rows = cars.map(function (c) {
+      return (
+        '<tr><td>' +
+        esc(c.name) +
+        '</td><td>' +
+        en(c.uriage) +
+        '</td><td>' +
+        en(c.jippi) +
+        '</td></tr>'
+      );
+    });
+    const sum =
+      '<tr class="sum"><td>合計</td><td>' + en(d.uriage) + '</td><td>' + en(d.jippi) + '</td></tr>';
+    h +=
+      '<h2>車ごと</h2>' +
+      (cars.length < K.KURUMA_2RETSU
+        ? '<div class="hanbun">' + K.hyou(ths, rows, sum) + '</div>'
+        : '<div class="nibun"><div>' +
+          K.hyou(ths, rows.slice(0, Math.ceil(rows.length / 2))) +
+          '</div><div>' +
+          K.hyou(ths, rows.slice(Math.ceil(rows.length / 2)), sum) +
+          '</div></div>');
+    const hths = ['<th>日</th>', '<th>売上</th>', '<th>引いた 実費</th>'];
+    function han(a, b, sm) {
+      const rs = [];
+      for (let i = a; i <= b; i++) {
+        const x = (d.hi || {})[i];
+        rs.push(
+          '<tr>' +
+            K.tdHi(k.year, k.month, i, hiJi(k, i)) +
+            K.tdHi(k.year, k.month, i, x ? en(x.uriage) : '<span class="z">—</span>') +
+            K.tdHi(k.year, k.month, i, x ? en(x.jippi) : '<span class="z">—</span>') +
+            '</tr>'
+        );
+      }
+      return K.hyou(hths, rs, sm ? sum : null);
+    }
+    const naka = Math.ceil(last / 2);
+    h +=
+      '<h2>日ごと</h2><div class="nibun"><div>' +
+      han(1, naka, false) +
+      '</div><div>' +
+      han(naka + 1, last, true) +
+      '</div></div>';
+    h += K.ashi(
+      k,
+      '売上表（車ごと・日ごと）',
+      ym(k),
+      '売上 ＝ メーターの 合計 − 引くと 決めた 実費'
+    );
+    return [{ el: K.ita('yoko', h), muki: 'yoko' }];
+  }
+
   // ── ⑤回数・距離（年ごと）A4縦 ─────────────────────
   function soukouNen(k, d) {
     const t = d.total || {};
@@ -917,6 +985,7 @@
     uriageTsuki: uriageTsuki,
     uriageNen: uriageNen,
     soukouTsuki: soukouTsuki,
+    uriageHyou: uriageHyou,
     soukouNen: soukouNen,
     kyuryoTsuki: kyuryoTsuki,
     kyuryoNen: kyuryoNen,

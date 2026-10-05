@@ -479,6 +479,21 @@
         font-weight: 800;
         background: #f7fbff;
       }
+
+      .kami-seg {
+        flex-wrap: wrap;
+      }
+
+      .kami-mado {
+        margin-top: 10px;
+      }
+
+      .moto-hyou > summary {
+        cursor: pointer;
+        color: var(--blue);
+        font-weight: 700;
+        padding: 10px 4px;
+      }
     </style>
   </head>
   <body>
@@ -509,53 +524,60 @@
           <span class="saved" id="setSaved"></span>
         </div>
 
-        <!-- ★★A4のPDFで 見る★★ 2026-09-25（司さん）
-             ★この 画面が 持っている 数だけ 出す★＝回数・距離。
-             ★売上の お金の 内わけ（現金/請求書/電子決済）は この画面に 無い★（実測）
-             ⇒ ★勝手に 読みに 行かない★。お金の 紙は 月次集計の 画面から 出す。 -->
-        <div class="setrow" style="margin-top: 10px; gap: 8px">
-          <button class="btn" id="kamiSoukou" type="button">回数・距離を PDFで 見る</button>
-          <span class="saved" id="kamiMsg"></span>
+        <!-- ★★売上表は PDF と 同じ 紙を そのまま 見せる★★ 2026-10-05
+             （司さん「PDFつくっとんやけんそれを見せろや」「何をくどくど訳わからんこと見せとんど」）
+             紙を 選ぶと ★その 紙が 画面に 出る★。押すと PDF。細かい 表と 実費を 直す 所は 下に 畳む。
+             ★お金の 紙と 回数・距離の 紙は 別★（司さんの 決め・js/kami-hyou.js の 頭）。 -->
+        <div class="seg kami-seg" id="kamiSeg" style="margin-top: 10px">
+          <button class="segb on" id="kamiUri" type="button" data-shu="uri">売上</button>
+          <button class="segb" id="kamiSoukou" type="button" data-shu="soukou">回数・距離</button>
         </div>
+        <div id="kamiMado" class="kami-mado"></div>
+        <div class="saved" id="kamiMsg"></div>
+      </div>
 
-        <!-- ★車ごと／日ごと の切り替え (2026-08-09 司さん「1日おきと車おきで見れないかん」)★ -->
-        <div class="seg" style="margin-top: 10px">
-          <button class="segb on" id="segCar" type="button">車ごと</button>
-          <button class="segb" id="segDay" type="button">日ごと</button>
-          <!-- ★★入力は フッターの「入力」へ 出しました★★ 2026-09-07
+      <div class="err" id="err" style="display: none"></div>
+      <!-- ★知らせは 畳まない★（会社の 登録の 案内などが 畳まれて 見えなくなる・対立役 10-05） -->
+      <div class="msg" id="msg" style="display: none"></div>
+
+      <!-- ★★細かい 表と 実費を 直す 所は 畳む★★ 2026-10-05（消さない：入力の 画面が「売上表で 1回ずつ 直して」と 案内している） -->
+      <details id="motoHyou" class="moto-hyou">
+        <summary>細かい 表で 見る・実費を 直す</summary>
+        <div class="card">
+          <!-- ★車ごと／日ごと の切り替え (2026-08-09 司さん「1日おきと車おきで見れないかん」)★ -->
+          <div class="seg" style="margin-top: 10px">
+            <button class="segb on" id="segCar" type="button">車ごと</button>
+            <button class="segb" id="segDay" type="button">日ごと</button>
+            <!-- ★★入力は フッターの「入力」へ 出しました★★ 2026-09-07
                ★司さん★「フッターに作れってこやろがぼけ」
                ⇒ ここ（売上表）は ★見る 所★／打つ 所は ★下の 帯の「入力」★。
                ★打つ 所が 2か所 在ると どちらが 本当か 分からなく なる★ -->
-        </div>
-      </div>
-
-      <div class="card">
-        <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+          </div>
+          <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
              ★司さんの 売上表と 同じ 罫線の 表★を 上に 出す。
              下の 札（押すと 開く）は ★前から 出来ていた 事なので 残します★。 -->
-        <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
+          <!-- ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
              ★上の「車ごと／日ごと」で 切り替わります★（ボタンで 分けている 意味を 残す）。 -->
-        <div class="kami-ttl" id="kamiTtl">車ごと</div>
-        <table class="kami" id="kamiTbl">
-          <thead id="kamiHead"></thead>
-          <tbody id="kamiBody"></tbody>
-        </table>
-        <!-- ★★どこで 入れるかを 書く★★ 2026-09-06（司さん「橋代や高速代など入力するタブは？」）
+          <div class="kami-ttl" id="kamiTtl">車ごと</div>
+          <table class="kami" id="kamiTbl">
+            <thead id="kamiHead"></thead>
+            <tbody id="kamiBody"></tbody>
+          </table>
+          <!-- ★★どこで 入れるかを 書く★★ 2026-09-06（司さん「橋代や高速代など入力するタブは？」）
              ★入れる 所は 前から 在りました★。ただ 下の 札を 開かないと 出て こない。
              ⇒ ★表の すぐ下に 道順を 書く★＝探さなくて よい。 -->
-        <div class="note" id="jippiNote">
-          <b>実費（高速代・橋代）</b>と <b>電子決済で 受け取った 分</b>は、下の 帯の
-          <b>「入力」</b>で 日ごとに 入れられます。
+          <div class="note" id="jippiNote">
+            <b>実費（高速代・橋代）</b>と <b>電子決済で 受け取った 分</b>は、下の 帯の
+            <b>「入力」</b>で 日ごとに 入れられます。
+          </div>
+          <div id="list"></div>
+          <div class="note">
+            件数・実車距離・総走行距離は<b>メーターが確定した数字</b>です（ここでは変えられません）。<br />
+            <b>売上＝メーターの合計から、上で選んだ実費を引いた分</b>です。<br />
+            高速代・橋代などは<b>手で入力</b>します。車名をタップすると名前を付けられます。
+          </div>
         </div>
-        <div id="list"></div>
-        <div class="msg" id="msg" style="display: none"></div>
-        <div class="err" id="err" style="display: none"></div>
-        <div class="note">
-          件数・実車距離・総走行距離は<b>メーターが確定した数字</b>です（ここでは変えられません）。<br />
-          <b>売上＝メーターの合計から、上で選んだ実費を引いた分</b>です。<br />
-          高速代・橋代などは<b>手で入力</b>します。車名をタップすると名前を付けられます。
-        </div>
-      </div>
+      </details>
     </div>
 
     <script src="js/dk-config.js"></script>
@@ -570,6 +592,11 @@
     <script src="js/daiko-payroll.js"></script>
     <script src="js/payroll-period.js"></script>
     <script src="js/payroll-daily.js"></script>
+    <!-- ★紙（A4のPDF）★ 2026-09-25 … vendor は 押した時だけ 読む（js/kami-pdf.js の中）
+         ★本体より 前に 読む★ 2026-10-05：開いた 時に 紙を 描くので、後ろに 置くと 読み終わる 前に 描いて 落ちた -->
+    <script src="js/kami-kumu.js"></script>
+    <script src="js/kami-hyou.js"></script>
+    <script src="js/kami-pdf.js"></script>
     <script>
       (function () {
         'use strict';
@@ -657,19 +684,31 @@
           var el = $('kamiMsg');
           if (el) el.textContent = t || '';
         }
-        if ($('kamiSoukou')) {
-          $('kamiSoukou').onclick = function () {
-            if (!ROWS || !ROWS.length) return kamiMsg('まだ 読み込んでいません。');
-            var k = {
-              name: (COMPANY && COMPANY.name) || '',
-              year: MONTH.getFullYear(),
-              month: MONTH.getMonth() + 1,
-              settings: null,
-              kinds: (RAW.kinds || []).map(function (x) {
-                return { label: x.label, hiku: true };
-              }),
-              denshi: false,
-            };
+        // ★★どの 紙を 組むかは ここ 1か所★★ 2026-10-05（見せる 時も PDF に する 時も 同じ 物）
+        //   ★数え直さない★＝画面が 出した ROWS / DAYS（UriageAgg）を そのまま 渡す。
+        var KAMI_SHU = 'uri';
+        var KAMI_TSUKI = ''; // ★読み終わった 月★（月を 替えた 直後に 前の 月の 紙を 出さない）
+        function kamiK() {
+          return {
+            name: (COMPANY && COMPANY.name) || '',
+            year: MONTH.getFullYear(),
+            month: MONTH.getMonth() + 1,
+            settings: null,
+            kinds: (RAW.kinds || []).map(function (x) {
+              return { label: x.label, hiku: true };
+            }),
+            denshi: false,
+          };
+        }
+        function hiNo(d) {
+          return Number(String((d && d.date) || '').slice(8, 10));
+        }
+        function kamiTsukuru(shu) {
+          if (KAMI_TSUKI !== ymKey(MONTH)) return null;
+          var k = kamiK();
+          var mm = k.year + '-' + ('0' + k.month).slice(-2);
+          var na = k.name || 'ダイコメ';
+          if (shu === 'soukou') {
             var cars = ROWS.map(function (r) {
               return {
                 name: r.label,
@@ -680,40 +719,88 @@
             });
             var hi = {};
             (DAYS || []).forEach(function (d) {
-              var n2 = Number(String(d.date || '').slice(8, 10));
-              if (!n2) return;
-              hi[n2] = {
+              var i = hiNo(d);
+              if (!i) return;
+              hi[i] = {
                 kaisuu: d.trip_count,
                 jissha: (d.actual_total_m || 0) / 1000,
                 sou: (d.total_distance_m || 0) / 1000,
               };
             });
-            var mai = KamiHyou.soukouTsuki(k, {
-              cars: cars,
-              hi: hi,
-              kaisuu: cars.reduce(function (a2, c) {
-                return a2 + (c.kaisuu || 0);
-              }, 0),
-              jissha: cars.reduce(function (a2, c) {
-                return a2 + (c.jissha || 0);
-              }, 0),
-              sou: cars.reduce(function (a2, c) {
-                return a2 + (c.sou || 0);
-              }, 0),
-            });
-            kamiMsg('紙を 作っています…');
-            KamiPdf.dasu(
-              mai,
-              (k.name || 'ダイコメ') + '_回数距離_' + k.year + '-' + ('0' + k.month).slice(-2)
-            )
-              .then(function (r) {
-                kamiMsg('出しました（' + r.mai + '枚）');
-              })
-              .catch(function (e) {
-                kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
-              });
+            var g = UriageAgg.total(ROWS);
+            return {
+              mai: KamiHyou.soukouTsuki(k, {
+                cars: cars,
+                hi: hi,
+                kaisuu: g.trip_count,
+                jissha: g.actual_total_m / 1000,
+                sou: g.total_distance_m / 1000,
+              }),
+              na: na + '_回数距離_' + mm,
+            };
+          }
+          var hi2 = {};
+          (DAYS || []).forEach(function (d) {
+            var i = hiNo(d);
+            if (!i) return;
+            hi2[i] = { uriage: d.net_fare_yen, jippi: d.deduct_yen };
+          });
+          var t = UriageAgg.total(ROWS);
+          return {
+            mai: KamiHyou.uriageHyou(k, {
+              uriage: t.net_fare_yen,
+              jippi: t.deduct_yen,
+              cars: ROWS.map(function (r) {
+                return { name: r.label, uriage: r.net_fare_yen, jippi: r.deduct_yen };
+              }),
+              hi: hi2,
+            }),
+            na: na + '_売上表_' + mm,
           };
         }
+        function kamiDasu(mai, na) {
+          kamiMsg('紙を 作っています…');
+          return KamiPdf.dasu(mai, na)
+            .then(function (r) {
+              kamiMsg('出しました（' + r.mai + '枚）');
+            })
+            .catch(function (e) {
+              kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
+            });
+        }
+        // ★選んだ 紙を 画面に 出す★（押すと その場で 作り直して PDF）
+        function kamiMiseru() {
+          Array.prototype.forEach.call(document.querySelectorAll('#kamiSeg .segb'), function (b) {
+            b.classList.toggle('on', b.getAttribute('data-shu') === KAMI_SHU);
+          });
+          var r = kamiTsukuru(KAMI_SHU);
+          if (!r) {
+            $('kamiMado').innerHTML = '';
+            return kamiMsg('読み込み中…');
+          }
+          KamiPdf.mise($('kamiMado'), r.mai, function () {
+            var r2 = kamiTsukuru(KAMI_SHU);
+            if (r2) kamiDasu(r2.mai, r2.na);
+          });
+          kamiMsg(
+            ROWS.length ? '紙を 押すと PDF で 開きます。' : 'この月は まだ 記録が ありません。'
+          );
+        }
+        Array.prototype.forEach.call(document.querySelectorAll('#kamiSeg .segb'), function (b) {
+          b.onclick = function () {
+            KAMI_SHU = b.getAttribute('data-shu');
+            kamiMiseru();
+          };
+        });
+        // ★幅が 変わったら 縮め方を 決め直す★（月次集計と 同じ：横→縦で 紙の 右が 切れない）
+        var _kamiHaba = 0;
+        window.addEventListener('resize', function () {
+          var w = $('kamiMado') ? $('kamiMado').clientWidth : 0;
+          if (!w || w === _kamiHaba) return;
+          _kamiHaba = w;
+          clearTimeout(window.__kamiT);
+          window.__kamiT = setTimeout(kamiMiseru, 150);
+        });
 
         $('prevM').onclick = function () {
           MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() - 1, 1);
@@ -845,7 +932,9 @@
                 return !RAW.shifts.some(function (sh) {
                   return (
                     sh.device_id === m.device_id &&
-                    String(sh.started_at).slice(0, 10) === m.work_date
+                    // ★日本時間の 日で 比べる★ 2026-10-05（対立役）＝給料（PayrollDaily.dateOf）と 同じ 切り方
+                    //   前は UTC の 日付＝日本時間 0〜9時に 始まった 業務と 同じ日の 手入力が 二重に 足された
+                    PayrollDaily.dateOf(sh.started_at) === String(m.work_date).slice(0, 10)
                   );
                 });
               });
@@ -853,6 +942,7 @@
               RAW.shifts = RAW.shifts.concat(conv.shifts);
               RAW.edits = RAW.edits.concat(conv.edits);
               SETTINGS = UriageAgg.normSettings(st);
+              KAMI_TSUKI = ymKey(MONTH);
               window.__editsById = {};
               RAW.edits.forEach(function (e) {
                 if (e && e.shift_id) window.__editsById[e.shift_id] = e;
@@ -1094,6 +1184,12 @@
           //   ⇒ ★下の 帯の「入力」（nyuryoku.html）★へ 出しました。
           //   ここ（売上表）は ★見る 所★＝車ごと／日ごと の 2つだけ。
 
+          // ★紙が 描けなくても 表・設定は 動かす★（対立役 10-05：投げると 読み込みの catch に 吸われ「通信を確認」と 出て 全部 止まった）
+          try {
+            kamiMiseru();
+          } catch (e) {
+            kamiMsg('紙を 出せません：' + (e && e.message ? e.message : e));
+          }
           var rows = MODE === 'day' ? DAYS : ROWS;
           if (!rows.length) {
             list.innerHTML = '';
@@ -1241,10 +1337,6 @@
          「この事務所だけ 他の アプリと 違う 型式なんを 同じに しろや」
          「フッター 作って 各ページに 飛ぶようにしろ」
          ★行き先は js/jimusho-footer.js の 1か所★（画面ごとに 手書きしない） -->
-    <!-- ★紙（A4のPDF）★ 2026-09-25 … vendor は 押した時だけ 読む -->
-    <script src="js/kami-kumu.js"></script>
-    <script src="js/kami-hyou.js"></script>
-    <script src="js/kami-pdf.js"></script>
     <script src="js/jimusho-footer.js"></script>
   </body>
 </html>

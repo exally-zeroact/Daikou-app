@@ -163,6 +163,7 @@
             toll_yen: 0,
             bridge_yen: 0,
             other_yen: 0,
+            expenses: {}, // ★会社が 足した 実費（名前つき）の 合計★ 2026-10-05
             expense_yen: 0,
             deduct_yen: 0, // 売上から引く分（設定で選ばれた項目だけ）
             net_fare_yen: 0, // ★これが「売上」★（実費を引いた分）
@@ -180,6 +181,17 @@
         r.toll_yen += n(e.toll_yen);
         r.bridge_yen += n(e.bridge_yen);
         r.other_yen += n(e.other_yen);
+        // ★★足した 実費も 持ち越す★★ 2026-10-05（対立役）
+        //   前は 古い 3つだけ 詰め直して 引いていた ⇒ ★足した 実費が 引かれず★
+        //   売上表の 売上が 月次集計・給料（payroll-daily buildCtx は edit を 丸ごと 渡す）より 多く 出た。
+        //   本番 10-05 実測：足した 実費に 額が 入った 行 0行＝今の 数字は 1円も 変わらない
+        const ex = e.expenses;
+        if (ex && typeof ex === 'object') {
+          Object.keys(ex).forEach(function (k) {
+            if (k === 'toll' || k === 'bridge' || k === 'other') return;
+            r.expenses[k] = n(r.expenses[k]) + n(ex[k]);
+          });
+        }
         r.shifts.push(s);
       });
 
@@ -187,10 +199,19 @@
         const r = map[k];
         // 空車 = 総走行 − 実車（マイナスにはしない）
         r.empty_distance_m = Math.max(0, r.total_distance_m - r.actual_total_m);
-        r.expense_yen = r.toll_yen + r.bridge_yen + r.other_yen; // 手入力した実費ぜんぶ
+        let soto = 0;
+        Object.keys(r.expenses).forEach(function (k) {
+          soto += n(r.expenses[k]);
+        });
+        r.expense_yen = r.toll_yen + r.bridge_yen + r.other_yen + soto; // 手入力した実費ぜんぶ
         // ★売上から引く分＝会社が「引く」と選んだ項目だけ★（給料と同じ関数を通す）
         r.deduct_yen = deductOf(
-          { toll_yen: r.toll_yen, bridge_yen: r.bridge_yen, other_yen: r.other_yen },
+          {
+            toll_yen: r.toll_yen,
+            bridge_yen: r.bridge_yen,
+            other_yen: r.other_yen,
+            expenses: r.expenses,
+          },
           st
         );
         r.net_fare_yen = r.fare_total_yen - r.deduct_yen; // ★これが売上★
