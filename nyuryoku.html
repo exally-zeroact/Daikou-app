@@ -323,6 +323,8 @@
           変えられません）。<br />
           読めていない 車は <b>0</b> で 出ます。★そこは 打ち直せます★。<br />
           <b>電子決済</b> … 現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
+          <b>請求書</b> … 請求書で もらう 分。打った 日は 請求書アプリの 額より こちらを
+          使います（下がるのは 月次集計の 現金だけ）。<br />
           <b>高速代・橋代 など</b> … ★名前は <b>会社設定 → 実費</b> で
           変えられます★（足す・消す・並び替え）。<br />
           <b>回数・実車距離・総走行距離</b> … 読めていない 車だけ 打てます（距離は km）。<br />
@@ -357,6 +359,8 @@
         var EDITS = {}; // shift_id → 手で入れた1行
         // ★倉庫に 距離の 列が 在るか★ 2026-10-05（無い 線では 距離の 欄を 出さない＝打っても 保存できない 欄を 見せない）
         var KYORI_ARU = false;
+        // ★倉庫に 請求書の 列（seikyu_yen）が 在るか★ 2026-10-06（無い 線では 請求書の 欄を 出さない）
+        var SEIKYU_ARU = false;
         var NAMAE = {}; // 端末ID → 車の名前
         var PP = 0; // その日の 電子決済
         // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
@@ -521,6 +525,14 @@
               .catch(function () {
                 return false;
               }),
+            // ★★請求書の 列が 倉庫に 在るか★★ 2026-10-06（supabase/apply-seikyu-kuruma-goto.sql を 当てた 線だけ）
+            DKSession.rest(SESS, 'dk_shift_edits?select=seikyu_yen&limit=1')
+              .then(function (x) {
+                return !!(x && x.ok);
+              })
+              .catch(function () {
+                return false;
+              }),
           ])
             .then(function (res) {
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
@@ -551,6 +563,7 @@
                 }
               });
               KYORI_ARU = res[6] === true;
+              SEIKYU_ARU = res[7] === true;
               TEBIKI = {};
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
                 if (x && x.device_id) TEBIKI[x.device_id] = x;
@@ -609,18 +622,28 @@
             if (!e) return 0;
             var g = (Number(e.toll_yen) || 0) + (Number(e.bridge_yen) || 0);
             g += (Number(e.other_yen) || 0) + (Number(e.denshi_yen) || 0);
+            g += Number(e.seikyu_yen) || 0; // ★請求書も（他の 回に 打った 分を 二重に しない）★
             var x = e.expenses || {};
             for (var k in x) g += Number(x[k]) || 0;
             return g;
           }
           function edAwase(ids) {
-            var o = { toll_yen: 0, bridge_yen: 0, other_yen: 0, denshi_yen: 0, expenses: {} };
+            var o = {
+              toll_yen: 0,
+              bridge_yen: 0,
+              other_yen: 0,
+              denshi_yen: 0,
+              seikyu_yen: 0,
+              expenses: {},
+            };
             ids.forEach(function (id) {
               var e = EDITS[id];
               if (!e) return;
-              ['toll_yen', 'bridge_yen', 'other_yen', 'denshi_yen'].forEach(function (k) {
-                o[k] += Number(e[k]) || 0;
-              });
+              ['toll_yen', 'bridge_yen', 'other_yen', 'denshi_yen', 'seikyu_yen'].forEach(
+                function (k) {
+                  o[k] += Number(e[k]) || 0;
+                }
+              );
               var x = e.expenses || {};
               for (var k in x) o.expenses[k] = (o.expenses[k] || 0) + (Number(x[k]) || 0);
             });
@@ -787,6 +810,22 @@
             '" data-f="denshi_yen" value="' +
             (JippiHozon.seisuu(e && e.denshi_yen) || '') +
             '"><span class="en">円</span></div></div>';
+          // ★★請求書★★ 2026-10-06（司さん「請求書の額は 両方に 対応しろ」＝Excel の 入力シートと 同じく 車ごとに 打てる）
+          //   ★下がるのは 月次集計の 現金だけ★（売上・給料は 下げない＝司さん 1A）
+          //   ★倉庫に 列が 在る 線だけ 出す★（無い 線で 打っても 保存できない）
+          if (SEIKYU_ARU) {
+            h +=
+              '<div class="frow"><span class="flabel">請求書</span>' +
+              '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+              dis +
+              ' ' +
+              keyAttr +
+              '="' +
+              esc(key) +
+              '" data-f="seikyu_yen" value="' +
+              (JippiHozon.seisuu(e && e.seikyu_yen) || '') +
+              '"><span class="en">円</span></div></div>';
+          }
           // ★★実費★★（会社設定で 決めた 名前を そのまま 出す）
           h += (RAW.kinds || [])
             .map(function (k) {

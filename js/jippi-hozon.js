@@ -43,6 +43,16 @@
     return g;
   }
 
+  // ★★請求書の 額（seikyu_yen）は 在る 時だけ 持ち越す★★ 2026-10-06
+  //   ★denshi_yen の ように 毎回 0 を 送らない★＝倉庫に 列が まだ 無い 線（本番に SQL を 当てる 前）で
+  //   送ると 列が 無いと 弾かれ ★実費の 保存が 全部 落ちる★（対立役 10-06）。
+  //   打った 時は 下の「_yen」の 道で 入る。merge-duplicates は 送らない 列を 消さない。
+  function motikosuSeikyu(body, cur) {
+    if (cur && cur.seikyu_yen !== undefined && cur.seikyu_yen !== null) {
+      body.seikyu_yen = cur.seikyu_yen;
+    }
+  }
+
   // ★打った 1つを 入れた 形にする★（送る 中身を 作るだけ＝通信は しない）
   //   cur … 今 倉庫に 在る 1行（無ければ {}）
   function karada(shiftId, companyId, cur, field, value) {
@@ -60,6 +70,7 @@
       expenses: cur.expenses || {},
       updated_at: new Date().toISOString(),
     };
+    motikosuSeikyu(body, cur);
     if (FURUI[field]) {
       body[FURUI[field]] = v;
     } else if (field.indexOf('_yen') > 0) {
@@ -112,6 +123,7 @@
     //   距離は ★画面では km★・しまうのは ★メートル★（メーターの dk_shifts と 同じ 単位）。
     //   ★距離の 列は 打った 時か 既に 値が 在る 時だけ 送る★
     //     （倉庫に 列が まだ 無い 線で 保存ごと 落ちない 為・merge-duplicates は 送った 列だけ 直す）
+    motikosuSeikyu(body, cur);
     ['actual_total_m', 'total_distance_m'].forEach(function (k) {
       if (cur[k] !== undefined && cur[k] !== null) body[k] = cur[k];
     });

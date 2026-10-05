@@ -60,7 +60,14 @@ const LABELS = [
   { device_id: 'd1', label: '4987', sort_order: 1 },
   { device_id: 'd2', label: '1466', sort_order: 2 },
 ];
-// ★請求書払い★（1/5 に 6,000円）
+// ★★請求書の もと＝請求書アプリの 明細（meisai）★★ 2026-10-06（1/5 に 6,000円）
+//   ★消した 明細（9,999円）は 数えない★／★運転手の アプリの 請求書払い（TRIPS）は もう 数えない★
+//   （TRIPS を 6,000 の まま 残す＝二重に 数えたら 現金が 46,000 に なって 赤）
+const MEISAI = [
+  { date: '2026-01-05', amount: 6000, deleted_at: null },
+  { date: '2026-01-05', amount: 9999, deleted_at: '2026-01-06T00:00:00Z' },
+];
+// 運転手の アプリの 請求書払い（1/5 に 6,000円）＝もう 足さない
 const TRIPS = [
   { fare_yen: 6000, started_at: '2026-01-05T21:00:00+09:00', payment_type: 'invoice' },
 ];
@@ -80,6 +87,7 @@ function tsukuru(dir) {
     dk_shift_edits: EDITS,
     dk_device_labels: LABELS,
     dk_trips: TRIPS,
+    meisai: MEISAI,
     dk_day_extras: DAY_EXTRAS,
   };
   return (

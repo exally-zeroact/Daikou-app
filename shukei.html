@@ -696,6 +696,8 @@
         </div>
         <div id="kamiMado" class="kami-mado"></div>
         <div class="desc" id="kamiMsg">読み込み中…</div>
+        <!-- ★請求書の 知らせ★ 2026-10-06（入力と 請求書アプリで 額が 違う 日だけ 出す・無ければ 出さない） -->
+        <div class="desc" id="seikyuShirase" style="display: none"></div>
       </div>
 
       <div class="err noprint" id="err" style="display: none"></div>
@@ -915,6 +917,11 @@
         // ★★日ごとの 電子決済★★ 2026-09-06（司さん「毎日 入れれるように」）
         //   '2026-09-02' → 円。★月ごとの 分は 消していません★
         var DENSHI_HI = {};
+        // ★★請求書アプリの 明細（日ごと）★★ 2026-10-06（司さん「請求書アプリに入ってるその日の金額」）
+        var MEISAI_HI = {};
+        var KAISHA_KAZU = 1; // ★持ち主が 持つ 会社の 数★（2社 以上なら 明細を どの 会社の 物か 決められない）
+        var SEIKYU_KUICHIGAI = [];
+        var SEIKYU_URI_NASHI = []; // ★売上の 無い 日に 在る 明細★（数えない・知らせる） // ★入力と 請求書アプリの 両方に 額が 在る 日★（黙って 片方を 捨てない）
         var CTX = null;
         var YR = null;
         var ONE = 0; // 内訳を出す月（0=年間合計）
@@ -1213,6 +1220,75 @@
         //   新: 空は返す（落ちないため）が ★失敗は必ず数える★。
         //       数えた結果は画面の上に出し、数字は「—」にする。
         var LOAD = DKSession.newLoadState();
+        // ★★請求書アプリの 明細を 全部 読む★★ 2026-10-06（1000行 ずつ・その 年の 分だけ）
+        //   ★持ち主が 2社 以上 持つ 時は 読まない★＝明細に Daikome の 会社の 列が 無く、どの 会社の 物か 決められない
+        function seikyuShirase() {
+          var el = $('seikyuShirase');
+          if (!el) return;
+          var t = '';
+          if (KAISHA_KAZU > 1) {
+            t =
+              '請求書アプリの 額は 会社が 2つ 以上 あり どの 会社の 物か 決められません（入力で 打った 額だけ 使っています）。';
+          } else if (SEIKYU_KUICHIGAI.length) {
+            t =
+              '請求書：入力と 請求書アプリで 額が 違う 日 ' +
+              SEIKYU_KUICHIGAI.length +
+              '日（入力の 額を 使っています）　' +
+              SEIKYU_KUICHIGAI.slice(0, 3)
+                .map(function (x) {
+                  return (
+                    Number(x.hi.slice(5, 7)) +
+                    '/' +
+                    Number(x.hi.slice(8, 10)) +
+                    ' 入力 ' +
+                    num(x.utta).toLocaleString('ja-JP') +
+                    '円／アプリ ' +
+                    num(x.meisai).toLocaleString('ja-JP') +
+                    '円'
+                  );
+                })
+                .join('　') +
+              (SEIKYU_KUICHIGAI.length > 3 ? ' ほか' : '');
+          }
+          if (KAISHA_KAZU <= 1 && SEIKYU_URI_NASHI.length) {
+            t +=
+              (t ? '　' : '') +
+              '売上の 無い 日の 請求書アプリの 額 ' +
+              SEIKYU_URI_NASHI.length +
+              '日 は 数えていません（' +
+              SEIKYU_URI_NASHI.slice(0, 3)
+                .map(function (x) {
+                  return Number(x.hi.slice(5, 7)) + '/' + Number(x.hi.slice(8, 10));
+                })
+                .join('・') +
+              (SEIKYU_URI_NASHI.length > 3 ? ' ほか' : '') +
+              '）';
+          }
+          el.textContent = t;
+          el.style.display = t ? '' : 'none';
+        }
+        function meisaiZenbu() {
+          if (KAISHA_KAZU > 1) return Promise.resolve([]);
+          var out = [];
+          var KAI = 1000;
+          function tsugi(from) {
+            return soft(
+              'meisai?select=date,amount,deleted_at&deleted_at=is.null&date=gte.' +
+                YEAR +
+                '-01-01&date=lte.' +
+                YEAR +
+                '-12-31&order=date.asc,id.asc&limit=' +
+                KAI +
+                '&offset=' +
+                from
+            ).then(function (r) {
+              var a = Array.isArray(r) ? r : [];
+              out = out.concat(a);
+              return a.length === KAI && from < 50000 ? tsugi(from + KAI) : out;
+            });
+          }
+          return tsugi(0);
+        }
         function soft(path) {
           return DKSession.softList(SESS, path, LOAD);
         }
@@ -1249,6 +1325,7 @@
                 return;
               }
               COMPANY = picked.company;
+              KAISHA_KAZU = (picked.list || []).length || 1;
               $('sub').textContent = COMPANY.name || '';
               load();
             })
@@ -1294,15 +1371,12 @@
             ),
             soft('dk_payroll_settings?select=*&limit=1'),
             soft('dk_sales_settings?select=*&limit=1'),
-            // 請求書払いの代行（未収のもと）
-            soft(
-              'dk_trips?select=fare_yen,started_at,payment_type&payment_type=eq.invoice' +
-                '&started_at=gte.' +
-                encodeURIComponent(from) +
-                '&started_at=lt.' +
-                encodeURIComponent(to) +
-                '&limit=5000'
-            ),
+            // ★★請求書の もと＝請求書アプリの 明細（meisai）★★ 2026-10-06
+            //   前は ★運転手の アプリで「請求書払い」を 押した 代行（dk_trips）だけ★ を 数えていた
+            //   ＝請求書アプリに 手で 入れた 明細（本番 1221行）は 1円も 入っていなかった。
+            //   明細の 日付は ★業務の 日★（dk-sync-jobs の businessDate）＝売上と 同じ 日に 載る。
+            //   ★消した 明細（deleted_at）は 数えない★／★1000行 ずつ 全部 読む★（倉庫は 1回 1000行まで）
+            meisaiZenbu(),
             soft('dk_month_extras?select=*&limit=200'),
             // ★★日ごとの 電子決済★★ 2026-09-06
             soft('dk_day_extras?select=*&limit=500'),
@@ -1323,16 +1397,14 @@
             RAW.salesSettings = (res[6] && res[6][0]) || null;
             RAW.manualDays = res[10] || []; // 手で入れた1日分（スマホが無い日も数える）
 
-            // 請求書払いを日ごとにまとめる
-            var byDate = {};
-            (res[7] || []).forEach(function (t) {
-              var d = PayrollDaily.dateOf(t.started_at);
-              if (!d) return;
-              byDate[d] = (byDate[d] || 0) + num(t.fare_yen);
+            // ★請求書アプリの 明細を 日ごとに まとめる★
+            MEISAI_HI = {};
+            (res[7] || []).forEach(function (m) {
+              if (!m || m.deleted_at || !m.date) return;
+              var d = String(m.date).slice(0, 10);
+              MEISAI_HI[d] = (MEISAI_HI[d] || 0) + num(m.amount);
             });
-            PAYMENTS = Object.keys(byDate).map(function (d) {
-              return { pay_date: d, invoice_yen: byDate[d], denshi_yen: 0 };
-            });
+            PAYMENTS = [];
 
             // 電子決済 の手入力（月ごと）
             PP = {};
@@ -1383,6 +1455,62 @@
             var d = String(m.work_date).slice(0, 10);
             kurumaNoHi[d] = (kurumaNoHi[d] || 0) + num(m.denshi_yen);
           });
+
+          // ★★請求書（日ごと）＝入力で 打った 額 か 請求書アプリの 明細★★ 2026-10-06
+          //   ★司さん「両方に 対応しろ」★
+          //   ★その日 どこかの 車に 打った 額が 在れば その日は 打った 額の 合計★／無ければ 明細の 合計
+          //   （打った 額と 明細は 鍵で 繋がらない＝両方 足すと 同じ 請求書が 二重に なる・対立役 10-06）
+          //   ★下がるのは 現金だけ★（売上・給料は 下げない＝Excel の 式・司さん 1A）
+          var utta = {};
+          (RAW.edits || []).forEach(function (e) {
+            if (!e || !num(e.seikyu_yen)) return;
+            var sh = SHIFT_BY_ID[e.shift_id];
+            if (!sh) return;
+            var d = PayrollDaily.dateOf(sh.started_at);
+            if (d) utta[d] = (utta[d] || 0) + num(e.seikyu_yen);
+          });
+          (RAW.manualDays || []).forEach(function (m) {
+            if (!m || !num(m.seikyu_yen) || !m.work_date) return;
+            var d = String(m.work_date).slice(0, 10);
+            utta[d] = (utta[d] || 0) + num(m.seikyu_yen);
+          });
+          SEIKYU_KUICHIGAI = [];
+          var seikyuHi = {};
+          // ★★明細は ★売上が 在る 日だけ★ 使う★★（対立役 10-06）
+          //   請求書アプリは 1月から 在るが ダイコメの 売上は 8月から＝売上の 無い 日の 明細を 引くと 現金が マイナスに なる。
+          //   ★売上の 在る 月の 中で 売上の 無い 日★の 明細は 数えず 知らせに 出す（売上の 入れ忘れの 合図）。
+          var uriHi = {};
+          var uriTsuki = {};
+          Object.keys((CTX && CTX.byDate) || {}).forEach(function (d) {
+            var g = 0;
+            Object.keys(CTX.byDate[d]).forEach(function (dev) {
+              g += num(CTX.byDate[d][dev].sales);
+            });
+            if (g > 0) {
+              uriHi[d] = true;
+              uriTsuki[d.slice(0, 7)] = true;
+            }
+          });
+          SEIKYU_URI_NASHI = [];
+          Object.keys(MEISAI_HI).forEach(function (d) {
+            if (!MEISAI_HI[d]) return;
+            if (!uriHi[d]) {
+              if (uriTsuki[d.slice(0, 7)]) SEIKYU_URI_NASHI.push({ hi: d, meisai: MEISAI_HI[d] });
+              return;
+            }
+            seikyuHi[d] = MEISAI_HI[d];
+          });
+          Object.keys(utta).forEach(function (d) {
+            if (MEISAI_HI[d] && MEISAI_HI[d] !== utta[d]) {
+              SEIKYU_KUICHIGAI.push({ hi: d, utta: utta[d], meisai: MEISAI_HI[d] });
+            }
+            seikyuHi[d] = utta[d];
+          });
+          Object.keys(seikyuHi).forEach(function (d) {
+            if (d.indexOf(YEAR + '-') !== 0 || !seikyuHi[d]) return;
+            pays.push({ pay_date: d, invoice_yen: seikyuHi[d], denshi_yen: 0 });
+          });
+          seikyuShirase();
 
           var higotoNoTsuki = {};
           // ★車ごとが 1件でも 在る 月は ★車ごとだけ★ を 使う（二重に 数えない）

@@ -84,7 +84,7 @@ async function hiraku(page, edits, kyoriNai) {
     ' return Promise.resolve([D.co]);}});};' +
     'S.rest=function(s,p,o){ if(o&&o.method)window.__okutta.push({saki:p,body:o.body});' +
     // ★距離の 列が まだ 無い 倉庫★＝本物は 400 を 返す
-    ' if(D.KN&&String(p).indexOf("select=actual_total_m")>=0)return Promise.resolve({ok:false,status:400,' +
+    ' if(D.KN&&(String(p).indexOf("select=actual_total_m")>=0||String(p).indexOf("select=seikyu_yen")>=0))return Promise.resolve({ok:false,status:400,' +
     ' text:function(){return Promise.resolve("");},json:function(){return Promise.resolve({});}});' +
     ' return Promise.resolve({ok:true,status:200,text:function(){return Promise.resolve("");},' +
     ' json:function(){return Promise.resolve(rows(p));}});};' +
@@ -145,6 +145,7 @@ test('★★② 車ごとに 売上・電子決済・設定した 実費が 並�
       '売上',
       ...kyori,
       '電子決済',
+      '請求書', // ★10-06 司さん「両方に 対応しろ」＝車ごとに 請求書を 打てる★
       '高速代',
       '橋代',
       'その他',
@@ -313,4 +314,30 @@ test('★★⑧ 距離の 列が 無い 倉庫では 距離の 欄を 出さな�
   expect(x.ran, '★保存できない 実車距離の 欄が 出ています★').not.toContain('実車距離');
   expect(x.ran, '★保存できない 総走行距離の 欄が 出ています★').not.toContain('総走行距離');
   expect(x.ran, '★売上が 消えました★').toContain('売上');
+  expect(x.ran, '★列が 無いのに 請求書の 欄が 出ています★（打っても 保存できない）').not.toContain(
+    '請求書'
+  );
+});
+
+// ★★⑨ 10-06 請求書は 車の 鍵で seikyu_yen に 送る（実費＝expenses には 入れない）★★
+test('★★⑨ 請求書は 車ごとに 打てて seikyu_yen で 送られる★★', async ({ page }) => {
+  await hiraku(page);
+  for (const [na, saki] of [
+    ['4987', 'dk_shift_edits'],
+    ['1466', 'dk_manual_days'],
+  ]) {
+    await page.evaluate(() => {
+      window.__okutta = [];
+    });
+    const i = page.locator('.sha', { hasText: na }).locator('input[data-f="seikyu_yen"]');
+    await i.fill('8600');
+    await i.dispatchEvent('change');
+    await page.waitForTimeout(600);
+    const r = await page.evaluate(() => window.__okutta || []);
+    expect(r.length, '★' + na + ' の 請求書を 打っても 送っていません★').toBeGreaterThan(0);
+    const b = JSON.parse(r[r.length - 1].body);
+    expect(r[r.length - 1].saki, '★送り先が 違います★').toContain(saki);
+    expect(b.seikyu_yen, '★請求書が 入っていません★').toBe(8600);
+    expect(b.expenses || {}, '★請求書を 実費に 入れています（売上から 引かれる）★').toEqual({});
+  }
 });

@@ -126,7 +126,8 @@ test('★★① その日ぶんだけ 出る（電子決済 と 車ごとの 実
     pp: (document.querySelector('#shaList [data-f="denshi_yen"]') || {}).value,
     sha: [...document.querySelectorAll('#shaList .sha-na')].map((x) => x.textContent.trim()),
     ran: [...document.querySelectorAll('#shaList [data-sid]')]
-      .filter((x) => x.getAttribute('data-f') !== 'denshi_yen')
+      // ★請求書（10-06）も 実費では ない★
+      .filter((x) => ['denshi_yen', 'seikyu_yen'].indexOf(x.getAttribute('data-f')) < 0)
       .map((x) => ({
         f: x.getAttribute('data-f'),
         v: x.value,
