@@ -1082,7 +1082,7 @@
         //   ★画面の 距離の 表と 同じ 関数を 通す★（kyoriHi / kyoriTasu）
         //   ＝自分で 数え直すと 画面と 紙で 数が 食い違う
         function kamiSoukouNenData() {
-          var all = (RAW.shifts || []).filter(function (x) {
+          var all = kyoriMoto().filter(function (x) {
             return x && !x.excluded;
           });
           var tsuki = {};
@@ -1432,6 +1432,22 @@
         //   ★数字は 1か所で 足す★（年も 月も 日も 同じ 足し方＝食い違わない）
         var KYORI_MODE = 'month';
 
+        // ★★回数・距離の 元＝メーターの 記録 ＋ 手で 入れた 1日ぶん★★ 2026-10-05
+        //   前は ★メーターの 記録だけ★ を 足していた＝手入力の 日の 回数・距離が 月次集計に 入らなかった。
+        //   ★同じ 車・同じ 日に メーターの 記録が 在れば 手入力は 足さない★（給料・売上表と 同じ 決まり＝二重に 数えない）
+        function kyoriMoto() {
+          var sh = RAW.shifts || [];
+          var aru = {};
+          sh.forEach(function (x) {
+            if (x) aru[x.device_id + '|' + PayrollDaily.dateOf(x.started_at)] = 1;
+          });
+          var tebiki = (RAW.manualDays || []).filter(function (m) {
+            if (!m || !m.work_date) return false;
+            var hi = String(m.work_date).slice(0, 10); // ★数える 鍵だけ（画面には 出さない）★
+            return !aru[m.device_id + '|' + hi];
+          });
+          return sh.concat(PayrollDaily.manualAsShifts(tebiki).shifts);
+        }
         function kyoriTasu(list) {
           var k = { kaisuu: 0, jissha: 0, sou: 0 };
           (list || []).forEach(function (x) {
@@ -1708,7 +1724,7 @@
           var head = $('kyoriHead');
           var body = $('kyoriBody');
           if (!head || !body) return;
-          var all = (RAW.shifts || []).filter(function (x) {
+          var all = kyoriMoto().filter(function (x) {
             return x && !x.excluded;
           });
 

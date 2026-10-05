@@ -325,7 +325,8 @@
           <b>電子決済</b> … 現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
           <b>高速代・橋代 など</b> … ★名前は <b>会社設定 → 実費</b> で
           変えられます★（足す・消す・並び替え）。<br />
-          打つと すぐ 保存されます。<b>距離の 数字は 変わりません</b>。
+          <b>回数・実車距離・総走行距離</b> … 読めていない 車だけ 打てます（距離は km）。<br />
+          打つと すぐ 保存されます。<b>メーターが 読んだ 距離は 変わりません</b>。
         </div>
         <!-- ★★走った 日へ 飛ぶ★★ 2026-09-08（司さん「高速代とかどこに入れるんど」）
              高速代は ★1回の 業務（走った 記録）に ぶら下がる★ ので、
@@ -354,6 +355,8 @@
         var HI = ''; // 'YYYY-MM-DD'（今 見ている 日）
         var RAW = { shifts: [], labels: [], kinds: [] };
         var EDITS = {}; // shift_id → 手で入れた1行
+        // ★倉庫に 距離の 列が 在るか★ 2026-10-05（無い 線では 距離の 欄を 出さない＝打っても 保存できない 欄を 見せない）
+        var KYORI_ARU = false;
         var NAMAE = {}; // 端末ID → 車の名前
         var PP = 0; // その日の 電子決済
         // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
@@ -484,7 +487,11 @@
           if (!COMPANY) return;
           var r = hiRange(HI);
           var q =
-            'dk_shifts?select=shift_id,device_id,started_at&company_id=eq.' +
+            // ★売上（fare_total_yen）も 取る★ 2026-10-05（対立役が 実測：
+            //   前は 取っておらず ★走った 車の 売上が いつも 0円★ と 出ていた）
+            //   ★使わない 印（excluded）は 取らない★＝給料・売上表・月次集計も 今は 取っておらず 数えている。
+            //   ここだけ 外すと ★画面ごとに 数が 食い違う★（対立役 10-05）。外すかは お金の 決め＝司さんに 訊く。
+            'dk_shifts?select=shift_id,device_id,started_at,fare_total_yen&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
             '&started_at=gte.' +
             encodeURIComponent(r.from) +
@@ -505,6 +512,15 @@
             soft('dk_day_extras?select=*&pay_date=eq.' + encodeURIComponent(HI) + '&limit=5'),
             // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
             soft('dk_manual_days?select=*&work_date=eq.' + encodeURIComponent(HI) + '&limit=50'),
+            // ★★距離の 列が 倉庫に 在るか★★ 2026-10-05（supabase/apply-tebiki-kyori.sql を 当てた 線だけ 在る）
+            //   在る ⇒ 実車距離・総走行距離の 欄を 出す／無い（400）⇒ 出さない（回数は 前から 在るので 出す）
+            DKSession.rest(SESS, 'dk_manual_days?select=actual_total_m,total_distance_m&limit=1')
+              .then(function (x) {
+                return !!(x && x.ok);
+              })
+              .catch(function () {
+                return false;
+              }),
           ])
             .then(function (res) {
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
@@ -534,6 +550,7 @@
                   PP = JippiHozon.seisuu(x.denshi_yen);
                 }
               });
+              KYORI_ARU = res[6] === true;
               TEBIKI = {};
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
                 if (x && x.device_id) TEBIKI[x.device_id] = x;
@@ -574,9 +591,41 @@
           //   ★走っていない 車★ … 売上は 0 で 打ち直せる／鍵は device_id
           var html = '';
           var detaAru = {};
+          // ★同じ 車が 1日に 何回 走っても 売上は その日の 合計★（前は 最後の 1回だけ 出た）
+          //   ★実費・電子決済の 入れ先は その日 最後の 業務★（前の 版と 同じ所＝前に 打った 額が 消えて見えない）
+          //   ★ほかの 回にも 額が 入っている 時★は 合計を 出して ★ここでは 打たせない★
+          //     （1つの 回に 打つと 他の 回の 分と 二重に 引かれる＝対立役 10-05）
           RAW.shifts.forEach(function (sh) {
-            if (sh && sh.device_id) detaAru[sh.device_id] = sh;
+            if (!sh || !sh.device_id) return;
+            var x = detaAru[sh.device_id];
+            if (!x) {
+              x = detaAru[sh.device_id] = { device_id: sh.device_id, fare_total_yen: 0, ids: [] };
+            }
+            x.fare_total_yen += Number(sh.fare_total_yen) || 0;
+            x.ids.push(sh.shift_id);
+            x.shift_id = sh.shift_id;
           });
+          function edGaku(e) {
+            if (!e) return 0;
+            var g = (Number(e.toll_yen) || 0) + (Number(e.bridge_yen) || 0);
+            g += (Number(e.other_yen) || 0) + (Number(e.denshi_yen) || 0);
+            var x = e.expenses || {};
+            for (var k in x) g += Number(x[k]) || 0;
+            return g;
+          }
+          function edAwase(ids) {
+            var o = { toll_yen: 0, bridge_yen: 0, other_yen: 0, denshi_yen: 0, expenses: {} };
+            ids.forEach(function (id) {
+              var e = EDITS[id];
+              if (!e) return;
+              ['toll_yen', 'bridge_yen', 'other_yen', 'denshi_yen'].forEach(function (k) {
+                o[k] += Number(e[k]) || 0;
+              });
+              var x = e.expenses || {};
+              for (var k in x) o.expenses[k] = (o.expenses[k] || 0) + (Number(x[k]) || 0);
+            });
+            return o;
+          }
           // ★会社の 車を 全部（札の 順）★
           var zenbu = [];
           (RAW.labels || []).forEach(function (l) {
@@ -590,13 +639,22 @@
           zenbu.forEach(function (dev) {
             var sh = detaAru[dev];
             if (sh) {
+              var hoka = sh.ids.filter(function (id) {
+                return id !== sh.shift_id && edGaku(EDITS[id]) > 0;
+              });
               html += shaHitotsu(
                 NAMAE[dev] || '車',
                 sh.shift_id,
                 'data-sid',
-                EDITS[sh.shift_id] || {},
+                hoka.length ? edAwase(sh.ids) : EDITS[sh.shift_id] || {},
                 sh.fare_total_yen,
-                true
+                true,
+                hoka.length
+                  ? 'この 車は この日 ' +
+                      sh.ids.length +
+                      '回 走り、★別の 回にも 額が 入っています★（合計を 出しています）。' +
+                      '直す 時は 売上表で 1回ずつ 直してください。'
+                  : ''
               );
             } else {
               var t = TEBIKI[dev] || {};
@@ -640,8 +698,11 @@
         //   ★入れ先は dk_manual_days★（売上 0 の まま／実費だけ）
         // ★★1台ぶんを 描く★★ 2026-09-11（司さん「車毎に 出す」）
         //   hashitta … 走った 車か（true なら 売上は 出すだけ）
-        function shaHitotsu(na, key, keyAttr, e, uriage, hashitta) {
+        //   tomeru … 打たせない 訳（空なら 打てる）＝実費・電子決済を 出すだけに する
+        function shaHitotsu(na, key, keyAttr, e, uriage, hashitta, tomeru) {
           var h = '<div class="sha"><div class="sha-na">' + esc(na) + '</div>';
+          var dis = tomeru ? ' disabled' : '';
+          if (tomeru) h += '<div class="hint fuku">' + esc(tomeru) + '</div>';
           // ★★売上★★
           //   ★走った 車★ … メーターの 数字を 出すだけ（ここでは 変えられない）
           //   ★走っていない 車★ … 0 で 出して 打ち直せる
@@ -664,11 +725,61 @@
               (JippiHozon.seisuu(uriage) || '') +
               '"><span class="en">円</span></div>' +
               '<span class="hint">★読み取れていません★。打ち直せます。</span></div>';
+            // ★★回数・実車距離・総走行距離★★ 2026-10-05（司さん「車ごとに回数や実車距離や総走行距離を入れる欄」）
+            //   ★読み取れていない 車だけ★（走った 車は メーターの 数を 使う）。距離は km で 打つ（しまうのは m）
+            var kmOf = function (m) {
+              var v = Number(m);
+              return isFinite(v) && v > 0 ? String(Math.round(v / 100) / 10) : '';
+            };
+            [
+              [
+                '回数',
+                'trip_count',
+                e && e.trip_count ? String(e.trip_count) : '',
+                '回',
+                'numeric',
+                '1',
+              ],
+              ['実車距離', 'actual_total_km', kmOf(e && e.actual_total_m), 'km', 'decimal', '0.1'],
+              [
+                '総走行距離',
+                'total_distance_km',
+                kmOf(e && e.total_distance_m),
+                'km',
+                'decimal',
+                '0.1',
+              ],
+            ]
+              // ★距離の 列が 倉庫に 無い 線では 距離の 欄を 出さない★（打っても 保存できない 為）
+              .filter(function (f) {
+                return KYORI_ARU || f[1] === 'trip_count';
+              })
+              .forEach(function (f) {
+                h +=
+                  '<div class="frow"><span class="flabel">' +
+                  f[0] +
+                  '</span><div class="fen"><input class="finput fnum" type="number" inputmode="' +
+                  f[4] +
+                  '" min="0" step="' +
+                  f[5] +
+                  '" ' +
+                  keyAttr +
+                  '="' +
+                  esc(key) +
+                  '" data-f="' +
+                  f[1] +
+                  '" value="' +
+                  f[2] +
+                  '"><span class="en">' +
+                  f[3] +
+                  '</span></div></div>';
+              });
           }
           // ★★電子決済★★（どちらの 車でも 打てる）
           h +=
             '<div class="frow"><span class="flabel">電子決済</span>' +
             '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+            dis +
             ' ' +
             keyAttr +
             '="' +
@@ -684,6 +795,7 @@
                 esc(k.label) +
                 '</span><div class="fen">' +
                 '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+                dis +
                 ' ' +
                 keyAttr +
                 '="' +

@@ -551,8 +551,9 @@
           started_at: m.work_date + 'T20:00:00+09:00',
           fare_total_yen: n(m.sales_yen),
           trip_count: n(m.trip_count),
-          total_distance_m: 0,
-          actual_total_m: 0,
+          // ★手で 打った 距離★（2026-10-05 入力の 画面に 欄を 足した・前は 0 決め打ち）
+          total_distance_m: n(m.total_distance_m),
+          actual_total_m: n(m.actual_total_m),
           isManual: true,
         });
         edits.push({

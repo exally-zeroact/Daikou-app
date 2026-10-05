@@ -108,7 +108,19 @@
       expenses: cur.expenses || {},
       updated_at: new Date().toISOString(),
     };
-    if (FURUI[field]) {
+    // ★★回数・実車距離・総走行距離★★ 2026-10-05（司さん「車ごとに回数や実車距離や総走行距離を入れる欄」）
+    //   距離は ★画面では km★・しまうのは ★メートル★（メーターの dk_shifts と 同じ 単位）。
+    //   ★距離の 列は 打った 時か 既に 値が 在る 時だけ 送る★
+    //     （倉庫に 列が まだ 無い 線で 保存ごと 落ちない 為・merge-duplicates は 送った 列だけ 直す）
+    ['actual_total_m', 'total_distance_m'].forEach(function (k) {
+      if (cur[k] !== undefined && cur[k] !== null) body[k] = cur[k];
+    });
+    if (field === 'trip_count') {
+      body.trip_count = v;
+    } else if (field === 'actual_total_km' || field === 'total_distance_km') {
+      const km = parseFloat(String(value).replace(/,/g, ''));
+      body[field.replace('_km', '_m')] = isFinite(km) && km > 0 ? Math.round(km * 1000) : null;
+    } else if (FURUI[field]) {
       body[FURUI[field]] = v;
     } else if (field.indexOf('_yen') > 0) {
       body[field] = v;
