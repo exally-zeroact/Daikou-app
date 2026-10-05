@@ -2630,8 +2630,10 @@
                 '&limit=2000'
             ),
           ]).then(function (res) {
-            // ★★取り切れを 黙って 通さない★★（limit ちょうどなら 欠けている可能性）
-            var kire = (res[0] || []).length >= 2000 || (res[2] || []).length >= 2000;
+            // ★★取り切れ★★ 2026-10-06：DKSession.softList が 1000行 ずつ 全部 読む ように なった＝limit で 切れない。
+            //   前の「2000件 ちょうどなら 欠けている」は 2000件 以上 そろっても 出る 偽の 警告に なる（対立役）ので 外した。
+            //   読めなかった 時は 今まで通り 上の 帯（showUnknownBar）が 出る。
+            var kire = false;
             var ctx = PayrollDaily.buildCtx({
               shifts: res[0] || [],
               edits: res[1] || [],

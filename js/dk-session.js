@@ -395,8 +395,50 @@
     return !!(st && st.failed > 0);
   }
 
+  // ★★倉庫は 1回に 1000行 までしか 返さない★★ 2026-10-06（司さん「気にかけてどうするんど解決策は」）
+  //   limit=2000／5000 と 頼んでも ★黙って 1000行で 切れる★（PostgREST の max-rows）。
+  //   実費の 行（dk_shift_edits）は 日付で 絞らずに 全部 読むので 年ごとに 増える＝いつか 切れて 給料・売上が 黙って 減る。
+  //   ⇒ ★1000行 より 多く 頼まれたら 1000行 ずつ 全部 読む★。順番は ★表の 鍵★で 決める（同じ 行を 2回／読み落とし を 出さない）。
+  const KAI_1000 = 1000;
+  const KAGI_JUN = {
+    dk_shifts: 'started_at.asc,shift_id.asc',
+    dk_shift_edits: 'shift_id.asc',
+    dk_manual_days: 'company_id.asc,work_date.asc,device_id.asc',
+    dk_work_hours: 'company_id.asc,work_date.asc,employee_id.asc',
+  };
+  function tanomiKazu(p) {
+    const m = /[?&]limit=(\d+)/.exec(String(p));
+    return m ? Number(m[1]) : 0;
+  }
+  function zenbuYomu(sess, pathAndQuery, st) {
+    const p = String(pathAndQuery);
+    const na = p.split('?')[0];
+    const jun = KAGI_JUN[na] || (/[?&]order=([^&]*)/.exec(p) || [])[1] || '';
+    let moto = p
+      .replace(/([?&])limit=\d+&?/, '$1')
+      .replace(/([?&])order=[^&]*&?/, '$1')
+      .replace(/[?&]$/, '');
+    if (jun) moto += (moto.indexOf('?') < 0 ? '?' : '&') + 'order=' + jun;
+    moto += moto.indexOf('?') < 0 ? '?' : '&';
+    // ★頼んだ 数（2000／5000）でも 切らない★＝その 数も いつか 越える。全部 読む（暴走 止めは 20万行）
+    let out = [];
+    function tsugi(from) {
+      return hitoTsu(sess, moto + 'limit=' + KAI_1000 + '&offset=' + from, st).then(function (a) {
+        const arr = Array.isArray(a) ? a : [];
+        out = out.concat(arr);
+        if (arr.length === KAI_1000 && from < 200000) return tsugi(from + KAI_1000);
+        return out;
+      });
+    }
+    return tsugi(0);
+  }
+
   // 一覧を取る。★落ちないように空は返すが、失敗は必ず数える★
   function softList(sess, pathAndQuery, st) {
+    if (tanomiKazu(pathAndQuery) > KAI_1000) return zenbuYomu(sess, pathAndQuery, st);
+    return hitoTsu(sess, pathAndQuery, st);
+  }
+  function hitoTsu(sess, pathAndQuery, st) {
     if (st) st.tried++;
     return rest(sess, pathAndQuery)
       .then(function (r) {

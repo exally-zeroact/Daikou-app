@@ -879,7 +879,8 @@
             encodeURIComponent(r.from) +
             '&started_at=lt.' +
             encodeURIComponent(r.to) +
-            '&order=started_at.asc&limit=2000';
+            // ★順番は 表の 鍵★（1000行 ずつ 読む 時に 読み落とし・2回 読み を 出さない）
+            '&order=started_at.asc,shift_id.asc';
 
           // ★1つ失敗しても画面を殺さない★
           //   手入力(dk_shift_edits)や車名(dk_device_labels)がまだ無くても、
@@ -895,10 +896,24 @@
           }
 
           Promise.all([
-            DKSession.rest(SESS, q).then(function (x) {
-              if (!x.ok) throw new Error('shifts');
-              return x.json();
-            }),
+            // ★★1000行 ずつ 全部 読む★★ 2026-10-06（前は limit=2000 で 黙って 切れた・対立役）
+            //   読めなければ 今まで通り 止めて「読み込みに失敗」（0 と 見せない）
+            (function shiftsZenbu() {
+              var out = [];
+              function tsugi(from) {
+                return DKSession.rest(SESS, q + '&limit=1000&offset=' + from)
+                  .then(function (x) {
+                    if (!x.ok) throw new Error('shifts');
+                    return x.json();
+                  })
+                  .then(function (a) {
+                    a = Array.isArray(a) ? a : [];
+                    out = out.concat(a);
+                    return a.length === 1000 && from < 200000 ? tsugi(from + 1000) : out;
+                  });
+              }
+              return tsugi(0);
+            })(),
             soft('dk_shift_edits?select=*&limit=2000'),
             soft('dk_device_labels?select=*&limit=500'),
             soft('dk_sales_settings?select=*&limit=1'),
