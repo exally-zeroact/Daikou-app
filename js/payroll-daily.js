@@ -117,6 +117,8 @@
             reservePoolRate: r.reserve_pool_rate,
             reserveOwnerRate: r.reserve_owner_rate,
             roles: r.roles,
+            // ★ほかの 払い方★ 2026-10-06（日給・回数・距離・段階・指定日）＝空なら 使わない
+            extra: r.pay_extra,
           })
         : base;
       out.ownerDeviceId = typeof r.owner_device_id === 'string' ? r.owner_device_id : '';
@@ -190,9 +192,21 @@
 
         if (!ctx.byDate[date]) ctx.byDate[date] = {};
         if (!ctx.byDate[date][dev]) {
-          ctx.byDate[date][dev] = { device_id: dev, sales: 0, expense: 0, hours: 0 };
+          ctx.byDate[date][dev] = {
+            device_id: dev,
+            sales: 0,
+            expense: 0,
+            hours: 0,
+            trips: 0,
+            jissha_m: 0,
+            sou_m: 0,
+          };
         }
         const c = ctx.byDate[date][dev];
+        // ★回数・距離★ 2026-10-06（回数歩合・距離歩合の 材料。給料の 式は 決めていなければ 使わない）
+        c.trips += n(s.trip_count);
+        c.jissha_m += n(s.actual_total_m);
+        c.sou_m += n(s.total_distance_m);
         c.sales += n(s.fare_total_yen); // ★メーターが確定した売上そのまま★
         c.expense += Uriage ? Uriage.deductOf(e, ctx.salesSettings) : 0; // ★売上表と同じ引き方★
         c.hours += carHoursOf(s, e); // 同じ車で1日2回働いたら足す
@@ -230,6 +244,9 @@
               )
             : 0,
           hours: n(m.hours),
+          trips: n(m.trip_count),
+          jissha_m: n(m.actual_total_m),
+          sou_m: n(m.total_distance_m),
           fromManual: true,
         };
         if (!seen[dev]) {
@@ -256,6 +273,21 @@
           hours: n(w.hours),
         };
       });
+
+      // ★その日 その車に 乗った 人の 役（本人の 画面 用）★ 2026-10-06
+      //   倉庫の 関数 dk_kyuryo_get が 返す crew＝[{work_date, device_id, roles:['2種','1種']}]
+      //   （名前・時間は 返さない）。在れば これを 使う／無ければ 勤務時間の 行から 作る（事務所の 画面）
+      if (Array.isArray(r.crew)) {
+        ctx.crewByDate = {};
+        r.crew.forEach(function (c) {
+          if (!c || !c.work_date || !c.device_id) return;
+          const d = String(c.work_date).slice(0, 10);
+          if (!ctx.crewByDate[d]) ctx.crewByDate[d] = {};
+          ctx.crewByDate[d][c.device_id] = arr(c.roles).map(function (x) {
+            return String(x || '');
+          });
+        });
+      }
     } catch (_) {
       /* ignore: 壊れたデータでも動く形で返す */
     }
@@ -346,6 +378,30 @@
       const own = ctx.settings.ownerDeviceId || '';
       const cars = (ctx.byDate && ctx.byDate[date]) || {};
       const names = _carLabels(ctx); // ★UUIDを出さない（2026-08-05）★
+      // ★車ごとの 回数・距離★（自分の 車も 入れる＝自分の 車に 乗った 人の 回数歩合 用）
+      // ★その日 その車に 乗った 人の 役★（回数・距離の 1台の 額を 分ける 為）
+      //   本人の 画面は 相方の 行を 持たないので 倉庫の 関数が 返す crew（役だけ）を 使う
+      out.crewByCar = {};
+      const cr = (ctx.crewByDate && ctx.crewByDate[date]) || null;
+      if (cr) {
+        Object.keys(cr).forEach(function (dev) {
+          out.crewByCar[dev] = arr(cr[dev]).slice();
+        });
+      } else {
+        const wh0 = (ctx.hoursByDate && ctx.hoursByDate[date]) || {};
+        Object.keys(wh0).forEach(function (empId) {
+          const emp = ctx.empById[empId];
+          const w = wh0[empId];
+          if (!emp || !w || !w.device_id) return;
+          if (!out.crewByCar[w.device_id]) out.crewByCar[w.device_id] = [];
+          out.crewByCar[w.device_id].push(emp.role || '');
+        });
+      }
+      out.tripsByCar = {};
+      Object.keys(cars).forEach(function (dev) {
+        const c = cars[dev] || {};
+        out.tripsByCar[dev] = { trips: n(c.trips), jissha_m: n(c.jissha_m), sou_m: n(c.sou_m) };
+      });
 
       Object.keys(cars).forEach(function (dev) {
         const c = cars[dev];

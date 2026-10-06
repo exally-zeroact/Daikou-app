@@ -1162,6 +1162,52 @@
       .kami-mado .hn-kami-waku {
         overflow: hidden; /* ★幅に 合わせた ので 横に 送らない★ */
       }
+
+      .hoka-harai {
+        margin-top: 12px;
+      }
+
+      .hoka-harai > summary {
+        cursor: pointer;
+        color: var(--blue);
+        font-weight: 700;
+        padding: 8px 2px;
+      }
+
+      .hoka-yaku {
+        border-top: 1px solid #dbe3ef;
+        padding: 8px 0;
+      }
+
+      .hoka-na {
+        font-weight: 800;
+        margin-bottom: 4px;
+      }
+
+      .hoka-na2 {
+        font-weight: 700;
+        margin: 8px 0 4px;
+      }
+
+      .hoka-gyou {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin: 4px 0;
+      }
+
+      /* ★打つ 欄は 16px★（iPhone で 押すと 画面が 勝手に 寄る のを 防ぐ＝kyuryo-sumaho の 見張り） */
+      #hokaBody input,
+      #hokaBody select {
+        font-size: 16px;
+      }
+
+      .hoka-chui {
+        color: #6b7a90;
+        font-size: 13px;
+        margin-top: 6px;
+      }
     </style>
   </head>
   <body>
@@ -1402,6 +1448,12 @@
           <div style="margin-top: 10px">
             <button class="btn ghost" id="btnAddRole">＋ 役割を足す</button>
           </div>
+          <!-- ★★ほかの 払い方★★ 2026-10-06（司さん「対応できるように対立でやれ」）
+               日給・1回いくら・1kmいくら・段階・指定日。★空なら 使わない＝今の 給料の まま★。畳んで 置く -->
+          <details id="hokaHarai" class="hoka-harai">
+            <summary>ほかの払い方（日給・1回いくら・1kmいくら・段階・指定日）</summary>
+            <div id="hokaBody"></div>
+          </details>
         </div>
 
         <div class="card kv-pane">
@@ -1976,6 +2028,9 @@
             RAW.edits = r.edits || [];
             RAW.workHours = r.workHours || [];
             RAW.manualDays = r.manualDays || [];
+            // ★その日 その車に 乗った 人の 役（名前・時間は 無し）★ 2026-10-06＝回数・距離の 1台の 額を 分ける 為
+            //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
+            if (Array.isArray(r.crew)) RAW.crew = r.crew;
             HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET);
             PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, {
@@ -2606,7 +2661,8 @@
             'T00:00:00+09:00';
           return Promise.all([
             soft(
-              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count' +
+              // ★距離も 取る★ 2026-10-06（1kmいくら の 材料。無いと 事務所と 紙だけ 0円＝本人の 画面と ずれる・対立役）
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m' +
                 '&started_at=gte.' +
                 encodeURIComponent(from) +
                 '&started_at=lt.' +
@@ -3116,7 +3172,8 @@
 
           Promise.all([
             soft(
-              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count' +
+              // ★距離も 取る★ 2026-10-06（1kmいくら の 材料。無いと 事務所と 紙だけ 0円＝本人の 画面と ずれる・対立役）
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m' +
                 '&started_at=gte.' +
                 encodeURIComponent(from) +
                 '&started_at=lt.' +
@@ -4917,6 +4974,7 @@
               '">✕</button></td></tr>';
           });
           $('roleBody').innerHTML = html;
+          hokaKaku(st);
 
           $('poolMode').value = st.poolMode;
           $('resPool').value = Math.round(st.reservePoolRate * 1000) / 10;
@@ -5075,6 +5133,188 @@
             });
         }
 
+        // ★★ほかの 払い方の 欄を 描く／読む★★ 2026-10-06
+        //   読む 形＝js/daiko-payroll.js normExtra の 形（倉庫の pay_extra）。空の 欄は 使わない
+        function hokaKaku(st) {
+          var ex = st.extra || {};
+          var re = ex.roles || {};
+          var h = '';
+          Object.keys(st.roles).forEach(function (r) {
+            var x = re[r] || {};
+            var dk = x.dankai || [];
+            var a = function (k, v, w) {
+              return (
+                '<input class="yen" data-hr="' +
+                esc(r) +
+                '" data-hk="' +
+                k +
+                '" value="' +
+                (v ? v : '') +
+                '" style="width:' +
+                (w || 90) +
+                'px" inputmode="decimal">'
+              );
+            };
+            var dan = '';
+            for (var i = 0; i < 3; i++) {
+              var t = dk[i] || {};
+              dan +=
+                '<div class="hoka-gyou">売上 ' +
+                a('d' + i + 'i', t.ijou) +
+                ' 円 以上で 歩合 ' +
+                a('d' + i + 'r', t.rate ? Math.round(t.rate * 1000) / 10 : '', 60) +
+                ' ％</div>';
+            }
+            var mode = ['kawari:歩合の 代わり', 'tasu:歩合に 足す', 'takai:歩合と 高い方']
+              .map(function (o) {
+                var p = o.split(':');
+                return (
+                  '<option value="' +
+                  p[0] +
+                  '"' +
+                  (x.nikkyuMode === p[0] ? ' selected' : '') +
+                  '>' +
+                  p[1] +
+                  '</option>'
+                );
+              })
+              .join('');
+            h +=
+              '<div class="hoka-yaku"><div class="hoka-na">' +
+              esc(r) +
+              '</div>' +
+              '<div class="hoka-gyou">日給 ' +
+              a('nikkyu', x.nikkyu) +
+              ' 円 <select data-hr="' +
+              esc(r) +
+              '" data-hk="nikkyuMode">' +
+              mode +
+              '</select> <label><input type="checkbox" data-hr="' +
+              esc(r) +
+              '" data-hk="nikkyuHoshou"' +
+              (x.nikkyuHoshou === false ? '' : ' checked') +
+              '> 最低保証も 効かせる</label></div>' +
+              dan +
+              '</div>';
+          });
+          var wh = ex.wariHi || {};
+          var hi = Object.keys(wh).sort();
+          var wr = '';
+          for (var j = 0; j < Math.max(3, hi.length + 1); j++) {
+            var d = hi[j] || '';
+            var o = wh[d] || {};
+            wr +=
+              '<div class="hoka-gyou"><input type="date" data-hw="' +
+              j +
+              '" data-hk="hi" value="' +
+              d +
+              '"> × <input class="yen" data-hw="' +
+              j +
+              '" data-hk="mult" value="' +
+              (o.mult || '') +
+              '" style="width:60px" inputmode="decimal"> <input class="txt" data-hw="' +
+              j +
+              '" data-hk="label" value="' +
+              esc(o.label || '') +
+              '" placeholder="名前（大晦日 など）" style="width:150px"></div>';
+          }
+          h +=
+            '<div class="hoka-yaku"><div class="hoka-na">会社 全体</div>' +
+            // ★回数・距離は 1台 として★（司さん 10-06「回数距離は1台としてやろが」）
+            '<div class="hoka-gyou">1回 いくら（1台 あたり） <input class="yen" data-hk="kaisu" value="' +
+            (ex.kaisu || '') +
+            '" style="width:90px" inputmode="decimal"> 円</div>' +
+            '<div class="hoka-gyou">1km いくら（1台 あたり） <input class="yen" data-hk="kyori" value="' +
+            (ex.kyori || '') +
+            '" style="width:70px" inputmode="decimal"> 円</div>' +
+            '<div class="hoka-gyou">1台の 額の 分け方 <select data-hk="bunpai"><option value="ritsu"' +
+            (ex.bunpai === 'touwari' ? '' : ' selected') +
+            '>役の 歩合の 比で 分ける</option><option value="touwari"' +
+            (ex.bunpai === 'touwari' ? ' selected' : '') +
+            '>乗った 人数で 等分</option></select></div>' +
+            '<div class="hoka-gyou">1km の 距離は <select data-hk="kyoriShu"><option value="jissha"' +
+            (ex.kyoriShu === 'sou' ? '' : ' selected') +
+            '>客を 乗せた 距離</option><option value="sou"' +
+            (ex.kyoriShu === 'sou' ? ' selected' : '') +
+            '>全部の 距離</option></select></div>' +
+            '<div class="hoka-gyou"><label><input type="checkbox" data-hk="kasanAto"' +
+            (ex.kasanAto ? ' checked' : '') +
+            '> 1回・1km の 分は 最低保証と 比べた 後で 足す</label></div>' +
+            '<div class="hoka-na2">指定日の 割増（倍率）</div>' +
+            wr +
+            '<div class="hoka-gyou">掛け方 <select data-hk="wariMode"><option value="buai"' +
+            (ex.wariMode === 'zentai' ? '' : ' selected') +
+            '>歩合だけに 掛ける</option><option value="zentai"' +
+            (ex.wariMode === 'zentai' ? ' selected' : '') +
+            '>その日の 給料 全体に 掛ける</option></select></div></div>' +
+            '<div class="hoka-chui">空の 所は 使いません（今の 給料の まま）。決めたら 下の「保存する」。</div>';
+          $('hokaBody').innerHTML = h;
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#hokaBody input, #hokaBody select'),
+            function (el) {
+              el.onchange = function () {
+                SET = SET || {};
+                SET.pay_extra = hokaYomu();
+                RAW.payrollSettings = SET;
+                recalc();
+              };
+            }
+          );
+        }
+        function hokaYomu() {
+          var body = document.getElementById('hokaBody');
+          if (!body || !body.querySelector('[data-hk]')) return (SET && SET.pay_extra) || null;
+          var out = { roles: {}, wariHi: {} };
+          var v = function (el) {
+            return el ? num(el.value) : 0;
+          };
+          var hr = {};
+          Array.prototype.forEach.call(body.querySelectorAll('[data-hr]'), function (el) {
+            var r = el.getAttribute('data-hr');
+            if (!hr[r]) hr[r] = {};
+            hr[r][el.getAttribute('data-hk')] = el;
+          });
+          Object.keys(hr).forEach(function (r) {
+            var b = hr[r];
+            var dk = [];
+            for (var i = 0; i < 3; i++) {
+              var ij = v(b['d' + i + 'i']);
+              var rt = v(b['d' + i + 'r']) / 100;
+              if (ij > 0 && rt > 0) dk.push({ ijou: ij, rate: rt });
+            }
+            var x = {
+              nikkyu: v(b.nikkyu),
+              nikkyuMode: (b.nikkyuMode || {}).value || 'kawari',
+              nikkyuHoshou: !!(b.nikkyuHoshou || {}).checked,
+              dankai: dk,
+            };
+            if (x.nikkyu || dk.length) out.roles[r] = x;
+          });
+          var hw = {};
+          Array.prototype.forEach.call(body.querySelectorAll('[data-hw]'), function (el) {
+            var j = el.getAttribute('data-hw');
+            if (!hw[j]) hw[j] = {};
+            hw[j][el.getAttribute('data-hk')] = el;
+          });
+          Object.keys(hw).forEach(function (j) {
+            var w = hw[j];
+            var m = v(w.mult);
+            if (w.hi && w.hi.value && m > 0) {
+              out.wariHi[w.hi.value] = { mult: m, label: (w.label || {}).value || '' };
+            }
+          });
+          var g = function (k) {
+            return body.querySelector('[data-hk="' + k + '"]:not([data-hr]):not([data-hw])');
+          };
+          out.kaisu = v(g('kaisu'));
+          out.kyori = v(g('kyori'));
+          out.bunpai = (g('bunpai') || {}).value || 'ritsu';
+          out.kyoriShu = (g('kyoriShu') || {}).value || 'jissha';
+          out.kasanAto = !!(g('kasanAto') || {}).checked;
+          out.wariMode = (g('wariMode') || {}).value || 'buai';
+          return out;
+        }
+
         function stageRoles(roles) {
           SET = SET || {};
           SET.roles = roles;
@@ -5117,6 +5357,8 @@
             owner_device_id: $('ownerDev').value || '',
             show_car_sales: $('showCarSales').checked, // ★車ごとの売上を載せるか★ 2026-08-25
             roles: st.roles,
+            // ★ほかの 払い方★ 2026-10-06（空なら 使わない）。欄が 無い 時は 今の 値を その まま 運ぶ（消さない）
+            pay_extra: hokaYomu(),
             updated_at: new Date().toISOString(),
           };
           upsert('dk_payroll_settings', 'company_id', body)

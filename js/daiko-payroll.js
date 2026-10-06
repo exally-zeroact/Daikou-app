@@ -48,9 +48,80 @@
     },
   };
 
+  // ★★ほかの 払い方（日給・回数歩合・距離歩合・段階歩合・指定日の 割増）★★ 2026-10-06
+  //   司さん「給料設定はいろんなものに対応できるようにしとんか？」「対応できるように対立でやれ」
+  //   ★全部 既定は「使わない」★＝何も 決めていなければ 今の 給料と 1円も 変わらない。
+  //   置き場は dk_payroll_settings.pay_extra（jsonb）。roles の jsonb に 混ぜない
+  //   （roles は {rate, floor} だけに 作り直して 保存するので 混ぜると 黙って 消える＝対立役 10-06）。
+  //   pay_extra = {
+  //     roles: { '2種': { nikkyu, nikkyuMode:'kawari'|'tasu'|'takai', nikkyuHoshou:bool,
+  //                       dankai:[{ijou, rate}] } },
+  //     kaisu, kyori,               … ★1台 あたり★ 1回いくら・1kmいくら（会社で 1つ）
+  //     bunpai: 'ritsu'|'touwari',  … 1台の 額を 乗った 人で どう 分けるか（役の 率の 比／人数で 等分）
+  //       司さん 10-06「回数距離は1台としてやろが」＝1台で 1回だけ 額を 出し 乗った 人で 分ける
+  //     kyoriShu: 'jissha'|'sou',   … 距離は 客を 乗せた 距離か 全部の 距離か
+  //     kasanAto: bool,             … 回数・距離の 分を 最低保証と 比べた 後で 足すか（既定は 比べる 側）
+  //     wariMode: 'buai'|'zentai',  … 指定日の 倍率を 歩合だけに 掛けるか 日の 給料 全体に 掛けるか
+  //     wariHi: { 'YYYY-MM-DD': { mult, label } }
+  //   }
+  function normExtra(x) {
+    const out = {
+      roles: {},
+      kaisu: 0,
+      kyori: 0,
+      bunpai: 'ritsu',
+      kyoriShu: 'jissha',
+      kasanAto: false,
+      wariMode: 'buai',
+      wariHi: {},
+    };
+    try {
+      if (!x || typeof x !== 'object') return out;
+      out.kaisu = n(x.kaisu);
+      out.kyori = n(x.kyori);
+      out.bunpai = x.bunpai === 'touwari' ? 'touwari' : 'ritsu';
+      out.kyoriShu = x.kyoriShu === 'sou' ? 'sou' : 'jissha';
+      out.kasanAto = x.kasanAto === true;
+      out.wariMode = x.wariMode === 'zentai' ? 'zentai' : 'buai';
+      const wh = x.wariHi && typeof x.wariHi === 'object' ? x.wariHi : {};
+      Object.keys(wh).forEach(function (d) {
+        const m = n(wh[d] && wh[d].mult);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d) && m > 0) {
+          out.wariHi[d] = { mult: m, label: String((wh[d] && wh[d].label) || '') };
+        }
+      });
+      const rs = x.roles && typeof x.roles === 'object' ? x.roles : {};
+      Object.keys(rs).forEach(function (k) {
+        const r = rs[k] || {};
+        const dk = Array.isArray(r.dankai)
+          ? r.dankai
+              .map(function (t) {
+                return { ijou: n(t && t.ijou), rate: n(t && t.rate) };
+              })
+              .filter(function (t) {
+                return t.ijou > 0 && t.rate > 0;
+              })
+              .sort(function (a, b) {
+                return a.ijou - b.ijou;
+              })
+          : [];
+        out.roles[k] = {
+          nikkyu: n(r.nikkyu),
+          nikkyuMode: r.nikkyuMode === 'tasu' || r.nikkyuMode === 'takai' ? r.nikkyuMode : 'kawari',
+          nikkyuHoshou: r.nikkyuHoshou !== false,
+          dankai: dk,
+        };
+      });
+    } catch (_) {
+      /* 壊れていたら 使わない＝今の 給料の まま */
+    }
+    return out;
+  }
+
   function normSettings(s) {
     try {
       const base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      base.extra = normExtra(null);
       if (!s || typeof s !== 'object') return base;
       const out = {
         poolMode: typeof s.poolMode === 'string' ? s.poolMode : base.poolMode,
@@ -63,6 +134,7 @@
         reserveOwnerRate:
           s.reserveOwnerRate === undefined ? base.reserveOwnerRate : n(s.reserveOwnerRate),
         roles: {},
+        extra: normExtra(s.extra),
       };
       const src = s.roles && typeof s.roles === 'object' ? s.roles : base.roles;
       Object.keys(src).forEach(function (k) {
@@ -72,7 +144,9 @@
       if (!Object.keys(out.roles).length) out.roles = base.roles;
       return out;
     } catch (_) {
-      return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      const d = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+      d.extra = normExtra(null);
+      return d;
     }
   }
 
@@ -143,14 +217,76 @@
         return v !== null && v !== undefined && v !== '' && isFinite(parseFloat(v));
       };
 
+      const ex = st.extra || normExtra(null);
+      // ★指定日の 倍率★（決めていない 日は 1＝今の まま）
+      const wari = ex.wariHi[(input && input.date) || ''];
+      const mult = wari ? wari.mult : 1;
+      const tbc = (input && input.tripsByCar) || {};
+
       const rows = staff.map(function (p) {
         const role = st.roles[(p && p.role) || ''] || { rate: 0, floor: 0 };
-        const rate = has(p && p.rate) ? n(p.rate) : role.rate;
-        const floor = has(p && p.floor) ? n(p.floor) : role.floor;
+        const re = ex.roles[(p && p.role) || ''] || null;
         const hours = n(p && p.hours);
         const h = st.poolMode === 'per_car' ? n(perCarHourly[String(p && p.car)]) : hourly;
-        const byRate = h * rate * hours;
-        const byFloor = floor * hours;
+        // ★段階歩合★ その日の 売上（乗った車ごと なら その車の 売上）で 率を 決める。人の 率が 打って あれば 人が 勝つ
+        let roleRate = role.rate;
+        if (re && re.dankai.length) {
+          let uri = pool.sales;
+          if (st.poolMode === 'per_car') {
+            const c0 = cars.filter(function (c) {
+              return String(c && c.id) === String(p && p.car);
+            })[0];
+            uri = c0 ? carNet(c0) : 0;
+          }
+          re.dankai.forEach(function (t) {
+            if (uri >= t.ijou) roleRate = t.rate;
+          });
+        }
+        const rate = has(p && p.rate) ? n(p.rate) : roleRate;
+        const floor = has(p && p.floor) ? n(p.floor) : role.floor;
+        let byRate = h * rate * hours;
+        let byFloor = floor * hours;
+        // ★回数・距離の 歩合★ 乗った 車の その日の 回数・距離（2人で 1台＝2人とも 車の 分を 全部）
+        // ★★回数・距離の 歩合は ★1台 として★★★ 2026-10-06（司さん「回数距離は1台としてやろが」）
+        //   1台の 額 ＝ 回数 × 1回いくら ＋ km × 1kmいくら（1台で 1回だけ）
+        //   それを その日 その車に 乗った 人で 分ける：役の 率の 比（既定）／人数で 等分
+        //   乗った 人の 役は crewByCar（本人の 画面でも 同じに なるよう 倉庫の 関数が 役だけ 返す）
+        let kasan = 0;
+        if (ex.kaisu || ex.kyori) {
+          const car = String(p && p.car);
+          const t = tbc[car] || {};
+          const km = n(ex.kyoriShu === 'sou' ? t.sou_m : t.jissha_m) / 1000;
+          const daiGaku = ex.kaisu * n(t.trips) + ex.kyori * km;
+          const crew = ((input && input.crewByCar) || {})[car] || [(p && p.role) || ''];
+          if (ex.bunpai === 'touwari') {
+            kasan = daiGaku / Math.max(1, crew.length);
+          } else {
+            const rr = function (y) {
+              return n((st.roles[y] || {}).rate);
+            };
+            const goukei = crew.reduce(function (a, y) {
+              return a + rr(y);
+            }, 0);
+            kasan =
+              goukei > 0
+                ? (daiGaku * rr((p && p.role) || '')) / goukei
+                : daiGaku / Math.max(1, crew.length);
+          }
+        }
+        // ★日給★ 代わり／足す／高い方。最低保証を 外す 時は 0 と 比べる
+        let nikkyu = 0;
+        if (re && re.nikkyu > 0 && hours > 0) {
+          nikkyu = re.nikkyu;
+          if (re.nikkyuMode === 'kawari') byRate = nikkyu;
+          else if (re.nikkyuMode === 'tasu') byRate += nikkyu;
+          else byRate = Math.max(byRate, nikkyu);
+          if (!re.nikkyuHoshou) byFloor = 0;
+        }
+        if (!ex.kasanAto) byRate += kasan;
+        if (mult !== 1 && ex.wariMode === 'buai') byRate *= mult;
+        let pay = Math.max(byRate, byFloor);
+        if (ex.kasanAto) pay += kasan;
+        if (mult !== 1 && ex.wariMode === 'zentai') pay *= mult;
         return {
           name: (p && p.name) || '',
           role: (p && p.role) || '',
@@ -163,7 +299,10 @@
           floorIsOwn: has(p && p.floor) && n(p.floor) !== role.floor,
           byRate: byRate, // 歩合で出した額
           byFloor: byFloor, // 最低保証で出した額
-          pay: Math.max(byRate, byFloor), // ★高い方★
+          pay: pay, // ★高い方★（＋比べた 後に 足す 分・日の 割増）
+          kasan: kasan, // 回数・距離の 歩合
+          nikkyu: nikkyu, // 日給
+          wariMult: mult, // 指定日の 倍率（1 なら 無し）
           // ★★丸めた 後で 比べる★★ 2026-09-06（司さん「丸め込み含め最低時給になった時は赤」）
           //   ★前★ ★丸める 前★の 生の 数で 比べていた（byFloor >= byRate）
           //     ⇒ 画面と 紙は ★Math.round（1円まで）★で 出しているので
