@@ -74,6 +74,9 @@
       kasanAto: false,
       wariMode: 'buai',
       wariHi: {},
+      // ★夜の 割増★ 2026-10-06：時間帯（JST）と 倍率・掛け方。指定日と 重なる 日は 掛け合わせるか 足すか
+      yakan: null,
+      kasane: 'kakeru',
     };
     try {
       if (!x || typeof x !== 'object') return out;
@@ -83,6 +86,24 @@
       out.kyoriShu = x.kyoriShu === 'sou' ? 'sou' : 'jissha';
       out.kasanAto = x.kasanAto === true;
       out.wariMode = x.wariMode === 'zentai' ? 'zentai' : 'buai';
+      out.kasane = x.kasane === 'tasu' ? 'tasu' : 'kakeru';
+      const y = x.yakan && typeof x.yakan === 'object' ? x.yakan : null;
+      const hm = function (v) {
+        // ★2回 通っても 同じ★（1回目で 分の 数に 直した 物が 2回目に 来る＝computeDay は 直した 設定を もう一度 通す）
+        if (typeof v === 'number') return v >= 0 && v <= 24 * 60 ? v : -1;
+        const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || ''));
+        if (!m) return -1;
+        const t = Number(m[1]) * 60 + Number(m[2]);
+        return t >= 0 && t <= 24 * 60 ? t : -1;
+      };
+      if (y && n(y.mult) > 1 && hm(y.kara) >= 0 && hm(y.made) >= 0 && hm(y.kara) !== hm(y.made)) {
+        out.yakan = {
+          kara: hm(y.kara),
+          made: hm(y.made),
+          mult: n(y.mult),
+          mode: y.mode === 'zentai' ? 'zentai' : 'buai',
+        };
+      }
       const wh = x.wariHi && typeof x.wariHi === 'object' ? x.wariHi : {};
       Object.keys(wh).forEach(function (d) {
         const m = n(wh[d] && wh[d].mult);
@@ -282,11 +303,36 @@
           else byRate = Math.max(byRate, nikkyu);
           if (!re.nikkyuHoshou) byFloor = 0;
         }
+        // ★★夜の 割増★★ 2026-10-06：乗った 車の その日の 時間の うち 夜の 時間帯の 割合（車の 打刻から）
+        //   倍率 ＝ 1 ＋（夜の 倍率 − 1）× 夜の 割合。手で 入れた 日（時刻 無し）は 割合 0＝付かない
+        let yRatio = 0;
+        let yMult = 1;
+        if (ex.yakan) {
+          const yc = ((input && input.yakanByCar) || {})[String(p && p.car)] || {};
+          yRatio = n(yc.span) > 0 ? Math.min(1, n(yc.yakan) / n(yc.span)) : 0;
+          yMult = 1 + (ex.yakan.mult - 1) * yRatio;
+        }
+        // ★指定日 と 夜 を 歩合だけ／日の 給料 全体 の 2つの 位置に 分けて 掛ける★（同じ 位置で 重なる 時は 掛け合わせ か 足す）
+        const awase = function (a, b) {
+          if (a === 1) return b;
+          if (b === 1) return a;
+          return ex.kasane === 'tasu' ? 1 + (a - 1) + (b - 1) : a * b;
+        };
+        let buaiM = 1;
+        let zentaiM = 1;
+        if (mult !== 1) {
+          if (ex.wariMode === 'zentai') zentaiM = awase(zentaiM, mult);
+          else buaiM = awase(buaiM, mult);
+        }
+        if (yMult !== 1) {
+          if (ex.yakan.mode === 'zentai') zentaiM = awase(zentaiM, yMult);
+          else buaiM = awase(buaiM, yMult);
+        }
         if (!ex.kasanAto) byRate += kasan;
-        if (mult !== 1 && ex.wariMode === 'buai') byRate *= mult;
+        if (buaiM !== 1) byRate *= buaiM;
         let pay = Math.max(byRate, byFloor);
         if (ex.kasanAto) pay += kasan;
-        if (mult !== 1 && ex.wariMode === 'zentai') pay *= mult;
+        if (zentaiM !== 1) pay *= zentaiM;
         return {
           name: (p && p.name) || '',
           role: (p && p.role) || '',
@@ -303,6 +349,7 @@
           kasan: kasan, // 回数・距離の 歩合
           nikkyu: nikkyu, // 日給
           wariMult: mult, // 指定日の 倍率（1 なら 無し）
+          yakanRatio: yRatio, // 夜の 時間帯の 割合（0 なら 無し）
           // ★★丸めた 後で 比べる★★ 2026-09-06（司さん「丸め込み含め最低時給になった時は赤」）
           //   ★前★ ★丸める 前★の 生の 数で 比べていた（byFloor >= byRate）
           //     ⇒ 画面と 紙は ★Math.round（1円まで）★で 出しているので

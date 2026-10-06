@@ -96,6 +96,36 @@
     }
   }
 
+  // ★★1つの 勤務の「分」と「夜の 時間帯に 重なった 分」★★ 2026-10-06
+  //   時間帯は JST の 時刻（kara/made は 0時からの 分）。kara > made は 日を またぐ（22:00〜5:00）。
+  //   勤務の 始まりの 日 D を 基準に D−1・D・D+1 の 3つの 夜と 重ねて 足す（明け方 始まりも 拾う）。
+  //   終わりが 無い 時は 始まり＋elapsed_sec。どちらも 無ければ 0（割増 無し）
+  function yakanFun(s, y) {
+    const out = { span: 0, yakan: 0 };
+    try {
+      const a = Date.parse(s && s.started_at);
+      if (!isFinite(a)) return out;
+      let b = Date.parse(s && s.ended_at);
+      if (!isFinite(b)) b = n(s && s.elapsed_sec) > 0 ? a + n(s.elapsed_sec) * 1000 : NaN;
+      if (!isFinite(b) || b <= a) return out;
+      out.span = (b - a) / 60000;
+      if (!y) return out;
+      const JST = 9 * 3600000;
+      const d0 = new Date(a + JST);
+      const base = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate()) - JST;
+      [-1, 0, 1].forEach(function (k) {
+        const day = base + k * 86400000;
+        const s1 = day + y.kara * 60000;
+        const e1 = y.kara > y.made ? day + 86400000 + y.made * 60000 : day + y.made * 60000;
+        const o = Math.min(b, e1) - Math.max(a, s1);
+        if (o > 0) out.yakan += o / 60000;
+      });
+    } catch (_) {
+      /* 壊れた 時刻は 割増 無し */
+    }
+    return out;
+  }
+
   // ─── 設定（DBの行 → 計算エンジンの設定）──────────────────
   function normSettings(row) {
     const Payroll = _need('DaikoPayroll', './daiko-payroll.js');
@@ -204,6 +234,10 @@
         }
         const c = ctx.byDate[date][dev];
         // ★回数・距離★ 2026-10-06（回数歩合・距離歩合の 材料。給料の 式は 決めていなければ 使わない）
+        // ★夜の 割増の 材料★ 2026-10-06：その 勤務の 分 と 夜の 時間帯に 重なった 分（JST）
+        const ym = yakanFun(s, ctx.settings && ctx.settings.extra && ctx.settings.extra.yakan);
+        c.span = n(c.span) + ym.span;
+        c.yakan = n(c.yakan) + ym.yakan;
         c.trips += n(s.trip_count);
         c.jissha_m += n(s.actual_total_m);
         c.sou_m += n(s.total_distance_m);
@@ -415,6 +449,12 @@
           out.crewByCar[w.device_id].push(emp.role || '');
         });
       }
+      // ★夜の 割増★ 車ごとの 勤務の 分・夜の 分（自分の 車も 入れる）
+      out.yakanByCar = {};
+      Object.keys(cars).forEach(function (dev) {
+        const c = cars[dev] || {};
+        out.yakanByCar[dev] = { span: n(c.span), yakan: n(c.yakan) };
+      });
       out.tripsByCar = {};
       Object.keys(cars).forEach(function (dev) {
         const c = cars[dev] || {};
@@ -572,6 +612,11 @@
           teate: 0,
           koujo: 0,
           adj: [],
+          // ★ほかの 払い方の 内わけ★ 2026-10-06（明細の 紙に 出す 為。給料の 額は 変えない）
+          kasan: 0, // 1回いくら・1kmいくら の 分（1台の 額を 分けた 後）
+          nikkyuHi: 0, // 日給を 使った 日の 数
+          wariHi: 0, // 指定日の 割増が 付いた 日の 数
+          yakanHi: 0, // 夜の 割増が 付いた 日の 数
         };
       });
 
@@ -617,6 +662,10 @@
           if (worked) {
             row.totalPay += n(s.pay);
             row.kasegi += n(s.pay);
+            row.kasan += n(s.kasan);
+            if (n(s.nikkyu) > 0) row.nikkyuHi += 1;
+            if (s.wariMult && s.wariMult !== 1) row.wariHi += 1;
+            if (n(s.yakanRatio) > 0) row.yakanHi += 1;
             row.totalHours += n(s.hours);
             row.workedDays += 1;
           }

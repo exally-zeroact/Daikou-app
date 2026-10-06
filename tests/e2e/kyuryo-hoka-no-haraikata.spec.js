@@ -92,6 +92,9 @@ test('★倉庫に 1回 いくら が 入っていると 明細の 額が 増え
   //   8/2：車01 2回×300＝600 を 甲(30%)・乙(25%) の 比で 327.27／272.73
   //   人ごとに 丸めて 1,227＋600＋273 ＝ 2,100（前の 作り＝2人とも 全部 なら 2,700）
   expect(ato - mae, '★1台の 額が 手で 足した 2,100 円と 違う（2倍に なっていないか）★').toBe(2100);
+  // ★明細の 紙に 内わけ（うち 1回・1km の 分）が 出る★ 2026-10-06
+  const ji = await page2.evaluate(() => (document.getElementById('slips') || {}).textContent || '');
+  expect(ji, '★紙に「1回・1km の 分」の 内わけが 出ていない★').toContain('1回・1km の 分');
 });
 
 test('★ほかの払い方を 開かずに 保存しても 前の 設定は 消えない★', async ({ page }) => {
@@ -121,4 +124,40 @@ test('★ほかの払い方を 開かずに 保存しても 前の 設定は 消
   console.log('★開かずに 保存★ ' + JSON.stringify(b.pay_extra));
   expect(b.pay_extra && b.pay_extra.kyoriShu, '★前の 設定（全部の 距離）が 消えた★').toBe('sou');
   expect(b.pay_extra.kaisu, '★前の 設定（1回 250円・1台 あたり）が 消えた★').toBe(250);
+});
+
+// ★★夜の 割増を 画面で 決めて 保存 ⇒ 倉庫へ 時間帯・倍率・掛け方が 入る★★ 2026-10-06
+//   わざと壊す（10-06 実測）：hokaYomu で yakan を 読まない ⇒ ★赤★
+test('★夜の 割増：時間帯 22:00〜05:00・×1.25 を 保存すると 倉庫へ 入る★', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openKyuryo(page);
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    window.__okutta = [];
+    const S = window.DKSession;
+    const moto = S.rest;
+    S.rest = function (s, p, o) {
+      if (o && o.method) window.__okutta.push({ p: p, body: o.body });
+      return moto.apply(this, arguments);
+    };
+  });
+  await page.locator('.tab[data-tab="set"]').click();
+  await page.locator('#hokaHarai > summary').click();
+  const m = page.locator('#hokaBody [data-hk="yMult"]');
+  await m.fill('1.25');
+  await m.dispatchEvent('change');
+  await page.locator('#hokaBody [data-hk="yMode"]').selectOption('zentai');
+  await page.locator('#btnSaveSet').click();
+  await page.waitForTimeout(800);
+  const okutta = await page.evaluate(() => window.__okutta);
+  const set = okutta.filter((x) => String(x.p).indexOf('dk_payroll_settings') === 0);
+  const b = JSON.parse(set[set.length - 1].body);
+  // eslint-disable-next-line no-console
+  console.log('★夜の 割増★ ' + JSON.stringify(b.pay_extra && b.pay_extra.yakan));
+  expect(b.pay_extra.yakan, '★夜の 割増が 入っていない★').toEqual({
+    kara: '22:00',
+    made: '05:00',
+    mult: 1.25,
+    mode: 'zentai',
+  });
 });

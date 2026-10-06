@@ -185,3 +185,39 @@ test('★外した 人に 手当・控除が 在ると 知らせが 出る★', 
   expect(ji, '★外した 人の 手当・控除の 知らせが 無い★').toContain('外した 人');
   expect(ji).toContain('1,200');
 });
+
+// ★★外した 人の 手当と 控除が 同じ 額でも 知らせる★★（対立役 10-06：打ち消して 0円 だと 知らせが 消えた）
+//   わざと壊す（10-06 実測）：知らせの 判定を 額（nokori）に 戻す ⇒ ★赤★
+test('★外した 人の 手当 1,000・控除 1,000（打ち消し）でも 知らせが 出る★', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openKyuryo(page, (f) => {
+    const w = f.workHours[0];
+    f.adjustments = [
+      {
+        adj_id: 'z1',
+        employee_id: 'kieta-hito',
+        work_date: w.work_date,
+        kind: 'teate',
+        label: '待機',
+        yen: 1000,
+      },
+      {
+        adj_id: 'z2',
+        employee_id: 'kieta-hito',
+        work_date: w.work_date,
+        kind: 'koujo',
+        label: '前借り',
+        yen: 1000,
+      },
+    ];
+    return f;
+  });
+  await page.waitForTimeout(1500);
+  const ji = await page.evaluate(() => {
+    const el = document.querySelector('.adj-chui');
+    return el ? el.textContent : '';
+  });
+  // eslint-disable-next-line no-console
+  console.log('★知らせ（打ち消し）★ ' + ji);
+  expect(ji, '★打ち消すと 知らせが 消えた★').toContain('2件');
+});

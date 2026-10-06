@@ -2538,20 +2538,25 @@
             aru[e.employee_id] = true;
           });
           var nokori = 0;
+          var nokoriKen = 0; // ★行の 数でも 見る★（手当と 控除が 同じ 額で 打ち消すと 0円 に なり 知らせが 消えた）
           Object.keys(REP.days || {}).forEach(function (d) {
             ((REP.days[d] || {}).adj || []).forEach(function (a) {
-              if (!aru[a.employee_id]) nokori += a.kind === 'koujo' ? -a.yen : a.yen;
+              if (aru[a.employee_id]) return;
+              nokori += a.kind === 'koujo' ? -a.yen : a.yen;
+              nokoriKen += 1;
             });
           });
           var minus = (REP.employees || []).filter(function (e) {
             return e.totalPay < 0;
           });
           var t = '';
-          if (nokori) {
+          if (nokoriKen) {
             t +=
-              '<div>外した 人に 手当・控除 ¥' +
+              '<div>外した 人に 手当・控除が ' +
+              nokoriKen +
+              '件（差し引き ¥' +
               yen(nokori) +
-              ' が あります（どの 明細にも 出ません・給料の 総額には 入っています）。</div>';
+              '）あります（どの 明細にも 出ません・給料の 総額には 入っています）。</div>';
           }
           if (minus.length) {
             t +=
@@ -3656,7 +3661,18 @@
         // ★★手当・控除の 内わけ（紙の 見出しの 下 1行）★★ 2026-10-06（司さん「ア」）
         //   無い 人は 何も 出さない＝今までの 紙と 1文字も 変わらない
         function adjGyou(e) {
-          if (!e || !(e.teate || e.koujo)) return '';
+          // ★ほかの 払い方の 内わけ★ 2026-10-06（日給・1回/1km・指定日）＝使った 人だけ 1行
+          var hoka = [];
+          if (e && e.nikkyuHi) hoka.push('日給 ' + e.nikkyuHi + '日');
+          if (e && e.kasan) hoka.push('1回・1km の 分 ¥' + yen(e.kasan));
+          if (e && e.wariHi) hoka.push('指定日の 割増 ' + e.wariHi + '日');
+          if (e && e.yakanHi) hoka.push('夜の 割増 ' + e.yakanHi + '日');
+          var hokaGyou = hoka.length
+            ? '<div style="font-size:15px;color:#14243d;margin:-4px 0 6px;">うち ' +
+              hoka.join('・') +
+              '</div>'
+            : '';
+          if (!e || !(e.teate || e.koujo)) return hokaGyou;
           var uchi = function (kind) {
             return (e.adj || [])
               .filter(function (a) {
@@ -3675,7 +3691,8 @@
             (e.koujo ? '　− 控除 ¥' + yen(e.koujo) + '（' + uchi('koujo') + '）' : '') +
             '　＝ <b>差引 支給 ¥' +
             yen(e.totalPay) +
-            '</b></div>'
+            '</b></div>' +
+            hokaGyou
           );
         }
 
@@ -5493,7 +5510,28 @@
             (ex.wariMode === 'zentai' ? '' : ' selected') +
             '>歩合だけに 掛ける</option><option value="zentai"' +
             (ex.wariMode === 'zentai' ? ' selected' : '') +
-            '>その日の 給料 全体に 掛ける</option></select></div></div>' +
+            '>その日の 給料 全体に 掛ける</option></select></div>' +
+            // ★★夜の 割増★★ 2026-10-06（車の 打刻から 夜の 時間の 割合を 出して 掛ける・手で 入れた 日は 付かない）
+            '<div class="hoka-na2">夜の 割増</div>' +
+            '<div class="hoka-gyou">時間帯 <input type="time" data-hk="yKara" value="' +
+            hmOf(ex.yakan && ex.yakan.kara, '22:00') +
+            '"> 〜 <input type="time" data-hk="yMade" value="' +
+            hmOf(ex.yakan && ex.yakan.made, '05:00') +
+            '"> × <input class="yen" data-hk="yMult" value="' +
+            ((ex.yakan && ex.yakan.mult) || '') +
+            '" style="width:60px" inputmode="decimal" placeholder="1.25"></div>' +
+            '<div class="hoka-gyou">掛け方 <select data-hk="yMode"><option value="buai"' +
+            (ex.yakan && ex.yakan.mode === 'zentai' ? '' : ' selected') +
+            '>歩合だけに 掛ける</option><option value="zentai"' +
+            (ex.yakan && ex.yakan.mode === 'zentai' ? ' selected' : '') +
+            '>その日の 給料 全体に 掛ける</option></select></div>' +
+            '<div class="hoka-gyou">指定日と 重なる 日は <select data-hk="kasane"><option value="kakeru"' +
+            (ex.kasane === 'tasu' ? '' : ' selected') +
+            '>掛け合わせる</option><option value="tasu"' +
+            (ex.kasane === 'tasu' ? ' selected' : '') +
+            '>足す</option></select></div>' +
+            '<div class="hoka-chui">車の 打刻（始まり〜終わり）の うち 時間帯に 入る 割合で 掛けます。手で 入れた 日は 時刻が 無いので 付きません。</div>' +
+            '</div>' +
             '<div class="hoka-chui">空の 所は 使いません（今の 給料の まま）。決めたら 下の「保存する」。</div>';
           $('hokaBody').innerHTML = h;
           Array.prototype.forEach.call(
@@ -5507,6 +5545,13 @@
               };
             }
           );
+        }
+        // ★分の 数（0時から）→「HH:MM」★（夜の 時間帯の 欄に 戻す 為）
+        function hmOf(v, dflt) {
+          if (typeof v !== 'number' || !(v >= 0)) return dflt;
+          var h = Math.floor(v / 60) % 24;
+          var m = v % 60;
+          return ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
         }
         function hokaYomu() {
           var body = document.getElementById('hokaBody');
@@ -5559,6 +5604,17 @@
           out.kyoriShu = (g('kyoriShu') || {}).value || 'jissha';
           out.kasanAto = !!(g('kasanAto') || {}).checked;
           out.wariMode = (g('wariMode') || {}).value || 'buai';
+          out.kasane = (g('kasane') || {}).value || 'kakeru';
+          var ym = v(g('yMult'));
+          out.yakan =
+            ym > 1
+              ? {
+                  kara: (g('yKara') || {}).value || '22:00',
+                  made: (g('yMade') || {}).value || '05:00',
+                  mult: ym,
+                  mode: (g('yMode') || {}).value || 'buai',
+                }
+              : null;
           return out;
         }
 
