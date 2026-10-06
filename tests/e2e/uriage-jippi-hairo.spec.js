@@ -43,13 +43,16 @@ test('★★① 札の 名前に「高速代・橋代を 入れる」と 書い�
 // ★画面を 開かずに 実物の 中身で 見る★
 //   （事務所の 画面は ログインが 無いと login.html へ 飛ぶので、
 //     ★見たいのは 置き場所と 字★＝実物の HTML を そのまま 読む方が 確か）
-test('★★② 実費を 入れる 所が 紙の 表の すぐ下に 書いてある★★', async () => {
-  const t = SRC.indexOf('id="kamiTbl"');
+// ★★10-06★★ 昔の 罫線の 表（kamiTbl）は 消した
+//   司さん 写真「これが新しくPDFの紙に変わって綺麗になるならええけど」（¥119,880 が マスから はみ出していた）
+//   中身は 上の 紙に 在る ⇒ ★昔の 表が 戻っていない★／★実費の 道順と 欄は 残っている★ を 見る
+test('★★② 昔の 表は 無く 実費の 道順は 在る★★', async () => {
+  const t = SRC.indexOf('<table class="kami"');
   const n = SRC.indexOf('id="jippiNote"');
   // eslint-disable-next-line no-console
-  console.log('★置き場所★ 紙の表=' + t + ' / 道順=' + n);
+  console.log('★置き場所★ 昔の表=' + t + ' / 道順=' + n);
+  expect(t, '★昔の 罫線の 表が 戻っています（はみ出す）★').toBe(-1);
   expect(n, '★実費の 道順が ありません★').toBeGreaterThan(0);
-  expect(n, '★紙の 表より 上に 在ります（順番が 逆）★').toBeGreaterThan(t);
   const ji = SRC.slice(n, n + 400).replace(/\s+/g, '');
   expect(ji, '★高速代・橋代と 書いていません★').toContain('高速代');
   expect(ji, '★高速代・橋代と 書いていません★').toContain('橋代');
