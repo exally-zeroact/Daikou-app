@@ -187,6 +187,16 @@ begin
         group by w.work_date, w.device_id
       ) x
     ),
+    -- ★★自分の 手当・控除だけ★★ 2026-10-06（司さん「ア」）＝他の 人の 行は 返さない
+    'adjustments', (
+      select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
+        select a.work_date, a.employee_id, a.kind, a.label, a.yen
+        from daikome.dk_pay_adjustments a
+        where a.company_id = r.company_id
+          and a.employee_id = r.employee_id
+          and a.work_date between p_from and p_to
+      ) x
+    ),
     'manualDays', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
         select m.work_date, m.device_id, m.sales_yen, m.hours,

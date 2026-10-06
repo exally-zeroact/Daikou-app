@@ -89,6 +89,7 @@ async function openKyuryo(page, naosu) {
     ' if(p.indexOf("dk_shift_edits")===0)return F.edits||[];' +
     ' if(p.indexOf("dk_work_hours")===0)return F.workHours||[];' +
     ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[];' +
+    ' if(p.indexOf("dk_pay_adjustments")===0)return F.adjustments||[];' +
     ' return [];}' +
     'var S=window.DKSession;' +
     'S.ensure=function(){return Promise.resolve({token:"dummy"});};' +

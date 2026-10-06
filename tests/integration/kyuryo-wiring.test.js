@@ -110,12 +110,13 @@ describe('★元データは書き換えない（メーターが確定した数�
 
   it('★消せるのは「手で入れた物」だけ★（メーターの記録も従業員も消さない）', () => {
     const dels = writes.filter((w) => w.method === 'DELETE');
-    // 乗った人の割り当て(dk_work_hours) と 手で入れた1日分(dk_manual_days) の2つだけ。
-    // どちらも人が手で入れた物なので、打ち間違いを消せないと使えない。
-    expect(dels.length).toBe(2);
+    // 乗った人の割り当て(dk_work_hours)・手で入れた1日分(dk_manual_days)・★手当・控除(dk_pay_adjustments・10-06)★ の3つだけ。
+    // どれも人が手で入れた物なので、打ち間違いを消せないと使えない。
+    expect(dels.length).toBe(3);
     const targets = dels.map((d) => d.target).join(' ');
     expect(targets).toContain('dk_work_hours');
     expect(targets).toContain('dk_manual_days');
+    expect(targets).toContain('dk_pay_adjustments');
     // ★メーターが確定した記録は消す道が無い★
     expect(targets).not.toMatch(/dk_shifts|dk_trips|dk_employees/);
   });

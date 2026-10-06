@@ -1387,6 +1387,14 @@
                 YEAR +
                 '-12-31&limit=5000'
             ),
+            // ★手当・控除★ 2026-10-06（司さん「ア」）＝res[11]
+            soft(
+              'dk_pay_adjustments?select=*&work_date=gte.' +
+                YEAR +
+                '-01-01&work_date=lte.' +
+                YEAR +
+                '-12-31&limit=5000'
+            ),
           ]).then(function (res) {
             RAW.shifts = res[0] || [];
             RAW.edits = res[1] || [];
@@ -1396,6 +1404,8 @@
             RAW.payrollSettings = (res[5] && res[5][0]) || null;
             RAW.salesSettings = (res[6] && res[6][0]) || null;
             RAW.manualDays = res[10] || []; // 手で入れた1日分（スマホが無い日も数える）
+            // ★手当・控除★ 2026-10-06（司さん「ア」＝月次集計の 給料と 会社に 残る分も 動く）
+            RAW.adjustments = res[11] || [];
 
             // ★請求書アプリの 明細を 日ごとに まとめる★
             MEISAI_HI = {};

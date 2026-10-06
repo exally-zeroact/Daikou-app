@@ -274,6 +274,24 @@
         };
       });
 
+      // ★★手当・控除★★ 2026-10-06（司さん「ア」＝会社に 残る分も 動かす）
+      //   1行＝1人の 1つの 手当 か 控除。その 日の 給料の 総額（staffTotal）に 足し引き する
+      ctx.adjByDate = {};
+      arr(r.adjustments).forEach(function (a) {
+        if (!a || !a.work_date || !a.employee_id) return;
+        const d = String(a.work_date).slice(0, 10);
+        const yen = n(a.yen);
+        if (!(yen > 0)) return;
+        if (!ctx.adjByDate[d]) ctx.adjByDate[d] = [];
+        ctx.adjByDate[d].push({
+          adj_id: a.adj_id || '',
+          employee_id: a.employee_id,
+          kind: a.kind === 'koujo' ? 'koujo' : 'teate',
+          label: String(a.label || ''),
+          yen: yen,
+        });
+      });
+
       // ★その日 その車に 乗った 人の 役（本人の 画面 用）★ 2026-10-06
       //   倉庫の 関数 dk_kyuryo_get が 返す crew＝[{work_date, device_id, roles:['2種','1種']}]
       //   （名前・時間は 返さない）。在れば これを 使う／無ければ 勤務時間の 行から 作る（事務所の 画面）
@@ -487,6 +505,22 @@
           s.car = src.car;
         }
       });
+      // ★★手当・控除★★ 2026-10-06：その 日の 分を 給料の 総額と 会社に 残る分に 入れる（司さん「ア」）
+      //   人ごとの 行（歩合・保証の 比べ）には 入れない＝最低保証の 比べを 変えない
+      const adj = (ctx.adjByDate && ctx.adjByDate[date]) || [];
+      let teate = 0;
+      let koujo = 0;
+      adj.forEach(function (a) {
+        if (a.kind === 'koujo') koujo += a.yen;
+        else teate += a.yen;
+      });
+      r.adj = adj;
+      r.teate = teate;
+      r.koujo = koujo;
+      if (teate || koujo) {
+        r.staffTotal = n(r.staffTotal) + teate - koujo;
+        r.ownerShare = n(r.ownerShare) - teate + koujo;
+      }
       r.date = date || '';
       r.cars = inp.cars;
       r.owner = inp.owner;
@@ -533,6 +567,11 @@
           totalPay: 0,
           totalHours: 0,
           workedDays: 0,
+          // ★手当・控除★（totalPay は 差し引き 後＝払う 額。kasegi は 働いた 分だけ）
+          kasegi: 0,
+          teate: 0,
+          koujo: 0,
+          adj: [],
         };
       });
 
@@ -577,8 +616,22 @@
           });
           if (worked) {
             row.totalPay += n(s.pay);
+            row.kasegi += n(s.pay);
             row.totalHours += n(s.hours);
             row.workedDays += 1;
+          }
+        });
+        // ★その 日の 手当・控除を その 人の 行へ★（働いていない 日の 分も 載せる）
+        arr(day.adj).forEach(function (a) {
+          const row = byEmp[a.employee_id];
+          if (!row) return;
+          row.adj.push({ date: date, kind: a.kind, label: a.label, yen: a.yen, adj_id: a.adj_id });
+          if (a.kind === 'koujo') {
+            row.koujo += a.yen;
+            row.totalPay -= a.yen;
+          } else {
+            row.teate += a.yen;
+            row.totalPay += a.yen;
           }
         });
       });

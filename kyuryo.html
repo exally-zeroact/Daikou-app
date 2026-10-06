@@ -837,6 +837,41 @@
         font-weight: 700;
       }
 
+      .adj-panel {
+        border: 1px solid #dbe3ef;
+        border-radius: 10px;
+        padding: 10px;
+        margin: 6px 0 10px;
+        background: #fff;
+      }
+
+      .adj-gyou,
+      .adj-nashi {
+        padding: 4px 0;
+      }
+
+      .adj-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .adj-form input,
+      .adj-form select {
+        font-size: 16px;
+      }
+
+      .adj-chui {
+        color: #b42318;
+        font-weight: 700;
+      }
+
+      .adj-msg {
+        color: #b42318;
+        font-size: 14px;
+      }
+
       .kami-ue-btn {
         display: flex;
         gap: 8px;
@@ -2031,6 +2066,8 @@
             // ★その日 その車に 乗った 人の 役（名前・時間は 無し）★ 2026-10-06＝回数・距離の 1台の 額を 分ける 為
             //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
             if (Array.isArray(r.crew)) RAW.crew = r.crew;
+            // ★自分の 手当・控除★ 2026-10-06（倉庫の 関数が 本人の 分だけ 返す）
+            RAW.adjustments = Array.isArray(r.adjustments) ? r.adjustments : [];
             HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET);
             PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, {
@@ -2480,7 +2517,158 @@
           if (q) meisaiQr(q);
           var mo = t.getAttribute && t.getAttribute('data-meisai-okuru');
           if (mo) meisaiOkuru(mo);
+          var ma = t.getAttribute && t.getAttribute('data-meisai-adj');
+          if (ma) adjHiraku(ma);
+          var ad = t.getAttribute && t.getAttribute('data-adj-del');
+          if (ad) adjKesu(ad);
+          var aa = t.getAttribute && t.getAttribute('data-adj-add');
+          if (aa) adjTasu(aa);
         });
+
+        // ★★手当・控除を 打つ 所★★ 2026-10-06（司さん「ア」＝給料の 総額と 会社に 残る分も 動く）
+        //   1行＝1人の 1つの 手当 か 控除。日付は ★今 見ている 払う回の 中★（その回の 明細に 載る）
+        // ★★手当・控除の 知らせ★★ 2026-10-06（対立役）
+        //   ①外した 人（明細に 出ない 人）の 手当・控除＝給料の 総額には 入るのに どの 明細にも 出ない
+        //   ②差引 支給が マイナスの 人（控除が 働いた 分より 多い）
+        //   ★止めは しない★（止めるかは お金の 決め＝司さんに 訊く）。数えて 出すだけ
+        function adjChui() {
+          if (HONNIN || !REP) return '';
+          var aru = {};
+          (REP.employees || []).forEach(function (e) {
+            aru[e.employee_id] = true;
+          });
+          var nokori = 0;
+          Object.keys(REP.days || {}).forEach(function (d) {
+            ((REP.days[d] || {}).adj || []).forEach(function (a) {
+              if (!aru[a.employee_id]) nokori += a.kind === 'koujo' ? -a.yen : a.yen;
+            });
+          });
+          var minus = (REP.employees || []).filter(function (e) {
+            return e.totalPay < 0;
+          });
+          var t = '';
+          if (nokori) {
+            t +=
+              '<div>外した 人に 手当・控除 ¥' +
+              yen(nokori) +
+              ' が あります（どの 明細にも 出ません・給料の 総額には 入っています）。</div>';
+          }
+          if (minus.length) {
+            t +=
+              '<div>差引 支給が マイナスの 人：' +
+              minus
+                .map(function (e) {
+                  return esc(e.name) + ' ¥' + yen(e.totalPay);
+                })
+                .join('、') +
+              '</div>';
+          }
+          return t ? '<div class="card adj-chui noprint">' + t + '</div>' : '';
+        }
+
+        function adjPanelOf(eid) {
+          return document.querySelector('[data-adj-panel="' + String(eid).replace(/"/g, '') + '"]');
+        }
+        function adjHiraku(eid) {
+          var p = adjPanelOf(eid);
+          if (!p) return;
+          if (p.style.display !== 'none') {
+            p.style.display = 'none';
+            return;
+          }
+          var e = ((REP && REP.employees) || []).filter(function (x) {
+            return String(x.employee_id) === String(eid);
+          })[0];
+          var rows = ((e && e.adj) || [])
+            .map(function (a) {
+              return (
+                '<div class="adj-gyou">' +
+                esc(String(a.date).slice(5).replace('-', '/')) +
+                '　' +
+                (a.kind === 'koujo' ? '控除' : '手当') +
+                '　' +
+                esc(a.label || '') +
+                '　¥' +
+                yen(a.yen) +
+                (a.adj_id
+                  ? ' <button class="xbtn" data-adj-del="' +
+                    esc(a.adj_id) +
+                    '" aria-label="消す">✕</button>'
+                  : '') +
+                '</div>'
+              );
+            })
+            .join('');
+          p.innerHTML =
+            (rows || '<div class="adj-nashi">まだ ありません。</div>') +
+            '<div class="adj-form">' +
+            '<input type="date" data-adj-f="date" value="' +
+            esc(PERIOD.start) +
+            '" min="' +
+            esc(PERIOD.start) +
+            '" max="' +
+            esc(PERIOD.end) +
+            '">' +
+            '<select data-adj-f="kind"><option value="teate">手当（足す）</option><option value="koujo">控除（引く）</option></select>' +
+            '<input type="text" data-adj-f="label" placeholder="名前（ガソリン代・前借り など）">' +
+            '<input type="number" inputmode="numeric" min="1" data-adj-f="yen" placeholder="円">' +
+            '<button class="btn" data-adj-add="' +
+            esc(eid) +
+            '">足す</button></div>' +
+            '<div class="adj-msg" data-adj-msg></div>';
+          p.style.display = '';
+        }
+        function adjTasu(eid) {
+          var p = adjPanelOf(eid);
+          if (!p || !COMPANY) return;
+          var v = function (k) {
+            var el = p.querySelector('[data-adj-f="' + k + '"]');
+            return el ? el.value : '';
+          };
+          var hi = v('date');
+          var en = Math.round(num(v('yen')));
+          var msg = p.querySelector('[data-adj-msg]');
+          if (!hi || hi < PERIOD.start || hi > PERIOD.end) {
+            if (msg) msg.textContent = '日付は ' + PERIOD.rangeLabel + ' の 中に してください。';
+            return;
+          }
+          if (!(en > 0)) {
+            if (msg) msg.textContent = '円を 入れてください。';
+            return;
+          }
+          DKSession.rest(SESS, 'dk_pay_adjustments', {
+            method: 'POST',
+            body: JSON.stringify({
+              company_id: COMPANY.company_id,
+              employee_id: eid,
+              work_date: hi,
+              kind: v('kind') === 'koujo' ? 'koujo' : 'teate',
+              label: v('label') || '',
+              yen: en,
+            }),
+          })
+            .then(function (r) {
+              if (!r.ok) return saveErr('手当・控除を 保存できませんでした。', r);
+              showErr('');
+              loadPeriod();
+            })
+            .catch(function () {
+              showErr('手当・控除を 保存できませんでした。');
+            });
+        }
+        function adjKesu(id) {
+          DKSession.rest(SESS, 'dk_pay_adjustments?adj_id=eq.' + encodeURIComponent(id), {
+            method: 'DELETE',
+          })
+            .then(function (r) {
+              if (!r.ok) return saveErr('手当・控除を 消せませんでした。', r);
+              showErr('');
+              loadPeriod();
+            })
+            .catch(function () {
+              showErr('手当・控除を 消せませんでした。');
+            });
+        }
 
         // ★★1人ぶんだけ 配る★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
         //   ★渡していない 人の 鍵まで 作らない★（鍵は 渡す 相手 1人にだけ）
@@ -2684,6 +2872,14 @@
                 end +
                 '&limit=2000'
             ),
+            // ★手当・控除★ 2026-10-06（司さん「ア」＝給料の 総額と 会社に 残る分に 入る）
+            soft(
+              'dk_pay_adjustments?select=*&work_date=gte.' +
+                start +
+                '&work_date=lte.' +
+                end +
+                '&limit=5000'
+            ),
           ]).then(function (res) {
             // ★★取り切れ★★ 2026-10-06：DKSession.softList が 1000行 ずつ 全部 読む ように なった＝limit で 切れない。
             //   前の「2000件 ちょうどなら 欠けている」は 2000件 以上 そろっても 出る 偽の 警告に なる（対立役）ので 外した。
@@ -2694,6 +2890,7 @@
               edits: res[1] || [],
               workHours: res[2] || [],
               manualDays: res[3] || [],
+              adjustments: res[4] || [],
               labels: RAW.labels,
               employees: RAW.employees,
               salesSettings: RAW.salesSettings,
@@ -2747,6 +2944,13 @@
               if (!dd) return;
               o.hi[dd - 1] = (o.hi[dd - 1] || 0) + (c.pay || 0);
               o.hiJikan[dd - 1] = (o.hiJikan[dd - 1] || 0) + (c.hours || 0);
+            });
+            // ★★手当・控除も その 日の 金額に 入れる★★ 2026-10-06（対立役：月ごと／個別の 合計は 差し引き 後・
+            //   日ごとは 働いた 分だけ で 同じ 紙の 上で 合わなかった）＝日の 合計 ＝ 期の 合計
+            (e.adj || []).forEach(function (a) {
+              var dd = Number(String(a.date || '').slice(8, 10));
+              if (!dd) return;
+              o.hi[dd - 1] = (o.hi[dd - 1] || 0) + (a.kind === 'koujo' ? -a.yen : a.yen);
             });
           });
           out.forEach(function (o) {
@@ -3195,8 +3399,17 @@
                 PERIOD.end +
                 '&limit=2000'
             ),
+            // ★手当・控除★ 2026-10-06
+            soft(
+              'dk_pay_adjustments?select=*&work_date=gte.' +
+                PERIOD.start +
+                '&work_date=lte.' +
+                PERIOD.end +
+                '&order=work_date.asc,created_at.asc&limit=5000'
+            ),
           ]).then(function (res) {
             RAW.shifts = res[0] || [];
+            RAW.adjustments = res[4] || [];
             RAW.edits = res[1] || [];
             RAW.workHours = res[2] || [];
             RAW.manualDays = res[3] || [];
@@ -3440,6 +3653,32 @@
         }
 
         // ★紙1枚を組む★（板 1123×794px・戻り値は 画面外に置いた要素）
+        // ★★手当・控除の 内わけ（紙の 見出しの 下 1行）★★ 2026-10-06（司さん「ア」）
+        //   無い 人は 何も 出さない＝今までの 紙と 1文字も 変わらない
+        function adjGyou(e) {
+          if (!e || !(e.teate || e.koujo)) return '';
+          var uchi = function (kind) {
+            return (e.adj || [])
+              .filter(function (a) {
+                return a.kind === kind;
+              })
+              .map(function (a) {
+                return esc(a.label || (kind === 'koujo' ? '控除' : '手当')) + ' ' + yen(a.yen);
+              })
+              .join('・');
+          };
+          return (
+            '<div style="font-size:15px;color:#14243d;margin:-4px 0 10px;">' +
+            '働いた 分 ¥' +
+            yen(e.kasegi) +
+            (e.teate ? '　＋ 手当 ¥' + yen(e.teate) + '（' + uchi('teate') + '）' : '') +
+            (e.koujo ? '　− 控除 ¥' + yen(e.koujo) + '（' + uchi('koujo') + '）' : '') +
+            '　＝ <b>差引 支給 ¥' +
+            yen(e.totalPay) +
+            '</b></div>'
+          );
+        }
+
         function _buildPaperSheet(e, showCarSales, allCars, from, to, maiNo, maiN) {
           var cars = showCarSales ? _paperCars(e, allCars) : [];
           // ★画面と 同じ 1本を使う★（紙で 別に書くと 画面と紙で 違う数が出る）
@@ -3561,7 +3800,8 @@
             //   ・★この詰め物を外すと 右端に貼り付く★（8/26 に一度 外して 突き返された）
             //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
             '<div style="flex:1 1 0;min-width:0;"></div>' +
-            '</div>';
+            '</div>' +
+            adjGyou(e);
 
           // ── 表 ──
           var TD =
@@ -3920,7 +4160,7 @@
               '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
             return;
           }
-          var html = '';
+          var html = adjChui();
           // ★描き直すと チェックは 消える＝「選んだ人を 印刷」も その場で 揃える★（10-03 対立役：
           //   前は 月を 変えても「選んだ 1人を 印刷」が 残り、押すと printAll([]) で ★全員ぶん★ 出た）
           setTimeout(nurikae, 0);
@@ -3948,7 +4188,14 @@
                 '<button class="btn ghost" data-meisai-okuru="' +
                 esc(e.employee_id || '') +
                 '">送る</button>' +
-                '</div></div>';
+                // ★手当・控除★ 2026-10-06（司さん「ア」）
+                '<button class="btn ghost" data-meisai-adj="' +
+                esc(e.employee_id || '') +
+                '">手当・控除</button>' +
+                '</div></div>' +
+                '<div class="adj-panel noprint" data-adj-panel="' +
+                esc(e.employee_id || '') +
+                '" style="display:none"></div>';
             } else {
               html +=
                 '<div class="slip" id="slip-' +

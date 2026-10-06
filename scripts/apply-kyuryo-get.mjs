@@ -39,6 +39,7 @@ export const ARU = [
   ['from daikome.dk_sales_settings ss', '売上から 何を 引くか（会社の 設定）を 返す（10-02 夜）'],
   ['m.actual_total_m, m.total_distance_m', '手入力の日の 距離を 返す（距離歩合・10-06）'],
   ['jsonb_agg(coalesce(e.role', '乗った 人の 役だけ 返す（回数・距離を 1台で 分ける・10-06）'],
+  ['and a.employee_id = r.employee_id', '手当・控除は 本人の 分だけ（10-06）'],
 ];
 export const NAI = [
   ['to_jsonb(ed)', '直しを 行ごと 丸ごと'],
