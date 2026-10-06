@@ -45,13 +45,6 @@
   function ym(k) {
     return k.year + '年 ' + k.month + '月';
   }
-  // ★日が 行の 表＝日付の 横に 曜日★（司さん「日付の横に曜日（月、火など）も入れて」）
-  //   見出しが 日に なる 表（日×人）は K.thHi が 曜日を 付ける。
-  function hiJi(k, d) {
-    return (
-      k.month + '/' + d + '<span class="yb">' + K.YOUBI[K.youbi(k.year, k.month, d)] + '</span>'
-    );
-  }
 
   // ── ①月次集計（A4縦）──────────────────────────────
   function getsuji(k, d) {
@@ -160,7 +153,6 @@
 
   // ── ②売上表・月ごと（A4横）★お金だけ★ ──────────────
   function uriageTsuki(k, d) {
-    const last = K.matsubi(k.year, k.month);
     const cars = d.cars || [];
     let h =
       K.atama(k, '売上表（月ごと）', ym(k)) +
@@ -203,54 +195,14 @@
           K.hyou(kths, krows.slice(Math.ceil(krows.length / 2)), ksum) +
           '</div></div>');
 
-    const hths = [
-      '<th>日</th>',
-      '<th>売上</th>',
-      '<th>現金</th>',
-      '<th>請求書</th>',
-      '<th>電子決済</th>',
-      '<th>経費</th>',
-    ];
-    function han(a, b, sm) {
-      const rs = [];
-      for (let i = a; i <= b; i++) {
-        const x = (d.hi || {})[i] || {};
-        rs.push(
-          '<tr>' +
-            K.tdHi(k.year, k.month, i, hiJi(k, i)) +
-            K.tdHi(k.year, k.month, i, en(x.uriage)) +
-            K.tdHi(k.year, k.month, i, en(x.genkin)) +
-            K.tdHi(k.year, k.month, i, en(x.seikyu)) +
-            K.tdHi(k.year, k.month, i, en(x.denshi)) +
-            K.tdHi(k.year, k.month, i, en(x.keihi)) +
-            '</tr>'
-        );
-      }
-      return K.hyou(
-        hths,
-        rs,
-        sm
-          ? '<tr class="sum"><td>合計</td><td>' +
-              en(d.uriage) +
-              '</td><td>' +
-              en(d.genkin) +
-              '</td><td>' +
-              en(d.seikyu) +
-              '</td><td>' +
-              en(d.denshi) +
-              '</td><td>' +
-              en(d.keihi) +
-              '</td></tr>'
-          : null
-      );
-    }
-    const naka = Math.ceil(last / 2);
-    h +=
-      '<h2>日ごと</h2><div class="nibun"><div>' +
-      han(1, naka, false) +
-      '</div><div>' +
-      han(naka + 1, last, true) +
-      '</div></div>';
+    // ★日ごとは「上に 日付・左に 項目・前半／後半」★（司さん 09-25 給料表で 決めた 形・10-06「日付が上の表はどうなっとんど」）
+    h += hiGotoYoko(k, d.hi, [
+      { name: '売上', key: 'uriage' },
+      { name: '現金', key: 'genkin' },
+      { name: '請求書', key: 'seikyu' },
+      { name: '電子決済', key: 'denshi' },
+      { name: '経費', key: 'keihi' },
+    ]);
     h += K.ashi(k, '売上表（月ごと）', ym(k), '売上＝メーターの合計 − 選んだ実費');
     return [{ el: K.ita('yoko', h), muki: 'yoko' }];
   }
@@ -313,7 +265,6 @@
 
   // ── ④回数・距離（月ごと）A4横 ★別の 紙★ ────────────
   function soukouTsuki(k, d) {
-    const last = K.matsubi(k.year, k.month);
     const cars = d.cars || [];
     const kara = n(d.sou) - n(d.jissha);
     let h =
@@ -366,41 +317,12 @@
           K.hyou(ths, rows.slice(Math.ceil(rows.length / 2)), sum) +
           '</div></div>');
 
-    const hths = ['<th>日</th>', '<th>回数</th>', '<th>実車 km</th>', '<th>総走行 km</th>'];
-    function han(a, b, sm) {
-      const rs = [];
-      for (let i = a; i <= b; i++) {
-        const x = (d.hi || {})[i] || {};
-        rs.push(
-          '<tr>' +
-            K.tdHi(k.year, k.month, i, hiJi(k, i)) +
-            K.tdHi(k.year, k.month, i, kaz(x.kaisuu)) +
-            K.tdHi(k.year, k.month, i, km(x.jissha)) +
-            K.tdHi(k.year, k.month, i, km(x.sou)) +
-            '</tr>'
-        );
-      }
-      return K.hyou(
-        hths,
-        rs,
-        sm
-          ? '<tr class="sum"><td>合計</td><td>' +
-              kaz(d.kaisuu) +
-              '</td><td>' +
-              km(d.jissha) +
-              '</td><td>' +
-              km(d.sou) +
-              '</td></tr>'
-          : null
-      );
-    }
-    const naka = Math.ceil(last / 2);
-    h +=
-      '<h2>日ごと</h2><div class="nibun"><div>' +
-      han(1, naka, false) +
-      '</div><div>' +
-      han(naka + 1, last, true) +
-      '</div></div>';
+    // ★日ごとは「上に 日付・左に 項目・前半／後半」★（司さん 09-25・10-06）
+    h += hiGotoYoko(k, d.hi, [
+      { name: '回数', key: 'kaisuu', fmt: kaz },
+      { name: '実車 km', key: 'jissha', fmt: kmHi },
+      { name: '総走行 km', key: 'sou', fmt: kmHi },
+    ]);
     h += K.ashi(
       k,
       '回数・距離（月ごと）',
@@ -416,7 +338,6 @@
   //     現金／請求書／電子決済は ★月次集計の「売上表（月ごと）」の 紙だけ★（2か所に しない）
   //   d = { uriage, jippi, cars:[{name, uriage, jippi}], hi:{日:{uriage, jippi}} }
   function uriageHyou(k, d) {
-    const last = K.matsubi(k.year, k.month);
     const cars = d.cars || [];
     let h =
       K.atama(k, '売上表（車ごと・日ごと）', ym(k)) +
@@ -447,28 +368,11 @@
           '</div><div>' +
           K.hyou(ths, rows.slice(Math.ceil(rows.length / 2)), sum) +
           '</div></div>');
-    const hths = ['<th>日</th>', '<th>売上</th>', '<th>引いた 実費</th>'];
-    function han(a, b, sm) {
-      const rs = [];
-      for (let i = a; i <= b; i++) {
-        const x = (d.hi || {})[i];
-        rs.push(
-          '<tr>' +
-            K.tdHi(k.year, k.month, i, hiJi(k, i)) +
-            K.tdHi(k.year, k.month, i, x ? en(x.uriage) : '<span class="z">—</span>') +
-            K.tdHi(k.year, k.month, i, x ? en(x.jippi) : '<span class="z">—</span>') +
-            '</tr>'
-        );
-      }
-      return K.hyou(hths, rs, sm ? sum : null);
-    }
-    const naka = Math.ceil(last / 2);
-    h +=
-      '<h2>日ごと</h2><div class="nibun"><div>' +
-      han(1, naka, false) +
-      '</div><div>' +
-      han(naka + 1, last, true) +
-      '</div></div>';
+    // ★日ごとは「上に 日付・左に 項目・前半／後半」★（司さん 09-25・10-06）
+    h += hiGotoYoko(k, d.hi, [
+      { name: '売上', key: 'uriage' },
+      { name: '引いた 実費', key: 'jippi' },
+    ]);
     h += K.ashi(
       k,
       '売上表（車ごと・日ごと）',
@@ -695,6 +599,40 @@
   //   sumNa … 渡すと 一番 下に 合計の 行を 付ける（個別は 要らない）
   //   haba … { na, hi, kei, ita }（px・呼ぶ側が 先に 決める）
   // ============================================================
+  // ★★日ごとの 表（項目が 行・日付が 列・前半／後半を 縦に 2段）★★ 2026-10-06
+  //   司さん「PDFの紙を前に作った時の項目が左日付が上の表はどうなっとんど？」
+  //   ＝09-25 に 給料表で 決めた 形（hiYoko）を ★売上表・回数距離の 紙にも★ 使う。
+  //   前は 日付を 行に して 左右 2つ 並べていた ⇒ 右の 表の 端が 紙から はみ出して 切れた（10-06 写真）。
+  //   hi … { 日: { key: 値 } }／koumoku … [{ name, key, fmt }]
+  //   ★合計の 行は 出さない★（違う 項目を 縦に 足しても 意味が 無い）＝項目ごとの「計」の 列で 見る
+  function hiGotoYoko(k, hi, koumoku) {
+    const last = K.matsubi(k.year, k.month);
+    const naHaba = naHabaOf(
+      koumoku.map(function (x) {
+        return x.name;
+      }),
+      11
+    );
+    const haba = { na: naHaba, hi: hiHabaOf(k, naHaba), kei: KEI_HABA, ita: ITA_YOKO };
+    const rows = koumoku.map(function (x) {
+      const v = [];
+      for (let i = 1; i <= last; i++) {
+        const o = (hi || {})[i];
+        v.push(o ? o[x.key] : null);
+      }
+      return { name: x.name, v: v, fmt: x.fmt };
+    });
+    return hanbun(k)
+      .map(function (h) {
+        return '<h2>日ごと　' + h.na + '</h2>' + hiYoko(k, h.a, h.b, rows, '日', null, haba);
+      })
+      .join('');
+  }
+  // ★距離の マス★（0 は「—」＝走っていない 日を 0.0 と 見せない）
+  function kmHi(v) {
+    return n(v) === 0 ? '<span class="z">—</span>' : km(v);
+  }
+
   function hiYoko(k, a, b, rows, midashi, sumNa, haba) {
     const kazu = b - a + 1;
     // ★★前半と 後半で ★名前の 列も 日の 列も 同じ 幅★★★

@@ -159,6 +159,25 @@ function gyouOf(kami, atama) {
   return hit.length ? hit[0] : null;
 }
 
+// ★★日ごとの 表は「上に 日付・左に 項目」★★ 2026-10-06（司さん「項目が左日付が上の表はどうなっとんど」）
+//   ⇒ その日の ★列★ を 読む：見出しの 行（先頭が「日」）で その日の 列を 探し、
+//     続く 行（項目）の その 列を 拾う。返す 形＝[[項目, 値], …]
+function retsuOf(kami, hi) {
+  const g = kami.gyou || [];
+  for (let i = 0; i < g.length; i++) {
+    const r = g[i];
+    if (r[0] !== '日') continue;
+    const j = r.findIndex((c, k) => k > 0 && new RegExp('^' + hi + '\\D').test(c));
+    if (j < 0) continue;
+    const out = [];
+    for (let t = i + 1; t < g.length && g[t][0] !== '日' && g[t].length === r.length; t++) {
+      out.push([g[t][0], g[t][j]]);
+    }
+    return out;
+  }
+  return null;
+}
+
 async function osu(page, id, tsuki) {
   if (tsuki) await page.selectOption('#kamiTsuki', String(tsuki));
   await page.evaluate(() => {
@@ -206,18 +225,18 @@ test('★4つの ボタンで それぞれの 紙が 出る（中身を 読む�
   ['現金', '請求書', '電子決済', '経費'].forEach((w) => {
     expect(uriM[0].ji, '★「' + w + '」の 欄が ありません★').toContain(w);
   });
-  // ★★日ごとの 行を 名指しで 読む★★（1/5 に 全部 入れた）
-  //   列＝日 / 売上 / 現金 / 請求書 / 電子決済 / 経費
-  const h5 = gyouOf(uriM[0], '1/5');
+  // ★★日ごとの 列を 名指しで 読む★★（1/5 に 全部 入れた）
+  //   10-06：日付が 上（列）・項目が 左（行）＝売上 / 現金 / 請求書 / 電子決済 / 経費
+  const h5 = retsuOf(uriM[0], 5);
   // eslint-disable-next-line no-console
-  console.log('★1/5 の 行★ ' + JSON.stringify(h5));
-  expect(h5, '★日ごとの 表に 1/5 の 行が ありません★').not.toBeNull();
-  expect(h5.slice(1), '★日ごとの お金が 合っていません★').toEqual([
-    KOTAE.uriage.toLocaleString('ja-JP'),
-    KOTAE.genkin.toLocaleString('ja-JP'),
-    KOTAE.seikyu.toLocaleString('ja-JP'),
-    KOTAE.denshi.toLocaleString('ja-JP'),
-    KOTAE.keihi.toLocaleString('ja-JP'),
+  console.log('★1/5 の 列★ ' + JSON.stringify(h5));
+  expect(h5, '★日ごとの 表に 1/5 の 列が ありません★').not.toBeNull();
+  expect(h5, '★日ごとの お金が 合っていません★').toEqual([
+    ['売上', KOTAE.uriage.toLocaleString('ja-JP')],
+    ['現金', KOTAE.genkin.toLocaleString('ja-JP')],
+    ['請求書', KOTAE.seikyu.toLocaleString('ja-JP')],
+    ['電子決済', KOTAE.denshi.toLocaleString('ja-JP')],
+    ['経費', KOTAE.keihi.toLocaleString('ja-JP')],
   ]);
 
   // ★車ごとの 行＝車 / 売上 / 経費★（現金・請求書・電子決済は 車ごとには 無い）

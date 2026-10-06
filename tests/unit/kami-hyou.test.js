@@ -146,8 +146,21 @@ describe('★②売上表（月ごと）＝お金の 欄だけ★', () => {
     expect(th).not.toContain('1回あたり');
   });
   it('★現金／請求書／電子決済／経費 が 揃っている★', () => {
-    const th = [...el.querySelectorAll('th')].map((x) => x.textContent).join(',');
-    ['売上', '現金', '請求書', '電子決済', '経費'].forEach((w) => expect(th).toContain(w));
+    // ★10-06 司さん「項目が左・日付が上」★＝日ごとの 表は 項目が 行の 頭（左の 列）
+    const hidari = [];
+    [...el.querySelectorAll('.hiyoko')].forEach((t) =>
+      [...t.querySelectorAll('tr')].forEach((tr) => {
+        const td = tr.querySelectorAll('td')[0];
+        if (td) hidari.push(td.textContent);
+      })
+    );
+    ['売上', '現金', '請求書', '電子決済', '経費'].forEach((w) =>
+      expect(hidari, '★日ごとの 表の 左に ' + w + ' が 無い★').toContain(w)
+    );
+    // ★日付は 上（見出しの 行）★＝前半の 表の 見出しに 1日 から 並ぶ
+    const ue = [...el.querySelectorAll('.hiyoko')][0].querySelectorAll('tr')[0].textContent;
+    expect(ue, '★日付が 上に 並んでいない★').toMatch(/^日1/);
+    expect(el.querySelectorAll('.hiyoko').length, '★前半／後半の 2段に なっていない★').toBe(2);
   });
   it('★日曜の 升目だけ 塗る（9/6 は 日曜）★', () => {
     expect(el.querySelectorAll('.nichi').length).toBeGreaterThan(0);

@@ -1186,9 +1186,8 @@
       <div class="tabs noprint" id="tabs">
         <button class="tab on" data-tab="slip">明細</button>
         <button class="tab" data-tab="hours">時数を入れる</button>
-        <!-- ★★決める 物は 会社設定から★★ 2026-09-05（司さん）
-             ★?henshu=1 で 開いた 時だけ 出します★（会社設定の チップから 来る 道）
-             ⇒ 毎日 使う「明細」「時数を入れる」だけが 残り 見やすく なる -->
+        <!-- ★★「従業員」「給料の設定」も ここに 出す★★ 2026-10-06（司さん「どこで設定するか分からんやろが」）
+             会社設定の チップからも 同じ 画面が 開く。本人の 画面（?t=）には 出ない。 -->
         <button class="tab" data-tab="emp" data-kimeru="1">従業員</button>
         <!-- ★「決め方」→「給料の設定」 (2026-08-05・司さん指示)★
              司さん「決め方やなくて違う言い方にせな分かりにくいわ」 -->
@@ -2976,12 +2975,11 @@
             }
             return;
           }
-          Array.prototype.forEach.call(
-            document.querySelectorAll('[data-kimeru="1"]'),
-            function (b) {
-              b.style.display = 'none';
-            }
-          );
+          // ★★給料の 画面にも「従業員」「給料の設定」の タブを 出す★★ 2026-10-06
+          //   司さん「給料の所に給料設定と従業員設定のボタンも作れや どこで設定するか分からんやろが」
+          //   前（09-06）は「2個もある」と 言われて 会社設定の チップ 1つに 絞り、ここでは 隠していた。
+          //   ⇒ 今は 出す（会社設定の チップも 同じ 画面を 開く＝中身は 1つ）。
+          //   ★本人の 画面（?t=）には 出ない★＝honninStart が 白名簿で タブの 行ごと 隠す。
         })();
 
         Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {

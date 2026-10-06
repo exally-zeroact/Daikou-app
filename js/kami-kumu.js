@@ -41,7 +41,9 @@
   }
   function en(v) {
     if (v === null || v === undefined) return '<span class="z">—</span>';
-    return n(v) === 0 ? '<span class="z">0</span>' : Number(n(v)).toLocaleString('ja-JP');
+    // ★お金は 1円まで★ 2026-10-06（司さん「小数点とかいらんのや」）＝紙に 小数を 出さない
+    const r = Math.round(n(v));
+    return r === 0 ? '<span class="z">0</span>' : r.toLocaleString('ja-JP');
   }
   function esc(s) {
     return String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, function (c) {
