@@ -10,7 +10,8 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # ★15分では 足りなくなった★ 2026-10-08（総なめ 295本＝実測 約 840秒・919秒で 時間切れ＝「cancelled」と 出た）
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
