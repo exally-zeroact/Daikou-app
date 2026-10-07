@@ -2248,6 +2248,14 @@
             // ★★PDF と 同じ 紙の 束（日と 車の 両方で 分けた 後）を 見せる★★ 2026-10-07（対立役：
             //   画面は 日だけで 分けて いて 車が 多いと 下が 切れた）
             var tabaH = window.__paper.sheets(0);
+            // ★手当・控除が 紙に 入りきらない 時は 本人にも 知らせる★（対立役 10-07 C：差引支給が 黙って 切れた）
+            if (window.__paper.maisu(0).hamidasu) {
+              var tsuchiH = document.createElement('div');
+              tsuchiH.className = 'card';
+              tsuchiH.innerHTML =
+                '<div class="msg">手当・控除が 多すぎて 明細の 紙に 入りません（下が 切れます）。会社に 知らせてください。</div>';
+              mado.appendChild(tsuchiH);
+            }
             // ★紙は A4 の 大きさで 組まれる★ので 画面の 幅に 合わせて 縮める
             var haba = mado.clientWidth || box.clientWidth || 360;
             // ★幅に 合わせて 縮めるだけだと スマホで 字が 読めない★（実測＝0.32倍）
@@ -2954,6 +2962,15 @@
           // ★★給料表も 読めなかった 物が 在れば 出さない★★ 2026-10-07（対立役：手当・控除が 読めないと
           //   控除の 抜けた 給料表の PDF が 黙って 出た）＝この 紙の 分を 別に 数える
           var KST = { tried: 0, failed: 0 };
+          // ★期間に 関係ない 物（売上の 設定・車の 名前・従業員）が 読めなかった 時も 作らない★（対立役 10-07 A）
+          if (LOAD_KIHON.failed > 0) {
+            yomiNaoshiObi();
+            return Promise.reject(
+              new Error(
+                '読めなかった 物が あるので 給料表は 作りません。上の「もう一度読む」を 押してください'
+              )
+            );
+          }
           var kSoft = function (p) {
             return DKSession.softList(SESS, p, KST);
           };
@@ -4372,26 +4389,28 @@
             );
             return;
           }
-          // ★手当・控除が 紙に 入りきらない 人が 居れば 作らない★ 2026-10-07（差引支給が 紙の 外に 出る）
-          var hami = boxes.filter(function (b) {
-            var ei = REP.employees.indexOf(b);
-            return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
-          });
-          if (hami.length) {
-            showErr(
-              hami
-                .map(function (b) {
-                  return b.name;
-                })
-                .join('・') +
-                ' さんの 手当・控除が 多すぎて 明細の 紙に 入りません。明細の PDF は 作りません（手当・控除を まとめてください）。'
-            );
-            return;
-          }
           var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
           showMsg('PDFを作っています…（' + boxes.length + '人ぶん）');
           loadPdfLibs()
             .then(function (E) {
+              // ★手当・控除が 紙に 入りきらない 人が 居れば 作らない★ 2026-10-07（差引支給が 紙の 外に 出る）
+              //   ★PDF の 字体を 読んだ 後で 測る★（前は 控えの 字体で 測り「入るのに 止める」事が あった・対立役 B）
+              //   止める 時は 投げない（投げると 印刷の 保険へ 落ちる）＝文を 出して 抜ける
+              var hami = boxes.filter(function (b) {
+                var ei = REP.employees.indexOf(b);
+                return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
+              });
+              if (hami.length) {
+                showErr(
+                  hami
+                    .map(function (b) {
+                      return b.name;
+                    })
+                    .join('・') +
+                    ' さんの 手当・控除が 多すぎて 明細の 紙に 入りません。明細の PDF は 作りません（手当・控除を まとめてください）。'
+                );
+                return null;
+              }
               var mai = [];
               boxes.forEach(function (e2) {
                 mai = mai.concat(_empSheets(e2, slipCars(REP.cars, e2.employee_id)));

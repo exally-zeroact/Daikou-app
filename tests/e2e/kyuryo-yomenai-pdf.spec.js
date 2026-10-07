@@ -108,3 +108,28 @@ test('★手当・控除 90件（長い 名前）⇒ 明細の PDF を 作らず
   expect(r.msg).not.toContain('PDFを作っています');
   expect(err).toEqual([]);
 });
+
+// ★★期間に 関係ない 物（売上の 設定・車の 名前）が 読めない ⇒ 給料表の PDF も 作らない★★ 2026-10-07（対立役 A）
+//   ★わざと壊して 赤（2026-10-07 実測）★ kamiCtx の LOAD_KIHON の 門を 外す ⇒ ★赤★（「出しました」）
+for (const hyou of ['dk_sales_settings', 'dk_device_labels']) {
+  test('★' + hyou + ' が 読めない ⇒ 給料表の PDF を 作らない★', async ({ page }) => {
+    const err = [];
+    page.on('pageerror', (e) => err.push(e.message));
+    await openKyuryo(page, (f) => {
+      f.__yomenai = [hyou];
+      return f;
+    });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => {
+      document.getElementById('kamiCard').open = true;
+      document.getElementById('kamiKojin').click();
+    });
+    await page.waitForTimeout(2500);
+    const note = await page.evaluate(() => document.getElementById('kamiNote').textContent);
+    // eslint-disable-next-line no-console
+    console.log('★' + hyou + '★ ' + note);
+    expect(note, '★読めないのに 給料表を 出した★').toContain('給料表は 作りません');
+    expect(note).not.toContain('出しました');
+    expect(err).toEqual([]);
+  });
+}
