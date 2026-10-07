@@ -138,3 +138,115 @@ for (const b of BAAI) {
     expect(err, '★画面が 落ちた★').toEqual([]);
   });
 }
+
+// ============================================================
+// ★★車 1台でも 入らない ほど 手当・控除が 長い ⇒ 内わけを 自分の 紙へ（止めない・1件も 消さない）★★ 2026-10-07
+//   対立役 10-07 D：長い 名前の 手当・控除 60件で 1台でも 794 を 越え、黙って 切れた 紙が 台数ぶん 出た
+//   ★わざと壊して 赤（2026-10-07 実測）★ _maisu の 内わけを 別の 紙へ 送る 所を 外す ⇒ ★赤★（高さ）
+// ============================================================
+function nagaiAdj(f, kazu) {
+  const w = f.workHours[0];
+  f.adjustments = Array.from({ length: kazu }, (_, i) => ({
+    adj_id: 'n' + i,
+    employee_id: w.employee_id,
+    work_date: w.work_date,
+    kind: i % 2 ? 'koujo' : 'teate',
+    label: '長い 名前の 手当 その' + (i + 1) + '（ガソリン・駐車場・携帯 等）',
+    yen: 100 + i,
+  }));
+  f.settings[0].pay_extra = { kaisu: 100, kasanAto: true };
+  return f;
+}
+test('★手当・控除 60件（長い 名前）＋ 車 6台 ⇒ どの 紙も 794 以下・内わけは 1回 全部 載る★', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openKyuryo(page, (f) => {
+    kuruma(f, 6);
+    return nagaiAdj(f, 60);
+  });
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => {
+    const P = window.__paper;
+    const el0 = P.sheets(0);
+    return el0.map((el) => {
+      el.style.position = 'absolute';
+      el.style.left = '0';
+      el.style.top = '0';
+      document.body.appendChild(el);
+      const h = el.scrollHeight;
+      const t = el.textContent;
+      el.remove();
+      return {
+        h: h,
+        sono60: (t.match(/その60（/g) || []).length,
+        hyou: !!el.querySelector('table'),
+      };
+    });
+  });
+  // eslint-disable-next-line no-console
+  console.log('★60件★ ' + JSON.stringify(r));
+  r.forEach((x, i) => expect(x.h, '★' + (i + 1) + '枚目 ' + x.h + 'px★').toBeLessThanOrEqual(794));
+  expect(
+    r.reduce((a, x) => a + x.sono60, 0),
+    '★内わけが 1回 全部 載っていない★'
+  ).toBe(1);
+  expect(
+    r.some((x) => x.hyou),
+    '★日の 表が 無い★'
+  ).toBe(true);
+  expect(err).toEqual([]);
+});
+
+// ============================================================
+// ★★PDF の 字体（DKKami）が 入った 後も 画面の 紙は PDF と 同じ 束・切れない★★ 2026-10-07（対立役 C）
+//   ★わざと壊して 赤（2026-10-07 実測）★ dkkami-yonda の 組み直しを 外す ⇒ ★赤★（画面の 紙 803px）
+// ============================================================
+test('★字体が 入った 後も 事務所の 画面の 紙 ＝ PDF の 束・794 以下★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openKyuryo(page, (f) => {
+    kuruma(f, 12);
+    return nagaiAdj(f, 14);
+  });
+  await page.waitForTimeout(1200);
+  const mae = await page.evaluate(() => window.__paper.sheets(0).length);
+  // ★字体が 替わって 字が 大きく なる 場合を 作る★（この 機械では 控えの 字体と DKKami で 枚数が 変わらない＝
+  //   10-07 実測 15通り 0件。iPhone 等で 控えの 字体の 方が 小さい 時を 写す 為、同じ 字体を 140% で 入れて
+  //   PDF を 押した 時と 同じ 合図 dkkami-yonda を 出す）
+  await page.evaluate(async () => {
+    const ff = new FontFace('DKKami', 'url(vendor/fonts/BIZUDPGothic-Regular.ttf)', {
+      sizeAdjust: '140%',
+    });
+    await ff.load();
+    document.fonts.add(ff);
+    window.dispatchEvent(new Event('dkkami-yonda'));
+  });
+  await page.waitForTimeout(800);
+  const r = await page.evaluate(() => {
+    const ari = document.fonts.check('15px DKKami');
+    const P = window.__paper;
+    const out = [];
+    for (let ei = 0; ei < P.ninzu(); ei++) {
+      const mado = document.querySelector('#slips .kami-mado[data-ei="' + ei + '"]');
+      const gamen = Array.from(mado.querySelectorAll('.hn-kami-waku')).map(
+        (w) => w.firstElementChild.scrollHeight
+      );
+      out.push({ pdf: P.sheets(ei).length, gamen: gamen });
+    }
+    return { ari: ari, out: out };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★字体★ ' + JSON.stringify({ mae: mae, r: r }));
+  expect(r.ari, '★字体が 入っていない＝この 見張りは 何も 見ていない★').toBe(true);
+  r.out.forEach((x, ei) => {
+    expect(x.gamen.length, '★' + ei + '人目 画面の 枚数 ≠ PDF★').toBe(x.pdf);
+    x.gamen.forEach((h) =>
+      expect(h, '★' + ei + '人目 画面の 紙 ' + h + 'px★').toBeLessThanOrEqual(794)
+    );
+  });
+  expect(err).toEqual([]);
+});

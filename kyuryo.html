@@ -3878,7 +3878,19 @@
           );
         }
 
-        function _buildPaperSheet(e, showCarSales, allCars, from, to, maiNo, maiN, carFrom, carTo) {
+        // uw … 内わけ（手当・控除の 行）の 置き方：既定＝見出しの 下／'nashi'＝載せない／'dake'＝内わけだけの 紙
+        function _buildPaperSheet(
+          e,
+          showCarSales,
+          allCars,
+          from,
+          to,
+          maiNo,
+          maiN,
+          carFrom,
+          carTo,
+          uw
+        ) {
           var cars = showCarSales ? _paperCars(e, allCars) : [];
           // ★★車の 行が 1枚に 入らない 時は 次の 紙へ★★ 2026-10-07（司さん「前からある2つもやれ」・対立役：
           //   車 9台＋内わけ 1行 で 紙の 下が 切れた）＝★字も 行の 高さも 変えず★ 車の 行を 分ける。番号は 続き
@@ -4004,7 +4016,7 @@
             //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
             '<div style="flex:1 1 0;min-width:0;"></div>' +
             '</div>' +
-            adjGyou(e);
+            (uw === 'nashi' ? '' : adjGyou(e));
 
           // ── 表 ──
           var TD =
@@ -4086,7 +4098,7 @@
           });
           t += '</tbody></table>';
 
-          el.innerHTML = head + t;
+          el.innerHTML = head + (uw === 'dake' ? '' : t);
           // ★測れるように 印を付ける★（見張りが 数で確かめる為）
           el.setAttribute('data-paper', '1');
           el.setAttribute('data-label-w', String(labelW));
@@ -4140,8 +4152,26 @@
           ) {
             carPer--;
           }
+          // ★★車 1台（車が 無い 人も）でも 入らない ⇒ 内わけを 自分の 紙へ★★ 2026-10-07
+          //   （対立役：手当・控除が 長いと 黙って 切れた。止めずに 内わけを 別の 紙に 送る＝金額は 1つも 消さない）
+          //   ★人ごとに 必ず 1回 測る★（車が 0台・1台の 人は 上の ループが 回らない）
+          var betsu = false;
+          if (
+            _takasa(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer)) > SHEET_H
+          ) {
+            betsu = true;
+            carPer = nCars > 0 ? nCars : 1;
+            while (
+              carPer > 1 &&
+              _takasa(
+                _buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer, 'nashi')
+              ) > SHEET_H
+            ) {
+              carPer--;
+            }
+          }
           var carN = nCars > 0 ? Math.ceil(nCars / carPer) : 1;
-          return { per: per, n: n, carPer: carPer, carN: carN };
+          return { per: per, n: n, carPer: carPer, carN: carN, betsu: betsu };
         }
 
         // ★返らない時に 永久に待たない★（指示役 2026-08-26）
@@ -4183,7 +4213,7 @@
         function _empSheets(e, cars) {
           var m = _maisu(e, showCarSalesNow(), cars);
           var out = [];
-          var zen = m.n * m.carN;
+          var zen = m.n * m.carN + (m.betsu ? 1 : 0);
           for (var k = 0; k < m.carN; k++) {
             for (var i = 0; i < m.n; i++) {
               var from = i * m.per;
@@ -4198,12 +4228,30 @@
                   out.length + 1,
                   zen,
                   k * m.carPer,
-                  (k + 1) * m.carPer
+                  (k + 1) * m.carPer,
+                  m.betsu ? 'nashi' : undefined
                 ),
                 muki: 'yoko',
               });
             }
           }
+          // ★内わけだけの 紙★（最後に 1枚）
+          if (m.betsu)
+            out.push({
+              el: _buildPaperSheet(
+                e,
+                showCarSalesNow(),
+                cars,
+                0,
+                Math.min(e.cells.length, m.per),
+                out.length + 1,
+                zen,
+                0,
+                0,
+                'dake'
+              ),
+              muki: 'yoko',
+            });
           return out;
         }
 
@@ -4634,12 +4682,23 @@
           window.__slipT = setTimeout(renderSlips, 150);
         });
         // ★明細の 箱に PDF と 同じ 紙を 入れる★（本人の 画面 honninKami と 同じ 縮め方）2026-10-05
+        // ★★PDF の 字体（DKKami）が 入ったら 画面の 紙を 組み直す★★ 2026-10-07（対立役 C）
+        //   画面の 紙は 控えの 字体で 測って 組む。PDF（明細・給料表 どちらでも）を 押して DKKami が 入ると
+        //   字の 幅・高さが 変わり 組んだ 紙が 切れ得た ⇒ js/kami-egaku.js が 字体を 足した 直後に 出す 合図で 組み直す
+        window.addEventListener('dkkami-yonda', function () {
+          try {
+            if (!HONNIN) kamiMadoNuru();
+          } catch (_) {
+            /* 組み直せなくても PDF は 止めない */
+          }
+        });
         function kamiMadoNuru() {
           if (!window.__paper) return;
           Array.prototype.forEach.call(
             document.querySelectorAll('#slips .kami-mado'),
             function (mado) {
               var ei = Number(mado.getAttribute('data-ei'));
+              mado.innerHTML = ''; // ★組み直す 時に 2束 並べない★（対立役 10-07 B）
               // ★★PDF と 同じ 紙の 束★★ 2026-10-07（対立役：日だけで 分けて 車が 多いと 下が 切れた）
               var taba = window.__paper.sheets(ei);
               var haba = mado.clientWidth || 360;

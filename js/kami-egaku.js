@@ -89,6 +89,12 @@
           const ff = new FontFace(KAZOKU, 'url(' + FONT_URL + ')');
           return ff.load().then(function (f) {
             document.fonts.add(f);
+            // ★字体が 入った 合図★ 2026-10-07（画面の 紙を 同じ 字体で 組み直す 為・kyuryo.html）
+            try {
+              global.dispatchEvent(new Event('dkkami-yonda'));
+            } catch (_) {
+              /* 合図が 出せなくても PDF は 作る */
+            }
           });
         }
         return null;
