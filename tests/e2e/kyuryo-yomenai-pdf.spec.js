@@ -392,3 +392,53 @@ for (const [na, osu] of [
     expect(r.msg).not.toContain('作っています');
   });
 }
+
+// ★★期を 変えた 読み込み中に 押す／押した 直後に 期を 変える ⇒ 明細の PDF を 作らない★★ 2026-10-08（対立役 A）
+//   前は 新しい 期の 名前（10/11 ~ 10/20）で 古い 期（10/1〜10/10）の 日付と 金額の PDF が 黙って 出た
+//   ★わざと壊して 赤（2026-10-08 実測）★ yomikomichuTomeru と hamiTomeru の 期の 確かめを 外す ⇒ ★赤★（PDF 3人ぶん）
+for (const [na, sousa, kitai] of [
+  [
+    '期を 変えた 読み込み中に 押す',
+    async (page) => {
+      await page.click('[data-pidx="1"]');
+      await page.waitForTimeout(300);
+      await page.click('#btnPrint');
+    },
+    '読み込み中',
+  ],
+  [
+    '押した 直後に 期を 変える',
+    async (page) => {
+      // ★PDF の 字体を 2秒 遅らせる★（道具が 読み終わる 前に 期を 変える 順を 作る）
+      await page.route('**/vendor/fonts/**', async (r) => {
+        await new Promise((ok) => setTimeout(ok, 2000));
+        await r.continue();
+      });
+      await page.click('#btnPrint');
+      await page.click('[data-pidx="1"]');
+    },
+    '画面が 変わった',
+  ],
+]) {
+  test('★' + na + ' ⇒ 明細の PDF を 作らない★', async ({ page }) => {
+    const err = [];
+    page.on('pageerror', (e) => err.push(e.message));
+    await kazoeru(page, false);
+    await openKyuryo(page, (f) => {
+      f.__osoi = ['dk_shifts'];
+      return f;
+    });
+    await page.waitForTimeout(500);
+    await sousa(page);
+    await page.waitForTimeout(6000);
+    const r = await page.evaluate(() => ({
+      dasu: window.__dasu,
+      err: document.getElementById('err').textContent,
+    }));
+    // eslint-disable-next-line no-console
+    console.log('★期★ ' + JSON.stringify(r));
+    expect(r.dasu, '★期が 食い違った 明細の PDF を 作った★').toBe(0);
+    expect(r.err).toContain(kitai);
+    expect(err).toEqual([]);
+  });
+}
