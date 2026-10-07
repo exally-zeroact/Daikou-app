@@ -133,3 +133,43 @@ for (const hyou of ['dk_sales_settings', 'dk_device_labels']) {
     expect(err).toEqual([]);
   });
 }
+
+// ★★PDF の 道具が 読めず 印刷の 保険へ 落ちる 時も はみ出す 人が 居れば 印刷しない★★ 2026-10-07（対立役 4回目）
+//   ★わざと壊して 赤（2026-10-07 実測）★ printAll の catch を _pdfShippai に 戻す ⇒ ★赤★（印刷された）
+test('★字体が 読めない（404）＋ 手当・控除 90件 ⇒ 印刷の 保険にも 落とさない★', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.route('**/vendor/fonts/**', (r) => r.fulfill({ status: 404, body: '' }));
+  await openKyuryo(page, (f) => {
+    const w = f.workHours[0];
+    f.adjustments = Array.from({ length: 90 }, (_, i) => ({
+      adj_id: 'n' + i,
+      employee_id: w.employee_id,
+      work_date: w.work_date,
+      kind: i % 2 ? 'koujo' : 'teate',
+      label: '長い 名前の 手当 その' + (i + 1) + '（ガソリン・駐車場・携帯 等）',
+      yen: 100 + i,
+    }));
+    return f;
+  });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    window.__insatsu = 0;
+    window.print = function () {
+      window.__insatsu++;
+    };
+  });
+  await page.click('#btnPrint');
+  await page.waitForTimeout(3000);
+  const r = await page.evaluate(() => ({
+    insatsu: window.__insatsu,
+    err: document.getElementById('err').textContent,
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★404★ ' + JSON.stringify(r));
+  expect(r.insatsu, '★切れた 明細を 印刷に 出した★').toBe(0);
+  expect(r.err).toContain('多すぎて 明細の 紙に 入りません');
+  expect(err).toEqual([]);
+});

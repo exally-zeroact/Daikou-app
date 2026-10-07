@@ -2963,6 +2963,10 @@
           //   控除の 抜けた 給料表の PDF が 黙って 出た）＝この 紙の 分を 別に 数える
           var KST = { tried: 0, failed: 0 };
           // ★期間に 関係ない 物（売上の 設定・車の 名前・従業員）が 読めなかった 時も 作らない★（対立役 10-07 A）
+          if (!SET_YONDA)
+            return Promise.reject(
+              new Error('まだ 読み込み中です。少し 待って もう一度 押してください')
+            );
           if (LOAD_KIHON.failed > 0) {
             yomiNaoshiObi();
             return Promise.reject(
@@ -4361,6 +4365,24 @@
         // ★全員ぶんを 1つのPDFに★（1人1ページ・A4横）
         //   給与アプリと同じ「複数人=複数ページ」。作り方は printOne と同じ。
         // ★誰を 出すか★ null＝全員／配列＝その人だけ（2026-09-05 司さん）
+        // ★★手当・控除が 紙に 入りきらない 人が 居れば 止める（真＝止めた）★★ 2026-10-07
+        //   今 入っている 字体で 測る（PDF の 道具を 読んだ 後なら DKKami・読めなかった 時は 控えの 字体＝印刷も その 字体）
+        function hamiTomeru(boxes) {
+          var hami = boxes.filter(function (b) {
+            var ei = REP.employees.indexOf(b);
+            return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
+          });
+          if (!hami.length) return false;
+          showErr(
+            hami
+              .map(function (b) {
+                return b.name;
+              })
+              .join('・') +
+              ' さんの 手当・控除が 多すぎて 明細の 紙に 入りません。明細の PDF は 作りません（手当・控除を まとめてください）。'
+          );
+          return true;
+        }
         function printAll(dake) {
           if ((!dake || !dake.length) && HITO) dake = [HITO]; // ★名前で 選んだ人だけ（10-03）★
           // ★数えるのは 人の数★（画面の枚数ではない＝紙は人ごとに組む）
@@ -4391,26 +4413,21 @@
           }
           var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
           showMsg('PDFを作っています…（' + boxes.length + '人ぶん）');
+          // ★PDF の 道具が 読めず 印刷の 保険へ 落ちる 時も はみ出す 人が 居れば 止める★（対立役 10-07 4回目：
+          //   門を 道具の 後へ 移したら 道具が 読めない 時に 門を 通らず 切れた 明細が 印刷に 出た）
+          var shippai = function (err) {
+            if (hamiTomeru(boxes)) {
+              showMsg('');
+              return;
+            }
+            _pdfShippai(err);
+          };
           loadPdfLibs()
             .then(function (E) {
               // ★手当・控除が 紙に 入りきらない 人が 居れば 作らない★ 2026-10-07（差引支給が 紙の 外に 出る）
               //   ★PDF の 字体を 読んだ 後で 測る★（前は 控えの 字体で 測り「入るのに 止める」事が あった・対立役 B）
               //   止める 時は 投げない（投げると 印刷の 保険へ 落ちる）＝文を 出して 抜ける
-              var hami = boxes.filter(function (b) {
-                var ei = REP.employees.indexOf(b);
-                return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
-              });
-              if (hami.length) {
-                showErr(
-                  hami
-                    .map(function (b) {
-                      return b.name;
-                    })
-                    .join('・') +
-                    ' さんの 手当・控除が 多すぎて 明細の 紙に 入りません。明細の PDF は 作りません（手当・控除を まとめてください）。'
-                );
-                return null;
-              }
+              if (hamiTomeru(boxes)) return null;
               var mai = [];
               boxes.forEach(function (e2) {
                 mai = mai.concat(_empSheets(e2, slipCars(REP.cars, e2.employee_id)));
@@ -4420,7 +4437,7 @@
             .then(function () {
               showMsg('');
             })
-            .catch(_pdfShippai);
+            .catch(shippai);
         }
         window.printAll = printAll;
 
