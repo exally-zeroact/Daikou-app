@@ -47,3 +47,64 @@ test('★手当・控除が 読めない ⇒ 明細の PDF を 作らず 止め�
   expect(r.msg, '★PDF を 作り始めた★').not.toContain('PDFを作っています');
   expect(err).toEqual([]);
 });
+
+// ★★給料表（月ごと）の PDF も 読めなければ 作らない★★ 2026-10-07（対立役：控除の 抜けた 給料表が 黙って 出た）
+//   ★わざと壊して 赤（2026-10-07 実測）★ kamiCtx の KST の 門を 外す ⇒ ★赤★（「出しました」）
+test('★手当・控除が 読めない ⇒ 給料表の PDF も 作らない★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await openKyuryo(page, (f) => {
+    f.__yomenai = ['dk_pay_adjustments'];
+    return f;
+  });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    document.getElementById('kamiCard').open = true;
+    document.getElementById('kamiTsuki').click();
+  });
+  await page.waitForTimeout(2500);
+  const note = await page.evaluate(() => document.getElementById('kamiNote').textContent);
+  // eslint-disable-next-line no-console
+  console.log('★給料表★ ' + note);
+  expect(note, '★読めないのに 給料表を 出した★').toContain('給料表は 作りません');
+  expect(note).not.toContain('出しました');
+  expect(err).toEqual([]);
+});
+
+// ★★手当・控除が 長く 多く 内わけの 紙にも 入らない ⇒ 明細の PDF を 作らず 知らせる★★ 2026-10-07
+//   （対立役：66件 で 差引支給が 紙の 外へ。司さんの 決め「計算できなければ 止めて 警告」の 向き）
+//   ★わざと壊して 赤（2026-10-07 実測）★ printAll の hamidasu の 門を 外す ⇒ ★赤★
+test('★手当・控除 90件（長い 名前）⇒ 明細の PDF を 作らず 名前つきで 知らせる★', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await openKyuryo(page, (f) => {
+    const w = f.workHours[0];
+    f.adjustments = Array.from({ length: 90 }, (_, i) => ({
+      adj_id: 'n' + i,
+      employee_id: w.employee_id,
+      work_date: w.work_date,
+      kind: i % 2 ? 'koujo' : 'teate',
+      label: '長い 名前の 手当 その' + (i + 1) + '（ガソリン・駐車場・携帯 等）',
+      yen: 100 + i,
+    }));
+    return f;
+  });
+  await page.waitForTimeout(800);
+  await page.click('#btnPrint');
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => ({
+    err: document.getElementById('err').textContent,
+    msg: (document.getElementById('msg') || {}).textContent || '',
+    hami: window.__paper.maisu(0).hamidasu,
+    gamen: (document.querySelector('#slips .kami-mado[data-ei="0"]') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★はみ出す★ ' + JSON.stringify(r));
+  expect(r.hami, '★はみ出すと 分かっていない＝この 見張りは 何も 見ていない★').toBe(true);
+  expect(r.err, '★はみ出すのに 明細の PDF に 進んだ★').toContain('多すぎて 明細の 紙に 入りません');
+  expect(r.gamen, '★画面に 知らせていない★').toContain('多すぎて 明細の 紙に 入りません');
+  expect(r.msg).not.toContain('PDFを作っています');
+  expect(err).toEqual([]);
+});

@@ -86,9 +86,13 @@ describe('★人ごとに 明細に出す車★', () => {
     // ★呼ぶ側も 人ごとに 数え直しているか★（紙だけ 全員同じ車、を 止める）
     ['printOne', 'printAll'].forEach((f) => {
       const a = HTML.indexOf('function ' + f + '(');
-      expect(HTML.slice(a, a + 1800), '★' + f + ' が 人ごとの 車を 渡していない★').toContain(
-        'slipCars(REP.cars,'
-      );
+      // ★決まった 字数で 切らない★（2026-10-07：門を 足したら 1800字の 外へ 押し出され 赤）＝次の 関数の 頭まで
+      expect(a, '★' + f + ' が 見つからない★').toBeGreaterThan(-1);
+      const owari = HTML.indexOf('\n        function ', a + 10);
+      expect(
+        HTML.slice(a, owari > a ? owari : undefined),
+        '★' + f + ' が 人ごとの 車を 渡していない★'
+      ).toContain('slipCars(REP.cars,');
     });
   });
 

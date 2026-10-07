@@ -2951,6 +2951,12 @@
 
         // ★その月の 生データを 取って ctx を 作る★（掃く 幅＝期間と 暦の 両方を 包む）
         function kamiCtx(y, m) {
+          // ★★給料表も 読めなかった 物が 在れば 出さない★★ 2026-10-07（対立役：手当・控除が 読めないと
+          //   控除の 抜けた 給料表の PDF が 黙って 出た）＝この 紙の 分を 別に 数える
+          var KST = { tried: 0, failed: 0 };
+          var kSoft = function (p) {
+            return DKSession.softList(SESS, p, KST);
+          };
           var st = PayrollDaily.normSettings(SET);
           // ★★締めの 形は 設定の 1か所★★ 2026-10-07（読めなければ 紙を 出さない）
           if (!st.periodKata || st.periodKata.dame)
@@ -2971,7 +2977,7 @@
             kamiPad(toD.getDate()) +
             'T00:00:00+09:00';
           return Promise.all([
-            soft(
+            kSoft(
               // ★距離も 取る★ 2026-10-06（1kmいくら の 材料。無いと 事務所と 紙だけ 0円＝本人の 画面と ずれる・対立役）
               'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded' +
                 '&started_at=gte.' +
@@ -2980,15 +2986,15 @@
                 encodeURIComponent(to) +
                 '&order=started_at.asc&limit=2000'
             ),
-            soft('dk_shift_edits?select=*&limit=2000'),
-            soft(
+            kSoft('dk_shift_edits?select=*&limit=2000'),
+            kSoft(
               'dk_work_hours?select=*&work_date=gte.' +
                 start +
                 '&work_date=lte.' +
                 end +
                 '&limit=2000'
             ),
-            soft(
+            kSoft(
               'dk_manual_days?select=*&work_date=gte.' +
                 start +
                 '&work_date=lte.' +
@@ -2996,7 +3002,7 @@
                 '&limit=2000'
             ),
             // ★手当・控除★ 2026-10-06（司さん「ア」＝給料の 総額と 会社に 残る分に 入る）
-            soft(
+            kSoft(
               'dk_pay_adjustments?select=*&work_date=gte.' +
                 start +
                 '&work_date=lte.' +
@@ -3004,6 +3010,10 @@
                 '&limit=5000'
             ),
           ]).then(function (res) {
+            if (KST.failed > 0)
+              throw new Error(
+                '読めなかった 物が あるので 給料表は 作りません。もう一度 押してください'
+              );
             // ★★取り切れ★★ 2026-10-06：DKSession.softList が 1000行 ずつ 全部 読む ように なった＝limit で 切れない。
             //   前の「2000件 ちょうどなら 欠けている」は 2000件 以上 そろっても 出る 偽の 警告に なる（対立役）ので 外した。
             //   読めなかった 時は 今まで通り 上の 帯（showUnknownBar）が 出る。
@@ -3469,6 +3479,12 @@
         // ★★読めなかった 数は「期間に 関係ない 物」と「期間の 物」に 分ける★★ 2026-10-07
         //   前は 1度 読めないと 数が 戻らず、もう一度 読んでも 帯が 消えなかった（明細の PDF を 止める 様に したので 直す）
         var LOAD_KIHON = { tried: 0, failed: 0 };
+        function yomiNaoshiObi() {
+          afterLoad(function () {
+            if (LOAD_KIHON.failed > 0) loadMasters();
+            else loadPeriod();
+          });
+        }
         function loadMasters() {
           LOAD.tried = 0;
           LOAD.failed = 0;
@@ -3604,10 +3620,7 @@
             recalc();
             render();
             // ★取れなかった物があれば 画面の上に出す★（期間に 関係ない 物が 読めなかった 時は そこから 読み直す）
-            afterLoad(function () {
-              if (LOAD_KIHON.failed > 0) loadMasters();
-              else loadPeriod();
-            });
+            yomiNaoshiObi();
           });
         }
 
@@ -4171,7 +4184,20 @@
             }
           }
           var carN = nCars > 0 ? Math.ceil(nCars / carPer) : 1;
-          return { per: per, n: n, carPer: carPer, carN: carN, betsu: betsu };
+          // ★内わけだけの 紙も 入らない（手当・控除が 長く 多い）⇒ はみ出す★（対立役 10-07：66件 で 差引支給が 紙の 外へ）
+          //   ＝明細の PDF を 止めて 知らせる（司さんの 決め「計算できなければ 止めて 警告」の 向き）
+          var hamidasu =
+            betsu &&
+            _takasa(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, 0, 'dake')) >
+              SHEET_H;
+          return {
+            per: per,
+            n: n,
+            carPer: carPer,
+            carN: carN,
+            betsu: betsu,
+            hamidasu: hamidasu,
+          };
         }
 
         // ★返らない時に 永久に待たない★（指示役 2026-08-26）
@@ -4283,6 +4309,7 @@
         // ★★1人ぶん★★
         function printOne(ei) {
           if (DKSession.loadFailed(LOAD)) {
+            yomiNaoshiObi(); // ★帯を 出す★（押す 所が 無い 文で 止めない・対立役 10-07）
             showErr(
               '読めなかった 物が あるので 明細の PDF は 作りません。上の「もう一度読む」を 押してください。'
             );
@@ -4339,8 +4366,25 @@
           // ★★読めなかった 物が 在る 時は 明細の PDF を 作らない★★ 2026-10-07（対立役：手当・控除が 読めないと
           //   控除の 無い 明細が 出た＝司さん「計算できなければ 止めて 警告」）
           if (DKSession.loadFailed(LOAD)) {
+            yomiNaoshiObi(); // ★帯を 出す★（押す 所が 無い 文で 止めない・対立役 10-07）
             showErr(
               '読めなかった 物が あるので 明細の PDF は 作りません。上の「もう一度読む」を 押してください。'
+            );
+            return;
+          }
+          // ★手当・控除が 紙に 入りきらない 人が 居れば 作らない★ 2026-10-07（差引支給が 紙の 外に 出る）
+          var hami = boxes.filter(function (b) {
+            var ei = REP.employees.indexOf(b);
+            return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
+          });
+          if (hami.length) {
+            showErr(
+              hami
+                .map(function (b) {
+                  return b.name;
+                })
+                .join('・') +
+                ' さんの 手当・控除が 多すぎて 明細の 紙に 入りません。明細の PDF は 作りません（手当・控除を まとめてください）。'
             );
             return;
           }
@@ -4699,6 +4743,15 @@
             function (mado) {
               var ei = Number(mado.getAttribute('data-ei'));
               mado.innerHTML = ''; // ★組み直す 時に 2束 並べない★（対立役 10-07 B）
+              // ★手当・控除が 紙に 入りきらない 人は 画面にも 知らせる★（明細の PDF は 作らない）
+              if (window.__paper.maisu(ei).hamidasu) {
+                var tsuchi = document.createElement('div');
+                tsuchi.className = 'err';
+                tsuchi.style.display = 'block';
+                tsuchi.textContent =
+                  '手当・控除が 多すぎて 明細の 紙に 入りません（下が 切れます）。手当・控除を まとめてください。';
+                mado.appendChild(tsuchi);
+              }
               // ★★PDF と 同じ 紙の 束★★ 2026-10-07（対立役：日だけで 分けて 車が 多いと 下が 切れた）
               var taba = window.__paper.sheets(ei);
               var haba = mado.clientWidth || 360;
