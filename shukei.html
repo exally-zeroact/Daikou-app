@@ -923,6 +923,22 @@
         var SEIKYU_KUICHIGAI = [];
         var SEIKYU_URI_NASHI = []; // ★売上の 無い 日に 在る 明細★（数えない・知らせる） // ★入力と 請求書アプリの 両方に 額が 在る 日★（黙って 片方を 捨てない）
         var CTX = null;
+        var CTX_KYU = null;
+        // ★その年の 日の 行だけ★（売上・距離・請求書は 暦の 年で 数える）
+        function toshiDake(raw) {
+          var p = YEAR + '-';
+          var hi = function (x) {
+            return String((x && x.work_date) || '').indexOf(p) === 0;
+          };
+          return Object.assign({}, raw, {
+            shifts: (raw.shifts || []).filter(function (x) {
+              return x && String(PayrollDaily.dateOf(x.started_at) || '').indexOf(p) === 0;
+            }),
+            workHours: (raw.workHours || []).filter(hi),
+            manualDays: (raw.manualDays || []).filter(hi),
+            adjustments: (raw.adjustments || []).filter(hi),
+          });
+        }
         var YR = null;
         var ONE = 0; // 内訳を出す月（0=年間合計）
 
@@ -1448,7 +1464,11 @@
         }
 
         function recalc() {
-          CTX = PayrollDaily.buildCtx(RAW);
+          // ★★2つの ctx★★ 2026-10-07（対立役：読む 範囲を 広げたら 売上表に 前の年の 12月・次の年の 1月が 混ざった）
+          //   CTX ＝ ★その年の 日だけ★（売上表・距離・請求書・紙＝今まで 通り）
+          //   CTX_KYU ＝ 前後の 月も 入れた 物（★給料（締めた 分）を 数える GetsujiAgg だけ★）
+          CTX_KYU = PayrollDaily.buildCtx(RAW);
+          CTX = PayrollDaily.buildCtx(toshiDake(RAW));
           // ★PAYS＝日ごとの 請求書／電子決済★（画面の 数字と 紙で 同じ 物を 使う為に 外へ）
           var pays = PAYMENTS.slice();
           // ★★日ごとが 在る 月は 日ごとを 使う（二重に 数えない）★★ 2026-09-06
@@ -1558,7 +1578,7 @@
             pays.push({ pay_date: k + '-01', invoice_yen: 0, denshi_yen: PP[k] });
           });
           PAYS = pays; // ★紙も ★同じ 物★ を 見る（自分で 作り直さない）
-          YR = GetsujiAgg.year(YEAR, CTX, pays);
+          YR = GetsujiAgg.year(YEAR, CTX_KYU, pays);
           // ★★払い方（締め）の 設定が 読めない ⇒ 給料・会社に残る分・紙を 出さない★★ 2026-10-07
           //   （前は 0円の 給料で 黙って 進んだ・対立役）
           if (YR && YR.total && YR.total.dame) {
@@ -1998,9 +2018,11 @@
           $('yearLabel').textContent = YEAR + '年';
           if (SHIME_DAME) {
             showErr(
-              '給料の 払い方の 設定が 読めないので 止めました（' +
-                SHIME_DAME +
-                '）。給料の 画面の「給料の 設定」で 払い方を 選び直してください。'
+              /通信/.test(SHIME_DAME)
+                ? '給料の 設定を 読めなかったので 止めました（通信）。もう一度 開いてください。'
+                : '給料の 払い方の 設定が 読めないので 止めました（' +
+                    SHIME_DAME +
+                    '）。給料の 画面の「給料の 設定」で 払い方を 選び直してください。'
             );
             $('tbody').innerHTML = '';
             $('tbody2').innerHTML = '';

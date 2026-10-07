@@ -118,6 +118,15 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
   // ★#set で 給料の 設定が もう 開いている★
   await page.waitForSelector('#pMode', { state: 'visible' });
   await page.selectOption('#pMode', 'tsuki1');
+  // ★日を 空の まま 保存 ⇒ 末日締めに しない・保存しない★（対立役 ③）
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(300);
+  const k0 = await page.evaluate(() => ({
+    n: window.__okutta.length,
+    err: document.getElementById('err').textContent,
+  }));
+  expect(k0.n, '★日が 空なのに 保存した★').toBe(0);
+  expect(k0.err).toContain('何日に 締める');
   await page.fill('#pShimeHi', '20');
   await page.click('#btnSaveSet');
   await page.waitForTimeout(400);
@@ -148,5 +157,43 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
   const c = await page.evaluate(() => window.__okutta[1]);
   expect(c.period_shime).toBeNull();
   expect(c.period_end_mode).toBe('thirds');
+  expect(err).toEqual([]);
+});
+
+// わざと壊す：保存の 前の SET.yomenai の 門を 外す ⇒ 赤（既定の 値で 上書きを 送った）
+test('★⑤ 設定を 読めなかった（通信）⇒ 明細を 止め「開き直して」・設定を 保存しない★', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await openKyuryo(
+    page,
+    (f) => {
+      const g = settei({ kind: 'tsuki', hi: [20], nazuke: 'shime' })(f);
+      g.__yomenai = ['dk_payroll_settings'];
+      return g;
+    },
+    { ura: '?henshu=1#set', matanai: true }
+  );
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => {
+    window.__okutta = [];
+    const S = window.DKSession;
+    const moto = S.rest;
+    S.rest = function (s, p, o) {
+      if (o && o.method === 'POST' && String(p).indexOf('dk_payroll_settings') === 0)
+        window.__okutta.push(JSON.parse(o.body));
+      return moto.apply(this, arguments);
+    };
+  });
+  const e1 = await page.evaluate(() => document.getElementById('err').textContent);
+  // eslint-disable-next-line no-console
+  console.log('★⑤★ ' + e1);
+  expect(e1, '★読めなかったのに「選び直して」と 案内した★').toContain('もう一度 開いて');
+  // ★止めた 時は 設定の 欄も 組まれない＝押せる 物が 無い。それでも 保存の 押し口を 直に 押して 門を 見る★
+  await page.evaluate(() => document.getElementById('btnSaveSet').click());
+  await page.waitForTimeout(400);
+  const n = await page.evaluate(() => window.__okutta.length);
+  expect(n, '★読めていない 設定を 既定の 値で 上書きした★').toBe(0);
   expect(err).toEqual([]);
 });

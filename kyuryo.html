@@ -2108,7 +2108,7 @@
             HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET);
             // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
-            if (st.periodKata && st.periodKata.dame) {
+            if (!st.periodKata || st.periodKata.dame) {
               if (box)
                 box.innerHTML =
                   '<div class="card"><div class="msg">' +
@@ -2134,7 +2134,8 @@
                   '<div class="card"><div class="msg">この 月に 締める 給料は ありません。</div></div>';
               return;
             }
-            PIDX = kyouNoKi(PERIODS);
+            // ★月3回は 今まで 通り 最初の 期★（今の 会社の 見え方を 変えない）・他は 今日を 含む 期
+            PIDX = st.periodKata.kind === 'thirds' ? 0 : kyouNoKi(PERIODS);
             PERIOD = PERIODS[PIDX];
             recalc();
             TAB = 'slip';
@@ -2144,6 +2145,9 @@
 
         // ★★払い方（締め）が 読めない 時の 文★★ 2026-10-07（金額を 出さずに 止める）
         function shimeDameBun(kata) {
+          // ★通信で 読めなかった 時は「選び直して」でなく「開き直して」★（対立役：選び直して 保存すると 本物の 設定が 既定で 上書き）
+          if (kata && /通信/.test(kata.riyuu || ''))
+            return '給料の 設定を 読めなかったので 止めました（通信）。もう一度 開いてください。';
           return (
             '給料の 払い方の 設定が 読めないので 止めました（' +
             ((kata && kata.riyuu) || '払い方の 設定が 読めません') +
@@ -2942,7 +2946,7 @@
         function kamiCtx(y, m) {
           var st = PayrollDaily.normSettings(SET);
           // ★★締めの 形は 設定の 1か所★★ 2026-10-07（読めなければ 紙を 出さない）
-          if (st.periodKata && st.periodKata.dame)
+          if (!st.periodKata || st.periodKata.dame)
             return Promise.reject(new Error(shimeDameBun(st.periodKata)));
           var ps = PayrollPeriod.periodsOf(y, m, { kata: st.periodKata });
           var matsu = new Date(y, m, 0).getDate();
@@ -3484,7 +3488,7 @@
           var st = PayrollDaily.normSettings(SET);
           // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
           //   読めない ⇒ ★止める★（前は 知らない 値を 黙って 月3回に した）
-          if (st.periodKata && st.periodKata.dame) {
+          if (!st.periodKata || st.periodKata.dame) {
             PERIODS = [];
             PERIOD = null;
             if ($('slips')) $('slips').innerHTML = '';
@@ -5388,7 +5392,10 @@
           if (m === 'tsuki2') return { kata: { kind: 'tsuki', hi: [15, 0] } };
           if (m === 'matsu') return { kata: { kind: 'tsuki', hi: [0] } };
           if (m === 'tsuki1') {
-            var d = Number(String(($('pShimeHi') || {}).value || '').trim());
+            var dTxt = String(($('pShimeHi') || {}).value || '').trim();
+            // ★空は 0（末日）に しない★（対立役 ③）
+            if (!dTxt) return { dame: '何日に 締めるかを 入れてください' };
+            var d = Number(dTxt);
             return { kata: { kind: 'tsuki', hi: [d], nazuke: nz } };
           }
           if (m === 'narabe') {
@@ -5937,6 +5944,11 @@
 
         $('btnSaveSet').onclick = function () {
           if (!COMPANY) return;
+          // ★設定を 読めなかった（通信）時は 保存しない★ 2026-10-07（既定の 値で 本物の 行を 上書きしない・対立役 ②）
+          if (SET && SET.yomenai)
+            return showErr(
+              '給料の 設定を 読めていないので 保存しません。もう一度 開いてください。'
+            );
           var st = PayrollDaily.normSettings(SET);
           // ★★締めの 形を 確かめてから 保存★★ 2026-10-07（壊れた 形・何月分 無しは 保存しない）
           var sk = shimeKataYomu();
