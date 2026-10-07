@@ -35,7 +35,13 @@ function stub(shifts) {
     ';var S=window.DKSession;window.__okutta=[];' +
     'function rows(p){ if(p.indexOf("dk_expense_kinds")===0)return D.K;' +
     ' if(p.indexOf("dk_device_labels")===0)return [{company_id:"c1",device_id:"d1",label:"4987",sort_order:1}];' +
-    ' if(p.indexOf("dk_shifts")===0){ var qq=decodeURIComponent(p); var iso=qq.match(/\\d{4}-\\d{2}-\\d{2}T[\\d:.]+Z?/g)||[]; if(iso.length<2)return D.SH; var f=+new Date(iso[0]), t=+new Date(iso[1]); return D.SH.filter(function(x){var d=+new Date(x.started_at); return d>=f&&d<t;});} return [];}' +
+    // ★倉庫と 同じ 読み方★ 2026-10-08（対立役：gte・lt を 1つずつ 効かせ、時間帯 無しの 字は UTC＝本物の 倉庫と 同じ・desc は 並べる）
+    ' if(p.indexOf("dk_shifts")===0){ var qq=decodeURIComponent(p);' +
+    ' var hasi=function(k){var m=new RegExp("[?&]started_at="+k+"\\.([^&]+)").exec(qq); if(!m)return null; var v=m[1]; if(!/(Z|[+-]\\d\\d:?\\d\\d)$/.test(v))v+="Z"; return +new Date(v);};' +
+    ' var f=hasi("gte"), t=hasi("lt");' +
+    ' var a=D.SH.filter(function(x){var d=+new Date(x.started_at); return (f===null||d>=f)&&(t===null||d<t);});' +
+    ' if(/order=started_at\\.desc/.test(qq))a=a.slice().sort(function(x,y){return +new Date(y.started_at)-+new Date(x.started_at);});' +
+    ' return a;} return [];}' +
     'S.ensure=function(){return Promise.resolve({access_token:"t"});};S.goLogin=function(){};S.logout=function(){};' +
     'S.rememberedCompanyId=function(){return D.co.company_id;};S.pickCompany=function(){return {mode:"one",company:D.co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([D.co]);}});};' +
@@ -254,4 +260,41 @@ test('★★③-3 走った 日へ は 日本の 日（倉庫の +00:00 の 時�
   // eslint-disable-next-line no-console
   console.log('★走った 日へ★ ' + ji);
   expect(ji, '★UTC の 日付（9/19）で 出た★').toContain('9/20');
+});
+
+// ★★走った 日へ は その 月の 中だけ（前の 月を 見ている 時に 次の 月へ 飛ばない）★★ 2026-10-08（対立役）
+//   ★わざと壊して 赤（2026-10-08 実測）★ 上の 端（lt）を 外す ⇒ ★赤★（10/5 へ 飛ぶ）
+//   （日本時間 1日 0〜9時の 業務が 落ちない 事は 作り物の 倉庫が 時間帯 無しの 字を 端末の 時刻で 読む 為 ここでは 見られない）
+test('★★③-4 走った 日へ は 見ている 月の 中だけ★★', async ({ page }) => {
+  await hiraku(page, 'nyuryoku.html', [
+    { shift_id: 's2', device_id: 'd1', started_at: '2026-10-05T01:00:00+00:00' },
+    { shift_id: 's1', device_id: 'd1', started_at: '2026-09-20T01:00:00+00:00' },
+  ]);
+  await page.fill('#hiSel', '2026-09-03');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(1500);
+  const ji = await page.evaluate(
+    () => (document.getElementById('btnLastRun') || {}).textContent || ''
+  );
+  // eslint-disable-next-line no-console
+  console.log('★月の 中★ ' + ji);
+  expect(ji, '★見ている 月の 外（10/5）へ 飛ぶ★').toContain('09/20');
+});
+
+// ★★走った 日へ は 日本時間 1日 0〜9時の 業務も 拾う★★ 2026-10-08（対立役：前は 時間帯 無しの 月の 頭＝倉庫は UTC と 読み 落ちた）
+//   作り物の 倉庫も 時間帯 無しの 字を UTC と 読む 様に した（上）
+//   ★わざと壊して 赤（2026-10-08 実測）★ 下の 端を 前の 書き方（tsuki + '-01T00:00:00'）に 戻す ⇒ ★赤★（ボタンが 出ない）
+test('★★③-5 走った 日へ は 日本時間 1日 03:30 の 業務も 拾う★★', async ({ page }) => {
+  await hiraku(page, 'nyuryoku.html', [
+    { shift_id: 's1', device_id: 'd1', started_at: '2026-08-31T18:30:00+00:00' },
+  ]);
+  await page.fill('#hiSel', '2026-09-03');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(1500);
+  const ji = await page.evaluate(
+    () => (document.getElementById('btnLastRun') || {}).textContent || ''
+  );
+  // eslint-disable-next-line no-console
+  console.log('★1日 03:30★ ' + ji);
+  expect(ji, '★日本時間 1日 0〜9時の 業務が 落ちた★').toContain('09/01');
 });

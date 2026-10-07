@@ -698,13 +698,19 @@
           var hako = $('hashittaHi');
           hako.style.display = 'none';
           if (!COMPANY) return;
-          var tsuki = HI.slice(0, 7);
+          // ★月の 頭〜次の 月の 頭（hiRange と 同じ 端末の 時刻）★ 2026-10-08（対立役：前は 時間帯 無しの 頭＝倉庫は UTC と 読み
+          //   日本時間 1日 0〜9時が 落ちた・上の 端が 無く 前の 月を 見ている 時に 次の 月の 日へ 飛んだ）
+          var t0 = new Date(HI + 'T00:00:00');
+          var tsukiKara = new Date(t0.getFullYear(), t0.getMonth(), 1).toISOString();
+          var tsukiMade = new Date(t0.getFullYear(), t0.getMonth() + 1, 1).toISOString();
           var q =
             // ★使わない 印の 業務は「走った 日」に しない★ 2026-10-07（not.is.true＝印の 無い null の 行は 通る）
             'dk_shifts?select=started_at&excluded=not.is.true&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
             '&started_at=gte.' +
-            encodeURIComponent(tsuki + '-01T00:00:00') +
+            encodeURIComponent(tsukiKara) +
+            '&started_at=lt.' +
+            encodeURIComponent(tsukiMade) +
             '&order=started_at.desc&limit=1';
           DKSession.softList(SESS, q, LOAD).then(function (r) {
             var x = Array.isArray(r) && r.length ? r[0] : null;
