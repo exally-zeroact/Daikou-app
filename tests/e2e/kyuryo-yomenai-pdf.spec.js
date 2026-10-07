@@ -173,3 +173,73 @@ test('★字体が 読めない（404）＋ 手当・控除 90件 ⇒ 印刷の 
   expect(r.err).toContain('多すぎて 明細の 紙に 入りません');
   expect(err).toEqual([]);
 });
+
+// ★★給料の 設定を 読み終わる 前に 給料表を 押す ⇒ 作らない（月3回・既定の 売上の 設定で 組まない）★★ 2026-10-08
+//   司さん「試験がないなら入れろ」（対立役 10-07 5回目：kamiCtx の !SET_YONDA の 門を 見る 試験が 0本）
+//   ★わざと壊して 赤（2026-10-08 実測）★ kamiCtx の !SET_YONDA の 門を 外す ⇒ ★赤★
+test('★設定を 読み終わる 前に 給料表を 押す ⇒「読み込み中」で 作らない★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await openKyuryo(
+    page,
+    (f) => {
+      f.__osoi = ['dk_payroll_settings'];
+      return f;
+    },
+    { matanai: true }
+  );
+  // ★設定が 返る 前（3秒 遅れ）に 押す★
+  await page.waitForFunction(() => !!document.getElementById('kamiTsuki'));
+  await page.waitForTimeout(500);
+  const mae = await page.evaluate(() => {
+    document.getElementById('kamiCard').open = true;
+    document.getElementById('kamiTsuki').click();
+    return true;
+  });
+  await page.waitForTimeout(800);
+  const note = await page.evaluate(() => document.getElementById('kamiNote').textContent);
+  // eslint-disable-next-line no-console
+  console.log('★読み込み中★ ' + JSON.stringify({ mae: mae, note: note }));
+  expect(note, '★読み終わる 前に 給料表を 作った★').toContain('まだ 読み込み中');
+  expect(note).not.toContain('出しました');
+  // ★読み終わった 後は 作れる★（止めっぱなしに しない）
+  await page.waitForFunction(() => window.__paper && window.__paper.ninzu() > 0, null, {
+    timeout: 15000,
+  });
+  await page.evaluate(() => document.getElementById('kamiTsuki').click());
+  await page.waitForTimeout(2500);
+  const ato = await page.evaluate(() => document.getElementById('kamiNote').textContent);
+  expect(ato, '★読み終わった 後も 作れない★').not.toContain('読み込み中');
+  expect(err).toEqual([]);
+});
+
+// ★★PDF の 道具が 読めない（字体 404）＋ 手当・控除 0行 ⇒ 印刷の 保険は 今まで 通り 1回 出る★★ 2026-10-08
+//   （はみ出しの 門が いつも「止める」に 壊れても 気づける 様に＝対立役 10-07 5回目）
+//   ★わざと壊して 赤（2026-10-08 実測）★ hamiTomeru を いつも true に ⇒ ★赤★（印刷 0回）
+test('★字体 404 ＋ 手当・控除 0行 ⇒ 印刷の 保険が 1回 出る（止めすぎない）★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.route('**/vendor/fonts/**', (r) => r.fulfill({ status: 404, body: '' }));
+  await openKyuryo(page, (f) => {
+    f.adjustments = [];
+    return f;
+  });
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    window.__insatsu = 0;
+    window.print = function () {
+      window.__insatsu++;
+    };
+  });
+  await page.click('#btnPrint');
+  await page.waitForTimeout(3000);
+  const r = await page.evaluate(() => ({
+    insatsu: window.__insatsu,
+    err: document.getElementById('err').textContent,
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★保険★ ' + JSON.stringify(r));
+  expect(r.insatsu, '★止めすぎ＝手当・控除が 無いのに 印刷の 保険も 出ない★').toBe(1);
+  expect(r.err).not.toContain('入りません');
+  expect(err).toEqual([]);
+});

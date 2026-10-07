@@ -102,7 +102,8 @@ async function openKyuryo(page, naosu, opts) {
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
     // ★F.__yomenai に 書いた 表は 読めなかった（通信）事に する★ 2026-10-07（止める 道を 見る 為）
-    'S.softList=function(s,p,st){if(st)st.tried++;if((F.__yomenai||[]).some(function(n){return String(p).indexOf(n)===0;})){if(st)st.failed++;return Promise.resolve([]);}return Promise.resolve(rows(p));};' +
+    // ★F.__osoi に 書いた 表は 3秒 遅れて 返す★ 2026-10-08（読み終わる 前に 押す 道を 見る 為）
+    'S.softList=function(s,p,st){if(st)st.tried++;if((F.__yomenai||[]).some(function(n){return String(p).indexOf(n)===0;})){if(st)st.failed++;return Promise.resolve([]);}var r=rows(p);if((F.__osoi||[]).some(function(n){return String(p).indexOf(n)===0;}))return new Promise(function(ok){setTimeout(function(){ok(r);},3000);});return Promise.resolve(r);};' +
     '})();';
   await page.route('**/js/dk-session.js*', (route) =>
     route.fulfill({
