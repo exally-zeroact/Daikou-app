@@ -31,7 +31,8 @@ test('★事務所の 明細＝PDF と 同じ 紙・見切れない・押すと 
   // ★枚数は ちょうど★（多くても 赤＝二重に 描いていない）10-05 対立役
   const hazu = await page.evaluate(() => {
     let n = 0;
-    for (let i = 0; i < window.__paper.ninzu(); i++) n += window.__paper.maisu(i).n;
+    // ★日と 車の 両方で 分けた 後の 枚数★（10-07：日だけ 数えると 車で 分けた 紙が 抜ける）
+    for (let i = 0; i < window.__paper.ninzu(); i++) n += window.__paper.sheets(i).length;
     return n;
   });
   expect(hazu, '★数える 物が 0＝空回り★').toBeGreaterThan(0);

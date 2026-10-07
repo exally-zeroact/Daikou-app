@@ -2129,17 +2129,16 @@
             mado.innerHTML =
               '<div class="card"><div class="msg">この月の 記録は ありません。</div></div>';
           } else {
-            var m = window.__paper.maisu(0);
-            var hi = window.__paper.hi(0);
+            // ★★PDF と 同じ 紙の 束（日と 車の 両方で 分けた 後）を 見せる★★ 2026-10-07（対立役：
+            //   画面は 日だけで 分けて いて 車が 多いと 下が 切れた）
+            var tabaH = window.__paper.sheets(0);
             // ★紙は A4 の 大きさで 組まれる★ので 画面の 幅に 合わせて 縮める
             var haba = mado.clientWidth || box.clientWidth || 360;
             // ★幅に 合わせて 縮めるだけだと スマホで 字が 読めない★（実測＝0.32倍）
             //   ⇒ ★読める 下限まで しか 縮めない★。はみ出た 分は ★横に 送って 見る★。
             var sc = Math.max(0.62, Math.min(1, haba / 1123));
-            for (var i = 0; i < m.n; i++) {
-              var from = i * m.per;
-              var to = Math.min(hi, from + m.per);
-              var el = window.__paper.build(0, from, to, i + 1, m.n);
+            for (var i = 0; i < tabaH.length; i++) {
+              var el = tabaH[i];
               el.style.position = 'static';
               el.style.left = 'auto';
               el.style.top = 'auto';
@@ -3696,8 +3695,12 @@
           );
         }
 
-        function _buildPaperSheet(e, showCarSales, allCars, from, to, maiNo, maiN) {
+        function _buildPaperSheet(e, showCarSales, allCars, from, to, maiNo, maiN, carFrom, carTo) {
           var cars = showCarSales ? _paperCars(e, allCars) : [];
+          // ★★車の 行が 1枚に 入らない 時は 次の 紙へ★★ 2026-10-07（司さん「前からある2つもやれ」・対立役：
+          //   車 9台＋内わけ 1行 で 紙の 下が 切れた）＝★字も 行の 高さも 変えず★ 車の 行を 分ける。番号は 続き
+          var carOff = carFrom || 0;
+          cars = cars.slice(carOff, carTo === undefined ? cars.length : carTo);
           // ★画面と 同じ 1本を使う★（紙で 別に書くと 画面と紙で 違う数が出る）
           var F = SLIP_F;
 
@@ -3707,7 +3710,7 @@
           rows.push({ lbl: '時間', get: F.hours });
           cars.forEach(function (x, n) {
             rows.push({
-              lbl: '売上' + (n + 1),
+              lbl: '売上' + (n + 1 + carOff),
               sub: x.car.label, // ★車名は 小さい2行目★＝列を広げない
               get: function (c) {
                 return F.car(c, x.i);
@@ -3921,6 +3924,17 @@
         // ★何枚に分けるか★＝1枚に入る日の数から出す
         //   ★62日ぶんの期間まで作れる★（js/payroll-period.js:128 days<=62／月まとめは28〜31日）
         //   実測：本物の10日・11日 → 1枚／31日 → 3枚（★字は 9pt以上のまま★）
+        // ★組んだ 紙の 本当の 高さ★（画面の 外に 1度 置いて 測る）
+        function _takasa(el) {
+          el.style.position = 'absolute';
+          el.style.left = '-99999px';
+          el.style.top = '0';
+          el.style.visibility = 'hidden';
+          document.body.appendChild(el);
+          var h = el.scrollHeight;
+          el.remove();
+          return h;
+        }
         function _maisu(e, showCarSales, allCars) {
           var probe = _buildPaperSheet(e, showCarSales, allCars, 0, e.cells.length);
           var hairu = Math.floor(
@@ -3929,7 +3943,22 @@
           var per = hairu > 1 ? hairu : 1;
           var mai = Math.ceil(e.cells.length / per);
           var n = mai > 1 ? mai : 1;
-          return { per: per, n: n };
+          // ★★縦（車の 行）の 分け方★★ 2026-10-07
+          //   紙の 高さ − 上下の 余白 − 見出し − 内わけの 行 に 入る 行の 数から、決まった 4行
+          //   （日付・金額・時間・時間（全台））を 引いた 分が 1枚に 入る 車の 数
+          //   ★★見積もりは 使わず 組んだ 紙の 高さを 測る★★（対立役 10-07：内わけが 折り返すと 26px の
+          //     見積もりより 高く なり 800〜876px で 切れた）＝入るまで 1台ずつ 減らす
+          var nCars = showCarSales ? _paperCars(e, allCars).length : 0;
+          var carPer = nCars > 0 ? nCars : 1;
+          var to0 = Math.min(e.cells.length, per);
+          while (
+            carPer > 1 &&
+            _takasa(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer)) > SHEET_H
+          ) {
+            carPer--;
+          }
+          var carN = nCars > 0 ? Math.ceil(nCars / carPer) : 1;
+          return { per: per, n: n, carPer: carPer, carN: carN };
         }
 
         // ★返らない時に 永久に待たない★（指示役 2026-08-26）
@@ -3971,13 +4000,26 @@
         function _empSheets(e, cars) {
           var m = _maisu(e, showCarSalesNow(), cars);
           var out = [];
-          for (var i = 0; i < m.n; i++) {
-            var from = i * m.per;
-            var to = Math.min(e.cells.length, from + m.per);
-            out.push({
-              el: _buildPaperSheet(e, showCarSalesNow(), cars, from, to, i + 1, m.n),
-              muki: 'yoko',
-            });
+          var zen = m.n * m.carN;
+          for (var k = 0; k < m.carN; k++) {
+            for (var i = 0; i < m.n; i++) {
+              var from = i * m.per;
+              var to = Math.min(e.cells.length, from + m.per);
+              out.push({
+                el: _buildPaperSheet(
+                  e,
+                  showCarSalesNow(),
+                  cars,
+                  from,
+                  to,
+                  out.length + 1,
+                  zen,
+                  k * m.carPer,
+                  (k + 1) * m.carPer
+                ),
+                muki: 'yoko',
+              });
+            }
           }
           return out;
         }
@@ -4089,6 +4131,13 @@
               no,
               n
             );
+          },
+          // ★1人ぶんの 紙を 全部（日と 車の 両方で 分けた 後）★ 2026-10-07（見張りが 高さと 売上n を 数える）
+          sheets: function (ei) {
+            var e = REP.employees[ei];
+            return _empSheets(e, slipCars(REP.cars, e.employee_id)).map(function (x) {
+              return x.el;
+            });
           },
           maisu: function (ei) {
             var e = REP.employees[ei];
@@ -4394,17 +4443,15 @@
             document.querySelectorAll('#slips .kami-mado'),
             function (mado) {
               var ei = Number(mado.getAttribute('data-ei'));
-              var m = window.__paper.maisu(ei);
-              var hi = window.__paper.hi(ei);
+              // ★★PDF と 同じ 紙の 束★★ 2026-10-07（対立役：日だけで 分けて 車が 多いと 下が 切れた）
+              var taba = window.__paper.sheets(ei);
               var haba = mado.clientWidth || 360;
               // ★紙 1枚が 画面に 全部 入る 大きさ★（見切れさせない・司さん 10-05「見切れてめちゃくちゃ」）
               //   細かい 字は ★押すと 開く PDF★で 見る（代行請求書の 請求書ページと 同じ）
               var sc = Math.min(1, (haba - 2) / 1123);
               var empId = String(window.__paper.emp(ei).employee_id);
-              for (var i = 0; i < m.n; i++) {
-                var from = i * m.per;
-                var to = Math.min(hi, from + m.per);
-                var el = window.__paper.build(ei, from, to, i + 1, m.n);
+              for (var i = 0; i < taba.length; i++) {
+                var el = taba[i];
                 el.style.position = 'static';
                 el.style.left = 'auto';
                 el.style.top = 'auto';
