@@ -236,3 +236,22 @@ test('★★⑤ 実費の 道順が「入力」を 指している★★', async
   expect(DASH, '★どこに 出るかが 書いてありません★').toContain('下の 帯の「入力」');
   expect(NYU, '★入力の 画面が 実費の 一覧を 使っていません★').toContain('dk_expense_kinds');
 });
+
+// ★★走った 日へ＝倉庫の 時刻（+00:00）でも 日本の 日で 出す★★ 2026-10-07（対立役 10-07 M）
+//   ★前★ String(started_at).slice(0, 10)＝UTC の 日付 ⇒ 日本時間 0〜9時の 業務（9/20 03:30）は「9/19」
+//   ★わざと壊して 赤（2026-10-07 実測）★ slice(0, 10) に 戻す ⇒ ★赤★（9/19）
+//   （excluded=not.is.true の 絞りは 作り物の 倉庫が 再現しない＝ここでは 見ない）
+test('★★③-3 走った 日へ は 日本の 日（倉庫の +00:00 の 時刻でも）★★', async ({ page }) => {
+  await hiraku(page, 'nyuryoku.html', [
+    { shift_id: 's1', device_id: 'd1', started_at: '2026-09-19T18:30:00+00:00' },
+  ]);
+  await page.fill('#hiSel', '2026-09-03');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(1500);
+  const ji = await page.evaluate(
+    () => (document.getElementById('btnLastRun') || {}).textContent || ''
+  );
+  // eslint-disable-next-line no-console
+  console.log('★走った 日へ★ ' + ji);
+  expect(ji, '★UTC の 日付（9/19）で 出た★').toContain('9/20');
+});

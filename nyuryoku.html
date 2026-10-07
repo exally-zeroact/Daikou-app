@@ -700,7 +700,8 @@
           if (!COMPANY) return;
           var tsuki = HI.slice(0, 7);
           var q =
-            'dk_shifts?select=started_at&company_id=eq.' +
+            // ★使わない 印の 業務は「走った 日」に しない★ 2026-10-07（not.is.true＝印の 無い null の 行は 通る）
+            'dk_shifts?select=started_at&excluded=not.is.true&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
             '&started_at=gte.' +
             encodeURIComponent(tsuki + '-01T00:00:00') +
@@ -708,7 +709,8 @@
           DKSession.softList(SESS, q, LOAD).then(function (r) {
             var x = Array.isArray(r) && r.length ? r[0] : null;
             if (!x || !x.started_at) return;
-            var hi = String(x.started_at).slice(0, 10);
+            // ★この 画面の 日の 切り方（hiKey＝端末の 日）で★ 2026-10-07（前は UTC の 日付＝日本時間 0〜9時の 業務が 前の 日に なった）
+            var hi = hiKey(new Date(x.started_at));
             if (hi === HI) return;
             $('btnLastRun').textContent = '走った 日へ（' + hi.slice(5).replace('-', '/') + '）';
             $('btnLastRun').onclick = function () {
