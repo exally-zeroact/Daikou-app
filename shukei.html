@@ -1287,18 +1287,9 @@
               (SEIKYU_URI_NASHI.length > 3 ? ' ほか' : '') +
               '）';
           }
-          // ★★使わない 印の 業務に 打った 額★★ 2026-10-07（対立役 P：数えないので 黙って 消えない 様に 知らせる）
-          if (SHIRUSHI_UTTA.length) {
-            t +=
-              (t ? '　' : '') +
-              '使わない 印の 業務に 打った 電子決済・請求書・実費 ' +
-              SHIRUSHI_UTTA.length +
-              '件 は 数えていません（印を 外すと 数えます）';
-          }
           el.textContent = t;
           el.style.display = t ? '' : 'none';
         }
-        var SHIRUSHI_UTTA = [];
         function meisaiZenbu() {
           if (KAISHA_KAZU > 1) return Promise.resolve([]);
           var out = [];
@@ -1495,30 +1486,7 @@
           // ★shift_id から 業務を 引く★（日の 切り方は PayrollDaily.dateOf の 1か所）
           var SHIFT_BY_ID = {};
           (RAW.shifts || []).forEach(function (x) {
-            // ★使わない 印の 業務は 入れない★ 2026-10-07（印の 業務に 打った 電子決済・請求書を 月次に 足さない）
-            if (x && x.shift_id && x.excluded !== true) SHIFT_BY_ID[x.shift_id] = x;
-          });
-          // ★印の 業務に 打った 額を 数える（知らせ 用）★
-          var SHIRUSHI_ID = {};
-          (RAW.shifts || []).forEach(function (x) {
-            if (
-              x &&
-              x.shift_id &&
-              x.excluded === true &&
-              String(PayrollDaily.dateOf(x.started_at) || '').indexOf(YEAR + '-') === 0
-            )
-              SHIRUSHI_ID[x.shift_id] = 1;
-          });
-          SHIRUSHI_UTTA = (RAW.edits || []).filter(function (e) {
-            return (
-              e &&
-              SHIRUSHI_ID[e.shift_id] &&
-              (num(e.denshi_yen) ||
-                num(e.seikyu_yen) ||
-                num(e.toll_yen) ||
-                num(e.bridge_yen) ||
-                num(e.other_yen))
-            );
+            if (x && x.shift_id) SHIFT_BY_ID[x.shift_id] = x;
           });
           var kurumaNoHi = {};
           (RAW.edits || []).forEach(function (e) {

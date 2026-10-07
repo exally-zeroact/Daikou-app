@@ -1,15 +1,15 @@
 // ============================================================
-// ★★見張り：使わない 印の 業務は「その日 走った」に 数えない・月次の 電子決済に 足さない★★ 2026-10-07
+// ★★見張り：使わない 印の 業務は「その日 走った」に 数えない★★ 2026-10-07
 //
 //   司さん「前からある2つもやれ」の 残り（対立役 10-07 ⑤⑥）
 //   ★材料★ 1/10 に 1号車の 印の 業務（0円・電子決済 500 が 打ってある）＋ 同じ日・同じ車の 手入力 7,000
 //   ★物差し★
 //     売上表（uriage）・月次集計の 売上表（shukei）は 手入力の 7,000 を 数える（印の 業務に 隠されない）
-//     月次集計の 電子決済は 0（印の 業務に 打った 500 を 足さない）
+//     （印の 業務に 打った 電子決済・請求書の 扱いは お金の 出方＝司さんに 訊く。材料の 500 は 残すが 見ない）
 //
 //   ★★わざと壊して 赤に なるのを 見た（2026-10-07 実測）★★
 //     uriage の「走った」判定から excluded を 外す ⇒ ★赤★（7,000 が 出ない）
-//     shukei の SHIFT_BY_ID に 印の 業務を 入れる ⇒ ★赤★（電子決済 500）
+//     shukei の kyoriMoto の「走った」判定から excluded を 外す ⇒ ★赤★（距離 9.0km が 出ない）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -93,7 +93,7 @@ test('★売上表（uriage）：印の 業務と 同じ日・同じ車の 手�
   expect(err).toEqual([]);
 });
 
-test('★月次集計（shukei）：手入力 7,000 と 距離 9.0km を 数え・印の 業務の 電子決済 500 は 足さない★', async ({
+test('★月次集計（shukei）：手入力 7,000 と 距離 9.0km を 数える（印の 業務に 隠されない）★', async ({
   page,
 }) => {
   const err = [];
@@ -118,24 +118,6 @@ test('★月次集計（shukei）：手入力 7,000 と 距離 9.0km を 数え�
   console.log('★月次★ ' + JSON.stringify(r));
   expect(r.uri, '★手入力の 7,000 が 隠された★').toContain('7,000');
   expect(r.ky, '★手入力の 距離 9.0km が 隠された★').toContain('9.0');
-  // ★1月の 月次の 紙★（電子決済 0・現金 7,000）
-  await page.selectOption('#kamiTsuki', '1');
-  await page.locator('#kamiMonth').click();
-  await page.waitForTimeout(400);
-  const kami = (
-    (await page.locator('#kamiMado .kami-mise-waku').first().textContent()) || ''
-  ).replace(/\s+/g, ' ');
-  // eslint-disable-next-line no-console
-  console.log('★月次の紙★ ' + kami.slice(0, 300));
-  expect(kami, '★印の 業務に 打った 電子決済 500 を 足した（現金が 6,500）★').not.toContain(
-    '6,500'
-  );
-  expect(kami).toContain('7,000');
-  // ★数えない 額は 黙って 消さず 知らせる★（対立役 P）
-  const shirase = await page.evaluate(() => document.getElementById('seikyuShirase').textContent);
-  expect(shirase, '★印の 業務に 打った 額を 知らせていない★').toContain(
-    '使わない 印の 業務に 打った'
-  );
-  expect(shirase).toContain('1件');
+  // ★印の 業務に 打った 電子決済・請求書を 月次で どう 扱うかは 司さんに 訊いている（10-07）＝ここでは 見ない★
   expect(err).toEqual([]);
 });
