@@ -250,3 +250,150 @@ test('★字体が 入った 後も 事務所の 画面の 紙 ＝ PDF の 束�
   });
   expect(err).toEqual([]);
 });
+
+// ============================================================
+// ★★列の 幅は 紙と 同じ 字体で 測る（字体が 替わっても 字が 升から はみ出さない）★★ 2026-10-08（対立役）
+//   前は canvas で 'Noto Sans JP' だけで 測り、描く 字（DKKami・端末の 控え）と 幅が 違った
+//   ★わざと壊して 赤（2026-10-08 実測）★ _textW を 'Noto Sans JP' だけに 戻す ⇒ ★赤★（升から はみ出す）
+// ============================================================
+test('★字体が 大きく 替わっても 明細の 紙の 字は 升から はみ出さない・紙の 幅も 越えない★', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openKyuryo(page);
+  await page.waitForTimeout(800);
+  await page.evaluate(async () => {
+    const ff = new FontFace('DKKami', 'url(vendor/fonts/BIZUDPGothic-Regular.ttf)', {
+      sizeAdjust: '140%',
+    });
+    await ff.load();
+    document.fonts.add(ff);
+    window.dispatchEvent(new Event('dkkami-yonda'));
+  });
+  await page.waitForTimeout(800);
+  const r = await page.evaluate(() => {
+    const P = window.__paper;
+    const out = [];
+    for (let ei = 0; ei < P.ninzu(); ei++)
+      P.sheets(ei).forEach((el) => {
+        el.style.position = 'absolute';
+        el.style.left = '0';
+        el.style.top = '0';
+        document.body.appendChild(el);
+        const cells = Array.from(el.querySelectorAll('td,th'));
+        out.push({
+          haba: el.scrollWidth,
+          // ★字の 本当の 幅（Range）と 升の 中の 幅を 比べる★（升は overflow:visible の 物が 在り scrollWidth では はみ出しが 見えない）
+          over: cells.filter((c) => {
+            const cs = getComputedStyle(c);
+            const naka = c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            const rg = document.createRange();
+            rg.selectNodeContents(c);
+            return rg.getBoundingClientRect().width > naka + 0.5;
+          }).length,
+          cells: cells.length,
+        });
+        el.remove();
+      });
+    return { ari: document.fonts.check('15px DKKami'), out: out };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★字の 幅★ ' + JSON.stringify(r));
+  expect(r.ari, '★字体が 入っていない＝空回り★').toBe(true);
+  r.out.forEach((x, i) => {
+    expect(x.cells, '★升が 無い＝空回り★').toBeGreaterThan(0);
+    expect(x.over, '★' + (i + 1) + '枚目 升から はみ出した 字 ' + x.over + '個★').toBe(0);
+    expect(x.haba, '★' + (i + 1) + '枚目 紙の 幅 ' + x.haba + 'px★').toBeLessThanOrEqual(1123);
+  });
+  expect(err).toEqual([]);
+});
+
+// ============================================================
+// ★★本物の 字体（DKKami）で 11日の 期（10/21〜10/31）も 升から はみ出さない★★ 2026-10-08（対立役 1-b）
+//   前は 列の 幅を 'Noto Sans JP' で 測り、PDF の 字体では 日付の 升が 約 9px 足りなかった
+//   （最初に 当たるのは 10/21〜10/31 の 明細）。直した 後は 1人 2枚に 分かれる（字は 小さく しない）
+//   ★わざと壊して 赤（2026-10-08 実測）★ _textW を 'Noto Sans JP' だけに 戻す ⇒ ★赤★
+// ============================================================
+test('★本物の 字体で 10/21〜10/31（11日）の 明細の 字が 升から はみ出さない★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.clock.setFixedTime(new Date('2026-10-25T12:00:00+09:00'));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  // ★勤務を 10/22・10/31 に★（どの 月に 走らせても 同じ 月・期を 見る）
+  await openKyuryo(
+    page,
+    (f) => {
+      const okikae = (o) => {
+        if (Array.isArray(o)) return o.map(okikae);
+        if (o && typeof o === 'object') {
+          const r = {};
+          Object.keys(o).forEach((k) => (r[k] = okikae(o[k])));
+          return r;
+        }
+        if (typeof o === 'string')
+          return o.replace(/\d{4}-\d{2}-(01|02)(?=$|[ T])/g, (_m, d) =>
+            d === '01' ? '2026-10-22' : '2026-10-31'
+          );
+        return o;
+      };
+      return okikae(f);
+    },
+    { matanai: true }
+  );
+  // ★21日〜末日 の 期へ★
+  await page.waitForFunction(() => document.querySelectorAll('[data-pidx]').length === 3, null, {
+    timeout: 15000,
+  });
+  await page.click('[data-pidx="2"]');
+  await page.waitForFunction(() => window.__paper && window.__paper.ninzu() > 0, null, {
+    timeout: 15000,
+  });
+  await page.evaluate(
+    () =>
+      new Promise((ok, ng) => {
+        const s = document.createElement('script');
+        s.src = 'js/kami-egaku.js';
+        s.onload = () => window.KamiEgaku.yomu().then(ok, ng);
+        s.onerror = ng;
+        document.head.appendChild(s);
+      })
+  );
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => {
+    const P = window.__paper;
+    const out = [];
+    for (let ei = 0; ei < P.ninzu(); ei++)
+      P.sheets(ei).forEach((el) => {
+        el.style.position = 'absolute';
+        el.style.left = '0';
+        el.style.top = '0';
+        document.body.appendChild(el);
+        const cells = Array.from(el.querySelectorAll('td,th'));
+        out.push({
+          hi: P.hi(ei),
+          haba: el.scrollWidth,
+          // ★字の 本当の 幅（Range）と 升の 中の 幅を 比べる★（升は overflow:visible の 物が 在り scrollWidth では はみ出しが 見えない）
+          over: cells.filter((c) => {
+            const cs = getComputedStyle(c);
+            const naka = c.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            const rg = document.createRange();
+            rg.selectNodeContents(c);
+            return rg.getBoundingClientRect().width > naka + 0.5;
+          }).length,
+        });
+        el.remove();
+      });
+    return { ari: document.fonts.check('15px DKKami'), out: out };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★11日★ ' + JSON.stringify(r));
+  expect(r.ari, '★字体が 入っていない＝空回り★').toBe(true);
+  expect(r.out[0].hi, '★11日の 期で ない＝空回り★').toBe(11);
+  r.out.forEach((x, i) => {
+    expect(x.over, '★' + (i + 1) + '枚目 升から はみ出した 字 ' + x.over + '個★').toBe(0);
+    expect(x.haba, '★' + (i + 1) + '枚目 紙の 幅 ' + x.haba + 'px★').toBeLessThanOrEqual(1123);
+  });
+  expect(err).toEqual([]);
+});

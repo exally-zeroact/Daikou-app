@@ -3839,7 +3839,9 @@
         var _measCtx = null;
         function _textW(text, px, weight) {
           if (!_measCtx) _measCtx = document.createElement('canvas').getContext('2d');
-          _measCtx.font = (weight || 400) + ' ' + px + "px 'Noto Sans JP', sans-serif";
+          // ★紙と 同じ 字体で 測る★ 2026-10-08（対立役：前は 'Noto Sans JP' だけで 測り、描く 字（DKKami・端末の 控え）と
+          //   違う 幅で 列を 決めた＝字体が 替わると 字が 列から はみ出し得た）
+          _measCtx.font = (weight || 400) + ' ' + px + "px 'DKKami', 'Noto Sans JP', sans-serif";
           return _measCtx.measureText(String(text || '')).width;
         }
 
@@ -4766,6 +4768,8 @@
         //   画面の 紙は 控えの 字体で 測って 組む。PDF（明細・給料表 どちらでも）を 押して DKKami が 入ると
         //   字の 幅・高さが 変わり 組んだ 紙が 切れ得た ⇒ js/kami-egaku.js が 字体を 足した 直後に 出す 合図で 組み直す
         window.addEventListener('dkkami-yonda', function () {
+          // ★測る canvas を 作り直す★ 2026-10-08（対立役：WebKit は 使い回した canvas が 字体を 足す 前の 幅を 返した）
+          _measCtx = null;
           try {
             if (!HONNIN) kamiMadoNuru();
           } catch (_) {
