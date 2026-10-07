@@ -2104,7 +2104,14 @@
             //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
             if (Array.isArray(r.crew)) RAW.crew = r.crew;
             // ★自分の 手当・控除★ 2026-10-06（倉庫の 関数が 本人の 分だけ 返す）
-            RAW.adjustments = Array.isArray(r.adjustments) ? r.adjustments : [];
+            // ★返って こない（古い 倉庫の 関数）時は 止める★ 2026-10-07（前は 空＝控除 0 の 明細が 出た・対立役）
+            if (!Array.isArray(r.adjustments)) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">手当・控除を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+              return;
+            }
+            RAW.adjustments = r.adjustments;
             HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET);
             // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
@@ -2146,7 +2153,7 @@
         // ★★払い方（締め）が 読めない 時の 文★★ 2026-10-07（金額を 出さずに 止める）
         function shimeDameBun(kata) {
           // ★通信で 読めなかった 時は「選び直して」でなく「開き直して」★（対立役：選び直して 保存すると 本物の 設定が 既定で 上書き）
-          if (kata && /通信/.test(kata.riyuu || ''))
+          if (kata && kata.tsushin === true)
             return '給料の 設定を 読めなかったので 止めました（通信）。もう一度 開いてください。';
           return (
             '給料の 払い方の 設定が 読めないので 止めました（' +
@@ -3319,11 +3326,13 @@
             nurikae();
         });
         $('prevM').onclick = function () {
+          YM_KIMETA = true; // ★押した 月を 守る★（設定を 読み終わる 前でも 今日の 月へ 戻さない・対立役 10-07）
           YM = PayrollPeriod.shift(YM, -1);
           PIDX = 0;
           loadPeriod();
         };
         $('nextM').onclick = function () {
+          YM_KIMETA = true;
           YM = PayrollPeriod.shift(YM, 1);
           PIDX = 0;
           loadPeriod();
@@ -3457,7 +3466,12 @@
         }
 
         // 期間に関係ない物（従業員・車名・決め方）
+        // ★★読めなかった 数は「期間に 関係ない 物」と「期間の 物」に 分ける★★ 2026-10-07
+        //   前は 1度 読めないと 数が 戻らず、もう一度 読んでも 帯が 消えなかった（明細の PDF を 止める 様に したので 直す）
+        var LOAD_KIHON = { tried: 0, failed: 0 };
         function loadMasters() {
+          LOAD.tried = 0;
+          LOAD.failed = 0;
           Promise.all([
             soft('dk_employees?select=*&order=sort_order.asc&limit=500'),
             soft('dk_device_labels?select=*&limit=500'),
@@ -3472,6 +3486,8 @@
             LOAD.tried += SET_YOMI.tried; // ★取れなかった 帯にも 出す★
             LOAD.failed += SET_YOMI.failed;
             if (SET_YOMI.failed > 0) SET = { yomenai: true }; // ★止める 印★（PayrollPeriod.yomu が dame に する）
+            SET_YONDA = true;
+            LOAD_KIHON = { tried: LOAD.tried, failed: LOAD.failed };
             RAW.payrollSettings = SET;
             RAW.salesSettings = (res[3] && res[3][0]) || null;
             // ★★配る 一覧を 最初から 出す★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
@@ -3483,8 +3499,15 @@
         }
 
         // 期間ぶん（勤務・手入力・時数）
+        var LP_NO = 0; // ★読みの 番号★（古い 返事を 捨てる）
+        var SET_YONDA = false; // ★給料の 設定を 読み終えたか★（読む 前は 締めの 形が 分からない）
         function loadPeriod() {
           if (!COMPANY) return;
+          // ★設定を 読み終える 前は 組まない★ 2026-10-07（読む 前は 月3回に 見え、20日締めの 会社でも 月3回で 明細を 組んだ・対立役 Q）
+          if (!SET_YONDA) return;
+          var lpNo = ++LP_NO;
+          LOAD.tried = LOAD_KIHON.tried; // ★期間の 分は 読み直す 度に 数え直す★
+          LOAD.failed = LOAD_KIHON.failed;
           var st = PayrollDaily.normSettings(SET);
           // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
           //   読めない ⇒ ★止める★（前は 知らない 値を 黙って 月3回に した）
@@ -3566,6 +3589,8 @@
                 '&order=work_date.asc,created_at.asc&limit=5000'
             ),
           ]).then(function (res) {
+            // ★古い 返事は 捨てる★ 2026-10-07（月を 素早く 送ると 前の 月の 返事が 後から 上書きした・対立役 Q）
+            if (lpNo !== LP_NO) return;
             RAW.shifts = res[0] || [];
             RAW.adjustments = res[4] || [];
             RAW.edits = res[1] || [];
@@ -3578,7 +3603,11 @@
             showMsg('');
             recalc();
             render();
-            afterLoad(loadPeriod); // ★取れなかった物があれば 画面の上に出す★
+            // ★取れなかった物があれば 画面の上に出す★（期間に 関係ない 物が 読めなかった 時は そこから 読み直す）
+            afterLoad(function () {
+              if (LOAD_KIHON.failed > 0) loadMasters();
+              else loadPeriod();
+            });
           });
         }
 
@@ -4205,6 +4234,12 @@
 
         // ★★1人ぶん★★
         function printOne(ei) {
+          if (DKSession.loadFailed(LOAD)) {
+            showErr(
+              '読めなかった 物が あるので 明細の PDF は 作りません。上の「もう一度読む」を 押してください。'
+            );
+            return;
+          }
           var box = document.getElementById('slip-' + ei);
           var emp = REP && REP.employees ? REP.employees[ei] : null;
           if (!box || !emp) {
@@ -4251,6 +4286,14 @@
           }
           if (!boxes.length) {
             showErr(dake && dake.length ? '選んだ人の 明細が ありません。' : '明細がありません。');
+            return;
+          }
+          // ★★読めなかった 物が 在る 時は 明細の PDF を 作らない★★ 2026-10-07（対立役：手当・控除が 読めないと
+          //   控除の 無い 明細が 出た＝司さん「計算できなければ 止めて 警告」）
+          if (DKSession.loadFailed(LOAD)) {
+            showErr(
+              '読めなかった 物が あるので 明細の PDF は 作りません。上の「もう一度読む」を 押してください。'
+            );
             return;
           }
           var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');

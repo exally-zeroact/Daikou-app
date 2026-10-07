@@ -1195,7 +1195,11 @@
           var r = kamiTsukuru(KAMI_SHU);
           if (!r)
             return kamiMsg(
-              SHIME_DAME ? '払い方の 設定が 読めないので 紙は 出せません' : '読み込み中…'
+              SHIME_DAME
+                ? SHIME_TSUSHIN
+                  ? '給料の 設定を 読めなかったので 紙は 出せません（もう一度 開いてください）'
+                  : '払い方の 設定が 読めないので 紙は 出せません'
+                : '読み込み中…'
             );
           KamiPdf.mise($('kamiMado'), r.mai, function () {
             var r2 = kamiTsukuru(KAMI_SHU);
@@ -1583,10 +1587,12 @@
           //   （前は 0円の 給料で 黙って 進んだ・対立役）
           if (YR && YR.total && YR.total.dame) {
             SHIME_DAME = YR.total.riyuu || '払い方の 設定が 読めません';
+            SHIME_TSUSHIN = YR.total.tsushin === true;
             YR = null;
             return;
           }
           SHIME_DAME = '';
+          SHIME_TSUSHIN = false;
           try {
             kamiTsukiSel(); // ★PDFの 月の 選択肢★（年を 変えた 時も 作り直す）
             // ★選んでいる 紙を 画面に 出す★（描き終わった 後＝同じ 数を 使う）2026-10-05
@@ -2014,11 +2020,12 @@
         })();
 
         var SHIME_DAME = '';
+        var SHIME_TSUSHIN = false; // ★通信で 読めなかった 印★（文の 字では 分けない）
         function render() {
           $('yearLabel').textContent = YEAR + '年';
           if (SHIME_DAME) {
             showErr(
-              /通信/.test(SHIME_DAME)
+              SHIME_TSUSHIN
                 ? '給料の 設定を 読めなかったので 止めました（通信）。もう一度 開いてください。'
                 : '給料の 払い方の 設定が 読めないので 止めました（' +
                     SHIME_DAME +

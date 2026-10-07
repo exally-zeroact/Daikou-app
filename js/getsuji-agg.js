@@ -118,6 +118,7 @@
       if (kata.dame) {
         out.dame = true;
         out.riyuu = kata.riyuu || '払い方の 設定が 読めません';
+        out.tsushin = kata.tsushin === true;
         return out;
       }
       out.kind = kata.kind;
@@ -203,6 +204,7 @@
         if (mm.dame) {
           out.total.dame = true;
           out.total.riyuu = mm.riyuu;
+          out.total.tsushin = mm.tsushin === true;
         }
       });
       const byIdx = {};

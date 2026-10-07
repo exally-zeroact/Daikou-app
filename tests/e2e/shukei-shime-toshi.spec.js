@@ -17,7 +17,7 @@ const path = require('path');
 const CO = '11111111-2222-3333-4444-555555555555';
 test.use({ timezoneId: 'Asia/Tokyo' });
 
-function shift(id, dev, hi, yen) {
+function shift(id, dev, hi, yen, sou) {
   return {
     shift_id: id,
     device_id: dev,
@@ -27,15 +27,15 @@ function shift(id, dev, hi, yen) {
     fare_total_yen: yen,
     trip_count: 1,
     actual_total_m: 1000,
-    total_distance_m: 2000,
+    total_distance_m: sou,
   };
 }
 const T = {
   dk_shifts: [
-    shift('s0', 'd1', '2025-12-15', 10000), // 前の年
-    shift('s1', 'd1', '2026-01-10', 3000),
-    shift('s2', 'd1', '2026-12-15', 20000),
-    shift('s3', 'd2', '2027-01-10', 7000), // 次の年・別の 車
+    shift('s0', 'd1', '2025-12-15', 10000, 11000), // 前の年
+    shift('s1', 'd1', '2026-01-10', 3000, 3000),
+    shift('s2', 'd1', '2026-12-15', 20000, 5000),
+    shift('s3', 'd2', '2027-01-10', 7000, 13000), // 次の年・別の 車
   ],
   dk_device_labels: [
     { device_id: 'd1', label: '1号車', sort_order: 1 },
@@ -106,5 +106,32 @@ test('★売上表は 2026年の 日だけ（前後の 年の 売上・車を �
   await page.waitForTimeout(300);
   const m = await page.evaluate(() => (document.getElementById('uriBody') || {}).textContent || '');
   expect(m, '★12月に 前の年の 12月が 混ざった★').not.toContain('30,000');
+
+  // ★★距離の 年間（kyoriMoto の 年の 切り）★★ 2026年＝3.0＋5.0＝8.0km（混ざると 32.0）・回数 2
+  await page.evaluate(() => document.querySelector('[data-kyori="year"]').click());
+  await page.waitForTimeout(300);
+  const ky = await page.evaluate(
+    () => (document.getElementById('kyoriBody') || {}).textContent || ''
+  );
+  // eslint-disable-next-line no-console
+  console.log('★距離★ ' + ky.slice(0, 200));
+  expect(ky, '★距離の 年間が 8.0km で ない★').toContain('8.0');
+  expect(ky, '★前後の 年の 距離が 混ざった★').not.toContain('32.0');
+
+  // ★★紙（kamiCarsOf・kamiUriageHi）★★ 売上表（年）＝23,000・12月＝20,000・次の年の 車 無し
+  const kami = page.locator('#kamiMado .kami-mise-waku');
+  // ★月の 紙を 先に（年の 紙は 月の 箱を 隠す）★
+  await page.selectOption('#kamiTsuki', '12');
+  await page.locator('#kamiUriM').click();
+  await page.waitForTimeout(400);
+  const k12 = ((await kami.first().textContent()) || '').replace(/\s+/g, ' ');
+  expect(k12, '★12月の 紙が 20,000 で ない★').toContain('20,000');
+  expect(k12, '★12月の 紙に 前の 年の 12月★').not.toContain('30,000');
+  await page.locator('#kamiYear').click();
+  await page.waitForTimeout(400);
+  const kn = ((await kami.first().textContent()) || '').replace(/\s+/g, ' ');
+  expect(kn, '★年の 紙が 23,000 で ない★').toContain('23,000');
+  expect(kn, '★年の 紙に 前後の 年が 混ざった★').not.toContain('40,000');
+  expect(kn, '★年の 紙に 次の 年の 車★').not.toContain('2号車');
   expect(err).toEqual([]);
 });

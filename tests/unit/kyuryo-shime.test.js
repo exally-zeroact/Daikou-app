@@ -232,6 +232,12 @@ describe('★月次集計の 給料＝締めた 分★', () => {
     expect(G.year(2026, c, []).total.dame).toBe(true);
     // ★読めなかった 行（通信）★
     expect(P.yomu({ yomenai: true }).dame).toBe(true);
+    // ★「開き直して」は 文の 字でなく 印で 分ける★（対立役 10-07 B）
+    expect(P.yomu({ yomenai: true }).tsushin).toBe(true);
+    expect(P.yomu({ period_end_mode: 'month_end' }).tsushin).toBeUndefined();
+    const c2 = ctxOf(null);
+    c2.settings.periodKata = P.yomu({ yomenai: true });
+    expect(G.year(2026, c2, []).total.tsushin).toBe(true);
   });
 
   it('★毎日・週は 年の 期の 列を 出さない★／月3回は 数の 順', () => {

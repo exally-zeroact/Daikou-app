@@ -71,6 +71,7 @@ async function nise(page, hajimete) {
         shifts: [],
         edits: [],
         workHours: [],
+        adjustments: [], // ★本物の 関数は 必ず 返す（10-07：返らない 時は 止める 様に した）★
         manualDays: [],
       }),
     })

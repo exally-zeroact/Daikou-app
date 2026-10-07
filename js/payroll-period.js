@@ -198,7 +198,11 @@
     try {
       if (!row || typeof row !== 'object') return { ok: true, kata: { kind: 'thirds' } };
       // ★設定の 行を 読めなかった（通信）＝行が 無い（新しい 会社＝月3回）とは 別★（対立役 10-07 D）
-      if (row.yomenai === true) return dame('給料の 設定を 読めませんでした（通信）');
+      if (row.yomenai === true) {
+        const d = dame('給料の 設定を 読めませんでした（通信）');
+        d.tsushin = true; // ★文の 字でなく この 印で「開き直して」を 出す★（対立役 10-07 B）
+        return d;
+      }
       const sh = row.period_shime;
       if (sh !== null && sh !== undefined) return seiki(sh); // ★壊れて いても 昔の 列へ 戻らない★
       const m = row.period_end_mode;
