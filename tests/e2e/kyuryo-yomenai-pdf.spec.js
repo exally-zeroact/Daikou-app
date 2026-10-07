@@ -442,3 +442,26 @@ for (const [na, sousa, kitai] of [
     expect(err).toEqual([]);
   });
 }
+
+// ★★期を 変えて 読み終わった 後は 普段 通り 明細の PDF が 1回 出る（止めっぱなしに しない）★★ 2026-10-08（対立役）
+//   ★わざと壊して 赤（2026-10-08 実測）★ 読み終わった 後に LP_YOMICHU を 下ろす 行を 消す ⇒ ★赤★（「読み込み中」の まま）
+test('★期を 変えて 読み終わった 後に 押す ⇒ 明細の PDF が 1回 出る★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await kazoeru(page, false);
+  await openKyuryo(page);
+  await page.click('[data-pidx="1"]');
+  await page.waitForFunction(() => window.__paper && window.__paper.ninzu() > 0);
+  await page.waitForTimeout(800);
+  await page.click('#btnPrint');
+  await page.waitForFunction(() => window.__dasu > 0, null, { timeout: 15000 }).catch(() => {});
+  const r = await page.evaluate(() => ({
+    dasu: window.__dasu,
+    err: document.getElementById('err').textContent,
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★読み終わった 後★ ' + JSON.stringify(r));
+  expect(r.dasu, '★読み終わった のに 明細の PDF が 出ない（止めっぱなし）★').toBe(1);
+  expect(r.err).not.toContain('読み込み中');
+  expect(err).toEqual([]);
+});

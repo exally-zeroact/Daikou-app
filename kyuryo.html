@@ -3632,7 +3632,6 @@
           ]).then(function (res) {
             // ★古い 返事は 捨てる★ 2026-10-07（月を 素早く 送ると 前の 月の 返事が 後から 上書きした・対立役 Q）
             if (lpNo !== LP_NO) return;
-            LP_YOMICHU = false;
             RAW.shifts = res[0] || [];
             RAW.adjustments = res[4] || [];
             RAW.edits = res[1] || [];
@@ -3644,6 +3643,8 @@
             });
             showMsg('');
             recalc();
+            // ★読み込み中の 印は 計算し終えた 後で 下ろす★（前で 下ろすと recalc が 投げた 時に 新しい 期・古い 中身で 押せた・対立役）
+            LP_YOMICHU = false;
             render();
             // ★取れなかった物があれば 画面の上に出す★（期間に 関係ない 物が 読めなかった 時は そこから 読み直す）
             yomiNaoshiObi();
