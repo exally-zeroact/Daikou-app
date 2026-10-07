@@ -189,8 +189,11 @@ test('★設定を 読み終わる 前に 給料表を 押す ⇒「読み込み
     { matanai: true }
   );
   // ★設定が 返る 前（3秒 遅れ）に 押す★
-  await page.waitForFunction(() => !!document.getElementById('kamiTsuki'));
-  await page.waitForTimeout(500);
+  // ★押す 口（onclick）が 付くまで 待つ★（固定の 待ちに しない・対立役 10-08）
+  await page.waitForFunction(() => {
+    const b = document.getElementById('kamiTsuki');
+    return !!(b && b.onclick);
+  });
   const mae = await page.evaluate(() => {
     document.getElementById('kamiCard').open = true;
     document.getElementById('kamiTsuki').click();
@@ -207,9 +210,18 @@ test('★設定を 読み終わる 前に 給料表を 押す ⇒「読み込み
     timeout: 15000,
   });
   await page.evaluate(() => document.getElementById('kamiTsuki').click());
-  await page.waitForTimeout(2500);
+  // ★「出しました」まで 待つ★（前は「読み込み中で ない」だけ＝別の 訳で 止まっても 緑・対立役 10-08）
+  await page
+    .waitForFunction(
+      () => /出しました/.test(document.getElementById('kamiNote').textContent),
+      null,
+      {
+        timeout: 15000,
+      }
+    )
+    .catch(() => {});
   const ato = await page.evaluate(() => document.getElementById('kamiNote').textContent);
-  expect(ato, '★読み終わった 後も 作れない★').not.toContain('読み込み中');
+  expect(ato, '★読み終わった 後も 作れない（止めっぱなし）★').toContain('出しました');
   expect(err).toEqual([]);
 });
 
