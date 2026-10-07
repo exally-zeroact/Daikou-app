@@ -68,45 +68,62 @@ async function hiraku(page, ura) {
   await page.waitForTimeout(2400);
 }
 
-test('★★① 払い方で 要る 欄だけ 出る★★', async ({ page }) => {
+test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形に 作り直し）', async ({ page }) => {
   await hiraku(page, '?henshu=1#set');
   const yomu = () =>
-    page.evaluate(() => ({
-      mode: (document.getElementById('pMode') || {}).value || '',
-      start: !!(document.getElementById('pStartRow') || {}).offsetHeight,
-      days: !!(document.getElementById('pDaysRow') || {}).offsetHeight,
-      msg: (document.getElementById('pMsg') || {}).textContent || '',
-    }));
+    page.evaluate(() => {
+      const mie = (id) => !!(document.getElementById(id) || {}).offsetHeight;
+      return {
+        mode: (document.getElementById('pMode') || {}).value || '',
+        hi: mie('pShimeHiRow'),
+        narabe: mie('pNarabeRow'),
+        youbi: mie('pYoubiRow'),
+        nazuke: mie('pNazukeRow'),
+        msg: (document.getElementById('pMsg') || {}).textContent || '',
+      };
+    });
 
-  // ★月3回★＝区切りは 決まっている ⇒ 欄は 2つとも 出さない
+  // ★月3回★＝区切りは 決まっている ⇒ 欄は 出さない・何月分も 要らない
   await page.selectOption('#pMode', 'thirds');
   await page.waitForTimeout(200);
   const a = await yomu();
   // eslint-disable-next-line no-console
   console.log('★月3回★ ' + JSON.stringify(a));
-  expect(a.start, '★月3回なのに「何日から」が 出ています★').toBe(false);
-  expect(a.days, '★月3回なのに「何日ごと」が 出ています★').toBe(false);
-  expect(a.msg, '★今の 区切りが 書いてありません★').toContain('1〜10日');
+  expect([a.hi, a.narabe, a.youbi, a.nazuke], '★月3回なのに 欄が 出ています★').toEqual([
+    false,
+    false,
+    false,
+    false,
+  ]);
+  expect(a.msg, '★今の 区切りが 書いてありません★').toMatch(/\d+\/1 ~ \d+\/10/);
 
-  // ★月1回★＝「何日から」だけ
-  await page.selectOption('#pMode', 'month_end');
+  // ★月1回（何日かで 締める）★＝「何日に 締める」＋（月を またぐので）「何月分」
+  await page.selectOption('#pMode', 'tsuki1');
+  await page.fill('#pShimeHi', '20');
   await page.waitForTimeout(200);
   const b = await yomu();
   // eslint-disable-next-line no-console
-  console.log('★月1回★ ' + JSON.stringify(b));
-  expect(b.start, '★「何日から」が 出ていません★').toBe(true);
-  expect(b.days, '★月1回なのに「何日ごと」が 出ています★').toBe(false);
-  expect(b.msg, '★今の 区切りが 書いてありません★').toContain('翌月');
+  console.log('★20日締め★ ' + JSON.stringify(b));
+  expect(b.hi, '★「何日に 締める」が 出ていません★').toBe(true);
+  expect(b.nazuke, '★月を またぐのに「何月分」が 出ていません★').toBe(true);
+  expect(b.msg, '★何月分が 決まっていないのに 区切りを 出した★').toContain('決まっていません');
 
-  // ★日数で切る★＝両方
-  await page.selectOption('#pMode', 'days');
+  // ★週1回★＝曜日＋何月分
+  await page.selectOption('#pMode', 'shuu');
+  await page.selectOption('#pNazuke', 'shime');
   await page.waitForTimeout(200);
   const c = await yomu();
   // eslint-disable-next-line no-console
-  console.log('★日数で切る★ ' + JSON.stringify(c));
-  expect(c.start, '★「何日から」が 出ていません★').toBe(true);
-  expect(c.days, '★「何日ごと」が 出ていません★').toBe(true);
-  expect(c.msg, '★今の 区切りが 書いてありません★').toContain('日ごと');
+  console.log('★週★ ' + JSON.stringify(c));
+  expect([c.hi, c.youbi, c.nazuke]).toEqual([false, true, true]);
+  expect(c.msg, '★区切りが 書いてありません★').toMatch(/\d+\/\d+ ~ \d+\/\d+/);
+
+  // ★毎日★＝欄は 何も 要らない
+  await page.selectOption('#pMode', 'hi');
+  await page.waitForTimeout(200);
+  const d = await yomu();
+  expect([d.hi, d.narabe, d.youbi, d.nazuke]).toEqual([false, false, false, false]);
+  expect(d.msg).toContain('1日ずつ');
 });
 
 test('★★② 明細に出す の 2か所が 名前で 分かる★★', async () => {

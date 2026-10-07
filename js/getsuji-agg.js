@@ -108,16 +108,24 @@
       });
 
       // ── 給料（期ごと）と 積立・ZERO ──
-      const periods = Period.periodsOf(y, m, {
-        endMode: ctx.settings && ctx.settings.periodEndMode,
-        startDay: ctx.settings && ctx.settings.periodStartDay,
-        days: ctx.settings && ctx.settings.periodDays,
-      });
+      // ★★締めの 形は 設定の 1か所（normSettings の periodKata）から★★ 2026-10-07
+      //   読めない ⇒ ★止める★（out.dame・給料と 会社に残る分を 出さない）＝前は 0円で 黙って 進んだ
+      //   ★形が 無い 時も 止める★（月3回に 倒さない・対立役 10-07 C）
+      const kata = (ctx.settings && ctx.settings.periodKata) || {
+        dame: true,
+        riyuu: '払い方の 設定が ありません',
+      };
+      if (kata.dame) {
+        out.dame = true;
+        out.riyuu = kata.riyuu || '払い方の 設定が 読めません';
+        return out;
+      }
+      out.kind = kata.kind;
+      const periods = Period.periodsOf(y, m, { kata: kata });
       periods.forEach(function (p) {
-        // ★期が月をまたぐ設定でも、月次集計はその月の日だけ数える★
-        const ds = arr(p.dates).filter(function (d) {
-          return inMonth[d];
-        });
+        // ★★給料は その月に 締めた 期の 全部の 日★★（司さん 10-07「イ」＝月を またぐ 期も 期の 全部）
+        //   足し順は 今まで 通り（期の 中の 日 → 期の 小計 → 月）＝月3回の 数は ビットで 変わらない
+        const ds = arr(p.dates);
         let pay = 0;
         ds.forEach(function (date) {
           const day = Daily.computeDay(date, ctx);
@@ -190,16 +198,34 @@
         });
       });
       out.total.label = '合計';
-      // 期ごとの年間合計
+      // 期ごとの年間合計（★月の 締め日の 並び（月3回 等）だけ★＝週・毎日は 何番目に 意味が 無い）
+      out.months.forEach(function (mm) {
+        if (mm.dame) {
+          out.total.dame = true;
+          out.total.riyuu = mm.riyuu;
+        }
+      });
       const byIdx = {};
       out.months.forEach(function (mm) {
+        if (mm.kind !== 'thirds' && mm.kind !== 'tsuki') return;
         arr(mm.periods).forEach(function (p) {
-          if (!byIdx[p.index]) byIdx[p.index] = { index: p.index, name: p.name, pay: 0 };
+          if (!byIdx[p.index])
+            byIdx[p.index] = {
+              index: p.index,
+              // ★月を またぐ 期は 月ごとに 日付が 違う＝年の 列は「n回目」★
+              name:
+                String(p.start).slice(0, 7) !== String(p.end).slice(0, 7)
+                  ? p.index + 1 + '回目'
+                  : p.name,
+              pay: 0,
+            };
           byIdx[p.index].pay += n(p.pay);
         });
       });
       out.total.periods = Object.keys(byIdx)
-        .sort()
+        .sort(function (a, b) {
+          return Number(a) - Number(b);
+        })
         .map(function (k) {
           return byIdx[k];
         });

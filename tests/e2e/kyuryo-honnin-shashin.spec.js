@@ -36,7 +36,7 @@ const EMP = {
 const SET = {
   company_id: 'c1',
   period_start_day: 21,
-  period_end_mode: 'month3',
+  period_end_mode: 'thirds', // ★10-07：前は 'month3'（知らない 値＝黙って 月3回）。今は 止まるので 本当の 値に
   period_days: 11,
   show_car_sales: true,
   roles: { 甲: { rate: 0.3, floor: 1000 } },

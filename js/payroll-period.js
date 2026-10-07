@@ -107,6 +107,8 @@
       const now = new Date();
       const y = n(year, now.getFullYear());
       const m = n(month, now.getMonth() + 1);
+      // ★★締めの 形（kata）が 来たら そちらだけ★★ 2026-10-07（画面・集計は 全部 これ）
+      if (opts && opts.kata) return kataPeriods(y, m, opts.kata);
       const raw = opts && opts.endMode;
       const endMode = raw === 'days' || raw === 'month_end' ? raw : DEFAULT_END_MODE;
 
@@ -134,6 +136,169 @@
       return [build(y, m, startDay, days, 0, startDay + '日〜', endMode)];
     } catch (_) {
       return [emptyPeriod()];
+    }
+  }
+
+  // ============================================================
+  // ★★締めの 形（period_shime）★★ 2026-10-07
+  //   司さん「この払い方がまだ対応できてないやろが」（月3回／月1回／日数 の 3つ だけ だった）
+  //   司さんの 決め（10-07）: 何月分と 呼ぶかは ★会社が 選ぶ★（nazuke）・月次の 給料は 締めた 分
+  //   形:
+  //     {kind:'tsuki', hi:[10,20,0], nazuke}  締め日の 並び（0＝末日・その月に 無い 日は 末日）
+  //     {kind:'shuu', youbi:0..6(0=日), nazuke} 週1回
+  //     {kind:'hi'}                              毎日
+  //     nazuke: 'shime'＝締めた 日の 月の 分 ／ 'hajime'＝始まった 日の 月の 分
+  //   ★期が 月を またぐ 形で nazuke が 無い ⇒ 止める★（既定で 決め打ちしない）
+  //   読み方は yomu だけ（壊れた・知らない・昔の month_end/days ⇒ dame＝止めて 警告）
+  // ============================================================
+  const NAZUKE = { shime: 1, hajime: 1 };
+  function dame(riyuu) {
+    return { dame: true, riyuu: riyuu };
+  }
+  function seisu(v) {
+    return typeof v === 'number' && isFinite(v) && Math.floor(v) === v;
+  }
+  // 締めの 形を 確かめて 整える（壊れて いれば dame）
+  function seiki(sh) {
+    if (!sh || typeof sh !== 'object') return dame('締めの 形が 読めません');
+    if (sh.kind === 'hi') return { ok: true, kata: { kind: 'hi' } };
+    if (sh.kind === 'tsuki') {
+      if (!Array.isArray(sh.hi) || !sh.hi.length || sh.hi.length > 31)
+        return dame('締め日が 入っていません');
+      const seen = {};
+      const hi = [];
+      for (let i = 0; i < sh.hi.length; i++) {
+        const h = sh.hi[i];
+        if (!seisu(h) || h < 0 || h > 31) return dame('締め日が おかしい: ' + h);
+        const k = h === 31 ? 0 : h; // 31日締め ＝ 末日締め
+        if (!seen[k]) {
+          seen[k] = 1;
+          hi.push(k);
+        }
+      }
+      hi.sort(function (a, b) {
+        return (a || 99) - (b || 99);
+      });
+      // ★今の 月3回（1〜10／11〜20／21〜末日）と 同じ 形は 今の 道を そのまま 通す★
+      if (hi.length === 3 && hi[0] === 10 && hi[1] === 20 && hi[2] === 0)
+        return { ok: true, kata: { kind: 'thirds' } };
+      const kosu = hi[hi.length - 1] !== 0; // 最後が 末日で ない ＝ 月を またぐ 期が ある
+      if (kosu && !NAZUKE[sh.nazuke]) return dame('何月分と 呼ぶかが 決まっていません');
+      return { ok: true, kata: { kind: 'tsuki', hi: hi, nazuke: kosu ? sh.nazuke : 'shime' } };
+    }
+    if (sh.kind === 'shuu') {
+      if (!seisu(sh.youbi) || sh.youbi < 0 || sh.youbi > 6) return dame('締めの 曜日が おかしい');
+      if (!NAZUKE[sh.nazuke]) return dame('何月分と 呼ぶかが 決まっていません');
+      return { ok: true, kata: { kind: 'shuu', youbi: sh.youbi, nazuke: sh.nazuke } };
+    }
+    return dame('知らない 締めの 形: ' + String(sh.kind));
+  }
+  // ★会社の 設定の 行から 締めの 形を 読む（ここ 1か所）★
+  function yomu(row) {
+    try {
+      if (!row || typeof row !== 'object') return { ok: true, kata: { kind: 'thirds' } };
+      // ★設定の 行を 読めなかった（通信）＝行が 無い（新しい 会社＝月3回）とは 別★（対立役 10-07 D）
+      if (row.yomenai === true) return dame('給料の 設定を 読めませんでした（通信）');
+      const sh = row.period_shime;
+      if (sh !== null && sh !== undefined) return seiki(sh); // ★壊れて いても 昔の 列へ 戻らない★
+      const m = row.period_end_mode;
+      if (m === 'thirds' || m === '' || m === null || m === undefined)
+        return { ok: true, kata: { kind: 'thirds' } };
+      // ★昔の month_end／days・知らない 値 は 区切りを 黙って 変えない＝止める★（本番 0社・10-07）
+      return dame('払い方の 設定（' + String(m) + '）が 今の 作りでは 読めません');
+    } catch (_) {
+      return dame('払い方の 設定が 読めません');
+    }
+  }
+
+  function addDays(d, k) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + k);
+  }
+  function ymKey(d) {
+    return d.getFullYear() * 12 + d.getMonth();
+  }
+  // 締め日（Date）の 並び → 期（start〜end）
+  function kugiru(shimebi) {
+    const out = [];
+    for (let i = 1; i < shimebi.length; i++) {
+      out.push({ start: addDays(shimebi[i - 1], 1), end: shimebi[i] });
+    }
+    return out;
+  }
+  function kataPeriods(y, m, kata) {
+    try {
+      if (!kata || kata.dame) return [];
+      if (kata.kind === 'thirds') return periodsOf(y, m, { endMode: 'thirds' });
+      const last = daysInMonth(y, m);
+      const me = y * 12 + (m - 1);
+      let kikan = [];
+      if (kata.kind === 'hi') {
+        for (let d = 1; d <= last; d++) {
+          const t = new Date(y, m - 1, d);
+          kikan.push({ start: t, end: t });
+        }
+      } else {
+        const shimebi = [];
+        if (kata.kind === 'tsuki') {
+          for (let k = -3; k <= 3; k++) {
+            const t = new Date(y, m - 1 + k, 1);
+            const ty = t.getFullYear();
+            const tm = t.getMonth() + 1;
+            const tl = daysInMonth(ty, tm);
+            const seen = {};
+            kata.hi.forEach(function (h) {
+              const d = h === 0 ? tl : Math.min(h, tl);
+              if (!seen[d]) {
+                seen[d] = 1;
+                shimebi.push(new Date(ty, tm - 1, d));
+              }
+            });
+          }
+        } else if (kata.kind === 'shuu') {
+          let t = new Date(y, m - 1 - 3, 1);
+          while (t.getDay() !== kata.youbi) t = addDays(t, 1);
+          const owari = new Date(y, m + 3, 1);
+          for (; t < owari; t = addDays(t, 7)) shimebi.push(t);
+        } else {
+          return [];
+        }
+        shimebi.sort(function (a, b) {
+          return a - b;
+        });
+        kikan = kugiru(shimebi).filter(function (p) {
+          const doko = kata.nazuke === 'hajime' ? p.start : p.end;
+          return ymKey(doko) === me;
+        });
+      }
+      return kikan.map(function (p, i) {
+        const days = Math.round((p.end - p.start) / 86400000) + 1;
+        const dates = [];
+        for (let k = 0; k < days; k++) dates.push(ymd(addDays(p.start, k)));
+        const naka = ymKey(p.start) === me && ymKey(p.end) === me;
+        const rangeLabel = md(p.start) + ' ~ ' + md(p.end);
+        let name;
+        if (kata.kind === 'hi') name = p.start.getDate() + '日';
+        else if (!naka) name = rangeLabel;
+        else if (p.end.getDate() === last) name = p.start.getDate() + '日〜末日';
+        else name = p.start.getDate() + '〜' + p.end.getDate() + '日';
+        return {
+          year: y,
+          month: m,
+          index: i,
+          name: name,
+          startDay: p.start.getDate(),
+          endMode: 'shime',
+          kind: kata.kind,
+          days: days,
+          label: m + '月分',
+          rangeLabel: rangeLabel,
+          start: ymd(p.start),
+          end: ymd(p.end),
+          dates: dates,
+        };
+      });
+    } catch (_) {
+      return [];
     }
   }
 
@@ -183,6 +348,8 @@
     THIRDS: THIRDS,
     daysInMonth: daysInMonth,
     periodsOf: periodsOf,
+    yomu: yomu,
+    seiki: seiki,
     periodOf: periodOf,
     monthDates: monthDates,
     shift: shift,

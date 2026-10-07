@@ -159,12 +159,23 @@
           ? r.period_end_mode
           : 'thirds';
       out.periodDays = r.period_days === undefined ? 11 : n(r.period_days) || 11;
+      // ★★締めの 形は ここ 1か所で 読む★★ 2026-10-07（壊れた・昔の month_end/days ⇒ dame＝給料を 出さない）
+      //   呼び手は PayrollPeriod.periodsOf(y, m, { kata: st.periodKata }) と し、先に st.periodKata.dame を 見る
+      const Period = _need('PayrollPeriod', './payroll-period.js');
+      const yomi = Period ? Period.yomu(r) : null;
+      out.periodKata = yomi
+        ? yomi.ok
+          ? yomi.kata
+          : yomi
+        : { dame: true, riyuu: '区切りの 道具が 読めません' };
       return out;
     } catch (_) {
       base.ownerDeviceId = '';
       base.periodStartDay = 21;
       base.periodEndMode = 'month_end';
       base.periodDays = 11;
+      // ★読めない 時は 止める★（前は month_end に 倒して 黙って 進んだ・対立役 10-07）
+      base.periodKata = { dame: true, riyuu: '払い方の 設定が 読めません' };
       return base;
     }
   }

@@ -1177,7 +1177,10 @@
           if ($('kamiTsuki'))
             $('kamiTsuki').style.visibility = /N$|Y$/.test(KAMI_SHU) ? 'hidden' : '';
           var r = kamiTsukuru(KAMI_SHU);
-          if (!r) return kamiMsg('読み込み中…');
+          if (!r)
+            return kamiMsg(
+              SHIME_DAME ? '払い方の 設定が 読めないので 紙は 出せません' : '読み込み中…'
+            );
           KamiPdf.mise($('kamiMado'), r.mai, function () {
             var r2 = kamiTsukuru(KAMI_SHU);
             if (r2) kamiDasu(r2.mai, r2.na);
@@ -1292,6 +1295,7 @@
         function soft(path) {
           return DKSession.softList(SESS, path, LOAD);
         }
+        var SET_YOMI = { tried: 0, failed: 0 };
         function afterLoad(retry) {
           DKSession.showUnknownBar(LOAD, retry);
         }
@@ -1343,8 +1347,12 @@
           YR = null;
           if ($('kamiMado')) $('kamiMado').innerHTML = '';
           kamiMsg('読み込み中…');
-          var from = YEAR + '-01-01T00:00:00+09:00';
-          var to = YEAR + 1 + '-01-01T00:00:00+09:00';
+          // ★★締めが 月を またぐ 会社（20日締め・週）の 為に 前の年の 12月 〜 次の年の 1月 まで 取る★★ 2026-10-07
+          //   売上・積立は 暦の 月の 日だけ 数える（GetsujiAgg）＝広く 取っても 売上は 変わらない
+          var KARA = YEAR - 1 + '-12-01';
+          var MADE = YEAR + 1 + '-01-31';
+          var from = KARA + 'T00:00:00+09:00';
+          var to = YEAR + 1 + '-02-01T00:00:00+09:00';
 
           Promise.all([
             soft(
@@ -1364,12 +1372,13 @@
             soft('dk_employees?select=*&order=sort_order.asc&limit=500'),
             soft(
               'dk_work_hours?select=*&work_date=gte.' +
-                YEAR +
-                '-01-01&work_date=lte.' +
-                YEAR +
-                '-12-31&limit=5000'
+                KARA +
+                '&work_date=lte.' +
+                MADE +
+                '&limit=5000'
             ),
-            soft('dk_payroll_settings?select=*&limit=1'),
+            ((SET_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(SESS, 'dk_payroll_settings?select=*&limit=1', SET_YOMI)),
             soft('dk_sales_settings?select=*&limit=1'),
             // ★★請求書の もと＝請求書アプリの 明細（meisai）★★ 2026-10-06
             //   前は ★運転手の アプリで「請求書払い」を 押した 代行（dk_trips）だけ★ を 数えていた
@@ -1382,18 +1391,18 @@
             soft('dk_day_extras?select=*&limit=500'),
             soft(
               'dk_manual_days?select=*&work_date=gte.' +
-                YEAR +
-                '-01-01&work_date=lte.' +
-                YEAR +
-                '-12-31&limit=5000'
+                KARA +
+                '&work_date=lte.' +
+                MADE +
+                '&limit=5000'
             ),
             // ★手当・控除★ 2026-10-06（司さん「ア」）＝res[11]
             soft(
               'dk_pay_adjustments?select=*&work_date=gte.' +
-                YEAR +
-                '-01-01&work_date=lte.' +
-                YEAR +
-                '-12-31&limit=5000'
+                KARA +
+                '&work_date=lte.' +
+                MADE +
+                '&limit=5000'
             ),
           ]).then(function (res) {
             RAW.shifts = res[0] || [];
@@ -1402,6 +1411,10 @@
             RAW.employees = res[3] || [];
             RAW.workHours = res[4] || [];
             RAW.payrollSettings = (res[5] && res[5][0]) || null;
+            // ★給料の 設定を 読めなかった ⇒ 止める 印★ 2026-10-07（対立役 D）
+            LOAD.tried += SET_YOMI.tried; // ★取れなかった 帯にも 出す★
+            LOAD.failed += SET_YOMI.failed;
+            if (SET_YOMI.failed > 0) RAW.payrollSettings = { yomenai: true };
             RAW.salesSettings = (res[6] && res[6][0]) || null;
             RAW.manualDays = res[10] || []; // 手で入れた1日分（スマホが無い日も数える）
             // ★手当・控除★ 2026-10-06（司さん「ア」＝月次集計の 給料と 会社に 残る分も 動く）
@@ -1546,6 +1559,14 @@
           });
           PAYS = pays; // ★紙も ★同じ 物★ を 見る（自分で 作り直さない）
           YR = GetsujiAgg.year(YEAR, CTX, pays);
+          // ★★払い方（締め）の 設定が 読めない ⇒ 給料・会社に残る分・紙を 出さない★★ 2026-10-07
+          //   （前は 0円の 給料で 黙って 進んだ・対立役）
+          if (YR && YR.total && YR.total.dame) {
+            SHIME_DAME = YR.total.riyuu || '払い方の 設定が 読めません';
+            YR = null;
+            return;
+          }
+          SHIME_DAME = '';
           try {
             kamiTsukiSel(); // ★PDFの 月の 選択肢★（年を 変えた 時も 作り直す）
             // ★選んでいる 紙を 画面に 出す★（描き終わった 後＝同じ 数を 使う）2026-10-05
@@ -1586,7 +1607,10 @@
             var hi = String(m.work_date).slice(0, 10); // ★数える 鍵だけ（画面には 出さない）★
             return !aru[m.device_id + '|' + hi];
           });
-          return sh.concat(PayrollDaily.manualAsShifts(tebiki).shifts);
+          // ★その年の 日だけ★ 2026-10-07（締めの 為に 前後の 月も 読む＝距離の 年の 合計に 混ぜない）
+          return sh.concat(PayrollDaily.manualAsShifts(tebiki).shifts).filter(function (x) {
+            return x && String(PayrollDaily.dateOf(x.started_at) || '').indexOf(YEAR + '-') === 0;
+          });
         }
         function kyoriTasu(list) {
           var k = { kaisuu: 0, jissha: 0, sou: 0 };
@@ -1969,8 +1993,21 @@
           });
         })();
 
+        var SHIME_DAME = '';
         function render() {
           $('yearLabel').textContent = YEAR + '年';
+          if (SHIME_DAME) {
+            showErr(
+              '給料の 払い方の 設定が 読めないので 止めました（' +
+                SHIME_DAME +
+                '）。給料の 画面の「給料の 設定」で 払い方を 選び直してください。'
+            );
+            $('tbody').innerHTML = '';
+            $('tbody2').innerHTML = '';
+            $('tbody3').innerHTML = '';
+            kamiMsg('払い方の 設定が 読めないので 紙は 出せません');
+            return;
+          }
           var periods = (YR && YR.total.periods) || [];
 
           // ★★1ヶ月＝1枚の 札に する★★ 2026-09-05（司さん）

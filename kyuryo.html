@@ -1542,20 +1542,52 @@
               <tr>
                 <td>払い方</td>
                 <td>
+                  <!-- ★★締めの 形を 選ぶ★★ 2026-10-07（司さん「この払い方がまだ対応できてないやろが」）
+                       前は 月3回／月1回（何日から〜末日）／日数で切る の 3つ だけ だった -->
                   <select id="pMode">
-                    <option value="thirds">月3回（1〜10日 / 11〜20日 / 21日〜末日）</option>
-                    <option value="month_end">月1回（何日から〜末日）</option>
-                    <option value="days">日数で切る</option>
+                    <option value="" disabled>（選んでください）</option>
+                    <option value="thirds">月3回（10日・20日・末日 締め）</option>
+                    <option value="tsuki2">月2回（15日・末日 締め）</option>
+                    <option value="matsu">月1回（末日 締め）</option>
+                    <option value="tsuki1">月1回（何日かで 締める）</option>
+                    <option value="narabe">締め日を 並べる</option>
+                    <option value="shuu">週1回（曜日で 締める）</option>
+                    <option value="hi">毎日</option>
                   </select>
                 </td>
               </tr>
-              <tr id="pStartRow">
-                <td>何日から</td>
-                <td><input class="hrs" id="pStart" /> 日</td>
+              <tr id="pShimeHiRow">
+                <td>何日に 締める</td>
+                <td><input class="hrs" id="pShimeHi" inputmode="numeric" /> 日</td>
               </tr>
-              <tr id="pDaysRow">
-                <td>何日ごとに 切る</td>
-                <td><input class="hrs" id="pDays" /> 日</td>
+              <tr id="pNarabeRow">
+                <td>締め日</td>
+                <td><input class="txt" id="pNarabe" placeholder="例 5,15,25,末" /></td>
+              </tr>
+              <tr id="pYoubiRow">
+                <td>締める 曜日</td>
+                <td>
+                  <select id="pYoubi">
+                    <option value="0">日曜</option>
+                    <option value="1">月曜</option>
+                    <option value="2">火曜</option>
+                    <option value="3">水曜</option>
+                    <option value="4">木曜</option>
+                    <option value="5">金曜</option>
+                    <option value="6">土曜</option>
+                  </select>
+                </td>
+              </tr>
+              <!-- ★★何月分と 呼ぶか★★（司さん 10-07「ユーザーに決めさせろや」）＝月を またぐ 時だけ・選ぶまで 保存しない -->
+              <tr id="pNazukeRow">
+                <td>何月分と 呼ぶか</td>
+                <td>
+                  <select id="pNazuke">
+                    <option value="">（選んでください）</option>
+                    <option value="shime">締めた 日の 月の 分</option>
+                    <option value="hajime">始まった 日の 月の 分</option>
+                  </select>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -2034,8 +2066,13 @@
         function honninTsuki(zure) {
           var d = new Date(HN_Y, HN_M - 1 + zure, 1);
           var now = new Date();
-          // ★先の 月へは 行かせない★
-          if (d.getFullYear() * 12 + d.getMonth() > now.getFullYear() * 12 + now.getMonth()) return;
+          // ★先の 月へは 行かせない★（締めが 月を またぐ 会社は 今日の 期の 月まで・10-07）
+          var sakiM = HN_SAKI ? HN_SAKI.year * 12 + HN_SAKI.month - 1 : 0;
+          if (
+            d.getFullYear() * 12 + d.getMonth() >
+            Math.max(now.getFullYear() * 12 + now.getMonth(), sakiM)
+          )
+            return;
           HN_Y = d.getFullYear();
           HN_M = d.getMonth() + 1;
           var box = document.getElementById('slips');
@@ -2070,18 +2107,86 @@
             RAW.adjustments = Array.isArray(r.adjustments) ? r.adjustments : [];
             HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET);
-            PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, {
-              startDay: st.periodStartDay,
-              endMode: st.periodEndMode,
-              days: st.periodDays,
-            });
-            PIDX = 0;
-            PERIOD = PERIODS[0];
+            // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
+            if (st.periodKata && st.periodKata.dame) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">' +
+                  esc(shimeDameBun(st.periodKata)) +
+                  '</div></div>';
+              return;
+            }
+            HN_SAKI = kyouNoTsuki(st.periodKata);
+            // ★最初に 開いた 時は 今日の 期の 月へ★（違えば 1回だけ 取り直す）
+            if (!HN_KIMETA) {
+              HN_KIMETA = true;
+              if (HN_SAKI.year !== HN_Y || HN_SAKI.month !== HN_M) {
+                HN_Y = HN_SAKI.year;
+                HN_M = HN_SAKI.month;
+                honninTsuki(0);
+                return;
+              }
+            }
+            PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, { kata: st.periodKata });
+            if (!PERIODS.length) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">この 月に 締める 給料は ありません。</div></div>';
+              return;
+            }
+            PIDX = kyouNoKi(PERIODS);
+            PERIOD = PERIODS[PIDX];
             recalc();
             TAB = 'slip';
             honninKami();
           });
         }
+
+        // ★★払い方（締め）が 読めない 時の 文★★ 2026-10-07（金額を 出さずに 止める）
+        function shimeDameBun(kata) {
+          return (
+            '給料の 払い方の 設定が 読めないので 止めました（' +
+            ((kata && kata.riyuu) || '払い方の 設定が 読めません') +
+            '）。「給料の 設定」で 払い方を 選び直してください。'
+          );
+        }
+        // ★今日を 含む 期の 番号★（無ければ 0）＝今月を 開いた 時に 今の 期を 出す
+        function kyouNoKi(ps) {
+          var t = new Date();
+          var k =
+            t.getFullYear() +
+            '-' +
+            String(t.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(t.getDate()).padStart(2, '0');
+          for (var i = 0; i < (ps || []).length; i++)
+            if (ps[i].start <= k && k <= ps[i].end) return i;
+          return 0;
+        }
+
+        // ★★今日を 含む 期の 月★★ 2026-10-07（対立役 G：始まった月の分 で 20日締め なら 10/7 の 期は 9月分）
+        //   ＝最初に 開く 月・本人が 進める 一番 先の 月
+        function kyouNoTsuki(kata) {
+          var t = new Date();
+          var ima = { year: t.getFullYear(), month: t.getMonth() + 1 };
+          if (!kata || kata.dame) return ima;
+          var k =
+            t.getFullYear() +
+            '-' +
+            String(t.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(t.getDate()).padStart(2, '0');
+          var zure = [0, -1, 1];
+          for (var i = 0; i < zure.length; i++) {
+            var ym = PayrollPeriod.shift(ima, zure[i]);
+            var ps = PayrollPeriod.periodsOf(ym.year, ym.month, { kata: kata });
+            for (var j = 0; j < ps.length; j++) if (ps[j].start <= k && k <= ps[j].end) return ym;
+          }
+          return ima;
+        }
+        var YM_KIMETA = false; // ★最初の 1回だけ 今日の 期の 月へ★
+        var HN_SAKI = null; // ★本人が 進める 一番 先の 月★
+        var HN_KIMETA = false;
 
         // ★期間（同じ月の 中の 1〜3枚目）を 選ぶ★
         function honninKikan(i) {
@@ -2160,9 +2265,11 @@
           var tsugi = document.getElementById('hnTsugi');
           if (tsugi) {
             var now = new Date();
-            var saki = HN_Y * 12 + HN_M > now.getFullYear() * 12 + (now.getMonth() + 1);
-            tsugi.disabled =
-              saki || HN_Y * 12 + HN_M >= now.getFullYear() * 12 + (now.getMonth() + 1);
+            var hate = Math.max(
+              now.getFullYear() * 12 + (now.getMonth() + 1),
+              HN_SAKI ? HN_SAKI.year * 12 + HN_SAKI.month : 0
+            );
+            tsugi.disabled = HN_Y * 12 + HN_M >= hate;
             tsugi.onclick = function () {
               honninTsuki(1);
             };
@@ -2818,8 +2925,10 @@
         function kamiPad(v) {
           return ('0' + v).slice(-2);
         }
-        function kamiK(y, m) {
+        function kamiK(y, m, r) {
           return {
+            // ★紙の 日の 並び★ 2026-10-07（締めが 月を またぐ 会社は 期の 日・月3回は 暦の 日と 同じ）
+            hibi: r && r.hibi ? r.hibi : null,
             name: (COMPANY && COMPANY.name) || '',
             year: y,
             month: m,
@@ -2832,11 +2941,10 @@
         // ★その月の 生データを 取って ctx を 作る★（掃く 幅＝期間と 暦の 両方を 包む）
         function kamiCtx(y, m) {
           var st = PayrollDaily.normSettings(SET);
-          var ps = PayrollPeriod.periodsOf(y, m, {
-            startDay: st.periodStartDay,
-            endMode: st.periodEndMode,
-            days: st.periodDays,
-          });
+          // ★★締めの 形は 設定の 1か所★★ 2026-10-07（読めなければ 紙を 出さない）
+          if (st.periodKata && st.periodKata.dame)
+            return Promise.reject(new Error(shimeDameBun(st.periodKata)));
+          var ps = PayrollPeriod.periodsOf(y, m, { kata: st.periodKata });
           var matsu = new Date(y, m, 0).getDate();
           var c1 = y + '-' + kamiPad(m) + '-01';
           var c2 = y + '-' + kamiPad(m) + '-' + kamiPad(matsu);
@@ -2900,10 +3008,21 @@
               salesSettings: RAW.salesSettings,
               payrollSettings: SET,
             });
+            // ★★紙の 日 ＝ この月に 締める 期の 日 全部★★ 2026-10-07（司さん「イ」＝締めた 分）
+            //   月3回 等は 暦の 月と 同じ 日（対立役 132か月で 0か月 違い）。期が 0 の 月は 暦の 日
             var hibi = [];
-            for (var i = 1; i <= matsu; i++) hibi.push(y + '-' + kamiPad(m) + '-' + kamiPad(i));
+            ps.forEach(function (x) {
+              (x.dates || []).forEach(function (d) {
+                hibi.push(d);
+              });
+            });
+            if (!hibi.length)
+              for (var i = 1; i <= matsu; i++) hibi.push(y + '-' + kamiPad(m) + '-' + kamiPad(i));
             return {
               ps: ps,
+              hibi: hibi,
+              // ★毎日 払いは 期の 列を 出さない★（31列は 紙に 入らない）
+              mainichi: !!(st.periodKata && st.periodKata.kind === 'hi'),
               matsu: matsu,
               kire: kire,
               kikanRep: ps.map(function (x) {
@@ -2918,6 +3037,11 @@
         function kamiHito(r) {
           var idx = {};
           var out = [];
+          // ★日の 箱は「何番目の 日」★ 2026-10-07（前は 月の 何日＝前の月の 日が 重なった）
+          var hiNo = {};
+          (r.hibi || []).forEach(function (d, i) {
+            hiNo[d] = i;
+          });
           function hiro(id, na) {
             if (!idx[id]) {
               idx[id] = {
@@ -2944,17 +3068,17 @@
             var o = hiro(e.employee_id, e.name);
             o.jikan += e.totalHours || 0;
             (e.cells || []).forEach(function (c) {
-              var dd = Number(String(c.date || '').slice(8, 10));
-              if (!dd) return;
-              o.hi[dd - 1] = (o.hi[dd - 1] || 0) + (c.pay || 0);
-              o.hiJikan[dd - 1] = (o.hiJikan[dd - 1] || 0) + (c.hours || 0);
+              var j = hiNo[String(c.date || '').slice(0, 10)];
+              if (j === undefined) return;
+              o.hi[j] = (o.hi[j] || 0) + (c.pay || 0);
+              o.hiJikan[j] = (o.hiJikan[j] || 0) + (c.hours || 0);
             });
             // ★★手当・控除も その 日の 金額に 入れる★★ 2026-10-06（対立役：月ごと／個別の 合計は 差し引き 後・
             //   日ごとは 働いた 分だけ で 同じ 紙の 上で 合わなかった）＝日の 合計 ＝ 期の 合計
             (e.adj || []).forEach(function (a) {
-              var dd = Number(String(a.date || '').slice(8, 10));
-              if (!dd) return;
-              o.hi[dd - 1] = (o.hi[dd - 1] || 0) + (a.kind === 'koujo' ? -a.yen : a.yen);
+              var j = hiNo[String(a.date || '').slice(0, 10)];
+              if (j === undefined) return;
+              o.hi[j] = (o.hi[j] || 0) + (a.kind === 'koujo' ? -a.yen : a.yen);
             });
           });
           out.forEach(function (o) {
@@ -2966,6 +3090,7 @@
           return out;
         }
         function kamiNamae(r) {
+          if (r.mainichi) return []; // ★毎日 払いは 期の 列なし★
           return r.ps.map(function (x) {
             return x.rangeLabel || x.label || '';
           });
@@ -3012,7 +3137,7 @@
             kamiCtx(w.y, w.m)
               .then(function (r) {
                 kamiBtn(false);
-                var mai = KamiHyou.kyuryoTsuki(kamiK(w.y, w.m), {
+                var mai = KamiHyou.kyuryoTsuki(kamiK(w.y, w.m, r), {
                   namae: kamiNamae(r),
                   hito: kamiHito(r),
                 });
@@ -3031,7 +3156,7 @@
             kamiCtx(w.y, w.m)
               .then(function (r) {
                 kamiBtn(false);
-                var mai = KamiHyou.kyuryoHi(kamiK(w.y, w.m), { hito: kamiHito(r) });
+                var mai = KamiHyou.kyuryoHi(kamiK(w.y, w.m, r), { hito: kamiHito(r) });
                 kamiDasu(mai, kamiFile(w.y, w.m, '給料表_日ごと'), r.kire);
               })
               .catch(kamiKoke);
@@ -3056,7 +3181,7 @@
                   });
                 }
                 if (!hito.length) return kamiMsg('出す 人が いません。');
-                var k = kamiK(w.y, w.m);
+                var k = kamiK(w.y, w.m, r);
                 var na = kamiNamae(r);
                 // ★何人でも 1つの PDF★（1人1枚）
                 var mai = [];
@@ -3278,6 +3403,7 @@
         function soft(path) {
           return DKSession.softList(SESS, path, LOAD);
         }
+        var SET_YOMI = { tried: 0, failed: 0 };
         function afterLoad(retry) {
           DKSession.showUnknownBar(LOAD, retry);
         }
@@ -3331,12 +3457,17 @@
           Promise.all([
             soft('dk_employees?select=*&order=sort_order.asc&limit=500'),
             soft('dk_device_labels?select=*&limit=500'),
-            soft('dk_payroll_settings?select=*&limit=1'),
+            // ★給料の 設定は 読めたかを 別に 数える★ 2026-10-07（対立役 D：読めない 時に 月3回で 明細が 出た）
+            ((SET_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(SESS, 'dk_payroll_settings?select=*&limit=1', SET_YOMI)),
             soft('dk_sales_settings?select=*&limit=1'),
           ]).then(function (res) {
             RAW.employees = res[0] || [];
             RAW.labels = res[1] || [];
             SET = (res[2] && res[2][0]) || null;
+            LOAD.tried += SET_YOMI.tried; // ★取れなかった 帯にも 出す★
+            LOAD.failed += SET_YOMI.failed;
+            if (SET_YOMI.failed > 0) SET = { yomenai: true }; // ★止める 印★（PayrollPeriod.yomu が dame に する）
             RAW.payrollSettings = SET;
             RAW.salesSettings = (res[3] && res[3][0]) || null;
             // ★★配る 一覧を 最初から 出す★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
@@ -3351,11 +3482,30 @@
         function loadPeriod() {
           if (!COMPANY) return;
           var st = PayrollDaily.normSettings(SET);
-          PERIODS = PayrollPeriod.periodsOf(YM.year, YM.month, {
-            startDay: st.periodStartDay,
-            endMode: st.periodEndMode,
-            days: st.periodDays,
-          });
+          // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
+          //   読めない ⇒ ★止める★（前は 知らない 値を 黙って 月3回に した）
+          if (st.periodKata && st.periodKata.dame) {
+            PERIODS = [];
+            PERIOD = null;
+            if ($('slips')) $('slips').innerHTML = '';
+            renderPeriodBar();
+            showMsg('');
+            showErr(shimeDameBun(st.periodKata));
+            return;
+          }
+          if (!YM_KIMETA) {
+            YM_KIMETA = true;
+            YM = kyouNoTsuki(st.periodKata);
+          }
+          PERIODS = PayrollPeriod.periodsOf(YM.year, YM.month, { kata: st.periodKata });
+          if (!PERIODS.length) {
+            PERIOD = null;
+            if ($('slips')) $('slips').innerHTML = '';
+            renderPeriodBar();
+            showErr('');
+            showMsg('この 月に 締める 給料は ありません。');
+            return;
+          }
           if (!(PIDX >= 0 && PIDX < PERIODS.length)) PIDX = 0;
           PERIOD = PERIODS[PIDX];
           showErr('');
@@ -5229,35 +5379,129 @@
         //   ★前★ 3つが 同じ 重さで 並び、どれが どれに 効くか 見えなかった
         //     （月3回なら「何日から」も「日数」も 使わないのに 出ていた）
         //   ★今★ 払い方を 選ぶ ⇒ ★その 払い方に 要る 欄だけ★ 出す ＋ 今の 区切りを 字で 出す
-        function kikanDashiwake() {
-          var m = ($('pMode') || {}).value || 'thirds';
-          var s1 = $('pStartRow');
-          var s2 = $('pDaysRow');
-          var ms = $('pMsg');
-          // ★月3回★ … 区切りは 決まっている（1〜10 / 11〜20 / 21〜末日）＝欄は 要らない
-          // ★月1回★ … 「何日から」だけ 要る
-          // ★日数で切る★ … 「何日から」と「何日ごと」の 両方
-          if (s1) s1.style.display = m === 'thirds' ? 'none' : '';
-          if (s2) s2.style.display = m === 'days' ? '' : 'none';
-          if (!ms) return;
-          var d1 = Number(($('pStart') || {}).value) || 21;
-          var d2 = Number(($('pDays') || {}).value) || 11;
-          if (m === 'thirds') {
-            ms.textContent = '今の 区切り … 1〜10日 ／ 11〜20日 ／ 21日〜末日（月3回）';
-          } else if (m === 'month_end') {
-            ms.textContent = '今の 区切り … ' + d1 + '日 〜 翌月の 前日（月1回）';
-          } else {
-            ms.textContent = '今の 区切り … ' + d1 + '日から ' + d2 + '日ごと';
+        // ★★画面の 欄 → 締めの 形（period_shime）★★ 2026-10-07
+        //   月3回は null（昔の 列 period_end_mode='thirds' の まま＝今の 本番の 1社と 同じ 読み）
+        function shimeKataYomu() {
+          var m = ($('pMode') || {}).value || '';
+          var nz = ($('pNazuke') || {}).value || undefined;
+          if (m === 'thirds') return { kata: null };
+          if (m === 'tsuki2') return { kata: { kind: 'tsuki', hi: [15, 0] } };
+          if (m === 'matsu') return { kata: { kind: 'tsuki', hi: [0] } };
+          if (m === 'tsuki1') {
+            var d = Number(String(($('pShimeHi') || {}).value || '').trim());
+            return { kata: { kind: 'tsuki', hi: [d], nazuke: nz } };
           }
+          if (m === 'narabe') {
+            var hi = String(($('pNarabe') || {}).value || '')
+              .split(/[,、，\s]+/)
+              .filter(function (x) {
+                return x !== '';
+              })
+              .map(function (x) {
+                return x === '末' || x === '末日' ? 0 : Number(x);
+              });
+            return { kata: { kind: 'tsuki', hi: hi, nazuke: nz } };
+          }
+          if (m === 'shuu')
+            return { kata: { kind: 'shuu', youbi: Number(($('pYoubi') || {}).value), nazuke: nz } };
+          if (m === 'hi') return { kata: { kind: 'hi' } };
+          return { dame: '払い方を 選んでください' };
+        }
+        // ★★選んだ 形の 本当の 区切りを 出す（言葉で 説明しない）★★
+        function kikanDashiwake() {
+          var m = ($('pMode') || {}).value || '';
+          var show = function (id, on) {
+            if ($(id)) $(id).style.display = on ? '' : 'none';
+          };
+          show('pShimeHiRow', m === 'tsuki1');
+          show('pNarabeRow', m === 'narabe');
+          show('pYoubiRow', m === 'shuu');
+          var ms = $('pMsg');
+          var y = shimeKataYomu();
+          var kosu = false;
+          if (y.kata) {
+            // 月を またぐ 期が 在るか（何月分を 決めないと 区切れない）
+            var t = PayrollPeriod.seiki(Object.assign({}, y.kata, { nazuke: 'shime' }));
+            kosu =
+              !!t.ok &&
+              (t.kata.kind === 'shuu' ||
+                (t.kata.kind === 'tsuki' && t.kata.hi[t.kata.hi.length - 1] !== 0));
+          }
+          show('pNazukeRow', kosu);
+          if (!ms) return;
+          if (y.dame) {
+            ms.textContent = y.dame;
+            return;
+          }
+          var r = y.kata ? PayrollPeriod.seiki(y.kata) : { ok: true, kata: { kind: 'thirds' } };
+          if (!r.ok) {
+            ms.textContent = '★' + r.riyuu + '★';
+            return;
+          }
+          var ima = new Date();
+          var ym = { year: ima.getFullYear(), month: ima.getMonth() + 1 };
+          var gyou = [0, 1].map(function (z) {
+            var t2 = PayrollPeriod.shift(ym, z);
+            var ps = PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata });
+            var naka =
+              r.kata.kind === 'hi'
+                ? '1日ずつ（' + ps.length + '回）'
+                : ps.length
+                  ? ps
+                      .map(function (p) {
+                        return p.rangeLabel;
+                      })
+                      .join(' ／ ')
+                  : 'この 月に 締める 給料は ありません';
+            return t2.month + '月分 … ' + naka;
+          });
+          ms.textContent = '区切り … ' + gyou.join('　｜　');
         }
         (function wireKikan() {
-          ['pMode', 'pStart', 'pDays'].forEach(function (id) {
+          ['pMode', 'pShimeHi', 'pNarabe', 'pYoubi', 'pNazuke'].forEach(function (id) {
             var n = $(id);
             if (!n) return;
             n.addEventListener('change', kikanDashiwake);
             n.addEventListener('input', kikanDashiwake);
           });
         })();
+        // ★★倉庫の 設定 → 画面の 欄★★
+        function shimeKataIreru() {
+          var sh = SET && SET.period_shime;
+          var mo = SET && SET.period_end_mode;
+          $('pShimeHi').value = '';
+          $('pNarabe').value = '';
+          $('pYoubi').value = '0';
+          $('pNazuke').value = '';
+          if (sh && typeof sh === 'object') {
+            if (sh.nazuke) $('pNazuke').value = sh.nazuke;
+            var hi = Array.isArray(sh.hi) ? sh.hi : [];
+            var j = hi.join(',');
+            if (sh.kind === 'hi') $('pMode').value = 'hi';
+            else if (sh.kind === 'shuu') {
+              $('pMode').value = 'shuu';
+              $('pYoubi').value = String(sh.youbi);
+            } else if (sh.kind === 'tsuki' && j === '15,0') $('pMode').value = 'tsuki2';
+            else if (sh.kind === 'tsuki' && j === '0') $('pMode').value = 'matsu';
+            else if (sh.kind === 'tsuki' && hi.length === 1) {
+              $('pMode').value = 'tsuki1';
+              $('pShimeHi').value = String(hi[0]);
+            } else if (sh.kind === 'tsuki') {
+              $('pMode').value = 'narabe';
+              $('pNarabe').value = hi
+                .map(function (x) {
+                  return x === 0 ? '末' : String(x);
+                })
+                .join(',');
+            } else $('pMode').value = '';
+          } else if (!mo || mo === 'thirds') {
+            $('pMode').value = 'thirds';
+          } else {
+            // ★昔の month_end／days は 今の 作りでは 読めない＝選び直して もらう★
+            $('pMode').value = '';
+          }
+          kikanDashiwake();
+        }
 
         function renderSet() {
           var st = PayrollDaily.normSettings(SET);
@@ -5294,9 +5538,7 @@
           $('resFirst').checked = !!st.deductReserveBeforeRate;
           // ★既定は 載せる（true）★＝倉庫にまだ無い会社も 今までと同じ見た目
           $('showCarSales').checked = !(SET && SET.show_car_sales === false);
-          $('pStart').value = st.periodStartDay;
-          $('pMode').value = st.periodEndMode;
-          $('pDays').value = st.periodDays;
+          shimeKataIreru(); // ★締めの 形★ 2026-10-07
 
           var devs = (CTX && CTX.devices) || [];
           $('ownerDev').innerHTML =
@@ -5696,15 +5938,25 @@
         $('btnSaveSet').onclick = function () {
           if (!COMPANY) return;
           var st = PayrollDaily.normSettings(SET);
+          // ★★締めの 形を 確かめてから 保存★★ 2026-10-07（壊れた 形・何月分 無しは 保存しない）
+          var sk = shimeKataYomu();
+          if (sk.dame) return showErr(sk.dame);
+          if (sk.kata) {
+            var chk = PayrollPeriod.seiki(sk.kata);
+            if (!chk.ok) return showErr('払い方を 保存できません：' + chk.riyuu);
+          }
           var body = {
             company_id: COMPANY.company_id,
             pool_mode: $('poolMode').value,
             deduct_reserve_before_rate: $('resFirst').checked,
             reserve_pool_rate: num($('resPool').value) / 100,
             reserve_owner_rate: num($('resOwner').value) / 100,
-            period_start_day: num($('pStart').value) || 21,
-            period_end_mode: $('pMode').value,
-            period_days: num($('pDays').value) || 11,
+            // ★昔の 列は 今の 値を そのまま 運ぶ★（月3回 以外は 'shime'＝新しい 版は period_shime を 読む）
+            period_start_day: st.periodStartDay,
+            period_end_mode: sk.kata ? 'shime' : 'thirds',
+            period_days: st.periodDays,
+            // ★月3回に 戻す 時は null を はっきり 書く★（書かないと 古い 締めが 勝ち続ける・対立役 J）
+            period_shime: sk.kata,
             owner_device_id: $('ownerDev').value || '',
             show_car_sales: $('showCarSales').checked, // ★車ごとの売上を載せるか★ 2026-08-25
             roles: st.roles,

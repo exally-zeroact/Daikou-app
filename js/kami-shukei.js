@@ -60,6 +60,8 @@
   // ★月次集計（GetsujiAgg.month の 出した 物を そのまま）★
   function getsujiData(m, cars) {
     m = m || {};
+    // ★払い方（締め）が 読めない 月は 紙を 作らない★ 2026-10-07（給料 0・残る分 0 を 印字しない）
+    if (m.dame) throw new Error(m.riyuu || '払い方の 設定が 読めません');
     return {
       uriage: n(m.salesTotal),
       keihi: n(m.expense),
@@ -72,7 +74,8 @@
       kyuryoKikan: (m.periods || []).map(function (p) {
         return n(p.pay);
       }),
-      kyuryoNamae: (m.periods || []).map(function (p) {
+      // ★毎日 払いは 期の 行を 並べない★ 2026-10-07（31行は 紙に 入らない＝合計 1行）
+      kyuryoNamae: (m.kind === 'hi' ? [] : m.periods || []).map(function (p) {
         return p.rangeLabel || p.name || '';
       }),
       tsumitate: n(m.reserve),

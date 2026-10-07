@@ -71,7 +71,9 @@ function zurasu(o, n) {
   return typeof o === 'string' ? zurasuHi(o, n) : o;
 }
 
-async function openKyuryo(page, naosu) {
+// opts: { ura: '?henshu=1#set' 等 / matanai: true＝明細が 出るのを 待たない（止める 場合を 見る 為）}
+async function openKyuryo(page, naosu, opts) {
+  const o = opts || {};
   const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const nakami = zurasu(JSON.parse(JSON.stringify(FIX)), TSUKI_ZURASU);
   const tsugi =
@@ -108,7 +110,8 @@ async function openKyuryo(page, naosu) {
       body: tsugi,
     })
   );
-  await page.goto('/kyuryo.html');
+  await page.goto('/kyuryo.html' + (o.ura || ''));
+  if (o.matanai) return;
   await page.waitForFunction(() => window.__paper && window.__paper.ninzu() > 0, null, {
     timeout: 20000,
   });
