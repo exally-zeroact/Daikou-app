@@ -39,6 +39,15 @@ const LABELS = [
 const SH = [
   { shift_id: 's1', device_id: 'd1', started_at: HI + 'T10:00:00Z', fare_total_yen: 10000 },
   { shift_id: 's1b', device_id: 'd1', started_at: HI + 'T13:00:00Z', fare_total_yen: 5200 },
+  // ★★10-07★★ 使わない 印の 業務（9,999 は 数えない＝給料・売上表・月次集計と 同じ）
+  //   作り物は 頼まれた 列だけ 返す＝画面が excluded を 頼まないと 印が 見えず 25,199 に なって 赤
+  {
+    shift_id: 's1x',
+    device_id: 'd1',
+    started_at: HI + 'T15:00:00Z',
+    fare_total_yen: 9999,
+    excluded: true,
+  },
 ];
 const KINDS = [
   { kind_id: 'toll', label: '高速代', sort_order: 10, active: true },

@@ -493,9 +493,9 @@
           var q =
             // ★売上（fare_total_yen）も 取る★ 2026-10-05（対立役が 実測：
             //   前は 取っておらず ★走った 車の 売上が いつも 0円★ と 出ていた）
-            //   ★使わない 印（excluded）は 取らない★＝給料・売上表・月次集計も 今は 取っておらず 数えている。
-            //   ここだけ 外すと ★画面ごとに 数が 食い違う★（対立役 10-05）。外すかは お金の 決め＝司さんに 訊く。
-            'dk_shifts?select=shift_id,device_id,started_at,fare_total_yen&company_id=eq.' +
+            //   ★使わない 印（excluded）も 取って 外す★ 2026-10-07（司さん「前からある2つもやれ」）
+            //   ＝給料・売上表・月次集計も 同じ日に 揃えた（前は どの 画面も 印を 読まず 数えていた）
+            'dk_shifts?select=shift_id,device_id,started_at,fare_total_yen,excluded&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
             '&started_at=gte.' +
             encodeURIComponent(r.from) +
@@ -535,7 +535,10 @@
               }),
           ])
             .then(function (res) {
-              RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
+              // ★使わない 印の 業務は 入力の 画面にも 出さない★ 2026-10-07（給料・売上表・月次集計と 揃える）
+              RAW.shifts = (Array.isArray(res[0]) ? res[0] : []).filter(function (x) {
+                return x && x.excluded !== true;
+              });
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
               // ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
               // ★★「消す」を 押した 物も 出さない★★ 2026-09-18（司さん）

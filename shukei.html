@@ -1352,7 +1352,7 @@
               //   total_distance_m … ★総走行距離★（空車も 入る）
               //   actual_total_m … ★実車距離★（お客さんを 乗せて 走った 分）
               //   trip_count …… ★回数★
-              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,total_distance_m,actual_total_m' +
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,total_distance_m,actual_total_m,excluded' +
                 '&started_at=gte.' +
                 encodeURIComponent(from) +
                 '&started_at=lt.' +
@@ -1577,7 +1577,9 @@
           var sh = RAW.shifts || [];
           var aru = {};
           sh.forEach(function (x) {
-            if (x) aru[x.device_id + '|' + PayrollDaily.dateOf(x.started_at)] = 1;
+            // ★使わない 印の 業務は「その日 走った」に 数えない★ 2026-10-07（数えると 同じ日の 手入力の 距離が 消える）
+            if (x && x.excluded !== true)
+              aru[x.device_id + '|' + PayrollDaily.dateOf(x.started_at)] = 1;
           });
           var tebiki = (RAW.manualDays || []).filter(function (m) {
             if (!m || !m.work_date) return false;

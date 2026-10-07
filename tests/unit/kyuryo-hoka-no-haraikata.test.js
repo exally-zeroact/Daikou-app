@@ -268,3 +268,23 @@ describe('★給料の 画面は 走った 記録の 回数と 距離を 頼む�
     });
   });
 });
+
+// ★★どの 画面も 使わない 印（excluded）を 頼む★★ 2026-10-07（司さん「前からある2つもやれ」）
+//   前は どの 画面も 印を 頼まず ★印の 業務を 数えていた★（給料の 計算は 印で 飛ばす 作りなのに 効いていなかった）
+//   わざと壊す（10-07 実測）：uriage.html の 頼みから excluded を 消す ⇒ ★赤★
+describe('★走った 記録を 頼む 所は 全部 使わない 印も 頼む★', () => {
+  const fs2 = require('fs');
+  const path2 = require('path');
+  ['kyuryo.html', 'uriage.html', 'shukei.html', 'nyuryoku.html'].forEach((na) => {
+    it(na, () => {
+      const H = fs2.readFileSync(path2.join(__dirname, '..', '..', na), 'utf8');
+      const tanomi = (H.match(/'dk_shifts\?select=[^']*'/g) || []).filter(
+        (t) => t.indexOf('fare_total_yen') >= 0
+      );
+      expect(tanomi.length, '★' + na + ' に 売上を 頼む 所が 無い★').toBeGreaterThan(0);
+      tanomi.forEach((t) =>
+        expect(t, '★' + na + ' ' + t + ' に excluded が 無い★').toContain('excluded')
+      );
+    });
+  });
+});

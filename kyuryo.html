@@ -2855,7 +2855,7 @@
           return Promise.all([
             soft(
               // ★距離も 取る★ 2026-10-06（1kmいくら の 材料。無いと 事務所と 紙だけ 0円＝本人の 画面と ずれる・対立役）
-              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m' +
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded' +
                 '&started_at=gte.' +
                 encodeURIComponent(from) +
                 '&started_at=lt.' +
@@ -3382,7 +3382,7 @@
           Promise.all([
             soft(
               // ★距離も 取る★ 2026-10-06（1kmいくら の 材料。無いと 事務所と 紙だけ 0円＝本人の 画面と ずれる・対立役）
-              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m' +
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded' +
                 '&started_at=gte.' +
                 encodeURIComponent(from) +
                 '&started_at=lt.' +
@@ -4480,7 +4480,8 @@
             .forEach(function (date) {
               var day = (REP && REP.days[date]) || null;
               var meter = RAW.shifts.filter(function (s) {
-                return PayrollDaily.dateOf(s.started_at) === date;
+                // ★使わない 印の 業務は 出さない★ 2026-10-07（対立役：出すと 計算は 手入力 ¥7,000・画面は ¥0 で 手入力の 欄が 消えた）
+                return s.excluded !== true && PayrollDaily.dateOf(s.started_at) === date;
               });
               // ★手で入れた1日分も同じ並びに出す（メーターがある車は出さない＝二重に見せない）★
               var meterDevs = {};

@@ -811,7 +811,8 @@
           showMsg('読み込み中…');
           var r = monthRange(MONTH);
           var q =
-            'dk_shifts?select=shift_id,device_id,started_at,total_distance_m,actual_total_m,fare_total_yen,trip_count' +
+            // ★使わない 印（excluded）も 取る★ 2026-10-07（司さん「前からある2つもやれ」＝どの 画面でも 印の 業務は 数えない）
+            'dk_shifts?select=shift_id,device_id,started_at,total_distance_m,actual_total_m,fare_total_yen,trip_count,excluded' +
             '&started_at=gte.' +
             encodeURIComponent(r.from) +
             '&started_at=lt.' +
@@ -883,6 +884,8 @@
                 if (!inMonth) return false;
                 return !RAW.shifts.some(function (sh) {
                   return (
+                    // ★使わない 印の 業務は 「その日 走った」に 数えない★（数えると 同じ日の 手入力が 消える）
+                    sh.excluded !== true &&
                     sh.device_id === m.device_id &&
                     // ★日本時間の 日で 比べる★ 2026-10-05（対立役）＝給料（PayrollDaily.dateOf）と 同じ 切り方
                     //   前は UTC の 日付＝日本時間 0〜9時に 始まった 業務と 同じ日の 手入力が 二重に 足された
