@@ -4349,8 +4349,12 @@
           var title = '給料明細_' + ym + '_' + String(emp.name || '');
 
           showMsg('PDFを作っています…');
+          var dougu1 = false;
           loadPdfLibs()
             .then(function (E) {
+              dougu1 = true;
+              // ★はみ出す 人は 作らない★ 2026-10-08（printAll と 同じ 門・対立役：printOne だけ 門が 無かった）
+              if (hamiTomeru([emp])) return null;
               return _withTimeout(
                 E.dasu(_empSheets(emp, slipCars(REP.cars, emp.employee_id)), title, KAMI_KATA),
                 PDF_TIMEOUT_MS,
@@ -4360,7 +4364,10 @@
             .then(function () {
               showMsg('');
             })
-            .catch(_pdfShippai);
+            .catch(function (err) {
+              // ★印刷の 保険へ 落ちる 時も はみ出す 人は 止める・道具を 読めた 後の 失敗は 印刷しない★
+              pdfAtoshimatsu([emp], dougu1, err);
+            });
         }
         window.printOne = printOne;
 
@@ -4369,12 +4376,51 @@
         // ★誰を 出すか★ null＝全員／配列＝その人だけ（2026-09-05 司さん）
         // ★★手当・控除が 紙に 入りきらない 人が 居れば 止める（真＝止めた）★★ 2026-10-07
         //   今 入っている 字体で 測る（PDF の 道具を 読んだ 後なら DKKami・読めなかった 時は 控えの 字体＝印刷も その 字体）
+        // ★★PDF の 失敗の 後始末（印刷の 保険へ 落とすか）★★ 2026-10-08
+        //   道具を 読めた 後の 失敗（紙を 組めない・PDF を 作れない）は 印刷に 落とさず 止める
+        //   （前は「PDFの道具が読めませんでした。印刷で出します。」と 嘘の 文で 画面の 写しを 印刷した・対立役）
+        function pdfAtoshimatsu(boxes, dougu, err) {
+          if (hamiTomeru(boxes)) return;
+          var m = String((err && err.message) || err || '');
+          if (dougu && m.indexOf('PDF が ') !== 0) {
+            showMsg('');
+            showErr(
+              '明細の 紙を 作れませんでした（' +
+                m +
+                '）。PDF は 出していません。もう一度 押してください。'
+            );
+            return;
+          }
+          _pdfShippai(err);
+        }
         function hamiTomeru(boxes) {
-          var hami = boxes.filter(function (b) {
-            var ei = REP.employees.indexOf(b);
-            return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
+          // ★押した 後に 画面（月・期）が 変わった ⇒ 止める★（古い 人で 門を 素通りしない・対立役 3-b）
+          var kawatta = boxes.some(function (b) {
+            return !REP || REP.employees.indexOf(b) < 0;
           });
+          if (kawatta) {
+            showMsg('');
+            showErr('画面が 変わったので 明細の PDF は 作りません。もう一度 押してください。');
+            return true;
+          }
+          var hami;
+          try {
+            hami = boxes.filter(function (b) {
+              var ei = REP.employees.indexOf(b);
+              return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
+            });
+          } catch (e) {
+            // ★測れない（紙を 組めない）時も 止める★ 2026-10-08（前は 投げて「PDFを作っています…」の まま 止まった・対立役）
+            showMsg('');
+            showErr(
+              '明細の 紙を 組めませんでした（' +
+                (e && e.message ? e.message : e) +
+                '）。明細の PDF は 作りません。もう一度 開いてください。'
+            );
+            return true;
+          }
           if (!hami.length) return false;
+          showMsg('');
           showErr(
             hami
               .map(function (b) {
@@ -4417,15 +4463,13 @@
           showMsg('PDFを作っています…（' + boxes.length + '人ぶん）');
           // ★PDF の 道具が 読めず 印刷の 保険へ 落ちる 時も はみ出す 人が 居れば 止める★（対立役 10-07 4回目：
           //   門を 道具の 後へ 移したら 道具が 読めない 時に 門を 通らず 切れた 明細が 印刷に 出た）
+          var dougu = false;
           var shippai = function (err) {
-            if (hamiTomeru(boxes)) {
-              showMsg('');
-              return;
-            }
-            _pdfShippai(err);
+            pdfAtoshimatsu(boxes, dougu, err);
           };
           loadPdfLibs()
             .then(function (E) {
+              dougu = true;
               // ★手当・控除が 紙に 入りきらない 人が 居れば 作らない★ 2026-10-07（差引支給が 紙の 外に 出る）
               //   ★PDF の 字体を 読んだ 後で 測る★（前は 控えの 字体で 測り「入るのに 止める」事が あった・対立役 B）
               //   止める 時は 投げない（投げると 印刷の 保険へ 落ちる）＝文を 出して 抜ける

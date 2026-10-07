@@ -11,6 +11,37 @@
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
 
+// ★PDF を 作る 道具（KamiEgaku.dasu）が 呼ばれた 回数と 印刷の 回数を 数える★ 2026-10-08（文が 出ても PDF を 作ったら 赤に する）
+//   nageru＝dasu を 投げる 物に する（道具を 読めた 後の 失敗を 作る）
+async function kazoeru(page, nageru) {
+  await page.addInitScript((n) => {
+    window.__dasu = 0;
+    window.__insatsu = 0;
+    let v;
+    Object.defineProperty(window, 'KamiEgaku', {
+      configurable: true,
+      get() {
+        return v;
+      },
+      set(x) {
+        if (x && x.dasu && !x.__kazoeru) {
+          const d = x.dasu;
+          x.dasu = function () {
+            window.__dasu++;
+            if (n) return Promise.reject(new Error('てすと PDF'));
+            return d.apply(this, arguments);
+          };
+          x.__kazoeru = true;
+        }
+        v = x;
+      },
+    });
+    window.print = function () {
+      window.__insatsu++;
+    };
+  }, !!nageru);
+}
+
 test('★手当・控除が 読めない ⇒ 明細の PDF を 作らず 止める★', async ({ page }) => {
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
@@ -255,3 +286,109 @@ test('★字体 404 ＋ 手当・控除 0行 ⇒ 印刷の 保険が 1回 出る
   expect(r.err).not.toContain('入りません');
   expect(err).toEqual([]);
 });
+
+// ★★はみ出しを 測る 所が 投げた 時も 止めて 知らせる（「PDFを作っています…」の まま 止まらない）★★ 2026-10-08
+//   ★わざと壊して 赤（2026-10-08 実測）★ hamiTomeru の try を 外す ⇒ ★赤★
+test('★紙を 組めない（測る 所が 投げる）⇒ 文を 出して 止める・印刷も しない★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await openKyuryo(page);
+  await page.waitForTimeout(800);
+  await page.evaluate(() => {
+    window.__insatsu = 0;
+    window.print = function () {
+      window.__insatsu++;
+    };
+    window.__paper.maisu = function () {
+      throw new Error('てすと');
+    };
+  });
+  await page.click('#btnPrint');
+  await page.waitForTimeout(3000);
+  const r = await page.evaluate(() => ({
+    insatsu: window.__insatsu,
+    err: document.getElementById('err').textContent,
+    msg: (document.getElementById('msg') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★組めない★ ' + JSON.stringify(r));
+  expect(r.err, '★組めないのに 何も 知らせない★').toContain('組めませんでした');
+  expect(r.msg, '★「作っています」の まま 止まった★').not.toContain('作っています');
+  expect(r.insatsu, '★組めないのに 印刷へ 落ちた★').toBe(0);
+});
+
+// ★★画面から 呼ばれない 出し口（printOne）も はみ出す 人は 作らない★★ 2026-10-08
+//   ★わざと壊して 赤（2026-10-08 実測）★ printOne の hamiTomeru を 外す ⇒ ★赤★
+test('★printOne：手当・控除 90件 ⇒ 明細の PDF を 作らない★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await kazoeru(page, false);
+  await openKyuryo(page, (f) => {
+    const w = f.workHours[0];
+    f.adjustments = Array.from({ length: 90 }, (_, i) => ({
+      adj_id: 'n' + i,
+      employee_id: w.employee_id,
+      work_date: w.work_date,
+      kind: i % 2 ? 'koujo' : 'teate',
+      label: '長い 名前の 手当 その' + (i + 1) + '（ガソリン・駐車場・携帯 等）',
+      yen: 100 + i,
+    }));
+    return f;
+  });
+  await page.waitForTimeout(800);
+  const ei = await page.evaluate(() => {
+    const P = window.__paper;
+    for (let i = 0; i < P.ninzu(); i++) if (P.maisu(i).betsu) return i;
+    return -1;
+  });
+  expect(ei, '★はみ出す 人が 居ない＝この 見張りは 何も 見ていない★').toBeGreaterThanOrEqual(0);
+  await page.evaluate((i) => {
+    window.__dasu = 0;
+    window.printOne(i);
+  }, ei);
+  await page.waitForTimeout(3000);
+  const r = await page.evaluate(() => ({
+    err: document.getElementById('err').textContent,
+    msg: (document.getElementById('msg') || {}).textContent || '',
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★printOne★ ' + JSON.stringify(r));
+  expect(r.err, '★はみ出すのに printOne が PDF に 進んだ★').toContain(
+    '多すぎて 明細の 紙に 入りません'
+  );
+  expect(await page.evaluate(() => window.__dasu), '★文を 出しながら PDF も 作った★').toBe(0);
+  expect(await page.evaluate(() => window.__insatsu)).toBe(0);
+  expect(r.msg).not.toContain('作っています');
+  expect(err).toEqual([]);
+});
+
+// ★★PDF の 道具を 読めた 後の 失敗 ⇒ 印刷に 落とさず「作れませんでした」と 止める★★ 2026-10-08（対立役）
+//   前は「PDFの道具が読めませんでした。印刷で出します。」と 嘘の 文で 画面の 写しを 印刷した
+//   ★わざと壊して 赤（2026-10-08 実測）★ pdfAtoshimatsu の 道具の 印（dougu）を 見る 所を 外す ⇒ ★赤★（印刷 1回）
+for (const [na, osu] of [
+  ['明細を PDFで 見る（printAll）', (page) => page.click('#btnPrint')],
+  ['printOne', (page) => page.evaluate(() => window.printOne(0))],
+]) {
+  test('★' + na + '：PDF を 作る 所で 失敗 ⇒ 印刷 0回・本当の 訳を 出す★', async ({ page }) => {
+    const err = [];
+    page.on('pageerror', (e) => err.push(e.message));
+    await kazoeru(page, true);
+    await openKyuryo(page);
+    await page.waitForTimeout(800);
+    await osu(page);
+    await page.waitForTimeout(3000);
+    const r = await page.evaluate(() => ({
+      dasu: window.__dasu,
+      insatsu: window.__insatsu,
+      err: document.getElementById('err').textContent,
+      msg: (document.getElementById('msg') || {}).textContent || '',
+    }));
+    // eslint-disable-next-line no-console
+    console.log('★作れない★ ' + JSON.stringify(r));
+    expect(r.dasu, '★PDF を 作る 所まで 来ていない＝空回り★').toBe(1);
+    expect(r.insatsu, '★作れなかった 紙を 印刷に 落とした★').toBe(0);
+    expect(r.err).toContain('明細の 紙を 作れませんでした');
+    expect(r.err).not.toContain('道具が読めませんでした');
+    expect(r.msg).not.toContain('作っています');
+  });
+}
