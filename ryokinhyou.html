@@ -129,6 +129,11 @@
         margin-bottom: 10px;
       }
 
+      .ttl2 {
+        font-weight: 700;
+        margin: 14px 0 6px;
+      }
+
       .btn {
         background: var(--blue);
         border: none;
@@ -653,14 +658,33 @@
               </div>
             </div>
           </div>
+          <div class="ttl2">期間の 割増（GW・お盆・年末年始 など 好きなだけ）</div>
+          <div id="kikanList"></div>
+          <button class="btn sub2 chi" id="btnKikanAdd" type="button">＋ 期間を 足す</button>
+          <div class="note">
+            日付は <b>月-日</b>（例 04-29 〜 05-05＝毎年）か <b>年-月-日</b>（例 2027-04-29 〜
+            2027-05-06＝その年 だけ）。
+            <br />
+            同じ 時に 割増が いくつか 当たる 時の 掛け方は 下の「重なった 時」で 選べます。
+          </div>
           <div class="row">
-            <span>土日・冬を 決める 日</span>
+            <span>土日・冬・期間を 決める 日</span>
             <div class="in">
-              <select id="fHiKijun">
+              <select id="fHiKijun" aria-label="土日・冬・期間を 決める 日">
                 <option value="hajime">
                   業務を 始めた 日（夜に 始めて 日を 跨いでも 始めた 日）
                 </option>
                 <option value="hashitta">走った 時の 日</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <span>重なった 時（深夜・土日・冬・期間）</span>
+            <div class="in">
+              <select id="fKasanari" aria-label="割増が 重なった 時">
+                <option value="kakeru">掛け合わせる（1.1倍 と 1.5倍 ⇒ 1.65倍）</option>
+                <option value="ookii">大きい 方 だけ（⇒ 1.5倍）</option>
+                <option value="tasu">足し合わせる（1 ＋ 0.1 ＋ 0.5 ⇒ 1.6倍）</option>
               </select>
             </div>
           </div>
@@ -968,7 +992,11 @@
           h.autoSurcharges.winter.rate = suji('fWinRate', 1);
           // ★選んだ 時だけ 書く★（触っていない 料金表に 項目を 足さない＝既定は 業務を 始めた 日）
           if ($('fHiKijun').value === 'hashitta') h.autoSurcharges.hiNoKijun = 'hashitta';
-          else delete h.autoSurcharges.hiNoKijun; // 既定＝項目 無し（選んで 戻した 時に「変えた」扱いに しない・対立役）
+          else delete h.autoSurcharges.hiNoKijun;
+          // ★重なり：既定（掛け合わせる）は 項目 無し＝前からの 計算★
+          var ks = $('fKasanari').value;
+          if (ks === 'ookii' || ks === 'tasu') h.autoSurcharges.kasanari = ks;
+          else delete h.autoSurcharges.kasanari; // 既定＝項目 無し（選んで 戻した 時に「変えた」扱いに しない・対立役）
 
           // ★空なら 使わない（0 に しない）★
           if ($('fMin').value === '') delete h.minFare;
@@ -1003,10 +1031,13 @@
           $('fWinTo').value = f.to || '03-15';
           $('fWinRate').value = typeof f.rate === 'number' ? f.rate : 1.1;
           $('fHiKijun').value = a.hiNoKijun === 'hashitta' ? 'hashitta' : 'hajime';
+          $('fKasanari').value =
+            a.kasanari === 'ookii' || a.kasanari === 'tasu' ? a.kasanari : 'kakeru';
           $('fMin').value = typeof h.minFare === 'number' ? h.minFare : '';
           $('fMax').value = typeof h.maxFare === 'number' ? h.maxFare : '';
           kakuTiers();
           kakuSur();
+          kakuKikan();
           kakuVeh();
         }
 
@@ -1097,6 +1128,38 @@
           });
         }
 
+        // ★期間の 割増★ 2026-10-08（司さん「冬だけやなかろがGWとかもあるし、そこは自由にカスタムできるようにしとけや」）
+        //   並びが 空に なったら 項目ごと 消す（触っていない 料金表に 項目を 足さない）
+        function kakuKikan() {
+          var root = $('kikanList');
+          root.innerHTML = '';
+          var a = HENSHU.autoSurcharges || {};
+          var li = Array.isArray(a.kikan) ? a.kikan : [];
+          li.forEach(function (x, i) {
+            var d = kumi(root);
+            ire(d, 'text', x.name || '', '名前（GW など）', function (v) {
+              li[i].name = v;
+            });
+            ire(d, 'text', x.from || '', '04-29', function (v) {
+              li[i].from = String(v).trim();
+            });
+            tani(d, '〜');
+            ire(d, 'text', x.to || '', '05-05', function (v) {
+              li[i].to = String(v).trim();
+            });
+            ire(d, 'number', x.rate, '1.2', function (v) {
+              li[i].rate = v === '' ? null : Number(v); // ★空・0 は 確かめで 止める（黙って 1倍に しない）★
+            });
+            tani(d, '倍');
+            keshiBtn(d, function () {
+              li.splice(i, 1);
+              if (!li.length) delete HENSHU.autoSurcharges.kikan;
+              kakuKikan();
+              kakinaosu();
+            });
+          });
+        }
+
         function kakuVeh() {
           var root = $('vehList');
           root.innerHTML = '';
@@ -1151,6 +1214,12 @@
             h.minFare > h.maxFare
           )
             return '下限が 上限より 大きく なっています。';
+          // ★期間の 形は js/fare-calc.js の kikanNoKatachi 1か所で 確かめる（写しを 作らない）★
+          var kk = (h.autoSurcharges && h.autoSurcharges.kikan) || [];
+          for (var q = 0; q < kk.length; q++) {
+            var dame = FareCalc.kikanNoKatachi(kk[q]);
+            if (dame) return dame;
+          }
           return '';
         }
 
@@ -1371,6 +1440,22 @@
               '土・日',
               '—'
             );
+          if (a.winter && a.winter.enabled)
+            b += gyou(
+              '冬の 割増',
+              Math.round((a.winter.rate || 1) * 100 - 100) + '%増',
+              esc(a.winter.from) + '〜' + esc(a.winter.to), // ★字は 逃がす（表に そのまま 入る）★
+              '—'
+            );
+          (Array.isArray(a.kikan) ? a.kikan : []).forEach(function (k) {
+            b += gyou(
+              // ★会社が 打った 名前・日付は 逃がす★（<b> や & で 表が 崩れる・字が 動く を 起こさない・対立役）
+              esc(k.name || '期間') + 'の 割増',
+              Math.round((k.rate || 1) * 100 - 100) + '%増',
+              esc(k.from) + '〜' + esc(k.to),
+              '—'
+            );
+          });
           $('imaBody').innerHTML = b;
         }
 
@@ -1544,6 +1629,7 @@
           'fWinTo',
           'fWinRate',
           'fHiKijun',
+          'fKasanari',
           'fMin',
           'fMax',
         ].forEach(function (id) {
@@ -1564,6 +1650,19 @@
           });
           $('fTiersOn').checked = true;
           kakuTiers();
+          kakinaosu();
+        };
+        $('btnKikanAdd').onclick = function () {
+          HENSHU.autoSurcharges = HENSHU.autoSurcharges || {};
+          var li = (HENSHU.autoSurcharges.kikan = HENSHU.autoSurcharges.kikan || []);
+          li.push({
+            id: atarashiiId('k'),
+            name: '期間' + (li.length + 1),
+            from: '',
+            to: '',
+            rate: 1.2,
+          });
+          kakuKikan();
           kakinaosu();
         };
         $('btnSurAdd').onclick = function () {

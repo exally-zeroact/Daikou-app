@@ -112,6 +112,127 @@ describe('★自動割増は 日本時間・土日／冬は 業務を 始めた 
     ).toBeCloseTo(1.2, 10);
   });
 
+  // ★★期間の 割増（会社が 好きなだけ 足す）★★ 2026-10-08（司さん「冬だけやなかろがGWとかもあるし、そこは自由にカスタムできるようにしとけや」）
+  //   ★わざと壊して 赤（2026-10-08 実測）★ _autoMul で 期間を 掛けない ⇒ ★赤★／期間の 日を 走った 瞬間に する ⇒ ★赤★
+  const KIKAN = (kikan) => {
+    const h = JSON.parse(JSON.stringify(HYOU));
+    h.autoSurcharges.night.enabled = false;
+    h.autoSurcharges.weekend.enabled = false;
+    h.autoSurcharges.winter.enabled = false;
+    h.autoSurcharges.kikan = kikan;
+    return h;
+  };
+  for (const [na, kikan, hashitta, hajime, kake] of [
+    [
+      'GW（毎年 04-29〜05-05）5/3 水曜',
+      [{ name: 'GW', from: '04-29', to: '05-05', rate: 1.2 }],
+      '2028-05-03T12:00:00',
+      null,
+      1.2,
+    ],
+    [
+      'GW の 次の 日 5/6 ＝なし',
+      [{ name: 'GW', from: '04-29', to: '05-05', rate: 1.2 }],
+      '2027-05-06T12:00:00',
+      null,
+      1.0,
+    ],
+    [
+      'その 年 だけ（2027-04-29〜2027-05-06）2027-05-06 ＝あり',
+      [{ name: 'GW', from: '2027-04-29', to: '2027-05-06', rate: 1.3 }],
+      '2027-05-06T12:00:00',
+      null,
+      1.3,
+    ],
+    [
+      'その 年 だけ・別の 年（2028-05-03）＝なし',
+      [{ name: 'GW', from: '2027-04-29', to: '2027-05-06', rate: 1.3 }],
+      '2028-05-03T12:00:00',
+      null,
+      1.0,
+    ],
+    [
+      '年末年始（12-28〜01-04）1/2 ＝あり',
+      [{ name: '年末年始', from: '12-28', to: '01-04', rate: 1.5 }],
+      '2027-01-02T12:00:00',
+      null,
+      1.5,
+    ],
+    [
+      '2つ 当たる ＝掛け合わせ',
+      [
+        { name: 'A', from: '08-10', to: '08-16', rate: 1.2 },
+        { name: 'B', from: '08-15', to: '08-15', rate: 1.1 },
+      ],
+      '2027-08-15T12:00:00',
+      null,
+      1.32,
+    ],
+    [
+      '5/5 21:00 に 始めて 5/6 01:00 ＝業務を 始めた 日（5/5）で あり',
+      [{ name: 'GW', from: '04-29', to: '05-05', rate: 1.2 }],
+      '2027-05-06T01:00:00',
+      '2027-05-05T21:00:00',
+      1.2,
+    ],
+    [
+      '形が 揃わない（04-29〜2027-05-05）＝当てない',
+      [{ name: 'X', from: '04-29', to: '2027-05-05', rate: 1.2 }],
+      '2027-05-01T12:00:00',
+      null,
+      1.0,
+    ],
+  ]) {
+    it('★期間 ' + na + '★', () => {
+      const FC = yomu(FC_PATH);
+      expect(
+        FC._autoMul(KIKAN(kikan), J(hashitta), hajime ? J(hajime).getTime() : null)
+      ).toBeCloseTo(kake, 10);
+    });
+  }
+
+  // ★★重なった 時の 掛け方を 会社が 選ぶ★★ 2026-10-08（司さん「ユーザーが自由にカスタムできるようにしろや」）
+  //   冬 1.1 と 年末年始 1.5 が 同じ 日：掛け合わせる（既定）1.65／大きい 方 1.5／足し合わせる 1.6
+  //   ★わざと壊して 赤（2026-10-08 実測）★ kakeRitsu で kasanari を 見ない ⇒ ★赤★
+  for (const [kasanari, kake] of [
+    [undefined, 1.65],
+    ['ookii', 1.5],
+    ['tasu', 1.6],
+  ]) {
+    it('★重なり ' + (kasanari || '既定（掛け合わせる）') + ' ⇒ ' + kake + '倍★', () => {
+      const FC = yomu(FC_PATH);
+      const h = KIKAN([{ name: '年末年始', from: '12-28', to: '01-04', rate: 1.5 }]);
+      h.autoSurcharges.winter.enabled = true;
+      if (kasanari) h.autoSurcharges.kasanari = kasanari;
+      expect(FC._autoMul(h, J('2027-01-02T12:00:00'), null)).toBeCloseTo(kake, 10);
+    });
+  }
+  it('★期間の 倍率が 1 より 小さい・数で ない ⇒ 当てない（0円・半額に しない）★', () => {
+    const FC = yomu(FC_PATH);
+    for (const r of [0, 0.5, '1.2', null]) {
+      const h = KIKAN([{ name: 'X', from: '01-01', to: '12-31', rate: r }]);
+      expect(FC._autoMul(h, J('2027-06-01T12:00:00'), null)).toBe(1);
+    }
+  });
+  it('★期間の 形の 確かめ：逆に 入れた（05-05〜04-29＝360日）・形 違い・倍率 0 は 止める★', () => {
+    const FC = yomu(FC_PATH);
+    expect(FC.kikanNoKatachi({ name: 'GW', from: '05-05', to: '04-29', rate: 1.2 })).toContain(
+      '逆'
+    );
+    expect(FC.kikanNoKatachi({ name: 'GW', from: '4-29', to: '05-05', rate: 1.2 })).toContain(
+      '日付'
+    );
+    expect(
+      FC.kikanNoKatachi({ name: 'GW', from: '2027-05-06', to: '2027-04-29', rate: 1.2 })
+    ).toContain('始め');
+    expect(FC.kikanNoKatachi({ name: 'GW', from: '04-29', to: '05-05', rate: 0 })).toContain(
+      '倍率'
+    );
+    expect(FC.kikanNoKatachi({ name: '冬', from: '12-15', to: '03-15', rate: 1.1 })).toBe('');
+    // 年を 跨がない 長い 期間は 止めない（司さん「自由にカスタム」）
+    expect(FC.kikanNoKatachi({ name: '夏', from: '04-01', to: '10-31', rate: 1.1 })).toBe('');
+  });
+
   it('★★② メーターの 道（calcFare）も 業務を 始めた 日で 判じる★★', () => {
     vi.useFakeTimers();
     try {

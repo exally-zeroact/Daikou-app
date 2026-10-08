@@ -14086,6 +14086,9 @@
           if (a.weekend && a.weekend.enabled) ire('土日の 割増', a.weekend.rate + '倍');
           if (a.winter && a.winter.enabled)
             ire('冬の 割増', a.winter.from + ' 〜 ' + a.winter.to + ' ' + a.winter.rate + '倍');
+          (Array.isArray(a.kikan) ? a.kikan : []).forEach((k) =>
+            ire((k.name || '期間') + 'の 割増', k.from + ' 〜 ' + k.to + ' ' + k.rate + '倍')
+          );
           if (c.vehiclesEnabled && Array.isArray(c.vehicles) && c.vehicles.length) {
             c.vehicles.forEach((v) =>
               ire('車種', (v.name || '—') + ' ' + (v.multiplier || 1) + '倍 ＋' + yen(v.addon || 0))
@@ -14355,9 +14358,8 @@
           const _bs =
             typeof Business !== 'undefined' && Business.getState ? Business.getState() : null;
           const _tk = FareCalc.tekiyou(fc, now, _bs && _bs.active ? _bs.start_time : null);
-          if (a.night && a.night.enabled && _tk.night) mul *= a.night.rate || 1.2;
-          if (a.weekend && a.weekend.enabled && _tk.weekend) mul *= a.weekend.rate || 1.1;
-          if (a.winter && a.winter.enabled && _tk.winter) mul *= a.winter.rate || 1.1;
+          // ★倍率も メーターと 同じ 関数（重なりの 掛け方・期間も 含む）＝写しを 作らない★
+          mul *= FareCalc._autoMul(fc, now, _bs && _bs.active ? _bs.start_time : null);
           $('_fare_previewMultiplier').textContent = '適用倍率 ×' + mul.toFixed(2);
 
           const baseD =
@@ -14423,6 +14425,7 @@
             if (a.weekend && a.weekend.enabled && _tk.weekend)
               items.push('週末 ×' + a.weekend.rate);
             if (a.winter && a.winter.enabled && _tk.winter) items.push('冬季 ×' + a.winter.rate);
+            _tk.kikan.forEach((k) => items.push((k.name || '期間') + ' ×' + k.rate));
             ps.textContent = items.length ? '自動適用中: ' + items.join(' / ') : '自動適用なし';
             ps.style.color = items.length ? '#007AFF' : '#999';
             ps.style.fontFamily = 'DM Mono,monospace';

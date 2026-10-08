@@ -43,12 +43,34 @@ const FareCalc = (() => {
   function _nihon(d) {
     // 日本時間の 時・曜日・月・日（getUTC* で 読む＝端末の 時間帯に 依らない）
     const j = new Date(d.getTime() + JST_MS);
-    return { h: j.getUTCHours(), dow: j.getUTCDay(), m: j.getUTCMonth() + 1, d: j.getUTCDate() };
+    return {
+      h: j.getUTCHours(),
+      dow: j.getUTCDay(),
+      m: j.getUTCMonth() + 1,
+      d: j.getUTCDate(),
+      y: j.getUTCFullYear(),
+    };
+  }
+  // ★期間に 入るか★ 2026-10-08（司さん「冬だけやなかろがGWとかもあるし、そこは自由にカスタムできるようにしとけや」）
+  //   'MM-DD'＝毎年（年を 跨いで よい：12-28〜01-04）／'YYYY-MM-DD'＝その 年 だけ（GW は 年で 変わる）
+  //   形が 違う・揃って いない 物は 当てない（料金を 勝手に 上げない）
+  const MMDD = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  const YMD = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+  function kikanNiHairu(p, from, to) {
+    const pad = (v) => String(v).padStart(2, '0');
+    const mmdd = pad(p.m) + '-' + pad(p.d);
+    if (MMDD.test(from) && MMDD.test(to))
+      return from <= to ? mmdd >= from && mmdd <= to : mmdd >= from || mmdd <= to;
+    if (YMD.test(from) && YMD.test(to)) {
+      const ymd = p.y + '-' + mmdd;
+      return ymd >= from && ymd <= to;
+    }
+    return false;
   }
   // ★その 時に 深夜・土日・冬の どれが 当たるか（判じは ここ 1か所）★ 2026-10-08
   //   設定画面の「現在 適用中」・見本の 倍率も これを 呼ぶ（前は 画面に 端末の 時計の 判じが 3か所 写って いた）
   function tekiyou(config, now, gyomuHajime) {
-    const out = { night: false, weekend: false, winter: false };
+    const out = { night: false, weekend: false, winter: false, kikan: [] };
     const a = (config && config.autoSurcharges) || null;
     if (!a) return out;
     const ima = _nihon(now);
@@ -75,17 +97,65 @@ const FareCalc = (() => {
       const t = a.winter.to || '03-15';
       out.winter = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
     }
+    // 期間の 割増（会社が 好きなだけ 足す・日は 冬と 同じ 決め方）
+    if (Array.isArray(a.kikan)) {
+      a.kikan.forEach((k) => {
+        // ★倍率が 1 より 小さい・数で ない 物は 当てない★（0 で 0円・0.5 で 半額 に しない・対立役）
+        if (k && typeof k.rate === 'number' && k.rate >= 1 && kikanNiHairu(hajime, k.from, k.to))
+          out.kikan.push(k);
+      });
+    }
     return out;
+  }
+  // ★★同じ 時に 割増が 2つ 以上 当たった 時の 掛け方は 会社が 選ぶ★★ 2026-10-08（司さん「ユーザーが自由にカスタムできるようにしろや」）
+  //   kasanari：'kakeru'＝掛け合わせる（既定・前からの 計算）／'ookii'＝大きい 方 だけ／'tasu'＝足し合わせる（1+0.1+0.5）
+  //   深夜・土日・冬・期間の 全部に 効く（手で 押す 割増は 別＝前の まま 掛ける）
+  function kakeRitsu(rates, kasanari) {
+    if (!rates.length) return 1.0;
+    if (kasanari === 'ookii') return Math.max.apply(null, rates);
+    if (kasanari === 'tasu')
+      return rates.reduce(function (s, r) {
+        return s + (r - 1);
+      }, 1);
+    return rates.reduce(function (s, r) {
+      return s * r;
+    }, 1);
   }
   function _autoMul(config, now, gyomuHajime) {
     if (!config.autoSurcharges) return 1.0;
-    let mul = 1.0;
     const a = config.autoSurcharges;
     const tk = tekiyou(config, now, gyomuHajime);
-    if (tk.night && typeof a.night.rate === 'number') mul *= a.night.rate;
-    if (tk.weekend && typeof a.weekend.rate === 'number') mul *= a.weekend.rate;
-    if (tk.winter && typeof a.winter.rate === 'number') mul *= a.winter.rate;
-    return mul;
+    const rates = [];
+    if (tk.night && typeof a.night.rate === 'number') rates.push(a.night.rate);
+    if (tk.weekend && typeof a.weekend.rate === 'number') rates.push(a.weekend.rate);
+    if (tk.winter && typeof a.winter.rate === 'number') rates.push(a.winter.rate);
+    tk.kikan.forEach((k) => rates.push(k.rate));
+    return kakeRitsu(rates, a.kasanari);
+  }
+  // ★期間の 形の 確かめ（画面も これを 呼ぶ＝写しを 作らない）★：'' なら よい・字が 在れば 直す 所
+  function kikanNoKatachi(k) {
+    const nm = '期間「' + ((k && k.name) || '') + '」';
+    if (!k) return nm + 'が 空です。';
+    const mm = MMDD.test(k.from) && MMDD.test(k.to);
+    const ym = YMD.test(k.from) && YMD.test(k.to);
+    if (!mm && !ym)
+      return (
+        nm + 'の 日付を 確かめてください（両方 月-日（04-29）か 両方 年-月-日（2027-04-29））。'
+      );
+    if (ym && k.from > k.to) return nm + 'の 始めが 終わりより 後です。';
+    if (mm) {
+      // ★年を 跨いで 半年を 超える 毎年の 期間＝始めと 終わりを 逆に 入れた 形（05-05〜04-29 は 360日）★
+      //   年を 跨がない 期間（04-01〜10-31 など）は 長さを 問わない（司さん「自由にカスタム」・対立役）
+      const hi = (s) => Date.UTC(2001, Number(s.slice(0, 2)) - 1, Number(s.slice(3, 5)));
+      let nichi = (hi(k.to) - hi(k.from)) / 86400000 + 1;
+      const matagu = nichi <= 0;
+      if (matagu) nichi += 365;
+      if (matagu && nichi > 183)
+        return nm + 'が ' + nichi + '日間 に なります。始めと 終わりが 逆に なって いませんか。';
+    }
+    if (!(typeof k.rate === 'number' && k.rate >= 1))
+      return nm + 'の 倍率は 1 以上に してください。';
+    return '';
   }
 
   function keisan(distanceM, config, vehicleId, surchargeIds, waitSec, now, gyomuHajime) {
@@ -221,6 +291,9 @@ const FareCalc = (() => {
     setsumeiBun,
     _autoMul,
     tekiyou,
+    kikanNiHairu,
+    kikanNoKatachi,
+    kakeRitsu,
   };
 })();
 
