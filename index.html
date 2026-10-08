@@ -13881,13 +13881,14 @@
         function updateAutoStatus() {
           const a = fc.autoSurcharges || {};
           const now = new Date();
+          // ★判じは js/fare-calc.js の tekiyou 1か所★ 2026-10-08（日本時間・土日／冬は 業務を 始めた 日＝メーターと 同じ）
+          const _bs =
+            typeof Business !== 'undefined' && Business.getState ? Business.getState() : null;
+          const _tk = FareCalc.tekiyou(fc, now, _bs && _bs.active ? _bs.start_time : null);
           const nE = $('_fare_autoNightStatus');
           if (nE) {
             if (a.night && a.night.enabled) {
-              const h = now.getHours();
-              const f = a.night.from,
-                t = a.night.to;
-              const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
+              const inRange = _tk.night;
               nE.textContent = inRange ? '現在 適用中 ×' + (a.night.rate || 1.2) : '現在 適用外';
               nE.classList.toggle('inactive', !inRange);
             } else {
@@ -13898,8 +13899,7 @@
           const wE = $('_fare_autoWeekendStatus');
           if (wE) {
             if (a.weekend && a.weekend.enabled) {
-              const dow = now.getDay();
-              const inRange = dow === 0 || dow === 6;
+              const inRange = _tk.weekend;
               wE.textContent = inRange ? '現在 適用中 ×' + (a.weekend.rate || 1.1) : '現在 適用外';
               wE.classList.toggle('inactive', !inRange);
             } else {
@@ -13910,13 +13910,7 @@
           const xE = $('_fare_autoWinterStatus');
           if (xE) {
             if (a.winter && a.winter.enabled) {
-              const mmdd =
-                String(now.getMonth() + 1).padStart(2, '0') +
-                '-' +
-                String(now.getDate()).padStart(2, '0');
-              const f = a.winter.from || '12-15';
-              const t = a.winter.to || '03-15';
-              const inRange = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
+              const inRange = _tk.winter;
               xE.textContent = inRange ? '現在 適用中 ×' + (a.winter.rate || 1.1) : '現在 適用外';
               xE.classList.toggle('inactive', !inRange);
             } else {
@@ -14357,27 +14351,13 @@
           });
           const a = fc.autoSurcharges || {};
           const now = new Date();
-          if (a.night && a.night.enabled) {
-            const h = now.getHours();
-            const f = a.night.from,
-              t = a.night.to;
-            const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
-            if (inRange) mul *= a.night.rate || 1.2;
-          }
-          if (a.weekend && a.weekend.enabled) {
-            const dow = now.getDay();
-            if (dow === 0 || dow === 6) mul *= a.weekend.rate || 1.1;
-          }
-          if (a.winter && a.winter.enabled) {
-            const mmdd =
-              String(now.getMonth() + 1).padStart(2, '0') +
-              '-' +
-              String(now.getDate()).padStart(2, '0');
-            const f = a.winter.from || '12-15';
-            const t = a.winter.to || '03-15';
-            const inRange = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
-            if (inRange) mul *= a.winter.rate || 1.1;
-          }
+          // ★判じは js/fare-calc.js の tekiyou 1か所★ 2026-10-08（日本時間・土日／冬は 業務を 始めた 日＝メーターと 同じ）
+          const _bs =
+            typeof Business !== 'undefined' && Business.getState ? Business.getState() : null;
+          const _tk = FareCalc.tekiyou(fc, now, _bs && _bs.active ? _bs.start_time : null);
+          if (a.night && a.night.enabled && _tk.night) mul *= a.night.rate || 1.2;
+          if (a.weekend && a.weekend.enabled && _tk.weekend) mul *= a.weekend.rate || 1.1;
+          if (a.winter && a.winter.enabled && _tk.winter) mul *= a.winter.rate || 1.1;
           $('_fare_previewMultiplier').textContent = '適用倍率 ×' + mul.toFixed(2);
 
           const baseD =
@@ -14439,27 +14419,10 @@
           const ps = $('_fare_previewAutoStatus');
           if (ps) {
             const items = [];
-            if (a.night && a.night.enabled) {
-              const h = now.getHours();
-              const f = a.night.from,
-                t = a.night.to;
-              const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
-              if (inRange) items.push('深夜 ×' + a.night.rate);
-            }
-            if (a.weekend && a.weekend.enabled) {
-              const dow = now.getDay();
-              if (dow === 0 || dow === 6) items.push('週末 ×' + a.weekend.rate);
-            }
-            if (a.winter && a.winter.enabled) {
-              const mmdd =
-                String(now.getMonth() + 1).padStart(2, '0') +
-                '-' +
-                String(now.getDate()).padStart(2, '0');
-              const f = a.winter.from || '12-15',
-                t = a.winter.to || '03-15';
-              const inRange = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
-              if (inRange) items.push('冬季 ×' + a.winter.rate);
-            }
+            if (a.night && a.night.enabled && _tk.night) items.push('深夜 ×' + a.night.rate);
+            if (a.weekend && a.weekend.enabled && _tk.weekend)
+              items.push('週末 ×' + a.weekend.rate);
+            if (a.winter && a.winter.enabled && _tk.winter) items.push('冬季 ×' + a.winter.rate);
             ps.textContent = items.length ? '自動適用中: ' + items.join(' / ') : '自動適用なし';
             ps.style.color = items.length ? '#007AFF' : '#999';
             ps.style.fontFamily = 'DM Mono,monospace';

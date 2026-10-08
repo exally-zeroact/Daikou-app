@@ -45,10 +45,12 @@ const FareCalc = (() => {
     const j = new Date(d.getTime() + JST_MS);
     return { h: j.getUTCHours(), dow: j.getUTCDay(), m: j.getUTCMonth() + 1, d: j.getUTCDate() };
   }
-  function _autoMul(config, now, gyomuHajime) {
-    if (!config.autoSurcharges) return 1.0;
-    let mul = 1.0;
-    const a = config.autoSurcharges;
+  // ★その 時に 深夜・土日・冬の どれが 当たるか（判じは ここ 1か所）★ 2026-10-08
+  //   設定画面の「現在 適用中」・見本の 倍率も これを 呼ぶ（前は 画面に 端末の 時計の 判じが 3か所 写って いた）
+  function tekiyou(config, now, gyomuHajime) {
+    const out = { night: false, weekend: false, winter: false };
+    const a = (config && config.autoSurcharges) || null;
+    if (!a) return out;
     const ima = _nihon(now);
     const hd = gyomuHajime != null ? new Date(gyomuHajime) : null;
     const hajime = hd && isFinite(hd.getTime()) ? _nihon(hd) : ima;
@@ -57,22 +59,30 @@ const FareCalc = (() => {
       const h = ima.h;
       const f = a.night.from,
         t = a.night.to;
-      const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
-      if (inRange && typeof a.night.rate === 'number') mul *= a.night.rate;
+      out.night = f <= t ? h >= f && h < t : h >= f || h < t;
     }
     // weekend: 土日固定
     if (a.weekend && a.weekend.enabled) {
       const dow = hajime.dow;
-      if ((dow === 0 || dow === 6) && typeof a.weekend.rate === 'number') mul *= a.weekend.rate;
+      out.weekend = dow === 0 || dow === 6;
     }
     // winter: 月日範囲 (年跨ぎ対応・MM-DD 文字列)
     if (a.winter && a.winter.enabled) {
       const mmdd = String(hajime.m).padStart(2, '0') + '-' + String(hajime.d).padStart(2, '0');
       const f = a.winter.from || '12-15';
       const t = a.winter.to || '03-15';
-      const inRange = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
-      if (inRange && typeof a.winter.rate === 'number') mul *= a.winter.rate;
+      out.winter = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
     }
+    return out;
+  }
+  function _autoMul(config, now, gyomuHajime) {
+    if (!config.autoSurcharges) return 1.0;
+    let mul = 1.0;
+    const a = config.autoSurcharges;
+    const tk = tekiyou(config, now, gyomuHajime);
+    if (tk.night && typeof a.night.rate === 'number') mul *= a.night.rate;
+    if (tk.weekend && typeof a.weekend.rate === 'number') mul *= a.weekend.rate;
+    if (tk.winter && typeof a.winter.rate === 'number') mul *= a.winter.rate;
     return mul;
   }
 
@@ -208,6 +218,7 @@ const FareCalc = (() => {
     keisan,
     setsumeiBun,
     _autoMul,
+    tekiyou,
   };
 })();
 
