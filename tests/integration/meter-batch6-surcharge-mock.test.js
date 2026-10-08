@@ -94,6 +94,20 @@ const FC_BASE = {
 // 対象式: const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
 // wraparound 経路 (= f=22 > t=5) で・h >= 22 || h < 5 の各境界を時刻 mock で固定
 
+// ★★この 束は 日本の 端末で 走らせる★★ 2026-10-08
+//   new Date(2026,4,21,22,0,0) の 様に 端末の 時刻で 瞬間を 作り「日本の 22時」の つもりで 割増を 見ている。
+//   料金の 割増を 日本時間で 判じる 様に した（js/fare-calc.js）ので、CI（UTC）では 日本の 07時に なり 赤だった（10本）
+//   ⇒ 端末の 時間帯を 日本に 固定する（日本の 外の 端末は tests/unit/fare-nihon-jikan.test.js が 見る）
+let _motoTZ;
+beforeAll(() => {
+  _motoTZ = process.env.TZ;
+  process.env.TZ = 'Asia/Tokyo';
+});
+afterAll(() => {
+  if (_motoTZ === undefined) delete process.env.TZ;
+  else process.env.TZ = _motoTZ;
+});
+
 describe('Phase 8 Batch 6: night wraparound (= from=22 to=5・h>=22 || h<5)', () => {
   let Meter;
   beforeEach(() => {

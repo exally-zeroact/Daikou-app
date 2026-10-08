@@ -151,7 +151,20 @@ describe('★料金を 別ファイルに 出しても 1円も 変わらない�
     expect(kazu, '★比べた 本数が 少なすぎます★').toBeGreaterThan(3000);
   });
 
-  it('★★③ 自動割増あり … 同じ走りで 一致（時が 変わる 瞬間は 引き直す）★★', () => {
+  // ★2026-10-08 自動割増は 日本時間で 判じる 様に 変えた★（司さん「揃えろ」）
+  //   前の 物は 端末の 時計＝★日本の 端末でだけ★ 前と 同じ。CI は UTC で 走るので 時間帯を 日本に して 比べる
+  //   （日本の 外の 端末の 振る舞いは tests/unit/fare-nihon-jikan.test.js で 見る）
+  it('★★③ 自動割増あり（日本の 端末）… 同じ走りで 一致（時が 変わる 瞬間は 引き直す）★★', () => {
+    const motoTZ = process.env.TZ;
+    process.env.TZ = 'Asia/Tokyo';
+    try {
+      sanBan();
+    } finally {
+      if (motoTZ === undefined) delete process.env.TZ;
+      else process.env.TZ = motoTZ;
+    }
+  });
+  function sanBan() {
     const mae = yomu(MAE_PATH);
     const ima = yomu(IMA_PATH);
     let ok = false;
@@ -171,7 +184,7 @@ describe('★料金を 別ファイルに 出しても 1円も 変わらない�
       }
     }
     expect(ok, '★自動割増ありで 3回とも 合いませんでした（' + saigo + '）★').toBe(true);
-  });
+  }
 
   it('★④ 別ファイル側だけを 呼んでも 同じ★（画面が 直に 呼ぶ 道）', () => {
     const mae = yomu(MAE_PATH);

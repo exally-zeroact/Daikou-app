@@ -831,6 +831,21 @@ const Meter = (() => {
   //   ★なぜ 出したか★ … 事務所の 料金表画面でも ★同じ 計算★を 使う為。
   //     ・画面に 書き写す＝禁止（2か所に なると 片方だけ 直って ずれる）
   //     ・メーターの 中身を 事務所に 出す＝禁止（2026-08-02 の 事故）
+  // ★業務を 始めた 時刻（土日・冬の 割増を「始めた 日」で 判じる 為）★ 2026-10-08
+  //   夜に 始めて 日を 跨ぐ 業務でも 給料・売上と 同じ 日で 割増を 決める。取れなければ null（その 瞬間の 日）
+  function _gyomuHajime() {
+    try {
+      /* global Business */
+      if (typeof Business !== 'undefined' && typeof Business.getState === 'function') {
+        const s = Business.getState();
+        // ★業務中だけ★（終わった 業務の 始めを 次の 走りに 使わない）
+        return s && s.active && s.start_time ? s.start_time : null;
+      }
+    } catch (_) {
+      /* 取れなければ その 瞬間の 日 */
+    }
+    return null;
+  }
   function calcFare(distanceM) {
     return _FareCalc().keisan(
       distanceM,
@@ -838,14 +853,15 @@ const Meter = (() => {
       _activeVehicleId,
       _activeSurchargeIds,
       state.wait_sec,
-      new Date()
+      new Date(),
+      _gyomuHajime()
     );
   }
 
   // autoSurcharges 自動判定: 現在時刻に該当する全 auto rule の rate 積
-  //   ★中身は js/fare-calc.js に 移しました（1文字も 変えていません）★
+  //   ★中身は js/fare-calc.js（日本時間・土日／冬は 業務を 始めた 日）★
   function _calcAutoSurchargeMultiplier(now) {
-    return _FareCalc()._autoMul(fareConfig, now);
+    return _FareCalc()._autoMul(fareConfig, now, _gyomuHajime());
   }
 
   // ─── fareConfig v2 surcharge / vehicle 公開 API ───

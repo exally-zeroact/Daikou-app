@@ -32,14 +32,29 @@
 const FareCalc = (() => {
   'use strict';
 
-  // autoSurcharges 自動判定: 現在時刻に該当する全 auto rule の rate 積
-  function _autoMul(config, now) {
+  // autoSurcharges 自動判定: 該当する全 auto rule の rate 積
+  // ★★自動割増は 日本時間で 判じる★★ 2026-10-08（司さん「揃えろ（ただしおれらのような夜から始まって日を跨ぐことも考慮しろ」）
+  //   前は 端末の 時計（getHours / getDay / getMonth）＝日本の 外の 端末では 現地の 時刻で 割増が 掛かった
+  //   ・深夜（night）… その 瞬間の 日本時間の 時
+  //   ・土日（weekend）・冬（winter）… ★業務を 始めた 日（日本時間）★＝給料・売上と 同じ 日の 切り方
+  //     （金曜の 夜に 始めて 土曜 1時に 走っても 金曜の 業務＝土日の 割増は 掛からない／日曜の 夜に 始めて 月曜 1時は 日曜）
+  //     業務の 始めが 渡されない 時（料金表の 見本 など）は その 瞬間の 日本時間の 日
+  const JST_MS = 9 * 3600 * 1000;
+  function _nihon(d) {
+    // 日本時間の 時・曜日・月・日（getUTC* で 読む＝端末の 時間帯に 依らない）
+    const j = new Date(d.getTime() + JST_MS);
+    return { h: j.getUTCHours(), dow: j.getUTCDay(), m: j.getUTCMonth() + 1, d: j.getUTCDate() };
+  }
+  function _autoMul(config, now, gyomuHajime) {
     if (!config.autoSurcharges) return 1.0;
     let mul = 1.0;
     const a = config.autoSurcharges;
+    const ima = _nihon(now);
+    const hd = gyomuHajime != null ? new Date(gyomuHajime) : null;
+    const hajime = hd && isFinite(hd.getTime()) ? _nihon(hd) : ima;
     // night: 時刻範囲 (wraparound 対応)
     if (a.night && a.night.enabled) {
-      const h = now.getHours();
+      const h = ima.h;
       const f = a.night.from,
         t = a.night.to;
       const inRange = f <= t ? h >= f && h < t : h >= f || h < t;
@@ -47,13 +62,12 @@ const FareCalc = (() => {
     }
     // weekend: 土日固定
     if (a.weekend && a.weekend.enabled) {
-      const dow = now.getDay();
+      const dow = hajime.dow;
       if ((dow === 0 || dow === 6) && typeof a.weekend.rate === 'number') mul *= a.weekend.rate;
     }
     // winter: 月日範囲 (年跨ぎ対応・MM-DD 文字列)
     if (a.winter && a.winter.enabled) {
-      const mmdd =
-        String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      const mmdd = String(hajime.m).padStart(2, '0') + '-' + String(hajime.d).padStart(2, '0');
       const f = a.winter.from || '12-15';
       const t = a.winter.to || '03-15';
       const inRange = f <= t ? mmdd >= f && mmdd <= t : mmdd >= f || mmdd <= t;
@@ -62,7 +76,7 @@ const FareCalc = (() => {
     return mul;
   }
 
-  function keisan(distanceM, config, vehicleId, surchargeIds, waitSec, now) {
+  function keisan(distanceM, config, vehicleId, surchargeIds, waitSec, now, gyomuHajime) {
     let fare = 0;
 
     // Step 1: 距離料金
@@ -121,7 +135,7 @@ const FareCalc = (() => {
     fare *= manualMul;
 
     // Step 4: autoSurcharges 自動判定 (現在時刻ベース)
-    fare *= _autoMul(config, now);
+    fare *= _autoMul(config, now, gyomuHajime);
 
     // Step 5: wait 料金加算
     if (config.wait && config.wait.enabled) {
