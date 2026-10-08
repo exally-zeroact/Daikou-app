@@ -14207,13 +14207,19 @@
             )
             .join('');
         }
+        // ★★追加料金・値引きは 直した その場で 端末に 残す（2026-10-09）★★
+        //   09-01 に 保存ボタンを 隠してから（料金表は 事務所からだけ）、
+        //   ★ここで 足した 項目は どこにも 書かれず 開き直すと 消えていました★（実測 0件）。
+        //   ⇒ 足す・消す・打つ たびに 書く（押す ボタンは 要らない）
         function addExtraItem() {
           extraItems.push({ name: '', amount: 0 });
           renderExtraItems();
+          saveExtras();
         }
         function removeExtra(i) {
           extraItems.splice(i, 1);
           renderExtraItems();
+          saveExtras();
         }
         function saveExtras() {
           try {
@@ -14261,10 +14267,12 @@
         function addDiscountItem() {
           discountItems.push({ name: '', amount: 0 });
           renderDiscountItems();
+          saveDiscounts();
         }
         function removeDiscountCfg(i) {
           discountItems.splice(i, 1);
           renderDiscountItems();
+          saveDiscounts();
         }
         function saveDiscounts() {
           try {
@@ -14687,36 +14695,12 @@
           el.style.color = chuui ? '#7a4a00' : '#333';
           el.style.border = chuui ? '1px solid #f59e0b' : '1px solid #d1d1d6';
         }
+        // ★★料金表は ここから 書かない（2026-10-09）★★
+        //   司さん 2026-09-01「事務所からだけにしたんやないんか」。前は 隠れた 入力欄から
+        //   料金表を 組み直し ★倉庫へ 丸ごと 書いていました★（kakuMeter）＝端末の 写しが 古いと
+        //   ★事務所で 後から 入れた 期間の割増・重なり・下限などを 古い物で 上書き★。
+        //   ここで 残すのは 端末ごとの 追加料金・値引き だけ。
         function saveAll() {
-          saveBasic();
-          saveAuto();
-          if (!fc.tiersEnabled) fc.tiers = [];
-          if (!fc.zonesEnabled) fc.zones = [];
-          fc.version = 2;
-          // ★★料金表（2026-08-30・Firebase → Supabase）★★
-          //   ★先に この端末へ 残してから 倉庫へ 送る★＝圏外でも 次の走行は 新しい料金。
-          //   ★倉庫へ 入らなかった時に「保存しました」と 言わない★（画面が 嘘を つかない）
-          if (typeof FareConfigStore !== 'undefined') {
-            FareConfigStore.kakuMeter(fc).then((r) => {
-              // ★保存したら 札も 出し直す★（今の料金表に なった事が 見える）
-              try {
-                itsunoFuda(FareConfigStore.yomuOffline());
-              } catch (_) {}
-              if (!r || r.ok) return;
-              showToast(
-                r.reason === 'network' || r.reason === 'not_activated'
-                  ? 'この端末に保存しました（倉庫へは後で）'
-                  : '倉庫へ保存できませんでした（この端末には保存済み）'
-              );
-            });
-          }
-          // Meter.setFareConfig が業務中なら frozen で no-op (= 旧 fare.html と等価)
-          // 業務外なら次回 calcFare 呼出から即時反映される
-          if (typeof Meter !== 'undefined' && Meter.setFareConfig) {
-            try {
-              Meter.setFareConfig(fc);
-            } catch (_) {}
-          }
           saveExtras();
           saveDiscounts();
           showToast('保存しました');
@@ -14740,17 +14724,21 @@
         window._fare_removeExtra = removeExtra;
         window._fare_setExtraName = function (i, v) {
           if (extraItems[i]) extraItems[i].name = v;
+          saveExtras();
         };
         window._fare_setExtraAmount = function (i, v) {
           if (extraItems[i]) extraItems[i].amount = parseInt(v, 10) || 0;
+          saveExtras();
         };
         window._fare_addDiscountItem = addDiscountItem;
         window._fare_removeDiscount = removeDiscountCfg;
         window._fare_setDiscountName = function (i, v) {
           if (discountItems[i]) discountItems[i].name = v;
+          saveDiscounts();
         };
         window._fare_setDiscountAmount = function (i, v) {
           if (discountItems[i]) discountItems[i].amount = parseInt(v, 10) || 0;
+          saveDiscounts();
         };
       })();
       // ★起動計測ログ Phase 0 (2026-05-25): inline script eval 完了 mark (= read-only)

@@ -182,3 +182,154 @@ test('★★⑧ 1行目が 見出しに かぶっていない★★', async ({ p
   expect(kabu, '★見出しと 1行目が 見つかりません★').not.toBeNull();
   expect(kabu, '★見出しが 1行目に かぶっています（1行目が 読めません）★').toBeLessThanOrEqual(1);
 });
+
+// ★★⑨⑩ 追加料金・値引きは 残る／料金表は 書かない（2026-10-09）★★
+//   ★実測（直す前）★ 追加料金に「迎車料金 1000円」を 足して 開き直すと ★0件★
+//     （09-01 に 保存ボタンを 隠してから、ここで 直した 物は どこにも 書かれていなかった）。
+//   ★もう1つの 穴（対立役）★ saveAll は 隠れた 入力欄から 料金表を 組み直し ★倉庫へ 丸ごと 書いていた★
+//     ＝端末の 写しが 古いと 事務所で 後から 入れた 期間の割増・重なり・下限などを 上書き。
+//   ★司さん 2026-09-01★「追加や値引きとかは事務所でもメーターの方でも触れてええけど」
+//                      「事務所からだけにしたんやないんか」（料金表）
+test('★★⑨ 追加料金・値引きは 直した その場で 残る（開き直しても 在る）★★', async ({ page }) => {
+  await hiraku(page);
+  await page.click("#overlayFare .tab-btn[data-tab='extras']");
+  await page.click("#overlayFare .tab-pane[data-pane='extras'] .btn-add");
+  await page.fill('#_fare_extraItems .extra-name', '迎車料金');
+  await page.fill('#_fare_extraItems .extra-amount', '1000');
+  await page.click("#overlayFare .tab-btn[data-tab='discounts']");
+  await page.click("#overlayFare .tab-pane[data-pane='discounts'] .btn-add");
+  await page.fill('#_fare_discountItems .extra-name', '常連');
+  await page.fill('#_fare_discountItems .extra-amount', '500');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => ({
+    ex: JSON.parse(localStorage.getItem('daikou_extras') || '[]'),
+    di: JSON.parse(localStorage.getItem('daikou_discounts') || '[]'),
+  }));
+  expect(r.ex, '★足した 追加料金が 開き直すと 消えています★').toEqual([
+    { name: '迎車料金', amount: 1000 },
+  ]);
+  expect(r.di, '★足した 値引きが 開き直すと 消えています★').toEqual([
+    { name: '常連', amount: 500 },
+  ]);
+  // ★業務画面の「追加料金を選ぶ」が 読む 所と 同じ 鍵か★も 開いて 見る
+  await page.evaluate(() => window.showOverlay('fare'));
+  await page.waitForTimeout(500);
+  const n = await page.evaluate(
+    () => document.querySelectorAll('#_fare_extraItems .extra-item').length
+  );
+  expect(n, '★開き直した 画面に 追加料金が 出ていません★').toBe(1);
+});
+
+test('★★⑩ 料金設定から 料金表を 倉庫へ 書かない・写しも 変えない★★', async ({ page }) => {
+  const UTSUSHI = {
+    config: {
+      version: 2,
+      base_fare: 1300,
+      base_distance_m: 1000,
+      add_fare: 100,
+      add_distance_m: 420,
+      rounding: 10,
+      autoSurcharges: {
+        night: { enabled: false, from: 22, to: 5, rate: 1.2 },
+        weekend: { enabled: false, rate: 1.1 },
+        winter: { enabled: false, from: '12-15', to: '03-15', rate: 1.1 },
+        kikan: [{ name: 'GW', from: '04-29', to: '05-05', rate: 1.2 }],
+        kasanari: 'ookii',
+      },
+    },
+    updated_at: '2026-10-01T00:00:00.000Z',
+    totta_at: '2026-10-08T00:00:00.000Z',
+    updated_by: 'office',
+  };
+  await page.addInitScript((u) => {
+    localStorage.setItem('dk_license_company', 'tok-test');
+    localStorage.setItem('DAIKOME_DEVICE_ID', 'dev-test');
+    localStorage.setItem('dk_fare_config_cache', JSON.stringify(u));
+  }, UTSUSHI);
+  const kaita = [];
+  await page.route('**/dk-fare-config**', async (route) => {
+    let b = {};
+    try {
+      b = JSON.parse(route.request().postData() || '{}');
+    } catch (_) {}
+    if (Object.prototype.hasOwnProperty.call(b, 'config')) kaita.push(b);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        config: UTSUSHI.config,
+        updated_at: UTSUSHI.updated_at,
+        updated_by: 'office',
+      }),
+    });
+  });
+  await hiraku(page);
+  // 客が 触れる 所を 全部 触る（追加料金・値引き）＋ 隠れた 保存も 呼ぶ（古い 道の 守り）
+  await page.click("#overlayFare .tab-btn[data-tab='extras']");
+  await page.click("#overlayFare .tab-pane[data-pane='extras'] .btn-add");
+  await page.fill('#_fare_extraItems .extra-amount', '1000');
+  await page.evaluate(() => window._fare_saveAll());
+  await page.waitForTimeout(1500);
+  const ato = await page.evaluate(() => JSON.parse(localStorage.getItem('dk_fare_config_cache')));
+  expect(kaita.length, '★料金表を 倉庫へ 書きました（事務所からだけ の はず）★').toBe(0);
+  expect(ato.updated_at, '★写しの 時刻が 消されました★').toBe(UTSUSHI.updated_at);
+  expect(ato.config.autoSurcharges.kikan, '★期間の割増が 写しから 消えました★').toEqual(
+    UTSUSHI.config.autoSurcharges.kikan
+  );
+});
+
+// ★★⑪⑫ 保存を 足した 8か所を 1つずつ 守る（対立役 2026-10-09：⑨は 金額の 2か所しか 赤に ならなかった）★★
+//   ⑪ 足す（＋ 項目を追加）・名前を 後から 直す … 足すだけで 残るか／名前だけの 変更が 残るか
+//   ⑫ 消す … 消した物が 開き直すと 戻って「選ぶ」に 出続けないか（お金の 項目が 消えない 形）
+for (const [fuda, hako, kagi] of [
+  ['extras', '#_fare_extraItems', 'daikou_extras'],
+  ['discounts', '#_fare_discountItems', 'daikou_discounts'],
+]) {
+  test(`★★⑪ ${fuda}：足すだけで 残る・名前を 後から 直しても 残る★★`, async ({ page }) => {
+    await hiraku(page);
+    await page.click(`#overlayFare .tab-btn[data-tab='${fuda}']`);
+    await page.click(`#overlayFare .tab-pane[data-pane='${fuda}'] .btn-add`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
+    const a = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || '[]'), kagi);
+    expect(a.length, '★「＋ 項目を追加」だけでは 残っていません★').toBe(1);
+    await page.evaluate(() => window.showOverlay('fare'));
+    await page.waitForTimeout(500);
+    await page.click(`#overlayFare .tab-btn[data-tab='${fuda}']`);
+    await page.fill(`${hako} .extra-amount`, '700');
+    await page.fill(`${hako} .extra-name`, 'あとの名前');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
+    const b = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || '[]'), kagi);
+    expect(b, '★金額の 後に 直した 名前が 残っていません★').toEqual([
+      { name: 'あとの名前', amount: 700 },
+    ]);
+  });
+
+  test(`★★⑫ ${fuda}：消した物は 開き直しても 戻らない★★`, async ({ page }) => {
+    await page.addInitScript(
+      ([k]) => {
+        if (!sessionStorage.getItem('_seeded')) {
+          localStorage.setItem(
+            k,
+            JSON.stringify([
+              { name: 'のこす', amount: 100 },
+              { name: 'けす', amount: 200 },
+            ])
+          );
+          sessionStorage.setItem('_seeded', '1');
+        }
+      },
+      [kagi]
+    );
+    await hiraku(page);
+    await page.click(`#overlayFare .tab-btn[data-tab='${fuda}']`);
+    await page.locator(`${hako} .extra-del`).nth(1).click();
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(500);
+    const r = await page.evaluate((k) => JSON.parse(localStorage.getItem(k) || '[]'), kagi);
+    expect(r, '★消した 項目が 開き直すと 戻っています★').toEqual([{ name: 'のこす', amount: 100 }]);
+  });
+}
