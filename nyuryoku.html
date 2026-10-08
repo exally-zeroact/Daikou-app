@@ -397,30 +397,41 @@
           return showErr(msg);
         }
 
+        // ★★日は 日本時間で 切る★★ 2026-10-08（司さん「対応させろや」）
+        //   前は 端末の 時計＝日本の 外の 端末では 給料（日本時間で 数える）と 最大 9時間 ずれ、
+        //   日本時間 1日 0〜9時の 業務が 前の 日に 付き、実費も 前の 日に 入った。日本の 端末では 1つも 変わらない
+        var JST_MS = 9 * 3600 * 1000;
+        // その 時刻の 日本時間の 日付
         function hiKey(d) {
-          return (
-            d.getFullYear() +
-            '-' +
-            ('0' + (d.getMonth() + 1)).slice(-2) +
-            '-' +
-            ('0' + d.getDate()).slice(-2)
-          );
+          return new Date(d.getTime() + JST_MS).toISOString().slice(0, 10);
         }
-        // ★曜日だけ★（年月日は 上の 欄が 出す＝二重に しない）
+        // ★曜日だけ★（年月日は 上の 欄が 出す＝二重に しない）＝暦の 日付から（時間帯に 左右されない）
         function youbi(ymd) {
-          var d = new Date(ymd + 'T00:00:00');
-          return '（' + '日月火水木金土'.charAt(d.getDay()) + '）';
+          var d = new Date(ymd + 'T00:00:00Z');
+          return '（' + '日月火水木金土'.charAt(d.getUTCDay()) + '）';
         }
         function ugokasu(ymd, n) {
-          var d = new Date(ymd + 'T00:00:00');
-          d.setDate(d.getDate() + n);
-          return hiKey(d);
+          var d = new Date(ymd + 'T00:00:00Z');
+          d.setUTCDate(d.getUTCDate() + n);
+          return d.toISOString().slice(0, 10);
         }
-        // ★その日の 0時から 次の日の 0時まで★（端末の 時間で 切る＝画面と 同じ 感覚）
+        // ★その日の 日本時間 0時から 次の日の 0時まで★
         function hiRange(ymd) {
-          var d = new Date(ymd + 'T00:00:00');
-          var to = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0);
-          return { from: d.toISOString(), to: to.toISOString() };
+          var from = new Date(ymd + 'T00:00:00+09:00');
+          return {
+            from: from.toISOString(),
+            to: new Date(from.getTime() + 24 * 3600 * 1000).toISOString(),
+          };
+        }
+        // ★その月の 日本時間の 頭〜次の 月の 頭★
+        function tsukiRange(ymd) {
+          var y = +ymd.slice(0, 4);
+          var m = +ymd.slice(5, 7);
+          var tsugi = m === 12 ? y + 1 + '-01' : y + '-' + String(m + 1).padStart(2, '0');
+          return {
+            from: new Date(ymd.slice(0, 7) + '-01T00:00:00+09:00').toISOString(),
+            to: new Date(tsugi + '-01T00:00:00+09:00').toISOString(),
+          };
         }
 
         HI = hiKey(new Date());
@@ -698,11 +709,11 @@
           var hako = $('hashittaHi');
           hako.style.display = 'none';
           if (!COMPANY) return;
-          // ★月の 頭〜次の 月の 頭（hiRange と 同じ 端末の 時刻）★ 2026-10-08（対立役：前は 時間帯 無しの 頭＝倉庫は UTC と 読み
+          // ★月の 頭〜次の 月の 頭（日本時間）★ 2026-10-08（対立役：前は 時間帯 無しの 頭＝倉庫は UTC と 読み
           //   日本時間 1日 0〜9時が 落ちた・上の 端が 無く 前の 月を 見ている 時に 次の 月の 日へ 飛んだ）
-          var t0 = new Date(HI + 'T00:00:00');
-          var tsukiKara = new Date(t0.getFullYear(), t0.getMonth(), 1).toISOString();
-          var tsukiMade = new Date(t0.getFullYear(), t0.getMonth() + 1, 1).toISOString();
+          var tr = tsukiRange(HI);
+          var tsukiKara = tr.from;
+          var tsukiMade = tr.to;
           var q =
             // ★使わない 印の 業務は「走った 日」に しない★ 2026-10-07（not.is.true＝印の 無い null の 行は 通る）
             'dk_shifts?select=started_at&excluded=not.is.true&company_id=eq.' +

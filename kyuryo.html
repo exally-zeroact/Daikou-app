@@ -1699,10 +1699,22 @@
           document.body.classList.add('embedded'); // 読めない = 中に入っている
         }
 
+        // ★★今の 日本時間（年・月・日の 欄が 日本時間に なる Date）★★ 2026-10-08（司さん「対応させろや」）
+        //   日の 切り方を 給料（payroll-daily.js の 日本時間）と 入力の 画面に 揃える。日本の 端末では 1つも 変わらない
+        function jstNow() {
+          var t = new Date(Date.now() + 9 * 3600 * 1000);
+          return new Date(
+            t.getUTCFullYear(),
+            t.getUTCMonth(),
+            t.getUTCDate(),
+            t.getUTCHours(),
+            t.getUTCMinutes()
+          );
+        }
         var SESS = null;
         var COMPANY = null;
         var TAB = 'slip';
-        var YM = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+        var YM = { year: jstNow().getFullYear(), month: jstNow().getMonth() + 1 };
         var PERIODS = []; // その月の期（司さんは月3回払い＝3つ）
         var PIDX = 0; // いま見ている期
         var PERIOD = null;
@@ -2056,7 +2068,7 @@
         }
 
         function honninMiru() {
-          var now = new Date();
+          var now = jstNow();
           HN_Y = now.getFullYear();
           HN_M = now.getMonth() + 1;
           honninTsuki(0);
@@ -2065,7 +2077,7 @@
         // ★月を 動かす（0＝今の まま／-1＝前の月／+1＝次の月）★
         function honninTsuki(zure) {
           var d = new Date(HN_Y, HN_M - 1 + zure, 1);
-          var now = new Date();
+          var now = jstNow();
           // ★先の 月へは 行かせない★（締めが 月を またぐ 会社は 今日の 期の 月まで・10-07）
           var sakiM = HN_SAKI ? HN_SAKI.year * 12 + HN_SAKI.month - 1 : 0;
           if (
@@ -2163,7 +2175,7 @@
         }
         // ★今日を 含む 期の 番号★（無ければ 0）＝今月を 開いた 時に 今の 期を 出す
         function kyouNoKi(ps) {
-          var t = new Date();
+          var t = jstNow();
           var k =
             t.getFullYear() +
             '-' +
@@ -2178,7 +2190,7 @@
         // ★★今日を 含む 期の 月★★ 2026-10-07（対立役 G：始まった月の分 で 20日締め なら 10/7 の 期は 9月分）
         //   ＝最初に 開く 月・本人が 進める 一番 先の 月
         function kyouNoTsuki(kata) {
-          var t = new Date();
+          var t = jstNow();
           var ima = { year: t.getFullYear(), month: t.getMonth() + 1 };
           if (!kata || kata.dame) return ima;
           var k =
@@ -2283,7 +2295,7 @@
             };
           var tsugi = document.getElementById('hnTsugi');
           if (tsugi) {
-            var now = new Date();
+            var now = jstNow();
             var hate = Math.max(
               now.getFullYear() * 12 + (now.getMonth() + 1),
               HN_SAKI ? HN_SAKI.year * 12 + HN_SAKI.month : 0
@@ -5705,7 +5717,7 @@
             ms.textContent = '★' + r.riyuu + '★';
             return;
           }
-          var ima = new Date();
+          var ima = jstNow();
           var ym = { year: ima.getFullYear(), month: ima.getMonth() + 1 };
           var gyou = [0, 1].map(function (z) {
             var t2 = PayrollPeriod.shift(ym, z);

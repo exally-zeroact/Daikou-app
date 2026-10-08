@@ -898,9 +898,21 @@
           document.body.classList.add('embedded'); // 読めない = 中に入っている
         }
 
+        // ★★今の 日本時間（年・月・日の 欄が 日本時間に なる Date）★★ 2026-10-08（司さん「対応させろや」）
+        //   日の 切り方を 給料（payroll-daily.js の 日本時間）と 入力の 画面に 揃える。日本の 端末では 1つも 変わらない
+        function jstNow() {
+          var t = new Date(Date.now() + 9 * 3600 * 1000);
+          return new Date(
+            t.getUTCFullYear(),
+            t.getUTCMonth(),
+            t.getUTCDate(),
+            t.getUTCHours(),
+            t.getUTCMinutes()
+          );
+        }
         var SESS = null;
         var COMPANY = null;
-        var YEAR = new Date().getFullYear();
+        var YEAR = jstNow().getFullYear();
         var RAW = {
           shifts: [],
           edits: [],
@@ -1141,7 +1153,7 @@
           var h = '';
           for (var m = 1; m <= 12; m++) h += '<option value="' + m + '">' + m + '月</option>';
           sel.innerHTML = h;
-          var kyou = new Date();
+          var kyou = jstNow();
           sel.value = ima || (kyou.getFullYear() === YEAR ? kyou.getMonth() + 1 : 1);
         }
         // ★★どの 紙を 組むかは ここ 1か所★★ 2026-10-05（見せる 時も PDF に する 時も 同じ 物）
@@ -2325,7 +2337,7 @@
             // ★★ここは 見るだけ★★ 2026-09-06（司さん「入力タブは」）
             //   ★打つ 所は 1か所★＝売上表の「入力」。
             //   ⇒ 同じ 物を 2か所で 打てると ★どちらが 本当か 分からなく なる★
-            var tsuki = ONE || new Date().getMonth() + 1;
+            var tsuki = ONE || jstNow().getMonth() + 1;
             var nissuu = new Date(YEAR, tsuki, 0).getDate();
             $('dkHead').innerHTML =
               '<tr><th>' + YEAR + '年 ' + tsuki + '月の 日</th><th>電子決済</th></tr>';

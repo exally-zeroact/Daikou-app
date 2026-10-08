@@ -63,6 +63,9 @@ describe('★時計を 止めるなら 時間帯も 止める★', () => {
     const chigau = specAll()
       .filter((f) => f.ji.indexOf('timezoneId') >= 0)
       .filter((f) => f.ji.indexOf("timezoneId: 'Asia/Tokyo'") < 0)
+      // ★わざと 日本の 外の 端末を 試す 1本だけ 外す★ 2026-10-08（司さん「対応させろや」＝入力の 日を 日本時間に。
+      //   日本の 端末では 前と 同じ 結果なので 日本の 外で 走らせないと 守れない）
+      .filter((f) => f.na !== 'nyuryoku-nihon-jikan.spec.js')
       .map((f) => f.na);
     expect(
       chigau,
