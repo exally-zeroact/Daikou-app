@@ -356,3 +356,24 @@ test('★★⑨ 割増を 直して 保存すると その通り 送られる（
   expect(sent.vehicles, '★車種が 消えました★').toEqual(SOUKO.vehicles);
   expect(sent.base_fare, '★基本の 料金が 変わりました★').toBe(SOUKO.base_fare);
 });
+
+// ★★⑩ 土日・冬を 決める 日を 会社が 選べる（既定は 業務を 始めた 日）★★ 2026-10-08
+//   司さん「デフォルトはそれでええけど会社で決めさせろや」
+//   ★わざと壊して 赤（2026-10-08 実測）★ atsumeru の hiNoKijun を 書く 行を 外す ⇒ ★赤★
+test('★★⑩ 土日・冬を 決める 日を 選んで 保存すると その通り 送られる★★', async ({ page }) => {
+  await login(page);
+  const okutta = await souko(page);
+  await hiraku(page);
+  await expect(page.locator('#fHiKijun'), '★既定が 業務を 始めた 日で ない★').toHaveValue('hajime');
+  await page.selectOption('#fHiKijun', 'hashitta');
+  await page.waitForTimeout(200);
+  await page.click('#btnSave');
+  await page.waitForTimeout(600);
+  const hozon = okutta.filter((o) => o.body && o.body.indexOf('"config"') >= 0);
+  expect(hozon.length, '★保存が 送られていません★').toBeGreaterThan(0);
+  const sent = JSON.parse(hozon[0].body).config;
+  expect(sent.autoSurcharges.hiNoKijun, '★選んだ 日の 決め方が 送られていません★').toBe('hashitta');
+  expect(sent.autoSurcharges.night, '★深夜の 設定が 変わりました★').toEqual(
+    SOUKO.autoSurcharges.night
+  );
+});

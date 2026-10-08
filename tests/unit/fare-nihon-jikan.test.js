@@ -98,6 +98,20 @@ describe('★自動割増は 日本時間・土日／冬は 業務を 始めた 
     });
   }
 
+  // ★会社が「走った 時の 日」を 選んだ 時★ 2026-10-08（司さん「会社で決めさせろや」）
+  //   ★わざと壊して 赤（2026-10-08 実測）★ fare-calc の hiNoKijun を 見る 条件を 外す ⇒ ★赤★
+  it('★走った 時の 日を 選んだ 会社 ⇒ 金曜 21:00 に 始めて 土曜 01:00 は 深夜＋土日★', () => {
+    const FC = yomu(FC_PATH);
+    const h = JSON.parse(JSON.stringify(HYOU));
+    h.autoSurcharges.hiNoKijun = 'hashitta';
+    expect(
+      FC._autoMul(h, J('2026-10-10T01:00:00'), J('2026-10-09T21:00:00').getTime())
+    ).toBeCloseTo(1.32, 10);
+    expect(
+      FC._autoMul(h, J('2026-10-12T01:00:00'), J('2026-10-11T21:00:00').getTime())
+    ).toBeCloseTo(1.2, 10);
+  });
+
   it('★★② メーターの 道（calcFare）も 業務を 始めた 日で 判じる★★', () => {
     vi.useFakeTimers();
     try {

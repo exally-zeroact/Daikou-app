@@ -31,7 +31,6 @@ const JIBUN = 'tests/unit/mihari-kowashita-kiroku.test.js';
 // ★2026-09-01 時点で 既に 在った 物★（★1本 直すたびに ここから 消す★）
 const NOKORI = [
   'tests/drift-static/distance-m-update-paths-anchor.test.js',
-  'tests/e2e/jimusho-ryokinhyou.spec.js',
   'tests/integration/adaptive-mode-distance.test.js',
   'tests/integration/billing-gates-live.test.js',
   'tests/integration/gap-routing-validation.test.js',
@@ -109,6 +108,8 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
     ).toEqual([]);
   });
 
+  // ★2026-10-08：jimusho-ryokinhyou.spec.js を 名簿から 外しました（44→43）
+  //   ★⑩ 土日・冬を 決める 日（司さん「会社で決めさせろや」）を 足し、★書く 行を 外して 赤に なる事を 見た★ ので 記録が 出来ました。
   // ★★2026-09-06：kyuryo-paper.spec.js を 名簿から 外しました（45→44）★★
   //   ★司さん★「入ってなくても明細に出すってチェックしとんやけん
   //             車の名前の行がないのがおかしいやろが」
@@ -127,7 +128,7 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
       '★名簿の 物を 直したなら 名簿から 消してください（黙って 減らさない）★'
     ).toBe(0);
     expect(NOKORI.length, '★名簿を 増やさないでください（新しい 見張りには 記録を 書く）★').toBe(
-      44
+      43
     );
   });
 });

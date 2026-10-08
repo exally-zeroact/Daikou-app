@@ -52,7 +52,9 @@ const FareCalc = (() => {
     const a = (config && config.autoSurcharges) || null;
     if (!a) return out;
     const ima = _nihon(now);
-    const hd = gyomuHajime != null ? new Date(gyomuHajime) : null;
+    // ★土日・冬を 決める 日は 会社が 選ぶ★ 2026-10-08（司さん「デフォルトはそれでええけど会社で決めさせろや」）
+    //   hiNoKijun：'hajime'＝業務を 始めた 日（既定）／'hashitta'＝走った 時の 日（日本時間）
+    const hd = a.hiNoKijun !== 'hashitta' && gyomuHajime != null ? new Date(gyomuHajime) : null;
     const hajime = hd && isFinite(hd.getTime()) ? _nihon(hd) : ima;
     // night: 時刻範囲 (wraparound 対応)
     if (a.night && a.night.enabled) {

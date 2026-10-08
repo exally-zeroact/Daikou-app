@@ -653,8 +653,22 @@
               </div>
             </div>
           </div>
+          <div class="row">
+            <span>土日・冬を 決める 日</span>
+            <div class="in">
+              <select id="fHiKijun">
+                <option value="hajime">
+                  業務を 始めた 日（夜に 始めて 日を 跨いでも 始めた 日）
+                </option>
+                <option value="hashitta">走った 時の 日</option>
+              </select>
+            </div>
+          </div>
           <div class="note">
-            冬は <b>月-日</b>（例 12-15）で 入れます。年を またいでも かまいません。
+            冬は <b>月-日</b>（例 12-15）で 入れます。年を またいでも かまいません。<br />
+            「業務を 始めた 日」＝金曜の 夜に 始めて 土曜の 1時に 走っても 金曜（土日の
+            割増なし）・日曜の 夜に 始めて 月曜の 1時は 日曜（あり）。深夜は いつも 走った
+            時刻（日本時間）で 決めます。
           </div>
         </div>
 
@@ -952,6 +966,9 @@
           h.autoSurcharges.winter.from = $('fWinFrom').value || '12-15';
           h.autoSurcharges.winter.to = $('fWinTo').value || '03-15';
           h.autoSurcharges.winter.rate = suji('fWinRate', 1);
+          // ★選んだ 時だけ 書く★（触っていない 料金表に 項目を 足さない＝既定は 業務を 始めた 日）
+          if ($('fHiKijun').value === 'hashitta') h.autoSurcharges.hiNoKijun = 'hashitta';
+          else delete h.autoSurcharges.hiNoKijun; // 既定＝項目 無し（選んで 戻した 時に「変えた」扱いに しない・対立役）
 
           // ★空なら 使わない（0 に しない）★
           if ($('fMin').value === '') delete h.minFare;
@@ -985,6 +1002,7 @@
           $('fWinFrom').value = f.from || '12-15';
           $('fWinTo').value = f.to || '03-15';
           $('fWinRate').value = typeof f.rate === 'number' ? f.rate : 1.1;
+          $('fHiKijun').value = a.hiNoKijun === 'hashitta' ? 'hashitta' : 'hajime';
           $('fMin').value = typeof h.minFare === 'number' ? h.minFare : '';
           $('fMax').value = typeof h.maxFare === 'number' ? h.maxFare : '';
           kakuTiers();
@@ -1525,6 +1543,7 @@
           'fWinFrom',
           'fWinTo',
           'fWinRate',
+          'fHiKijun',
           'fMin',
           'fMax',
         ].forEach(function (id) {
