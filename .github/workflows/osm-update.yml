@@ -16,6 +16,11 @@ on:
     - cron: '0 18 1 * *' # ★毎月1日 18:00 UTC ＝ 翌2日 03:00 JST★
   workflow_dispatch:
     inputs:
+      kinshi_ha:
+        description: '歯の確かめ（白名簿の物を1字変えて 見張りが commit を止めるかを見る・普段は false）'
+        required: false
+        default: false
+        type: boolean
       region:
         description: '対象地方（テスト用に1地方ずつ実行可能）'
         required: true
@@ -38,6 +43,7 @@ concurrency:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build-roads:
@@ -186,6 +192,43 @@ jobs:
           node tests/tools/remap-fixture-roads.js HEAD \
             && echo "✅ fixture remap 完了" \
             || echo "::warning::fixture の自動remapが完全一致できず(geometry変化の可能性)。手動確認が必要。"
+
+      # ★commit の前に 実在の字の見張りを回す★（指示役の決め (a)・2026-10-11）
+      #   bot の commit は [skip ci] なので、ここで回さないと 次の人の push で 初めて赤になる。
+      #   赤なら commit しないで止め、issue を立てて知らせる（席が中身を見て 白名簿の件数を直す）。
+      #   見張りは node 24 の Linux で落ちるので、ここだけ node 20 に切り替える。
+      - name: 歯（手で起動して kinshi_ha を入れた時だけ）＝白名簿に載せた物を 1字 変える
+        if: github.event.inputs.kinshi_ha == 'true'
+        run: printf '\n<!-- kinshi-ha -->\n' >> commerce.html
+
+      - name: Node 20（実在の字の見張り用）
+        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 実在の字の見張り（commit の前・一覧は secret）
+        id: kinshi
+        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true'
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          npm run kinshi | tee kinshi.out
+          grep -q "^✓ 実在の 字 0 件" kinshi.out
+        env:
+          KINSHI_JI: ${{ secrets.KINSHI_JI }}
+          KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
+
+      - name: 見張りが赤＝commit しないで 知らせる（issue）
+        if: failure() && steps.kinshi.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" \
+            --title "★${{ github.workflow }}：実在の字の見張りが赤＝commit していません★" \
+            --body "bot の更新の中で 実在の字の見張りが 赤になったので、commit と push をしていません。
+          記録：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          席が中身を見て、tests/kinshi-ji-shiro.txt の件数を直す commit を作ってから、もう一度 回してください（字は ここに 書かない）。"
 
       - name: 自動コミット & プッシュ
         if: steps.diff.outputs.changed == 'true'
