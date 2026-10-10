@@ -122,7 +122,7 @@
         ★「配った」と「端末が 受け取った」は 別★なので、端末の 側で 読む事に 意味がある。
     -->
     <div class="card">
-      <h2>★この端末の版（正解と 同じか 見る）★</h2>
+      <h2>この端末の版（正解と 同じか 見る）</h2>
       <table id="tVer"></table>
     </div>
 
@@ -201,7 +201,7 @@
         const tV = document.getElementById('tVer');
         row(tV, 'この端末（棚の名前）', '…読んでいます');
         row(tV, '配られている版（正解）', '…読んでいます');
-        row(tV, '★見立て★', '…読んでいます');
+        row(tV, '見立て', '…読んでいます');
         (function () {
           const nowaRow = (i, v, cls) => {
             const cells = tV.querySelectorAll('tr td.v');
@@ -218,17 +218,17 @@
           function mitate() {
             if (mine === null || live === null) return; // まだ 両方 揃っていない
             if (!live) {
-              nowaRow(2, '★くらべられない★（圏外／sw.js が 読めない）', 'zero');
+              nowaRow(2, 'くらべられない（圏外／sw.js が 読めない）', 'zero');
               return;
             }
             if (!mine.length) {
-              nowaRow(2, '★まだ 棚が 無い★（1回 開き直すと 入る）', 'zero');
+              nowaRow(2, 'まだ 棚が 無い（1回 開き直すと 入る）', 'zero');
               return;
             }
             if (mine.indexOf(live) >= 0) {
-              nowaRow(2, '★新しい★ この端末は 配られている版で 動いています', 'ok');
+              nowaRow(2, '新しい この端末は 配られている版で 動いています', 'ok');
             } else {
-              nowaRow(2, '★古い★ 一度 閉じて 開き直してください', 'zero');
+              nowaRow(2, '古い 一度 閉じて 開き直してください', 'zero');
             }
           }
           // ①端末が 持っている 棚
@@ -298,7 +298,7 @@
             st.start_time ? new Date(st.start_time).toLocaleString() : '-'
           );
           row(tS, '終了 end_time', st.end_time ? new Date(st.end_time).toLocaleString() : '-');
-          row(tS, '★総走行 total_distance_m★', km(st.total_distance_m), zc(st.total_distance_m));
+          row(tS, '総走行 total_distance_m', km(st.total_distance_m), zc(st.total_distance_m));
           row(tS, '実車 actual_total_m', km(st.actual_total_m), zc(st.actual_total_m));
           row(tS, '売上 fare_total_yen', String(st.fare_total_yen) + ' 円', zc(st.fare_total_yen));
           row(tS, '営業回数 trip_count', String(st.trip_count), zc(st.trip_count));
@@ -328,7 +328,7 @@
         else {
           row(
             tM,
-            '★業務ゲート business_active★',
+            '業務ゲート business_active',
             String(ms.business_active),
             ms.business_active ? 'ok' : 'zero'
           );
@@ -340,7 +340,7 @@
           );
           row(
             tM,
-            '★業務距離 business_distance_m★',
+            '業務距離 business_distance_m',
             km(ms.business_distance_m),
             zc(ms.business_distance_m)
           );

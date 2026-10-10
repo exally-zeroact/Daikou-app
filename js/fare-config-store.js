@@ -365,14 +365,14 @@
   //   ★取れなかった時は throw します★（事務所は 通信ありきの 画面なので、
   //   「読めなかった」を「既定です」と 見せると ★人が 上書きしてしまう★）
   async function yomu(sess, companyId) {
-    if (!companyId) throw new Error('★会社が 決まっていません★');
+    if (!companyId) throw new Error('会社が 決まっていません');
     const res = await _rest(
       sess,
       'dk_fare_config?select=config,updated_at,updated_by&company_id=eq.' +
         encodeURIComponent(companyId)
     );
     if (!res || !res.ok)
-      throw new Error('★料金表を 読めませんでした★ status=' + ((res && res.status) || 0));
+      throw new Error('料金表を 読めませんでした status=' + ((res && res.status) || 0));
     const rows = await res.json();
     const raw = Array.isArray(rows) && rows[0] ? rows[0].config : null;
     return {
@@ -386,7 +386,7 @@
 
   // ★書く★: ★変えた記録も 一緒に 残す★（前は 上書きだけで 戻せなかった）
   async function kaku(sess, companyId, config, dare, opts) {
-    if (!companyId) throw new Error('★会社が 決まっていません★');
+    if (!companyId) throw new Error('会社が 決まっていません');
     const mae = await yomu(sess, companyId);
     const ato = totonoeru(config);
     const up = await _rest(sess, 'dk_fare_config?on_conflict=company_id', {
@@ -400,7 +400,7 @@
       }),
     });
     if (!up || !up.ok)
-      throw new Error('★料金表を 保存できませんでした★ status=' + ((up && up.status) || 0));
+      throw new Error('料金表を 保存できませんでした status=' + ((up && up.status) || 0));
     // ★記録は 失敗しても 本体を 止めません★（料金は 保存済み）
     try {
       await _rest(sess, 'dk_fare_config_history', {
@@ -422,7 +422,7 @@
 
   // ★1つ前に 戻す★（戻した事も 記録に 残る）
   async function modosu(sess, companyId, dare) {
-    if (!companyId) throw new Error('★会社が 決まっていません★');
+    if (!companyId) throw new Error('会社が 決まっていません');
     const res = await _rest(
       sess,
       'dk_fare_config_history?select=before_config&company_id=eq.' +
@@ -430,7 +430,7 @@
         '&order=changed_at.desc&limit=1'
     );
     if (!res || !res.ok)
-      throw new Error('★記録を 読めませんでした★ status=' + ((res && res.status) || 0));
+      throw new Error('記録を 読めませんでした status=' + ((res && res.status) || 0));
     const rows = await res.json();
     const saigo = Array.isArray(rows) && rows[0] ? rows[0].before_config : null;
     if (!saigo) return null; // 戻る先が 無い

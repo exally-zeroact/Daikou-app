@@ -115,7 +115,7 @@
           resolutionKmhPerLsb: 0.005, // ★最も細かい(010Dの200倍)★
           models: 'Leaf/X-Trail/Altima 共通',
           years: '2017+',
-          busReachable: 'bus0(★Altimaのみbus1=OBD不可達→010Dフォールバック★)',
+          busReachable: 'bus0(Altimaのみbus1=OBD不可達→010Dフォールバック)',
           source:
             'https://raw.githubusercontent.com/commaai/opendbc/master/opendbc/dbc/generator/nissan/_nissan_common.dbc',
         },
@@ -227,7 +227,7 @@
           resolutionKmhPerLsb: 0.03125,
           models: 'CAN-FD車(Ioniq5/6,Tucson NX4,Sportage,EV6,GV60等)',
           years: '2021+',
-          busReachable: '★CAN-FD=ELM327では取得不可・bus0不可達★',
+          busReachable: 'CAN-FD=ELM327では取得不可・bus0不可達',
           elm327Readable: false, // ★ELM327(classic CAN)では読めない→SEED_BY_IDから除外★
           source:
             'https://raw.githubusercontent.com/commaai/opendbc/master/opendbc/dbc/generator/hyundai/hyundai_canfd.dbc',
@@ -240,7 +240,7 @@
       makers: ['Suzuki', 'Daihatsu', 'Mitsubishi', 'Infiniti'],
       seedable: false,
       variants: [],
-      note: 'opendbc未収録=要プローブ発見。★OEMリバッジ注意: 車はバッジでなく"製造元"のCANに従う★。Daihatsu=トヨタ100%子会社・多くがトヨタOEM→0xAA(Toyota)を最初に試す価値(推論・未検証)。Suzuki自社車は輪速ID不明=discovery。★日産モコ(型式MG33S)はバッジ日産だが中身スズキMRワゴンOEM=スズキ製CAN=opendbc未収録=discovery(=スズキとして扱う)★。Mitsubishi/Infinitiも要プローブ。全社フォールバック=標準OBD2 010D。日本市場のバッジ→実製造元 網羅は別途リサーチ(2026-06-16)。',
+      note: 'opendbc未収録=要プローブ発見。OEMリバッジ注意: 車はバッジでなく"製造元"のCANに従う。Daihatsu=トヨタ100%子会社・多くがトヨタOEM→0xAA(Toyota)を最初に試す価値(推論・未検証)。Suzuki自社車は輪速ID不明=discovery。日産モコ(型式MG33S)はバッジ日産だが中身スズキMRワゴンOEM=スズキ製CAN=opendbc未収録=discovery(=スズキとして扱う)。Mitsubishi/Infinitiも要プローブ。全社フォールバック=標準OBD2 010D。日本市場のバッジ→実製造元 網羅は別途リサーチ(2026-06-16)。',
     },
   };
 

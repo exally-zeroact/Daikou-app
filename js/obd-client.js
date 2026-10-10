@@ -492,18 +492,18 @@
     // ★★この スマホでは 使えない★★ 2026-09-10（指示役の 監査②）
     //   ★前★ ④に 落ちて「挿し直して」＝★挿し直しても 直らない★
     if (na === 'NotSupportedError') {
-      return 'この スマホでは OBD が 使えません。★Android の Chrome★ で 開いて ください。';
+      return 'この スマホでは OBD が 使えません。Android の Chrome で 開いて ください。';
     }
     // ②Bluetooth が 切れている
     if (/adapter|turned off|not available|unavailable/i.test(t)) {
-      return 'スマホの Bluetooth が 切れています。★入れてから もう一度★ 押して ください。';
+      return 'スマホの Bluetooth が 切れています。入れてから もう一度 押して ください。';
     }
     // ③許可が 無い
     if (/denied|permission|SecurityError/i.test(t) || na === 'SecurityError') {
-      return 'Bluetooth の 許可が ありません。★スマホの 設定 → アプリ → 権限★ で 許可して ください。';
+      return 'Bluetooth の 許可が ありません。スマホの 設定 → アプリ → 権限 で 許可して ください。';
     }
     // ④それ以外（生の 字は console に 残してある）
-    return 'OBD に つなげませんでした。★機械を 一度 抜いて 挿し直して★ から もう一度 押して ください。';
+    return 'OBD に つなげませんでした。機械を 一度 抜いて 挿し直して から もう一度 押して ください。';
   }
 
   function _establishWith(device) {
@@ -521,7 +521,7 @@
       .catch(function (e) {
         // ★★ここで こけたら 機械が 前の 繋がりを 掴んだ まま★★ 2026-09-08
         //   ⇒ 何を すれば よいかを ★名指しで★ 出す
-        _emit('error', 'OBDの 機械に つなげません。★機械を 一度 抜いて 挿し直して★ ください。');
+        _emit('error', 'OBDの 機械に つなげません。機械を 一度 抜いて 挿し直して ください。');
         throw e;
       })
       .then(function (server) {
@@ -556,8 +556,8 @@
         _emit(
           'error',
           _ecuKotae
-            ? '車から 返事が ありません。★エンジンを かけた まま★ もう一度 押してください。'
-            : 'OBDの 機械から 返事が ありません。★一度 抜いて 挿し直して★ もう一度 押してください。'
+            ? '車から 返事が ありません。エンジンを かけた まま もう一度 押してください。'
+            : 'OBDの 機械から 返事が ありません。一度 抜いて 挿し直して もう一度 押してください。'
         );
         _susumi('つながりませんでした', 0);
         return undefined;

@@ -67,7 +67,7 @@ test('診断: 配られている版と 同じ 棚を 持つ端末は「新しい
   await page.reload({ waitUntil: 'domcontentloaded' });
 
   await expect(gyou(page, 0)).toContainText(live, { timeout: 10000 });
-  await expect(gyou(page, 2), '★同じなのに「新しい」と 出ない★').toContainText('★新しい★', {
+  await expect(gyou(page, 2), '★同じなのに「新しい」と 出ない★').toContainText('新しい', {
     timeout: 10000,
   });
   await expect(gyou(page, 2)).not.toContainText('古い');
@@ -80,7 +80,7 @@ test('診断: 別の 刻印の 棚しか 無い端末は「古い」', async ({ 
 
   const live = await honmonoNoKokuin(page);
   expect(live, '実物の 刻印が 0000000 だと この試験が 意味を 失う').not.toBe('daikome-0000000');
-  await expect(gyou(page, 2), '★古いのに 気づいていない★').toContainText('★古い★', {
+  await expect(gyou(page, 2), '★古いのに 気づいていない★').toContainText('古い', {
     timeout: 10000,
   });
   await expect(gyou(page, 2)).toContainText('開き直して');

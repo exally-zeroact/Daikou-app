@@ -11573,7 +11573,7 @@
           if (!h.ok) {
             _swReloadMachi = true;
             if (typeof dlog === 'function')
-              dlog('[SW] ' + doko + ' → ★業務中なので 読み直さない★（業務が 終わるまで 待つ）');
+              dlog('[SW] ' + doko + ' → 業務中なので 読み直さない（業務が 終わるまで 待つ）');
             return;
           }
           _swReloaded = true;
@@ -12662,14 +12662,14 @@
           //       素通りして ★「本番」と 出ていた★＝一番 危ない 出方。
           //   ★今★ ★-test- も 拾う★（本番の 配り先に -test- は 1つも 無い事を 実測）
           //     daikou-app.vercel.app ／ daikome-jimusho.vercel.app
-          if (/-test[.\-]/.test(h) || /-test$/.test(h)) return '★テスト用★';
+          if (/-test[.\-]/.test(h) || /-test$/.test(h)) return 'テスト用';
           // ★★枝ごとの 配信は『確かめ用』と 出す★★ 2026-09-10（指示役の 監査③）
           //   ★塞げていなかった 向き★
           //     daikou-app-git-<枝>-…vercel.app（★本番repo の 枝配信★）は
           //     -test- を 1つも 含まないので ★本番と 同じ 見た目★だった。
           //     ⇒ 司さんが 確かめ用の 配信を 開いて ★本番だと 思い込む★。
           //   ★本番の 配り先は -git- を 持ちません★（試験で 固定）
-          if (/-git-/.test(h)) return '★確かめ用★';
+          if (/-git-/.test(h)) return '確かめ用';
           return '';
         }
         function _withEnv(v) {
@@ -14027,7 +14027,7 @@
           });
           if (note) {
             note.textContent =
-              '★今の 時間で 出した 金額★です（深夜・土日・冬の 割増が 効く 時間帯なら その分も 入っています）。' +
+              '今の 時間で 出した 金額です（深夜・土日・冬の 割増が 効く 時間帯なら その分も 入っています）。' +
               '待ち時間・追加料金・値引きは 入っていません。';
           }
         }

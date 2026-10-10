@@ -51,7 +51,7 @@ const Meter = (() => {
     if (typeof FareCalc !== 'undefined') return FareCalc;
     // eslint-disable-next-line no-undef
     if (typeof require === 'function') return require('./fare-calc.js');
-    throw new Error('★料金の計算(js/fare-calc.js)が 読み込まれていません★');
+    throw new Error('料金の計算(js/fare-calc.js)が 読み込まれていません');
   }
 
   // ★随伴車別 k(メーター定数/器差調整)★ (2026-06-09・discovery監査スペック準拠):
