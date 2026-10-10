@@ -10,6 +10,33 @@ on:
     branches: [main]
 
 jobs:
+  # ★commit の文に 実在の字（本物の住所・名前）と「司さんの家」の札を 入れさせない★（2026-10-10）
+  #   一覧は repo に置かない＝secret KINSHI_JI（1行に 1語）。無ければ「未測定」で 赤（飛ばさない）。
+  #   当たっても 字は出さない（公開の CI の記録は 誰でも読める）。出すのは 数と commit の頭だけ。
+  kinshi-commit-msg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 門の自己確認
+        run: node scripts/kinshi-commit-msg.mjs --self-test
+      - name: この push・PR の commit の文を見る
+        shell: bash
+        env:
+          KINSHI_JI: ${{ secrets.KINSHI_JI }}
+          EV: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EV" = "pull_request" ]; then R="$PR_BASE..$PR_HEAD"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then R="$GITHUB_SHA^..$GITHUB_SHA"
+          else R="$BEFORE..$GITHUB_SHA"; fi
+          node scripts/kinshi-commit-msg.mjs --range "$R" | tee kinshi-msg.out
+          grep -q "^✓ commit の文の 実在の字 0 件" kinshi-msg.out
+
   unit-and-replay:
     runs-on: ubuntu-latest
     timeout-minutes: 10
