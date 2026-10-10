@@ -162,11 +162,11 @@ describe('_findTownPolygonAddress: 本物 愛媛 bundle・作り物の点 regres
   });
 
   it('bundle null → null', () => {
-    expect(findTownPolygonAddress(34.07, 132.99, null)).toBeNull();
+    expect(findTownPolygonAddress(35.0, 135.0, null)).toBeNull();
   });
 
   it('bundle items 空 → null', () => {
-    expect(findTownPolygonAddress(34.07, 132.99, { items: [], precision: 100000 })).toBeNull();
+    expect(findTownPolygonAddress(35.0, 135.0, { items: [], precision: 100000 })).toBeNull();
   });
 });
 
