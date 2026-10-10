@@ -35,8 +35,8 @@ function stub() {
 function flickerTotal(opts) {
   const tk = PD.createDistanceTracker(stub(), Object.assign({ smoothedRawMode: true }, opts));
   const t0 = 1000000;
-  const lat = 34.0647;
-  const lng = 133.0024;
+  const lat = 34.066;
+  const lng = 132.9987;
   const step = 0.00011; // ≈12m/点
   let i = 0;
   let r = null;
@@ -90,8 +90,8 @@ describe('OBDバイパス smoothBuf ドレイン (しまなみ/trip2 幻デル�
     let r = null;
     for (let i = 0; i < 8; i++)
       r = tk.ingest({
-        lat: 34.0647 - i * 0.00011,
-        lng: 133.0024,
+        lat: 34.066 - i * 0.00011,
+        lng: 132.9987,
         t: t0 + i * 1000,
         acc: 5,
         spd: 13,

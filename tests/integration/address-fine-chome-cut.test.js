@@ -196,8 +196,8 @@ describe('mm-data-pipeline.js auxKinds: addresses-fine 配線 verify', () => {
 });
 
 // ─── 10. 統合シナリオ (= 住所の・想定挙動) ──────
-describe('住所① 統合シナリオ: 例 (今治市常盤町五丁目) → 今治市常盤町', () => {
-  it('fine 戻り値「常盤町五丁目」+ coarse「今治市」 → 「今治市常盤町」', () => {
+describe('住所① 統合シナリオ: 例 (今治市別宮町二丁目) → 今治市別宮町', () => {
+  it('fine 戻り値「別宮町二丁目」+ coarse「今治市」 → 「今治市別宮町」', () => {
     // 本物 coarse data・今治市 hit
     global.window = {
       ADDRESSES_COARSE_JP: {
@@ -205,13 +205,13 @@ describe('住所① 統合シナリオ: 例 (今治市常盤町五丁目) → �
       },
     };
     // meter.js fine 戻り値・想定 (= 司さん希望)
-    const fineRaw = '常盤町五丁目';
+    const fineRaw = '別宮町二丁目';
     const cut = cutChomeSuffix(fineRaw);
-    expect(cut).toBe('常盤町');
+    expect(cut).toBe('別宮町');
     const city = findNearestMunicipality(34.06615, 132.99778);
     expect(city).toBe('今治市');
     // 連結
-    expect(city + cut).toBe('今治市常盤町');
+    expect(city + cut).toBe('今治市別宮町');
   });
 
   it('fine 戻り値「松本町一丁目」(= 例) + 「今治市」 → 「今治市松本町」', () => {

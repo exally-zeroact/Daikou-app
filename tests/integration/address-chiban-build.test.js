@@ -57,7 +57,7 @@ function makeChibanBodyCsv(rows) {
         def(r.prc_id, '000010000100000'),
         def(r.city, '今治市'),
         def(r.ward, ''),
-        def(r.oaza_cho, '松本町'),
+        def(r.oaza_cho, '別宮町'),
         def(r.chome, '１丁目'),
         def(r.koaza, ''),
         def(r.machiaza_dist, ''),
@@ -91,8 +91,8 @@ function makeChibanPosCsv(rows) {
         def(r.lg_code, '382027'),
         def(r.machiaza_id, '0185001'),
         def(r.prc_id, '000010000100000'),
-        r.rep_lon, // 配布 swap 時は・ここに lat 値 (例 34.064833)
-        r.rep_lat, // 配布 swap 時は・ここに lon 値 (例 133.001439)
+        r.rep_lon, // 配布 swap 時は・ここに lat 値 (例 34.066133)
+        r.rep_lat, // 配布 swap 時は・ここに lon 値 (例 132.997739)
         'EPSG:6668',
         '2500',
       ].join(',')
@@ -145,20 +145,20 @@ describe('build-address.js --chiban: 3 キー JOIN', () => {
         lg_code: '382027',
         machiaza_id: '0185001',
         prc_id: '000010000100000',
-        rep_lon: '34.064833',
-        rep_lat: '133.001439',
+        rep_lon: '34.066133',
+        rep_lat: '132.997739',
       },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(1);
-    expect(b.points[0].lat).toBe(3406483);
-    expect(b.points[0].lng).toBe(13300144);
+    expect(b.points[0].lat).toBe(3406613);
+    expect(b.points[0].lng).toBe(13299774);
   });
 
   it('座標 pos に対応行が無い body → skipNoPos', () => {
     const body = makeChibanBodyCsv([{ prc_id: '000010000100000' }, { prc_id: '000010000200000' }]);
     const pos = makeChibanPosCsv([
-      { prc_id: '000010000100000', rep_lon: '34.064833', rep_lat: '133.001439' },
+      { prc_id: '000010000100000', rep_lon: '34.066133', rep_lat: '132.997739' },
       // prc_id=200000 は pos に無い
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
@@ -168,8 +168,8 @@ describe('build-address.js --chiban: 3 キー JOIN', () => {
   it('prc_id が異なれば・別 entry', () => {
     const body = makeChibanBodyCsv([{ prc_id: '000010000100000' }, { prc_id: '000010000200000' }]);
     const pos = makeChibanPosCsv([
-      { prc_id: '000010000100000', rep_lon: '34.064833', rep_lat: '133.001439' },
-      { prc_id: '000010000200000', rep_lon: '34.064900', rep_lat: '133.001500' },
+      { prc_id: '000010000100000', rep_lon: '34.066133', rep_lat: '132.997739' },
+      { prc_id: '000010000200000', rep_lon: '34.066200', rep_lat: '132.997800' },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(2);
@@ -183,13 +183,13 @@ describe('build-address.js --chiban: rep_lon/rep_lat 値 swap auto-detect', () =
     const pos = makeChibanPosCsv([
       {
         prc_id: '000010000100000',
-        rep_lon: '34.064833', // 配布 swap = lat 値
-        rep_lat: '133.001439', // 配布 swap = lon 値
+        rep_lon: '34.066133', // 配布 swap = lat 値
+        rep_lat: '132.997739', // 配布 swap = lon 値
       },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
-    expect(b.points[0].lat).toBe(3406483); // 34.064833 → 3406483
-    expect(b.points[0].lng).toBe(13300144); // 133.001439 → 13300144
+    expect(b.points[0].lat).toBe(3406613); // 34.066133 → 3406613
+    expect(b.points[0].lng).toBe(13299774); // 132.997739 → 13299774
   });
 
   it('normal 配布 (rep_lon=lon値) でも・正しく解釈', () => {
@@ -197,13 +197,13 @@ describe('build-address.js --chiban: rep_lon/rep_lat 値 swap auto-detect', () =
     const pos = makeChibanPosCsv([
       {
         prc_id: '000010000100000',
-        rep_lon: '133.001439', // normal = lon 値
-        rep_lat: '34.064833', // normal = lat 値
+        rep_lon: '132.997739', // normal = lon 値
+        rep_lat: '34.066133', // normal = lat 値
       },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
-    expect(b.points[0].lat).toBe(3406483);
-    expect(b.points[0].lng).toBe(13300144);
+    expect(b.points[0].lat).toBe(3406613);
+    expect(b.points[0].lng).toBe(13299774);
   });
 
   it('範囲外座標 → skip (= posOutOfRange に・カウント・point にならない)', () => {
@@ -246,7 +246,7 @@ describe('build-address.js --chiban: POI v2 構造 + k/g', () => {
   it('output は・{v:2, prefecture, generated, precision, bbox, gridSize, oazas, grid, points}', () => {
     const body = makeChibanBodyCsv([{ prc_id: '000010000100000', prc_num1: '6', prc_num2: '33' }]);
     const pos = makeChibanPosCsv([
-      { prc_id: '000010000100000', rep_lon: '34.064833', rep_lat: '133.001439' },
+      { prc_id: '000010000100000', rep_lon: '34.066133', rep_lat: '132.997739' },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
     expect(b.v).toBe(2);
@@ -292,30 +292,30 @@ describe('build-address.js --chiban: 座標 int×1e5 + bbox + grid', () => {
   it('lat/lng は・int × 1e5 (= 既存 POI / street / rsdt と完全統一)', () => {
     const body = makeChibanBodyCsv([{ prc_id: '000010000100000' }]);
     const pos = makeChibanPosCsv([
-      { prc_id: '000010000100000', rep_lon: '34.064833', rep_lat: '133.001439' },
+      { prc_id: '000010000100000', rep_lon: '34.066133', rep_lat: '132.997739' },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
-    expect(b.points[0].lat).toBe(3406483);
-    expect(b.points[0].lng).toBe(13300144);
+    expect(b.points[0].lat).toBe(3406613);
+    expect(b.points[0].lng).toBe(13299774);
   });
 
   it('bbox = [minLat, minLng, maxLat, maxLng] integer', () => {
     const body = makeChibanBodyCsv([{ prc_id: '000010000100000' }, { prc_id: '000010000200000' }]);
     const pos = makeChibanPosCsv([
-      { prc_id: '000010000100000', rep_lon: '34.064833', rep_lat: '133.001439' },
-      { prc_id: '000010000200000', rep_lon: '34.064500', rep_lat: '133.001000' },
+      { prc_id: '000010000100000', rep_lon: '34.066133', rep_lat: '132.997739' },
+      { prc_id: '000010000200000', rep_lon: '34.065800', rep_lat: '132.997300' },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
-    expect(b.bbox[0]).toBe(3406450);
-    expect(b.bbox[1]).toBe(13300100);
-    expect(b.bbox[2]).toBe(3406483);
-    expect(b.bbox[3]).toBe(13300144);
+    expect(b.bbox[0]).toBe(3406580);
+    expect(b.bbox[1]).toBe(13299730);
+    expect(b.bbox[2]).toBe(3406613);
+    expect(b.bbox[3]).toBe(13299774);
   });
 
   it('grid 索引 = encoding-utils.gridKey に・point index 登録', () => {
     const body = makeChibanBodyCsv([{ prc_id: '000010000100000' }]);
     const pos = makeChibanPosCsv([
-      { prc_id: '000010000100000', rep_lon: '34.064833', rep_lat: '133.001439' },
+      { prc_id: '000010000100000', rep_lon: '34.066133', rep_lat: '132.997739' },
     ]);
     const b = buildChibanFromCsv(body, pos, 'ehime');
     const keys = Object.keys(b.grid);
@@ -331,14 +331,14 @@ describe('build-address.js --chiban: 大字 dict 圧縮', () => {
       {
         prc_id: '000010000100000',
         city: '今治市',
-        oaza_cho: '松本町',
+        oaza_cho: '別宮町',
         chome: '１丁目',
         prc_num1: '6',
       },
       {
         prc_id: '000010000200000',
         city: '今治市',
-        oaza_cho: '松本町',
+        oaza_cho: '別宮町',
         chome: '１丁目',
         prc_num1: '7',
       },
@@ -359,7 +359,7 @@ describe('build-address.js --chiban: 大字 dict 圧縮', () => {
     expect(Object.keys(b.oazas).length).toBe(2);
     expect(b.points[0].c).toBe(b.points[1].c);
     expect(b.points[0].c).not.toBe(b.points[2].c);
-    expect(b.oazas[b.points[0].c]).toBe('今治市松本町１丁目');
+    expect(b.oazas[b.points[0].c]).toBe('今治市別宮町１丁目');
   });
 });
 
@@ -398,7 +398,7 @@ describe('build-address.js --chiban: CSV 列順変更耐性', () => {
   it('body の・列順を入れ替えても・正しく抽出', () => {
     const body =
       'rsdt_addr_flg,prc_num3,prc_num2,prc_num1,koaza,chome,oaza_cho,city,prc_id,machiaza_id,lg_code\n' +
-      '0,,33,6,,１丁目,松本町,今治市,000010000100000,0185001,382027';
+      '0,,33,6,,１丁目,別宮町,今治市,000010000100000,0185001,382027';
     const pos = makeChibanPosCsv([
       { prc_id: '000010000100000', rep_lon: '34.06', rep_lat: '133.00' },
     ]);
@@ -406,12 +406,12 @@ describe('build-address.js --chiban: CSV 列順変更耐性', () => {
     expect(b.points.length).toBe(1);
     expect(b.points[0].k).toBe('6');
     expect(b.points[0].g).toBe('33');
-    expect(b.oazas[0]).toBe('今治市松本町１丁目');
+    expect(b.oazas[0]).toBe('今治市別宮町１丁目');
   });
 
   it('必須 3 キー (machiaza_id) が・無ければ・throw', () => {
     const body =
-      'lg_code,prc_id,city,oaza_cho,prc_num1\n' + '382027,000010000100000,今治市,松本町,6';
+      'lg_code,prc_id,city,oaza_cho,prc_num1\n' + '382027,000010000100000,今治市,別宮町,6';
     const pos = makeChibanPosCsv([
       { prc_id: '000010000100000', rep_lon: '34.06', rep_lat: '133.00' },
     ]);

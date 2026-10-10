@@ -56,7 +56,7 @@ function makeBodyCsv(rows) {
         def(r.addr_id, '001'),
         def(r.addr2_id, ''),
         def(r.city_name, '今治市'),
-        def(r.oaza_cho_name, '松本町'),
+        def(r.oaza_cho_name, '別宮町'),
         def(r.chome_name, '一丁目'),
         def(r.koaza_name, ''),
         def(r.blk_num, '6'),
@@ -111,14 +111,14 @@ describe('build-address.js --rsdt: 5 キー JOIN', () => {
         blk_id: '001',
         addr_id: '001',
         addr2_id: '',
-        rep_lat: '34.064833',
-        rep_lon: '133.001439',
+        rep_lat: '34.066133',
+        rep_lon: '132.997739',
       },
     ]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(1);
-    expect(b.points[0].lat).toBe(3406483);
-    expect(b.points[0].lng).toBe(13300144);
+    expect(b.points[0].lat).toBe(3406613);
+    expect(b.points[0].lng).toBe(13299774);
   });
 
   it('座標 pos に・対応行が無い body は・skip (= JOIN 失敗・skipNoPos)', () => {
@@ -133,8 +133,8 @@ describe('build-address.js --rsdt: 5 キー JOIN', () => {
         blk_id: '001',
         addr_id: '001',
         addr2_id: '',
-        rep_lat: '34.064833',
-        rep_lon: '133.001439',
+        rep_lat: '34.066133',
+        rep_lon: '132.997739',
       },
       // addr_id=002 は・pos に無い
     ]);
@@ -148,8 +148,8 @@ describe('build-address.js --rsdt: 5 キー JOIN', () => {
       { addr_id: '001', addr2_id: 'A' },
     ]);
     const pos = makePosCsv([
-      { addr_id: '001', addr2_id: '', rep_lat: '34.064833', rep_lon: '133.001439' },
-      { addr_id: '001', addr2_id: 'A', rep_lat: '34.064900', rep_lon: '133.001500' },
+      { addr_id: '001', addr2_id: '', rep_lat: '34.066133', rep_lon: '132.997739' },
+      { addr_id: '001', addr2_id: 'A', rep_lat: '34.066200', rep_lon: '132.997800' },
     ]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(2);
@@ -165,9 +165,9 @@ describe('build-address.js --rsdt: rsdt_addr_flg=1 のみ抽出', () => {
       { addr_id: '003', rsdt_num: '3', rsdt_addr_flg: '1' },
     ]);
     const pos = makePosCsv([
-      { addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' },
-      { addr_id: '002', rep_lat: '34.064900', rep_lon: '133.001500' },
-      { addr_id: '003', rep_lat: '34.064950', rep_lon: '133.001600' },
+      { addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' },
+      { addr_id: '002', rep_lat: '34.066200', rep_lon: '132.997800' },
+      { addr_id: '003', rep_lat: '34.066250', rep_lon: '132.997900' },
     ]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(2);
@@ -176,7 +176,7 @@ describe('build-address.js --rsdt: rsdt_addr_flg=1 のみ抽出', () => {
 
   it('全行 flg=0 → points 空 + bbox=null', () => {
     const body = makeBodyCsv([{ addr_id: '001', rsdt_addr_flg: '0' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(0);
     expect(b.bbox).toBeNull();
@@ -187,7 +187,7 @@ describe('build-address.js --rsdt: rsdt_addr_flg=1 のみ抽出', () => {
 describe('build-address.js --rsdt: POI v2 構造 + k(番) + g(号)', () => {
   it('output は・{v:2, prefecture, generated, precision, bbox, gridSize, oazas, grid, points}', () => {
     const body = makeBodyCsv([{ addr_id: '001' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.v).toBe(2);
     expect(b.prefecture).toBe('ehime');
@@ -201,7 +201,7 @@ describe('build-address.js --rsdt: POI v2 構造 + k(番) + g(号)', () => {
 
   it('点 は・k (= blk_num 街区符号・番) と g (= rsdt_num 号) を・両方持つ', () => {
     const body = makeBodyCsv([{ addr_id: '001', blk_num: '6', rsdt_num: '12' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points[0].k).toBe('6');
     expect(b.points[0].g).toBe('12');
@@ -209,14 +209,14 @@ describe('build-address.js --rsdt: POI v2 構造 + k(番) + g(号)', () => {
 
   it('rsdt_num2 (枝号) が・あれば g = "号-枝号"', () => {
     const body = makeBodyCsv([{ addr_id: '001', blk_num: '6', rsdt_num: '12', rsdt_num2: '3' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points[0].g).toBe('12-3');
   });
 
   it('rsdt_num2 (枝号) が・空なら g = 号のみ', () => {
     const body = makeBodyCsv([{ addr_id: '001', blk_num: '6', rsdt_num: '12', rsdt_num2: '' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points[0].g).toBe('12');
   });
@@ -226,28 +226,28 @@ describe('build-address.js --rsdt: POI v2 構造 + k(番) + g(号)', () => {
 describe('build-address.js --rsdt: 座標 int×1e5 + bbox + grid', () => {
   it('lat/lng は・int × 1e5 (= 既存 POI / street と完全統一)', () => {
     const body = makeBodyCsv([{ addr_id: '001' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
-    expect(b.points[0].lat).toBe(3406483);
-    expect(b.points[0].lng).toBe(13300144);
+    expect(b.points[0].lat).toBe(3406613);
+    expect(b.points[0].lng).toBe(13299774);
   });
 
   it('bbox = [minLat, minLng, maxLat, maxLng] integer', () => {
     const body = makeBodyCsv([{ addr_id: '001' }, { addr_id: '002' }]);
     const pos = makePosCsv([
-      { addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' },
-      { addr_id: '002', rep_lat: '34.064500', rep_lon: '133.001000' },
+      { addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' },
+      { addr_id: '002', rep_lat: '34.065800', rep_lon: '132.997300' },
     ]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
-    expect(b.bbox[0]).toBe(3406450);
-    expect(b.bbox[1]).toBe(13300100);
-    expect(b.bbox[2]).toBe(3406483);
-    expect(b.bbox[3]).toBe(13300144);
+    expect(b.bbox[0]).toBe(3406580);
+    expect(b.bbox[1]).toBe(13299730);
+    expect(b.bbox[2]).toBe(3406613);
+    expect(b.bbox[3]).toBe(13299774);
   });
 
   it('grid 索引 = encoding-utils.gridKey に・point index 登録', () => {
     const body = makeBodyCsv([{ addr_id: '001' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     const keys = Object.keys(b.grid);
     expect(keys.length).toBe(1);
@@ -262,14 +262,14 @@ describe('build-address.js --rsdt: 大字 dict 圧縮', () => {
       {
         addr_id: '001',
         city_name: '今治市',
-        oaza_cho_name: '松本町',
+        oaza_cho_name: '別宮町',
         chome_name: '一丁目',
         rsdt_num: '1',
       },
       {
         addr_id: '002',
         city_name: '今治市',
-        oaza_cho_name: '松本町',
+        oaza_cho_name: '別宮町',
         chome_name: '一丁目',
         rsdt_num: '2',
       },
@@ -282,9 +282,9 @@ describe('build-address.js --rsdt: 大字 dict 圧縮', () => {
       },
     ]);
     const pos = makePosCsv([
-      { addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' },
-      { addr_id: '002', rep_lat: '34.064900', rep_lon: '133.001500' },
-      { addr_id: '003', rep_lat: '34.064500', rep_lon: '133.001000' },
+      { addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' },
+      { addr_id: '002', rep_lat: '34.066200', rep_lon: '132.997800' },
+      { addr_id: '003', rep_lat: '34.065800', rep_lon: '132.997300' },
     ]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(Object.keys(b.oazas).length).toBe(2);
@@ -297,13 +297,13 @@ describe('build-address.js --rsdt: 大字 dict 圧縮', () => {
       {
         addr_id: '001',
         city_name: '今治市',
-        oaza_cho_name: '松本町',
+        oaza_cho_name: '別宮町',
         chome_name: '一丁目',
       },
     ]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
-    expect(b.oazas[0]).toBe('今治市松本町一丁目');
+    expect(b.oazas[0]).toBe('今治市別宮町一丁目');
   });
 });
 
@@ -318,14 +318,14 @@ describe('build-address.js --rsdt: 不正データ skip', () => {
 
   it('rsdt_num が空 → skip (= 号レベル必須)', () => {
     const body = makeBodyCsv([{ addr_id: '001', rsdt_num: '' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(0);
   });
 
   it('blk_num が空 → skip (= 番レベル必須)', () => {
     const body = makeBodyCsv([{ addr_id: '001', blk_num: '' }]);
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(0);
   });
@@ -337,13 +337,13 @@ describe('build-address.js --rsdt: header 名で列解決 (= 列順変更耐性)
     // 列順を逆にした body CSV (= header 名 match で・正しく拾えるか)
     const body =
       'rsdt_addr_flg,rsdt_num2,rsdt_num,blk_num,koaza_name,chome_name,oaza_cho_name,city_name,addr2_id,addr_id,blk_id,town_id,lg_code\n' +
-      '1,,5,7,,二丁目,松本町,今治市,,001,001,0001,382027';
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+      '1,,5,7,,二丁目,別宮町,今治市,,001,001,0001,382027';
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(1);
     expect(b.points[0].k).toBe('7');
     expect(b.points[0].g).toBe('5');
-    expect(b.oazas[0]).toBe('今治市松本町二丁目');
+    expect(b.oazas[0]).toBe('今治市別宮町二丁目');
   });
 
   it('pos の・rep_lng (= rep_lon の別表記) も・受理する', () => {
@@ -351,17 +351,17 @@ describe('build-address.js --rsdt: header 名で列解決 (= 列順変更耐性)
     // rep_lon → rep_lng で・代替表記
     const pos =
       'lg_code,town_id,blk_id,addr_id,addr2_id,rep_lat,rep_lng\n' +
-      '382027,0001,001,001,,34.064833,133.001439';
+      '382027,0001,001,001,,34.066133,132.997739';
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(1);
-    expect(b.points[0].lng).toBe(13300144);
+    expect(b.points[0].lng).toBe(13299774);
   });
 
   it('body に・rsdt_addr_flg 列が・無ければ・throw (= 必須列の欠落 detect)', () => {
     const body =
       'lg_code,town_id,blk_id,addr_id,addr2_id,city_name,oaza_cho_name,chome_name,blk_num,rsdt_num\n' +
-      '382027,0001,001,001,,今治市,松本町,一丁目,6,1';
-    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+      '382027,0001,001,001,,今治市,別宮町,一丁目,6,1';
+    const pos = makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     expect(() => buildRsdtFromCsv(body, pos, 'ehime')).toThrow(/rsdt_addr_flg/);
   });
 });
@@ -370,7 +370,7 @@ describe('build-address.js --rsdt: header 名で列解決 (= 列順変更耐性)
 describe('build-address.js --rsdt: UTF-8 BOM 耐性', () => {
   it('先頭 BOM (= \\uFEFF) があっても・header 解釈 OK', () => {
     const body = '﻿' + makeBodyCsv([{ addr_id: '001' }]);
-    const pos = '﻿' + makePosCsv([{ addr_id: '001', rep_lat: '34.064833', rep_lon: '133.001439' }]);
+    const pos = '﻿' + makePosCsv([{ addr_id: '001', rep_lat: '34.066133', rep_lon: '132.997739' }]);
     const b = buildRsdtFromCsv(body, pos, 'ehime');
     expect(b.points.length).toBe(1);
   });
