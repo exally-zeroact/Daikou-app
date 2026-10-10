@@ -29,6 +29,26 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const JIBUN = 'tests/unit/mihari-kowashita-kiroku.test.js';
 
 // ★2026-09-01 時点で 既に 在った 物★（★1本 直すたびに ここから 消す★）
+// ★他の席の見張りを 逐語で 写した物★（2026-10-11）＝中身を この席で 書き換えない決まり。
+//   blob の id が 下と ★完全に 同じ時だけ★ 数えない（1字でも 変われば また 数える＝赤）。
+//   この見張りは 自分の --self-test（26本・壊した時に 赤に なるか）を CI で 毎回 走らせている。
+const KARIMONO = {
+  'tests/kinshi-ji.test.mjs': '14a1fecc3cd14e7c8574849e80728d58aa205965', // Castally の nomiya-app 31f28fa
+};
+function karimonoKa(rel) {
+  const want = KARIMONO[rel];
+  if (!want) return false;
+  try {
+    const got = require('child_process')
+      .execFileSync('git', ['-C', ROOT, 'hash-object', '--path=' + rel, path.join(ROOT, rel)], {
+        encoding: 'utf8',
+      })
+      .trim();
+    return got === want;
+  } catch (_) {
+    return false;
+  }
+}
 const NOKORI = [
   'tests/drift-static/distance-m-update-paths-anchor.test.js',
   'tests/integration/adaptive-mode-distance.test.js',
@@ -91,7 +111,9 @@ function walk(dir, out) {
 describe('★見張りは「わざと壊して 赤に なった」記録を 残す★', () => {
   const zenbu = walk(path.join(ROOT, 'tests'), []).filter((f) => f !== JIBUN);
   const mihari = zenbu.filter((f) => /見張り/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
-  const nashi = mihari.filter((f) => !/わざと壊/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
+  const nashi = mihari.filter(
+    (f) => !karimonoKa(f) && !/わざと壊/.test(fs.readFileSync(path.join(ROOT, f), 'utf8'))
+  );
 
   it('★① 見張りが 見つかっている（0本でも 緑、に しない）★', () => {
     expect(

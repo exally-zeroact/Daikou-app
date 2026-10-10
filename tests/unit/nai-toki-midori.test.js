@@ -84,6 +84,26 @@ function kazoeru(dir, deta) {
 //     ・数え方が 行だけを見る（前後の 締めを 見ない）ので ★安全な物も 引っかかります★
 //     ・★安全にした物も 行の形は 残る★（例：0件なら 赤 を 別の行に 足した）
 //   ⇒ ★対象外に 移す時は 必ず 1行の理由を 書く★（黙って 名簿から 消さない）
+// ★他の席の見張りを 逐語で 写した物★（2026-10-11）＝中身を この席で 書き換えない決まり。
+//   blob の id が 下と ★完全に 同じ時だけ★ 数えない（1字でも 変われば また 数える＝赤）。
+//   この見張りは 自分の --self-test（26本・壊した時に 赤に なるか）を CI で 毎回 走らせている。
+const KARIMONO = {
+  'tests/kinshi-ji.test.mjs': '14a1fecc3cd14e7c8574849e80728d58aa205965', // Castally の nomiya-app 31f28fa
+};
+function karimonoKa(rel) {
+  const want = KARIMONO[rel];
+  if (!want) return false;
+  try {
+    const got = require('child_process')
+      .execFileSync('git', ['-C', ROOT, 'hash-object', '--path=' + rel, path.join(ROOT, rel)], {
+        encoding: 'utf8',
+      })
+      .trim();
+    return got === want;
+  } catch (_) {
+    return false;
+  }
+}
 const NOKORI = [
   'tests/e2e/env-badge.spec.js',
   'tests/e2e/jimusho-kimeru-basho.spec.js',
@@ -147,7 +167,9 @@ const RIYUU = {
 };
 
 describe('★「無い時に緑」を 機械が 数える★', () => {
-  const ima = kazoeru(path.join(ROOT, 'tests'), []).sort();
+  const ima = kazoeru(path.join(ROOT, 'tests'), [])
+    .filter((f) => !karimonoKa(f))
+    .sort();
 
   it('★本数が 増えていない★（黙って足せない）', () => {
     expect(

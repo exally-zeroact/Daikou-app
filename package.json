@@ -17,6 +17,7 @@
     "audit:arch": "vitest run --config vitest.arch.config.js",
     "check": "npm run lint && npm run format && npm run stylelint && npm run audit",
     "test": "vitest run",
+    "kinshi": "node tests/kinshi-ji.test.mjs",
     "test:names": "node scripts/last-red.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
