@@ -6,4 +6,4 @@
 #   (含めると全 push がブロックされてしまうため・lint fix 完了後に check:all に置換予定)。
 # ★2026-10-10★ push の前に まだどの遠くにも無い commit の文を全部見る（実在の字と 家の札）。
 #   cherry-pick・rebase・--no-verify は commit-msg の門を通らない＝公開の前の 最後の関所。
-node scripts/kinshi-commit-msg.mjs --pre-push && npm run test && npm run test:replay
+node scripts/kinshi-commit-msg.mjs --pre-push "$@" && npm run test && npm run test:replay

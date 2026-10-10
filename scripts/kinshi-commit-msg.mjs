@@ -87,6 +87,14 @@ function selfTest() {
     ['札の別の形', '司さん宅 のそば', 1],
     ['種類と数だけ', '付近の点を 2点 移した・実機の記録7本', 0],
     ['1字だけの語は 数えない', '見', 0],
+    // ↓ 作者の欄（10-11）。mailOk・nameOk が 通すか（1）止めるか（0）
+    ['noreply は通す', mailOk('123+someone@users.noreply.github.com') ? 1 : 0, 1],
+    ['GitHub 自身は通す', mailOk('noreply@github.com') ? 1 : 0, 1],
+    ['ふつうのメールは止める', mailOk('someone@example.com') ? 1 : 0, 0],
+    ['noreply に似せた偽物は止める', mailOk('x@users.noreply.github.com.example.com') ? 1 : 0, 0],
+    ['名前に @ があれば止める', nameOk('someone@example.com', []) ? 1 : 0, 0],
+    ['名前に一覧の字があれば止める', nameOk('見本太郎', words) ? 1 : 0, 0],
+    ['ふつうの名前は通す', nameOk('exally-zeroact', words) ? 1 : 0, 1],
     // ↓ 対立役（本番前）が通した形
     ['「#」で始まる行（-m の見出し）', honbun('題\n\n# 見本太郎 の点'), 1],
     ['番地のダッシュが U+2212', '架空区見本台1\u22122\u22123', 1],
@@ -99,7 +107,12 @@ function selfTest() {
   ];
   let ok = 0;
   for (const [name, msg, want] of cases) {
-    const got = ataru(msg, name === '1字だけの語は 数えない' ? ['見'] : all) > 0 ? 1 : 0;
+    const got =
+      typeof msg === 'number'
+        ? msg
+        : ataru(msg, name === '1字だけの語は 数えない' ? ['見'] : all) > 0
+          ? 1
+          : 0;
     const pass = got === want;
     if (pass) ok++;
     console.log(`${pass ? '✓' : '✗'} ${name}`);
@@ -143,7 +156,17 @@ function main() {
       process.exitCode = 0;
       return;
     }
-    if (miru([...shas, '--not', '--remotes'], words, true)) process.exitCode = 0;
+    // ★押す先の遠く（名前）とだけ比べる★（--remotes 全部だと、手元の別の遠くに在る commit を素通りした）
+    //   pre-push の門は "$@"（遠くの名前・URL）を渡す。名前が無ければ 止める（どこと比べたか分からない）
+    const remote = argv[argv.indexOf('--pre-push') + 1];
+    if (!remote || remote.startsWith('-')) {
+      console.error('★押す先の遠くの名前が 渡されていない★（.husky/pre-push で "$@" を渡す）');
+      return;
+    }
+    const revs = [...shas, '--not', `--remotes=${remote}`];
+    const okMsg = miru(revs, words, true);
+    const okMail = mailMiru(revs, words);
+    if (okMsg && okMail) process.exitCode = 0;
     return;
   }
   if (file) {
@@ -163,12 +186,60 @@ function main() {
     return;
   }
   if (range) {
-    if (miru([range], words, false)) process.exitCode = 0;
+    // CI でも 作者の欄を見る（GitHub の web の merge で メールが付く形を 押した後に知らせる）
+    const okMsg = miru([range], words, false);
+    const okMail = mailMiru([range], words);
+    if (okMsg && okMail) process.exitCode = 0;
     return;
   }
   console.error(
     '使い方: --file <COMMIT_EDITMSG> | --range <base>..<head> | --pre-push（stdin） | --self-test'
   );
+}
+
+// ★commit の作者と commit した人の欄に メールを出さない★（司さん 10-11「アドレスが分からんようにしろや」）
+//   通すのは GitHub の noreply（…@users.noreply.github.com）と GitHub 自身（noreply@github.com）だけ。
+//   出すのは SHA と 欄の名前だけ（メールの字は出さない）。全部 通れば true
+export function mailOk(mail) {
+  const m = String(mail || '')
+    .trim()
+    .toLowerCase();
+  return m.endsWith('@users.noreply.github.com') || m === 'noreply@github.com';
+}
+// 名前の欄：@ を含む（メールを名前に書いた）・一覧の字に当たる 物は 止める
+export function nameOk(name, words) {
+  const n = String(name || '');
+  return !n.includes('@') && ataru(n, words) === 0;
+}
+function mailMiru(revs, words) {
+  const out = execFileSync('git', ['log', '--format=%H%x00%ae%x00%ce%x00%an%x00%cn', ...revs], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  let bad = 0;
+  for (const line of out.split('\n').filter(Boolean)) {
+    const [sha, ae, ce, an, cn] = line.split('\x00');
+    const which = [
+      !mailOk(ae) && '作者のメール',
+      !mailOk(ce) && 'commit した人のメール',
+      !nameOk(an, words) && '作者の名前',
+      !nameOk(cn, words) && 'commit した人の名前',
+    ].filter(Boolean);
+    if (which.length) {
+      bad++;
+      console.error(
+        `★${sha.slice(0, 9)} の ${which.join('・')} の欄★（字は出しません・noreply と ふつうの名前にしてから作り直す）`
+      );
+    }
+  }
+  if (bad) {
+    console.error(
+      '  git config --local user.email を GitHub の noreply に、user.name を ふつうの名前にしてください（global は触らない）。'
+    );
+    return false;
+  }
+  console.log('✓ 作者と commit した人の欄 全部 noreply・名前に字の漏れ 0');
+  return true;
 }
 
 // git log の範囲の commit の文を全部見る。全部 0件なら true
