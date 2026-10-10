@@ -569,8 +569,10 @@ export function isBiff12(buf, recs) {
   return n > 0;
 }
 /* 人の 名前を 持つ BIFF12 の 記録（コメントの 作者・ファイル共有）の 中の 字（XLWideString＝字数 4 バイト＋UTF-16LE）を 拾う */
-/* 実 Excel の 個人用ビューの 固い 欄（01 00 00 00 58 02）が 字数 1 の XLWideString に 見えて 作る 1 字（人の 名前では ない） */
-const EXCEL_FIXED_BIT = "\u0258";
+/* 実 Excel の 個人用ビュー（0x18d）の 固い 欄＝16 バイト目の 4 バイト（01 00 00 00）＋2 バイト が
+   XLWideString に 見える（値は シート見出しの 幅 等で 変わる）。★値で なく 置き場所で 外す★ */
+/* 外すのは 16〜21 バイト目から 始まる 塊（固い 欄・固い 欄と 字数欄の 重なり）。名前は その 後ろ */
+const isViewFixedField = (type, o) => type === 0x18d && o >= 16 && o <= 21;
 export const BIFF12_PERSON = new Map([
   [0x278, "xlsb の コメントの 作者"],
   [0x224, "xlsb の ファイル共有の 名前"],
@@ -580,14 +582,15 @@ export const BIFF12_PERSON = new Map([
 /* BIFF12 で 読めた 扱いに する 部品（人の 欄を 持たない か、人の 記録を 上で 見る 物）。他の .bin は 未測定 */
 const BIFF12_READ =
   /(^|\/)xl\/(sharedStrings|styles|calcChain|metadata|workbook|comments\d*|worksheets\/(sheet|binaryIndex)\d+|tables\/table\d+)\.bin$/i;
-export function wideStrings(data, atEnd = false) {
+export function wideStrings(data, atEnd = false, skip = () => false) {
   const out = [];
   for (let o = 0; o + 4 <= data.length; o++) {
     const n = data.readUInt32LE(o);
     if (
       n > 0 &&
       n <= 32767 &&
-      (atEnd ? o + 4 + 2 * n === data.length : o + 4 + 2 * n <= data.length)
+      (atEnd ? o + 4 + 2 * n === data.length : o + 4 + 2 * n <= data.length) &&
+      !skip(o, n)
     )
       out.push(data.slice(o + 4, o + 4 + 2 * n).toString("utf16le"));
   }
@@ -634,7 +637,27 @@ export function nameFields(partName, xml) {
 }
 
 /* ---------- 本体 ---------- */
-export function scan({ root, files, words }) {
+/* 読み口（src）＝{ read(rel)→Buffer か throw, kind(rel)→"file"|"other"|"none", id(rel)→blob の id 頭16字, shiroText()→白名簿の 字 か null, partial }。
+   既定は 手元の 字（git ls-files の 道を fs で 読む）。push の 門は 押す commit の 中身を 渡す（tests/kinshi-ji の 外から） */
+export function localSource(root) {
+  return {
+    kind(rel) {
+      try {
+        return fs.lstatSync(path.join(root, rel)).isFile() ? "file" : "other";
+      } catch {
+        return "none";
+      }
+    },
+    read: (rel) => fs.readFileSync(path.join(root, rel)),
+    id: (rel) => blobId(root, rel),
+    shiroText() {
+      const f = path.join(root, SHIRO_PATH);
+      return fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null;
+    },
+    partial: false,
+  };
+}
+export function scan({ root, files, words, src = localSource(root) }) {
   const hitSet = new Set();
   const notes = [];
   const reds = [];
@@ -863,11 +886,13 @@ export function scan({ root, files, words }) {
         for (const rc of recs)
           if (BIFF12_PERSON.has(rc.type)) {
             /* 名前の 欄＝記録の 終わりで 終わる 字の 塊 ＋ 途中の 塊（全部 見る・1 字の 名前も）。
-               見ないのは 実 Excel の 固い 欄（01 00 00 00 58 02）が 作る 1 字 U+0258 だけ。
+               見ないのは 個人用ビューの 固い 欄（16 バイト目の 字数 1 の 塊）だけ。
                どれか 1つでも 空か 見本で なければ 赤 */
-            const printable = (x) => /[^\u0000-\u001f]/.test(x);
-            const tail = wideStrings(rc.data, true).filter(printable);
-            const mid = wideStrings(rc.data).filter((x) => printable(x) && x !== EXCEL_FIXED_BIT);
+            /* 揃えて 空に なる 塊（空白 だけ 等）は 名前と して 数えない。NUL 入りの 塊は 数える（本物の 名前を 隠せる） */
+            const printable = (x) => /[^\u0000-\u001f]/.test(x) && normJa(x) !== "";
+            const skip = (o) => isViewFixedField(rc.type, o);
+            const tail = wideStrings(rc.data, true, skip).filter(printable);
+            const mid = wideStrings(rc.data, false, skip).filter(printable);
             const ws = [...new Set([...tail, ...mid])].sort((a, b) => b.length - a.length);
             const odd = ws.find((x) => !OK_NAMES.has(normJa(x)));
             if (ws.length) checkName(label, BIFF12_PERSON.get(rc.type), odd ?? ws[0]);
@@ -914,7 +939,7 @@ export function scan({ root, files, words }) {
     for (const t of texts) scanText(label, t);
   }
 
-  const shiro = loadShiro(root, words);
+  const shiro = loadShiro(root, words, src.shiroText());
   const passed = [];
   files.forEach((rel, idx) => {
     const before = [hits.length, notes.length];
@@ -923,7 +948,7 @@ export function scan({ root, files, words }) {
     if (!ent) return;
     ent.used = true;
     const lab = named(rel, "(追跡物の " + (idx + 1) + " 本目)");
-    const sha = blobId(root, rel);
+    const sha = src.id(rel);
     if (sha !== ent.sha)
       return reds.push(
         "白名簿: " +
@@ -951,8 +976,10 @@ export function scan({ root, files, words }) {
     passed.push({ label: lab, kind: ent.kind, n: (ent.notes ? nNote : 0) + (ent.hits ? nHit : 0) });
   });
   for (const e of shiro.errors) reds.push("白名簿: " + e);
-  for (const [rel, ent] of shiro.map)
-    if (!ent.used) reds.push("白名簿の 道が 追跡物に 無い（" + named(rel, "名指しの 道") + "）");
+  /* 一部の 道だけを 見る 時（push の 門の 変わった 物）は、使われない 名指しを 赤に しない */
+  if (!src.partial)
+    for (const [rel, ent] of shiro.map)
+      if (!ent.used) reds.push("白名簿の 道が 追跡物に 無い（" + named(rel, "名指しの 道") + "）");
   return { hits, notes, reds, c, passed };
 
   function scanFile(rel, idx) {
@@ -962,18 +989,13 @@ export function scan({ root, files, words }) {
         "追跡物の " + (idx + 1) + " 本目の 道・名前: 一覧の " + (w + 1) + " 番目（名前は 出さない）"
       );
     const label = named(rel, "(追跡物の " + (idx + 1) + " 本目)");
-    const abs = path.join(root, rel);
-    let st;
-    try {
-      st = fs.lstatSync(abs);
-    } catch {
-      return reds.push(label + ": 追跡物が 手元に 無い（未測定＝赤）");
-    }
-    if (!st.isFile())
+    const kind = src.kind(rel);
+    if (kind === "none") return reds.push(label + ": 追跡物が 手元に 無い（未測定＝赤）");
+    if (kind !== "file")
       return reds.push(label + ": ふつうの ファイルでない（submodule・リンク 等＝未測定＝赤）");
     let buf;
     try {
-      buf = fs.readFileSync(abs);
+      buf = src.read(rel);
     } catch {
       return reds.push(label + ": 読めない（未測定＝赤）");
     }
@@ -1011,39 +1033,39 @@ export function blobId(root, rel) {
    ★中身（git の blob の id）が 変われば 赤＝目で 見直して 名指しし直す★。件数が 違っても 赤（0件は 書けない＝要らない 名指し）。
    白名簿 自身の 道・行に 一覧の 字・同じ 道の 2行・知らない 種類・形違い は 赤。訳は 出しに 書かない。 */
 export const SHIRO_PATH = "tests/kinshi-ji-shiro.txt";
-export function loadShiro(root, words = []) {
+export function loadShiro(root, words = [], text) {
   const map = new Map();
   const errors = [];
-  const f = path.join(root, SHIRO_PATH);
-  if (!fs.existsSync(f)) return { map, errors };
-  fs.readFileSync(f, "utf8")
-    .split(/\r?\n/)
-    .forEach((line, i) => {
-      if (!line.trim() || line.startsWith("#")) return;
-      const at = i + 1 + " 行目";
-      if (matchIdx(line, words).length)
-        return errors.push(at + " に 一覧の 字が ある（字は 出さない）");
-      const [rel, kind, sha, why] = line.split("\t").map((x) => (x || "").trim());
-      if (!rel || !kind || !sha || !why)
-        return errors.push(at + " の 形が 違う（道<TAB>種類<TAB>git の blob の id 頭16字<TAB>訳）");
-      if (rel === SHIRO_PATH) return errors.push(at + " で 白名簿 自身を 名指ししている");
-      if (map.has(rel)) return errors.push(at + " で 同じ 道を 2回 名指ししている");
-      /* 種類＝「未測定N」「当たりM」か その 両方（・ か , で つなぐ）。N・M は 1 以上・同じ 種類の 2度書きは 赤 */
-      const ent = { kind, notes: 0, hits: 0, sha, used: false };
-      const parts = kind.split(/[・,、]/);
-      for (const part of parts) {
-        const km = part.trim().match(/^(未測定|当たり)([1-9]\d*)$/);
-        const key = km && (km[1] === "未測定" ? "notes" : "hits");
-        if (!km || ent[key])
-          return errors.push(
-            at + " の 種類が 知らない 形（未測定N・当たりM か その 片方・数は 1 以上）"
-          );
-        ent[key] = Number(km[2]);
-      }
-      if (!/^[0-9a-f]{16}$/.test(sha))
-        return errors.push(at + " の blob の id が 16字の 形で ない");
-      map.set(rel, ent);
-    });
+  if (text === undefined) {
+    const f = path.join(root, SHIRO_PATH);
+    text = fs.existsSync(f) ? fs.readFileSync(f, "utf8") : null;
+  }
+  if (text === null) return { map, errors };
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (!line.trim() || line.startsWith("#")) return;
+    const at = i + 1 + " 行目";
+    if (matchIdx(line, words).length)
+      return errors.push(at + " に 一覧の 字が ある（字は 出さない）");
+    const [rel, kind, sha, why] = line.split("\t").map((x) => (x || "").trim());
+    if (!rel || !kind || !sha || !why)
+      return errors.push(at + " の 形が 違う（道<TAB>種類<TAB>git の blob の id 頭16字<TAB>訳）");
+    if (rel === SHIRO_PATH) return errors.push(at + " で 白名簿 自身を 名指ししている");
+    if (map.has(rel)) return errors.push(at + " で 同じ 道を 2回 名指ししている");
+    /* 種類＝「未測定N」「当たりM」か その 両方（・ か , で つなぐ）。N・M は 1 以上・同じ 種類の 2度書きは 赤 */
+    const ent = { kind, notes: 0, hits: 0, sha, used: false };
+    const parts = kind.split(/[・,、]/);
+    for (const part of parts) {
+      const km = part.trim().match(/^(未測定|当たり)([1-9]\d*)$/);
+      const key = km && (km[1] === "未測定" ? "notes" : "hits");
+      if (!km || ent[key])
+        return errors.push(
+          at + " の 種類が 知らない 形（未測定N・当たりM か その 片方・数は 1 以上）"
+        );
+      ent[key] = Number(km[2]);
+    }
+    if (!/^[0-9a-f]{16}$/.test(sha)) return errors.push(at + " の blob の id が 16字の 形で ない");
+    map.set(rel, ent);
+  });
   return { map, errors };
 }
 
@@ -1230,7 +1252,9 @@ function selfTest() {
       console.log("  ✗ " + n + " … " + e.message);
     }
   };
+  let checks = 0;
   const must = (v, m) => {
+    checks++;
     if (!v) throw new Error(m);
   };
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kinshi-"));
@@ -2446,6 +2470,76 @@ function selfTest() {
         go([put("v2.xlsb", view("他人 - 個人用ビュー"))]).code === 1,
         "他人の 個人用ビューが 緑"
       );
+      /* 固い 欄の 値が 違っても（シート見出しの 幅 等）置き場所で 外す＝見本なら 緑 */
+      for (const v of [
+        [0xf4, 0x01],
+        [0x20, 0x03],
+        [0xe8, 0x03],
+        [0x64, 0x00],
+      ]) {
+        const head = Buffer.alloc(30);
+        Buffer.from([1, 0, 0, 0, v[0], v[1]]).copy(head, 16);
+        const nb = Buffer.alloc(4 + 4);
+        nb.writeUInt32LE(2, 0);
+        nb.write("見本", 4, "utf16le");
+        const body = Buffer.concat([head, nb]);
+        const z = makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", Buffer.concat([Buffer.from([0x8d, 0x03, body.length]), body])],
+        ]);
+        must(go([put("vf" + v[0] + ".xlsb", z)]).code === 0, "固い 欄の 値 " + v + " で 偽の 赤");
+      }
+      /* 読めない 名前の 記録に 偶然の 空白 1字（01 00 00 00 20 00）＝未測定を 消さない */
+      const odd18d = Buffer.from("0100000020000000000000000000000004000000ffffff", "hex");
+      const z2 = makeZip([
+        ["docProps/core.xml", core("見本")],
+        ["xl/workbook.bin", Buffer.concat([Buffer.from([0x8d, 0x03, odd18d.length]), odd18d])],
+      ]);
+      must(go([put("blank.xlsb", z2)]).code === 1, "偶然の 空白で 読めない 名前が 緑");
+      /* NUL 入りの 本物の 名前＋見本 の 塊（同じ 記録）は 赤 */
+      for (const [nm, t1, t2, parts] of [
+        ["n278", 0xf8, 0x04, ["見本", "Bob" + String.fromCharCode(0)]],
+        ["n224", 0xa4, 0x04, [String.fromCharCode(0) + "田中", "見本"]],
+        ["n817", 0x97, 0x10, ["田" + String.fromCharCode(0) + "中", "見本"]],
+      ]) {
+        const body = Buffer.concat(
+          parts.map((t) => {
+            const b = Buffer.alloc(4 + 2 * t.length);
+            b.writeUInt32LE(t.length, 0);
+            b.write(t, 4, "utf16le");
+            return b;
+          })
+        );
+        const z = makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", Buffer.concat([Buffer.from([t1, t2, body.length]), body])],
+        ]);
+        must(go([put(nm + ".xlsb", z)]).code === 1, "NUL 入りの 名前が 緑（" + nm + "）");
+      }
+      /* 外す 範囲の 境目（0x18d の 16〜21 バイト目 だけ）・型（0x18d だけ）を 押さえる 歯 */
+      const at = (t1, t2, off, name) => {
+        const w = (t) => {
+          const b = Buffer.alloc(4 + 2 * t.length);
+          b.writeUInt32LE(t.length, 0);
+          b.write(t, 4, "utf16le");
+          return b;
+        };
+        const body = Buffer.concat([Buffer.alloc(off), w(name), w("見本")]);
+        return makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", Buffer.concat([Buffer.from([t1, t2, body.length]), body])],
+        ]);
+      };
+      for (const [nm, t1, t2, off, name] of [
+        ["b22", 0x8d, 0x03, 22, "他人"],
+        ["b15", 0x8d, 0x03, 15, "他人"],
+        ["b224", 0xa4, 0x04, 16, "他人"],
+        ["b18dnul", 0x8d, 0x03, 22, "田" + String.fromCharCode(0) + "中"],
+      ])
+        must(
+          go([put(nm + ".xlsb", at(t1, t2, off, name))]).code === 1,
+          "外す 範囲の 外の 名前が 緑（" + nm + "）"
+        );
       /* 途中に 本物の 名前・終わりに 見本（今の 本番で 赤＝後戻りを 止める 歯） */
       const wsb = (txt) => {
         const b = Buffer.alloc(4 + 2 * txt.length);
@@ -2562,6 +2656,7 @@ function selfTest() {
 
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log("自己確認: " + pass + "/" + (pass + fail));
+  console.log("確かめた 回数: " + checks);
   return fail ? 1 : 0;
 }
 

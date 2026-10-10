@@ -33,7 +33,7 @@ const JIBUN = 'tests/unit/mihari-kowashita-kiroku.test.js';
 //   blob の id が 下と ★完全に 同じ時だけ★ 数えない（1字でも 変われば また 数える＝赤）。
 //   この見張りは 自分の --self-test（29本・壊した時に 赤に なるか）を CI で 毎回 走らせている。
 const KARIMONO = {
-  'tests/kinshi-ji.test.mjs': '90caf9ce9551e1369a8bbbe38f0d1f72893e3b64', // Castally の nomiya-app 7dfcaac
+  'tests/kinshi-ji.test.mjs': 'bb817afdf95667ffde117ee5dc2701389b82193e', // Castally の nomiya-app d6b3382
 };
 function karimonoKa(rel) {
   const want = KARIMONO[rel];
