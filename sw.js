@@ -32,7 +32,7 @@
 //   ★端末が どの版かは shindan.html の 一番上で 見る★（見立ての 1行）
 // ===========================================
 
-const CACHE_NAME = 'daikome-b3167be';
+const CACHE_NAME = 'daikome-ea94e91';
 // ★設計変更宣言 (2026-05-13): 47県データを固定名 cache に分離
 //   旧: アプリコード CACHE_NAME が hash で毎デプロイ更新 → 旧 cache 全削除 →
 //       47県データ (/data/roads-*.js) も全削除 → 全欠落・204MB 再 DL
