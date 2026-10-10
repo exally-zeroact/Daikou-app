@@ -126,7 +126,7 @@ function jitaiWoToku(s) {
   return String(s).replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);?/gi, (all, x) => {
     if (x[0] === '#') {
       const n = x[1] === 'x' || x[1] === 'X' ? parseInt(x.slice(2), 16) : parseInt(x.slice(1), 10);
-      return Number.isFinite(n) ? String.fromCodePoint(n) : all;
+      return Number.isFinite(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : all;
     }
     return NAMAE[x.toLowerCase()] != null ? NAMAE[x.toLowerCase()] : all;
   });
@@ -191,14 +191,26 @@ function htmlWoMiru(src) {
       const v = k === 'style' ? cssNoChuukiWoKesu(v0) : v0;
       // on... と javascript: は JS（ブラウザは 実体参照を ほどいてから 走らせる）
       const toita = jitaiWoToku(v);
+      // URL は ブラウザが タブ・改行を 取り、頭の 制御文字と 空白を 取ってから 読む（java&#9;script: も 走る）
+      let url = toita.replace(/[\t\n\r]/g, '');
+      let kashira = 0;
+      while (kashira < url.length && url.charCodeAt(kashira) <= 0x20) kashira++;
+      url = url.slice(kashira);
       const js = /^on/.test(k)
         ? toita
-        : /^\s*javascript:/i.test(toita)
-          ? toita.replace(/^\s*javascript:/i, '')
+        : /^javascript:/i.test(url)
+          ? url.replace(/^javascript:/i, '')
           : null;
-      const fuku = k === 'srcdoc' ? jitaiWoToku(v) : null; // srcdoc は ほどくと HTML
+      const fuku = k === 'srcdoc' ? htmlWoMiru(toita) : null; // srcdoc は ほどくと HTML
+      if (fuku) {
+        // 中の 読めない・src・JS の 名指しも 外へ 渡す（★だけ 見ると 黙る）
+        for (const y of fuku.yomenai)
+          out.yomenai.push('srcdoc の 中 行' + gyou(src, lt) + '：' + y);
+        out.src.push(...fuku.src);
+        out.jsNoNamae.push(...fuku.jsNoNamae);
+      }
       if (HOSHI.test(v) || HOSHI.test(k)) hit(lt, k + '="' + v + '"');
-      else if (fuku != null && htmlWoMiru(fuku).hoshi.length) hit(lt, k + '="' + v + '"');
+      else if (fuku && fuku.hoshi.length) hit(lt, k + '="' + v + '"');
       else if (js != null) {
         const r = jsWoMiru(js);
         if (r.yomenai) out.yomenai.push(k + ' 属性が JS として 読めない 行' + gyou(src, lt));
@@ -226,9 +238,12 @@ function htmlWoMiru(src) {
       continue;
     }
     if (!tag.startsWith('</') && (lname === 'script' || lname === 'style')) {
-      const re = new RegExp('</' + lname + '\\s*>', 'ig');
+      // 閉じタグは 字の 箱と 同じ 探し方（</script/> でも 閉じる）・閉じなければ 読めない
+      const re = new RegExp('</' + lname + '(?=[\\s/>])', 'ig');
       re.lastIndex = gt + 1;
       const m = re.exec(src);
+      const gtm = m ? tagNoOwari(src, m.index) : -1;
+      if (gtm < 0) out.yomenai.push(lname + ' が 閉じない 行' + gyou(src, lt));
       const end = m ? m.index : src.length;
       const naka = src.slice(gt + 1, end);
       if (lname === 'style') {
@@ -253,7 +268,7 @@ function htmlWoMiru(src) {
           hit(gt + 1, naka.slice(naka.search(HOSHI))); // text/template 等＝HTML として 出る
         }
       }
-      i = m ? m.index + m[0].length : src.length;
+      i = gtm < 0 ? src.length : gtm + 1;
       continue;
     }
     i = gt + 1;

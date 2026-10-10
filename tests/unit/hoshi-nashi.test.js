@@ -228,6 +228,33 @@ describe('門の 歯（作った 入力で 赤に なるか）', () => {
     ).toBe(1);
     expect(htmlAka('<a href="javascript:void(0)" onclick="go()">あ</a>')).toBe(0);
   });
+  // 本番前の 対立役 3回目（2026-10-10）の D1〜D3（Chromium で ★ が 出るのを 見た 形）
+  it('HTML：script・style の 閉じタグが </script/> でも 閉じる・閉じなければ 読めない', () => {
+    expect(htmlAka('<script>a=1</script/><p>&starf;<!-- --></p>\n<script>b=2</script>')).toBe(1);
+    expect(htmlAka('<style>/*</style/><p>&starf;</p><style>*/</style>')).toBe(1);
+    expect(htmlWoMiru('<script>a=1</script/><script src="x.js"></script>').src).toEqual(['x.js']);
+    expect(htmlWoMiru('<script>var a=1;').yomenai.length).toBe(1);
+  });
+  it('HTML：javascript: は タブ・改行を 取ってから 見る', () => {
+    expect(
+      htmlAka('<a href="java&#9;script:void(document.title=String.fromCharCode(9733))">あ</a>')
+    ).toBe(1);
+    expect(
+      htmlAka('<a href=" java\nscript:void(document.title=String.fromCharCode(9733))">あ</a>')
+    ).toBe(1);
+  });
+  it('HTML：srcdoc の 中の 読めない・src も 外へ 渡す', () => {
+    expect(
+      htmlWoMiru('<iframe srcdoc="&lt;b onclick=&quot;var s=\'x&quot;&gt;"></iframe>').yomenai
+        .length
+    ).toBe(1);
+    expect(
+      htmlWoMiru(
+        '<iframe srcdoc="&lt;script src=&quot;scripts/zz.js&quot;&gt;&lt;/script&gt;"></iframe>'
+      ).src
+    ).toEqual(['scripts/zz.js']);
+    expect(htmlAka('<p>&#x110000; &#9732;</p>')).toBe(0); // 範囲外の 数でも 止まらない
+  });
   it('探す 形が 普通の 字を 拾わない', () => {
     expect(HOSHI.test('&#97330; \\u26050 料金 ☆ 2605円')).toBe(false);
   });
