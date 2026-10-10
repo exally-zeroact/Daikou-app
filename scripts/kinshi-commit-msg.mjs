@@ -173,7 +173,11 @@ function main() {
 
 // git log の範囲の commit の文を全部見る。全部 0件なら true
 function miru(revs, words, zeroOk) {
-  const out = execFileSync('git', ['log', '--format=%H%x00%B%x01', ...revs], { encoding: 'utf8' });
+  // ★出しの上限を広げる★（既定 1MB では 全履歴を見ると ENOBUFS で落ちた＝赤だが 何も見ていない）
+  const out = execFileSync('git', ['log', '--format=%H%x00%B%x01', ...revs], {
+    encoding: 'utf8',
+    maxBuffer: 512 * 1024 * 1024,
+  });
   const commits = out
     .split('\x01')
     .map((c) => c.trim())
