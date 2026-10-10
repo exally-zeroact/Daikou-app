@@ -95,7 +95,7 @@ describe('data-loader IDB cache: _idbPut', () => {
       ADDRESSES_COARSE_JP: {
         v: 1,
         precision: 100000,
-        items: [{ lat: 3406467, lng: 13300150, n: '今治市', p: '38', c: '38202' }],
+        items: [{ lat: 3409242, lng: 13296592, n: '今治市', p: '38', c: '38202' }],
       },
     };
     // 例外 throw しないこと verify
@@ -126,7 +126,7 @@ describe('data-loader IDB cache: loadFromCache fallback 経路', () => {
           v: 1,
           precision: 100000,
           items: [
-            { lat: 3406467, lng: 13300150, n: '今治市', p: '38', c: '38202' },
+            { lat: 3409242, lng: 13296592, n: '今治市', p: '38', c: '38202' },
             { lat: 3358439, lng: 13276706, n: '松山市', p: '38', c: '38201' },
           ],
         }) +
@@ -150,7 +150,7 @@ describe('data-loader IDB cache: loadFromCache fallback 経路', () => {
     expect(sandbox.ADDRESSES_COARSE_JP.precision).toBe(100000);
     expect(sandbox.ADDRESSES_COARSE_JP.items.length).toBe(2);
     // window.XXX 互換: 本物形式 int×1e5 保持
-    expect(sandbox.ADDRESSES_COARSE_JP.items[0].lat).toBe(3406467);
+    expect(sandbox.ADDRESSES_COARSE_JP.items[0].lat).toBe(3409242);
     expect(sandbox.ADDRESSES_COARSE_JP.items[0].n).toBe('今治市');
   });
 

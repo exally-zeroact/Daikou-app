@@ -105,7 +105,7 @@ function makeGpsTrace(road, gpsLengthM, gpsStepM, noiseM, t0, speedKmh, seed) {
 
 // ─── Fixture 1: 直線 1km ─────────────────────────────────────
 function makeStraight1km() {
-  const road = buildRoad(34.0658, 132.997, [{ bearing: 0, length: 1100 }]);
+  const road = buildRoad(34.09355, 132.96142, [{ bearing: 0, length: 1100 }]);
   const gps = makeGpsTrace(road, 1000, 10, 3, 1714000000000, 36, 42);
   const expected = 1000;
   writeJsonl(

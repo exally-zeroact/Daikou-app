@@ -2,7 +2,7 @@
 //
 // ★設計変更宣言 住所拾い 実機 bug 修正後の・回帰テスト (= 2026-05-22):
 //
-//   司さん実機観測 (= iPhone・愛媛今治・accuracy 5-11m・全 GPS valid):
+//   実機観測 (= iPhone・愛媛今治・accuracy 5-11m・全 GPS valid):
 //     - 出発地住所「⚠位置不明」/ 別機会で「📍出発地取得中…」永久ハング
 //     - 経由地点も「⚠位置不明」
 //     - 「出発地取得中…」中・経由地点ボタンが・記録可能状態にならない
@@ -17,8 +17,8 @@
 //     - ★真の原因: COARSE_RADIUS_M=3000m + coarseRangeI=2800 (= 0.028°≈3.1km) が・
 //                  市域 sweep に対して狭すぎ・市の centroid は・市の中心 (= 北部) で・
 //                  user (= 市の南部) と 8-30km 離れることが多い。
-//                  愛媛今治 user (34.0662, 132.9978) と 今治市 centroid (34.1322, 133.0480) は・
-//                  実距離 8.6km → 全 1919 件 bbox SKIP → bestCoarse=null → null 返却
+//                  愛媛今治 user (34.09395, 132.96222) と 今治市 centroid (34.1322, 133.0480) は・
+//                  実距離 約9km → 全 1919 件 bbox SKIP → bestCoarse=null → null 返却
 //
 //   修正 (= meter.js getNearestAddress + _searchFineItems):
 //     - COORD_SCALE=100000 を定数化 (= 4 段階探索全経路で・スケール変換を明示)
@@ -56,9 +56,9 @@ function mockGPS() {
 }
 
 // ─── 実 data 形式 (= integer × 1e5) fixture ────────────────────
-// 司さん実機シナリオを忠実に再現する・今治市 + 近隣の COARSE items
+// 実機シナリオを忠実に再現する・今治市 + 近隣の COARSE items
 const COARSE_ITEMS_REAL_SCALE = [
-  // 愛媛県・今治市 (= 司さん eruda で再現対象・centroid 34.13215・133.04801)
+  // 愛媛県・今治市 (= eruda で再現対象・centroid 34.13215・133.04801)
   { lat: 3413215, lng: 13304801, n: '今治市', p: '愛媛県', c: '38202' },
   // 愛媛県・松山市 (= 県庁所在地・遠方 ~30km)
   { lat: 3393613, lng: 13264075, n: '松山市', p: '愛媛県', c: '38201' },
@@ -68,10 +68,10 @@ const COARSE_ITEMS_REAL_SCALE = [
   { lat: 4303504, lng: 14128845, n: '札幌市', p: '北海道', c: '01101' },
 ];
 
-// 司さん実機 GPS (= 愛媛今治・eruda 観測 2026-05-22)
-const IMABARI_USER = { lat: 34.06615, lng: 132.99778, accuracy: 6 };
+// 作り物の点 (= 愛媛今治・eruda 観測 2026-05-22)
+const IMABARI_USER = { lat: 34.0939, lng: 132.9622, accuracy: 6 };
 
-// ─── A. ★ 司さん実機 bug の・真因再現 + 修正後の・期待挙動 ──────
+// ─── A. ★ 実機 bug の・真因再現 + 修正後の・期待挙動 ──────
 
 describe('住所拾い 実機 bug: 今治 user で・修正前 null → 修正後「今治市 付近」', () => {
   let Meter;
@@ -90,14 +90,14 @@ describe('住所拾い 実機 bug: 今治 user で・修正前 null → 修正�
     delete globalThis.window;
   });
 
-  it('★ 司さん実機 GPS (= 今治市南部・centroid から 8.6km) で・「愛媛県今治市 付近」を返却', () => {
+  it('★ 作り物の点 (= 今治市の中・centroid から 約9km) で・「愛媛県今治市 付近」を返却', () => {
     // 修正前 (= COARSE_RADIUS=3000・coarseRange=2800) では・bbox 全 SKIP → null
     // 修正後 (= COARSE_RADIUS=25000・coarseRange=25000) では・今治市 (8640m) が・最近傍
     const addr = Meter.getNearestAddress(IMABARI_USER.lat, IMABARI_USER.lng, IMABARI_USER.accuracy);
     expect(addr).toBe('今治市 付近');
   });
 
-  it('複数 candidates 内・最近傍 (= 今治市 8.6km) が選ばれる・西条市 16.6km は・bestCoarseDistM で・後位', () => {
+  it('複数 candidates 内・最近傍 (= 今治市 約9km) が選ばれる・西条市 16.6km は・bestCoarseDistM で・後位', () => {
     const addr = Meter.getNearestAddress(IMABARI_USER.lat, IMABARI_USER.lng, 6);
     expect(addr).toBe('今治市 付近');
     expect(addr).not.toBe('西条市 付近');
@@ -109,7 +109,7 @@ describe('住所拾い 実機 bug: 今治 user で・修正前 null → 修正�
     expect(addr).not.toBe('札幌市 付近');
   });
 
-  it('isAddressDataReady() = true (= 司さん実機 eruda 観測と一致)', () => {
+  it('isAddressDataReady() = true (= 実機 eruda 観測と一致)', () => {
     expect(Meter.isAddressDataReady()).toBe(true);
   });
 });
@@ -204,8 +204,8 @@ describe('住所拾い 修正前 bug 回帰防止: data scale が・integer×1e5
         ],
       },
     };
-    // 今治市 centroid から ~8.6km の・user 位置
-    const addr = Meter.getNearestAddress(34.06615, 132.99778, 6);
+    // 今治市 centroid から ~約9km の・user 位置
+    const addr = Meter.getNearestAddress(34.0939, 132.9622, 6);
     expect(addr).toBe('今治市 付近');
   });
 

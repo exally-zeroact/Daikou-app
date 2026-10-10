@@ -131,7 +131,7 @@ function assertNear(actual, expected, tol, msg) {
 
 // ─── テストケース実装 ────────────────────────────────────────
 // 各 GPS は (lat, lng) 直線距離 100m 北・1 秒間隔で前進する単純設定
-function gpsAt(stepIdx, baseLat = 34.0658, baseLng = 132.997) {
+function gpsAt(stepIdx, baseLat = 34.09355, baseLng = 132.96142) {
   // 1 step = 0.0009 度 ≈ 100m
   return {
     lat: baseLat + 0.0009 * stepIdx,

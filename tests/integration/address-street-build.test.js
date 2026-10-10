@@ -11,7 +11,7 @@
 //   4. 大字 dict 圧縮 (= 同 city+oaza は・1 entry)
 //   5. grid 索引 (= encoding-utils.gridKey)
 //   6. 街区符号 k field 保持
-//   7. ★ 今治市役所の点 (= 34.06615, 132.99778) → 「今治市別宮町一丁目4」（未測定）at 実 ehime data
+//   7. ★ 作り物の点 (= 34.0939, 132.9622) → 「今治市別宮町一丁目4」（未測定）at 実 ehime data
 //
 // 絶対ルール準拠: 距離 / 課金 / Worker B / map-matcher 完全無関係・住所表示専用。
 
@@ -48,24 +48,24 @@ describe('build-address.js --street: CSV パース + 代表フラグ=1 抽出', 
         city: '今治市',
         oaza: '別宮町一丁目',
         kuban: '6',
-        lat: 34.066133,
-        lng: 132.997739,
+        lat: 34.093883,
+        lng: 132.962159,
         daihyou: '1',
       },
       {
         city: '今治市',
         oaza: '別宮町一丁目',
         kuban: '7',
-        lat: 34.066272,
-        lng: 132.99819,
+        lat: 34.094022,
+        lng: 132.96261,
         daihyou: '1',
       },
       {
         city: '今治市',
         oaza: '別宮町一丁目',
         kuban: '99',
-        lat: 34.066,
-        lng: 132.9983,
+        lat: 34.09375,
+        lng: 132.96272,
         daihyou: '0',
       },
     ]);
@@ -79,8 +79,8 @@ describe('build-address.js --street: CSV パース + 代表フラグ=1 抽出', 
         city: '今治市',
         oaza: '別宮町一丁目',
         kuban: '6',
-        lat: 34.066133,
-        lng: 132.997739,
+        lat: 34.093883,
+        lng: 132.962159,
         daihyou: '0',
       },
     ]);
@@ -109,7 +109,7 @@ describe('build-address.js --street: CSV パース + 代表フラグ=1 抽出', 
 describe('build-address.js --street: POI v2 形式 構造 verify', () => {
   it('output は・{ v:2, prefecture, generated, precision, bbox, gridSize, oazas, grid, points }', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(bundle.v).toBe(2);
@@ -124,7 +124,7 @@ describe('build-address.js --street: POI v2 形式 構造 verify', () => {
 
   it('precision = 100000 (= 既存 POI / fine と統一)', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(bundle.precision).toBe(100000);
@@ -136,23 +136,23 @@ describe('build-address.js --street: POI v2 形式 構造 verify', () => {
 describe('build-address.js --street: 座標 int×1e5 + bbox', () => {
   it('lat/lng が・整数 × 1e5 で格納 (= 既存 POI と統一)', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
-    expect(bundle.points[0].lat).toBe(3406613);
-    expect(bundle.points[0].lng).toBe(13299774);
+    expect(bundle.points[0].lat).toBe(3409388);
+    expect(bundle.points[0].lng).toBe(13296216);
   });
 
   it('bbox = [minLat, minLng, maxLat, maxLng] integer 形式', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
-      { city: '今治市', oaza: '末広町一丁目', kuban: '6', lat: 34.0658, lng: 132.9973 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
+      { city: '今治市', oaza: '末広町一丁目', kuban: '6', lat: 34.09355, lng: 132.96172 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
-    expect(bundle.bbox[0]).toBe(3406580); // min lat
-    expect(bundle.bbox[1]).toBe(13299730); // min lng
-    expect(bundle.bbox[2]).toBe(3406613); // max lat
-    expect(bundle.bbox[3]).toBe(13299774); // max lng
+    expect(bundle.bbox[0]).toBe(3409355); // min lat
+    expect(bundle.bbox[1]).toBe(13296172); // min lng
+    expect(bundle.bbox[2]).toBe(3409388); // max lat
+    expect(bundle.bbox[3]).toBe(13296216); // max lng
   });
 });
 
@@ -161,9 +161,9 @@ describe('build-address.js --street: 座標 int×1e5 + bbox', () => {
 describe('build-address.js --street: 大字 dict 圧縮', () => {
   it('同 city+oaza は・1 entry に集約・points は・oazaIdx 参照', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '7', lat: 34.066272, lng: 132.99819 },
-      { city: '今治市', oaza: '末広町一丁目', kuban: '6', lat: 34.0658, lng: 132.9973 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '7', lat: 34.094022, lng: 132.96261 },
+      { city: '今治市', oaza: '末広町一丁目', kuban: '6', lat: 34.09355, lng: 132.96172 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(Object.keys(bundle.oazas).length).toBe(2);
@@ -173,8 +173,8 @@ describe('build-address.js --street: 大字 dict 圧縮', () => {
 
   it('小字 (= koaza) も・unique key の・一部に含まれる', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町', koaza: '甲', kuban: '6', lat: 34.066133, lng: 132.997739 },
-      { city: '今治市', oaza: '別宮町', koaza: '乙', kuban: '6', lat: 34.066272, lng: 132.99819 },
+      { city: '今治市', oaza: '別宮町', koaza: '甲', kuban: '6', lat: 34.093883, lng: 132.962159 },
+      { city: '今治市', oaza: '別宮町', koaza: '乙', kuban: '6', lat: 34.094022, lng: 132.96261 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(Object.keys(bundle.oazas).length).toBe(2); // 甲・乙 で・別 entry
@@ -182,7 +182,7 @@ describe('build-address.js --street: 大字 dict 圧縮', () => {
 
   it('oazas value は・「市区町村 + 大字・丁目 (+ 小字)」結合文字列', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(bundle.oazas[0]).toBe('今治市別宮町一丁目');
@@ -194,7 +194,7 @@ describe('build-address.js --street: 大字 dict 圧縮', () => {
 describe('build-address.js --street: grid 索引 (= encoding-utils.gridKey)', () => {
   it('各 point は・対応 grid cell に・登録される', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     const gridKeys = Object.keys(bundle.grid);
@@ -204,7 +204,7 @@ describe('build-address.js --street: grid 索引 (= encoding-utils.gridKey)', ()
 
   it('複数 grid cell に・分散 point は・別 cell に登録', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
       { city: '今治市', oaza: '遠方', kuban: '1', lat: 34.2, lng: 133.1 }, // 別 cell
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
@@ -217,8 +217,8 @@ describe('build-address.js --street: grid 索引 (= encoding-utils.gridKey)', ()
 describe('build-address.js --street: 街区符号 k field', () => {
   it('k は・CSV column 5 (= 街区符号・地番) を・文字列で保持', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.066133, lng: 132.997739 },
-      { city: '今治市', oaza: '別宮町一丁目', kuban: '17', lat: 34.066272, lng: 132.99819 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '6', lat: 34.093883, lng: 132.962159 },
+      { city: '今治市', oaza: '別宮町一丁目', kuban: '17', lat: 34.094022, lng: 132.96261 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(bundle.points[0].k).toBe('6');
@@ -227,14 +227,14 @@ describe('build-address.js --street: 街区符号 k field', () => {
 
   it('地番地区 (= 数字 + 枝番) も・そのまま保持', () => {
     const csv = makeStreetsCsv([
-      { city: '今治市', oaza: '島', kuban: '123-4', lat: 34.066133, lng: 132.997739 },
+      { city: '今治市', oaza: '島', kuban: '123-4', lat: 34.093883, lng: 132.962159 },
     ]);
     const bundle = buildStreetFromCsvText(csv, 'ehime');
     expect(bundle.points[0].k).toBe('123-4');
   });
 });
 
-// ─── 7. ★ 実 ehime data で・今治市役所の点 最近傍 verify ───────
+// ─── 7. ★ 実 ehime data で・作り物の点 最近傍 verify ───────
 
 describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
   const REAL_PATH = path.join(__dirname, '..', '..', 'data', 'addresses-street-ehime.js');
@@ -260,7 +260,7 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
     expect(Object.keys(b.grid).length).toBeGreaterThan(100);
   });
 
-  it('★ 今治市役所の点 (34.06615, 132.99778) → 「今治市別宮町一丁目4」が・20m 以内で hit', () => {
+  it('★ 作り物の点 (34.0939, 132.9622) → 「今治市別宮町一丁目4」が・20m 以内で hit', () => {
     if (!fs.existsSync(REAL_PATH)) {
       // ★2026-08-28: ここも「skip」で 緑で終わっていました（同じ形が 2か所ありました）。
       console.warn('★未測定★ data/addresses-street-ehime.js が 在りません（build を回していない）');
@@ -270,8 +270,8 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
     const win = {};
     new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
     const b = win.ADDRESSES_STREET_EHIME;
-    const userLat = 34.06615;
-    const userLng = 132.99778;
+    const userLat = 34.0939;
+    const userLng = 132.9622;
     function hav(lat1, lng1, lat2, lng2) {
       const R = 6371000;
       const T = Math.PI / 180;
@@ -291,7 +291,7 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
       }
     }
     expect(bestD).toBeLessThan(20); // 20m 以内 hit
-    // ★2026-10-10 点を 司さんの所から 今治市役所（別宮町1丁目4番地1）へ移した。この期待値は 未測定（data を repo に置いていないので 一度も回っていない）＝data を作った日に 確かめて直す。合わなければ 赤になる（緑にはならない）★
+    // ★2026-10-10 点を 司さんの所から 作り物の点（高部）へ移した。この期待値は 未測定（data を repo に置いていないので 一度も回っていない）＝data を作った日に 確かめて直す。合わなければ 赤になる（緑にはならない）★
     expect(b.oazas[best.c] + best.k).toBe('今治市別宮町一丁目4');
   });
 });

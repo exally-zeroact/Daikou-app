@@ -106,27 +106,27 @@ describe('_cutChomeSuffix: 末尾 ○丁目 カット', () => {
 
 // ─── 6-8. _findNearestMunicipality の・各分岐 ─────
 describe('_findNearestMunicipality: 本物 coarse 形式で・最近傍 市町村 hit', () => {
-  it('今治市役所の点 (34.06615, 132.99778) → 今治市 hit', () => {
+  it('作り物の点 (34.0939, 132.9622) → 今治市 hit', () => {
     // 本物 ADDRESSES_COARSE_JP 形式 (= int×1e5 + items・n=市町村名 / c=JIS5桁)
     global.window = {
       ADDRESSES_COARSE_JP: {
         v: 1,
         precision: 100000,
         items: [
-          { lat: 3406667, lng: 13298333, n: '今治市', c: '38202' },
+          { lat: 3409442, lng: 13294775, n: '今治市', c: '38202' },
           { lat: 3384889, lng: 13276706, n: '松山市', c: '38201' },
           { lat: 3306667, lng: 13256667, n: '宇和島市', c: '38203' },
         ],
       },
     };
-    expect(findNearestMunicipality(34.06615, 132.99778)).toBe('今治市');
+    expect(findNearestMunicipality(34.0939, 132.9622)).toBe('今治市');
   });
 
   it('松山市中心 (= 松山市 hit)', () => {
     global.window = {
       ADDRESSES_COARSE_JP: {
         items: [
-          { lat: 3406667, lng: 13298333, n: '今治市', c: '38202' },
+          { lat: 3409442, lng: 13294775, n: '今治市', c: '38202' },
           { lat: 3384889, lng: 13276706, n: '松山市', c: '38201' },
         ],
       },
@@ -140,27 +140,27 @@ describe('_findNearestMunicipality: 本物 coarse 形式で・最近傍 市町�
         items: [{ lat: 3500000, lng: 13900000, n: '東京都', c: '13101' }], // 東京・遠い
       },
     };
-    // 今治市役所の点 から・~600km 離れた・東京は・hit しない
-    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
+    // 作り物の点 から・~600km 離れた・東京は・hit しない
+    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
   });
 
   it('ADDRESSES_COARSE_JP 未 load → null', () => {
     global.window = {}; // ADDRESSES_COARSE_JP 無し
-    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
+    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
   });
 
   it('items 空 → null', () => {
     global.window = {
       ADDRESSES_COARSE_JP: { items: [] },
     };
-    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
+    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
   });
 
   it('items が・Array でない → null', () => {
     global.window = {
       ADDRESSES_COARSE_JP: { items: 'not an array' },
     };
-    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
+    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
   });
 });
 
@@ -201,14 +201,14 @@ describe('住所① 統合シナリオ: 例 (今治市別宮町二丁目) → �
     // 本物 coarse data・今治市 hit
     global.window = {
       ADDRESSES_COARSE_JP: {
-        items: [{ lat: 3406667, lng: 13298333, n: '今治市', c: '38202' }],
+        items: [{ lat: 3409442, lng: 13294775, n: '今治市', c: '38202' }],
       },
     };
     // meter.js fine 戻り値・想定 (= 司さん希望)
     const fineRaw = '別宮町二丁目';
     const cut = cutChomeSuffix(fineRaw);
     expect(cut).toBe('別宮町');
-    const city = findNearestMunicipality(34.06615, 132.99778);
+    const city = findNearestMunicipality(34.0939, 132.9622);
     expect(city).toBe('今治市');
     // 連結
     expect(city + cut).toBe('今治市別宮町');
@@ -217,11 +217,11 @@ describe('住所① 統合シナリオ: 例 (今治市別宮町二丁目) → �
   it('fine 戻り値「松本町一丁目」(= 例) + 「今治市」 → 「今治市松本町」', () => {
     global.window = {
       ADDRESSES_COARSE_JP: {
-        items: [{ lat: 3406667, lng: 13298333, n: '今治市', c: '38202' }],
+        items: [{ lat: 3409442, lng: 13294775, n: '今治市', c: '38202' }],
       },
     };
     expect(cutChomeSuffix('松本町一丁目')).toBe('松本町');
-    expect(findNearestMunicipality(34.06615, 132.99778) + cutChomeSuffix('松本町一丁目')).toBe(
+    expect(findNearestMunicipality(34.0939, 132.9622) + cutChomeSuffix('松本町一丁目')).toBe(
       '今治市松本町'
     );
   });

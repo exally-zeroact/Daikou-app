@@ -46,18 +46,18 @@ describe('住所② 現在地フリーズ根治 (_pickLiveAddrPos)', () => {
     // 実機再現: snapは石井町で凍結・生GPSは17km南へ移動
     const r = pick({
       mmSnap: { lat: 34.2035, lng: 133.0938, t: now - 30000 },
-      rawGps: { lat: 34.0686, lng: 132.9965, t: now },
+      rawGps: { lat: 34.09635, lng: 132.96092, t: now },
       now,
     });
     expect(r.src).toBe('raw'); // ★凍結したsnapでなく生GPSで現在地を追従★
-    expect(r.lat).toBe(34.0686);
+    expect(r.lat).toBe(34.09635);
   });
 
   it('★実機17.5km凍結の核: 古いsnapが生GPSから遠い時は生GPS優先(石井町張り付き禁止)', () => {
     const now = 999999999;
     const r = pick({
       mmSnap: { lat: 34.2035, lng: 133.0938, t: 0 },
-      rawGps: { lat: 34.0686, lng: 132.9965, t: now - 1000 },
+      rawGps: { lat: 34.09635, lng: 132.96092, t: now - 1000 },
       now,
     });
     expect(r.src).toBe('raw');
@@ -73,7 +73,7 @@ describe('住所② 現在地フリーズ根治 (_pickLiveAddrPos)', () => {
     const now = 100000;
     const r = pick({
       mmSnap: { lat: 34.2, lng: 133.09, t: now - 10000 },
-      rawGps: { lat: 34.0686, lng: 132.99, t: now - 90000 },
+      rawGps: { lat: 34.09635, lng: 132.99, t: now - 90000 },
       now,
     });
     expect(r.src).toBe('snap'); // 生GPSが60s超stale=信頼できない→snap保持(従来挙動)

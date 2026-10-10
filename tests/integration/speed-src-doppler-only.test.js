@@ -30,7 +30,7 @@ function mockGPS() {
 }
 
 // 愛媛 bbox 内の基準点 (実 fixture 走行域)
-const BASE = { lat: 34.0658, lng: 132.997 };
+const BASE = { lat: 34.09355, lng: 132.96142 };
 const T0 = 1714000000000;
 
 function gapScenario(src) {
