@@ -86,9 +86,9 @@ function kazoeru(dir, deta) {
 //   ⇒ ★対象外に 移す時は 必ず 1行の理由を 書く★（黙って 名簿から 消さない）
 // ★他の席の見張りを 逐語で 写した物★（2026-10-11）＝中身を この席で 書き換えない決まり。
 //   blob の id が 下と ★完全に 同じ時だけ★ 数えない（1字でも 変われば また 数える＝赤）。
-//   この見張りは 自分の --self-test（26本・壊した時に 赤に なるか）を CI で 毎回 走らせている。
+//   この見張りは 自分の --self-test（29本・壊した時に 赤に なるか）を CI で 毎回 走らせている。
 const KARIMONO = {
-  'tests/kinshi-ji.test.mjs': '14a1fecc3cd14e7c8574849e80728d58aa205965', // Castally の nomiya-app 31f28fa
+  'tests/kinshi-ji.test.mjs': '90caf9ce9551e1369a8bbbe38f0d1f72893e3b64', // Castally の nomiya-app 7dfcaac
 };
 function karimonoKa(rel) {
   const want = KARIMONO[rel];

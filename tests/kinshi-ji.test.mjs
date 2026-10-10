@@ -33,6 +33,9 @@
  *   ・base64・\uXXXX・%XX（%20 以外）・字の つなぎ（'名'+'前'）・絵の 中の 字
  *   ・git の 過去の 版（見張りは 今の 木だけ）
  *
+ * node の 版：出しの 頭に 出す。node 24.21（ubuntu）は 奇数の 長さの utf16le で 落ちる＝u16le() で 偶数に 揃える。
+ *   CI は 本体を node 20、見張りだけを node 24 の job でも 回す（後戻りを 捕まえる）。
+ *
  * 使い方: node tests/kinshi-ji.test.mjs
  *         node tests/kinshi-ji.test.mjs --self-test
  */
@@ -197,6 +200,9 @@ const isPng = (b) =>
   b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
 const isPdf = (b) => b.slice(0, 5).toString("latin1") === "%PDF-";
 
+/* UTF-16LE で 読む 時は 必ず 偶数の 長さに 揃える＝node 24.21（ubuntu）で 奇数の 長さの Buffer を
+   toString("utf16le") すると「double free or corruption」で process ごと 落ちた（2026-10-11 CI で 再現・node 20 は 通る） */
+const u16le = (b) => b.slice(0, b.length - (b.length % 2)).toString("utf16le");
 const utf16be = (b) => {
   const sw = Buffer.from(b.slice(0, b.length - (b.length % 2)));
   sw.swap16();
@@ -207,15 +213,9 @@ const utf16be = (b) => {
 export function readTexts(buf) {
   if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf)
     return { ok: true, texts: [buf.slice(3).toString("utf8")] };
-  if (buf[0] === 0xff && buf[1] === 0xfe)
-    return { ok: true, texts: [buf.slice(2).toString("utf16le")] };
+  if (buf[0] === 0xff && buf[1] === 0xfe) return { ok: true, texts: [u16le(buf.slice(2))] };
   if (buf[0] === 0xfe && buf[1] === 0xff) return { ok: true, texts: [utf16be(buf.slice(2))] };
-  const utf16s = [
-    buf.toString("utf16le"),
-    buf.slice(1).toString("utf16le"),
-    utf16be(buf),
-    utf16be(buf.slice(1)),
-  ];
+  const utf16s = [u16le(buf), u16le(buf.slice(1)), utf16be(buf), utf16be(buf.slice(1))];
   const strict = (enc) => {
     try {
       return new TextDecoder(enc, { fatal: true }).decode(buf);
@@ -569,19 +569,26 @@ export function isBiff12(buf, recs) {
   return n > 0;
 }
 /* 人の 名前を 持つ BIFF12 の 記録（コメントの 作者・ファイル共有）の 中の 字（XLWideString＝字数 4 バイト＋UTF-16LE）を 拾う */
+/* 実 Excel の 個人用ビューの 固い 欄（01 00 00 00 58 02）が 字数 1 の XLWideString に 見えて 作る 1 字（人の 名前では ない） */
+const EXCEL_FIXED_BIT = "\u0258";
 export const BIFF12_PERSON = new Map([
   [0x278, "xlsb の コメントの 作者"],
   [0x224, "xlsb の ファイル共有の 名前"],
   [0x817, "xlsb の 保存した 場所の 道（absPath）"],
+  [0x18d, "xlsb の 個人用ビューの 名前"],
 ]);
 /* BIFF12 で 読めた 扱いに する 部品（人の 欄を 持たない か、人の 記録を 上で 見る 物）。他の .bin は 未測定 */
 const BIFF12_READ =
   /(^|\/)xl\/(sharedStrings|styles|calcChain|metadata|workbook|comments\d*|worksheets\/(sheet|binaryIndex)\d+|tables\/table\d+)\.bin$/i;
-export function wideStrings(data) {
+export function wideStrings(data, atEnd = false) {
   const out = [];
   for (let o = 0; o + 4 <= data.length; o++) {
     const n = data.readUInt32LE(o);
-    if (n > 0 && n <= 255 && o + 4 + 2 * n <= data.length)
+    if (
+      n > 0 &&
+      n <= 32767 &&
+      (atEnd ? o + 4 + 2 * n === data.length : o + 4 + 2 * n <= data.length)
+    )
       out.push(data.slice(o + 4, o + 4 + 2 * n).toString("utf16le"));
   }
   return out;
@@ -597,7 +604,7 @@ function isDevmode(label, buf) {
 
 /* XML の 部品を 字に（BOM で UTF-16 LE/BE も） */
 function xmlText(b) {
-  if (b[0] === 0xff && b[1] === 0xfe) return b.slice(2).toString("utf16le");
+  if (b[0] === 0xff && b[1] === 0xfe) return u16le(b.slice(2));
   if (b[0] === 0xfe && b[1] === 0xff) return utf16be(b.slice(2));
   return new TextDecoder("utf-8").decode(b);
 }
@@ -606,15 +613,19 @@ function xmlText(b) {
 /* Excel の 表の 部品の displayName は 表の 名前（人で ない）＝この 1つだけ 作者の 欄から 外す */
 const TABLE_PART = /(^|\/)xl\/tables\/[^/]+\.xml$/i;
 const NAME_TAGS =
-  /<(?:[\w-]+:)?(creator|lastModifiedBy|Company|Manager|initial-creator|author)\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:[\w-]+:)?\1>)/gi;
+  /<(?:[\w.-]+:)?(creator|lastModifiedBy|Company|Manager|initial-creator|author)\b[^>]*?(?:\/>|>([\s\S]*?)<\/(?:[\w.-]+:)?\1>)/gi;
 const NAME_ATTRS =
-  /\s(?:[\w-]+:)?(author|displayName|initials|userName|userId|refreshedBy)\s*=\s*(["'])([\s\S]*?)\2/gi;
+  /\s(?:[\w.-]+:)?(author|displayName|initials|userName|userId|refreshedBy)\s*=\s*(["'])([\s\S]*?)\2/gi;
 const NAME_ELEM_ATTR =
-  /<(?:[\w-]+:)?(cmAuthor|userInfo|fileSharing|absPath)\b[^>]*?\s(name|url)\s*=\s*(["'])([\s\S]*?)\3/gi;
+  /<(?:[\w.-]+:)?(cmAuthor|userInfo|fileSharing|absPath|customWorkbookView)\b[^>]*?\s(name|url)\s*=\s*(["'])([\s\S]*?)\3/gi;
 const CUSTOM_VAL = /<vt:(?:lpwstr|lpstr|bstr)>([\s\S]*?)<\/vt:(?:lpwstr|lpstr|bstr)>/g;
 export function nameFields(partName, xml) {
   const out = [];
-  for (const m of xml.matchAll(NAME_TAGS)) out.push([m[1], (m[2] || "").replace(/<[^>]*>/g, "")]);
+  for (const m of xml.matchAll(NAME_TAGS))
+    out.push([
+      m[1],
+      (m[2] || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>|<[^<>]*>/g, (x, cd) => cd ?? ""),
+    ]);
   for (const m of xml.matchAll(NAME_ATTRS)) out.push([m[1], m[3]]);
   for (const m of xml.matchAll(NAME_ELEM_ATTR)) out.push([m[1] + "@" + m[2], m[4]]);
   if (/(^|\/)docProps\/custom\.xml$/i.test(partName))
@@ -635,6 +646,7 @@ export function scan({ root, files, words }) {
     pdfAuthors: 0,
     pdfStreams: 0,
     unreadable: 0,
+    shiroNotes: 0,
     nameChecks: 0,
   };
   const hits = [];
@@ -704,6 +716,20 @@ export function scan({ root, files, words }) {
         const text = xmlText(part.data);
         if (/(^|\/)docProps\/core\.xml$/i.test(part.name) && !/coreProperties/.test(text))
           notes.push(pl + ": 作者の 欄の 部品を 読めない（未測定）");
+        if (/(^|\/)(docProps\/(core|app)|meta)\.xml$/i.test(part.name)) {
+          const said = (
+            text.match(
+              /<(?!\/)[^>!?]*?(initial-creator|creator|lastModifiedBy|Company|Manager)\b/gi
+            ) || []
+          ).length;
+          const got = nameFields(part.name, text).filter(([k]) =>
+            /^(initial-creator|creator|lastModifiedBy|Company|Manager)$/i.test(k)
+          ).length;
+          if (said > got)
+            notes.push(
+              pl + ": 作者の 欄を 読み損ねた（" + said + " 個 中 " + got + " 個＝未測定）"
+            );
+        }
         /* 表・集計表・つなぎの 部品の displayName は Excel の 表の 名前（人で ない）＝作者の 欄として 見ない。
            core.xml に 作者の 欄が 無いのは「空」と 同じ（空か 見本 だけ 通す 決まりの 中） */
         for (const [kind, v] of nameFields(part.name, text))
@@ -836,8 +862,17 @@ export function scan({ root, files, words }) {
       if (isBiff12(buf, recs) && BIFF12_READ.test(partName)) {
         for (const rc of recs)
           if (BIFF12_PERSON.has(rc.type)) {
-            const ws = wideStrings(rc.data).filter((x) => /[^\u0000-\u001f]/.test(x));
-            for (const v of ws.length ? ws : [""]) checkName(label, BIFF12_PERSON.get(rc.type), v);
+            /* 名前の 欄＝記録の 終わりで 終わる 字の 塊 ＋ 途中の 塊（全部 見る・1 字の 名前も）。
+               見ないのは 実 Excel の 固い 欄（01 00 00 00 58 02）が 作る 1 字 U+0258 だけ。
+               どれか 1つでも 空か 見本で なければ 赤 */
+            const printable = (x) => /[^\u0000-\u001f]/.test(x);
+            const tail = wideStrings(rc.data, true).filter(printable);
+            const mid = wideStrings(rc.data).filter((x) => printable(x) && x !== EXCEL_FIXED_BIT);
+            const ws = [...new Set([...tail, ...mid])].sort((a, b) => b.length - a.length);
+            const odd = ws.find((x) => !OK_NAMES.has(normJa(x)));
+            if (ws.length) checkName(label, BIFF12_PERSON.get(rc.type), odd ?? ws[0]);
+            else if (rc.data.length > 4)
+              notes.push(label + ": " + BIFF12_PERSON.get(rc.type) + " の 字を 読めない（未測定）");
           }
       } else if (!isDevmode(label, buf)) {
         c.unreadable++;
@@ -908,7 +943,10 @@ export function scan({ root, files, words }) {
     if (ent.hits && nHit !== ent.hits)
       wrong.push("当たり（名指し " + ent.hits + "・今 " + nHit + "）");
     if (wrong.length) return reds.push("白名簿: " + lab + " の 数が 違う：" + wrong.join("・"));
-    if (ent.notes) notes.splice(before[1]);
+    if (ent.notes) {
+      c.shiroNotes += nNote;
+      notes.splice(before[1]);
+    }
     if (ent.hits) hits.splice(before[0]);
     passed.push({ label: lab, kind: ent.kind, n: (ent.notes ? nNote : 0) + (ent.hits ? nHit : 0) });
   });
@@ -970,7 +1008,7 @@ export function blobId(root, rel) {
 
 /* ---------- 白名簿（tests/kinshi-ji-shiro.txt）＝「道<TAB>種類<TAB>git の blob の id 頭16字<TAB>訳」 ----------
    種類＝「未測定N」（その 道の 未測定が ちょうど N 件 なら 通す）か「当たりN」（当たりが ちょうど N 件 なら 通す）。
-   ★中身（sha256）が 変われば 赤＝目で 見直して 名指しし直す★。件数が 違っても 赤（0件は 書けない＝要らない 名指し）。
+   ★中身（git の blob の id）が 変われば 赤＝目で 見直して 名指しし直す★。件数が 違っても 赤（0件は 書けない＝要らない 名指し）。
    白名簿 自身の 道・行に 一覧の 字・同じ 道の 2行・知らない 種類・形違い は 赤。訳は 出しに 書かない。 */
 export const SHIRO_PATH = "tests/kinshi-ji-shiro.txt";
 export function loadShiro(root, words = []) {
@@ -1045,7 +1083,9 @@ export function run({
   const list = files || gitFiles(root);
   const r = scan({ root, files: list, words });
   lines.unshift(
-    "一覧＝" +
+    "node " +
+      process.version +
+      " ／ 一覧＝" +
       from +
       "・" +
       words.length +
@@ -1068,7 +1108,11 @@ export function run({
       r.c.pdfStreams +
       " 個・字として 読めない " +
       r.c.unreadable +
-      " 本"
+      " 本・未測定 " +
+      (r.notes.length + r.c.shiroNotes + r.reds.filter((x) => x.includes("未測定")).length) +
+      " 件（うち 白名簿に 名指しして 通した " +
+      r.c.shiroNotes +
+      " 件）"
   );
   for (const pz of r.passed)
     lines.push("  白名簿で 通した: " + pz.label + "（" + pz.kind + "）" + pz.n + " 件");
@@ -1172,6 +1216,8 @@ function makePng(chunks) {
 }
 
 function selfTest() {
+  /* ★呼ぶ側（hook・worktree）が 渡す GIT_*（GIT_INDEX_FILE・GIT_DIR 等）を 外す★＝一時 repo の git が 親の index・config を 書き換えない */
+  for (const k of Object.keys(process.env)) if (k.startsWith("GIT_")) delete process.env[k];
   let pass = 0;
   let fail = 0;
   const T = (n, fn) => {
@@ -2227,6 +2273,279 @@ function selfTest() {
       must(
         go([put("up.xlsx", makeZip([["docProps/core.xml", upper]]))]).code === 1,
         "大文字の Creator が 緑"
+      );
+    }
+  );
+  T(
+    "作者の 欄の 読み損ね（接頭辞の 点・CDATA）・個人用ビュー（xlsx・xlsb）・255字を 越える 道",
+    () => {
+      const one = (nm, xml) => go([put(nm, makeZip([["docProps/core.xml", xml]]))]);
+      must(
+        one("dot.xlsx", "<cp:coreProperties><d.c:creator>他人</d.c:creator></cp:coreProperties>")
+          .code === 1,
+        "接頭辞に 点の 作者が 緑"
+      );
+      must(
+        one(
+          "cd.xlsx",
+          "<cp:coreProperties><dc:creator><![CDATA[他人]]></dc:creator></cp:coreProperties>"
+        ).code === 1,
+        "CDATA の 作者が 緑"
+      );
+      must(
+        one("odd.xlsx", "<cp:coreProperties><dc:creator>見本</dc:creatorX></cp:coreProperties>")
+          .code === 1,
+        "読み損ねた 作者の 欄が 緑"
+      );
+      must(
+        go([
+          put(
+            "cv.xlsx",
+            makeZip([
+              ["docProps/core.xml", core("見本")],
+              [
+                "xl/workbook.xml",
+                '<workbook><customWorkbookViews><customWorkbookView name="他人 - 個人用ビュー"/></customWorkbookViews></workbook>',
+              ],
+            ])
+          ),
+        ]).code === 1,
+        "xlsx の 個人用ビューが 緑"
+      );
+      const wrec = (t1, t2, head, txt) => {
+        const u = Buffer.from(txt, "utf16le");
+        const body = Buffer.concat([Buffer.alloc(head), Buffer.alloc(4), u]);
+        body.writeUInt32LE(txt.length, head);
+        const len = body.length;
+        const vl = len < 128 ? Buffer.from([len]) : Buffer.from([(len & 0x7f) | 0x80, len >> 7]);
+        return Buffer.concat([Buffer.from([t1, t2]), vl, body]);
+      };
+      const xb = (bin) =>
+        makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", bin],
+        ]);
+      must(
+        go([put("uv.xlsb", xb(wrec(0x8d, 0x03, 30, "他人 - 個人用ビュー")))]).code === 1,
+        "xlsb の 個人用ビューが 緑"
+      );
+      const longPath =
+        "C:" + String.fromCharCode(92) + "x".repeat(300) + String.fromCharCode(92) + "tanin";
+      must(
+        go([put("lp.xlsb", xb(wrec(0x97, 0x10, 0, longPath)))]).code === 1,
+        "255字を 越える 保存場所の 道が 緑"
+      );
+    }
+  );
+  T("GIT_INDEX_FILE・GIT_DIR を 付けて 走らせても 親の index・config を 1バイトも 変えない", () => {
+    if (process.env.KINSHI_SELFTEST_NESTED) return; // 入れ子の 中では 回さない
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "kinshi-parent-"));
+    const pg = (...a) => execFileSync("git", ["-C", parent, ...a], { stdio: "ignore" });
+    pg("init", "-q");
+    fs.writeFileSync(path.join(parent, "p.txt"), "parent");
+    pg("add", "-A");
+    pg(
+      "-c",
+      "user.name=x",
+      "-c",
+      "user.email=1+x@users.noreply.github.com",
+      "commit",
+      "-q",
+      "-m",
+      "p"
+    );
+    const gd = path.join(parent, ".git");
+    const before = [
+      fs.readFileSync(path.join(gd, "index")),
+      fs.readFileSync(path.join(gd, "config")),
+    ];
+    const r = spawnSync(process.execPath, [SELF, "--self-test"], {
+      env: {
+        ...process.env,
+        GIT_INDEX_FILE: path.join(gd, "index"),
+        GIT_DIR: gd,
+        GIT_WORK_TREE: parent,
+        KINSHI_SELFTEST_NESTED: "1",
+      },
+      encoding: "utf8",
+    });
+    const after = [
+      fs.readFileSync(path.join(gd, "index")),
+      fs.readFileSync(path.join(gd, "config")),
+    ];
+    const gd2 = gd;
+    /* GIT_DIR だけを 付けた 形（worktree から 押した 時の 型＝親の config に core.bare が 書かれた 前例） */
+    const before2 = fs.readFileSync(path.join(gd2, "config"));
+    const r2 = spawnSync(process.execPath, [SELF, "--self-test"], {
+      env: { ...process.env, GIT_DIR: gd2, KINSHI_SELFTEST_NESTED: "1" },
+      encoding: "utf8",
+    });
+    must(r2.status === 0, "GIT_DIR だけ 付けると 自己確認が 赤");
+    must(
+      before2.equals(fs.readFileSync(path.join(gd2, "config"))),
+      "GIT_DIR だけ で 親の config を 書き換えた"
+    );
+    fs.rmSync(parent, { recursive: true, force: true });
+    must(
+      r.status === 0,
+      "GIT_* を 付けると 自己確認が 赤: " +
+        String(r.stdout)
+          .split(String.fromCharCode(10))
+          .filter((l) => l.includes("✗"))
+          .join(" / ")
+    );
+    must(before[0].equals(after[0]), "親の index を 書き換えた");
+    must(before[1].equals(after[1]), "親の config を 書き換えた");
+  });
+  T(
+    "CDATA の 中の タグ・xlsb の 人の 記録の 短い 名前・属性の 接頭辞の 点・meta.xml の 読み損ね・短い 人の 記録",
+    () => {
+      must(
+        go([
+          put(
+            "cd2.xlsx",
+            makeZip([
+              [
+                "docProps/core.xml",
+                "<cp:coreProperties><dc:creator><![CDATA[<x>]]>見本</dc:creator></cp:coreProperties>",
+              ],
+            ])
+          ),
+        ]).code === 1,
+        "CDATA の 中の タグを 剥がして 緑"
+      );
+      must(
+        go([
+          put(
+            "cd3.xlsx",
+            makeZip([
+              [
+                "docProps/core.xml",
+                "<cp:coreProperties><dc:creator><z<![CDATA[他人]]>見本</dc:creator></cp:coreProperties>",
+              ],
+            ])
+          ),
+        ]).code === 1,
+        "壊れた タグの 中の CDATA が 緑"
+      );
+      /* 実 Excel の 個人用ビュー（0x18d）の 形＝固い 欄の 中に 字の 切れ端に 見える バイト（01 00 00 00 58 02）＋最後に 名前 */
+      const view = (name) => {
+        const head = Buffer.alloc(30);
+        Buffer.from([1, 0, 0, 0, 0x58, 0x02]).copy(head, 16);
+        const nb = Buffer.alloc(4 + 2 * name.length);
+        nb.writeUInt32LE(name.length, 0);
+        nb.write(name, 4, "utf16le");
+        const body = Buffer.concat([head, nb]);
+        return makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", Buffer.concat([Buffer.from([0x8d, 0x03, body.length]), body])],
+        ]);
+      };
+      must(go([put("v1.xlsb", view("見本"))]).code === 0, "見本の 個人用ビューで 偽の 赤");
+      must(
+        go([put("v2.xlsb", view("他人 - 個人用ビュー"))]).code === 1,
+        "他人の 個人用ビューが 緑"
+      );
+      /* 途中に 本物の 名前・終わりに 見本（今の 本番で 赤＝後戻りを 止める 歯） */
+      const wsb = (txt) => {
+        const b = Buffer.alloc(4 + 2 * txt.length);
+        b.writeUInt32LE(txt.length, 0);
+        b.write(txt, 4, "utf16le");
+        return b;
+      };
+      const recb = (t1, t2, body) => Buffer.concat([Buffer.from([t1, t2, body.length]), body]);
+      const wbz = (bin) =>
+        makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", bin],
+        ]);
+      for (const [nm, t1, t2] of [
+        ["m18d", 0x8d, 0x03],
+        ["m224", 0xa4, 0x04],
+        ["m817", 0x97, 0x10],
+      ])
+        must(
+          go([
+            put(
+              nm + ".xlsb",
+              wbz(
+                recb(
+                  t1,
+                  t2,
+                  Buffer.concat([Buffer.alloc(8), wsb("他人"), Buffer.alloc(6), wsb("見本")])
+                )
+              )
+            ),
+          ]).code === 1,
+          "途中の 本物の 名前を 見落とした（" + nm + "）"
+        );
+      /* 途中に 1 字の 本物の 名前・終わりに 空白（姓だけ・頭文字）＝見落とさない */
+      for (const [nm, t1, t2] of [
+        ["s18d", 0x8d, 0x03],
+        ["s224", 0xa4, 0x04],
+        ["s817", 0x97, 0x10],
+        ["s278", 0xf8, 0x04],
+      ])
+        must(
+          go([
+            put(
+              nm + ".xlsb",
+              wbz(
+                recb(t1, t2, Buffer.concat([Buffer.alloc(8), wsb("他"), Buffer.alloc(6), wsb(" ")]))
+              )
+            ),
+          ]).code === 1,
+          "途中の 1 字の 名前を 見落とした（" + nm + "）"
+        );
+      const rec = (t1, t2, parts) => {
+        const body = Buffer.concat(
+          parts.map((txt) => {
+            const b = Buffer.alloc(4 + 2 * txt.length);
+            b.writeUInt32LE(txt.length, 0);
+            b.write(txt, 4, "utf16le");
+            return b;
+          })
+        );
+        return Buffer.concat([Buffer.from([t1, t2, body.length]), body]);
+      };
+      const xb = (bin) =>
+        makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/comments1.bin", bin],
+        ]);
+      must(
+        go([put("sn.xlsb", xb(rec(0xf8, 0x04, ["見本", "他"])))]).code === 1,
+        "見本と 並べた 短い 名前を 見落とした"
+      );
+      must(
+        go([
+          put(
+            "at.xlsx",
+            makeZip([
+              ["docProps/core.xml", core("見本")],
+              ["word/comments.xml", '<w:comment d.x:author="他人"/>'],
+            ])
+          ),
+        ]).code === 1,
+        "接頭辞に 点の 属性が 緑"
+      );
+      must(
+        go([
+          put(
+            "m.ods",
+            makeZip([
+              [
+                "meta.xml",
+                "<office:meta><meta:initial-creator>見本</meta:initial-creatorX></office:meta>",
+              ],
+            ])
+          ),
+        ]).code === 1,
+        "meta.xml の 読み損ねが 緑"
+      );
+      must(
+        go([put("sr.xlsb", xb(Buffer.from([0xf8, 0x04, 6, 1, 2, 3, 4, 5, 6])))]).code === 1,
+        "字の 拾えない 短い 人の 記録が 緑"
       );
     }
   );

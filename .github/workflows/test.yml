@@ -37,7 +37,7 @@ jobs:
           node scripts/kinshi-commit-msg.mjs --range "$R" | tee kinshi-msg.out
           grep -q "^✓ commit の文の 実在の字 0 件" kinshi-msg.out
 
-  # ★公開 repo に 実在の 字を 戻さない 見張り★（Castally の nomiya-app 31f28fa の段を 逐語で 写した・2026-10-11）
+  # ★公開 repo に 実在の 字を 戻さない 見張り★（Castally の nomiya-app 7dfcaac の段を 逐語で 写した・2026-10-11）
   kinshi-ji:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -46,7 +46,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20 # ★Castally の CI と同じ版★（24 では Linux で double free で落ちた・run 38071799983）
+          node-version: 20 # ★Castally の CI と同じ版★（古い版は 24 の Linux で double free で落ちた＝7dfcaac で直った・24 は 下の job で回す）
       # ★公開 repo に 実在の 字（司さん・会社・お客さんの 本物）を 戻さない★（2026-10-10）
       #   一覧は repo に 置かない＝secret KINSHI_JI（1行に 1語）。無ければ「未測定」で 赤。
       #   指紋（変数 KINSHI_JI_FINGER）と 違えば 赤＝secret が 縮んだ・壊れた を 止める。
@@ -65,11 +65,34 @@ jobs:
 
       - name: 実在の字の見張りの自己確認
         timeout-minutes: 10
-        # 全部 通って、しかも 26 本 以上 走った 時だけ 緑（0/0・本数が 減った を 止める）
+        # 全部 通って、しかも 29 本 以上 走った 時だけ 緑（0/0・本数が 減った を 止める）
         shell: bash
         run: |
           node tests/kinshi-ji.test.mjs --self-test | tee kinshi-self.out
-          awk -F'[ /]' '/^自己確認: /{ if ($2 == $3 && $2 + 0 >= 26) ok = 1 } END { exit !ok }' kinshi-self.out
+          awk -F'[ /]' '/^自己確認: /{ if ($2 == $3 && $2 + 0 >= 29) ok = 1 } END { exit !ok }' kinshi-self.out
+
+  # ★見張りだけを node 24 でも回す★（Castally の nomiya-app 7dfcaac の job を逐語で写した）
+  kinshi-node24:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 実在の字が戻っていないか（node 24）
+        shell: bash
+        run: |
+          node tests/kinshi-ji.test.mjs | tee kinshi24.out
+          grep -q "^✓ 実在の 字 0 件" kinshi24.out
+        env:
+          KINSHI_JI: ${{ secrets.KINSHI_JI }}
+          KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
+      - name: 実在の字の見張りの自己確認（node 24）
+        shell: bash
+        run: |
+          node tests/kinshi-ji.test.mjs --self-test | tee kinshi24-self.out
+          awk -F'[ /]' '/^自己確認: /{ if ($2 == $3 && $2 + 0 >= 29) ok = 1 } END { exit !ok }' kinshi24-self.out
 
   unit-and-replay:
     runs-on: ubuntu-latest
