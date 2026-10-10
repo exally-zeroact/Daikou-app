@@ -50,7 +50,7 @@ beforeAll(() => {
   if (typeof notifyRawGps !== 'function') {
     throw new Error('Business.notifyRawGps 未 export');
   }
-  // 本物 愛媛 bundle (= 司さん家 PIP 用)
+  // 本物 愛媛 bundle (= 今治市役所 PIP 用)
   const ehimePath = path.join(__dirname, '..', '..', 'data', 'town-polygons-ehime.js');
   if (fs.existsSync(ehimePath)) {
     const sandbox = {};
@@ -84,26 +84,26 @@ afterEach(() => {
 
 // ─── 1-4. 3 段 fallback behavior ─
 describe('getCurrentLiveAddress: 3 段 fallback (snap fresh → snap stale → raw GPS)', () => {
-  it('1. ① snap fresh → 住所文字列 (= 司さん家・本町七丁目 → 「今治市本町」)', () => {
+  it('1. ① snap fresh → 住所文字列 (= 今治市役所・別宮町一丁目 → 「今治市別宮町」)', () => {
     if (!ehimeBundle) return;
-    notifyMMSnap(34.077806599, 132.996956368);
-    expect(getCurrentLiveAddress()).toBe('今治市本町');
+    notifyMMSnap(34.06615, 132.99778);
+    expect(getCurrentLiveAddress()).toBe('今治市別宮町');
   });
 
   it('2. ② snap stale (= 5 秒超え) でも・直近 snap 位置で・町名取得 (= 短時間停止)', () => {
     if (!ehimeBundle) return;
-    notifyMMSnap(34.077806599, 132.996956368);
+    notifyMMSnap(34.06615, 132.99778);
     const stash = Business.__addressFormatter.getLastMMSnap();
     expect(stash).not.toBeNull();
     stash.t = Date.now() - 6000; // 6 秒前 (= stale)
     // 旧仕様は null・新仕様は・町名 (= snap 位置で・PIP 継続)
-    expect(getCurrentLiveAddress()).toBe('今治市本町');
+    expect(getCurrentLiveAddress()).toBe('今治市別宮町');
   });
 
   it('3. ③ snap 未 cache + raw GPS fresh → raw GPS 位置で・町名取得 (= 屋内 drift)', () => {
     if (!ehimeBundle) return;
-    notifyRawGps(34.077806599, 132.996956368);
-    expect(getCurrentLiveAddress()).toBe('今治市本町');
+    notifyRawGps(34.06615, 132.99778);
+    expect(getCurrentLiveAddress()).toBe('今治市別宮町');
   });
 
   it('4. ④ snap 未 cache + raw GPS 未 cache → null (= 起動直後)', () => {
@@ -112,7 +112,7 @@ describe('getCurrentLiveAddress: 3 段 fallback (snap fresh → snap stale → r
 
   it('5. raw GPS stale (= 60 秒超え) + snap 未 cache → null', () => {
     if (!ehimeBundle) return;
-    notifyRawGps(34.077806599, 132.996956368);
+    notifyRawGps(34.06615, 132.99778);
     const stash = Business.__addressFormatter.getLastRawGps();
     expect(stash).not.toBeNull();
     stash.t = Date.now() - 61000; // 61 秒前 (= stale)
@@ -121,18 +121,18 @@ describe('getCurrentLiveAddress: 3 段 fallback (snap fresh → snap stale → r
 
   it('6. notifyMMSnap で・cache 更新後・getCurrentLiveAddress が・最新位置を返す', () => {
     if (!ehimeBundle) return;
-    notifyMMSnap(34.077806599, 132.996956368);
-    expect(getCurrentLiveAddress()).toBe('今治市本町');
+    notifyMMSnap(34.06615, 132.99778);
+    expect(getCurrentLiveAddress()).toBe('今治市別宮町');
     notifyMMSnap(33.80677, 132.73824); // 松山市
     expect(getCurrentLiveAddress()).toMatch(/松山市/);
   });
 
   it('7. ① snap fresh 優先 (= raw GPS あっても snap が・優先)', () => {
     if (!ehimeBundle) return;
-    notifyMMSnap(34.077806599, 132.996956368); // 司さん家
+    notifyMMSnap(34.06615, 132.99778); // 今治市役所
     notifyRawGps(33.80677, 132.73824); // 松山市 (= raw GPS は・別位置)
-    // snap fresh が優先 → 「今治市本町」 を返す (= raw GPS は無視)
-    expect(getCurrentLiveAddress()).toBe('今治市本町');
+    // snap fresh が優先 → 「今治市別宮町」 を返す (= raw GPS は無視)
+    expect(getCurrentLiveAddress()).toBe('今治市別宮町');
   });
 });
 

@@ -96,7 +96,7 @@ beforeAll(() => {
   // ─── RegionHelper mock (= 本物 形式・特定 lat/lng で・現在地県判定) ───
   global.RegionHelper = {
     getCurrentPref: function (lat, lng /* , accuracy */) {
-      // 司さん GPS (34.06467, 133.0015) → ehime
+      // 今治市役所の点 (34.06615, 132.99778) → ehime
       if (typeof lat !== 'number' || typeof lng !== 'number') return null;
       if (lat > 33 && lat < 35 && lng > 132 && lng < 134) return 'ehime';
       if (lat > 35 && lat < 36 && lng > 139 && lng < 140) return 'tokyo';
@@ -278,8 +278,8 @@ describe('mm-data-pipeline staged load: _priorityLoadCurrentPref', () => {
       loader: global.DataLoader,
     });
     pipeline._loadedPrefs.add('ehime');
-    // 司さん GPS (34.06467, 133.0015) → ehime・既 loaded で・skip
-    await pipeline._priorityLoadCurrentPref(34.06467, 133.0015, 10);
+    // 今治市役所の点 (34.06615, 132.99778) → ehime・既 loaded で・skip
+    await pipeline._priorityLoadCurrentPref(34.06615, 132.99778, 10);
     expect(worker.posted.length).toBe(0);
   });
 
@@ -289,7 +289,7 @@ describe('mm-data-pipeline staged load: _priorityLoadCurrentPref', () => {
       worker: worker,
       loader: global.DataLoader,
     });
-    await pipeline._priorityLoadCurrentPref(34.06467, 133.0015, 10);
+    await pipeline._priorityLoadCurrentPref(34.06615, 132.99778, 10);
     expect(pipeline._loadedPrefs.has('ehime')).toBe(true);
     // worker target (= roads) は・postMessage に・3 件 push される (= loadRoadsBundle で・分割送信)
     // ただし mock data に・pois / conditionalRestrictions 含まないため・loadRoads 1 件のみ
@@ -318,7 +318,7 @@ describe('mm-data-pipeline staged load: getPrefStatus', () => {
       worker: makeMockWorker(),
       loader: global.DataLoader,
     });
-    await pipeline._priorityLoadCurrentPref(34.06467, 133.0015, 10);
+    await pipeline._priorityLoadCurrentPref(34.06615, 132.99778, 10);
     const s = pipeline.getPrefStatus('ehime');
     expect(s.loaded).toBe(true);
   });
@@ -332,7 +332,7 @@ describe('mm-data-pipeline staged load: notifyGpsFix → _priorityLoadCurrentPre
       worker: worker,
       loader: global.DataLoader,
     });
-    pipeline.notifyGpsFix(34.06467, 133.0015, 10);
+    pipeline.notifyGpsFix(34.06615, 132.99778, 10);
     // notifyGpsFix は同期だが・内部の _priorityLoadCurrentPref は・async
     // 1 tick 待って・_loadedPrefs verify
     await new Promise(function (r) {
@@ -360,7 +360,7 @@ describe('mm-data-pipeline staged load: window.XXX 互換 verify', () => {
       worker: worker,
       loader: global.DataLoader,
     });
-    await pipeline._priorityLoadCurrentPref(34.06467, 133.0015, 10);
+    await pipeline._priorityLoadCurrentPref(34.06615, 132.99778, 10);
     // loadRoads message は・既存形式: { type, pref, roadsData }
     const loadRoadsMsg = worker.posted.find(function (m) {
       return m.type === 'loadRoads';

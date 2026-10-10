@@ -3,11 +3,11 @@
 // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・point-in-polygon verify):
 //   business.js __addressFormatter pure helper の・behavior verify。
 //   本物 data file (= data/town-polygons-ehime.js) を・require・本物 NII Geoshape
-//   町丁字 polygon で・PIP 動作 + 司さん家 (= 本町7-3-40) regression verify。
+//   町丁字 polygon で・PIP 動作 + 今治市役所 regression verify。
 //
 // 検証内容 (= 本物データ形式 fixture・decimal mock 禁止):
 //   1. _pointInPolygon ray casting 8 ケース (= 正方形 内/外/edge/vertex/凸/凹)
-//   2. _findTownPolygonAddress: 本物 1 県 (= 愛媛) で・司さん家 = 「本町七丁目 (今治市)」regression
+//   2. _findTownPolygonAddress: 本物 1 県 (= 愛媛) で・今治市役所 = 「別宮町一丁目 (今治市)」regression
 //   3. 各町境界部 5-10 点 (= 北浜町 / 常盤町 / 美保町 / 室屋町 境界)
 //   4. polygon 外 (= 海上座標) → null
 //   5. notifyMMSnap public API (= snap cache)
@@ -17,7 +17,7 @@
 // 絶対ルール準拠:
 //   ✓ distance_m / Meter.getNearestAddress / Worker B 本体: 完全無関係 (= pure helper のみ verify)
 //   ✓ 本物 town-polygons-ehime.js (= 既存 build script 出力) を・直接 require
-//   ✓ decimal mock 禁止: 司さん家 ABR 実座標 + 本物 polygon
+//   ✓ decimal mock 禁止: 今治市役所 (公の建物) の座標 + 本物 polygon
 
 'use strict';
 
@@ -143,11 +143,11 @@ describe('_pointInPolygon: ray casting 基本 8 ケース', () => {
 });
 
 // ─── 2-4. _findTownPolygonAddress: 本物 愛媛 bundle で・regression ─
-describe('_findTownPolygonAddress: 本物 愛媛 bundle・司さん家 regression', () => {
-  it('★ 司さん家 (34.077806599, 132.996956368) → 「本町七丁目 (今治市)」', () => {
-    const r = findTownPolygonAddress(34.077806599, 132.996956368, ehimeBundle);
+describe('_findTownPolygonAddress: 本物 愛媛 bundle・今治市役所 regression', () => {
+  it('★ 今治市役所 (34.06615, 132.99778) → 「別宮町一丁目 (今治市)」', () => {
+    const r = findTownPolygonAddress(34.06615, 132.99778, ehimeBundle);
     expect(r).not.toBeNull();
-    expect(r.n).toBe('本町七丁目');
+    expect(r.n).toBe('別宮町一丁目');
     expect(r.c).toBe('今治市');
   });
 
@@ -173,16 +173,16 @@ describe('_findTownPolygonAddress: 本物 愛媛 bundle・司さん家 regressio
 // ─── 5. notifyMMSnap public API ───────────────────────
 describe('notifyMMSnap public API: snap 座標 cache', () => {
   it('notifyMMSnap で・snap 座標を cache', () => {
-    notifyMMSnap(34.077806599, 132.996956368);
+    notifyMMSnap(34.06615, 132.99778);
     const snap = getLastMMSnap();
     expect(snap).not.toBeNull();
-    expect(snap.lat).toBeCloseTo(34.077806599, 5);
-    expect(snap.lng).toBeCloseTo(132.996956368, 5);
+    expect(snap.lat).toBeCloseTo(34.06615, 5);
+    expect(snap.lng).toBeCloseTo(132.99778, 5);
     expect(typeof snap.t).toBe('number');
   });
 
   it('non-number / NaN / Infinity → skip (= cache 更新せず)', () => {
-    notifyMMSnap(34.077806599, 132.996956368); // 先 fresh 入れる
+    notifyMMSnap(34.06615, 132.99778); // 先 fresh 入れる
     const before = getLastMMSnap();
     notifyMMSnap('a', 'b');
     expect(getLastMMSnap()).toBe(before);
@@ -211,13 +211,13 @@ describe('data file 存在 verify', () => {
     expect(ehimeBundle.items.length).toBeGreaterThan(100);
   });
 
-  it('愛媛 本町七丁目 (今治市) polygon が・含まれる', () => {
-    const honmachi7 = ehimeBundle.items.find((it) => it.n === '本町七丁目' && it.c === '今治市');
-    expect(honmachi7).toBeDefined();
-    expect(honmachi7.rings.length).toBeGreaterThan(0);
-    expect(honmachi7.rings[0].length).toBeGreaterThanOrEqual(3);
-    expect(Array.isArray(honmachi7.bbox)).toBe(true);
-    expect(honmachi7.bbox.length).toBe(4);
+  it('愛媛 別宮町一丁目 (今治市) polygon が・含まれる', () => {
+    const betsumiya1 = ehimeBundle.items.find((it) => it.n === '別宮町一丁目' && it.c === '今治市');
+    expect(betsumiya1).toBeDefined();
+    expect(betsumiya1.rings.length).toBeGreaterThan(0);
+    expect(betsumiya1.rings[0].length).toBeGreaterThanOrEqual(3);
+    expect(Array.isArray(betsumiya1.bbox)).toBe(true);
+    expect(betsumiya1.bbox.length).toBe(4);
   });
 });
 
@@ -256,10 +256,10 @@ describe('各町境界部・PIP 多事例', () => {
 
 // ─── 8. cutChomeSuffix + city prefix 連結 (= 既存 helper integration) ─
 describe('cutChomeSuffix + city prefix integration', () => {
-  it('「本町七丁目」 + 「今治市」 → 「今治市本町」 (= 司さん希望表示)', () => {
-    const cut = cutChomeSuffix('本町七丁目');
-    expect(cut).toBe('本町');
-    expect('今治市' + cut).toBe('今治市本町');
+  it('「別宮町一丁目」 + 「今治市」 → 「今治市別宮町」 (= 司さん希望表示)', () => {
+    const cut = cutChomeSuffix('別宮町一丁目');
+    expect(cut).toBe('別宮町');
+    expect('今治市' + cut).toBe('今治市別宮町');
   });
 
   it('「市坪西町」 (= 大字止まり) → 「市坪西町」 (= 無変換) + 「松山市市坪西町」', () => {

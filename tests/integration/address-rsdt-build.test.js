@@ -427,12 +427,13 @@ describe('build-address.js --rsdt: 実 ehime data 最近傍 verify', () => {
     CASE_TIMEOUT_MS
   );
 
-  // ★ 司さん GPS (34.06467, 133.0015) の・所在地「今治市松本町一丁目」は・地番地区
+  // ★ 今治市役所の点 (34.06615, 132.99778) の・所在地「今治市別宮町1丁目4番地1」は・地番地区
   //   (= ABR rsdt_addr_flg=0 → ABR rsdt に・含まれない)。これは設計通り (= 号無し領域)。
-  //   commit4 SEARCH_CHAIN で・rsdt MISS → street で 「松本町一丁目6」 fallback する。
+  //   commit4 SEARCH_CHAIN で・rsdt MISS → street で 「別宮町一丁目4」 fallback する。
+  //   ★2026-10-10 点を 司さんの所から 今治市役所（別宮町1丁目4番地1）へ移した。この期待値は 未測定（data を repo に置いていないので 一度も回っていない）＝data を作った日に 確かめて直す。合わなければ 赤になる（緑にはならない）★
   //   よって rsdt 単独 verify は・実 ABR 住居表示地区 GPS で実施。
   it(
-    '司さん GPS (34.06467, 133.0015) は・地番地区 = ABR rsdt に・近傍 100m 内 hit なし (= 設計通り・SEARCH_CHAIN で street fallback)',
+    '今治市役所の点 (34.06615, 132.99778) は・地番地区 = ABR rsdt に・近傍 100m 内 hit なし (= 設計通り・SEARCH_CHAIN で street fallback)',
     () => {
       if (!REAL) return;
       const b = REAL;
@@ -448,10 +449,10 @@ describe('build-address.js --rsdt: 実 ehime data 最近傍 verify', () => {
       }
       let bestD = Infinity;
       for (const p of b.points) {
-        const d = hav(34.06467, 133.0015, p.lat / 100000, p.lng / 100000);
+        const d = hav(34.06615, 132.99778, p.lat / 100000, p.lng / 100000);
         if (d < bestD) bestD = d;
       }
-      // 100m 以内に・ABR rsdt point は無いはず (= 松本町一丁目は・地番地区)
+      // 100m 以内に・ABR rsdt point は無いはず (= 別宮町一丁目は・地番地区)
       expect(bestD).toBeGreaterThan(100);
     },
     CASE_TIMEOUT_MS

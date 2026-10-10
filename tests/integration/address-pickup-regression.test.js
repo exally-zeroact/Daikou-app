@@ -17,7 +17,7 @@
 //     - ★真の原因: COARSE_RADIUS_M=3000m + coarseRangeI=2800 (= 0.028°≈3.1km) が・
 //                  市域 sweep に対して狭すぎ・市の centroid は・市の中心 (= 北部) で・
 //                  user (= 市の南部) と 8-30km 離れることが多い。
-//                  愛媛今治 user (34.0647, 133.0015) と 今治市 centroid (34.1322, 133.0480) は・
+//                  愛媛今治 user (34.0662, 132.9978) と 今治市 centroid (34.1322, 133.0480) は・
 //                  実距離 8.6km → 全 1919 件 bbox SKIP → bestCoarse=null → null 返却
 //
 //   修正 (= meter.js getNearestAddress + _searchFineItems):
@@ -69,7 +69,7 @@ const COARSE_ITEMS_REAL_SCALE = [
 ];
 
 // 司さん実機 GPS (= 愛媛今治・eruda 観測 2026-05-22)
-const IMABARI_USER = { lat: 34.06467, lng: 133.0015, accuracy: 6 };
+const IMABARI_USER = { lat: 34.06615, lng: 132.99778, accuracy: 6 };
 
 // ─── A. ★ 司さん実機 bug の・真因再現 + 修正後の・期待挙動 ──────
 
@@ -205,7 +205,7 @@ describe('住所拾い 修正前 bug 回帰防止: data scale が・integer×1e5
       },
     };
     // 今治市 centroid から ~8.6km の・user 位置
-    const addr = Meter.getNearestAddress(34.06467, 133.0015, 6);
+    const addr = Meter.getNearestAddress(34.06615, 132.99778, 6);
     expect(addr).toBe('今治市 付近');
   });
 

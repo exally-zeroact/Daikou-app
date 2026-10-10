@@ -11,7 +11,7 @@
 //   4. 大字 dict 圧縮 (= 同 city+oaza は・1 entry)
 //   5. grid 索引 (= encoding-utils.gridKey)
 //   6. 街区符号 k field 保持
-//   7. ★ 司さん GPS (= 34.06467, 133.0015) → 「今治市松本町一丁目6」18.6m at 実 ehime data
+//   7. ★ 今治市役所の点 (= 34.06615, 132.99778) → 「今治市別宮町一丁目4」（未測定）at 実 ehime data
 //
 // 絶対ルール準拠: 距離 / 課金 / Worker B / map-matcher 完全無関係・住所表示専用。
 
@@ -234,7 +234,7 @@ describe('build-address.js --street: 街区符号 k field', () => {
   });
 });
 
-// ─── 7. ★ 実 ehime data で・司さん GPS 最近傍 verify ───────
+// ─── 7. ★ 実 ehime data で・今治市役所の点 最近傍 verify ───────
 
 describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
   const REAL_PATH = path.join(__dirname, '..', '..', 'data', 'addresses-street-ehime.js');
@@ -260,7 +260,7 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
     expect(Object.keys(b.grid).length).toBeGreaterThan(100);
   });
 
-  it('★ 司さん GPS (34.06467, 133.0015) → 「今治市松本町一丁目6」が・20m 以内で hit', () => {
+  it('★ 今治市役所の点 (34.06615, 132.99778) → 「今治市別宮町一丁目4」が・20m 以内で hit', () => {
     if (!fs.existsSync(REAL_PATH)) {
       // ★2026-08-28: ここも「skip」で 緑で終わっていました（同じ形が 2か所ありました）。
       console.warn('★未測定★ data/addresses-street-ehime.js が 在りません（build を回していない）');
@@ -270,8 +270,8 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
     const win = {};
     new Function('window', fs.readFileSync(REAL_PATH, 'utf8'))(win);
     const b = win.ADDRESSES_STREET_EHIME;
-    const userLat = 34.06467;
-    const userLng = 133.0015;
+    const userLat = 34.06615;
+    const userLng = 132.99778;
     function hav(lat1, lng1, lat2, lng2) {
       const R = 6371000;
       const T = Math.PI / 180;
@@ -291,6 +291,7 @@ describe('build-address.js --street: 実 ehime data 最近傍 verify', () => {
       }
     }
     expect(bestD).toBeLessThan(20); // 20m 以内 hit
-    expect(b.oazas[best.c] + best.k).toBe('今治市松本町一丁目6');
+    // ★2026-10-10 点を 司さんの所から 今治市役所（別宮町1丁目4番地1）へ移した。この期待値は 未測定（data を repo に置いていないので 一度も回っていない）＝data を作った日に 確かめて直す。合わなければ 赤になる（緑にはならない）★
+    expect(b.oazas[best.c] + best.k).toBe('今治市別宮町一丁目4');
   });
 });

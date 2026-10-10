@@ -20,7 +20,7 @@
 //   ★絶対ルール準拠:
 //     ・distance_m / calcFare / running gate / 5加算経路 / isStationary 判定本体: 1 byte 不変
 //     ・本 file は test 追加のみ・本番 js/*.js は触らない
-//     ・既存 section 3-5 (= 司さん家 PIP / banner 削除 watchdog) は1byte 不変で保持
+//     ・既存 section 3-5 (= 今治市役所 PIP / banner 削除 watchdog) は1byte 不変で保持
 
 'use strict';
 
@@ -415,8 +415,8 @@ describe('Fix② accuracy cap watchdog (実 gps-worker.js 経由・★新構造)
   });
 });
 
-// ─── 3. 司さん家 fixture (= 案 C 既存 PIP regression と統合・距離挙動 verify) ───
-describe('司さん家 baseline (= 案 C 既存 PIP regression と整合)', () => {
+// ─── 3. 今治市役所 fixture (= 案 C 既存 PIP regression と統合・距離挙動 verify) ───
+describe('今治市役所 baseline (= 案 C 既存 PIP regression と整合)', () => {
   let ehimeBundle;
   let Business;
   let pointInPolygon;
@@ -434,21 +434,21 @@ describe('司さん家 baseline (= 案 C 既存 PIP regression と整合)', () =
     pointInPolygon = Business.__addressFormatter.pointInPolygon;
   });
 
-  it('★ 司さん家 (= 本町7-3-40・ABR 実座標) 本町七丁目 polygon 内 = YES (= 案 C 既存 regression)', () => {
+  it('★ 今治市役所 (= 公の建物の座標) 別宮町一丁目 polygon 内 = YES (= 案 C 既存 regression)', () => {
     if (!ehimeBundle) return;
-    const honmachi7 = ehimeBundle.items.find((it) => it.n === '本町七丁目' && it.c === '今治市');
-    expect(honmachi7).toBeDefined();
-    const userLatI = Math.round(34.077806599 * 100000);
-    const userLngI = Math.round(132.996956368 * 100000);
-    expect(pointInPolygon(userLatI, userLngI, honmachi7.rings[0])).toBe(true);
+    const betsumiya1 = ehimeBundle.items.find((it) => it.n === '別宮町一丁目' && it.c === '今治市');
+    expect(betsumiya1).toBeDefined();
+    const userLatI = Math.round(34.06615 * 100000);
+    const userLngI = Math.round(132.99778 * 100000);
+    expect(pointInPolygon(userLatI, userLngI, betsumiya1.rings[0])).toBe(true);
   });
 
-  it('★ 司さん家 北浜町 polygon 内 = NO (= 案 C 既存 regression)', () => {
+  it('★ 今治市役所 北浜町 polygon 内 = NO (= 案 C 既存 regression)', () => {
     if (!ehimeBundle) return;
     const kitahama = ehimeBundle.items.find((it) => it.n === '北浜町' && it.c === '今治市');
     expect(kitahama).toBeDefined();
-    const userLatI = Math.round(34.077806599 * 100000);
-    const userLngI = Math.round(132.996956368 * 100000);
+    const userLatI = Math.round(34.06615 * 100000);
+    const userLngI = Math.round(132.99778 * 100000);
     expect(pointInPolygon(userLatI, userLngI, kitahama.rings[0])).toBe(false);
   });
 });

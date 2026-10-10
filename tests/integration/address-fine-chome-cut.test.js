@@ -106,7 +106,7 @@ describe('_cutChomeSuffix: 末尾 ○丁目 カット', () => {
 
 // ─── 6-8. _findNearestMunicipality の・各分岐 ─────
 describe('_findNearestMunicipality: 本物 coarse 形式で・最近傍 市町村 hit', () => {
-  it('司さん GPS (34.06467, 133.0015) → 今治市 hit', () => {
+  it('今治市役所の点 (34.06615, 132.99778) → 今治市 hit', () => {
     // 本物 ADDRESSES_COARSE_JP 形式 (= int×1e5 + items・n=市町村名 / c=JIS5桁)
     global.window = {
       ADDRESSES_COARSE_JP: {
@@ -119,7 +119,7 @@ describe('_findNearestMunicipality: 本物 coarse 形式で・最近傍 市町�
         ],
       },
     };
-    expect(findNearestMunicipality(34.06467, 133.0015)).toBe('今治市');
+    expect(findNearestMunicipality(34.06615, 132.99778)).toBe('今治市');
   });
 
   it('松山市中心 (= 松山市 hit)', () => {
@@ -140,27 +140,27 @@ describe('_findNearestMunicipality: 本物 coarse 形式で・最近傍 市町�
         items: [{ lat: 3500000, lng: 13900000, n: '東京都', c: '13101' }], // 東京・遠い
       },
     };
-    // 司さん GPS から・~600km 離れた・東京は・hit しない
-    expect(findNearestMunicipality(34.06467, 133.0015)).toBe(null);
+    // 今治市役所の点 から・~600km 離れた・東京は・hit しない
+    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
   });
 
   it('ADDRESSES_COARSE_JP 未 load → null', () => {
     global.window = {}; // ADDRESSES_COARSE_JP 無し
-    expect(findNearestMunicipality(34.06467, 133.0015)).toBe(null);
+    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
   });
 
   it('items 空 → null', () => {
     global.window = {
       ADDRESSES_COARSE_JP: { items: [] },
     };
-    expect(findNearestMunicipality(34.06467, 133.0015)).toBe(null);
+    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
   });
 
   it('items が・Array でない → null', () => {
     global.window = {
       ADDRESSES_COARSE_JP: { items: 'not an array' },
     };
-    expect(findNearestMunicipality(34.06467, 133.0015)).toBe(null);
+    expect(findNearestMunicipality(34.06615, 132.99778)).toBe(null);
   });
 });
 
@@ -195,8 +195,8 @@ describe('mm-data-pipeline.js auxKinds: addresses-fine 配線 verify', () => {
   });
 });
 
-// ─── 10. 統合シナリオ (= 司さん住所の・想定挙動) ──────
-describe('住所① 統合シナリオ: 司さん住所 (今治市常盤町五丁目) → 今治市常盤町', () => {
+// ─── 10. 統合シナリオ (= 住所の・想定挙動) ──────
+describe('住所① 統合シナリオ: 例 (今治市常盤町五丁目) → 今治市常盤町', () => {
   it('fine 戻り値「常盤町五丁目」+ coarse「今治市」 → 「今治市常盤町」', () => {
     // 本物 coarse data・今治市 hit
     global.window = {
@@ -208,20 +208,20 @@ describe('住所① 統合シナリオ: 司さん住所 (今治市常盤町五�
     const fineRaw = '常盤町五丁目';
     const cut = cutChomeSuffix(fineRaw);
     expect(cut).toBe('常盤町');
-    const city = findNearestMunicipality(34.06467, 133.0015);
+    const city = findNearestMunicipality(34.06615, 132.99778);
     expect(city).toBe('今治市');
     // 連結
     expect(city + cut).toBe('今治市常盤町');
   });
 
-  it('fine 戻り値「松本町一丁目」(= 司さん住所) + 「今治市」 → 「今治市松本町」', () => {
+  it('fine 戻り値「松本町一丁目」(= 例) + 「今治市」 → 「今治市松本町」', () => {
     global.window = {
       ADDRESSES_COARSE_JP: {
         items: [{ lat: 3406667, lng: 13298333, n: '今治市', c: '38202' }],
       },
     };
     expect(cutChomeSuffix('松本町一丁目')).toBe('松本町');
-    expect(findNearestMunicipality(34.06467, 133.0015) + cutChomeSuffix('松本町一丁目')).toBe(
+    expect(findNearestMunicipality(34.06615, 132.99778) + cutChomeSuffix('松本町一丁目')).toBe(
       '今治市松本町'
     );
   });

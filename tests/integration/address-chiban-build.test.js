@@ -17,7 +17,7 @@
 //   9. 不正データ skip (= city 空 / prc_num1 空 / 緯度経度 範囲外)
 //  10. CSV 列順変更耐性 (= header 名で・動的解決)
 //  11. UTF-8 BOM 耐性
-//  12. 実 ehime data (= data/addresses-chiban-ehime.js) load + 司さん GPS hit verify (= build 後・skip 可)
+//  12. 実 ehime data (= data/addresses-chiban-ehime.js) load + 今治市役所の点 hit verify (= build 後・skip 可)
 //
 // 絶対ルール準拠: 距離 / 課金 / Worker B / map-matcher 完全無関係・住所表示専用。
 
@@ -436,8 +436,8 @@ describe('build-address.js --chiban: UTF-8 BOM 耐性', () => {
   });
 });
 
-// ─── 10. ★ 実 ehime data 司さん GPS hit verify (build 後・skip 可) ──
-describe('build-address.js --chiban: 実 ehime data 司さん GPS hit verify', () => {
+// ─── 10. ★ 実 ehime data 今治市役所の点 hit verify (build 後・skip 可) ──
+describe('build-address.js --chiban: 実 ehime data 今治市役所の点 hit verify', () => {
   const REAL_PATH = path.join(__dirname, '..', '..', 'data', 'addresses-chiban-ehime.js');
 
   // 実 ehime data (= 164 MB JS) は・load + 271 万点 sweep に・~7 秒 → vitest default 5 秒で timeout
@@ -482,7 +482,7 @@ describe('build-address.js --chiban: 実 ehime data 司さん GPS hit verify', (
   );
 
   it(
-    '★ 司さん GPS (34.06467, 133.0015) → 「今治市松本町１丁目 6-33番地」が・5m 以内で hit',
+    '★ 今治市役所の点 (34.06615, 132.99778) → 「今治市別宮町１丁目 4番地1」が・5m 以内で hit',
     { timeout: 60000 },
     () => {
       if (!fs.existsSync(REAL_PATH)) {
@@ -509,16 +509,17 @@ describe('build-address.js --chiban: 実 ehime data 司さん GPS hit verify', (
       let best = null;
       let bestD = Infinity;
       for (const p of b.points) {
-        const d = hav(34.06467, 133.0015, p.lat / 100000, p.lng / 100000);
+        const d = hav(34.06615, 132.99778, p.lat / 100000, p.lng / 100000);
         if (d < bestD) {
           bestD = d;
           best = p;
         }
       }
       expect(bestD).toBeLessThan(5);
-      expect(b.oazas[best.c]).toBe('今治市松本町１丁目');
-      expect(best.k).toBe('6');
-      expect(best.g).toBe('33');
+      // ★2026-10-10 点を 司さんの所から 今治市役所（別宮町1丁目4番地1）へ移した。この期待値は 未測定（data を repo に置いていないので 一度も回っていない）＝data を作った日に 確かめて直す。合わなければ 赤になる（緑にはならない）★
+      expect(b.oazas[best.c]).toBe('今治市別宮町１丁目');
+      expect(best.k).toBe('4');
+      expect(best.g).toBe('1');
     }
   );
 });
