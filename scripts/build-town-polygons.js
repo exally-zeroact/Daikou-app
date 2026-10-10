@@ -35,7 +35,7 @@
 //       ...
 //     ],
 //     grid: {                   // 1km tile index・key = '{tileLat}_{tileLng}'
-//       '34077_132997': [itemIdx, ...],
+//       '35000_135000': [itemIdx, ...],
 //       ...
 //     },
 //     source: '...',            // CC BY 4.0 credit (= 必須)
