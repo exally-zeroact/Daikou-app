@@ -1,0 +1,184 @@
+{
+  "_note": "tests/ の下の 記録になりうるファイルの白名簿（2026-10-10）。名前と git の中身の sha256 で縛る。凍結（実機の走りの記録・実物の給与の数）は 試験のコードに 名前と sha256 を焼いてある＝この名簿を書き換えても 足せない・差し替えられない（消すのはよい）。新しく足せるのは 合成 と 公 だけ。新しい実機の記録は repo の外（DK_TRACE_DIR の先例）に置き、手元で走らせる。「合成（中身は道具が更新）」は 道具が書き換えるので 名前だけで縛る。",
+  "items": {
+    "tests/baselines/synthetic-curve-1.5km.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/baselines/synthetic-overpass-700m.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/baselines/synthetic-straight-1km.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/fixtures/0606-Android.slim.json": {
+      "sha256": "78880866cdd3b9b3039f4b11ddf41e24ec80a118cd9feda395a8fea43e031623",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/0606-iPhone13.slim.json": {
+      "sha256": "83e685349a0ba57e00661e25de3fc45264eb83b167f7589703e7b314c6acf4e6",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/0606-iPhoneSE.slim.json": {
+      "sha256": "3e81d020c26f961444c729a64d6267da01b227adedd6861eef7682e66c2d8eb6",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/0610-Android.json": {
+      "sha256": "15ad981ef0a4399f18a7da7bf8703dd3adb581225e2f986f066a9c375e49cd8a",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/0610-iPhone13.json": {
+      "sha256": "a98dde76ca0e7c8d23af5aa098886d9dd7fbd26e810492346f522ab98bfd0741",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/0610-iPhoneSE.json": {
+      "sha256": "fccaef4e56fe729c41043bd3a8b88684bf3ce410307e146826256d96dec5e660",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/0610b-Android.json": {
+      "sha256": "e05250a54df4d6842d424230f9d4430ab91f47cb9b9f8e7498f26ba28d364018",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/bg-freeze-nagaana-11s.json": {
+      "sha256": "5d44d265148f44ebb3e95dd82230ec96c5f427bffb34b93a14609cca35f6ab54",
+      "kind": "合成"
+    },
+    "tests/fixtures/bg-freeze-nagaana-300s.json": {
+      "sha256": "3cca79d03f3ec2dc3e5ab251ccdf7b6c0ebde6755d9aee5182c922ac5c5a8a28",
+      "kind": "合成"
+    },
+    "tests/fixtures/bg-freeze-nagaana-30s.json": {
+      "sha256": "228380e50bac2371c9c27f64042fb66e43b0c05f527fb649bbe15f1719d2fb5f",
+      "kind": "合成"
+    },
+    "tests/fixtures/bg-freeze-nagaana-60s.json": {
+      "sha256": "8f7928aff7bdb574198e4bafbc2b1808f1baaeaa1359f85193c05bef71b71831",
+      "kind": "合成"
+    },
+    "tests/fixtures/bg-freeze-tunnel.json": {
+      "sha256": "25ef3443df6ba45bcab7759f4e31a40520712fcafe541bd0a697e8c281dff2cf",
+      "kind": "合成"
+    },
+    "tests/fixtures/daiko-month-jan2026.json": {
+      "sha256": "fdfc4edb9bd2cf5e1be021757d958f61308ab5d52a2b71497bbc124891bc5bfc",
+      "kind": "実物の数（凍結）"
+    },
+    "tests/fixtures/daiko-payroll-jan2026.json": {
+      "sha256": "2b624ef8e07f9d924896b35dbc021b804c6d644de468165aa725eaa5117dec0f",
+      "kind": "実物の数（凍結）"
+    },
+    "tests/fixtures/imabari-196-kp-rtk.json": {
+      "sha256": "5121bb9c92c6718fcc33761abb1b242712d844586e85b05588718c7d6566b7a5",
+      "kind": "公"
+    },
+    "tests/fixtures/kyuryo-real.json": {
+      "sha256": "90f18844c655f2455e7bafb4da973212d4bf344414be9faf3f08c684e812c938",
+      "kind": "合成"
+    },
+    "tests/fixtures/meter-MAE-2026-08-31.js": {
+      "sha256": "626170999d0c2ee3812c4332b20f0953433757c60f916dbfd71ebe533da5d439",
+      "kind": "合成"
+    },
+    "tests/fixtures/real-trace-iphone13-8.39km-tire.json": {
+      "sha256": "539b0881d1cd7ccfd23695b7d6475d2e89ffee1b7547532f8528af80d9061580",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/real-trace-iphone13-親-16min.json": {
+      "sha256": "6beb728d41742b6b601de2993c0bb9e5533e1678dd037f479bfd05fea4d1d212",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/real-trace-iphone13-親-7min-after-38ed5e46.json": {
+      "sha256": "eb3c3f43e719caabf9d1717f90dc4e58a70c6f40a2f03ce02b1917cfda46fd41",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/real-trace-iphoneSE-5km-tire5.0.json": {
+      "sha256": "cde418a9f5faab44d242664bcc414b9469b08fe9cb14ed38d8a96356aa2ae86f",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realdevice-android.json": {
+      "sha256": "f421337f0898c8ea3cdfbc9df2227bde6c086ab75345fd359d4cc3ba1c2d8176",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realdevice-iphone13-noisy.json": {
+      "sha256": "e27951f8f01d0cb1f4592868ede81bd7f51f4520c5a0643d446129f83c95f775",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realdevice-iphonese.json": {
+      "sha256": "d494035c49ff607777c16ffe020059955ddaa4e70003ef4d4d694fd17f6f2a20",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realtest3-Android.slim.json": {
+      "sha256": "8165027260171112673d23e62592d29e3f13bad178612c048e5c807fa48a776b",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realtest3-iPhoneSE.slim.json": {
+      "sha256": "766ab260d79d9437da72fa1cc8cb67719ce29793a20adb6c67f07f86d751f462",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realtrace-0609-Android-OBD.json": {
+      "sha256": "f90a8260fcd73f84955a67ab14282346d5c7dc9c54e37fadccf296de3af6d208",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realtrace-0617-daiko-dm.json": {
+      "sha256": "d5f00db3580b6a302d4da5e76c0e08f32d70d2ef98322498da8872fb733a7dc5",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/realtrace-0618-shimanami-obd.json": {
+      "sha256": "124a670d4ec04946f5e08c7fead73b68e424e5adab14310bf384c4ba6e594e86",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/shimanami-Android.slim.json": {
+      "sha256": "32e69db563b0f028ab80d5ce28ccc6dd28b9f770eff9dacdf8273888bf62019f",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/shimanami-iPhone13.slim.json": {
+      "sha256": "2823b84a6d58474554c30a4fd468313699358b9b8917bd9b8dc644bf811b6f2e",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/shimanami-iPhoneSE.slim.json": {
+      "sha256": "29f7f0b1c3f3d025e26800f3785e8d8251a800e3ff38f6d61c6dc8067528c1ae",
+      "kind": "実機（凍結）"
+    },
+    "tests/fixtures/synthetic-curve-1.5km.jsonl": {
+      "sha256": "c732847f1f8e3e1e72da1671f4d7e1331f3f7fbea166e9f9c9902ee19f5dcd71",
+      "kind": "合成"
+    },
+    "tests/fixtures/synthetic-overpass-700m.jsonl": {
+      "sha256": "0bf6aa376c3b9cc9ce04195c33745a1856318130f51b9e5e962d62120bcc1358",
+      "kind": "合成"
+    },
+    "tests/fixtures/synthetic-straight-1km.jsonl": {
+      "sha256": "8981de1299474c9d28fdd58fe32e129f2b7d72cc57a01a5042c55163d651b0c9",
+      "kind": "合成"
+    },
+    "tests/gate-address2-accuracy.baseline.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/gate-snap-accuracy.baseline.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/intersection-cross.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/low-speed-stop.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/overpass-vs-ground.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/parallel-frontage.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/ramp-merge.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/reverse-oneway.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/uturn.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
+    "tests/replay-mm-worker/fixtures/y-fork.json": {
+      "kind": "合成（中身は道具が更新）"
+    }
+  }
+}
