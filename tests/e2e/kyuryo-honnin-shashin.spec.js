@@ -28,7 +28,7 @@ const path = require('path');
 const EMP = {
   employee_id: 'e1',
   company_id: 'c1',
-  name: '白石正人',
+  name: '見本一四',
   role: '甲',
   active: true,
   sort_order: 1,

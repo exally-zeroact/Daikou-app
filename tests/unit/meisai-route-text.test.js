@@ -99,7 +99,7 @@ describe('★明細の行に入る形★', () => {
         {
           seq: 1,
           payment_type: 'invoice',
-          customer_name: '株式会社 生野組',
+          customer_name: '株式会社 標様本',
           start_address: '今治市大西',
           end_address: '西条市実報寺',
           waypoints: [],

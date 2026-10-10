@@ -80,7 +80,7 @@
         if (!id || !name) continue;
         const row = { customer_id: id, name: name, active: true };
         // ★誰が乗ったかを選ばせる会社 (2026-08-05)★
-        //   藤原建設のように請求書を「会長／社長／専務」で分けて小計を出す会社は、
+        //   標様建設のように請求書を「会長／社長／専務」で分けて小計を出す会社は、
         //   請求先を選んだ後に★名前も選ばせないと、その行だけ仕分けから外れる★。
         //   使わない会社には付けない(付いていない=聞かない、で判断できる)。
         const g = Array.isArray(r.note_groups) ? r.note_groups : null;

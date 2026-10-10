@@ -823,7 +823,7 @@ const Business = (function () {
   //   ・代行が始まっていない時に押しても、変な値が来ても、絶対に落ちない(業務を止めない)。
   //   ・会社名は「その時の名前」を焼き付ける(後でマスタから消えても過去の請求書が壊れない)。
   //   ★2026-08-05 「誰が乗ったか」も一緒に貼れるようにした★
-  //     藤原建設は請求書を「会長／社長／専務」で分けて小計を出す(companies.config.noteGroups)。
+  //     標様建設は請求書を「会長／社長／専務」で分けて小計を出す(companies.config.noteGroups)。
   //     メーターに選ぶ所が無く、★その会社の行だけ備考が空で上がって仕分けから外れていた★。
   //     customerNote は請求書の備考にそのまま入る。会社を選び直したら消える(前の客のが残ると事故)。
   function setTripCustomer(customerId, customerName, customerNote) {

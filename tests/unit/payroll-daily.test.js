@@ -10,7 +10,7 @@
 //   ▼実物を読んで確定した一番大事なこと（口頭では出てこなかった）
 //     『計算』シートの人ごとの時数は入力ではなく **=[@時数2] のような式** だった。
 //     つまり ★人の時数 = その日その人が乗った車の時数★。
-//     例) 1/10 は 竹内=[@時数4](8.75) 八木=[@時数2](9.00) と、日によって乗る車が変わる。
+//     例) 1/10 は 試験=[@時数4](8.75) 例野=[@時数2](9.00) と、日によって乗る車が変わる。
 //     だから「誰がどの車に乗ったか」を持たないと時数が決まらない。
 //
 //   ▼もう一つ: 時数合計 = 車の時数の合計（人の時数の合計ではない）
@@ -23,12 +23,12 @@ const ROLE1 = '1種';
 
 // ---- 従業員（実物の名前）----------------------------------------------------
 const EMP = [
-  { employee_id: 'e1', name: '白石正人', role: ROLE2, active: true, sort_order: 1 },
-  { employee_id: 'e2', name: '長野孝', role: ROLE2, active: true, sort_order: 2 },
-  { employee_id: 'e3', name: '長野真道', role: ROLE1, active: true, sort_order: 3 },
-  { employee_id: 'e4', name: '竹内真一郎', role: ROLE1, active: true, sort_order: 4 },
-  { employee_id: 'e5', name: '八木俊幸', role: ROLE1, active: true, sort_order: 5 },
-  { employee_id: 'e6', name: '結田航平', role: ROLE2, active: true, sort_order: 6 },
+  { employee_id: 'e1', name: '見本一四', role: ROLE2, active: true, sort_order: 1 },
+  { employee_id: 'e2', name: '架空二', role: ROLE2, active: true, sort_order: 2 },
+  { employee_id: 'e3', name: '仮名三六', role: ROLE1, active: true, sort_order: 3 },
+  { employee_id: 'e4', name: '試験四七十', role: ROLE1, active: true, sort_order: 4 },
+  { employee_id: 'e5', name: '例野五八', role: ROLE1, active: true, sort_order: 5 },
+  { employee_id: 'e6', name: '模擬六九', role: ROLE2, active: true, sort_order: 6 },
 ];
 
 const LABELS = [
@@ -71,12 +71,12 @@ const CTX_0110 = {
   employees: EMP,
   workHours: [
     // 誰がどの車に乗ったか（時数は車から決まるので入れない）
-    { work_date: '2026-01-10', employee_id: 'e1', device_id: 'dev2' }, // 白石 = 時数2
-    { work_date: '2026-01-10', employee_id: 'e5', device_id: 'dev2' }, // 八木 = 時数2
-    { work_date: '2026-01-10', employee_id: 'e2', device_id: 'dev3' }, // 長野孝 = 時数3
-    { work_date: '2026-01-10', employee_id: 'e3', device_id: 'dev3' }, // 真道 = 時数3
-    { work_date: '2026-01-10', employee_id: 'e4', device_id: 'dev4' }, // 竹内 = 時数4
-    { work_date: '2026-01-10', employee_id: 'e6', device_id: 'dev4' }, // 結田 = 時数4
+    { work_date: '2026-01-10', employee_id: 'e1', device_id: 'dev2' }, // 見本 = 時数2
+    { work_date: '2026-01-10', employee_id: 'e5', device_id: 'dev2' }, // 例野 = 時数2
+    { work_date: '2026-01-10', employee_id: 'e2', device_id: 'dev3' }, // 架空二 = 時数3
+    { work_date: '2026-01-10', employee_id: 'e3', device_id: 'dev3' }, // 三六 = 時数3
+    { work_date: '2026-01-10', employee_id: 'e4', device_id: 'dev4' }, // 試験 = 時数4
+    { work_date: '2026-01-10', employee_id: 'e6', device_id: 'dev4' }, // 模擬 = 時数4
   ],
   payrollSettings: { owner_device_id: 'devT' },
 };
@@ -105,12 +105,12 @@ describe('★1/10 実物と1円まで一致（生データから組み立てて�
   it('★7人ぶんの金額が実物と一致★', () => {
     const pay = {};
     r.staff.forEach((s) => (pay[s.name] = s.pay));
-    expect(pay['白石正人']).toBe(10350);
-    expect(pay['長野孝']).toBe(9487.5);
-    expect(pay['長野真道']).toBe(8250);
-    expect(pay['竹内真一郎']).toBe(8750);
-    expect(pay['八木俊幸']).toBe(9000);
-    expect(pay['結田航平']).toBe(10062.5);
+    expect(pay['見本一四']).toBe(10350);
+    expect(pay['架空二']).toBe(9487.5);
+    expect(pay['仮名三六']).toBe(8250);
+    expect(pay['試験四七十']).toBe(8750);
+    expect(pay['例野五八']).toBe(9000);
+    expect(pay['模擬六九']).toBe(10062.5);
     expect(r.staffTotal).toBe(55900);
   });
 
@@ -121,10 +121,10 @@ describe('★1/10 実物と1円まで一致（生データから組み立てて�
   it('★人の時数は乗った車から決まる★', () => {
     const h = {};
     r.staff.forEach((s) => (h[s.name] = s.hours));
-    expect(h['白石正人']).toBe(9); // 時数2
-    expect(h['八木俊幸']).toBe(9); // 時数2（同じ車）
-    expect(h['竹内真一郎']).toBe(8.75); // 時数4
-    expect(h['結田航平']).toBe(8.75); // 時数4
+    expect(h['見本一四']).toBe(9); // 時数2
+    expect(h['例野五八']).toBe(9); // 時数2（同じ車）
+    expect(h['試験四七十']).toBe(8.75); // 時数4
+    expect(h['模擬六九']).toBe(8.75); // 時数4
   });
 });
 
@@ -163,10 +163,10 @@ describe('★1/7 経費のある日も実物と一致★', () => {
   it('金額', () => {
     const pay = {};
     r.staff.forEach((s) => (pay[s.name] = s.pay));
-    expect(pay['白石正人']).toBe(9200); // 1150 × 8.00
-    expect(pay['長野孝']).toBe(8912.5); // 1150 × 7.75
-    expect(pay['長野真道']).toBe(7750); // 1000 × 7.75
-    expect(pay['竹内真一郎']).toBe(8000); // 1000 × 8.00
+    expect(pay['見本一四']).toBe(9200); // 1150 × 8.00
+    expect(pay['架空二']).toBe(8912.5); // 1150 × 7.75
+    expect(pay['仮名三六']).toBe(7750); // 1000 × 7.75
+    expect(pay['試験四七十']).toBe(8000); // 1000 × 8.00
   });
   it('★ZERO 12,383.5（実物の表示は12,384）★', () => {
     expect(r.ownerShare).toBeCloseTo(12383.5, 9);
@@ -212,7 +212,7 @@ describe('★明細＝実物の給料シートと同じ形★', () => {
   });
 
   it('1人ぶんの行が 日付/金額/時間/売上1..3/時間(全台) で揃う', () => {
-    const me = rep.employees.find((e) => e.name === '白石正人');
+    const me = rep.employees.find((e) => e.name === '見本一四');
     const c = me.cells[0];
     expect(c.date).toBe('2026-01-10');
     expect(c.pay).toBe(10350);
@@ -222,7 +222,7 @@ describe('★明細＝実物の給料シートと同じ形★', () => {
   });
 
   it('★休んだ日は空欄（0でなく null）★', () => {
-    const me = rep.employees.find((e) => e.name === '結田航平');
+    const me = rep.employees.find((e) => e.name === '模擬六九');
     const c11 = me.cells.find((x) => x.date === '2026-01-11');
     expect(c11.worked).toBe(false);
     expect(c11.pay).toBe(null);
@@ -232,21 +232,21 @@ describe('★明細＝実物の給料シートと同じ形★', () => {
   });
 
   it('★走っていない車の売上も空欄★（1/11は2号車だけ）', () => {
-    const me = rep.employees.find((e) => e.name === '白石正人');
+    const me = rep.employees.find((e) => e.name === '見本一四');
     const c11 = me.cells.find((x) => x.date === '2026-01-11');
     expect(c11.worked).toBe(true);
     expect(c11.carSales).toEqual([10000, null, null]);
   });
 
   it('合計＝実物のヘッダ（合計◯円／◯時間）', () => {
-    const me = rep.employees.find((e) => e.name === '白石正人');
+    const me = rep.employees.find((e) => e.name === '見本一四');
     expect(me.totalPay).toBe(10350 + 5750); // 1/11 は 1150×5.00
     expect(me.totalHours).toBe(14);
   });
 
   it('1日も出ていない人は合計0（明細は出せる＝空欄が並ぶ）', () => {
     const rep2 = D.report(['2026-01-12'], ctx);
-    const me = rep2.employees.find((e) => e.name === '白石正人');
+    const me = rep2.employees.find((e) => e.name === '見本一四');
     expect(me.totalPay).toBe(0);
     expect(me.totalHours).toBe(0);
     expect(me.cells[0].worked).toBe(false);
@@ -307,7 +307,7 @@ describe('車の時数', () => {
     const r = D.computeDay('2026-02-01', ctx);
     expect(r.poolSales).toBe(24000);
     expect(r.poolHours).toBe(14); // 4+3+7
-    const white = r.staff.find((s) => s.name === '白石正人');
+    const white = r.staff.find((s) => s.name === '見本一四');
     expect(white.hours).toBe(7); // 2号車の合計
   });
 });
@@ -323,7 +323,7 @@ describe('時数は人ごとに直せる（早上がりなど）', () => {
       })
     );
     const r = D.computeDay('2026-01-10', ctx);
-    const yagi = r.staff.find((s) => s.name === '八木俊幸');
+    const yagi = r.staff.find((s) => s.name === '例野五八');
     expect(yagi.hours).toBe(4);
     expect(yagi.pay).toBe(4000); // 1000 × 4
     // ★車の時数（＝時数合計）は変わらない★ 車は9時間走っている
@@ -461,7 +461,7 @@ describe('★壊れたデータでも画面を殺さない★', () => {
       })
     );
     const rep = D.report(['2026-01-10'], ctx);
-    expect(rep.employees.map((e) => e.name)).not.toContain('八木俊幸');
+    expect(rep.employees.map((e) => e.name)).not.toContain('例野五八');
   });
 
   it('★辞めた人でも過去に働いた分は金額に入る（他の人の給料が狂わない）★', () => {
@@ -473,7 +473,7 @@ describe('★壊れたデータでも画面を殺さない★', () => {
       })
     );
     const r = D.computeDay('2026-01-10', ctx);
-    expect(r.staffTotal).toBe(55900); // 八木の9,000を含んだまま
+    expect(r.staffTotal).toBe(55900); // 例野の9,000を含んだまま
     expect(r.ownerShare).toBe(18390);
   });
 });

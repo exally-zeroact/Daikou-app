@@ -17,7 +17,7 @@
 // ============================================================
 const P = require('../../js/daiko-payroll.js');
 
-// 実物の役割（2種=白石/長野孝/結田、1種=真道/竹内/八木/正岡/向垣内/バイト）
+// 実物の役割（2種=見本/架空二/模擬、1種=三六/試験/例野/標本/雛形八/バイト）
 const ROLE2 = '2種';
 const ROLE1 = '1種';
 
@@ -31,12 +31,12 @@ describe('★実物の代行計算表2026と1円まで一致すること★', ()
         { id: '4', sales: 21500, hours: 8.75, expense: 0 },
       ],
       staff: [
-        { name: '白石正人', role: ROLE2, hours: 9 },
-        { name: '長野孝', role: ROLE2, hours: 8.25 },
-        { name: '長野真道', role: ROLE1, hours: 8.25 },
-        { name: '竹内真一郎', role: ROLE1, hours: 8.75 },
-        { name: '八木俊幸', role: ROLE1, hours: 9 },
-        { name: '結田航平', role: ROLE2, hours: 8.75 },
+        { name: '見本一四', role: ROLE2, hours: 9 },
+        { name: '架空二', role: ROLE2, hours: 8.25 },
+        { name: '仮名三六', role: ROLE1, hours: 8.25 },
+        { name: '試験四七十', role: ROLE1, hours: 8.75 },
+        { name: '例野五八', role: ROLE1, hours: 9 },
+        { name: '模擬六九', role: ROLE2, hours: 8.75 },
       ],
     });
 
@@ -48,12 +48,12 @@ describe('★実物の代行計算表2026と1円まで一致すること★', ()
 
     const pay = {};
     r.staff.forEach((s) => (pay[s.name] = s.pay));
-    expect(pay['白石正人']).toBe(10350);
-    expect(pay['長野孝']).toBe(9487.5);
-    expect(pay['長野真道']).toBe(8250);
-    expect(pay['竹内真一郎']).toBe(8750);
-    expect(pay['八木俊幸']).toBe(9000);
-    expect(pay['結田航平']).toBe(10062.5);
+    expect(pay['見本一四']).toBe(10350);
+    expect(pay['架空二']).toBe(9487.5);
+    expect(pay['仮名三六']).toBe(8250);
+    expect(pay['試験四七十']).toBe(8750);
+    expect(pay['例野五八']).toBe(9000);
+    expect(pay['模擬六九']).toBe(10062.5);
     expect(r.staffTotal).toBe(55900);
 
     expect(r.ownerShare).toBe(18390); // ★ZERO★
@@ -68,12 +68,12 @@ describe('★実物の代行計算表2026と1円まで一致すること★', ()
         { id: '4', sales: 21500, hours: 8.25, expense: 0 },
       ],
       staff: [
-        { name: '白石正人', role: ROLE2, hours: 8.5 },
-        { name: '長野孝', role: ROLE2, hours: 7.75 },
-        { name: '長野真道', role: ROLE1, hours: 7.75 },
-        { name: '竹内真一郎', role: ROLE1, hours: 8.25 },
-        { name: '八木俊幸', role: ROLE1, hours: 8.5 },
-        { name: '結田航平', role: ROLE2, hours: 8.25 },
+        { name: '見本一四', role: ROLE2, hours: 8.5 },
+        { name: '架空二', role: ROLE2, hours: 7.75 },
+        { name: '仮名三六', role: ROLE1, hours: 7.75 },
+        { name: '試験四七十', role: ROLE1, hours: 8.25 },
+        { name: '例野五八', role: ROLE1, hours: 8.5 },
+        { name: '模擬六九', role: ROLE2, hours: 8.25 },
       ],
     });
 
@@ -85,17 +85,17 @@ describe('★実物の代行計算表2026と1円まで一致すること★', ()
 
     const pay = {};
     r.staff.forEach((s) => (pay[s.name] = s.pay));
-    expect(pay['白石正人']).toBe(9775);
-    expect(pay['長野孝']).toBe(8912.5);
-    expect(pay['長野真道']).toBe(7750);
-    expect(pay['竹内真一郎']).toBe(8250);
-    expect(pay['八木俊幸']).toBe(8500);
-    expect(pay['結田航平']).toBe(9487.5);
+    expect(pay['見本一四']).toBe(9775);
+    expect(pay['架空二']).toBe(8912.5);
+    expect(pay['仮名三六']).toBe(7750);
+    expect(pay['試験四七十']).toBe(8250);
+    expect(pay['例野五八']).toBe(8500);
+    expect(pay['模擬六九']).toBe(9487.5);
 
     expect(r.ownerShare).toBe(31666); // ★ZERO★
   });
 
-  it('2026-02-14（計算シート49行目・向垣内が入る日）', () => {
+  it('2026-02-14（計算シート49行目・雛形八が入る日）', () => {
     const r = P.compute({
       owner: { sales: 20100, hours: 7.25, expense: 0 },
       cars: [
@@ -104,12 +104,12 @@ describe('★実物の代行計算表2026と1円まで一致すること★', ()
         { id: '4', sales: 27000, hours: 9, expense: 0 },
       ],
       staff: [
-        { name: '白石正人', role: ROLE2, hours: 7.5 },
-        { name: '長野孝', role: ROLE2, hours: 8.75 },
-        { name: '長野真道', role: ROLE1, hours: 8.75 },
-        { name: '竹内真一郎', role: ROLE1, hours: 7.5 },
-        { name: '結田航平', role: ROLE2, hours: 9 },
-        { name: '向垣内', role: ROLE1, hours: 9 },
+        { name: '見本一四', role: ROLE2, hours: 7.5 },
+        { name: '架空二', role: ROLE2, hours: 8.75 },
+        { name: '仮名三六', role: ROLE1, hours: 8.75 },
+        { name: '試験四七十', role: ROLE1, hours: 7.5 },
+        { name: '模擬六九', role: ROLE2, hours: 9 },
+        { name: '雛形八', role: ROLE1, hours: 9 },
       ],
     });
 
@@ -121,12 +121,12 @@ describe('★実物の代行計算表2026と1円まで一致すること★', ()
 
     const pay = {};
     r.staff.forEach((s) => (pay[s.name] = s.pay));
-    expect(pay['白石正人']).toBe(8625);
-    expect(pay['長野孝']).toBe(10062.5);
-    expect(pay['長野真道']).toBe(8750);
-    expect(pay['竹内真一郎']).toBe(7500);
-    expect(pay['結田航平']).toBe(10350);
-    expect(pay['向垣内']).toBe(9000);
+    expect(pay['見本一四']).toBe(8625);
+    expect(pay['架空二']).toBe(10062.5);
+    expect(pay['仮名三六']).toBe(8750);
+    expect(pay['試験四七十']).toBe(7500);
+    expect(pay['模擬六九']).toBe(10350);
+    expect(pay['雛形八']).toBe(9000);
 
     expect(r.ownerShare).toBe(44702.5); // ★ZERO★
   });

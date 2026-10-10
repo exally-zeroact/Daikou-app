@@ -33,7 +33,7 @@ const REAL = [
     distance_m: 5362,
     fare_yen: 2200,
     payment_type: 'invoice',
-    customer_name: 'Lounge Chouchou',
+    customer_name: 'Xalqal Alqalqal',
     start_address: '今治市富田新港',
     end_address: '今治市北浜町',
   },
@@ -42,7 +42,7 @@ const REAL = [
     distance_m: 2134,
     fare_yen: 1400,
     payment_type: 'invoice',
-    customer_name: 'エスプリ アマン',
+    customer_name: 'カレホン カレホ',
     start_address: '今治市旭町',
     end_address: '今治市東鳥生町',
   },
@@ -182,7 +182,7 @@ describe('★請求書アプリの列に、そのまま入る値になってい�
 describe('★入れる中身が正しいこと★', () => {
   it('請求先・行き先・出発地・料金がそのまま', () => {
     const [a] = build(REAL);
-    expect(a.company).toBe('Lounge Chouchou'); // companies.name と同じ文字列
+    expect(a.company).toBe('Xalqal Alqalqal'); // companies.name と同じ文字列
     // ★2026-08-09 仕様変更★: 行き先は 到着地だけ → ★出発〜経由〜到着★ に。
     //   司さん「今治市は除けて町までつける、市外だけ松山市とかつける」
     //   ＝ 地元(今治市)は市名を落とす。出発地は今までどおり extra にも残る。
@@ -270,7 +270,7 @@ describe('★直した代行が請求書アプリにも届くこと★', () => {
         //   これが 無いと 「事務所が 手で 直した」と 「メーターが 変わった」を
         //   見分けられない。今の行は 印つきなので amount = dk_meter_yen に 揃える。
         extra: { dk_ref: REF, dk_source: 'daikome', dk_distance_m: 5362, dk_meter_yen: 2200 },
-        company: 'Lounge Chouchou',
+        company: 'Xalqal Alqalqal',
         date: '2026-08-04',
         // ★2026-08-09: 行き先は つないだ形（地元の市は落とす）★
         destination: '富田新港〜北浜町',
@@ -305,7 +305,7 @@ describe('★直した代行が請求書アプリにも届くこと★', () => {
         distance_m: 5300,
         fare_yen: 2200,
         payment_type: 'invoice',
-        customer_name: 'Lounge Chouchou',
+        customer_name: 'Xalqal Alqalqal',
         // ★2026-08-09: 行き先が つないだ形になったので、比べる相手と同じ道のりにする★
         //   （このテストが見ているのは 数の比べ方であって 行き先ではない）
         start_address: '今治市富田新港',
@@ -342,7 +342,7 @@ describe('★直した代行が請求書アプリにも届くこと★', () => {
 
   it('★請求先を付け替えたら直す★', () => {
     const p = planMeisaiWrite(rows(), [existing({ company: 'よその会社' })]);
-    expect(p.updates[0].patch.company).toBe('Lounge Chouchou');
+    expect(p.updates[0].patch.company).toBe('Xalqal Alqalqal');
   });
 
   it('★司さんが後から書いた 備考・人数・名前 は絶対に触らない★', () => {

@@ -6,7 +6,7 @@
 //     「備考欄で名前選ぶようにしてる会社ではメーター機の方でどうなってる？」
 //
 //   ★実物を見て分かったこと（本番 companies を実測）★
-//     藤原建設株式会社 だけ config.noteGroups = ["会長","社長","専務"]
+//     標様建設株式会社 だけ config.noteGroups = ["会長","社長","専務"]
 //     items に「備考」を入れ、noteSummary:true で★備考ごとに小計を出す★設定。
 //     実績17件とも備考に 社長/専務 が入っている。
 //     ところがメーターには★誰が乗ったかを選ぶ所が無かった★。
@@ -47,8 +47,8 @@ describe('★分け方が事務所から端末へ届くこと★', () => {
 
   it('★分け方を使う会社にだけ付ける★（使わない会社の端末を重くしない）', () => {
     const out = CM.normalize([
-      { id: '1', name: '藤原建設株式会社', note_groups: ['会長', '社長', '専務'] },
-      { id: '2', name: 'エスプリ アマン' },
+      { id: '1', name: '標様建設株式会社', note_groups: ['会長', '社長', '専務'] },
+      { id: '2', name: 'カレホン カレホ' },
     ]);
     expect(out[0].note_groups).toEqual(['会長', '社長', '専務']);
     expect(out[1].note_groups, '聞かない会社にも付いている').toBeUndefined();
@@ -78,29 +78,29 @@ describe('★代行に「誰が乗ったか」を貼れること★', () => {
   });
 
   it('会社と一緒に貼れる', () => {
-    B.setTripCustomer('c1', '藤原建設株式会社', '社長');
+    B.setTripCustomer('c1', '標様建設株式会社', '社長');
     expect(B.getTripCustomer()).toEqual({
       customer_id: 'c1',
-      customer_name: '藤原建設株式会社',
+      customer_name: '標様建設株式会社',
       customer_note: '社長',
     });
   });
 
   it('あとから名前だけ貼れる（会社を選んだ後に聞くため）', () => {
-    B.setTripCustomer('c1', '藤原建設株式会社');
+    B.setTripCustomer('c1', '標様建設株式会社');
     expect(B.getTripCustomer().customer_note).toBe(null);
     B.setTripCustomerNote('専務');
     expect(B.getTripCustomer().customer_note).toBe('専務');
   });
 
   it('★会社を選び直したら消える★（前の客の名前が残ったら請求書が狂う）', () => {
-    B.setTripCustomer('c1', '藤原建設株式会社', '社長');
-    B.setTripCustomer('c2', 'エスプリ アマン');
+    B.setTripCustomer('c1', '標様建設株式会社', '社長');
+    B.setTripCustomer('c2', 'カレホン カレホ');
     expect(B.getTripCustomer().customer_note, '★前の客の名前が残っている★').toBe(null);
   });
 
   it('現金に戻したら消える', () => {
-    B.setTripCustomer('c1', '藤原建設株式会社', '社長');
+    B.setTripCustomer('c1', '標様建設株式会社', '社長');
     B.setTripCustomer(null);
     expect(B.getTripCustomer()).toBe(null);
   });
@@ -111,7 +111,7 @@ describe('★代行に「誰が乗ったか」を貼れること★', () => {
   });
 
   it('★代行を終えたら、その代行に焼き付く★', () => {
-    B.setTripCustomer('c1', '藤原建設株式会社', '社長');
+    B.setTripCustomer('c1', '標様建設株式会社', '社長');
     B.onTripEnd(3000, 1800, Date.now());
     const t = B.getState().trips.slice(-1)[0];
     expect(t.customer_note).toBe('社長');
@@ -119,7 +119,7 @@ describe('★代行に「誰が乗ったか」を貼れること★', () => {
   });
 
   it('★次の代行に前の名前を持ち越さない★', () => {
-    B.setTripCustomer('c1', '藤原建設株式会社', '社長');
+    B.setTripCustomer('c1', '標様建設株式会社', '社長');
     B.onTripEnd(3000, 1800, Date.now());
     B.onTripStart(34.06, 132.99, 5);
     expect(B.getTripCustomer(), '★次の代行に前の客が付いている★').toBe(null);
@@ -170,7 +170,7 @@ describe.skipIf(!HAS_FN)('★請求書の備考を、消さずに直せること
           distance_m: 3000,
           fare_yen: 1800,
           payment_type: 'invoice',
-          customer_name: '藤原建設株式会社',
+          customer_name: '標様建設株式会社',
           customer_note: note,
           end_address: '祇園',
         },
@@ -188,7 +188,7 @@ describe.skipIf(!HAS_FN)('★請求書の備考を、消さずに直せること
       dk_distance_m: 3000,
       dk_meter_yen: 1800,
     },
-    company: '藤原建設株式会社',
+    company: '標様建設株式会社',
     date: '2026-08-04',
     destination: '祇園',
     amount: 1800,
@@ -229,7 +229,7 @@ describe.skipIf(!HAS_FN)('★請求書の備考を、消さずに直せること
           distance_m: 3000,
           fare_yen: 1800,
           payment_type: 'invoice',
-          customer_name: 'エスプリ アマン',
+          customer_name: 'カレホン カレホ',
         },
       ],
     });
@@ -246,7 +246,7 @@ describe('★履歴からも直せること（忘れた時の受け皿）★', (
     extras: [],
     discounts: [],
     customer_id: 'c1',
-    customer_name: '藤原建設株式会社',
+    customer_name: '標様建設株式会社',
     customer_note: null,
   };
 
@@ -259,7 +259,7 @@ describe('★履歴からも直せること（忘れた時の受け皿）★', (
   it('★会社を変えたら名前は消える★', () => {
     const withNote = TE.applyToRide(ride, { customerNote: '専務' });
     const out = TE.applyToRide(withNote, {
-      customer: { customer_id: 'c2', customer_name: 'エスプリ アマン' },
+      customer: { customer_id: 'c2', customer_name: 'カレホン カレホ' },
     });
     expect(out.customer_note, '★前の客の名前が残っている★').toBe(null);
   });

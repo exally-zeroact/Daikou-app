@@ -123,7 +123,7 @@ describe('実車中に請求書(掛け)先を選ぶ', () => {
     expect(Business.getTripCustomer()).toBeNull();
     Business.setTripCustomer('cust-1', '○○商事');
     // ★2026-08-05 「誰が乗ったか」を足した★
-    //   藤原建設のように請求書を会長/社長/専務で分ける会社があるため。
+    //   標様建設のように請求書を会長/社長/専務で分ける会社があるため。
     //   分け方を使わない会社では null（＝今までどおり）。
     expect(Business.getTripCustomer()).toEqual({
       customer_id: 'cust-1',

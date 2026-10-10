@@ -144,7 +144,7 @@ function buildMeisaiRows(opts) {
       distance: typeof t.distance_m === 'number' ? Number((t.distance_m / 1000).toFixed(2)) : null,
       name: '',
       // ★誰が乗ったか(会長/社長/専務など) 2026-08-05★
-      //   藤原建設は請求書を備考で分けて小計を出す。ここが空だと★その行だけ仕分けから外れる★。
+      //   標様建設は請求書を備考で分けて小計を出す。ここが空だと★その行だけ仕分けから外れる★。
       //   分け方を使わない会社では今までどおり空(司さんが後から書く場所を奪わない)。
       note: typeof t.customer_note === 'string' ? t.customer_note : '',
       extra: {

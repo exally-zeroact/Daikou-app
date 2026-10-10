@@ -312,7 +312,7 @@
             customer_id: custId,
             customer_name: custId ? _str(t.customer_name) : '',
             // ★誰が乗ったか(会長/社長/専務など) 2026-08-05★
-            //   請求書の備考に入り、そこで小計が分かれる会社がある(藤原建設)。
+            //   請求書の備考に入り、そこで小計が分かれる会社がある(標様建設)。
             //   運ばないと★その会社の行だけ仕分けから外れる★。
             customer_note: custId ? _str(t.customer_note) : '',
             payment_type: payType,

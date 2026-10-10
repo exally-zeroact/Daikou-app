@@ -133,7 +133,7 @@ describe('★直したぶんだけ正しく動くこと★', () => {
     const out = TE.applyToRide(ride({ fare: 2200 }), {
       extras: [{ name: '高速', amount: 500 }],
       discounts: [{ name: '常連', amount: 300 }],
-      customer: { customer_id: 'c1', customer_name: 'エスプリ アマン' },
+      customer: { customer_id: 'c1', customer_name: 'カレホン カレホ' },
     });
     expect(out.distance_m).toBe(5362);
   });
@@ -142,16 +142,16 @@ describe('★直したぶんだけ正しく動くこと★', () => {
 describe('★請求書（請求先）を後から付けたり外したりできること★', () => {
   it('現金だったものに請求先を付ける', () => {
     const out = TE.applyToRide(ride(), {
-      customer: { customer_id: 'c1', customer_name: 'エスプリ アマン' },
+      customer: { customer_id: 'c1', customer_name: 'カレホン カレホ' },
     });
     expect(out.customer_id).toBe('c1');
-    expect(out.customer_name).toBe('エスプリ アマン');
+    expect(out.customer_name).toBe('カレホン カレホ');
     const trip = TE.applyToTrip(
       { start_time: 1, distance_m: 5362, fare_yen: 2200, payment_type: 'cash' },
       out
     );
     expect(trip.payment_type, '★請求書払いになっていない★').toBe('invoice');
-    expect(trip.customer_name).toBe('エスプリ アマン');
+    expect(trip.customer_name).toBe('カレホン カレホ');
   });
 
   it('★請求先を外すと現金に戻る★', () => {
@@ -439,11 +439,11 @@ describe('★3つの帳面が全部そろうこと★', () => {
       business: null,
       rideKey: RIDE_KEY,
       tripKey: TRIP,
-      edit: { customer: { customer_id: 'c1', customer_name: 'エスプリ アマン' } },
+      edit: { customer: { customer_id: 'c1', customer_name: 'カレホン カレホ' } },
     });
     const t = st._json('daikou_business_state').trips[0];
     expect(t.payment_type).toBe('invoice');
-    expect(t.customer_name).toBe('エスプリ アマン');
+    expect(t.customer_name).toBe('カレホン カレホ');
     expect(t.fare_yen, '★金額が勝手に動いた★').toBe(2200);
   });
 
@@ -616,11 +616,11 @@ describe('★[業務終了]の後に 直した分が 事務所へ 届くか★',
       store: ls,
       rideKey: 'daikou_history_x',
       tripKey: T,
-      edit: { customer: { customer_id: 'c1', customer_name: '藤原建設' } },
+      edit: { customer: { customer_id: 'c1', customer_name: '標様建設' } },
     });
     expect(r.ok).toBe(true);
     expect(rireki(ls).payment_type, '★履歴が 現金のまま＝請求書に 1行も 立たない★').toBe('invoice');
-    expect(rireki(ls).customer_name).toBe('藤原建設');
+    expect(rireki(ls).customer_name).toBe('標様建設');
   });
 
   it('state の方も 同じ額に なっている（片方だけ 直していないか）', () => {

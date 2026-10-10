@@ -5601,7 +5601,7 @@
     </div>
 
     <!-- 誰が乗ったかモーダル (2026-08-05・司さん指摘)
-         藤原建設のように請求書を「会長／社長／専務」で分けて小計を出す会社だけ出る。
+         標様建設のように請求書を「会長／社長／専務」で分けて小計を出す会社だけ出る。
          中身は事務所の会社設定(noteGroups)から来る＝会社が増えてもここは直さない。 -->
     <div class="modal-overlay" id="noteGroupModalOverlay">
       <div class="modal">
@@ -10138,7 +10138,7 @@
         _updateInvoiceBtn();
         closeInvoiceModal();
         // ★誰が乗ったかを聞く会社なら、続けて名前を選ばせる (2026-08-05・司さん指摘)★
-        //   藤原建設は請求書を「会長／社長／専務」で分けて小計を出す。
+        //   標様建設は請求書を「会長／社長／専務」で分けて小計を出す。
         //   ここで聞かないと★その会社の行だけ備考が空で上がり、仕分けから外れる★。
         try {
           if (picked && Array.isArray(picked.note_groups) && picked.note_groups.length) {

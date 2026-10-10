@@ -44,7 +44,7 @@ const input = (staff) => ({
 });
 
 const person = (over) =>
-  Object.assign({ name: '白石正人', role: '2種', car: 'c1', hours: 10 }, over || {});
+  Object.assign({ name: '見本一四', role: '2種', car: 'c1', hours: 10 }, over || {});
 
 describe('★今まで誰も打っていない＝金額が1円も変わらないこと（一番大事）★', () => {
   it('歩合も最低保証も未指定なら、役割どおり', () => {
@@ -67,20 +67,20 @@ describe('★今まで誰も打っていない＝金額が1円も変わらない
   });
 
   it('★1種の人も役割どおり★', () => {
-    const r = P.compute(input([person({ name: '長野真道', role: '1種' })]), SET);
+    const r = P.compute(input([person({ name: '仮名三六', role: '1種' })]), SET);
     expect(r.staff[0].rate).toBe(0.3);
     expect(r.staff[0].floor).toBe(1000);
   });
 
   it('★7人まとめて未指定でも、全員 役割どおりの金額★', () => {
     const staff = [
-      person({ name: '白石正人', role: '2種' }),
-      person({ name: '長野孝', role: '2種' }),
-      person({ name: '長野真道', role: '1種' }),
-      person({ name: '竹内真一郎', role: '1種' }),
-      person({ name: '結田航平', role: '2種' }),
-      person({ name: '正岡卓', role: '1種' }),
-      person({ name: '向垣内靖', role: '1種' }),
+      person({ name: '見本一四', role: '2種' }),
+      person({ name: '架空二', role: '2種' }),
+      person({ name: '仮名三六', role: '1種' }),
+      person({ name: '試験四七十', role: '1種' }),
+      person({ name: '模擬六九', role: '2種' }),
+      person({ name: '標本七', role: '1種' }),
+      person({ name: '雛形八一', role: '1種' }),
     ];
     const r = P.compute(input(staff), SET);
     r.staff.forEach(function (row) {
@@ -123,9 +123,9 @@ describe('★打った人だけ変わること★', () => {
   it('★他の人は巻き込まれない★', () => {
     const r = P.compute(
       input([
-        person({ name: '白石正人', rate: 0.5, floor: 2000 }),
-        person({ name: '長野孝' }),
-        person({ name: '長野真道', role: '1種' }),
+        person({ name: '見本一四', rate: 0.5, floor: 2000 }),
+        person({ name: '架空二' }),
+        person({ name: '仮名三六', role: '1種' }),
       ]),
       SET
     );
@@ -179,14 +179,14 @@ describe('★従業員の値が計算まで運ばれること（配線）★', (
       employees: [
         {
           employee_id: 'e1',
-          name: '白石正人',
+          name: '見本一四',
           role: '2種',
           active: true,
           sort_order: 1,
           pay_rate: 0.4,
           pay_floor: 1300,
         },
-        { employee_id: 'e2', name: '長野孝', role: '2種', active: true, sort_order: 2 },
+        { employee_id: 'e2', name: '架空二', role: '2種', active: true, sort_order: 2 },
       ],
       workHours: [
         { work_date: '2026-08-04', employee_id: 'e1', device_id: 'd1', hours: 10 },
@@ -197,8 +197,8 @@ describe('★従業員の値が計算まで運ばれること（配線）★', (
       labels: [],
     });
     const day = PD.dayInput('2026-08-04', ctx);
-    const a = day.staff.filter((s) => s.name === '白石正人')[0];
-    const b = day.staff.filter((s) => s.name === '長野孝')[0];
+    const a = day.staff.filter((s) => s.name === '見本一四')[0];
+    const b = day.staff.filter((s) => s.name === '架空二')[0];
     expect(a, '人が居ない').toBeTruthy();
     expect(a.rate, '★人ごとの歩合を運んでいない★').toBe(0.4);
     expect(a.floor, '★人ごとの最低保証を運んでいない★').toBe(1300);
@@ -242,9 +242,14 @@ describe('★画面がそろっていること★', () => {
     );
     const th = (head.match(/<th[\s>]/g) || []).length;
     expect(th, '★従業員の表の見出しが読めない★').toBeGreaterThan(0);
-    const empty = HTML.slice(HTML.indexOf('まだ誰も登録されていません') - 60, HTML.indexOf('まだ誰も登録されていません'));
+    const empty = HTML.slice(
+      HTML.indexOf('まだ誰も登録されていません') - 60,
+      HTML.indexOf('まだ誰も登録されていません')
+    );
     const span = Number((empty.match(/colspan="(\d+)"/) || [])[1]);
-    expect(span, `★列は ${th} 個なのに 空のときは ${span} 個ぶんになっている（表が崩れる）★`).toBe(th);
+    expect(span, `★列は ${th} 個なのに 空のときは ${span} 個ぶんになっている（表が崩れる）★`).toBe(
+      th
+    );
   });
 
   // ============================================================
