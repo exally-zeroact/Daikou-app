@@ -14245,9 +14245,17 @@
           saveExtras();
         }
         function saveExtras() {
+          // ★保存に 失敗したら 黙らずに 知らせる★（端末の 空きが 足りない 等・10-11）
+          //   前は catch で 飲み込み、運転手は 保存できたと 思い込んだ（開き直すと 前の 見本に 戻っていた）
           try {
             localStorage.setItem('daikou_extras', JSON.stringify(extraItems));
-          } catch (_) {}
+            return true;
+          } catch (_) {
+            showToast(
+              '保存できませんでした（端末の 空きが 足りない 等）。もう一度 入れ直してください'
+            );
+            return false;
+          }
         }
 
         // ━━ 値引き (追加料金と同型・プリセット管理) ━━
@@ -14298,9 +14306,17 @@
           saveDiscounts();
         }
         function saveDiscounts() {
+          // ★保存に 失敗したら 黙らずに 知らせる★（端末の 空きが 足りない 等・10-11）
+          //   前は catch で 飲み込み、運転手は 保存できたと 思い込んだ（開き直すと 前の 見本に 戻っていた）
           try {
             localStorage.setItem('daikou_discounts', JSON.stringify(discountItems));
-          } catch (_) {}
+            return true;
+          } catch (_) {
+            showToast(
+              '保存できませんでした（端末の 空きが 足りない 等）。もう一度 入れ直してください'
+            );
+            return false;
+          }
         }
 
         // ━━ プレビュータブ ━━
