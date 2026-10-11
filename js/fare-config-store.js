@@ -61,6 +61,11 @@
     add_fare: 100,
     add_distance_m: 420,
     rounding: 10,
+    // ★最低料金・最高料金は 無ければ「無し」（null）を はっきり 入れる★（10-11）
+    //   事務所で 空に すると 倉庫の 料金表から 鍵ごと 消える。前は 端末の 古い 写しの 値が
+    //   上書きされずに 残り、消したのに 最低料金で 計算していた（司さん「外したら 外すやろが」）。
+    minFare: null,
+    maxFare: null,
     tiersEnabled: false,
     vehiclesEnabled: false,
     zonesEnabled: false,
