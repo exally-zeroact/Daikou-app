@@ -41,7 +41,7 @@ jobs:
           node scripts/kinshi-commit-msg.mjs --range "$R" | tee kinshi-msg.out
           grep -q "^✓ commit の文の 実在の字 0 件" kinshi-msg.out
 
-  # ★公開 repo に 実在の 字を 戻さない 見張り★（Castally の nomiya-app c30af57 の段を 逐語で 写した・メールの門の段は除く＝作者の欄は commit 文の門が見る・2026-10-11）
+  # ★公開 repo に 実在の 字を 戻さない 見張り★（Castally の nomiya-app b3dfea3 の段を 逐語で 写した・メールの門の段は除く＝作者の欄は commit 文の門が見る・2026-10-11）
   kinshi-ji:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -81,7 +81,7 @@ jobs:
         shell: bash
         run: |
           node .githooks/pre-push-kinshi.mjs --self-test | tee push-self.out
-          sh scripts/ci-yuka.sh push-self.out 13 34
+          sh scripts/ci-yuka.sh push-self.out 16 43
 
       # ★床の 物差し（scripts/ci-yuka.sh）の 自己確認＝ubuntu の awk で 233・234x 等が 赤に なるか★（2026-10-11）
       - name: 床の物差しの自己確認
@@ -90,7 +90,7 @@ jobs:
           sh scripts/ci-yuka.sh --self-test | tee yuka-self.out
           sh scripts/ci-yuka.sh yuka-self.out 20
 
-  # ★見張りだけを node 24 でも回す★（Castally の nomiya-app c30af57 の job を逐語で写した）
+  # ★見張りだけを node 24 でも回す★（Castally の nomiya-app b3dfea3 の job を逐語で写した）
   kinshi-node24:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: |
           node .githooks/pre-push-kinshi.mjs --self-test | tee push24-self.out
-          sh scripts/ci-yuka.sh push24-self.out 13 34
+          sh scripts/ci-yuka.sh push24-self.out 16 43
 
   unit-and-replay:
     runs-on: ubuntu-latest

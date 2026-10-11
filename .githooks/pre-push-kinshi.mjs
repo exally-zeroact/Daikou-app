@@ -11,14 +11,22 @@
  *     一覧が 無い・指紋が 違う・指紋の 紙が 無い は 赤。
  *   ★見張りの 本体は 押す 頭の 木の 物を 一時の 所へ 取り出して 走らせる★（手元の 字の 本体は 読まない）。
  *     手元で 本体を 弱めた・add し忘れた push が 緑で 通った（10-11 taiketsu T11・5a45b10 の 入れ忘れ）。
- *     門（この 紙）も 押す 頭の 物と 手元が 違えば 赤（走っている 門＝押す 門 に する）。押す 頭に 本体・門が 無ければ 赤。
+ *     門（この 紙）も、照らし（bodyForPush）まで 来れば 押す 頭の 物と 手元が 違う 時に 赤。押す 頭に 本体・門が 無ければ 赤。
+ *     ★照らしより 前に 手元の 門 自身が 止まる 形（門の 頭の exit(0) 等）は 門では 塞げない＝下の「門の 外」★
  *   見張りの 本体が 押す 範囲で 変わった 時は、自己確認も 回す（取り出した 押す 版で）。
  *   ★字は 出さない★（commit の SHA・道・行・一覧の 何番目か だけ）。
  *
  *   門の 外：--no-verify・core.hooksPath を 置いていない clone・GitHub の 画面での 編集・
  *     commit 文／作者名／注釈タグの 文・門の 古い 版を 取り出した 作業木からの push（門 自体が 走らない）・
- *     .githooks/pre-push と メールの 門の 手元の 書き換え。
- *   新しい 枝の 範囲は ★押す 先の 遠く（$1）に 今 在る 頭★ から（ls-remote）。遠くの 名が 無い・読めない は 赤。
+ *     .githooks/pre-push と メールの 門の 手元の 書き換え・
+ *     ★GIT_DIR と GIT_WORK_TREE を 付けて 作業木の 外から 押す（相対の core.hooksPath が 見つからず 門が 走らない）★・
+ *     ★sparse-checkout で .githooks が 作業木から 外れる（hook が 黙って 走らない）・
+ *     git lfs install --force／git lfs update --force が .githooks/pre-push を 上書き する★（10-11 taiketsu 実測で 漏れた）。
+ *     ★手元の 門 自身の 書き換え（照らしより 前＝頭の exit(0) 等）・NODE_OPTIONS（--import／--require で 先に 走る 物）★
+ *     （走る 門が 自分を 確かめる 事は できない・10-11 taiketsu 実測で 緑）。
+ *     わざと 壊す 手で しか 起きない 穴（これら・床の 揃え 書き換え 等）は 直さず ここに 書く（10-11 指示役＝押す 門の 形を 凍結）。
+ *   新しい 枝の 範囲は ★押す 先の 遠く（hook の $2＝押す 道・無ければ $1）に 今 在る 頭★ から（ls-remote）。
+ *     遠くの 名が 無い・読めない・手元に 取っていない 頭が 在る は 赤。
  *     最後の 門は CI（main と PR）。
  *
  *   使い方（git が 呼ぶ）: 標準入力に「<手元の ref> <手元の sha> <遠くの ref> <遠くの sha>」
@@ -32,15 +40,43 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const SELF = fileURLToPath(import.meta.url);
 const ZERO = /^0+$/;
-/* 手元の 本体は 自己確認と 既定の 読み口 だけ（押す 時は 押す 頭の 本体で 走る）＝手元に 無くても 門は 走る */
-let K = null;
-try {
-  K = await import(
-    pathToFileURL(path.join(path.dirname(SELF), "..", "tests", "kinshi-ji.test.mjs")).href
-  );
-} catch {
-  K = null;
+/* ★門の git は 差し替え（refs/replace）を 読まない★：git replace で 字の blob を きれいな blob に
+   差し替えると 門は「0 件」・push は 元の blob を 送った（10-11 taiketsu 実測・作り物の 遠くに 字 1 件）。
+   門の 子の git は この 環境変数を 受け継ぐ。push 本体の pack-objects は hook の 子では なく、元から replace を
+   読まない 作り（--no-verify で 測ると 元の blob が 出た＝10-11 taiketsu）＝門と push の 見え方が 揃う。
+   ★grafts は「在れば 赤」★（graftsPresent）：grafts は GIT_NO_REPLACE_OBJECTS では 止まらず、
+   門だけ 読まない 様に（GIT_GRAFT_FILE を 無い 道に）すると push 本体は 読む＝親を 足す graft で 字が 出た
+   （10-11 taiketsu 実測・その 前の 版では 赤）。ふつうの 使い方で grafts は 作らない */
+export const NO_REWRITE = { GIT_NO_REPLACE_OBJECTS: "1" };
+Object.assign(process.env, NO_REWRITE);
+
+/* grafts の 紙（GIT_GRAFT_FILE を 呼ぶ 側が 付けて いれば その 道）が 在れば throw */
+export function graftsPresent(cwd) {
+  const rel = execFileSync("git", ["-C", cwd, "rev-parse", "--git-path", "info/grafts"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  const f = path.resolve(cwd, rel);
+  if (fs.existsSync(f))
+    throw new Error(
+      "grafts（" +
+        rel +
+        "）が 在る＝門と push で 親の 見え方が 違う。消してから 押す（git replace --convert-graft-file で 差し替えに 移せる）"
+    );
 }
+
+/* ★手元の 本体は --self-test の 時だけ 読む★（押す 時は 押す 頭の 本体だけで 走る）。
+   前は 範囲を 決める より 先に 手元の 本体を import していた＝commit していない 手元の 本体の 頭に
+   process.exit(0) を 足すと、字の 入った commit が 押されて exit 0（10-11 アマかせ taiketsu 実測） */
+let K = null;
+if (process.argv.includes("--self-test"))
+  try {
+    K = await import(
+      pathToFileURL(path.join(path.dirname(SELF), "..", "tests", "kinshi-ji.test.mjs")).href
+    );
+  } catch {
+    K = null;
+  }
 
 const gitText = (cwd, ...a) =>
   execFileSync("git", ["-C", cwd, ...a], {
@@ -50,7 +86,7 @@ const gitText = (cwd, ...a) =>
   });
 const gitBuf = (cwd, ...a) => execFileSync("git", ["-C", cwd, ...a], { maxBuffer: 1 << 28 });
 
-/* ★押す 先の 遠く（hook の $1）に 今 在る 頭（ls-remote）の うち、手元に 在る 物★＝新しい 枝の 範囲の 下限。
+/* ★押す 先の 遠く（hook の $2・無ければ $1）に 今 在る 頭（ls-remote）の うち、手元に 在る 物★＝新しい 枝の 範囲の 下限。
    前の 形（--not --remotes）は 他の remote の 追跡枝・消された 枝の 古い 控えも「遠くに 在る」と 見て、
    新しい 枝の 字が 素通りした（10-11 アマかせ taiketsu 実測・remote 2 つの clone で「0 本」）。
    遠くの 名が 無い・読めない は throw（止める 側）。
@@ -115,11 +151,19 @@ function foreignHead(tmp, bare, ref) {
 
 /* 押す 行ごとに、まだ 遠くに 無い commit（古い 順） */
 export function pushedCommits(cwd, lines, remote) {
+  graftsPresent(cwd);
   const out = [];
   let known = null;
   for (const line of lines) {
     const [, localSha, , remoteSha] = line.trim().split(/\s+/);
     if (!localSha || ZERO.test(localSha)) continue;
+    /* 押す 物は commit（と commit に 付けた tag）だけ＝木・blob に 付けた tag は 中身を 見られない（木の 軽い tag で
+       「commit 0 本・字 0 件」の まま 字の blob が 出た＝10-11 taiketsu 実測） */
+    const kind = gitText(cwd, "cat-file", "-t", localSha + "^{}").trim();
+    if (kind !== "commit")
+      throw new Error(
+        "押す 物が commit で ない（" + kind + " に 付けた tag 等）＝中身を 見られない"
+      );
     let range;
     if (remoteSha && !ZERO.test(remoteSha)) range = [localSha, "^" + remoteSha];
     else range = [localSha, ...(known ??= remoteKnown(cwd, remote)).map((x) => "^" + x)];
@@ -193,7 +237,7 @@ export const FINGER = ".githooks/kinshi-finger";
 /* hook の 中の 自己確認の 床＝★ci.yml の 床と 揃える★（自己確認を 0/0 に した 本体が 枝へ 緑で 出た＝10-11 taiketsu 実測） */
 export const FLOOR = {
   [BODY]: { groups: 29, checks: 239 },
-  [GATE]: { groups: 13, checks: 34 },
+  [GATE]: { groups: 16, checks: 43 },
 };
 export function selfOk(stdout, floor) {
   const m = /^自己確認: (\d+)\/(\d+)$/m.exec(stdout || "");
@@ -319,6 +363,14 @@ export function check({ cwd, lines, env = process.env, file, fingerFile, K: KB =
 function selfTest() {
   /* 呼ぶ 側（hook・worktree）が 渡す GIT_* を 外す＝一時 repo の git が 親を 書き換えない */
   for (const k of Object.keys(process.env)) if (k.startsWith("GIT_")) delete process.env[k];
+  Object.assign(process.env, NO_REWRITE); // 外した 後に 差し替え・grafts を 読まない 印だけ 戻す
+  /* ★子の 門を 起こす 時は 印を 外して 渡す★＝子が 自分で 印を 付けて いるかを 試す（受け継いだ 印で 緑に しない・
+     一番上の 1 行を 消しても 自己確認が 緑だった＝10-11 taiketsu 実測） */
+  const unmarked = (e) => {
+    const x = { ...e };
+    for (const k of Object.keys(NO_REWRITE)) delete x[k];
+    return x;
+  };
   let pass = 0;
   let fail = 0;
   let checks = 0;
@@ -437,6 +489,20 @@ function selfTest() {
     );
     must(nb(c4, undefined).code === 1, "押す 先の 名が 無いのに 緑");
     must(nb(c4, path.join(tmp, "無い.git")).code === 1, "読めない 遠くで 緑");
+    /* 木に 付けた 軽い tag は 赤（中身を 見られない） */
+    const treeSha = gitText(repo, "rev-parse", c4 + "^{tree}").trim();
+    const rt = check({
+      cwd: repo,
+      lines: ["refs/tags/t " + treeSha + " refs/tags/t " + "0".repeat(40)],
+      env: {},
+      file: list,
+      fingerFile: ff,
+      remote: "O",
+    });
+    must(
+      rt.code === 1 && rt.out.join(" ").includes("commit で ない"),
+      "木の tag で 緑: " + rt.out.join(" / ")
+    );
     /* 押す 先で 消された 枝の 古い 控え（追跡枝）が 在っても、今の 遠くの 頭で 見る */
     g("push", "-q", "O", c4 + ":refs/heads/old");
     g("fetch", "-q", "O");
@@ -526,7 +592,7 @@ function selfTest() {
   const b0 = commit2("b0");
   put("w.txt", "x\n" + WORD + "\n");
   const w1 = commit2("w1");
-  const env2 = { ...process.env, KINSHI_JI_FILE: list };
+  const env2 = unmarked({ ...process.env, KINSHI_JI_FILE: list });
   delete env2.KINSHI_JI;
   const gate = (from, to) =>
     spawnSync(process.execPath, [path.join(r2, GATE)], {
@@ -639,6 +705,98 @@ function selfTest() {
     must(after <= before, "一時 dir が 残った（" + before + "→" + after + "）");
     g2("reset", "-q", "--hard", w1);
   });
+  T(
+    "本物の 門：手元の 本体の 頭で 止まっても（process.exit(0)）押す 頭の 本体で 止まる・門の 自己確認も 押す 版で 回る",
+    () => {
+      const exitBody = Buffer.concat([Buffer.from("process.exit(0);\n"), realBody]);
+      try {
+        put(BODY, exitBody);
+        const s = gate(b0, w1);
+        must(
+          s.status === 1 && said(s).includes(w1.slice(0, 7)),
+          "手元の 本体の 頭の exit(0) で 緑: " + said(s)
+        );
+        /* 門だけ 変えた commit を 押す：門の 自己確認は 床の 数を 出すだけに 弱めた 門（本物の 自己確認を 入れ子で
+           回すと 終わらない）。門は 自己確認の 時 隣の 本体を 先に 読む＝手元の 作業木で 回れば exit(0) の 本体で
+           何も 出ずに 落ち、押す 版（一時 dir の 取り出した 本体の 隣）で 回れば 床の 数が 出る */
+        put(BODY, realBody);
+        const real = fs.readFileSync(path.join(r2, GATE), "utf8");
+        const hook = 'if (process.argv.includes("--self-test")) process.exit(' + "selfTest());";
+        must(real.split(hook).length === 2, "門の 自己確認の 口が 当たらない（試しが 壊れている）");
+        put(
+          GATE,
+          real.replace(
+            hook,
+            'if (process.argv.includes("--self-test")) { console.log("自己確認: " + FLOOR[GATE].groups + "/" + FLOOR[GATE].groups); console.log("確かめた 回数: " + FLOOR[GATE].checks); process.exit(0); }'
+          )
+        );
+        const wg2 = commit2("wg2");
+        put(BODY, exitBody);
+        const s2 = gate(w1, wg2);
+        must(
+          s2.status === 0 && said(s2).includes("門が 変わったので 自己確認も 回した（通った"),
+          "門の 自己確認が 手元の 本体で 回った: " + said(s2)
+        );
+        /* 出しは 本当に 出た 数（弱めた 門が 出した 床ちょうどの 数）と 終わり値 */
+        const F = FLOOR[GATE];
+        must(
+          said(s2).includes(
+            "自己確認 " + F.groups + "/" + F.groups + "・確かめた 回数 " + F.checks
+          ) && said(s2).includes("終わり値 0"),
+          "通った 時に 出た 数を 出していない: " + said(s2)
+        );
+      } finally {
+        g2("reset", "-q", "--hard", w1);
+      }
+    }
+  );
+  T("本物の 門：git replace で 字の blob を きれいな blob に 差し替えても 止まる", () => {
+    const wordBlob = gitText(r2, "rev-parse", w1 + ":w.txt").trim();
+    const clean = execFileSync("git", ["-C", r2, "hash-object", "-w", "--stdin"], {
+      input: "ふつう\n",
+      encoding: "utf8",
+    }).trim();
+    g2("replace", wordBlob, clean);
+    try {
+      const s = gate(b0, w1);
+      must(
+        s.status === 1 && said(s).includes(w1.slice(0, 7)),
+        "差し替えで 字の commit が 緑: " + said(s)
+      );
+    } finally {
+      g2("replace", "-d", wordBlob);
+    }
+  });
+  T(
+    "本物の 門：grafts が 在れば 止まる（輪の graft・親を 足す graft・呼ぶ 側の GIT_GRAFT_FILE）",
+    () => {
+      const gf = path.join(r2, ".git", "info", "grafts");
+      fs.mkdirSync(path.dirname(gf), { recursive: true });
+      try {
+        /* 輪：w1 の 親を w1 自身に（親との 差が 0 に 見える） */
+        fs.writeFileSync(gf, w1 + " " + w1 + "\n");
+        const s = gate(b0, w1);
+        must(s.status === 1 && said(s).includes("grafts"), "輪の graft で 緑: " + said(s));
+        /* 親を 足す：きれいな b0 に 字の w1 を 親として 足す（push 本体は w1 も 送る） */
+        fs.writeFileSync(gf, b0 + " " + w1 + "\n");
+        const s2 = gate(b0, b0);
+        must(s2.status === 1 && said(s2).includes("grafts"), "親を 足す graft で 緑: " + said(s2));
+        fs.rmSync(gf, { force: true });
+        /* 呼ぶ 側が 別の grafts の 紙を 付けた */
+        const gf2 = path.join(tmp, "外の grafts");
+        fs.writeFileSync(gf2, w1 + " " + w1 + "\n");
+        const s3 = spawnSync(process.execPath, [path.join(r2, GATE)], {
+          cwd: r2,
+          env: { ...env2, GIT_GRAFT_FILE: gf2 },
+          encoding: "utf8",
+          input: "refs/heads/main " + w1 + " refs/heads/main " + b0 + "\n",
+        });
+        must(s3.status === 1 && said(s3).includes("grafts"), "外の grafts の 紙で 緑: " + said(s3));
+      } finally {
+        fs.rmSync(gf, { force: true });
+      }
+    }
+  );
   T("本物の 門：新しい 枝は hook の $2（実際に 押す 道）を 読む（pushurl で 取り違えない）", () => {
     const A = path.join(tmp, "A.git");
     const B = path.join(tmp, "B.git");
@@ -689,31 +847,38 @@ if (isMain) {
       });
       for (const l of r.out) (r.code ? console.error : console.log)(l);
       code = r.code;
+      /* 門の 自己確認も ★押す 版の 門と 本体★で 回す：一時 dir に 押す 頭の 門（＝手元と 同じ blob と 照らし済み）を 置き、
+         隣の 取り出した 本体を 読ませる（手元の 作業木の 本体で 回っていた＝10-11 taiketsu の 見立て） */
+      const gateCopy = path.join(b.dir, GATE);
+      fs.mkdirSync(path.dirname(gateCopy), { recursive: true });
+      fs.copyFileSync(SELF, gateCopy);
       const runs = [
         [r.selfNeeded, b.bodyFile, BODY, "見張りの 本体"],
-        [r.gateNeeded, SELF, GATE, "門"],
+        [r.gateNeeded, gateCopy, GATE, "門"],
       ];
       for (const [need, file, rel, name] of runs) {
         if (code || !need) continue;
         const s = spawnSync(process.execPath, [file, "--self-test"], { encoding: "utf8" });
         const ok = s.status === 0 && selfOk(s.stdout, FLOOR[rel]);
         const f = FLOOR[rel];
+        /* ★出すのは 本当に 出た 数★（床の 数を 通った 印に 出さない＝分母を 出さない 緑に しない） */
+        const mg = /^自己確認: (\d+)\/(\d+)$/m.exec(s.stdout || "");
+        const mc = /^確かめた 回数: (\d+)$/m.exec(s.stdout || "");
+        const got =
+          (mg ? "自己確認 " + mg[1] + "/" + mg[2] : "自己確認の 行 無し") +
+          "・" +
+          (mc ? "確かめた 回数 " + mc[1] : "回数の 行 無し") +
+          "（床 " +
+          f.groups +
+          " 組・" +
+          f.checks +
+          " 回・終わり値 " +
+          s.status +
+          "）";
         console.log(
           ok
-            ? "✓ " +
-                name +
-                "が 変わったので 自己確認も 回した（通った・床 " +
-                f.groups +
-                " 組・" +
-                f.checks +
-                " 回）"
-            : "✗ " +
-                name +
-                "の 自己確認が 通らないか 床（" +
-                f.groups +
-                " 組・" +
-                f.checks +
-                " 回）未満"
+            ? "✓ " + name + "が 変わったので 自己確認も 回した（通った・" + got + "）"
+            : "✗ " + name + "の 自己確認が 通らないか 床 未満（" + got + "）"
         );
         if (!ok) code = 1;
       }
