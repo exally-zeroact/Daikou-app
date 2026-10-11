@@ -113,6 +113,7 @@
       elapsed_accumulated_sec: null,
       fare_yen: null,
       wait_sec: null,
+      billing_frozen: false,
       notice: '',
     };
     try {
@@ -158,6 +159,7 @@
         elapsed_accumulated_sec: _num(j.elapsed_accumulated_sec) || 0,
         fare_yen: null,
         wait_sec: null,
+        billing_frozen: false,
         notice: '',
       };
 
@@ -168,6 +170,9 @@
       if (trip != null && _num(j.trip_start_time) != null && j.trip_start_time === trip) {
         out.fare_yen = _num(j.fare_yen) || 0; // ★計算し直さない。保存時の確定値そのまま★
         out.wait_sec = _num(j.wait_sec) || 0;
+        // ★確定（料金の 凍結）も 同じ 代行の 時だけ 返す★（10-11）
+        //   戻さないと 確定の 後に 落ちた 時、待機と 距離が 確定額の 上に 積み増される。
+        out.billing_frozen = !!j.billing_frozen;
         out.fare_restored = true;
         // ★黙って金額を戻さない★ 運転手が目で見て、違えば止められるようにする
         out.notice = '前回の続きから　' + _yen(out.fare_yen) + ' / ' + _km(savedDist);

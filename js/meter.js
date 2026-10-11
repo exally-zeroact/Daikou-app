@@ -1086,6 +1086,16 @@ const Meter = (() => {
     //   (= fix 間の増分でレートを測るため setDistance では clobber しない)。overshoot は
     //   getState 内 min(gap, rate*dt) clamp で保証。即一致が要る復元は latchDisplay() を使う。
   }
+  // ★待機の 秒を 戻す★（2026-10-11・メーターの 控えから 同じ 代行の 時だけ 呼ばれる）
+  //   前は 控え（js/meter-persist.js）に 書いて 返していたのに 戻す 口が 無く、
+  //   タスクキルの 後は 待機が 0 に なり、待機料金を 入れた 会社では 料金が 下がっていた。
+  //   今の 待機より 短い 値では 戻さない。料金は 戻した 待機で 計算し直す（setDistance と 同じ calcFare）。
+  function setWaitSec(sec) {
+    if (typeof sec !== 'number' || !Number.isFinite(sec) || sec < 0) return;
+    if (sec < (state.wait_sec || 0)) return;
+    state.wait_sec = sec;
+    state.fare_yen = calcFare(state.distance_m || 0);
+  }
   function setBusinessDistance(m) {
     const bv = typeof m === 'number' && m >= 0 ? m : 0;
     state.business_distance_m = bv;
@@ -1434,6 +1444,7 @@ const Meter = (() => {
     getNearestAddress,
     isAddressDataReady,
     setDistance,
+    setWaitSec,
     setLastGps,
     setMapMatcher,
     isMmReady,
