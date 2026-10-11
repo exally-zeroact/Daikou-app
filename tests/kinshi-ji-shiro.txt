@@ -18,7 +18,7 @@ data/addresses-fine-yamagata.js	当たり1	a33f947ae41be8c9	公の地図デー�
 data/bridges-nagano.js	当たり10	c4297135097774fd	公の地図データ・偶然の一致
 data/peaks-jp.js	当たり3	5ece41a66c4cf36c	公の地図データ・偶然の一致
 data/poi-akita.js	当たり1	61842d8fba2835ab	公の地図データ・偶然の一致
-data/poi-ehime.js	当たり2	2f0217595e9c5acd	公の地図データ・偶然の一致
+data/poi-ehime.js	当たり3	2f0217595e9c5acd	公の地図データ・偶然の一致
 data/poi-fukuoka.js	当たり1	588b9084910d1108	公の地図データ・偶然の一致
 data/poi-fukushima.js	当たり1	2ee5374e6c08a7a8	公の地図データ・偶然の一致
 data/poi-hiroshima.js	当たり2	5df14bf1dbd2d5db	公の地図データ・偶然の一致
@@ -41,7 +41,7 @@ data/poi-shizuoka.js	当たり2	ca7a0f00c82c469c	公の地図データ・偶然�
 data/poi-tochigi.js	当たり2	4bf07437f7957bb5	公の地図データ・偶然の一致
 data/poi-tokushima.js	当たり1	8f3a3918561006a4	公の地図データ・偶然の一致
 data/poi-tokyo.js	当たり6	8b35b8ec17965462	公の地図データ・偶然の一致
-data/poi-yamagata.js	当たり1	b939c38fe9b8c55e	公の地図データ・偶然の一致
+data/poi-yamagata.js	当たり2	b939c38fe9b8c55e	公の地図データ・同じ名の施設が地図に載る
 data/shelters-jp.js	当たり6	7a8c2b57546aedae	公の地図データ・偶然の一致
 data/stations-jp.js	当たり3	22d4044b1cf0d60e	公の地図データ・偶然の一致
 data/town-polygons-ehime.js	当たり4	f00e15b83c56cda1	公の地図データ・偶然の一致
@@ -71,3 +71,4 @@ screenshots/screenshot-2.jpg	未測定1	f32416f0bb656b09	アプリの画面の�
 screenshots/screenshot-3.jpg	未測定1	bd3ef79c86c5961b	アプリの画面の絵（目で見た・名前・住所・電話なし）
 tests/gate-realdevice-doppler-rej.js	当たり2	8251c9620e14cb10	変数名の一部・偶然の一致（指示役の決め4）
 vendor/fonts/BIZUDPGothic-Regular.ttf	未測定1	0753da0963c2fa25	借り物の字体・BIZ UD
+data/poi-gunma.js	当たり1	af8ee84717ca4d31	公の地図データ・同じ名の施設が地図に載る
