@@ -206,7 +206,8 @@ describe('★作っただけで呼ばれていない、を防ぐ★', () => {
   const SRC = fs.readFileSync(path.resolve(__dirname, '..', '..', 'js', 'job-sync.js'), 'utf8');
 
   it('sync() の中から呼んでいる', () => {
-    const i = SRC.indexOf('async function sync()');
+    // 送る 本体は _sync（sync は 錠と 回し直しだけ・2026-10-12）
+    const i = SRC.indexOf('async function _sync()');
     expect(i).toBeGreaterThan(-1);
     const body = SRC.slice(i, i + 1200);
     expect(body, 'sync から呼ばれていない＝守れていない').toContain('sealForCompanySwitch(');
@@ -222,7 +223,8 @@ describe('★作っただけで呼ばれていない、を防ぐ★', () => {
   });
 
   it('★圏外の判定より前に呼んでいる★（圏外でも切り離しは効かせる）', () => {
-    const i = SRC.indexOf('async function sync()');
+    // 送る 本体は _sync（sync は 錠と 回し直しだけ・2026-10-12）
+    const i = SRC.indexOf('async function _sync()');
     const body = SRC.slice(i, i + 1200);
     const seal = body.indexOf('sealForCompanySwitch(');
     const online = body.indexOf('_online()');

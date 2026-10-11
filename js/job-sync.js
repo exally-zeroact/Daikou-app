@@ -543,10 +543,47 @@
   //     ★走っている物を 返す（coalesce）★＝呼んだ側は ちゃんと 結果を 受け取れる
   //     （「busy」で 帰すと [業務終了]の トーストが 嘘に なる）。
   let _ugoiteru = null;
+  // ★走っている 間に 呼ばれたら、終わった 後に もう 1回 回す★（2026-10-12・taiketsu の 指摘）
+  //   前は 重ねた 呼びを 捨てていた＝送っている 間に 直した 勤務・終えた 勤務は 次に アプリを
+  //   開くまで 送られず、画面の「事務所へ送り直します」「事務所に送りました（n件）」が 嘘に なった。
+  //   送っている 間に 中身が 変わった 勤務（_sync が 送信済みに しなかった 物）も 同じく 回し直す。
+  let _mataYobareta = false;
+  const MATA_MAX = 3; // 回し直しの 上限（直しが 続いても 止まる）
+  const MATA_ATO_MS = 1500; // 上限で 止まった 時に もう 1回 送るまでの 間
   async function sync() {
-    if (_ugoiteru) return _ugoiteru; // ★重ねない・走っている物の 結果を 返す★
-    _ugoiteru = _sync().finally(function () {
+    if (_ugoiteru) {
+      _mataYobareta = true;
+      return _ugoiteru; // ★重ねない・走っている物の 結果を 返す（回し直しの 分も 含む）★
+    }
+    _ugoiteru = (async function () {
+      let r = await _sync();
+      for (let i = 0; i < MATA_MAX && _mataYobareta; i++) {
+        _mataYobareta = false;
+        const r2 = await _sync();
+        if (r2.ok && r2.sent > 0) {
+          // 同じ 勤務を 2回 送った 時は 1件と 数える（「◯件 送りました」を 盛らない）
+          const keys = mergeSynced(r.ok ? r.keys : [], r2.keys);
+          r = { ok: true, sent: keys.length, reason: '', keys: keys };
+        } else if (!r2.ok) {
+          r = r2; // 送れなかった＝今の 本当の 様子（圏外 等）を 返す
+        }
+      }
+      return r;
+    })().finally(function () {
+      // ★上限で 止まった 時も 直しを 捨てない★（taiketsu の 指摘：1回の 送りの 間に 4回 直すと
+      //   最後の 額が 次に アプリを 開くまで 出なかった）＝少し 置いて もう 1回 送る
+      const nokori = _mataYobareta;
+      _mataYobareta = false;
       _ugoiteru = null;
+      if (nokori) {
+        try {
+          setTimeout(function () {
+            sync();
+          }, MATA_ATO_MS);
+        } catch (_) {
+          /* 置けなくても 印は 外れた まま＝次の 送りで 届く */
+        }
+      }
     });
     return _ugoiteru;
   }
@@ -599,12 +636,32 @@
       //   旧: accepted が空/無い時は「送った全部」を送信済みにしていた
       //       → サーバが弾いていても端末は送ったことにして★二度と送らない＝黙って消える★
       const acceptedKeys = acceptedKeysOf(j, shifts);
-      if (acceptedKeys.length) {
-        _set(K_SYNCED, JSON.stringify(mergeSynced(synced, acceptedKeys)));
+      // ★送っている 間の 直しを 消さない★（2026-10-12・指示役の 候補を 試験で 赤に して 直した）
+      //   前は 送る 前に 読んだ 印に 足して 書き戻していた。
+      //   A：送っている 間に trip-edit が 外した 印（別の 送信済みの 勤務）が 書き戻しで 戻る。
+      //   B：送っている その 勤務が 直されても、事務所が 受け取ったのは 直す 前の 額＝送信済みに すると
+      //      直した 額が 二度と 送られない。
+      //   ⇒ 印は 書く 直前に 読み直し、中身が 送った 時と 同じ 勤務だけ 送信済みに する。
+      const imaNoRireki = {};
+      _arr(_getJson(HISTORY_KEY, [])).forEach(function (s) {
+        const p = toPayload(s);
+        if (p) imaNoRireki[String(p.start_time)] = JSON.stringify(p);
+      });
+      const okutta = {};
+      shifts.forEach(function (p) {
+        okutta[String(p.start_time)] = JSON.stringify(p);
+      });
+      const kawaranai = acceptedKeys.filter(function (k) {
+        return imaNoRireki[String(k)] === okutta[String(k)];
+      });
+      if (kawaranai.length) {
+        _set(K_SYNCED, JSON.stringify(mergeSynced(_getJson(K_SYNCED, []), kawaranai)));
       }
+      if (kawaranai.length < acceptedKeys.length) _mataYobareta = true; // 直った 中身を すぐ 送る
       return {
         ok: true,
         sent: acceptedKeys.length,
+        keys: acceptedKeys.map(String),
         // 送ったのに1件も受け取られなかった＝次回また送る（黙って消さない）
         reason: acceptedKeys.length ? '' : 'not_accepted',
       };
