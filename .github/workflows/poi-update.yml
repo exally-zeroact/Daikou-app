@@ -190,6 +190,7 @@ jobs:
           記録：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           作った店データは この run の 成果物 poi-data-kinshi-aka-${{ github.run_id }}-${{ github.run_attempt }}（14日）に 残してあります。
           席が 成果物の data/poi-*.js を data/ に置いて 見張りを回し、中身を見て tests/kinshi-ji-shiro.txt の件数と blob を直し、データと一緒に 積んでください（字は ここに 書かない）。
+          ★白名簿の「当たりN」は 語の種類の数で 施設の数ではない★＝成果物を data/ に置いた後、repo の根で node scripts/poi-kinshi-atari.mjs --mae-git HEAD を回し、前の版に無い 当たりの施設を 施設ごとに 見てください（終わり値 2 は 分からない＝止まる）。
           ★回し直さない★＝作るたびに 時刻が入るので、回し直すと blob が変わり また赤になります。"
 
       - name: 自動コミット & プッシュ
