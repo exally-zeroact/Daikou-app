@@ -84,7 +84,11 @@ for REGION in $REGIONS; do
     echo "  [1/4] DL skipped (cache <24h): $PBF"
   else
     echo "  [1/4] DL: $URL"
-    curl -fsSL --max-time 1200 -o "$PBF" "$URL"
+    # 取り先の一時の失敗（10-01 に 503 で月次が丸ごと止まった）は 60秒おきに 3回まで 取り直す。
+    #   --retry-all-errors＝途中で切れた転送・繋がらない時も 取り直す。1回の上限は 600秒（いつもは 数分）。
+    #   最悪 600×4＋60×3＝43分＝job の 120分の 中。取れた物が 空なら 止める。
+    curl -fsSL --retry 3 --retry-delay 60 --retry-all-errors --max-time 600 -o "$PBF" "$URL"
+    [ -s "$PBF" ] || { echo "  ✗ 取れた物が 空: $PBF"; exit 1; }
   fi
   ls -lh "$PBF" | awk '{print "       size:",$5}'
 

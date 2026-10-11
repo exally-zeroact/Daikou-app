@@ -99,7 +99,10 @@ jobs:
 
             # 1. ダウンロード
             echo "  [1/4] DL: $URL"
-            curl -fsSL --max-time 600 -o "$PBF" "$URL"
+            # 取り先の一時の失敗（10-01 に poi-update が 503 で丸ごと止まった）は 60秒おきに 3回まで 取り直す。
+            #   --retry-all-errors＝途中で切れた転送・繋がらない時も 取り直す。取れた物が 空なら 止める。
+            curl -fsSL --retry 3 --retry-delay 60 --retry-all-errors --max-time 600 -o "$PBF" "$URL"
+            [ -s "$PBF" ] || { echo "  ✗ 取れた物が 空: $PBF"; exit 1; }
             ls -lh "$PBF"
 
             # 2. 道路抽出
