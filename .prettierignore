@@ -5,3 +5,9 @@
 #   整形すると sha256 が 変わり ★tests/unit/kami-meibo.test.js が 赤★ に なる。
 #   ★直す時は 正本（rakually-test/lib）で 直して 4repo に 配る★（ここで 触らない）
 lib/
+
+# ★生成データは 整形しない★（2026-10-11）
+#   data/ は bot が作る地図・住所・店のデータ。人が手で積む時（店データの月次の成果物 等）に
+#   lint-staged の prettier が 1本 5行の店データを 38089行に 整形し、白名簿の blob と合わなくなった（押す門が止めた）。
+#   eslint は .eslintignore で 前から data/ を 外している。
+data/
