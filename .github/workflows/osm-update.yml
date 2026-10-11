@@ -21,6 +21,11 @@ on:
         required: false
         default: false
         type: boolean
+      kinshi_ha_atarashii:
+        description: '歯の確かめ（白名簿の物を 新しい名前で data/ に写す＝未追跡の新しいファイル1本で 見張りが commit を止めるかを見る・普段は false）'
+        required: false
+        default: false
+        type: boolean
       region:
         description: '対象地方（テスト用に1地方ずつ実行可能）'
         required: true
@@ -204,15 +209,28 @@ jobs:
         if: github.event.inputs.kinshi_ha == 'true'
         run: printf '\n<!-- kinshi-ha -->\n' >> commerce.html
 
+      - name: 歯（手で起動して kinshi_ha_atarashii を入れた時だけ）＝白名簿に載せた物を 新しい名前で data/ に写す
+        if: github.event.inputs.kinshi_ha_atarashii == 'true'
+        run: cp commerce.html data/kinshi-ha-atarashii.html
+
+      # ★積む物を 見張りの前に index へ入れる★（2026-10-11）
+      #   見張りは git ls-files（＝index）の物しか読まない。前は 見張りの後で git add data/ していたので、
+      #   data/ に新しく増えたファイルは 見張りが見ないまま commit されていた。
+      - name: 積む物を 先に index へ入れる（見張りが 新しく増えたファイルも 見る）
+        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true' || github.event.inputs.kinshi_ha_atarashii == 'true'
+        run: |
+          git add data/ tests/replay-mm-worker/fixtures/
+          git status --short data/ tests/replay-mm-worker/fixtures/ | head -20
+
       - name: Node 20（実在の字の見張り用）
-        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true'
+        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true' || github.event.inputs.kinshi_ha_atarashii == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: 実在の字の見張り（commit の前・一覧は secret）
         id: kinshi
-        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true'
+        if: steps.diff.outputs.changed == 'true' || github.event.inputs.kinshi_ha == 'true' || github.event.inputs.kinshi_ha_atarashii == 'true'
         timeout-minutes: 15
         shell: bash
         run: |
@@ -234,12 +252,16 @@ jobs:
           席が中身を見て、tests/kinshi-ji-shiro.txt の件数を直す commit を作ってから、もう一度 回してください（字は ここに 書かない）。"
 
       - name: 自動コミット & プッシュ
-        if: steps.diff.outputs.changed == 'true'
+        # 歯で起動した時は 積まない（見張りが その日だけ 盲でも 歯のファイルを main へ 積まない）
+        if: steps.diff.outputs.changed == 'true' && github.event.inputs.kinshi_ha != 'true' && github.event.inputs.kinshi_ha_atarashii != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # data(道路) と remap済 replay fixture を同一コミットに含める(週次更新で常に整合)
-          git add data/ tests/replay-mm-worker/fixtures/
+          #   index へは 見張りの前に 入れてある。★見張りが見た index の物だけを積む★
+          #   （見張りの後に 変わった・増えた物が あれば 止める＝見ていない物を 押さない）
+          git diff --quiet -- data/ tests/replay-mm-worker/fixtures/ || { echo "::error::見張りの後に data/ か fixture が変わった"; exit 1; }
+          [ -z "$(git ls-files --others --exclude-standard -- data/ tests/replay-mm-worker/fixtures/)" ] || { echo "::error::見張りの後に data/ か fixture に新しいファイルが増えた"; exit 1; }
           git commit -m "chore(roads): OSM自動更新 $(date -u +'%Y-%m-%d') v4都道府県別 + replay fixture remap [skip ci]"
           git push
 
