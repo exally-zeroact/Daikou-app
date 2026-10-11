@@ -3,3 +3,11 @@
 #   実行時に tests/ を読む所は 0・SW の先取り名簿にも 0（対立役が数えた）。
 #   ★これから先の守り★＝過去の配信・git の過去の版には 残る。
 tests/
+
+# ★押す時の門と その道具★（2026-10-11・指示役の決め＝請求書と揃える）
+#   アプリの頁は読まない（実行時に読むのは scripts/zeroact-test-commons/ の下だけ・配信の設定は scripts/vercel-ignore-build.sh）。
+#   ★scripts/ を丸ごと外さない★＝名指しの物だけ。中身に一覧の字は無い（同じ物は公開の GitHub にも在る）。
+.husky/
+.githooks/
+scripts/kinshi-commit-msg.mjs
+scripts/ci-yuka.sh
