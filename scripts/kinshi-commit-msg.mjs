@@ -60,9 +60,14 @@ export function ichiran(text) {
 //   その上の commit の文を 素通りした。押す門（.githooks/pre-push-kinshi.mjs・Castally c30af57）と 同じ形に そろえる。
 //   手元に 取っていない 頭が 在れば「fetch してから」で 止める（全履歴を 見て 偽の赤に しない）。
 //   lines は stdin の「<手元の ref> <手元の sha> <遠くの ref> <遠くの sha>」の行。返すのは 見る commit の sha
+// ★git の 差し替え（replace）を 読まない★＝差し替えると 門は きれいな物を 見て「0件」、押す物は 元の字（10-11 taiketsu 実測）。
+//   押す門（.githooks/pre-push-kinshi.mjs・Castally b3dfea3）と 同じ形。grafts は main で 止める
+const NO_REPLACE = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: '1' });
+
 export function hanni(cwd, lines, url) {
   const git = (args, input) =>
     execFileSync('git', ['-C', cwd, ...args], {
+      env: NO_REPLACE(),
       encoding: 'utf8',
       maxBuffer: 256 * 1024 * 1024,
       input,
@@ -115,6 +120,103 @@ export function hanni(cwd, lines, url) {
     for (const c of list ? list.split('\n') : []) if (!out.includes(c)) out.push(c);
   }
   return out;
+}
+
+// ★押す 注釈付きタグの 文と タグを付けた人の欄を見る★（10-11 指示役の決め・Exally の scripts/pre-push-noreply.sh の形を借りた）
+//   git log は commit まで 剥がして見るので、タグの文と tagger は 誰も見ていなかった（作り物の repo で 字入りのタグが exit 0）。
+//   押す行の 手元の sha が タグの物なら、タグの中身（tagger の名とメール・文）を読む。タグを指すタグも 辿る。全部 通れば true
+export function tagMiru(cwd, lines, words) {
+  const git = (...a) =>
+    execFileSync('git', ['-C', cwd, ...a], {
+      env: NO_REPLACE(),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  let bad = 0;
+  let n = 0;
+  // 署名の塊は 文の 末尾に 在って -----END … SIGNATURE----- で 閉じ、★中が armor の字（base64・頭の行）だけの時★だけ 外す
+  //   （途中の 偽の 頭で 下を 捨てない・閉じた 偽の 塊の 中の 字も 見る）
+  const sigCut = (m) => {
+    const t = m.replace(/\s+$/, '');
+    const s =
+      /(?:^|\n)-----BEGIN ([A-Z ]*)SIGNATURE-----\n([A-Za-z0-9+/=:. \n-]*)\n-----END \1SIGNATURE-----$/.exec(
+        t
+      );
+    return s ? t.slice(0, s.index) : m;
+  };
+  for (const line of lines) {
+    const [ref, sha0, rref] = String(line).trim().split(/\s+/);
+    // 押す ref の 名前（タグ名・枝名）も 公開に 載る＝手元の名と 遠くの名（HEAD:refs/heads/… の形）の 両方を 一覧に 当てる
+    for (const r of [ref, rref]) {
+      if (r && ataru(r.replace(/^refs\/(heads|tags)\//, ''), words) > 0) {
+        bad++;
+        console.error('★押す ref の 名前に 実在の字★（字は出しません・名前を 替えて 押す）');
+      }
+    }
+    let sha = sha0;
+    if (!sha || /^0+$/.test(sha)) continue;
+    let deep = true;
+    // 10段まで 中身を 読む。11段目は 型だけ見る（タグなら 辿り切れていない＝止める）
+    for (let depth = 0; depth <= 10; depth++) {
+      let type;
+      try {
+        type = git('cat-file', '-t', sha).trim();
+      } catch (_) {
+        break;
+      }
+      if (type !== 'tag') {
+        deep = false;
+        break;
+      }
+      if (depth === 10) break;
+      n++;
+      // ★UTF-8 として 読めない 文（Shift_JIS 等）は 止める★＝utf8 で 読むと 字が 化けて 当たらない（10-11 taiketsu 実測）
+      const buf = execFileSync('git', ['-C', cwd, 'cat-file', 'tag', sha], {
+        env: NO_REPLACE(),
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let body;
+      let yomenai = false;
+      try {
+        body = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+      } catch (_) {
+        body = buf.toString('latin1');
+        yomenai = true;
+      }
+      const cut = body.indexOf('\n\n');
+      const head = cut >= 0 ? body.slice(0, cut) : body;
+      const msg = cut >= 0 ? body.slice(cut + 2) : '';
+      const tg = /^tagger (.*) <([^>]*)>/m.exec(head);
+      const which = [
+        (!tg || !mailOk(tg[2])) && 'タグを付けた人のメール',
+        (!tg || !nameOk(tg[1], words)) && 'タグを付けた人の名前',
+        // タグの中の 名前（tag 行）＝ref を 付け替えても 中に 残り、clone した人が 読める
+        ataru((/^tag (.*)$/m.exec(head) || [])[1] || '', words) > 0 && 'タグの中の名前',
+        ataru(sigCut(msg), words) > 0 && 'タグの文',
+        yomenai && 'タグの文（UTF-8 で 読めない）',
+      ].filter(Boolean);
+      if (which.length) {
+        bad++;
+        console.error(
+          `★タグ ${sha.slice(0, 9)} の ${which.join('・')}★（字は出しません・noreply と ふつうの文で 作り直す）`
+        );
+      }
+      const obj = /^object ([0-9a-f]+)/m.exec(head);
+      if (!obj) {
+        deep = false;
+        break;
+      }
+      sha = obj[1];
+    }
+    // 10段で 辿り切れない 入れ子は 止める側（内側を 見ていない）
+    if (deep) {
+      bad++;
+      console.error(`★タグ ${sha.slice(0, 9)} の 入れ子が 深すぎて 中まで 見ていない★`);
+    }
+  }
+  if (bad) return false;
+  if (n) console.log(`✓ 注釈付きタグ ${n} 本の 文と タグを付けた人の欄 0 件`);
+  return true;
 }
 
 // 当たった語の数だけを返す（字は返さない）
@@ -188,24 +290,228 @@ function hanniCases() {
     // ★押す前の門を 本当に 起こす★（$2 を選ぶ → 範囲 → 文と作者の欄を見る の配線＝hanni だけ試しても 守れない）
     //   作り物の一覧（見本太郎）を KINSHI_JI で渡し、子の process の 終わり値を見る（1＝止めた・0＝通した）
     const SELF = fileURLToPath(import.meta.url);
-    const mon = (lines) => {
+    //   止めた時は ★期待した 訳の 字が stderr に 出たか★も 照らす（別の訳で 落ちても 歯が 緑に 見えないように＝2 を返す）
+    const mon = (lines, why, ichiranNoJi = '見本太郎') => {
       try {
         execFileSync(process.execPath, [SELF, '--pre-push', 'o', bare], {
           cwd: w,
           input: lines.join('\n') + '\n',
-          env: { ...process.env, KINSHI_JI: '見本太郎' },
+          env: { ...process.env, KINSHI_JI: ichiranNoJi },
           stdio: ['pipe', 'pipe', 'pipe'],
         });
         return 0;
-      } catch (_) {
-        return 1;
+      } catch (e) {
+        return !why || String(e.stderr || '').includes(why) ? 1 : 2;
       }
     };
     g(w, 'checkout', '-q', '-b', 'kirei', c1);
     const ck = ci(w, 'きれいな点');
     g(w, 'checkout', '-q', c2);
-    out.push(['押す前の門：字の入った新しい枝を 止める', mon(nb(c2, 'x')), 1]);
+    out.push(['押す前の門：字の入った新しい枝を 止める', mon(nb(c2, 'x'), 'の文に 実在の字'), 1]);
     out.push(['押す前の門：きれいな新しい枝は 通す', mon(nb(ck, 'k')), 0]);
+    // 注釈付きタグ（押し済みの c1 に付ける＝範囲は空・タグだけを見る）
+    const tag = (name, msg, mail) => {
+      g(w, '-c', 'user.name=x', '-c', `user.email=${mail}`, 'tag', '-a', name, '-m', msg, c1);
+      return [`refs/tags/${name} ${g(w, 'rev-parse', `refs/tags/${name}`)} refs/tags/${name} ${Z}`];
+    };
+    const NR = '1+x@users.noreply.github.com';
+    out.push([
+      '押す前の門：字入りの文の 注釈付きタグを 止める',
+      mon(tag('t1', '見本太郎 の版', NR), 'タグの文'),
+      1,
+    ]);
+    out.push([
+      '押す前の門：noreply でない人の タグを 止める',
+      mon(tag('t2', 'ふつうの版', 'x@example.com'), 'タグを付けた人のメール'),
+      1,
+    ]);
+    out.push(['押す前の門：きれいな 注釈付きタグは 通す', mon(tag('t3', 'ふつうの版', NR)), 0]);
+    const tagX = (name, msg, mail, target, uname) => {
+      g(
+        w,
+        '-c',
+        `user.name=${uname}`,
+        '-c',
+        `user.email=${mail}`,
+        'tag',
+        '-a',
+        name,
+        '-m',
+        msg,
+        target
+      );
+      return `refs/tags/${name} ${g(w, 'rev-parse', `refs/tags/${name}`)} refs/tags/${name} ${Z}`;
+    };
+    // 新しい commit と 悪いタグを 一緒に 押す（--follow-tags の形）＝範囲が 空でない道でも タグで 止まる
+    g(w, 'checkout', '-q', '-b', 'kirei2', c1);
+    const ck2 = ci(w, 'きれいな点2');
+    g(w, 'checkout', '-q', c2);
+    out.push([
+      '押す前の門：新しい commit と 悪いタグを 一緒に 押すと 止める',
+      mon(
+        [...nb(ck2, 'k2'), tagX('t4', 'ふつうの版', 'x@example.com', ck2, 'x')],
+        'タグを付けた人のメール'
+      ),
+      1,
+    ]);
+    out.push([
+      '押す前の門：タグを付けた人の 名前に 字が あれば 止める',
+      mon([tagX('t5', 'ふつうの版', NR, c1, '見本太郎')], 'タグを付けた人の名前'),
+      1,
+    ]);
+    tagX('t6i', 'ふつうの版', 'x@example.com', c1, 'x');
+    out.push([
+      '押す前の門：タグを指すタグの 内側が 悪ければ 止める',
+      mon([tagX('t6', 'ふつうの版', NR, 't6i', 'x')], 'タグを付けた人のメール'),
+      1,
+    ]);
+    out.push([
+      '押す前の門：タグの 名前に 字が あれば 止める',
+      mon([tagX('見本太郎-v1', 'ふつうの版', NR, c1, 'x')], 'ref の 名前'),
+      1,
+    ]);
+    out.push([
+      '押す前の門：遠くの 枝の 名前に 字が あれば 止める',
+      mon([`refs/heads/kirei ${ck} refs/heads/見本太郎-eda ${Z}`], 'ref の 名前'),
+      1,
+    ]);
+    out.push([
+      '押す前の門：文の 途中の 偽の 署名の 頭で 下を 捨てない',
+      mon(
+        [tagX('t7', 'ふつう\n\n-----BEGIN PGP SIGNATURE-----\n見本太郎', NR, c1, 'x')],
+        'タグの文'
+      ),
+      1,
+    ]);
+    // 名前を 付け替えたタグ（中の tag 行に 字が 残る）
+    g(
+      w,
+      '-c',
+      'user.name=x',
+      '-c',
+      `user.email=${NR}`,
+      'tag',
+      '-a',
+      '見本太郎-moto',
+      '-m',
+      'ふつうの版',
+      c1
+    );
+    g(w, 'update-ref', 'refs/tags/t8', g(w, 'rev-parse', 'refs/tags/見本太郎-moto'));
+    g(w, 'tag', '-d', '見本太郎-moto');
+    out.push([
+      '押す前の門：付け替えたタグの 中の 名前に 字が あれば 止める',
+      mon(
+        [`refs/tags/t8 ${g(w, 'rev-parse', 'refs/tags/t8')} refs/tags/t8 ${Z}`],
+        'タグの中の名前'
+      ),
+      1,
+    ]);
+    out.push([
+      '押す前の門：閉じた 偽の 署名の 塊の 中の 字も 見る',
+      mon(
+        [
+          tagX(
+            't9',
+            'ふつう' +
+              '\n\n' +
+              '-----BEGIN PGP SIGNATURE-----' +
+              '\n' +
+              '見本太郎' +
+              '\n' +
+              '-----END PGP SIGNATURE-----',
+            NR,
+            c1,
+            'x'
+          ),
+        ],
+        'タグの文'
+      ),
+      1,
+    ]);
+    // タグを指すタグ：10段は 中まで 読んで 通す・11段は 辿り切れない＝止める
+    let prev = c1;
+    for (let k = 1; k <= 11; k++) {
+      g(
+        w,
+        '-c',
+        'user.name=x',
+        '-c',
+        `user.email=${NR}`,
+        'tag',
+        '-a',
+        `n${k}`,
+        '-m',
+        'ふつうの版',
+        prev
+      );
+      prev = `n${k}`;
+    }
+    const nline = (k) => [
+      `refs/tags/n${k} ${g(w, 'rev-parse', `refs/tags/n${k}`)} refs/tags/n${k} ${Z}`,
+    ];
+    out.push(['押す前の門：タグを指すタグ 10段は 通す', mon(nline(10)), 0]);
+    out.push(['押す前の門：タグを指すタグ 11段は 止める', mon(nline(11), '入れ子が 深すぎて'), 1]);
+    // 本物の形の 署名（armor に 英字）＝外して 通す（一覧に その英字が 在っても 署名で 偽の赤に しない）
+    const mktag = (name, body) => {
+      const sha = execFileSync('git', ['-C', w, 'mktag'], { input: body, encoding: 'utf8' }).trim();
+      g(w, 'update-ref', `refs/tags/${name}`, sha);
+      return [`refs/tags/${name} ${sha} refs/tags/${name} ${Z}`];
+    };
+    const hd = (name) =>
+      `object ${c1}\ntype commit\ntag ${name}\ntagger x <${NR}> 1700000000 +0000\n\n`;
+    out.push([
+      '押す前の門：本物の形の 署名は 外して 通す',
+      mon(
+        mktag(
+          's1',
+          hd('s1') +
+            'ふつうの版\n-----BEGIN PGP SIGNATURE-----\n\niQEzBAABCAAdZZQQab+/c=\n=Ab1Z\n-----END PGP SIGNATURE-----\n'
+        ),
+        null,
+        'ZZQQ'
+      ),
+      0,
+    ]);
+    // Shift_JIS の 文（見本太郎）＝UTF-8 で 読めない＝止める
+    out.push([
+      '押す前の門：UTF-8 で 読めない タグの文は 止める',
+      mon(
+        mktag(
+          's2',
+          Buffer.concat([
+            Buffer.from(hd('s2')),
+            Buffer.from([0x8c, 0xa9, 0x96, 0x7b, 0x91, 0xbe, 0x98, 0x4e, 0x0a]),
+          ])
+        ),
+        'UTF-8 で 読めない'
+      ),
+      1,
+    ]);
+    // git の 差し替え：字入りの タグ・commit を きれいな物に replace しても 元の字で 止める
+    const rb = tag('rb', '見本太郎 の版', NR);
+    const rc = g(w, 'rev-parse', tag('rc', 'ふつうの版', NR)[0].split(' ')[1]);
+    g(w, 'replace', rb[0].split(' ')[1], rc);
+    out.push(['押す前の門：replace した 字入りの タグも 止める', mon(rb, 'タグの文'), 1]);
+    g(w, 'replace', '-d', rb[0].split(' ')[1]);
+    g(w, 'checkout', '-q', '-b', 'rep', c1);
+    const cd = ci(w, '見本太郎 の差し替え');
+    g(w, 'checkout', '-q', '-b', 'rep2', c1);
+    const cc = ci(w, 'ふつうの差し替え');
+    g(w, 'checkout', '-q', c2);
+    g(w, 'replace', cd, cc);
+    out.push([
+      '押す前の門：replace した 字入りの commit も 止める',
+      mon(nb(cd, 'rp'), 'の文に 実在の字'),
+      1,
+    ]);
+    g(w, 'replace', '-d', cd);
+    // grafts：在れば 止める
+    const gx = g(w, 'rev-parse', '--git-path', 'info/grafts');
+    const gp = /^([A-Za-z]:|[/])/.test(gx) ? gx : join(w, gx);
+    writeFileSync(gp, `${cd}${String.fromCharCode(10)}`);
+    out.push(['押す前の門：grafts が 在れば 止める', mon(nb(ck, 'gf'), 'grafts'), 1]);
+    rmSync(gp, { force: true });
     out.push([
       '範囲：新しい枝は 押す先に無い commit を見る',
       tryHas(() => hanni(w, nb(c2, 'x'), bare), c2),
@@ -342,6 +648,16 @@ function main() {
       return;
     }
     const url = argv[pi + 2] && !argv[pi + 2].startsWith('-') ? argv[pi + 2] : remote;
+    // grafts（.git/info/grafts）は 親を 書き換えて 字入りの commit を 範囲から 消す＝在れば 止める
+    const grafts = execFileSync('git', ['rev-parse', '--git-path', 'info/grafts'], {
+      encoding: 'utf8',
+    }).trim();
+    if (existsSync(grafts)) {
+      console.error(
+        '★押すのを止めた：grafts（.git/info/grafts）が 在る＝親の書き換えで 範囲が 隠れる★'
+      );
+      return;
+    }
     let list;
     try {
       list = hanni(process.cwd(), stdin.split(/\r?\n/).filter(Boolean), url);
@@ -349,16 +665,18 @@ function main() {
       console.error(`★押すのを止めた：${e.message}★`);
       return;
     }
+    // タグは 範囲が 空でも 見る（押し済みの commit に 付けたタグだけを 押す時）
+    const okTag = tagMiru(process.cwd(), stdin.split(/\r?\n/).filter(Boolean), words);
     if (!list.length) {
       console.log('✓ commit の文の 実在の字 0 件（押す先に 無い commit なし）');
-      process.exitCode = 0;
+      if (okTag) process.exitCode = 0;
       return;
     }
     const revs = ['--no-walk', '--stdin'];
     const input = list.join('\n') + '\n';
     const okMsg = miru(revs, words, true, input);
     const okMail = mailMiru(revs, words, input);
-    if (okMsg && okMail) process.exitCode = 0;
+    if (okMsg && okMail && okTag) process.exitCode = 0;
     return;
   }
   if (file) {
@@ -405,6 +723,7 @@ export function nameOk(name, words) {
 }
 function mailMiru(revs, words, input) {
   const out = execFileSync('git', ['log', '--format=%H%x00%ae%x00%ce%x00%an%x00%cn', ...revs], {
+    env: NO_REPLACE(),
     encoding: 'utf8',
     input,
     maxBuffer: 64 * 1024 * 1024,
@@ -439,6 +758,7 @@ function mailMiru(revs, words, input) {
 function miru(revs, words, zeroOk, input) {
   // ★出しの上限を広げる★（既定 1MB では 全履歴を見ると ENOBUFS で落ちた＝赤だが 何も見ていない）
   const out = execFileSync('git', ['log', '--format=%H%x00%B%x01', ...revs], {
+    env: NO_REPLACE(),
     encoding: 'utf8',
     input,
     maxBuffer: 512 * 1024 * 1024,

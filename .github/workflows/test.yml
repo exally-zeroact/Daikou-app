@@ -21,11 +21,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: 門の自己確認
-        # 全部 通って、しかも 25 組 以上の 時だけ 緑（0/0・組が 減った を 止める・床は scripts/ci-yuka.sh）
+        # 全部 通って、しかも 43 組 以上の 時だけ 緑（0/0・組が 減った を 止める・床は scripts/ci-yuka.sh）
         shell: bash
         run: |
           node scripts/kinshi-commit-msg.mjs --self-test | tee msg-self.out
-          sh scripts/ci-yuka.sh msg-self.out 25
+          sh scripts/ci-yuka.sh msg-self.out 43
       - name: この push・PR の commit の文を見る
         shell: bash
         env:
