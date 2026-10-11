@@ -14873,9 +14873,10 @@
         //   ★事務所で 後から 入れた 期間の割増・重なり・下限などを 古い物で 上書き★。
         //   ここで 残すのは 端末ごとの 追加料金・値引き だけ。
         function saveAll() {
-          saveExtras();
-          saveDiscounts();
-          showToast('保存しました');
+          // ★両方 書けた 時だけ「保存しました」★（10-11・前は 失敗の 知らせを 上書きしていた）
+          const a = saveExtras();
+          const b = saveDiscounts();
+          if (a && b) showToast('保存しました');
         }
         function showToast(msg) {
           const t = $('_fare_toast');
