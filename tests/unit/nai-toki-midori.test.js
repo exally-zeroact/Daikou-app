@@ -88,7 +88,7 @@ function kazoeru(dir, deta) {
 //   blob の id が 下と ★完全に 同じ時だけ★ 数えない（1字でも 変われば また 数える＝赤）。
 //   この見張りは 自分の --self-test（29本・壊した時に 赤に なるか）を CI で 毎回 走らせている。
 const KARIMONO = {
-  'tests/kinshi-ji.test.mjs': 'bb817afdf95667ffde117ee5dc2701389b82193e', // Castally の nomiya-app d6b3382
+  'tests/kinshi-ji.test.mjs': 'f4aa3cebe77f8783d9cc991f905f02409310d65e', // Castally の nomiya-app c30af57
 };
 function karimonoKa(rel) {
   const want = KARIMONO[rel];

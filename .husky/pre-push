@@ -6,9 +6,10 @@
 #   (含めると全 push がブロックされてしまうため・lint fix 完了後に check:all に置換予定)。
 # ★2026-10-10★ push の前に まだどの遠くにも無い commit の文を全部見る（実在の字と 家の札）。
 #   cherry-pick・rebase・--no-verify は commit-msg の門を通らない＝公開の前の 最後の関所。
-# ★2026-10-11★ 押す commit の 中身（git が 持つ 字）にも 実在の 字が 無いかを 見る（Castally の nomiya-app d6b3382 の 門を 逐語で）。
+# ★2026-10-11★ 押す commit の 中身（git が 持つ 字）にも 実在の 字が 無いかを 見る（Castally の nomiya-app c30af57 の 門を 逐語で）。
 #   見張りの 本体と 指紋の 紙は 押す 頭の 木の 物で 走る＝手元で 本体を 弱めても 赤。標準入力は 1回しか 読めないので 先に 取る。
 input=$(cat)
 printf '%s\n' "$input" | node scripts/kinshi-commit-msg.mjs --pre-push "$@" || exit 1
-printf '%s\n' "$input" | node .githooks/pre-push-kinshi.mjs || exit 1
+#   押す門には "$@"（$1＝押す先の遠くの名・$2＝その道）を渡す＝新しい枝の範囲を 押す先の今の頭から決める（c30af57 から）。
+printf '%s\n' "$input" | node .githooks/pre-push-kinshi.mjs "$@" || exit 1
 npm run test && npm run test:replay

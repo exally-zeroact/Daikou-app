@@ -570,9 +570,18 @@ export function isBiff12(buf, recs) {
 }
 /* 人の 名前を 持つ BIFF12 の 記録（コメントの 作者・ファイル共有）の 中の 字（XLWideString＝字数 4 バイト＋UTF-16LE）を 拾う */
 /* 実 Excel の 個人用ビュー（0x18d）の 固い 欄＝16 バイト目の 4 バイト（01 00 00 00）＋2 バイト が
-   XLWideString に 見える（値は シート見出しの 幅 等で 変わる）。★値で なく 置き場所で 外す★ */
-/* 外すのは 16〜21 バイト目から 始まる 塊（固い 欄・固い 欄と 字数欄の 重なり）。名前は その 後ろ */
-const isViewFixedField = (type, o) => type === 0x18d && o >= 16 && o <= 21;
+   XLWideString に 見える（2 バイトの 値は シート見出しの 幅 等で 変わる）。★値で なく 置き場所と 形で 外す★
+   ★外すのは 形が 合う（16〜19 バイト目が 01 00 00 00）時の 20〜21 バイト目の 値 だけ（0 に 伏せて 読む）★。
+   それ 以外の 塊は 16〜21 バイト目から 始まっても 名前と して 見る。
+   （前の 版は 16〜21 バイト目から 始まる 塊を 長さに 関係なく 外していた＝そこに 置いた 本物の 名前が 緑・
+     10-11 アマかせ taiketsu 実測・16/18/21 の 歯。「固い 欄に 収まる 塊 だけ 外す」では 値 0x0320 等で
+     21 バイト目からの 重なりが 字に 見えて 偽の 赤＝伏せる 形に した） */
+const viewData = (type, data) => {
+  if (type !== 0x18d || data.length < 22 || data.readUInt32LE(16) !== 1) return data;
+  const d = Buffer.from(data);
+  d.fill(0, 20, 22);
+  return d;
+};
 export const BIFF12_PERSON = new Map([
   [0x278, "xlsb の コメントの 作者"],
   [0x224, "xlsb の ファイル共有の 名前"],
@@ -890,9 +899,9 @@ export function scan({ root, files, words, src = localSource(root) }) {
                どれか 1つでも 空か 見本で なければ 赤 */
             /* 揃えて 空に なる 塊（空白 だけ 等）は 名前と して 数えない。NUL 入りの 塊は 数える（本物の 名前を 隠せる） */
             const printable = (x) => /[^\u0000-\u001f]/.test(x) && normJa(x) !== "";
-            const skip = (o) => isViewFixedField(rc.type, o);
-            const tail = wideStrings(rc.data, true, skip).filter(printable);
-            const mid = wideStrings(rc.data, false, skip).filter(printable);
+            const data = viewData(rc.type, rc.data);
+            const tail = wideStrings(data, true).filter(printable);
+            const mid = wideStrings(data, false).filter(printable);
             const ws = [...new Set([...tail, ...mid])].sort((a, b) => b.length - a.length);
             const odd = ws.find((x) => !OK_NAMES.has(normJa(x)));
             if (ws.length) checkName(label, BIFF12_PERSON.get(rc.type), odd ?? ws[0]);
@@ -2516,7 +2525,8 @@ function selfTest() {
         ]);
         must(go([put(nm + ".xlsb", z)]).code === 1, "NUL 入りの 名前が 緑（" + nm + "）");
       }
-      /* 外す 範囲の 境目（0x18d の 16〜21 バイト目 だけ）・型（0x18d だけ）を 押さえる 歯 */
+      /* 外す 範囲の 境目（0x18d の 形が 合う 時の 20〜21 バイト目 だけ）・型（0x18d だけ）を 押さえる 歯。
+         16・18・21 は 範囲の 中から 始まる 名前（前の 版で 緑だった） */
       const at = (t1, t2, off, name) => {
         const w = (t) => {
           const b = Buffer.alloc(4 + 2 * t.length);
@@ -2533,6 +2543,9 @@ function selfTest() {
       for (const [nm, t1, t2, off, name] of [
         ["b22", 0x8d, 0x03, 22, "他人"],
         ["b15", 0x8d, 0x03, 15, "他人"],
+        ["b16", 0x8d, 0x03, 16, "他人"],
+        ["b18", 0x8d, 0x03, 18, "他人"],
+        ["b21", 0x8d, 0x03, 21, "他人"],
         ["b224", 0xa4, 0x04, 16, "他人"],
         ["b18dnul", 0x8d, 0x03, 22, "田" + String.fromCharCode(0) + "中"],
       ])
@@ -2540,6 +2553,29 @@ function selfTest() {
           go([put(nm + ".xlsb", at(t1, t2, off, name))]).code === 1,
           "外す 範囲の 外の 名前が 緑（" + nm + "）"
         );
+      /* 形の 合う 固い 欄（01 00 00 00 ＋ 幅）の すぐ 後ろ（22 バイト目）の 名前は 赤 */
+      for (const v of [
+        [0x58, 0x02],
+        [0x20, 0x03],
+      ]) {
+        const head = Buffer.alloc(22);
+        Buffer.from([1, 0, 0, 0, v[0], v[1]]).copy(head, 16);
+        const w = (t) => {
+          const b = Buffer.alloc(4 + 2 * t.length);
+          b.writeUInt32LE(t.length, 0);
+          b.write(t, 4, "utf16le");
+          return b;
+        };
+        const body = Buffer.concat([head, w("他人"), w("見本")]);
+        const z = makeZip([
+          ["docProps/core.xml", core("見本")],
+          ["xl/workbook.bin", Buffer.concat([Buffer.from([0x8d, 0x03, body.length]), body])],
+        ]);
+        must(
+          go([put("b22v" + v[0] + ".xlsb", z)]).code === 1,
+          "固い 欄の すぐ 後ろの 名前が 緑（" + v + "）"
+        );
+      }
       /* 途中に 本物の 名前・終わりに 見本（今の 本番で 赤＝後戻りを 止める 歯） */
       const wsb = (txt) => {
         const b = Buffer.alloc(4 + 2 * txt.length);
