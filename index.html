@@ -12717,6 +12717,15 @@
 
         function _showToast(msg) {
           const t = document.getElementById('_st_settingsToast');
+          // ★設定画面が 閉じている 時は 走行画面の #toast へ★（10-12）
+          //   この 箱は #overlaySettings の 中＝閉じていると 見えない。業務終了の「事務所に送りました」・
+          //   便の 直しの「直しました」は 設定画面の 外で 呼ばれ、一度も 見えていなかった。
+          const ov = document.getElementById('overlaySettings');
+          const hiraiteiru = !!ov && ov.getClientRects().length > 0;
+          if ((!t || !hiraiteiru) && typeof window.showToast === 'function') {
+            window.showToast(msg);
+            return;
+          }
           if (!t) return;
           t.textContent = msg;
           t.classList.add('show');
