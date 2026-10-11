@@ -8350,27 +8350,34 @@
             });
           }
           // 走行状態をlocalStorageに保存（リロード復元用）
-          const ms = Meter.getState();
-          const mmStats = typeof Meter.getMMStats === 'function' ? Meter.getMMStats() : null;
-          localStorage.setItem(
-            'daikou_driving_state',
-            JSON.stringify({
-              distance_m: s.distance_m,
-              fare_yen: total,
-              saved_at: Date.now(),
-              last_lat: ms.last_gps ? ms.last_gps.lat : null,
-              last_lng: ms.last_gps ? ms.last_gps.lng : null,
-              last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
-              last_speed_kmh: ms.last_speed_kmh || 0,
-              last_gps_at: ms.last_timestamp || null,
-              // ★ B-3 (2026-05-19): elapsed_sec 保存 (= 代行中タスクキル復帰で経過時間継続)
-              elapsed_sec: s.elapsed_sec || 0,
-              // F2 (2026-05-09): MM stats を併せて保存・復元時の動作確認用
-              mm_distance_m: mmStats ? mmStats.mm_distance_m : 0,
-              distance_source: mmStats ? mmStats.distance_source : null,
-              mm_snap_rate: mmStats ? mmStats.snap_rate : 0,
-            })
-          );
+          // ★書けない 時（端末の 保存場所が 一杯 等）は ここで 捕まえる★（10-11）
+          //   前は 捕まえず 毎秒10回 例外が 上がっていた。運転手への 知らせは 同じ 時に 落ちる
+          //   Business.save の onHozonShippai（1業務に1回）が 出す＝ここでは 新しく 出さない。
+          try {
+            const ms = Meter.getState();
+            const mmStats = typeof Meter.getMMStats === 'function' ? Meter.getMMStats() : null;
+            localStorage.setItem(
+              'daikou_driving_state',
+              JSON.stringify({
+                distance_m: s.distance_m,
+                fare_yen: total,
+                saved_at: Date.now(),
+                last_lat: ms.last_gps ? ms.last_gps.lat : null,
+                last_lng: ms.last_gps ? ms.last_gps.lng : null,
+                last_altitude: ms.last_gps ? ms.last_gps.altitude : null,
+                last_speed_kmh: ms.last_speed_kmh || 0,
+                last_gps_at: ms.last_timestamp || null,
+                // ★ B-3 (2026-05-19): elapsed_sec 保存 (= 代行中タスクキル復帰で経過時間継続)
+                elapsed_sec: s.elapsed_sec || 0,
+                // F2 (2026-05-09): MM stats を併せて保存・復元時の動作確認用
+                mm_distance_m: mmStats ? mmStats.mm_distance_m : 0,
+                distance_source: mmStats ? mmStats.distance_source : null,
+                mm_snap_rate: mmStats ? mmStats.snap_rate : 0,
+              })
+            );
+          } catch (_) {
+            /* 刻みは 止めない */
+          }
         }, 100);
       }
 
