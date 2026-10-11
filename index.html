@@ -10630,9 +10630,12 @@
             Meter.setElapsedAccumulated(r.elapsed_accumulated_sec);
           }
           // ★黙って金額を戻さない★ 運転手が目で見て、違えば止められるようにする
+          //   ★出す 先は 走行画面の #toast（showToastLong・同じ script 塊の 関数宣言＝ここで 呼べる）★（10-11）
+          //   前は window._showToast を 呼んでいたが、置かれるのは この後に 走る 設定画面の 塊で
+          //   ここでは いつも undefined、箱も 設定画面の 中（_st_settingsToast）＝一度も 出ていなかった。
           if (r.fare_restored && r.notice) {
             try {
-              if (typeof window._showToast === 'function') window._showToast(r.notice);
+              if (typeof showToastLong === 'function') showToastLong(r.notice);
             } catch (_) {
               /* 出せなくても業務は止めない */
             }

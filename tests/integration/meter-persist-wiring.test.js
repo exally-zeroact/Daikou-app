@@ -92,7 +92,7 @@ describe('★黙って金額を戻さないこと★', () => {
     const i = IDX.indexOf('function _restoreMeterSnapshot()');
     const body = IDX.slice(i, i + 1800);
     expect(body).toContain('r.fare_restored');
-    expect(body, '★金額が戻ったのに何も出ない★').toContain('_showToast(r.notice');
+    expect(body, '★金額が戻ったのに何も出ない★').toContain('showToastLong(r.notice');
   });
 });
 
