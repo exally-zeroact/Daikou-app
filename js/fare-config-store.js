@@ -114,6 +114,10 @@
   //   ★在る値は 1つも 書き換えません★（勝手に 料金を 変えない）
   function totonoeru(raw) {
     const out = _utsushi(raw) || {};
+    // ★段階を 使うかの 印が 無い 古い 料金表は、段階が 在れば 使う★（設定画面の ateru と 同じ 考え・10-11）
+    //   既定の false で 埋めると、印の 無い 古い 料金表の 段階が 計算から 消える（お金が 変わる）
+    if (out.tiersEnabled === undefined || out.tiersEnabled === null)
+      out.tiersEnabled = Array.isArray(out.tiers) && out.tiers.length > 0;
     Object.keys(KITEI).forEach((k) => {
       if (out[k] === undefined || out[k] === null) out[k] = _utsushi(KITEI[k]);
     });

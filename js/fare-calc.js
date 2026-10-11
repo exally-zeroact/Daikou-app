@@ -162,7 +162,9 @@ const FareCalc = (() => {
     let fare = 0;
 
     // Step 1: 距離料金
-    if (Array.isArray(config.tiers) && config.tiers.length > 0) {
+    // ★「段階を 使う」を 外したら 段階を 使わない★（10-11 司さん「外したら 外すやろが」）
+    //   前は 印を 見ずに 段階で 計算していた（設定画面の 見本は 印を 見ていた＝見本と メーターが 食い違う）
+    if (config.tiersEnabled !== false && Array.isArray(config.tiers) && config.tiers.length > 0) {
       // 新形式: tiers 配列 走査
       if (distanceM <= config.base_distance_m) {
         fare = config.base_fare;

@@ -14083,7 +14083,8 @@
           ire('上がる ごとの 距離', m(c.add_distance_m));
           ire('端数の 丸め', (c.rounding || 1) + '円ごと');
 
-          if (Array.isArray(c.tiers) && c.tiers.length) {
+          // ★印が 偽なら 段階を 出さない★＝メーター（fare-calc の keisan）と 揃える（10-11）
+          if (c.tiersEnabled !== false && Array.isArray(c.tiers) && c.tiers.length) {
             c.tiers.forEach((t, i) => {
               ire(
                 '段階 ' + (i + 1),
