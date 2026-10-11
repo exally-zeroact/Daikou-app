@@ -77,7 +77,14 @@
 
         distance_m: _num(meterState.distance_m) || 0,
         business_distance_m: _num(meterState.business_distance_m) || 0,
-        elapsed_accumulated_sec: _num(meterState.elapsed_accumulated_sec) || 0,
+        // ★経過時間は「止めた 分＋今 走っている 分」を 書く★（10-11）
+        //   meter.js の elapsed_accumulated_sec に 足されるのは stop と 業務終了の 時だけ（単位は ミリ秒）。
+        //   止めずに 走っている 代行では 0 の ままで、戻すと 経過時間が 0 から 数え直しに なっていた。
+        //   getState() の elapsed_sec（秒・今 走っている 分を 含む）の 方が 大きければ そちらを 書く。
+        elapsed_accumulated_sec: Math.max(
+          _num(meterState.elapsed_accumulated_sec) || 0,
+          (_num(meterState.elapsed_sec) || 0) * 1000
+        ),
 
         fare_yen: _num(meterState.fare_yen) || 0,
         wait_sec: _num(meterState.wait_sec) || 0,

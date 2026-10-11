@@ -10621,9 +10621,11 @@
           if (typeof Meter.setBusinessDistance === 'function' && r.business_distance_m != null) {
             Meter.setBusinessDistance(r.business_distance_m);
           }
+          // ★今の 経過時間より 短い 控えでは 上書きしない★（10-11・0 で 上書きして 数え直しに なっていた）
           if (
             typeof Meter.setElapsedAccumulated === 'function' &&
-            r.elapsed_accumulated_sec != null
+            r.elapsed_accumulated_sec != null &&
+            r.elapsed_accumulated_sec >= (Number(cur.elapsed_sec) || 0) * 1000
           ) {
             Meter.setElapsedAccumulated(r.elapsed_accumulated_sec);
           }
