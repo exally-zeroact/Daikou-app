@@ -162,6 +162,23 @@ jobs:
           KINSHI_JI: ${{ secrets.KINSHI_JI }}
           KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
 
+      # ★見張りが赤の時は 作った店データを 成果物に残す★（2026-10-11）
+      #   店データは 毎月 中身が変わる＝白名簿の blob が ずれて 毎月 赤になる（10-11 テスト線の手での起動で実測）。
+      #   前は 作った物を 捨てていたので、席が 中身を見て 白名簿を直す 材料が 無かった。
+      #   席の手順：成果物を取り寄せ → テスト線の data/ に置いて 見張りを回す → 当たりが 公の地図データの 偶然の一致だけか 目で見る
+      #   → 白名簿の 件数と blob を直して ★成果物の データと一緒に 積む★（字は 成果物・issue に 書かない＝見張りの出しは 道と 何番目か だけ）。
+      #   ★回し直さない★＝作るたびに 時刻（generated）が入るので、回し直すと blob が変わり また赤になる（scripts/build-poi.js）。
+      - name: 見張りが赤＝作った店データを 成果物に残す（席が 中身を見て 白名簿を直す 材料）
+        if: failure() && steps.kinshi.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: poi-data-kinshi-aka-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            data/poi-*.js
+            kinshi.out
+          retention-days: 14
+          if-no-files-found: error
+
       - name: 見張りが赤＝commit しないで 知らせる（issue）
         if: failure() && steps.kinshi.outcome == 'failure'
         env:
@@ -171,7 +188,9 @@ jobs:
             --title "★${{ github.workflow }}：実在の字の見張りが赤＝commit していません★" \
             --body "bot の更新の中で 実在の字の見張りが 赤になったので、commit と push をしていません。
           記録：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          席が中身を見て、tests/kinshi-ji-shiro.txt の件数を直す commit を作ってから、もう一度 回してください（字は ここに 書かない）。"
+          作った店データは この run の 成果物 poi-data-kinshi-aka-${{ github.run_id }}-${{ github.run_attempt }}（14日）に 残してあります。
+          席が 成果物の data/poi-*.js を data/ に置いて 見張りを回し、中身を見て tests/kinshi-ji-shiro.txt の件数と blob を直し、データと一緒に 積んでください（字は ここに 書かない）。
+          ★回し直さない★＝作るたびに 時刻が入るので、回し直すと blob が変わり また赤になります。"
 
       - name: 自動コミット & プッシュ
         if: steps.diff.outputs.changed == 'true'
