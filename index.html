@@ -10014,7 +10014,7 @@
             (item, i) =>
               `<div class="modal-item" onclick="addExtra(${i})">
       <span class="modal-item-name">${item.name}</span>
-      <span class="modal-item-price">+¥${item.amount.toLocaleString()}</span>
+      <span class="modal-item-price">${Number(item.amount) < 0 ? '使えません（値引きで登録）' : '+¥' + (Number(item.amount) || 0).toLocaleString()}</span>
     </div>`
           )
           .join('');
@@ -10028,7 +10028,14 @@
 
       function addExtra(i) {
         const items = JSON.parse(localStorage.getItem('daikou_extras') || '[]');
-        extras.push({ name: items[i].name, amount: items[i].amount });
+        // ★マイナスの 追加料金は 足さずに 知らせる★（黙って 0 に しない＝お金は 止めて 警告・10-11）
+        if (!items[i]) return;
+        const v = Number(items[i].amount) || 0;
+        if (v < 0) {
+          showToast('マイナスの 追加料金は 使えません（値引きで 登録してください）');
+          return;
+        }
+        extras.push({ name: items[i].name, amount: v });
         closeExtraModal();
       }
 
@@ -10041,7 +10048,10 @@
 
       // ─── 値引き (追加料金と同型・合計から減算・2026-07-25 司さん要望) ───
       function _discountTotal() {
-        return Array.isArray(discounts) ? discounts.reduce((a, b) => a + (b.amount || 0), 0) : 0;
+        // ★値引きは 必ず 下げる★（-500 と 打っても 500円 下げる・10-11 司さん「値引きで なんで 上がるんど」）
+        return Array.isArray(discounts)
+          ? discounts.reduce((a, b) => a + Math.abs(Number(b.amount) || 0), 0)
+          : 0;
       }
       function openDiscountModal() {
         if (blockIfSensorNotGranted()) return;
@@ -10052,7 +10062,7 @@
             (item, i) =>
               `<div class="modal-item" onclick="addDiscount(${i})">
       <span class="modal-item-name">${item.name}</span>
-      <span class="modal-item-price">-¥${(item.amount || 0).toLocaleString()}</span>
+      <span class="modal-item-price">-¥${Math.abs(Number(item.amount) || 0).toLocaleString()}</span>
     </div>`
           )
           .join('');
@@ -10064,7 +10074,8 @@
       }
       function addDiscount(i) {
         const items = JSON.parse(localStorage.getItem('daikou_discounts') || '[]');
-        if (items[i]) discounts.push({ name: items[i].name, amount: items[i].amount });
+        if (items[i])
+          discounts.push({ name: items[i].name, amount: Math.abs(Number(items[i].amount) || 0) });
         closeDiscountModal();
       }
       function addCustomDiscount() {
@@ -13516,7 +13527,12 @@
                       ')"><span class="modal-item-name">' +
                       _esc(x.name) +
                       '</span><span class="modal-item-price">' +
-                      _yen(x.amount) +
+                      // 前に 保存した 負の 見本も 効く 額で 出す（値引きは 大きさ・マイナスの 追加料金は「使えません」）
+                      (isD
+                        ? _yen(Math.abs(Number(x.amount) || 0))
+                        : Number(x.amount) < 0
+                          ? '使えません（値引きで登録）'
+                          : _yen(Number(x.amount) || 0)) +
                       '</span></div>'
                   )
                   .join('')
@@ -13541,8 +13557,14 @@
             _cur.customer = { customer_id: x.customer_id, customer_name: x.name };
             _cur.customerNote = null; // 会社を変えたら誰が乗ったかは消す（前の客のが残ったら事故）
           } else if (_pickMode === 'discount') {
-            _cur.discounts.push({ name: x.name, amount: Number(x.amount) || 0 });
+            // ★値引きは 必ず 下げる・追加料金は 下げない★（10-11）
+            _cur.discounts.push({ name: x.name, amount: Math.abs(Number(x.amount) || 0) });
           } else {
+            if ((Number(x.amount) || 0) < 0) {
+              if (typeof showToast === 'function')
+                showToast('マイナスの 追加料金は 使えません（値引きで 登録してください）');
+              return;
+            }
             _cur.extras.push({ name: x.name, amount: Number(x.amount) || 0 });
           }
           window._te_pickClose();
@@ -14196,7 +14218,7 @@
                 '<div class="extra-item-row">' +
                 '<input class="extra-amount" type="number" value="' +
                 (item.amount || '') +
-                '" placeholder="0" inputmode="numeric" oninput="window._fare_setExtraAmount(' +
+                '" placeholder="0" min="0" inputmode="numeric" oninput="window._fare_setExtraAmount(' +
                 i +
                 ',this.value)">' +
                 '<span class="extra-unit">円</span>' +
@@ -14252,8 +14274,8 @@
                 ',this.value)">' +
                 '<div class="extra-item-row">' +
                 '<input class="extra-amount" type="number" value="' +
-                (item.amount || '') +
-                '" placeholder="0" inputmode="numeric" oninput="window._fare_setDiscountAmount(' +
+                (item.amount ? Math.abs(Number(item.amount) || 0) : '') +
+                '" placeholder="0" min="0" inputmode="numeric" oninput="window._fare_setDiscountAmount(' +
                 i +
                 ',this.value)">' +
                 '<span class="extra-unit">円</span>' +
@@ -14727,7 +14749,15 @@
           saveExtras();
         };
         window._fare_setExtraAmount = function (i, v) {
-          if (extraItems[i]) extraItems[i].amount = parseInt(v, 10) || 0;
+          // ★マイナスの 追加料金は 入れずに 知らせる★（黙って 0 に しない・10-11）
+          //   「-」だけ 打った 途中は 欄の 値が 空＝保存しない（途中で 0 を 保存しない）
+          if (String(v).trim() === '') return;
+          const n = parseInt(v, 10) || 0;
+          if (n < 0) {
+            showToast('マイナスの 追加料金は 使えません（値引きで 登録してください）');
+            return;
+          }
+          if (extraItems[i]) extraItems[i].amount = n;
           saveExtras();
         };
         window._fare_addDiscountItem = addDiscountItem;
@@ -14737,7 +14767,8 @@
           saveDiscounts();
         };
         window._fare_setDiscountAmount = function (i, v) {
-          if (discountItems[i]) discountItems[i].amount = parseInt(v, 10) || 0;
+          // ★値引きは 打った数の 大きさで 持つ★（-500 も 500円の 値引き・10-11）
+          if (discountItems[i]) discountItems[i].amount = Math.abs(parseInt(v, 10) || 0);
           saveDiscounts();
         };
       })();
