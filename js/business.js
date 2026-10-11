@@ -58,6 +58,13 @@ const Business = (function () {
     //   ★これも 保存・復元・初期化の 全部に 通すこと★（漏れると 開き直しで 差が 出せない）。
     mienai_base: null,
   };
+  // ★前の 業務で 履歴に 積めなかった 報告＝持ち越し（2026-10-11）★
+  //   ★state に 入れない★（state は 1秒ごとに 丸ごと 書くので、入れると 満杯の 端末で 今夜の 保存が
+  //   先に 転び、開き直すと 途中の 件数の 晩が 事務所へ 届く＝taiketsu が 本物の business.js で 測った）。
+  //   別の 鍵（MAE_KEY）に、業務開始と 業務終了の 時だけ 書く。load() で 戻す。
+  let _mae = [];
+  let _maeKaketa = true; // 持ち越しを MAE_KEY に 書けているか（書けて いなければ 閉じると 消える）
+  let _maeYomenai = null; // 読めず 退けも できなかった MAE_KEY の 字（在る 間は 鍵に 触らない＝消さない）
 
   // ★設計変更宣言 (2026-05-14・業務リセット仕様変更):
   //   旧: 3 時間猶予の RESUME_GRACE_MS / canResume / checkAutoAbandon で時刻ベース管理
@@ -73,6 +80,8 @@ const Business = (function () {
   // ★2026-08-08: まだ上がっていない業務を捨てないための道具★
   const SYNCED_KEY = 'dk_synced_shifts'; // job-sync が「送れた」印を残す所（読むだけ）
   const DROPPED_KEY = 'dk_history_dropped'; // 上限を超えて捨てた件数（黙って消さない）
+  const BROKEN_KEY = 'dk_business_history_kowareta'; // 読めなかった 履歴の 字の 退け先（消さない）
+  const MAE_KEY = 'dk_business_mae_tsumenai'; // 履歴に 積めなかった 前の 業務の 報告（持ち越し）
   const UNSENT_KEEP_MAX = 200; // 30日を過ぎても残す「未送信」の上限
   const RETENTION_MS = RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
@@ -131,12 +140,17 @@ const Business = (function () {
       if (typeof dlog === 'function') dlog('[Business] already active');
       return false;
     }
-    // ★設計変更宣言 (2026-05-14): 旧 checkAutoAbandon(true) を abandon() に置換
-    //   前業務が ended 状態 (= 再開可能 limbo) なら履歴に push してから新業務開始。
-    //   abandon() は内部で _appendHistory + state リセットを実施。
-    if (state.ended) {
-      abandon();
+    // ★前の 業務を 履歴に 積めなくても 消さずに 持ち越して 始める (2026-10-11)★
+    //   前は 積めなくても state を 消して 始めた＝その晩の 業務が 事務所へ 上がらずに 消えた。
+    //   止めて 始めさせないと、いつも 書けない 端末では 毎晩 働けなくなる（行き止まり）。
+    //   ⇒ 積めなかった 報告は 持ち越し（_mae・MAE_KEY）、積めた 時に 外す（呼び手が 画面で 知らせる）。
+    const mae = _mae.slice();
+    if (state.ended && state.start_time && !state.history_pushed) {
+      const maeReport = getReport();
+      if (_appendHistory(maeReport) !== true) mae.push(maeReport);
     }
+    _maeOku(_maeWoTsumu(mae));
+    _hozonShippaiShiraseta = false; // 新しい 業務＝保存の 失敗を もう一度 知らせられる
     const now = Date.now();
     state = {
       active: true,
@@ -201,6 +215,15 @@ const Business = (function () {
   function end() {
     if (!state.active && !state.start_time) return null;
     if (state.ended && state.history_pushed) return getReport(); // 2回押しても増やさない
+    // ★既に 終えて 積めていない 業務は ★時刻を 変えずに★ 積み直すだけ (2026-10-11)★
+    //   前は 2回目の end() が end_time を 今に 書き直し、日報画面に いた 分だけ
+    //   事務所へ 送る 勤務時間（elapsed_sec）が 伸びた。
+    if (state.ended) {
+      state.history_pushed = _appendHistory(getReport()) === true;
+      _maeOku(_maeWoTsumu(_mae));
+      save();
+      return getReport();
+    }
     const now = Date.now();
     state.active = false;
     state.ended = true;
@@ -226,6 +249,7 @@ const Business = (function () {
       //   ⇒ ★積めなかったら 印を 立てない★＝次の abandon() が もう一度 試す。
       state.history_pushed = _appendHistory(report) === true;
     }
+    _maeOku(_maeWoTsumu(_mae)); // 持ち越しも 積み直す
     save();
     if (typeof dlog === 'function') dlog('[Business] end (history saved / resumable)');
     return report;
@@ -288,7 +312,12 @@ const Business = (function () {
     // ★end() が既に積んでいれば積み直さない (2026-08-03)★ これが二重 push の唯一の防波堤。
     if (state.start_time && !state.history_pushed) {
       const report = getReport();
-      _appendHistory(report);
+      // ★積めなかったら state を 消さずに false (2026-10-11)★
+      //   前は 返事を 見ずに 消した＝積めない 晩の 業務が 事務所へ 上がらずに 黙って 消えた。
+      if (_appendHistory(report) !== true) {
+        save();
+        return false;
+      }
     }
     state = {
       active: false,
@@ -335,6 +364,11 @@ const Business = (function () {
   //       diff > 0 なら state.total_distance_m += diff
   //   これにより MM 道路距離 (= 課金距離と一致) が業務集計にも反映される。
   let _lastGpsSaveAt = 0;
+  // ★保存の 失敗を 画面へ 知らせる 受け口 (2026-10-11)★
+  //   save() は 1秒ごとに 呼ばれるので、知らせるのは ★1つの 業務で 1回だけ★（start() で 戻す）。
+  //   前は 空き不足を dlog だけで 飲み、アプリを 閉じると 今の 業務が 黙って 消えた。
+  let _hozonShippaiFn = null;
+  let _hozonShippaiShiraseta = false;
   const GPS_SAVE_INTERVAL_MS = 1000;
   let _lastDebugLogAt = 0;
 
@@ -1020,7 +1054,13 @@ const Business = (function () {
   // 取得・集計
   // ─────────────────────────────────────────
   function getState() {
-    return { ...state, trips: [...state.trips] };
+    return {
+      ...state,
+      trips: [...state.trips],
+      mae_tsumenai: _mae.slice(),
+      // ★持ち越しが 手元に しか 無い（書けた 結果で 決める・見込みの 空きで 決めない）★
+      mae_kakenai: _mae.length > 0 && !_maeKaketa,
+    };
   }
 
   // 日報集計
@@ -1118,12 +1158,101 @@ const Business = (function () {
   function save() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return true;
     } catch (e) {
       if (typeof dlog === 'function') dlog('[Business] save error: ' + e.message);
+      if (!_hozonShippaiShiraseta && typeof _hozonShippaiFn === 'function') {
+        _hozonShippaiShiraseta = true;
+        try {
+          _hozonShippaiFn();
+        } catch (_) {
+          /* 知らせで 転んでも 業務は 止めない */
+        }
+      }
+      return false;
     }
   }
 
+  // 持ち越しを 手元と MAE_KEY に 置く（書けなくても 手元には 持つ・空なら 鍵を 消す）
+  function _maeOku(list) {
+    _mae = list;
+    // ★読めない 字が 退けられずに 残っている 間は 鍵を 消さない・上書きしない★（10-11）
+    if (_maeYomenai != null) {
+      try {
+        _kowaretaWoNokosu(MAE_KEY + '_kowareta', _maeYomenai);
+        _maeYomenai = null; // 退けられた＝鍵を 使って よい
+      } catch (_) {
+        _maeKaketa = list.length === 0; // 手元にしか 無い（持ち越しが 在れば「閉じると 消える」）
+        return;
+      }
+    }
+    try {
+      if (list.length === 0) localStorage.removeItem(MAE_KEY);
+      else localStorage.setItem(MAE_KEY, JSON.stringify(list));
+      _maeKaketa = true;
+    } catch (_) {
+      // 書けなくても 手元の 持ち越しで 次の 終了に 積み直す（画面は「閉じると 消える」と 言う）
+      _maeKaketa = false;
+    }
+  }
+
+  // MAE_KEY から 持ち越しを 戻す（読めない・配列でない 時は 空・中身の 無い 札は 落とす）
+  function _maeYomu() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(MAE_KEY);
+      const a = JSON.parse(raw || '[]');
+      if (Array.isArray(a)) return a.filter((r) => r && typeof r === 'object');
+    } catch (_) {
+      /* 下で 退ける */
+    }
+    // ★読めない 持ち越しは 退けてから 空に する★（次の _maeOku([]) が 消しても 字は 残る・10-11）
+    //   退けられない 時は _maeYomenai に 持ち、_maeOku が 鍵に 触らない（消さない）。
+    if (raw != null) {
+      try {
+        _kowaretaWoNokosu(MAE_KEY + '_kowareta', raw);
+      } catch (_) {
+        _maeYomenai = raw;
+      }
+    }
+    return [];
+  }
+
+  // 読めなかった 字を 退ける（同じ 字は 同じ 鍵＝呼ぶ 度に 写しが 増えない）。書けなければ 投げる
+  function _kowaretaWoNokosu(saki, raw) {
+    const ji = String(raw);
+    let h = 5381;
+    for (let i = 0; i < ji.length; i++) h = ((h * 33) ^ ji.charCodeAt(i)) >>> 0;
+    const k = saki + '_' + h.toString(36) + '_' + ji.length;
+    if (localStorage.getItem(k) !== ji) localStorage.setItem(k, ji);
+  }
+
+  // 持ち越しの 報告を 積み直す（積めた 物を 外し、残りを 返す）
+  function _maeWoTsumu(list) {
+    if (!Array.isArray(list) || list.length === 0) return [];
+    return list.filter((r) => _appendHistory(r) !== true);
+  }
+
+  // 保存の 失敗を 知らせる 関数を 登録する（index.html が 起動時に 呼ぶ）
+  function onHozonShippai(fn) {
+    _hozonShippaiFn = fn;
+  }
+
   function load() {
+    // 持ち越しは state と 別に 戻す（state が 無くても）
+    // ★業務中の load()（便の 直し js/trip-edit.js）で 手元にしか 無い 持ち越しを 消さない★（10-11）
+    //   書けて いない 手元の 分は 残して 読んだ 分と 足し合わせ、印は 書けた 結果でしか 下ろさない。
+    const yonda = _maeYomu();
+    if (!_maeKaketa && _mae.length > 0) {
+      const aru = Object.create(null);
+      _mae.forEach((r) => {
+        aru[String(r.start_time)] = true;
+      });
+      _mae = _mae.concat(yonda.filter((r) => !aru[String(r.start_time)]));
+    } else {
+      _mae = yonda;
+      _maeKaketa = true; // 倉庫から 読めた＝書けている
+    }
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return false;
@@ -1213,7 +1342,19 @@ const Business = (function () {
   function _appendHistory(report) {
     try {
       const raw = localStorage.getItem(HISTORY_KEY);
-      const list = raw ? JSON.parse(raw) : [];
+      // ★読めない 履歴（壊れた 字・配列でない）は 別の 鍵へ 退けてから 新しく 積む (2026-10-11)★
+      //   前は 読めないと 毎回 積めず、その後の 業務が 全部 事務所へ 上がらずに 消えた。
+      //   退けた 字は 消さない（BROKEN_KEY）。退けられない（空き不足）なら 積めない＝false。
+      let list = null;
+      try {
+        list = raw ? JSON.parse(raw) : [];
+      } catch (_) {
+        list = null;
+      }
+      if (!Array.isArray(list)) {
+        _kowaretaWoNokosu(BROKEN_KEY, raw);
+        list = [];
+      }
       list.unshift(report); // 新しい順
       // 直近 RETENTION_DAYS 日分のみ保持
       // 判定は end_time 優先（無ければ start_time、それも無ければ残す）
@@ -1254,6 +1395,8 @@ const Business = (function () {
       let keptUnsentOld = 0;
       let droppedNow = 0;
       const trimmed = list.filter((item) => {
+        // ★中身の 無い 札（null・字・数）は 落とす (2026-10-11)★ 前は item.end_time で 転び、毎回 積めなかった
+        if (!item || typeof item !== 'object') return false;
         const t = item.end_time || item.start_time || null;
         if (t === null) return true; // 時刻不明は残す（保険）
         if (t >= cutoff) return true; // 30日以内は今までどおり残す
@@ -1411,6 +1554,7 @@ const Business = (function () {
     getState,
     getReport,
     save,
+    onHozonShippai,
     load,
     restoreFromHistory,
     // ★試験が「画面と同じ関数」を呼べるように出す (2026-09-26)★

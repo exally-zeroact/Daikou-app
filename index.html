@@ -8823,6 +8823,7 @@
           }
           // Business 状態を active に
           Business.start();
+          _maeShirase(); // ★持ち越し（前の 業務が 事務所へ 未送信）を 知らせる (10-11)★
           // ★設計変更宣言 (2026-05-14・業務リセット仕様変更):
           //   旧: autoResetCheck (時刻ベース・12:00 等で発火) で表示値リセット
           //   新: 代行開始ボタン押下時 (= ここ) でホーム画面の集計表示を全部 0 にリセット
@@ -9120,6 +9121,7 @@
           //       → 結果: 業務再開ボタンの表示条件 (start_time !== null && !active) を満たさず・出番なし
           //   新: Business.end() → state.active=false / state.ended=true / start_time 維持 (limbo state)
           //       履歴の確定 push は次の Business.start() 内の abandon() で実施 (二重 push 回避)
+          //       （2026-10-11〜 start() は abandon() を 呼ばず、積めない 時は 持ち越す）
           //       → 結果: businessStart 画面に戻った時に updateResumeFromStartVisibility が
           //               「前回の業務を引き継ぐ場合は」note + 業務再開ボタンを表示する
           Business.end();
@@ -10700,10 +10702,57 @@
       //     ・送れなかった分は次に繋がった時に自動で送る（online の配線は既にある）
       //     ・★「送りました／あとで送ります」を必ず出す★
       //       運転手が「上がったのか」を知る手段が無かった。★黙って終わらない★
+      // ★前の 業務を まだ 履歴に 積めていない（持ち越し）＝事務所へ 未送信★を 知らせる (2026-10-11)
+      //   持ち越しが 端末に 書けて いない（mae_kakenai）時は「閉じると 消える」と 言う
+      //   （「もう一度 保存します」だけだと 客は 残っていると 思って 閉じ、前の 晩が 黙って 消える）。
+      function _maeShirase() {
+        try {
+          const bs = Business.getState();
+          if (!(bs.mae_tsumenai || []).length) return;
+          showToastLong(
+            '前の 業務が まだ 端末に 保存できていません（アプリの 保存場所が 一杯 等）。\n事務所へ まだ 送れていません。' +
+              (bs.mae_kakenai
+                ? 'アプリを 閉じると 前の 業務が 消えます。閉じずに 業務終了まで 続けてください。'
+                : '業務終了の 時に もう一度 保存します。アプリや サイトの データは 消さないでください。') +
+              '事務所へ 連絡してください。'
+          );
+        } catch (_) {
+          /* 知らせで 転んでも 業務は 止めない */
+        }
+      }
+
+      // ★業務の 記録の 保存に 失敗したら 1回 知らせる (2026-10-11)★（Business.save が 呼ぶ・1つの 業務で 1回）
+      try {
+        if (typeof Business !== 'undefined' && typeof Business.onHozonShippai === 'function')
+          Business.onHozonShippai(function () {
+            showToastLong(
+              '業務の 記録が 端末に 保存できませんでした（アプリの 保存場所が 一杯 等）。\nアプリを 閉じると 今の 業務の 記録が 消えます。事務所へ 連絡してください。'
+            );
+          });
+      } catch (_) {
+        /* 登録できなくても 業務は 止めない */
+      }
+
       function _syncAfterEnd() {
         try {
+          // ★この 業務を 履歴に 積めなかった＝事務所へ まだ 送れない★ことを 知らせる (2026-10-11)
+          //   前は 「送るものはありません」と 言った（積めていない 業務は 送る 名簿に 無いので）。
+          //   この時は 送る 結果の 知らせを 出さない（前の 晩の 分が 送れても「送りました」は 誤解の 元）。
+          const _bs = typeof Business !== 'undefined' ? Business.getState() : null;
+          const tsumenai =
+            !!_bs && (_bs.history_pushed !== true || (_bs.mae_tsumenai || []).length > 0);
+          if (tsumenai)
+            showToastLong(
+              (_bs.history_pushed !== true
+                ? 'この 業務は 端末に 保存できませんでした（アプリの 保存場所が 一杯 等）。'
+                : '前の 業務が まだ 端末に 保存できていません（アプリの 保存場所が 一杯 等）。') +
+                '\n事務所へ まだ 送れていません。' +
+                (_bs.mae_kakenai ? 'アプリを 閉じると 前の 業務が 消えます。' : '') +
+                '事務所へ 連絡してください。'
+            );
           if (!window.JobSync || typeof window.JobSync.sync !== 'function') return;
           const say = function (msg) {
+            if (tsumenai) return;
             try {
               if (typeof window._showToast === 'function') window._showToast(msg);
             } catch (_) {
