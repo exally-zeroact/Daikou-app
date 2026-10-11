@@ -9456,7 +9456,7 @@
         //     ✓ trip_key 欠落 既存 entry は・「別 trip 扱い」自然 fallback (= 後方互換)
         //   既存 3 個重複 entry の・cleanup は・別 STOP (= 誤判定リスク回避・修正 1+2 先行)
         if (!histSaved) {
-          histSaved = true;
+          // ★保存済みの 印は 書けた 時だけ 立てる★（_jouShaKirokuHozon の 返事で・先に 立てると 途中で 転んだ 時に 黙る）
           const now = new Date();
           // ★2026-07-04 日跨ぎ業務を割らない (司さん指示)★: 履歴の日付キーは「精算時刻」でなく
           //   ★業務(セッション)開始日★で統一する。=業務開始〜業務終了の全乗車が同じ日セクションに入る
@@ -9474,7 +9474,14 @@
           const _keyDate =
             typeof _bizStartTs === 'number' && _bizStartTs > 0 ? new Date(_bizStartTs) : now;
           const histKey = 'daikou_history_' + _keyDate.toDateString();
-          const hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+          // ★読めない 履歴（壊れた 字・配列でない）は 書けない 時と 同じに 扱う★（黙らない・転ばない）
+          let hist = null;
+          try {
+            hist = JSON.parse(localStorage.getItem(histKey) || '[]');
+          } catch (_) {
+            hist = null;
+          }
+          if (!Array.isArray(hist)) hist = null;
           // ★設計変更宣言 (2026-05-16・履歴画面 経路表示・hist エントリに住所追加):
           //   Business.getCurrentTrip() から start_address / waypoints / end_address を取得し
           //   hist エントリに保存。null フィールドは undefined のまま保存 (_hist_render が
@@ -9529,28 +9536,84 @@
             //   反復確定で・同 key → 上書き update / 別 trip → 別 key で push
             trip_key: _trip && _trip.start_time ? _trip.start_time : null,
           };
-          const r = _historyDedupeUpsert(
-            hist,
-            newEntry,
-            { dist: todayDist, count: todayCount, fareYen: todayFareYen },
-            s.distance_m,
-            total
-          );
-          todayDist = r.today.dist;
-          todayCount = r.today.count;
-          todayFareYen = r.today.fareYen;
-          localStorage.setItem(
+          const r = hist
+            ? _historyDedupeUpsert(
+                hist,
+                newEntry,
+                { dist: todayDist, count: todayCount, fareYen: todayFareYen },
+                s.distance_m,
+                total
+              )
+            : null;
+          // ★乗車の 記録の 保存は _jouShaKirokuHozon に 任せる★（10-11・書けた 物だけ 手元の 合計に 映す）
+          const st = r
+            ? _jouShaKirokuHozon(localStorage, histKey, r, lastGoodTotalM)
+            : { kekka: 'rireki-dame', susumeru: false, histSaved: false, kyouMiHozon: false };
+          if (st.susumeru) {
+            todayDist = r.today.dist;
+            todayCount = r.today.count;
+            todayFareYen = r.today.fareYen;
+          }
+          histSaved = st.histSaved;
+          _kyouMiHozon = st.kyouMiHozon;
+          if (st.kekka === 'ok') _histHozonShippaiShirase = false;
+          else if (!_histHozonShippaiShirase) {
+            _histHozonShippaiShirase = true;
+            showToastLong(
+              st.kekka === 'rireki-dame'
+                ? 'この 乗車の 履歴が 保存できませんでした（端末の 空きが 足りない 等）。\n今日の 合計には まだ 足していません。この 画面の 間は もう一度 書きます。'
+                : '今日の 合計が 保存できませんでした（端末の 空きが 足りない 等）。\n乗車の 履歴は 残っています。この 画面の 間は もう一度 書きます。'
+            );
+          }
+        } else if (_kyouMiHozon) {
+          // 履歴は 書けて 今日の 合計だけ 転んだ＝今日の 合計だけ 書き直す
+          if (_kyouWoKaku(localStorage, todayDist, todayCount, todayFareYen, lastGoodTotalM))
+            _kyouMiHozon = false;
+        }
+      }
+      // 乗車の 記録の 保存に 失敗した 知らせを 1回だけ 出す 印（成功で・新しい 乗車で 戻す）
+      var _histHozonShippaiShirase = false; // var＝描き直しが この行より 先に 走っても 落ちない
+      var _kyouMiHozon = false; // 履歴は 書けて 今日の 合計だけ 書けていない
+
+      // ★今日の 合計を 書く★（書けたら true）
+      function _kyouWoKaku(ls, dist, count, fare, total) {
+        try {
+          ls.setItem(
             'daikou_today',
             JSON.stringify({
               date: new Date().toDateString(),
-              dist: todayDist,
-              count: todayCount,
-              fare: todayFareYen,
-              total: lastGoodTotalM, // ★総走行距離の命綱も残す★
+              dist: dist,
+              count: count,
+              fare: fare,
+              total: total, // ★総走行距離の命綱も残す★
             })
           );
-          localStorage.setItem(histKey, JSON.stringify(r.hist));
+          return true;
+        } catch (_) {
+          return false;
         }
+      }
+
+      // ★乗車の 記録を 保存する★（10-11）
+      //   前は 今日の 合計を 先に 書き・履歴を 後に 書き・受け皿が 無かった＝空きが 足りないと
+      //   今日の 合計だけ 増えて 履歴の 1件が 残らず・書き直しも されず・運転手に 何も 出なかった。
+      //   ①履歴を 先に 書く。転んだら 何も 変えずに histSaved を 戻す（次の 描き直しで 全部 もう一度）。
+      //   ②履歴が 書けたら 手元の 合計は 進める（履歴に 在る 乗車は 合計に 入れる＝次の 描き直しは 同じ 乗車の 上書きで 差分 0）。
+      //   ③今日の 合計で 転んだら kyouMiHozon を 立てて 合計だけ 書き直す。
+      //   返す：{ kekka: 'ok'|'rireki-dame'|'kyou-dame', susumeru, histSaved, kyouMiHozon }
+      function _jouShaKirokuHozon(ls, histKey, r, total) {
+        try {
+          ls.setItem(histKey, JSON.stringify(r.hist));
+        } catch (_) {
+          return { kekka: 'rireki-dame', susumeru: false, histSaved: false, kyouMiHozon: false };
+        }
+        const ok = _kyouWoKaku(ls, r.today.dist, r.today.count, r.today.fareYen, total);
+        return {
+          kekka: ok ? 'ok' : 'kyou-dame',
+          susumeru: true,
+          histSaved: true,
+          kyouMiHozon: !ok,
+        };
       }
 
       // ★設計変更宣言 (2026-05-23・履歴3個重複バグ修正・pure helper 関数):
@@ -9624,6 +9687,13 @@
         let tripFareYen = 0;
         let tripStartTime = null;
         if (appState === 'fare') {
+          // ★履歴が 書けていないまま 精算終了＝その 乗車は 履歴に 残らない★ことを 知らせる（10-11）
+          //   事務所へ 送る 業務の 記録（Business の trips）は 履歴とは 別の 道なので 止めない（止めると 詰む）。
+          //   ただし Business の 保存も 空き不足を 黙って 飲む（js/business.js の save）＝「送ります」とは 約束しない
+          if (!histSaved)
+            showToastLong(
+              'この 乗車は 履歴に 残せませんでした（端末の 空きが 足りない 等）。\n事務所へ 送る 業務の 記録は、履歴とは 別です。'
+            );
           const s = Meter.getState();
           correctionDistanceM = s.distance_m;
           let fare = s.fare_yen;
@@ -9786,6 +9856,8 @@
           // Driving中に確定を押したら → 確定画面へ（カウントは継続）
           appState = 'fare';
           histSaved = false;
+          _histHozonShippaiShirase = false; // 新しい 乗車＝保存の 失敗の 知らせを もう一度 出せる
+          _kyouMiHozon = false;
           // ★支払タイミング latch (2026-05-30・司さん方針「支払時点 メーター=実距離=料金 厳密一致」)★:
           //   確定画面の料金は calcFare(display) で算出する。catch-up 途中だと display<実距離
           //   (= 過少方向・過大請求は出ないが厳密一致せず)。確定の瞬間に display=distance_m へ latch し
