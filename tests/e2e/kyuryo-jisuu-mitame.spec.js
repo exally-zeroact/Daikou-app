@@ -292,6 +292,41 @@ test('札の 保存に 失敗したら 札が 押せる形に 戻る', async ({ 
   expect(dis, '失敗の 後も 札が 押せないまま').toBe(false);
 });
 
+test('車の 時間を 保存しても 実費は 消えず、高速代などは 送らない', async ({ page }) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [
+        {
+          shift_id: '00000000-0000-4000-a000-000000000002',
+          company_id: CO,
+          toll_yen: 500,
+          bridge_yen: 0,
+          other_yen: 0,
+          expenses: { 駐車場: 300 },
+          hours: null,
+        },
+      ];
+    },
+  });
+  const d1 = hi(page, '2026-08-01');
+  const mae = await d1.locator('.dhead .ds').textContent();
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-sid="00000000-0000-4000-a000-000000000002"]');
+    i.value = '6';
+    i.dispatchEvent(new Event('change'));
+  });
+  await page.waitForTimeout(600);
+  const calls = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(calls).toHaveLength(1);
+  expect(calls[0].b.hours).toBe(6);
+  expect(Object.keys(calls[0].b), '時間の 保存で 高速代などを 送った').not.toContain('toll_yen');
+  const ato = await hi(page, '2026-08-01').locator('.dhead .ds').textContent();
+  // 売上（実費を 引いた 後）は 変わらない
+  expect(String(ato).split('時数')[0]).toBe(String(mae).split('時数')[0]);
+});
+
 // 帯の 数え方は 給料の 計算と 同じ（対立役 2回目の P1・P4）
 for (const [na, tweak, hiD] of [
   [

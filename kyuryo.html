@@ -5862,12 +5862,12 @@
         function saveCarHours(shiftId, value) {
           var cur = EDIT_BY_SHIFT[shiftId] || {};
           var v = parseFloat(value);
+          // 時間の 列だけ 送る（2026-10-14 対立役）
+          //   前は 開いた 時の 高速代・橋代・その他も 一緒に 送っていた＝別の 画面で 直した 高速代を
+          //   古い 値で 上書きした（merge-duplicates は 送った 列を 全部 書く）
           var body = {
             shift_id: shiftId,
             company_id: COMPANY.company_id,
-            toll_yen: cur.toll_yen || 0,
-            bridge_yen: cur.bridge_yen || 0,
-            other_yen: cur.other_yen || 0,
             hours: isFinite(v) && v > 0 ? v : null, // 空 = メーターの記録から自動
             updated_at: new Date().toISOString(),
           };
@@ -5875,16 +5875,19 @@
             .then(function (r) {
               if (!r.ok) return saveErr('時間を保存できませんでした。', r);
               showErr('');
-              EDIT_BY_SHIFT[shiftId] = body;
+              // 手元の 行は 前の 行に 重ねる（送った 中身で 置き換えると 実費・電子決済などが
+              //   読み直すまで 画面から 消え、給料が 高く 出た）
+              var neu = Object.assign({}, cur, body);
+              EDIT_BY_SHIFT[shiftId] = neu;
               var found = false;
               RAW.edits = RAW.edits.map(function (e) {
                 if (e.shift_id === shiftId) {
                   found = true;
-                  return body;
+                  return Object.assign({}, e, body);
                 }
                 return e;
               });
-              if (!found) RAW.edits.push(body);
+              if (!found) RAW.edits.push(neu);
               recalc();
               renderDays();
             })
