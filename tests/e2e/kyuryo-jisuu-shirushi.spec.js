@@ -39,6 +39,15 @@ test('★印の 業務と 同じ日・同じ車の 手入力は 時数の 画面
   });
   await page.click('.tab[data-tab="hours"]');
   await page.waitForTimeout(800);
+  // 見たい 日を カレンダーで 選ぶ（既定は 今日か 期間の 最初の 日＝今日の 日付に 頼らない）2026-10-14
+  await page.evaluate((h) => {
+    const i = document.getElementById('hiSel');
+    if (i) {
+      i.value = h;
+      i.dispatchEvent(new Event('change'));
+    }
+  }, hi);
+  await page.waitForTimeout(300);
   const r = await page.evaluate(
     (a) => {
       const box = document.getElementById('days');
