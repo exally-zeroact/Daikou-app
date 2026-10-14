@@ -88,3 +88,32 @@ test('走った 車が 1台も 無い 日も 会社設定の 並びの 順', asy
   );
   expect(sha).toEqual(['1466', '4987', '1173']);
 });
+
+// 2026-10-14 対立役：使わない 印の 業務が 在る 車にも「メーターの 記録が ありません」と 出た（字が 嘘）
+test('使わない 印の 業務が 在る 車は「使わない 印」と 書く（記録が 無い とは 書かない）', async ({
+  page,
+}) => {
+  const sh = SH.map((x) => (x.device_id === 'd3' ? Object.assign({}, x, { excluded: true }) : x));
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: stub(sh) })
+  );
+  await page.route('**/auth/v1/**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"u1"}' })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/nyuryoku.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1800);
+  await page.fill('#hiSel', '2026-09-02');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(1200);
+  const r = await page.evaluate(() =>
+    [...document.querySelectorAll('#shaList .sha')].map((b) => ({
+      na: (b.querySelector('.sha-na') || {}).textContent,
+      hint: [...b.querySelectorAll('.hint')].map((h) => h.textContent).join(' '),
+    }))
+  );
+  const d3 = r.find((x) => (x.na || '').trim() === '1173');
+  expect(d3, '1173 の 箱が 無い').toBeTruthy();
+  expect(d3.hint).toContain('使わない');
+  expect(d3.hint).not.toContain('メーターの 記録が ありません');
+});

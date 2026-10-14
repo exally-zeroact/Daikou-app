@@ -550,6 +550,11 @@
               RAW.shifts = (Array.isArray(res[0]) ? res[0] : []).filter(function (x) {
                 return x && x.excluded !== true;
               });
+              // 使わない 印の 業務が 在る 車（字を「記録が 無い」と 書かない 為）2026-10-14
+              RAW.tomeDevs = {};
+              (Array.isArray(res[0]) ? res[0] : []).forEach(function (x) {
+                if (x && x.excluded === true && x.device_id) RAW.tomeDevs[x.device_id] = true;
+              });
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
               // ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
               // ★★「消す」を 押した 物も 出さない★★ 2026-09-18（司さん）
@@ -772,7 +777,14 @@
               '" data-f="sales_yen" value="' +
               (JippiHozon.seisuu(uriage) || '') +
               '"><span class="en">円</span></div>' +
-              '<span class="hint">読み取れていません。打ち直せます。</span></div>';
+              // 2026-10-14 司さん「なんで読み込んでないんど 訳分からんことすんなや」
+              //   前は「読み取れていません」＝壊れて 読めない 様に 見えた。本当は その日 この 車の
+              //   メーターの 記録が 無い（アプリで 走っていない）＝元の 数が 無い。そう 書く
+              '<span class="hint">' +
+              ((RAW.tomeDevs || {})[key]
+                ? 'この日の メーターの 記録には「使わない」印が 付いています（給料・売上に 入れません）。売上などは 手で 入れます。'
+                : 'この日は メーターの 記録が ありません（アプリで 走っていない 車）。売上などは 手で 入れます。') +
+              '</span></div>';
             // ★★回数・実車距離・総走行距離★★ 2026-10-05（司さん「車ごとに回数や実車距離や総走行距離を入れる欄」）
             //   ★読み取れていない 車だけ★（走った 車は メーターの 数を 使う）。距離は km で 打つ（しまうのは m）
             var kmOf = function (m) {
