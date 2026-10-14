@@ -105,7 +105,7 @@ describe('★20日締め★', () => {
     const ps = P.periodsOf(2026, 10, { kata: k });
     expect(ps.length).toBe(1);
     expect([ps[0].start, ps[0].end, ps[0].label]).toEqual(['2026-09-21', '2026-10-20', '10月分']);
-    expect(ps[0].name).toBe('9/21 ~ 10/20');
+    expect(ps[0].name).toBe('9/21 〜 10/20');
   });
   it('始まった 月の 分 ⇒ 10月分 = 10/21〜11/20', () => {
     const k = P.seiki({ kind: 'tsuki', hi: [20], nazuke: 'hajime' }).kata;
@@ -209,8 +209,8 @@ describe('★月次集計の 給料＝締めた 分★', () => {
     const a = G.month(2026, 1, c20, []);
     const b = G.month(2026, 2, c20, []);
     expect(zen).toBeGreaterThan(0);
-    expect(a.periods.map((p) => p.rangeLabel)).toEqual(['12/21 ~ 1/20']);
-    expect(b.periods.map((p) => p.rangeLabel)).toEqual(['1/21 ~ 2/20']);
+    expect(a.periods.map((p) => p.rangeLabel)).toEqual(['12/21 〜 1/20']);
+    expect(b.periods.map((p) => p.rangeLabel)).toEqual(['1/21 〜 2/20']);
     expect(a.payTotal + b.payTotal).toBeCloseTo(zen, 6);
     // ★②の 行の 和 ＝ 合計★
     expect(a.periods.reduce((s, p) => s + p.pay, 0)).toBe(a.payTotal);
@@ -219,7 +219,7 @@ describe('★月次集計の 給料＝締めた 分★', () => {
   it('★始まった月の分：12月分（12/21〜1/20）に 1月の 1〜20日が 入る★', () => {
     const c = ctxOf({ kind: 'tsuki', hi: [20], nazuke: 'hajime' });
     const dec = G.month(2025, 12, c, []);
-    expect(dec.periods.map((p) => p.rangeLabel)).toEqual(['12/21 ~ 1/20']);
+    expect(dec.periods.map((p) => p.rangeLabel)).toEqual(['12/21 〜 1/20']);
     expect(dec.payTotal).toBeGreaterThan(0);
   });
 

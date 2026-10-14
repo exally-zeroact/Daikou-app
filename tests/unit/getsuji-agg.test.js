@@ -69,17 +69,17 @@ describe('★給料は月3回払い（実物の バ1〜10 / バ11〜20 / バ21�
 
   it(`バ1〜10 = ${W.バ1_10.toLocaleString()}`, () => {
     expect(m.periods[0].pay).toBeCloseTo(W.バ1_10, 4);
-    expect(m.periods[0].rangeLabel).toBe('1/1 ~ 1/10');
+    expect(m.periods[0].rangeLabel).toBe('1/1 〜 1/10');
   });
 
   it(`バ11〜20 = ${Math.round(W.バ11_20).toLocaleString()}`, () => {
     expect(m.periods[1].pay).toBeCloseTo(W.バ11_20, 4);
-    expect(m.periods[1].rangeLabel).toBe('1/11 ~ 1/20');
+    expect(m.periods[1].rangeLabel).toBe('1/11 〜 1/20');
   });
 
   it(`★バ21〜31 = ${Math.round(W.バ21_末).toLocaleString()}（給料1の8人合計と同じ）★`, () => {
     expect(m.periods[2].pay).toBeCloseTo(W.バ21_末, 4);
-    expect(m.periods[2].rangeLabel).toBe('1/21 ~ 1/31');
+    expect(m.periods[2].rangeLabel).toBe('1/21 〜 1/31');
   });
 
   it(`バイト合計 = ${Math.round(W.バイト合計).toLocaleString()}`, () => {

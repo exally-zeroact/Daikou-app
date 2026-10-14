@@ -39,7 +39,7 @@
           bitStarts: { FR: 6, FL: 22, RR: 38, RL: 54 }, // DBC startbit(Motorola)・順序 FR→FL→RR→RL
           resolutionKmhPerLsb: 0.01,
           models: 'TSS/TSS2 全車(corolla/rav4/camry/prius/lexus等)',
-          years: '~2023+',
+          years: '〜2023+',
           busReachable: 'bus0(確定・carstate Bus.pt)',
           source:
             'https://raw.githubusercontent.com/commaai/opendbc/master/opendbc/dbc/generator/toyota/_toyota_2017.dbc',
@@ -62,7 +62,7 @@
           bitStarts: { FL: 7, FR: 8, RL: 25, RR: 42 },
           resolutionKmhPerLsb: 0.01,
           models: 'nidec/Bosch 全車共通',
-          years: '~2022+',
+          years: '〜2022+',
           busReachable: 'bus0(carstate Bus.pt)',
           source:
             'https://raw.githubusercontent.com/commaai/opendbc/master/opendbc/dbc/generator/honda/_honda_common.dbc',
@@ -173,7 +173,7 @@
           lenBits: 16,
           wheelByteOffsets: { FL: 0, FR: 2, RL: 4, RR: 6 },
           resolutionKmhPerLsb: 0.01,
-          models: 'CX-5/CX-9/Mazda6/Mazda3(~2018)',
+          models: 'CX-5/CX-9/Mazda6/Mazda3(〜2018)',
           years: '2017+',
           busReachable: '要実機確認',
           source:
@@ -211,7 +211,7 @@
           wheelByteOffsets: { FL: 0, FR: 2, RL: 4, RR: 6 },
           resolutionKmhPerLsb: 0.03125,
           models: 'classic CAN 全車',
-          years: '~2022(non-CANFD)',
+          years: '〜2022(non-CANFD)',
           busReachable: 'classic CCANは多くbus0到達(要実機確認)',
           source:
             'https://raw.githubusercontent.com/commaai/opendbc/master/opendbc/dbc/generator/hyundai/hyundai_kia_generic.dbc',

@@ -94,7 +94,7 @@
       endMode: endMode,
       days: days,
       label: m + '月分',
-      rangeLabel: md(start) + ' ~ ' + md(last),
+      rangeLabel: md(start) + ' 〜 ' + md(last), // 全角の 〜（半角の ~ は 上に 浮いて 見える・司さん 2026-10-14）
       start: ymd(start),
       end: ymd(last),
       dates: dates,
@@ -279,7 +279,7 @@
         const dates = [];
         for (let k = 0; k < days; k++) dates.push(ymd(addDays(p.start, k)));
         const naka = ymKey(p.start) === me && ymKey(p.end) === me;
-        const rangeLabel = md(p.start) + ' ~ ' + md(p.end);
+        const rangeLabel = md(p.start) + ' 〜 ' + md(p.end); // 全角の 〜（司さん 2026-10-14）
         let name;
         if (kata.kind === 'hi') name = p.start.getDate() + '日';
         else if (!naka) name = rangeLabel;

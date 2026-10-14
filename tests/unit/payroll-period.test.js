@@ -3,11 +3,11 @@
 // 給与期間の区切り テスト (2026-08-01 実物を読み直して修正)
 //
 //   ★正解は司さんの実物★ 代行計算表2026.xlsb の 給料1〜8 のヘッダと日付行を全部読んだ結果:
-//     給料1 = 1月分 1/21 ~ 1/31 (11日)
-//     給料2 = 2月分 2/21 ~ 2/28 ( 8日)   ← 翌月にまたいでいない
-//     給料3 = 3月分 3/21 ~ 3/31 (11日)
-//     給料4 = 4月分 4/21 ~ 4/30 (10日)
-//     給料7 = 7月分 7/21 ~ 7/31 (11日)
+//     給料1 = 1月分 1/21 〜 1/31 (11日)
+//     給料2 = 2月分 2/21 〜 2/28 ( 8日)   ← 翌月にまたいでいない
+//     給料3 = 3月分 3/21 〜 3/31 (11日)
+//     給料4 = 4月分 4/21 〜 4/30 (10日)
+//     給料7 = 7月分 7/21 〜 7/31 (11日)
 //     給料8 = 8月分 8/1  ~ 8/10 (10日)  ← 開始日も長さも変えられる必要がある
 //
 //   ★つまり「11日ぶん固定」は1月だけたまたま合っていた★
@@ -22,7 +22,7 @@
 //   ★守る性質★
 //     1. 既定 = 月3回（1〜10 / 11〜20 / 21〜末日）
 //     2. 1回払い（起算日〜月末）にもできる
-//     3. 日数固定にもできる（給料8のような 8/1~8/10）
+//     3. 日数固定にもできる（給料8のような 8/1〜8/10）
 //     4. 前後に送れる / 年をまたいでも落ちない
 //     5. 何が来ても throw しない
 // ============================================================
@@ -31,30 +31,30 @@ const P = require('../../js/payroll-period.js');
 const ME = { endMode: 'month_end', startDay: 21 };
 
 describe('★既定＝月3回払い（実物の月別シートのバ3列）★', () => {
-  it('1月は 1/1~1/10 ・ 1/11~1/20 ・ 1/21~1/31 の3つ', () => {
+  it('1月は 1/1〜1/10 ・ 1/11〜1/20 ・ 1/21〜1/31 の3つ', () => {
     const ps = P.periodsOf(2026, 1);
     expect(ps.length).toBe(3);
-    expect(ps.map((p) => p.rangeLabel)).toEqual(['1/1 ~ 1/10', '1/11 ~ 1/20', '1/21 ~ 1/31']);
+    expect(ps.map((p) => p.rangeLabel)).toEqual(['1/1 〜 1/10', '1/11 〜 1/20', '1/21 〜 1/31']);
     expect(ps.map((p) => p.name)).toEqual(['1〜10日', '11〜20日', '21日〜末日']);
     expect(ps.map((p) => p.dates.length)).toEqual([10, 10, 11]);
   });
 
-  it('★2月は最後の期が 2/21~2/28（3月に食い込まない）★', () => {
+  it('★2月は最後の期が 2/21〜2/28（3月に食い込まない）★', () => {
     const ps = P.periodsOf(2026, 2);
-    expect(ps[2].rangeLabel).toBe('2/21 ~ 2/28');
+    expect(ps[2].rangeLabel).toBe('2/21 〜 2/28');
     expect(ps[2].dates.length).toBe(8);
     expect(ps[2].end).toBe('2026-02-28');
   });
 
-  it('うるう年の2月（2028年）は 2/21~2/29', () => {
+  it('うるう年の2月（2028年）は 2/21〜2/29', () => {
     const ps = P.periodsOf(2028, 2);
-    expect(ps[2].rangeLabel).toBe('2/21 ~ 2/29');
+    expect(ps[2].rangeLabel).toBe('2/21 〜 2/29');
     expect(ps[2].dates.length).toBe(9);
   });
 
-  it('30日までの月（4月）は最後が 4/21~4/30', () => {
+  it('30日までの月（4月）は最後が 4/21〜4/30', () => {
     const ps = P.periodsOf(2026, 4);
-    expect(ps[2].rangeLabel).toBe('4/21 ~ 4/30');
+    expect(ps[2].rangeLabel).toBe('4/21 〜 4/30');
     expect(ps[2].dates.length).toBe(10);
   });
 
@@ -68,9 +68,9 @@ describe('★既定＝月3回払い（実物の月別シートのバ3列）★',
   });
 
   it('index で1つ取り出せる', () => {
-    expect(P.periodOf(2026, 1, null, 2).rangeLabel).toBe('1/21 ~ 1/31');
-    expect(P.periodOf(2026, 1, null, 0).rangeLabel).toBe('1/1 ~ 1/10');
-    expect(P.periodOf(2026, 1, null, 99).rangeLabel).toBe('1/1 ~ 1/10'); // 範囲外は先頭
+    expect(P.periodOf(2026, 1, null, 2).rangeLabel).toBe('1/21 〜 1/31');
+    expect(P.periodOf(2026, 1, null, 0).rangeLabel).toBe('1/1 〜 1/10');
+    expect(P.periodOf(2026, 1, null, 99).rangeLabel).toBe('1/1 〜 1/10'); // 範囲外は先頭
   });
 });
 
@@ -78,7 +78,7 @@ describe('★1回払い（起算日〜月末）にもできる★', () => {
   it('給料1 = 1月分 1/21〜1/31（11日）', () => {
     const p = P.periodOf(2026, 1, ME);
     expect(p.label).toBe('1月分');
-    expect(p.rangeLabel).toBe('1/21 ~ 1/31');
+    expect(p.rangeLabel).toBe('1/21 〜 1/31');
     expect(p.dates.length).toBe(11);
     expect(p.dates[0]).toBe('2026-01-21');
     expect(p.dates[10]).toBe('2026-01-31');
@@ -86,14 +86,14 @@ describe('★1回払い（起算日〜月末）にもできる★', () => {
 
   it('★給料2 = 2月分 2/21〜2/28（8日・3月に食い込まない）★', () => {
     const p = P.periodOf(2026, 2, ME);
-    expect(p.rangeLabel).toBe('2/21 ~ 2/28');
+    expect(p.rangeLabel).toBe('2/21 〜 2/28');
     expect(p.dates.length).toBe(8);
     expect(p.end).toBe('2026-02-28');
   });
 
   it('給料4 = 4月分 4/21〜4/30（10日）', () => {
     const p = P.periodOf(2026, 4, ME);
-    expect(p.rangeLabel).toBe('4/21 ~ 4/30');
+    expect(p.rangeLabel).toBe('4/21 〜 4/30');
     expect(p.dates.length).toBe(10);
     expect(p.dates[9]).toBe('2026-04-30');
   });
@@ -123,9 +123,9 @@ describe('★1回払い（起算日〜月末）にもできる★', () => {
 });
 
 describe('★給料8のような「日数で切る」形にもできる★', () => {
-  it('8月分 8/1 ~ 8/10', () => {
+  it('8月分 8/1 〜 8/10', () => {
     const p = P.periodOf(2026, 8, { startDay: 1, endMode: 'days', days: 10 });
-    expect(p.rangeLabel).toBe('8/1 ~ 8/10');
+    expect(p.rangeLabel).toBe('8/1 〜 8/10');
     expect(p.dates.length).toBe(10);
     expect(p.dates[0]).toBe('2026-08-01');
     expect(p.dates[9]).toBe('2026-08-10');

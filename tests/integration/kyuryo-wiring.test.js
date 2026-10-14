@@ -133,7 +133,7 @@ describe('★実物の明細と同じ物が出る作りになっている★', (
     expect(HTML).toContain("row('時間（全台）'");
   });
 
-  it('「◯月分 x/21 ~ x/31」と「◯◯ 殿」が出る', () => {
+  it('「◯月分 x/21 〜 x/31」と「◯◯ 殿」が出る', () => {
     expect(HTML).toContain('PERIOD.label');
     expect(HTML).toContain('PERIOD.rangeLabel');
     expect(HTML).toContain('　殿');

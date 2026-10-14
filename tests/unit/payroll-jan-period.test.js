@@ -33,8 +33,8 @@ const by = {};
 rep.employees.forEach((e) => (by[e.name] = e));
 
 describe('★期間の切り方が実物の給料1と同じ★', () => {
-  it('1月分 1/21 ~ 1/31（11日）', () => {
-    expect(period.rangeLabel).toBe('1/21 ~ 1/31');
+  it('1月分 1/21 〜 1/31（11日）', () => {
+    expect(period.rangeLabel).toBe('1/21 〜 1/31');
     expect(period.dates.length).toBe(11);
   });
 });

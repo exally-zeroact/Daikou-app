@@ -95,7 +95,7 @@ test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形
     false,
     false,
   ]);
-  expect(a.msg, '★今の 区切りが 書いてありません★').toMatch(/\d+\/1 ~ \d+\/10/);
+  expect(a.msg, '★今の 区切りが 書いてありません★').toMatch(/\d+\/1 〜 \d+\/10/);
 
   // ★月1回（何日かで 締める）★＝「何日に 締める」＋（月を またぐので）「何月分」
   await page.selectOption('#pMode', 'tsuki1');
@@ -116,7 +116,7 @@ test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形
   // eslint-disable-next-line no-console
   console.log('★週★ ' + JSON.stringify(c));
   expect([c.hi, c.youbi, c.nazuke]).toEqual([false, true, true]);
-  expect(c.msg, '★区切りが 書いてありません★').toMatch(/\d+\/\d+ ~ \d+\/\d+/);
+  expect(c.msg, '★区切りが 書いてありません★').toMatch(/\d+\/\d+ 〜 \d+\/\d+/);
 
   // ★毎日★＝欄は 何も 要らない
   await page.selectOption('#pMode', 'hi');

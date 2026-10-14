@@ -7,7 +7,7 @@
 //   ★勤務は 9/25 と 10/5★（20日締めなら 同じ 期 9/21〜10/20 に 入る＝月を またぐ 期を 見る）
 //
 //   ★物差し★
-//     ① 20日締め・締めた月の分 ⇒ 開くと 10月分（9/21 ~ 10/20）・明細に 9/25 と 10/5 の 両方
+//     ① 20日締め・締めた月の分 ⇒ 開くと 10月分（9/21 〜 10/20）・明細に 9/25 と 10/5 の 両方
 //     ② 20日締め・始まった月の分 ⇒ 開くと 9月分（今日 10/7 を 含む 期の 月）
 //     ③ 昔の month_end ⇒ 止める（明細を 出さない・文を 出す）
 //     ④ 設定：何月分を 選ばないと 保存しない／選ぶと period_shime を 保存
@@ -44,7 +44,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 // わざと壊す：loadPeriod を kata で なく 昔の endMode で 呼ぶ ⇒ 赤（月3回の 1〜10日 が 出る）
-test('★① 20日締め・締めた月の分 ⇒ 10月分 9/21 ~ 10/20・9/25 と 10/5 が 同じ 明細に★', async ({
+test('★① 20日締め・締めた月の分 ⇒ 10月分 9/21 〜 10/20・9/25 と 10/5 が 同じ 明細に★', async ({
   page,
 }) => {
   const err = [];
@@ -140,7 +140,7 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
   await page.selectOption('#pNazuke', 'shime');
   await page.waitForTimeout(200);
   const msg = await page.evaluate(() => document.getElementById('pMsg').textContent);
-  expect(msg, '★区切りの 字が 本当の 区切りで ない★').toContain('10月分 … 9/21 ~ 10/20');
+  expect(msg, '★区切りの 字が 本当の 区切りで ない★').toContain('10月分 … 9/21 〜 10/20');
   await page.click('#btnSaveSet');
   await page.waitForTimeout(400);
   const b = await page.evaluate(() => window.__okutta);

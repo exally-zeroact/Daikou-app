@@ -159,8 +159,8 @@ test('★月次集計★ 見切れない', async ({ page }) => {
       ZAIRYO +
         `
     var tsuki = { salesTotal: 3827136, expense: 382695, invoice: 727136, denshi: 38285, cash: 3061715,
-      payTotal: 1798253.65, periods: [{ rangeLabel: '10/1 ~ 10/10', pay: 598253.65 },
-      { rangeLabel: '10/11 ~ 10/20', pay: 600000 }, { rangeLabel: '10/21 ~ 10/31', pay: 600000 }],
+      payTotal: 1798253.65, periods: [{ rangeLabel: '10/1 〜 10/10', pay: 598253.65 },
+      { rangeLabel: '10/11 〜 10/20', pay: 600000 }, { rangeLabel: '10/21 〜 10/31', pay: 600000 }],
       reserve: 191356.8, ownerShare: 1837525.55 };
     return window.KamiHyou.getsuji(K, window.KamiShukei.getsujiData(tsuki,
       CARS.map(function (c) { return { name: c, uriage: 956784, jippi: 95673 }; })));`
@@ -178,7 +178,7 @@ test('★給料表（月ごと・日ごと・個別）★ 見切れない（7人
     new Function(
       ZAIRYO +
         `
-    var namae = ['10/1 ~ 10/10', '10/11 ~ 10/20', '10/21 ~ 10/31'];
+    var namae = ['10/1 〜 10/10', '10/11 〜 10/20', '10/21 〜 10/31'];
     var h = []; for (var d = 1; d <= 31; d++) h.push(d % 7 === 0 ? 0 : 123456);
     var hj = h.map(function (v) { return v ? 12.25 : 0; });
     var na = ['見本一四', '東海林 けんいちろう', '山田', '鈴木', '佐藤', '高橋', '田中'];
