@@ -672,6 +672,9 @@
           RAW.shifts.forEach(function (sh) {
             if (sh && sh.device_id && zenbu.indexOf(sh.device_id) < 0) zenbu.push(sh.device_id);
           });
+          // 会社設定の「並び」の 順に 並べる（js/car-name.js の 1か所）2026-10-14
+          //   司さん「入力のとこの並びもめちゃくちゃやろがぼけ」＝前は 札を 読んだ 順の まま だった
+          zenbu = CarName.sortIds(zenbu, RAW.labels);
           NAMAE = CarName.nameMap(zenbu, RAW.labels);
           zenbu.forEach(function (dev) {
             var sh = detaAru[dev];
@@ -880,6 +883,8 @@
             $('shaList').innerHTML = '';
             return;
           }
+          // 会社設定の「並び」の 順（走った 車が 1台も 無い 日も 同じ・対立役 10-14）
+          ids = CarName.sortIds(ids, RAW.labels);
           NAMAE = CarName.nameMap(ids, RAW.labels);
           // ★走っていない 日★＝全部 「読み取れていない 車」
           var html = '';

@@ -5347,6 +5347,11 @@
                 }
               });
 
+              // 会社設定の「並び」の 順に 並べる（js/car-name.js の 1か所）2026-10-14
+              //   司さん「設定で並び決めとんのになんで入力で反映されてないんど」
+              //   ＝前は 業務を 読んだ 順（メーター → 手入力）の まま だった
+              devs = CarName.sortIds(devs, RAW.labels).concat(devs.indexOf('') >= 0 ? [''] : []);
+
               // 手で 1台ぶん 足す（スマホが無い日・アプリ無しで走った日）
               var used = {};
               shifts.forEach(function (x) {

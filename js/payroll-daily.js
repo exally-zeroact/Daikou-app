@@ -406,6 +406,18 @@
       // ★売上1・2・3 の並び (2026-08-05・司さん「並べ変えできたら楽」)★
       //   給料の設定で決めた順にする。決めていなければ★今までどおり名前の順★。
       const rows = arr(ctx && ctx.labelRows);
+      // 2026-10-14 時数を入れる・入力・売上表と 同じ 1か所（CarName.sortIds）で 並べる
+      //   （前は 決めていない 車を ここだけ 名前の順・他は 端末IDの順で 並び が 食い違った）
+      if (global && global.CarName && typeof global.CarName.sortIds === 'function') {
+        return global.CarName.sortIds(
+          arr(ctx && ctx.devices).filter(function (d) {
+            return d !== own;
+          }),
+          rows
+        ).map(function (d) {
+          return { device_id: d, label: names[d] || '車' }; // ★UUIDは出さない★
+        });
+      }
       const ord = global && global.CarName && rows.length ? global.CarName.orderMap(rows) : {};
       const hasOrder = Object.keys(ord).length > 0;
       return arr(ctx && ctx.devices)

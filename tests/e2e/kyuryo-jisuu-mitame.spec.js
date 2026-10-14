@@ -479,3 +479,22 @@ test('保存の 返事が 来ない 時は 15秒で 戻して 字で 知らせ�
   expect(ato.chip).toBe(false);
   expect(ato.err).toContain('保存の 返事が 来ません');
 });
+
+test('時数の 車は 会社設定の 並びの 順（業務を 読んだ 順では ない）', async ({ page }) => {
+  await hiraku(page, {
+    // 2号車を 並び 1、1号車を 並び 2 に（業務は 1号車が 先）
+    tweak: (F) => {
+      F.labels = F.labels.map((l) =>
+        l.device_id === CAR1
+          ? Object.assign({}, l, { sort_order: 2 })
+          : l.device_id === CAR2
+            ? Object.assign({}, l, { sort_order: 1 })
+            : l
+      );
+    },
+  });
+  const na = await hi(page, '2026-08-01')
+    .locator('.carrow .cname')
+    .evaluateAll((xs) => xs.map((x) => x.firstChild.textContent.trim()));
+  expect(na).toEqual(['2号車', '1号車']);
+});

@@ -106,3 +106,38 @@ describe('★壊れた入力で落ちないこと★', () => {
     expect(CN.hasUuid(CN.nameOf(B, [A, B], []))).toBe(false);
   });
 });
+
+// 2026-10-14 対立役：並びを 決めていない 車は 明細（payroll-daily carsOf）と 他の 画面（CarName.sortIds）で
+//   順が 食い違った（名前の順 と 端末IDの順）⇒ 両方 sortIds の 名前の順に 揃えた
+describe('並びを 決めていない 車＝明細と 他の 画面で 同じ 順（名前の順）', () => {
+  const CN = require('../../js/car-name.js');
+  global.CarName = CN;
+  const PD = require('../../js/payroll-daily.js');
+  const labels = [
+    { device_id: 'ccc', label: '1173' },
+    { device_id: 'aaa', label: '4987' },
+    { device_id: 'bbb', label: '1466' },
+  ];
+  it('sortIds は 名前の順（数字は 数の 順）・名前の 無い 車は 後ろ', () => {
+    expect(CN.sortIds(['aaa', 'bbb', 'ccc', 'zzz'], labels)).toEqual(['ccc', 'bbb', 'aaa', 'zzz']);
+  });
+  it('明細の 売上1・2・3 も 同じ 順', () => {
+    const ctx = PD.buildCtx({
+      shifts: ['aaa', 'bbb', 'ccc'].map((d, i) => ({
+        shift_id: 's' + i,
+        device_id: d,
+        started_at: '2026-09-10T20:00:00+09:00',
+        fare_total_yen: 1000,
+        elapsed_sec: 3600,
+      })),
+      labels,
+      edits: [],
+      employees: [],
+      workHours: [],
+      manualDays: [],
+    });
+    expect(PD.carsOf(ctx).map((c) => c.device_id)).toEqual(
+      CN.sortIds(['aaa', 'bbb', 'ccc'], labels)
+    );
+  });
+});

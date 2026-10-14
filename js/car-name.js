@@ -82,9 +82,12 @@
       changed: true,
     };
   }
-  // 並べる（決めた順 → 決めていない物は端末IDの順で後ろ）
+  // 並べる（決めた順 → 決めていない物は 名前の順（数字は 数の 順）→ 名前も 無い 物は 端末IDの順で後ろ）
+  //   2026-10-14 対立役：決めていない 車は ここ（端末IDの順）と 明細（payroll-daily carsOf＝名前の順）で
+  //   並びが 食い違った ⇒ 名前の順に 揃え、明細も ここを 呼ぶ（1か所）
   function sortIds(ids, labels) {
     const ord = orderMap(labels);
+    const named = labelMap(labels);
     return _arr(ids)
       .map(_str)
       .filter(Boolean)
@@ -95,6 +98,11 @@
         const oa = ord[a] === undefined ? Infinity : ord[a];
         const ob = ord[b] === undefined ? Infinity : ord[b];
         if (oa !== ob) return oa - ob;
+        const na = named[a] || '';
+        const nb = named[b] || '';
+        if (na && nb && na !== nb) return na.localeCompare(nb, 'ja', { numeric: true });
+        if (na && !nb) return -1; // 名前の 在る 車が 先
+        if (!na && nb) return 1;
         return a < b ? -1 : a > b ? 1 : 0; // ★同じなら端末IDの順＝毎回同じ★
       });
   }
