@@ -4239,29 +4239,50 @@
           //     実測：27字「事務所の裏に置いてある予備の軽自動車（黒）8627号車」
           //       直す前 … 項目の列 104→★326px★（表幅の30%）／日付の列 98→76px
           //       直した後 … 項目の列は ★104pxのまま★／車名は 2行
-          var labelInk = 0;
-          rows.forEach(function (r) {
-            labelInk = Math.max(labelInk, _textW(r.lbl, fontPx, 700));
-          });
-          labelInk = Math.max(labelInk, _textW('日付', fontPx, 700));
-          // ★字が欠けない★＝測った幅を 切り捨てず 上に丸める（＋枠線1px）
-          var labelW = Math.ceil(labelInk) + LABEL_PAD * 2 + 2;
-          // 車名が とても長い時だけ 上限（それでも ★日付の列より 表を壊さない★）
+          // ★★1枚で 終わる 様に 字の 大きさを 自動で 合わせる★★ 2026-10-14
+          //   司さん「給料明細もなんで2つに分かれるんどぼけ １枚で終わるように自動調整しろってゆうとったろが」
+          //   前は 字を 15px に 決め打ちし、入らない 日は 次の 紙へ 送っていた（10日 が 9日＋1日 の 2枚）。
+          //   ⇒ その 紙の 日が 全部 入るまで 字を 15px から 0.5px ずつ 小さく する。
+          //     ★下限は 13px（PDF で 9.09pt）★＝一番 小さい 字 ≧9pt の 決まりは 守る。
+          //     13px でも 入らない 時（31日 まとめ 等）だけ 紙を 分ける（_maisu）。
           var LABEL_MAX = Math.floor(tableW * 0.3);
-          var labelKake = labelW > LABEL_MAX; // ★欠けたか★＝見張りが数で見る
-          if (labelKake) labelW = LABEL_MAX;
-
-          // ★1つの日の列に 最低いる幅★＝★その日の一番長い字★＋余白（＝字を欠けさせない）
-          //   ★字を小さくして 押し込む事はしない★（指示役「一番小さい字 ≧9pt」）
           var CELL_PAD = 8;
-          var minColW = 0;
-          cells.forEach(function (c) {
-            minColW = Math.max(minColW, _textW(mdw(c.date), fontPx, 700));
+          var labelInk, labelW, labelKake, minColW;
+          // 引数の 名前は 外と 同じ fontPx（その 大きさで 測る）
+          var hakaru = function (fontPx) {
+            var li = 0;
             rows.forEach(function (r) {
-              minColW = Math.max(minColW, _textW(r.get(c), fontPx, 400));
+              li = Math.max(li, _textW(r.lbl, fontPx, 700));
             });
-          });
-          minColW = Math.ceil(minColW) + CELL_PAD * 2 + 2;
+            li = Math.max(li, _textW('日付', fontPx, 700));
+            // ★字が欠けない★＝測った幅を 切り捨てず 上に丸める（＋枠線1px）
+            var lw = Math.ceil(li) + LABEL_PAD * 2 + 2;
+            // 車名が とても長い時だけ 上限（それでも ★日付の列より 表を壊さない★）
+            var kake = lw > LABEL_MAX; // ★欠けたか★＝見張りが数で見る
+            if (kake) lw = LABEL_MAX;
+            // ★1つの日の列に 最低いる幅★＝★その日の一番長い字★＋余白（＝字を欠けさせない）
+            var mc = 0;
+            cells.forEach(function (c) {
+              mc = Math.max(mc, _textW(mdw(c.date), fontPx, 700));
+              rows.forEach(function (r) {
+                mc = Math.max(mc, _textW(r.get(c), fontPx, 400));
+              });
+            });
+            mc = Math.ceil(mc) + CELL_PAD * 2 + 2;
+            labelInk = li;
+            labelW = lw;
+            labelKake = kake;
+            minColW = mc;
+            return mc * days <= tableW - lw;
+          };
+          // 板の 13px ＝ PDF で 9.09pt（紙に 置く 倍率は 0.75 で なく 0.699＝js/kami-egaku.js の bai：
+          //   min((842-40)/1123, (595-40)/794)。12px だと 8.39pt で 9pt を 割る＝対立役 10-14）
+          var FONT_MIN = 13;
+          while (!hakaru(fontPx) && fontPx > FONT_MIN) {
+            fontPx = Math.max(FONT_MIN, fontPx - 0.5);
+          }
+          // 2行目（車の 番号）も 同じ だけ 小さく（下限 13px）
+          subPx = Math.max(FONT_MIN, subPx - (15 - fontPx));
 
           var dayW = Math.floor((tableW - labelW) / days);
           var headH = 96; // 見出し（給料明細／名前／期間／合計）の高さ(px)

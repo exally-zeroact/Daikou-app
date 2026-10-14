@@ -102,7 +102,10 @@ async function hakaru(page, ei) {
       sh.querySelectorAll('*').forEach((el) => {
         if (!el.textContent.trim()) return;
         const f = parseFloat(getComputedStyle(el).fontSize);
-        if (f && f * 0.75 < out.minPt) out.minPt = f * 0.75;
+        // 板 → PDF の 倍率は 0.75 で なく 0.699（js/kami-egaku.js の bai＝min((842-40)/1123,(595-40)/794)）
+        //   2026-10-14 対立役：0.75 で 割ると 12px が「9pt で 緑」に なり、本物の 8.39pt を 見ていなかった
+        const BAI = Math.min((842 - 40) / 1123, (595 - 40) / 794);
+        if (f && f * BAI < out.minPt) out.minPt = f * BAI;
       });
 
       const trs = [...sh.querySelectorAll('tbody tr')];
