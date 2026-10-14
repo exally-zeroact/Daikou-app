@@ -67,11 +67,14 @@ Deno.serve(async (req: Request) => {
   if (!uid) return json({ ok: false, reason: 'no_user' }, 401);
 
   // ① 請求書の行を 引く（★その人の物か★も ここで 確かめる）
-  const { data: row } = await sb
+  // ★読みの 失敗は「見つからない」に 化かさない★ 2026-10-14（対立役：通信の 失敗が no_row・no_shift 等に なり、
+  //   合計の 読みが 落ちると 0円を 書いて ok:true を 返した）＝読めなければ 500 read_failed で 何も 書かずに 返す
+  const { data: row, error: rErr } = await sb
     .from('meisai')
     .select('id, user_id, amount, extra, deleted_at')
     .eq('id', meisaiId)
     .maybeSingle();
+  if (rErr) return json({ ok: false, reason: 'read_failed', at: 'meisai' }, 500);
   if (!row) return json({ ok: false, reason: 'no_row' }, 404);
   if (row.user_id !== uid) return json({ ok: false, reason: 'not_yours' }, 403);
   if (row.deleted_at) return json({ ok: false, reason: 'deleted' }, 409);
@@ -89,29 +92,32 @@ Deno.serve(async (req: Request) => {
   }
 
   // ★その端末が その人の 会社の 物か★（よその会社の 数字を 動かさない）
-  const { data: co } = await sb
+  const { data: co, error: cErr } = await sb
     .from('dk_companies')
     .select('company_id')
     .eq('owner_id', uid)
     .maybeSingle();
+  if (cErr) return json({ ok: false, reason: 'read_failed', at: 'company' }, 500);
   if (!co) return json({ ok: false, reason: 'no_company' }, 403);
-  const { data: dev } = await sb
+  const { data: dev, error: dErr } = await sb
     .from('dk_company_devices')
     .select('device_id')
     .eq('company_id', co.company_id)
     .eq('device_id', deviceId)
     .maybeSingle();
+  if (dErr) return json({ ok: false, reason: 'read_failed', at: 'device' }, 500);
   if (!dev) return json({ ok: false, reason: 'unknown_device' }, 403);
 
   // ② 業務を 探す（端末＋業務開始の 時刻）
   const startIso = new Date(shiftStartMs).toISOString();
-  const { data: shift } = await sb
+  const { data: shift, error: shErr } = await sb
     .from('dk_shifts')
     .select('shift_id')
     .eq('company_id', co.company_id)
     .eq('device_id', deviceId)
     .eq('started_at', startIso)
     .maybeSingle();
+  if (shErr) return json({ ok: false, reason: 'read_failed', at: 'shift' }, 500);
   if (!shift) return json({ ok: true, updated: 0, reason: 'no_shift' });
 
   // ③ その代行1件の ★金額だけ★ 直す（★距離には 触らない★）
@@ -127,10 +133,13 @@ Deno.serve(async (req: Request) => {
   if (!count) return json({ ok: true, updated: 0, reason: 'no_trip' });
 
   // ④ 業務の 合計を 数え直す（★足し算し直すだけ★・件数や距離は 触らない）
-  const { data: trips } = await sb
+  const { data: trips, error: tsErr } = await sb
     .from('dk_trips')
     .select('fare_yen')
     .eq('shift_id', shift.shift_id);
+  // ★合計を 読めない 時は 書かない★（前は trips が null で 0円を 書いた）。代行 1件は ③で 直っている
+  if (tsErr || !Array.isArray(trips))
+    return json({ ok: false, reason: 'read_failed', at: 'trips', updated: count || 0 }, 500);
   const goukei = (trips || []).reduce(
     (a: number, t: { fare_yen: number | null }) => a + (typeof t.fare_yen === 'number' ? t.fare_yen : 0),
     0
