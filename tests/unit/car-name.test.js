@@ -141,3 +141,21 @@ describe('並びを 決めていない 車＝明細と 他の 画面で 同じ �
     );
   });
 });
+
+// 2026-10-14 対立役：名前の 比べが 0 を 返すと 渡した 順で 結果が 変わった（画面ごとに 上下が 入れ替わる）
+describe('読みが 同じ 名前の 車でも 渡した 順に よらず 同じ 並び', () => {
+  const CN = require('../../js/car-name.js');
+  for (const [x, y] of [
+    ['01', '1'],
+    ['1', '１'],
+    ['ア', 'ｱ'],
+  ]) {
+    it(x + ' と ' + y, () => {
+      const labels = [
+        { device_id: 'aaa', label: x },
+        { device_id: 'bbb', label: y },
+      ];
+      expect(CN.sortIds(['aaa', 'bbb'], labels)).toEqual(CN.sortIds(['bbb', 'aaa'], labels));
+    });
+  }
+});

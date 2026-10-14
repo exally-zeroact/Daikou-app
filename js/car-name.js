@@ -100,7 +100,9 @@
         if (oa !== ob) return oa - ob;
         const na = named[a] || '';
         const nb = named[b] || '';
-        if (na && nb && na !== nb) return na.localeCompare(nb, 'ja', { numeric: true });
+        // 比べて 0（'01' と '1'・全角と 半角・ア と ｱ 等）なら 端末IDの順へ 落とす（渡した 順で 変わらない 様に）
+        const c = na && nb ? na.localeCompare(nb, 'ja', { numeric: true }) : 0;
+        if (c) return c;
         if (na && !nb) return -1; // 名前の 在る 車が 先
         if (!na && nb) return 1;
         return a < b ? -1 : a > b ? 1 : 0; // ★同じなら端末IDの順＝毎回同じ★
