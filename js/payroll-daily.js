@@ -197,6 +197,9 @@
       //   並べ替えに要るので生の行も持っておく。
       labelRows: [],
       devices: [], // 出てきた車（つかさ車も含む）
+      // 売上の 直し（dk_shift_edits.uriage_yen）が 読めない 業務（shift_id）2026-10-14
+      //   ★メーターの 額に 倒さない★。画面は これが 1件でも 在れば 明細・紙を 止めて 知らせる
+      uriageDame: [],
     };
     try {
       const r = raw && typeof raw === 'object' ? raw : {};
@@ -252,7 +255,11 @@
         c.trips += n(s.trip_count);
         c.jissha_m += n(s.actual_total_m);
         c.sou_m += n(s.total_distance_m);
-        c.sales += n(s.fare_total_yen); // ★メーターが確定した売上そのまま★
+        // 売上＝事務所が 直した 額 か メーターの 確定値（UriageAgg.uriageOf の 1か所）2026-10-14
+        //   部品（UriageAgg）が 読めない 時も メーターに 倒さず 読めない 業務に 数える
+        const u = Uriage ? Uriage.uriageOf(s, e) : null;
+        if (u === null) ctx.uriageDame.push(s.shift_id);
+        else c.sales += u;
         c.expense += Uriage ? Uriage.deductOf(e, ctx.salesSettings) : 0; // ★売上表と同じ引き方★
         c.hours += carHoursOf(s, e); // 同じ車で1日2回働いたら足す
 

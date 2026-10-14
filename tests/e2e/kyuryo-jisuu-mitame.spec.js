@@ -498,3 +498,103 @@ test('時数の 車は 会社設定の 並びの 順（業務を 読んだ 順�
     .evaluateAll((xs) => xs.map((x) => x.firstChild.textContent.trim()));
   expect(na).toEqual(['2号車', '1号車']);
 });
+
+// ── メーターの 車の 売上を 直す 欄 2026-10-14 ─────────────────────────
+//   司さん「赤丸の売上の数も任意でユーザーが修正できるようにしとけよ」
+//   ★わざと壊して 赤に なるのを 見た★：欄を 足す 前の kyuryo.html で 下の 3本とも 赤
+const SHIFT1 = '00000000-0000-4000-a000-000000000001';
+
+async function uriUtsu(page, v) {
+  await page.evaluate(
+    (a) => {
+      const i = document.querySelector('[data-uri-sid="' + a.sid + '"]');
+      i.value = a.v;
+      i.dispatchEvent(new Event('change'));
+    },
+    { sid: SHIFT1, v }
+  );
+  await page.waitForTimeout(500);
+}
+function edPosts(page) {
+  return page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0 && c.m === 'POST')
+  );
+}
+
+test('メーターの 車の 売上の 欄＝業務ごと・空なら メーターの 額・時間の 欄と 印が 別', async ({
+  page,
+}) => {
+  await hiraku(page);
+  const d1 = hi(page, '2026-08-01');
+  // 1号車は 8/1 に 2回 働く＝欄も 2つ
+  await expect(d1.locator('[data-uri-sid]')).toHaveCount(3);
+  await expect(d1.locator('[data-uri-sid="' + SHIFT1 + '"]')).toHaveAttribute(
+    'placeholder',
+    '9,800'
+  );
+  await expect(d1.locator('[data-uri-sid="' + SHIFT1 + '"]')).toHaveValue('');
+  // data-sid（時間の 保存に 結ばれている）を 持つ 欄は 時間の 欄だけ
+  const bad = await page.evaluate(
+    () =>
+      [...document.querySelectorAll('input[data-sid]')].filter((i) => !i.classList.contains('hrs'))
+        .length
+  );
+  expect(bad, '売上の 欄が 時間の 保存に 吸われる').toBe(0);
+});
+
+test('売上を 直す＝その 額が 送られ 日の 売上が 変わる・空で メーターに 戻る', async ({ page }) => {
+  await hiraku(page);
+  const ds = () => hi(page, '2026-08-01').locator('.dhead .ds').textContent();
+  const mae = await ds();
+  expect(mae).toContain('¥18,200'); // 9,800＋1,000＋7,400
+  await uriUtsu(page, '7000');
+  let p = await edPosts(page);
+  expect(p).toHaveLength(1);
+  expect(p[0].b).toMatchObject({ shift_id: SHIFT1, uriage_yen: 7000 });
+  expect(Object.keys(p[0].b), '売上の 保存で 時間・高速代を 送った').not.toContain('hours');
+  expect(Object.keys(p[0].b)).not.toContain('toll_yen');
+  expect(await ds()).toContain('¥15,400'); // 7,000＋1,000＋7,400
+  await expect(hi(page, '2026-08-01').locator('.carrow', { hasText: '1号車' })).toContainText(
+    'メーター ¥9,800'
+  );
+  await uriUtsu(page, '');
+  p = await edPosts(page);
+  expect(p[1].b.uriage_yen).toBeNull();
+  expect(await ds()).toContain('¥18,200');
+});
+
+test('売上の 欄の 字：「9,800」「９８００」は 9800・負や 字は 止めて 知らせ 送らない', async ({
+  page,
+}) => {
+  await hiraku(page);
+  await uriUtsu(page, '9,800');
+  await uriUtsu(page, '９８００');
+  let p = await edPosts(page);
+  expect(p.map((x) => x.b.uriage_yen)).toEqual([9800, 9800]);
+  for (const v of ['-5', 'abc', '12.5']) {
+    await uriUtsu(page, v);
+    await expect(page.locator('#err')).toContainText('0以上の 整数');
+  }
+  p = await edPosts(page);
+  expect(p, '読めない 字で 送った').toHaveLength(2);
+});
+
+test('売上の 直しが 読めない 業務が 在れば 明細の 画面・PDF（全員・1人）を 止める', async ({
+  page,
+}) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SHIFT1, company_id: CO, uriage_yen: -5 }];
+    },
+  });
+  await page.click('.tab[data-tab="slip"]');
+  await page.waitForTimeout(600);
+  await expect(page.locator('#slips')).toContainText('売上の 直しが 読めない');
+  await page.evaluate(() => {
+    const e = document.getElementById('err');
+    e.textContent = '';
+  });
+  await page.click('#btnPrint');
+  await page.waitForTimeout(500);
+  await expect(page.locator('#err')).toContainText('売上の 直しが 読めない');
+});

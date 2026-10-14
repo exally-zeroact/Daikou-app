@@ -111,6 +111,16 @@
       // ★★締めの 形は 設定の 1か所（normSettings の periodKata）から★★ 2026-10-07
       //   読めない ⇒ ★止める★（out.dame・給料と 会社に残る分を 出さない）＝前は 0円で 黙って 進んだ
       //   ★形が 無い 時も 止める★（月3回に 倒さない・対立役 10-07 C）
+      // 売上の 直しが 読めない 業務が 在れば 止める 2026-10-14（その 業務の 売上が 抜けた 額で 税・現金を 出さない）
+      if (ctx.uriageDame && ctx.uriageDame.length) {
+        out.dame = true;
+        out.uriage = true; // 払い方の 設定とは 別の 止め（画面の 字を 分ける 印・字で 分けない）
+        out.riyuu =
+          '売上の 直しが 読めない 業務が ' +
+          ctx.uriageDame.length +
+          '件 あります。給料の「時数を入れる」で 直してください';
+        return out;
+      }
       const kata = (ctx.settings && ctx.settings.periodKata) || {
         dame: true,
         riyuu: '払い方の 設定が ありません',
@@ -205,6 +215,7 @@
           out.total.dame = true;
           out.total.riyuu = mm.riyuu;
           out.total.tsushin = mm.tsushin === true;
+          if (mm.uriage) out.total.uriage = true;
         }
       });
       const byIdx = {};

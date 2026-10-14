@@ -42,7 +42,7 @@ const SET = {
 
 // ★倉庫の 関数を 差し替える（本物の 形の 返事だけ 返す）★
 //   ★事務所の 読み込み（/rest/v1/dk_◯◯）は 数える★＝呼んだら 赤
-async function nise(page, hajimete) {
+async function nise(page, hajimete, mazeru) {
   const kazoe = { jimusho: 0 };
   await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
@@ -72,7 +72,9 @@ async function nise(page, hajimete) {
         edits: [],
         workHours: [],
         adjustments: [], // ★本物の 関数は 必ず 返す（10-07：返らない 時は 止める 様に した）★
+        uriageNaoshi: true, // 売上の 直しを 返す 版の 印（10-14：無い 時は 止める）
         manualDays: [],
+        ...(mazeru || {}),
       }),
     })
   );
@@ -185,4 +187,38 @@ test('★★④ 本人に 見せては いけない 物が 出ていない★★
   for (const w of ['会社に残る分', 'つかさの取り分', 'みんなの給料', '売上合計']) {
     expect(zenbu.indexOf(w), '★本人に 見えています: ' + w + '★').toBe(-1);
   }
+});
+
+// ── 売上の 直し（dk_shift_edits.uriage_yen）2026-10-14 ─────────────────
+//   ★わざと壊して 赤に なるのを 見た★：止める 前の kyuryo.html で 下の 2本とも 赤（明細が 出た）
+test('本人の 関数が 古い（売上の 直しの 印が 無い）時は 明細を 出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false, { uriageNaoshi: undefined });
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#slips')).toContainText('売上の 直しを 読めなかった');
+});
+
+test('売上の 直しが 読めない 業務が 在れば 本人の 明細を 出さない（事務所と 同じ 門）', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  const t = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  await nise(page, false, {
+    shifts: [
+      {
+        shift_id: 's1',
+        device_id: 'd1',
+        started_at: t + 'T03:00:00+00:00',
+        fare_total_yen: 10000,
+        elapsed_sec: 3600,
+      },
+    ],
+    edits: [{ shift_id: 's1', uriage_yen: -5 }],
+  });
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#slips')).toContainText('売上の 直しが 読めない');
 });

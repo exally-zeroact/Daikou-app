@@ -79,12 +79,12 @@ const DAY_EXTRAS = [{ pay_date: '2026-01-05', denshi_yen: 4000 }];
 //   1月の 実費 ＝ 3,000 ／ 請求書 6,000 ／ 電子決済 4,000 ／ 現金 ＝ 62,000 − 10,000 ＝ 52,000
 const KOTAE = { uriage: 62000, keihi: 3000, seikyu: 6000, denshi: 4000, genkin: 52000 };
 
-function tsukuru(dir) {
+function tsukuru(dir, ed) {
   const moto = fs.readFileSync(path.join(dir, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const co = { company_id: CO, name: '見張り用' };
   const hyou = {
     dk_shifts: SHIFTS,
-    dk_shift_edits: EDITS,
+    dk_shift_edits: ed || EDITS,
     dk_device_labels: LABELS,
     dk_trips: TRIPS,
     meisai: MEISAI,
@@ -214,4 +214,24 @@ test('★月次集計＝紙を そのまま 見せる・はみ出さない・押
     '★年を 変えたのに 新しい 年の 紙に ならない★'
   ).toContain(String(ima - 1) + '年');
   expect(err, '★画面が 落ちた★').toEqual([]);
+});
+
+// 2026-10-14 売上の 直しが 読めない 業務が 在る 時の 止めの 字は「払い方の 設定」を 選び直させない
+//   （選び直しの 保存は 本物の 設定を 上書き し得る）。紙も 出さない
+//   ★わざと壊して 赤に なるのを 見た★：字を 分ける 前の shukei.html で 赤（払い方の 字が 出た）
+test('売上の 直しが 読めない 時は 紙を 出さず、払い方の 設定を 選び直させない', async ({
+  page,
+}) => {
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(__dirname, [{ shift_id: 's1', uriage_yen: -5 }]),
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#err')).toContainText('売上の 直しが 読めない', { timeout: 15000 });
+  await expect(page.locator('#err')).not.toContainText('払い方を 選び直して');
+  await expect(page.locator('#kamiMado .kami-mise-waku')).toHaveCount(0);
 });

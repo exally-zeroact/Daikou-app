@@ -52,10 +52,10 @@ const LABELS = [
 // ★手で 足した 答え★ 売上 ＝ (40000 − 3000) + (25000 − 500) ＝ 61,500／実費 3,500
 const KOTAE = { uriage: 61500, jippi: 3500 };
 
-function tsukuru(dir) {
+function tsukuru(dir, ed) {
   const moto = fs.readFileSync(path.join(dir, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const co = { company_id: CO, name: '見張り用' };
-  const hyou = { dk_shifts: SHIFTS, dk_shift_edits: EDITS, dk_device_labels: LABELS };
+  const hyou = { dk_shifts: SHIFTS, dk_shift_edits: ed || EDITS, dk_device_labels: LABELS };
   return (
     moto +
     ';(function(){var S=window.DKSession;var co=' +
@@ -188,4 +188,23 @@ test('★売上表＝紙を そのまま 見せる・はみ出さない・押す
     '★月を 変えた 直後に 前の 月の 紙が 残っている★'
   ).toBe(true);
   expect(err, '★画面が 落ちた★').toEqual([]);
+});
+
+// 2026-10-14 売上の 直しが 読めない 業務が 在れば 売上表の 紙を 出さない（その 業務の 売上が 抜けた 額で 出さない）
+//   ★わざと壊して 赤に なるのを 見た★：止める 前の uriage.html で 赤（抜けた 額の 紙が 出た）
+test('売上の 直しが 読めない 業務が 在れば 売上表の 紙を 出さない', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-01-20T12:00:00+09:00'));
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru(__dirname, [{ shift_id: 's1', uriage_yen: -5 }]),
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/uriage.html', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#kamiMsg')).toContainText('売上の 直しが 読めない', {
+    timeout: 15000,
+  });
+  await expect(page.locator('#kamiMado .kami-mise-waku')).toHaveCount(0);
 });

@@ -153,9 +153,13 @@ begin
     --                    `if (!emp) return` で 読み捨てる。本人の 画面の empById は 本人 1人。
     --                    時給の 割り方（poolHours）は 車の 時数から 出す（daiko-payroll.js buildPool）
     --                    ＝★絞っても 金額は 1円も 変わらない★
+    -- 売上の 直し（edits.uriage_yen）を 返す 版の 印 2026-10-14。画面は 印が 無ければ 止める
+    --   （古い 関数の まま だと 本人だけ メーターの 額で 計算し 事務所と ずれる＝対立役）
+    'uriageNaoshi', true,
     'edits', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
-        select ed.shift_id, ed.toll_yen, ed.bridge_yen, ed.other_yen, ed.expenses, ed.hours
+        -- uriage_yen＝事務所が 直した 売上（2026-10-14・apply-uriage-naoshi.sql と 同じ 送りで 当てる）
+        select ed.shift_id, ed.toll_yen, ed.bridge_yen, ed.other_yen, ed.expenses, ed.hours, ed.uriage_yen
         from daikome.dk_shift_edits ed where ed.company_id = r.company_id
       ) x
     ),

@@ -121,6 +121,8 @@ const FULL = {
       note: 'メモ',
       expenses: null,
       hours: 8,
+      // 事務所が 直した 売上（2026-10-14）。本人の 関数が この 列を 返さないと 本人だけ メーターの 額で 計算する
+      uriage_yen: 25000,
       updated_at: 't',
     },
   ],

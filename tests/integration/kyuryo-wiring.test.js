@@ -166,7 +166,11 @@ describe('金額の計算は自前で書かない（エンジンだけが正）'
   });
 
   it('引く実費は売上表と同じ関数を通す', () => {
-    expect(HTML).toContain('UriageAgg.deductOf');
+    // 2026-10-14 時数を入れる の 実費は 画面で 引き直さず、計算（payroll-daily）が 売上表と 同じ
+    //   UriageAgg.deductOf で 引いた 車ごとの 額（CTX.byDate の expense）を そのまま 出す
+    const PD = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'payroll-daily.js'), 'utf8');
+    expect(PD).toMatch(/Uriage\.deductOf\(/);
+    expect(HTML).toMatch(/num\(c\.expense\)/);
   });
 });
 

@@ -578,7 +578,13 @@
             return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
           });
         }
+        var URIAGE_DAME = 0; // 売上の 直しが 読めない 業務の 数（他の 字で 消さない）2026-10-14
         function showErr(m) {
+          if (!m && URIAGE_DAME)
+            m =
+              '売上の 直しが 読めない 業務が ' +
+              URIAGE_DAME +
+              '件 あります（合計に 入っていません）。給料の「時数を入れる」で 直してください。';
           $('err').textContent = m;
           $('err').style.display = m ? 'block' : 'none';
         }
@@ -659,6 +665,8 @@
         }
         function kamiTsukuru(shu) {
           if (KAMI_TSUKI !== ymKey(MONTH)) return null;
+          // 売上の 直しが 読めない 業務が 在れば 紙を 作らない（その 業務の 売上が 抜けた 額で 出さない）2026-10-14
+          if (URIAGE_DAME) return null;
           var k = kamiK();
           var mm = k.year + '-' + ('0' + k.month).slice(-2);
           var na = k.name || 'ダイコメ';
@@ -730,7 +738,11 @@
           var r = kamiTsukuru(KAMI_SHU);
           if (!r) {
             $('kamiMado').innerHTML = '';
-            return kamiMsg('読み込み中…');
+            return kamiMsg(
+              URIAGE_DAME
+                ? '売上の 直しが 読めない 業務が 在るので 紙は 出せません（給料の「時数を入れる」で 直してください）'
+                : '読み込み中…'
+            );
           }
           KamiPdf.mise($('kamiMado'), r.mai, function () {
             var r2 = kamiTsukuru(KAMI_SHU);
@@ -938,6 +950,15 @@
           // ★車ごと／日ごと の両方を作る（数字は同じ物から作る＝食い違わない）★
           ROWS = UriageAgg.byDevice(RAW.shifts, edits, RAW.labels, SETTINGS);
           DAYS = UriageAgg.byDay(RAW.shifts, edits, RAW.labels, SETTINGS);
+          // 売上の 直しが 読めない 業務が 在れば 知らせる（合計に その 業務は 入っていない）2026-10-14
+          var dame = UriageAgg.total(ROWS).uriage_dame;
+          URIAGE_DAME = dame;
+          if (dame)
+            showErr(
+              '売上の 直しが 読めない 業務が ' +
+                dame +
+                '件 あります（合計に 入っていません）。給料の「時数を入れる」で 直してください。'
+            );
         }
 
         // ---------- 売上から引くものの設定 ----------
@@ -1024,7 +1045,15 @@
             '/' +
             d.getDate() +
             '</span><span>' +
-            money(s.fare_total_yen) +
+            (function () {
+              // 売上＝事務所が 直した 額 か メーター（UriageAgg.uriageOf の 1か所）2026-10-14
+              var u = UriageAgg.uriageOf(s, e);
+              if (u === null) return '読めません';
+              var naoshi = e.uriage_yen !== null && e.uriage_yen !== undefined;
+              return (
+                money(u) + (naoshi ? '（直した・メーター ' + money(s.fare_total_yen) + '）' : '')
+              );
+            })() +
             '</span></div>' +
             '<div class="dsub">' +
             (s.trip_count || 0) +

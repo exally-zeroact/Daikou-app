@@ -75,6 +75,35 @@
   //   ★★1円も 変わらない事★★
   //     expenses が 無い 行（今まで 全部）は ★足す 物が 0★＝前と 同じ 数字。
   //     2026-09-06 実測 … dk_shift_edits 1行／実費が 入った 行 0行／合計 0円
+  // ─── 1回の 業務の 売上（実費を 引く 前）──────────────────────
+  //   2026-10-14 司さん「売上の数も任意でユーザーが修正できるようにしとけよ」
+  //   事務所が 直した 売上（dk_shift_edits.uriage_yen）が 在れば それ、無ければ メーターの 確定値。
+  //   ★給料（payroll-daily）・売上表・月次・本人の 給料は 全部 ここを 通す（1か所）★
+  //   請求書の 一覧で 直すと dk-fix-fare が uriage_yen を 空に 戻す＝後から 直した 方が 勝つ。
+  //   返り値：円（整数）。直しの 形が 壊れている（負・小数・字）時は null
+  //     ＝★メーターの 額に 倒さない★。呼ぶ 側が 止めて 知らせる（お金の 出力は 止めて 警告）
+  function uriageOf(shift, edit) {
+    const v = edit ? edit.uriage_yen : null;
+    if (v === null || v === undefined) return n(shift && shift.fare_total_yen);
+    if (typeof v === 'number' && Number.isInteger(v) && v >= 0) return v;
+    return null;
+  }
+
+  // 売上の 欄の 字を 読む（給料の 時数を入れる・入力 の 両方が 使う 1か所）2026-10-14
+  //   カンマ・空白・円・全角の 数字を 外し、0以上の 整数だけ。空＝null（メーターに 戻す）。
+  //   読めない 時は undefined（保存を 止めて 字で 出す）＝parseInt で「9,800」が 9円 に ならない 様に（対立役）
+  function yomuUriage(v) {
+    const t = String(v === null || v === undefined ? '' : v)
+      .replace(/[０-９]/g, function (c) {
+        return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+      })
+      .replace(/[,，\s円¥￥]/g, '');
+    if (t === '') return null;
+    if (!/^\d+$/.test(t)) return undefined;
+    const x = Number(t);
+    return Number.isSafeInteger(x) ? x : undefined;
+  }
+
   function deductOf(edit, settings) {
     try {
       const st = normSettings(settings);
@@ -160,6 +189,8 @@
             actual_total_m: 0,
             empty_distance_m: 0,
             fare_total_yen: 0,
+            uriage_naoshi: 0, // 事務所が 売上を 直した 業務の 数 2026-10-14
+            uriage_dame: 0, // 売上の 直しが 読めない 業務の 数（画面が 止めて 知らせる）
             toll_yen: 0,
             bridge_yen: 0,
             other_yen: 0,
@@ -177,7 +208,12 @@
         r.trip_count += n(s.trip_count);
         r.total_distance_m += n(s.total_distance_m);
         r.actual_total_m += n(s.actual_total_m);
-        r.fare_total_yen += n(s.fare_total_yen); // ★売上はメーター確定値のまま★
+        // 売上＝事務所が 直した 額 か メーターの 確定値（uriageOf）。2026-10-14
+        const u = uriageOf(s, e);
+        if (u === null)
+          r.uriage_dame += 1; // 直しが 読めない 業務（画面が 止めて 知らせる）
+        else r.fare_total_yen += u;
+        if (u !== null && e.uriage_yen !== null && e.uriage_yen !== undefined) r.uriage_naoshi += 1;
         r.toll_yen += n(e.toll_yen);
         r.bridge_yen += n(e.bridge_yen);
         r.other_yen += n(e.other_yen);
@@ -310,6 +346,8 @@
       expense_yen: 0,
       deduct_yen: 0,
       net_fare_yen: 0,
+      uriage_naoshi: 0,
+      uriage_dame: 0,
     };
     try {
       arr(rows).forEach(function (r) {
@@ -332,6 +370,8 @@
     total: total,
     normSettings: normSettings,
     deductOf: deductOf,
+    uriageOf: uriageOf,
+    yomuUriage: yomuUriage,
     DEFAULT_DEDUCT: DEFAULT_DEDUCT,
   };
 

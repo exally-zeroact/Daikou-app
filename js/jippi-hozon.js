@@ -97,6 +97,29 @@
     });
   }
 
+  // ★★メーターの 車の 売上を 事務所が 直す★★ 2026-10-14（司さん「金額の修正もできんやないか」）
+  //   dk_shift_edits の uriage_yen・uriage_at だけ 送る（他の 列を 古い 値で 上書きしない）。
+  //   v は 読み終えた 値（UriageAgg.yomuUriage）＝0以上の 整数 か null（メーターに 戻す）
+  //   請求書の 一覧で 後から 直すと dk-fix-fare が 空に 戻す＝後から 直した 方が 勝つ
+  function saveUriage(sess, shiftId, companyId, v) {
+    const ima = new Date().toISOString();
+    const body = {
+      shift_id: shiftId,
+      company_id: companyId,
+      uriage_yen: v,
+      uriage_at: v === null ? null : ima,
+      updated_at: ima,
+    };
+    return global.DKSession.rest(sess, 'dk_shift_edits?on_conflict=shift_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      if (!r.ok) throw r;
+      return body;
+    });
+  }
+
   // ★★走った 記録が 無い 日の 実費★★ 2026-09-08（司さん「入力するとこ出しとけや」）
   //   ★入れる 棚★ daikome.dk_manual_days（会社×日×車）＝「手で 入れた 1日ぶん」
   //   ★売上は 0 の まま★（実費だけ 入れる）＝走っていない 日に 売上は 立たない
@@ -181,6 +204,7 @@
     goukei: goukei,
     karada: karada,
     saveJippi: saveJippi,
+    saveUriage: saveUriage,
     saveTebiki: saveTebiki,
     saveDenshi: saveDenshi,
   };

@@ -347,6 +347,7 @@
     <script src="js/dk-session.js"></script>
     <script src="js/car-name.js"></script>
     <script src="js/jippi-hozon.js"></script>
+    <script src="js/uriage-agg.js"></script>
     <script>
       (function () {
         'use strict';
@@ -631,9 +632,18 @@
             if (!sh || !sh.device_id) return;
             var x = detaAru[sh.device_id];
             if (!x) {
-              x = detaAru[sh.device_id] = { device_id: sh.device_id, fare_total_yen: 0, ids: [] };
+              x = detaAru[sh.device_id] = {
+                device_id: sh.device_id,
+                fare_total_yen: 0,
+                meter_yen: 0,
+                ids: [],
+              };
             }
-            x.fare_total_yen += Number(sh.fare_total_yen) || 0;
+            // 売上＝事務所が 直した 額 か メーター（UriageAgg.uriageOf の 1か所）2026-10-14
+            var u = UriageAgg.uriageOf(sh, EDITS[sh.shift_id]);
+            if (u === null) x.dame = true;
+            else x.fare_total_yen += u;
+            x.meter_yen += Number(sh.fare_total_yen) || 0; // メーターの 額（欄の 薄い 字）
             x.ids.push(sh.shift_id);
             x.shift_id = sh.shift_id;
           });
@@ -693,7 +703,12 @@
                 'data-sid',
                 hoka.length ? edAwase(sh.ids) : EDITS[sh.shift_id] || {},
                 sh.fare_total_yen,
-                true,
+                // 1回だけ 走った 日は 売上を 直せる（2回 以上は 1回ずつ 直す 給料の 画面へ）
+                sh.dame
+                  ? { dame: true }
+                  : sh.ids.length === 1
+                    ? { meter: sh.meter_yen }
+                    : { kaisu: sh.ids.length },
                 hoka.length
                   ? 'この 車は この日 ' +
                       sh.ids.length +
@@ -752,6 +767,7 @@
         // ★★1台ぶんを 描く★★ 2026-09-11（司さん「車毎に 出す」）
         //   hashitta … 走った 車か（true なら 売上は 出すだけ）
         //   tomeru … 打たせない 訳（空なら 打てる）＝実費・電子決済を 出すだけに する
+        // hashitta … 走った 車なら { meter: メーターの額 }（1回だけ＝売上を 直せる）か { kaisu: 回数 }（2回 以上）
         function shaHitotsu(na, key, keyAttr, e, uriage, hashitta, tomeru) {
           var h = '<div class="sha"><div class="sha-na">' + esc(na) + '</div>';
           var dis = tomeru ? ' disabled' : '';
@@ -759,13 +775,43 @@
           // ★★売上★★
           //   ★走った 車★ … メーターの 数字を 出すだけ（ここでは 変えられない）
           //   ★走っていない 車★ … 0 で 出して 打ち直せる
-          if (hashitta) {
+          if (hashitta && hashitta.dame) {
+            h +=
+              '<div class="frow"><span class="flabel">売上</span>' +
+              '<span class="hint" style="color:#b42318;font-weight:700">売上の 直しが 読めません（負の 数 など）。給料の「時数を入れる」で 直してください。</span></div>';
+          } else if (hashitta && hashitta.meter !== undefined && !tomeru) {
+            // 2026-10-14 司さん「金額の修正もできんやないか」＝メーターの 売上も 直せる（給料の 画面と 同じ 列 uriage_yen）
+            //   空＝メーターの 額（薄い 字）。印は data-uri-sid（data-sid は 実費の 保存に 結ばれている）
+            var naoshi = e && e.uriage_yen !== null && e.uriage_yen !== undefined;
+            h +=
+              '<div class="frow"><span class="flabel">売上</span>' +
+              '<div class="fen"><input class="finput fnum" inputmode="numeric" data-uri-sid="' +
+              esc(key) +
+              '" value="' +
+              (naoshi ? esc(String(e.uriage_yen)) : '') +
+              '" placeholder="' +
+              JippiHozon.seisuu(hashitta.meter) +
+              '" data-yomitori="1"><span class="en">円</span></div>' +
+              '<span class="hint">' +
+              (naoshi
+                ? '直した 売上です（メーター ' +
+                  JippiHozon.seisuu(hashitta.meter) +
+                  '円）。空に すると メーターに 戻ります。'
+                : 'メーターから 読めています。違う 時は 打ち直せます（空＝メーターの 額）。') +
+              '</span></div>';
+          } else if (hashitta) {
             h +=
               '<div class="frow"><span class="flabel">売上</span>' +
               '<div class="fen"><input class="finput fnum" type="number" value="' +
               JippiHozon.seisuu(uriage) +
               '" disabled data-yomitori="1"><span class="en">円</span></div>' +
-              '<span class="hint">メーターから 読めています（ここでは 変えられません）。</span></div>';
+              '<span class="hint">' +
+              (hashitta.kaisu > 1
+                ? 'メーターから 読めています。この日は ' +
+                  hashitta.kaisu +
+                  '回 走りました。売上を 直すのは 給料の「時数を入れる」で 1回ずつ。'
+                : 'メーターから 読めています。') +
+              '</span></div>';
           } else {
             h +=
               '<div class="frow"><span class="flabel">売上</span>' +
@@ -917,6 +963,15 @@
               };
             }
           );
+          // メーターの 売上の 直し 2026-10-14
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-uri-sid]'),
+            function (i) {
+              i.onchange = function () {
+                saveUriage(i, i.getAttribute('data-uri-sid'), i.value);
+              };
+            }
+          );
           // ★★走った 記録が 無い 日の 分★★ 2026-09-08（手で 入れた 1日ぶん）
           Array.prototype.forEach.call(
             document.querySelectorAll('#shaList [data-dev]'),
@@ -926,6 +981,32 @@
               };
             }
           );
+        }
+
+        // メーターの 車の 売上を 事務所が 直す（dk_shift_edits.uriage_yen・給料の 画面と 同じ）2026-10-14
+        //   送るのは この 2列だけ。請求書の 一覧で 後から 直すと dk-fix-fare が 空に 戻す＝後から 直した 方が 勝つ
+        function saveUriage(inp, shiftId, value) {
+          if (!COMPANY) return;
+          var v = UriageAgg.yomuUriage(value);
+          if (v === undefined) {
+            showErr(
+              '売上は 0以上の 整数で 入れてください（空に すると メーターの 額に 戻ります）。'
+            );
+            return;
+          }
+          inp.disabled = true;
+          // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
+          JippiHozon.saveUriage(SESS, shiftId, COMPANY.company_id, v)
+            .then(function (body) {
+              inp.disabled = false;
+              showErr('');
+              EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
+              inp.value = v === null ? '' : String(v);
+            })
+            .catch(function (r) {
+              inp.disabled = false;
+              saveErr('売上を 保存できませんでした。通信を確認してください。', r);
+            });
         }
 
         // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
@@ -955,7 +1036,8 @@
           JippiHozon.saveJippi(SESS, shiftId, COMPANY.company_id, EDITS[shiftId], field, value)
             .then(function (body) {
               showErr('');
-              EDITS[shiftId] = body;
+              // 前の 行に 重ねる（置き換えると 売上の 直し などが 読み直すまで 画面から 消える）
+              EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
             })
             .catch(function (r) {
               saveErr('保存できませんでした。通信を確認してください。', r);
