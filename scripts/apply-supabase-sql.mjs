@@ -7,6 +7,8 @@
 //         → 鍵と向き先が生きているかだけ確かめる（何も変えない）
 //     node scripts/apply-supabase-sql.mjs supabase/apply-shared-dk-payroll.sql ...
 //         → 門番(scripts/sql-guard.mjs)を通ったファイルだけ当てる
+//     node scripts/apply-supabase-sql.mjs --honban supabase/….sql
+//         → ★向き先が本番の時は --honban を付けた時だけ当てる★（2026-10-17・付けないと1文字も当てない）
 //
 //   ▼安全のしくみ
 //     ・向き先は ★js/dk-config.js から読む★（このrepoの向き先以外には当たらない）
@@ -22,6 +24,33 @@ import { fileURLToPath } from 'node:url';
 import { guard } from './sql-guard.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const HONBAN_REF = 'tnfwipbgfgjaymlszeid';
+
+// ★本番の止め★（2026-10-17 対立役 N7）前は本番の手元で走らせると、そのまま本番に当たった。
+//   当てる時（--probe で無い時）に、向き先が本番で --honban が無ければ止める。
+export function honbanNoTome(ref, args) {
+  if (args.includes('--probe')) return null;
+  if (ref === HONBAN_REF && !args.includes('--honban'))
+    return 'NG: 向き先が本番。本番に当てるのは --honban を付けた時だけ（1文字も当てていない）';
+  return null;
+}
+
+// ★ファイルごとの当てた後の確かめ★（2026-10-17 対立役 N7）棚の数だけでは、窓の列や守りが入ったか分からない。
+//   q を読んで ok(rows) が true の時だけ OK。
+export const ATO_NO_KAKUNIN = {
+  'supabase/apply-jugyoin-taishoku.sql': [
+    {
+      w: 'dk_employees（窓）に retired_on が在る',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_employees' and column_name='retired_on'",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: '窓 public.dk_employees が security_invoker=true',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_employees' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+  ],
+};
 
 // ─── 鍵 ─────────────────────────────────────────────
 // ★探し場所は scripts/db-token.mjs 1箇所だけ (2026-08-02)★
@@ -67,7 +96,14 @@ async function main() {
     process.exit(1);
   }
   const ref = readProjectRef();
-  console.log(`向き先: ${ref}  /  鍵: ${key.from}（中身は出さない）`);
+  console.log(
+    `向き先: ${ref === HONBAN_REF ? '★本番★ ' : ''}${ref}  /  鍵: ${key.from}（中身は出さない）`
+  );
+  const tome = honbanNoTome(ref, args);
+  if (tome) {
+    console.error(tome);
+    process.exit(3);
+  }
 
   // ① 鍵と向き先が生きているか（何も変えない読み取りだけ）
   const probe = await runSql(
@@ -143,6 +179,15 @@ async function main() {
     console.log(`  ${r.tablename}  RLS=${r.rls}  ポリシー${r.policies}本`)
   );
   console.log(`  dk_shift_edits.hours = ${cols.body?.length ? 'あり' : 'なし'}`);
+  let atoNg = 0;
+  for (const { f } of loaded) {
+    for (const k of ATO_NO_KAKUNIN[f.split(path.sep).join('/')] || []) {
+      const r = await runSql(ref, key.token, k.q);
+      const ok = r.ok && k.ok(r.body);
+      if (!ok) atoNg++;
+      console.log(`  ${ok ? '在り' : '★無し★'}  ${k.w}`);
+    }
+  }
 
   const need = [
     'dk_device_labels',
@@ -155,7 +200,7 @@ async function main() {
   const missing = need.filter((t) => !have.has(t));
   const allRls = (check.body || []).every((r) => r.rls === true);
 
-  if (missing.length || !allRls || !cols.body?.length) {
+  if (missing.length || !allRls || !cols.body?.length || atoNg) {
     console.error(
       `\nAPPLY RESULT: NG  足りない棚=${missing.join(',') || 'なし'} / RLS全部on=${allRls}`
     );
@@ -164,7 +209,9 @@ async function main() {
   console.log('\nAPPLY RESULT: OK');
 }
 
-main().catch((e) => {
-  console.error('NG:', e && e.message ? e.message : e);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  main().catch((e) => {
+    console.error('NG:', e && e.message ? e.message : e);
+    process.exit(1);
+  });
+}
