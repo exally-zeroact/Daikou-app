@@ -171,6 +171,9 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         # bash の -e を無効化（リトライループで git の非ゼロ終了をハンドリングするため）
         shell: bash {0}
+        env:
+          KINSHI_JI: ${{ secrets.KINSHI_JI }}
+          KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
         run: |
           set +e
           git config user.name "github-actions[bot]"
@@ -193,6 +196,11 @@ jobs:
             if git cherry-pick "$MY_COMMIT" 2>&1; then
               MY_COMMIT=$(git rev-parse HEAD)
               echo "  ✓ cherry-pick 成功 → $MY_COMMIT"
+              # 積み直した 木で 見張りを もう一度（main の 先端が 変わった＝前に 見た 木と 違う）
+              if ! bash scripts/kinshi-tsutsumu.sh; then
+                echo "::error::積み直した 木で 実在の字の見張りが 赤＝push しない"
+                break
+              fi
             else
               echo "  ⚠️ cherry-pick 衝突 → 中断"
               git cherry-pick --abort 2>/dev/null || true
