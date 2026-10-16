@@ -5917,6 +5917,20 @@
           );
         }
 
+        // ★書けた 後の 描き直し★ 2026-10-16（対立役：描き直しが 転ぶと 書けたのに「保存できませんでした」と 出た）。
+        //   転んだら「◯◯は保存しましたが…読み込み直して」。描けたら BYOGA_NG を 空に 戻す（直った 後まで 出さない）
+        var BYOGA_NG = '';
+        function byogaSuru(mae) {
+          try {
+            recalc(); // 売上の 警告（uriageDameBun）は ここで 出る＝上書きしない
+            renderDays();
+            BYOGA_NG = ''; // 描けた＝前の 転びは 直った
+          } catch (e) {
+            if (window.console) console.warn('[描き直し]', e);
+            BYOGA_NG = mae + '画面の計算で問題が出ました。画面を読み込み直してください。';
+            showErr(BYOGA_NG);
+          }
+        }
         function saveManual(date, dev, field, value) {
           if (!COMPANY) return;
           var cur = manualRow(date, dev) || {};
@@ -5948,8 +5962,7 @@
                 return m;
               });
               if (!found) RAW.manualDays.push(body);
-              recalc();
-              renderDays();
+              byogaSuru('手で入れた分は保存しましたが、');
             })
             .catch(function () {
               showErr('手で入れた分を保存できませんでした。');
@@ -5974,8 +5987,7 @@
               RAW.manualDays = RAW.manualDays.filter(function (m) {
                 return !(m.work_date === date && m.device_id === dev);
               });
-              recalc();
-              renderDays();
+              byogaSuru('消しましたが、');
             })
             .catch(function () {
               showErr('消せませんでした。');
@@ -6011,8 +6023,7 @@
                 return e;
               });
               if (!found) RAW.edits.push(neu);
-              recalc();
-              renderDays();
+              byogaSuru('時間は保存しましたが、');
             })
             .catch(function () {
               showErr('時間を保存できませんでした。');
@@ -6055,8 +6066,7 @@
                 return e;
               });
               if (!found) RAW.edits.push(neu);
-              recalc();
-              renderDays();
+              byogaSuru('売上は保存しましたが、');
             })
             .catch(function () {
               showErr('売上を保存できませんでした。');
@@ -6086,8 +6096,7 @@
                 return w;
               });
               if (!found) RAW.workHours.push(body);
-              recalc();
-              renderDays();
+              byogaSuru('乗った人は保存しましたが、');
             })
             .catch(function () {
               showErr('乗った人を保存できませんでした。');
@@ -6111,8 +6120,7 @@
               RAW.workHours = RAW.workHours.filter(function (w) {
                 return !(w.work_date === date && w.employee_id === employeeId);
               });
-              recalc();
-              renderDays();
+              byogaSuru('外しましたが、');
             })
             .catch(function () {
               showErr('外せませんでした。');
@@ -6689,12 +6697,17 @@
                 RAW.labels.push(hit);
               }
               hit[field] = value;
+              // 名前は 書けた＝true を 返す。描き直しが 転んだら 黙らず 赤字で 知らせる（対立役：console だけだと
+              //   給料の 計算が 古い まま 何も 出なかった）
               try {
                 recalc();
                 renderCars();
                 flash('carSaved', '保存しました');
               } catch (e) {
                 if (window.console) console.warn('[saveCar] 描き直し', e);
+                BYOGA_NG =
+                  '車の名前は保存しましたが、画面の計算で問題が出ました。画面を読み込み直してください。';
+                showErr(BYOGA_NG);
               }
               return true;
             })
