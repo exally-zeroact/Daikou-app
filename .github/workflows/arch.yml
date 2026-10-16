@@ -19,7 +19,7 @@ on:
 
 jobs:
   arch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 2026-05-18: 5 → 10 拡大 (= npm ci cold cache 時の 5m 超過自動 cancel 対策)
     timeout-minutes: 10
     steps:

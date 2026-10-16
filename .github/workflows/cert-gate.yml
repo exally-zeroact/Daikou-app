@@ -53,7 +53,7 @@ on:
 jobs:
   gate:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false # ★1本落ちても他を最後まで走らせる（どこまで壊れているかを1回で知る）★
@@ -295,7 +295,7 @@ jobs:
   #   ここで ★success 以外は全部赤★ にして、打ち切られたら気づけるようにする。
   cert-gate-result:
     name: cert-gate 総合結果
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: gate
     if: always()
     timeout-minutes: 5
