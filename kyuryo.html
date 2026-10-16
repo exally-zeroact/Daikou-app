@@ -5868,15 +5868,42 @@
               var date = sel.getAttribute('data-man-add');
               var dev = sel.value;
               if (dev === '__new__') {
-                var name = window.prompt('車の名前を入れてください（例: 2号車）');
+                var name = String(
+                  window.prompt('車の名前を入れてください（例: 2号車）') || ''
+                ).trim();
                 if (!name) {
                   sel.value = '';
                   return;
                 }
-                dev = 'manual-' + name;
-                saveLabel(dev, name);
+                // 同じ 名前の 車が 在る 時は 作らない（2台に 割れる・前は 同じ 印で その日の 売上が 0 に 上書きされ得た）
+                var aru = (RAW.labels || []).some(function (l) {
+                  return l && String(l.label || '').trim() === name;
+                });
+                if (aru) {
+                  sel.value = '';
+                  showErr('「' + name + '」の車は もう あります。一覧から 選んでください。');
+                  return;
+                }
+                // 印は 名前から 作らない（名前を 変えた 車と 重ならない）
+                dev = 'manual-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+                // ★名前を 書けてから その日の 行を 足す★ 2026-10-14
+                //   前は この 画面に 無い saveLabel を 呼んで 落ち、名前も 行も 保存されなかった
+                hozonSuru(function () {
+                  return saveCar(dev, 'label', name).then(function (ok) {
+                    if (ok)
+                      return Promise.resolve(saveManual(date, dev, 'sales_yen', 0)).then(
+                        function () {
+                          if (document.body.contains(sel)) sel.value = ''; // 行を 足せなかった 時に 選んだ まま 止まらない
+                        }
+                      );
+                    sel.value = '';
+                  });
+                });
+                return;
               }
-              saveManual(date, dev, 'sales_yen', 0);
+              hozonSuru(function () {
+                return saveManual(date, dev, 'sales_yen', 0);
+              });
             };
           });
         }
@@ -6633,20 +6660,24 @@
         }
 
         function saveCar(deviceId, field, value) {
-          if (!COMPANY) return;
+          if (!COMPANY) return Promise.resolve(false);
           var body = {
             company_id: COMPANY.company_id,
             device_id: deviceId,
             updated_at: new Date().toISOString(),
           };
           body[field] = value;
-          DKSession.rest(SESS, 'dk_device_labels?on_conflict=company_id,device_id', {
+          // 返り値＝書けたか（true/false）。新しい 車を 足す 時は 書けてから その日の 行を 足す
+          return DKSession.rest(SESS, 'dk_device_labels?on_conflict=company_id,device_id', {
             method: 'POST',
             headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
             body: JSON.stringify(body),
           })
             .then(function (r) {
-              if (!r.ok) return saveErr('車の名前を保存できませんでした。', r);
+              if (!r.ok) {
+                saveErr('車の名前を保存できませんでした。', r);
+                return false;
+              }
               showErr('');
               // 手元の控えも合わせる（画面のあちこちで同じ名前になるように）
               var hit = null;
@@ -6658,12 +6689,18 @@
                 RAW.labels.push(hit);
               }
               hit[field] = value;
-              recalc();
-              renderCars();
-              flash('carSaved', '保存しました');
+              try {
+                recalc();
+                renderCars();
+                flash('carSaved', '保存しました');
+              } catch (e) {
+                if (window.console) console.warn('[saveCar] 描き直し', e);
+              }
+              return true;
             })
             .catch(function () {
               showErr('車の名前を保存できませんでした。');
+              return false;
             });
         }
 
