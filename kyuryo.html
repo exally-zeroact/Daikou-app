@@ -2353,9 +2353,34 @@
             p_to: h.to,
           }).then(function (r) {
             if (!r || r.ok !== true) {
+              // 辞めた 後の 月（働いた 日が 無い 月）は 倉庫が 返さない（会社の 売上を 見続けない・10-16）
+              var taishoku = r && r.reason === 'taishoku';
               if (box)
                 box.innerHTML =
-                  '<div class="card"><div class="msg">出せませんでした。もう一度 開いてください。</div></div>';
+                  '<div class="card"><div class="msg">' +
+                  (taishoku
+                    ? 'この 月は 働いた 日が 無いので 出せません（辞めた 後の 月は 見られません）。'
+                    : '出せませんでした。もう一度 開いてください。') +
+                  '</div>' +
+                  // 辞めた 人が 働いた 月へ 戻れる ように 月の 送りを 出す（無いと 最後の 明細に 行けなかった・対立役 K3）
+                  (taishoku
+                    ? '<div style="margin-top:10px;display:flex;gap:8px">' +
+                      '<button class="btn ghost" type="button" id="hnTaiMae">◀ 前の月</button>' +
+                      '<button class="btn ghost" type="button" id="hnTaiTsugi">次の月 ▶</button></div>'
+                    : '') +
+                  '</div>';
+              if (taishoku) {
+                var tm = document.getElementById('hnTaiMae');
+                var tt = document.getElementById('hnTaiTsugi');
+                if (tm)
+                  tm.onclick = function () {
+                    honninTsuki(-1);
+                  };
+                if (tt)
+                  tt.onclick = function () {
+                    honninTsuki(1);
+                  };
+              }
               return;
             }
             SET = (r.settings || [])[0] || null;
@@ -5097,8 +5122,10 @@
           // ★名前の 選ぶ欄を 今の 人で 作り直す★（いなくなった人を 選んだままに しない・0人の 時も）
           hitoErabiTsukuru();
           if (!REP || !REP.employees.length) {
-            box.innerHTML =
-              '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
+            // 本人の 画面で 0人＝その 月に 働いた 日も 手当・控除も 無い（辞めた 人など）＝「登録して」は 嘘に なる
+            box.innerHTML = HONNIN
+              ? '<div class="card"><div class="msg">この 月は 働いた 日が ありません。</div></div>'
+              : '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
             return;
           }
           var ubDame = uriageDameBun(CTX);

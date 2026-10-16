@@ -625,9 +625,10 @@
       out.cars = carsOf(ctx);
 
       const byEmp = {};
-      const active = arr(ctx.employees).filter(function (e) {
-        return e.active !== false;
-      });
+      // ★★辞めた 人（今いる人を 外した 人）も 行を 作る★★ 2026-10-16（対立役・指示役）
+      //   前は active で 絞り、外した 人は 働いた 期間の 明細・紙・本人の 画面から 消えた（総額には 残り、人の 合計と 合わなかった）。
+      //   出すかは 最後に 決める：今いる人は 全員、外した 人は この 期間に 働いた 日か 手当・控除が ある 時だけ
+      const active = arr(ctx.employees);
       active.forEach(function (e) {
         byEmp[e.employee_id] = {
           employee_id: e.employee_id,
@@ -715,9 +716,15 @@
         });
       });
 
-      out.employees = active.map(function (e) {
-        return byEmp[e.employee_id];
-      });
+      out.employees = active
+        .filter(function (e) {
+          if (e.active !== false) return true;
+          const row = byEmp[e.employee_id];
+          return !!row && (row.workedDays > 0 || row.adj.length > 0);
+        })
+        .map(function (e) {
+          return byEmp[e.employee_id];
+        });
     } catch (_) {
       /* ignore */
     }

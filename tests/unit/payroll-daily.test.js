@@ -452,7 +452,10 @@ describe('★壊れたデータでも画面を殺さない★', () => {
     expect(isFinite(r.hourly)).toBe(true);
   });
 
-  it('辞めた人（active=false）は明細に出さない', () => {
+  // ★2026-10-16 決まりを 変えた★（前は「辞めた人は 働いた 期間でも 明細に 出さない」＝総額には 入るのに
+  //   どの 明細にも 出ず、画面の 字「過去の明細と金額はそのまま残ります」と 食い違っていた・対立役・指示役）
+  //   今：辞めた 人は その 期間に 働いた 日か 手当・控除が ある 時だけ 出る（tests/unit/yameta-hito-no-meisai.test.js）
+  it('辞めた人（active=false）も 働いた 期間は 明細に 出る・働いていない 期間は 出ない', () => {
     const ctx = D.buildCtx(
       Object.assign({}, CTX_0110, {
         employees: EMP.map((e) =>
@@ -461,7 +464,9 @@ describe('★壊れたデータでも画面を殺さない★', () => {
       })
     );
     const rep = D.report(['2026-01-10'], ctx);
-    expect(rep.employees.map((e) => e.name)).not.toContain('例野五八');
+    expect(rep.employees.map((e) => e.name)).toContain('例野五八');
+    const nai = D.report(['2026-01-11'], ctx);
+    expect(nai.employees.map((e) => e.name)).not.toContain('例野五八');
   });
 
   it('★辞めた人でも過去に働いた分は金額に入る（他の人の給料が狂わない）★', () => {
