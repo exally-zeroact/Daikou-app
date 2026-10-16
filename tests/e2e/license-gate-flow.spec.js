@@ -20,6 +20,18 @@ async function boot(page) {
 test('scripts(nacl/LicenseV2/LicenseActivate)読込 + pageエラー無し', async ({ page }) => {
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
+  // ★倉庫（*.supabase.co）へは 圏外と 同じ 失敗を 返す★ 2026-10-17
+  //   WebKit の 組は 本物の 倉庫へ 行かせない 為に 外を 届かない 代理に 向けている。代理で 落ちた 事前問い合わせを、
+  //   WebKit は アプリが 捕まえた 後でも「…due to access control checks.」の page エラーとして 出し、Linux の CI で 2回とも 赤だった。
+  //   手元の webkit で 測った：捕まえた 失敗は abort なら page エラー 0件・捕まえない 失敗は abort でも「TypeError: Load failed」で 赤
+  //   ＝この 見張りは アプリの 捕まえていない 失敗を 今まで通り 赤に する。service worker が 握っても 効く 様に context で 止める。
+  //   ★わざと壊して 赤に なった 記録（2026-10-17）★ 止め先の 字を 変えて 1本も 止まらない 形に する ⇒ 赤
+  //     （「倉庫への 要求が 1本も 止まっていない」・chromium で 確かめた）。戻すと 緑。
+  let tometa = 0;
+  await page.context().route(/\.supabase\.co\//, (r) => {
+    tometa++;
+    return r.abort('internetdisconnected');
+  });
   await boot(page);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(500);
@@ -31,6 +43,14 @@ test('scripts(nacl/LicenseV2/LicenseActivate)読込 + pageエラー無し', asyn
   expect(defs.nacl).toBe(true);
   expect(defs.la).toBe('object');
   expect(defs.verify).toBe(true);
+  // ★止めが 1回も 効いていない まま 緑に しない★（倉庫への 要求が 出て、圏外の 失敗を 返した 後で エラーを 数える・指示役）
+  await expect
+    .poll(() => tometa, {
+      timeout: 10000,
+      message: '★倉庫への 要求が 1本も 止まっていない（この 見張りの 前提が 無い）★',
+    })
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(500);
   expect(errs).toEqual([]);
 });
 

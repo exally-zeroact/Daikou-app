@@ -1,5 +1,5 @@
 # Playwright E2E (2026-05-17 新規・Stage 1 Step E・Layer 3)
-# tests/e2e/ 配下の Playwright spec を CI 実行 (chromium のみ)
+# tests/e2e/ 配下の Playwright spec を CI 実行（e2e＝chromium で 全部・webkit＝iPhone の 中身で 運転手の 道と 本人の 明細だけ・2026-10-17）
 name: Playwright E2E
 
 on:
@@ -36,5 +36,42 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-trace
+          path: test-results/
+          retention-days: 7
+
+  # ★iPhone の Safari の 中身（WebKit）で 運転手が 一番 触る 道だけ 開く★ 2026-10-17
+  #   前は chromium だけで、WebKit を 1回も 測っていなかった（指示役 10-16）。
+  #   組は playwright.webkit.config.js の WEBKIT_KUMI（業務の 道・保存・許可・料金表・本人の 明細）。
+  #   公開 repo なので Actions の 費用は 0。chromium の job とは 別に 並べて 走る。
+  #   ★retries は 0★ 初めて 測る 中身なので、揺れも 1回で 赤に する（2 だと 3回目に 通れば 緑に 化ける・対立役）
+  webkit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright webkit
+        run: npx playwright install --with-deps webkit
+
+      - name: Run Playwright tests (webkit)
+        # ★段にも 時間の 上限★ 組は 約4分。worker が 止まらないと job の 20分まで 使われ「cancelled」に なり、手で 止めた 時と 区別が つかない＝ここで 段の 失敗として 出す（対立役 10-17）
+        timeout-minutes: 10
+        run: npx playwright test --config=playwright.webkit.config.js --retries=0
+        env:
+          CI: true
+
+      - name: Upload trace on failure
+        if: failure() || cancelled()  # 時間切れの 時も 足跡を 上げる（対立役 10-17）
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace-webkit
           path: test-results/
           retention-days: 7
