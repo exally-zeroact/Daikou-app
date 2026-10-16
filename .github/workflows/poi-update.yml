@@ -94,16 +94,6 @@ jobs:
             node scripts/build-poi.js "$f" "$PREF"
           done
 
-      - name: 中間 POI GeoJSON を Actions Artifact に保管（デバッグ用・14日リテンション）
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: input-poi-geojson-${{ github.run_id }}
-          path: input/*/poi.geojson
-          retention-days: 14
-          if-no-files-found: warn
-          compression-level: 9
-
       - name: サイズ・件数レポート
         run: |
           echo "=== 生成された data/poi-{pref}.js ==="
@@ -162,23 +152,8 @@ jobs:
           KINSHI_JI: ${{ secrets.KINSHI_JI }}
           KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
 
-      # ★見張りが赤の時は 作った店データを 成果物に残す★（2026-10-11）
-      #   店データは 毎月 中身が変わる＝白名簿の blob が ずれて 毎月 赤になる（10-11 テスト線の手での起動で実測）。
-      #   前は 作った物を 捨てていたので、席が 中身を見て 白名簿を直す 材料が 無かった。
-      #   席の手順：成果物を取り寄せ → テスト線の data/ に置いて 見張りを回す → 当たりが 公の地図データの 偶然の一致だけか 目で見る
-      #   → 白名簿の 件数と blob を直して ★成果物の データと一緒に 積む★（字は 成果物・issue に 書かない＝見張りの出しは 道と 何番目か だけ）。
-      #   ★回し直さない★＝作るたびに 時刻（generated）が入るので、回し直すと blob が変わり また赤になる（scripts/build-poi.js）。
-      - name: 見張りが赤＝作った店データを 成果物に残す（席が 中身を見て 白名簿を直す 材料）
-        if: failure() && steps.kinshi.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: poi-data-kinshi-aka-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            data/poi-*.js
-            kinshi.out
-          retention-days: 14
-          if-no-files-found: error
-
+      # ★成果物は 置かない★ 2026-10-16（公開 repo の artifact は 誰でも 取れる＝赤の 店データと 当たりの 組を 置いていた・指示役の 決めで 6本 消した）。
+      #   赤の 時は commit せず、issue に 道と 決まった 文だけ 書く。中身は 席が 手元で 地図を 取り直して 見る
       - name: 見張りが赤＝commit しないで 知らせる（issue）
         if: failure() && steps.kinshi.outcome == 'failure'
         env:
@@ -188,10 +163,9 @@ jobs:
             --title "★${{ github.workflow }}：実在の字の見張りが赤＝commit していません★" \
             --body "bot の更新の中で 実在の字の見張りが 赤になったので、commit と push をしていません。
           記録：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          作った店データは この run の 成果物 poi-data-kinshi-aka-${{ github.run_id }}-${{ github.run_attempt }}（14日）に 残してあります。
-          席が 成果物の data/poi-*.js を data/ に置いて 見張りを回し、中身を見て tests/kinshi-ji-shiro.txt の件数と blob を直し、データと一緒に 積んでください（字は ここに 書かない）。
-          ★白名簿の「当たりN」は 語の種類の数で 施設の数ではない★＝成果物を data/ に置いた後、repo の根で node scripts/poi-kinshi-atari.mjs --mae-git HEAD を回し、前の版に無い 当たりの施設を 施設ごとに 見てください（終わり値 2 は 分からない＝止まる）。
-          ★回し直さない★＝作るたびに 時刻が入るので、回し直すと blob が変わり また赤になります。"
+          作った店データは 公開の 場所に 置いていません（公開 repo の 成果物は 誰でも 取れるため）。
+          席が 手元で 地図を 取り直して data/poi-*.js を 作り、見張りと node scripts/poi-kinshi-atari.mjs --mae-git HEAD を 回して、前の版に無い 当たりの施設を 施設ごとに 見てください（字は ここに 書かない・終わり値 2 は 分からない＝止まる）。
+          ★白名簿の「当たりN」は 語の種類の数で 施設の数ではない★。"
 
       - name: 自動コミット & プッシュ
         if: steps.diff.outputs.changed == 'true'
