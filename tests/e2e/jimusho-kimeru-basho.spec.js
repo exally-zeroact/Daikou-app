@@ -47,7 +47,10 @@ function kyuryoSess() {
     'var S=window.DKSession;S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
     'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
-    'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
+    'S.rest=function(s,p,o){var x={ok:true,status:200,json:function(){return Promise.resolve(rows(p));}};' +
+    // ⑧ の 為：__PATCH_OSOKU__ が 立つ 時だけ PATCH を 遅らせ、書けた 時刻を 残す
+    'if(o&&o.method==="PATCH"&&window.__PATCH_OSOKU__)return new Promise(function(ok){setTimeout(function(){localStorage.setItem("__kaketa__",String(Date.now()));ok(x);},window.__PATCH_OSOKU__);});' +
+    'return Promise.resolve(x);};' +
     'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
 }
@@ -182,12 +185,16 @@ test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async
   expect(r.mieru.length, '★出ているのが 1つでは ありません★').toBe(1);
 
   // ★入口の 行き先★（ここが 崩れると 決められなく なる）
-  const iki = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-pane] a.btn')].map((a) => a.getAttribute('href'))
-  );
+  //   ★2026-10-16★ 車・従業員は 間の 札を 消し、★チップ そのものが 入口★（司さん「決めるボタン押さないかんのは めんどくさい」）
+  const iki = await page.evaluate(() => [
+    ...[...document.querySelectorAll('[data-pane] a.btn')].map((a) => a.getAttribute('href')),
+    ...[...document.querySelectorAll('[data-chip][data-href]')].map((b) =>
+      b.getAttribute('data-href')
+    ),
+  ]);
   // eslint-disable-next-line no-console
   console.log('★入口★ ' + JSON.stringify(iki));
-  expect(iki, '★車の 入口が ありません★').toContain('kyuryo.html?henshu=1#set');
+  expect(iki, '★車の 入口が ありません★').toContain('kyuryo.html?henshu=1#kuruma');
   // ★★料金の 入口は 窓の 中へ 移しました★★ 2026-09-09
   //   ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
   //   ⇒ 窓の 外の 札は 消し、★窓の 中の 見出しの 右横★ 1つに まとめた。
@@ -215,4 +222,189 @@ test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async
   expect(iki, '★従業員の 入口が ありません★').toContain('kyuryo.html?henshu=1#emp');
 
   expect(err, '★画面が 落ちました★').toEqual([]);
+
+  // ★車の チップを 押すと 間の 札を 通らず そのまま 車を 決める 画面へ★ 2026-10-16（司さん）
+  await page.locator('[data-chip="kuruma"]').click();
+  await page.waitForURL(/kyuryo\.html\?henshu=1#kuruma$/, { timeout: 8000 });
+});
+
+// ★★会社設定の「車」から 来たら 車の 箱だけ★★ 2026-10-16（司さん「車の決めるとこに なんで 関係ないものが あるんど」）
+//   前は 給料の 設定を まるごと 開き、役割ごとの決まり・売上の分け方・明細の期間・従業員へ配る が 並んでいた。
+//   ★守る 事★ 車の 箱と 保存（車ごとの売上を載せる の 印を 保存する）は 見え、他の 箱は 見えない。見出しは「車」。
+//   ★#set（給料の 設定 ぜんぶ）は 今までどおり★
+test('★★④ 会社設定の「車」から 来たら 車の 箱だけ★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#kuruma');
+  const r = await page.evaluate(() => {
+    const ps = document.getElementById('paneSet');
+    const cards = [...ps.querySelectorAll(':scope > .card')];
+    return {
+      tabMieru: !!(document.getElementById('tabs') || {}).offsetHeight,
+      paneMieru: !!ps.offsetHeight,
+      carMieru: cards
+        .filter((c) => c.classList.contains('car-pane'))
+        .every((c) => c.offsetHeight > 0),
+      hokaMieru: cards.filter((c) => !c.classList.contains('car-pane') && c.offsetHeight > 0)
+        .length,
+      hokaKazu: cards.filter((c) => !c.classList.contains('car-pane')).length,
+      hozonObi: !!(document.getElementById('saveBar') || {}).offsetHeight,
+      midashi: (document.getElementById('modoruMidashi') || {}).textContent || '',
+    };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★車だけ★ ' + JSON.stringify(r));
+  expect(r.tabMieru, '★タブの 行が 出ています★').toBe(false);
+  expect(r.paneMieru && r.carMieru, '★車の 箱が 見えません★').toBe(true);
+  expect(r.hokaKazu, '★他の 箱を 数えていない（0本を 見て 緑に しない）★').toBeGreaterThanOrEqual(
+    3
+  );
+  expect(r.hokaMieru, '★車と 関係ない 箱が 出ています★').toBe(0);
+  // 車だけの 時は 下の 保存の 帯を 出さない（下の 帯に 覆われて 押せなかった）＝「載せる」の 印は その場で 保存（⑤）
+  expect(r.hozonObi, '★押せない 保存の 帯が 出ています★').toBe(false);
+  expect(r.midashi).toBe('車');
+
+  // #set（給料の 設定 ぜんぶ）は 今までどおり 他の 箱も 出る
+  await kyuryoHiraku(page, '?henshu=1#set');
+  const z = await page.evaluate(
+    () =>
+      [...document.getElementById('paneSet').querySelectorAll(':scope > .card')].filter(
+        (c) => c.offsetHeight > 0
+      ).length
+  );
+  expect(z, '★給料の 設定 ぜんぶ の 方まで 隠しています★').toBeGreaterThanOrEqual(4);
+});
+
+// ★★⑤ 車だけの 画面の「載せる」は その場で、この 印 だけを 書く★★ 2026-10-16（対立役）
+//   前：設定 ぜんぶを 送り、隠れた 積立 0.0525 が 画面の 丸めで 0.053 に 書き換わった／自分の 車が 空に なった
+function okuttaMiru(page) {
+  return page.evaluate(() => {
+    window.__okutta__ = [];
+    const r0 = window.DKSession.rest;
+    window.DKSession.rest = function (s, p, o) {
+      if (o && o.method && o.method !== 'GET' && String(p).indexOf('dk_payroll_settings') === 0)
+        window.__okutta__.push({ m: o.method, p: String(p), b: JSON.parse(o.body) });
+      return r0.apply(this, arguments);
+    };
+  });
+}
+test('★★⑤ 車だけの 画面の「載せる」は この 印 だけを その場で 書く★★', async ({ page }) => {
+  const moto = { ...FIX.settings[0] };
+  Object.assign(FIX.settings[0], {
+    owner_device_id: 'zz-meibo-ni-nai-kuruma',
+    reserve_pool_rate: 0.0525,
+    reserve_owner_rate: 0.0515,
+  });
+  try {
+    await kyuryoHiraku(page, '?henshu=1#kuruma');
+    await okuttaMiru(page);
+    await page.locator('#showCarSales').click();
+    await page.waitForTimeout(600);
+    const okutta = await page.evaluate(() => window.__okutta__);
+    expect(okutta.length, '★「載せる」を 変えても 保存して いない／2本 以上 送った★').toBe(1);
+    expect(okutta[0].m).toBe('PATCH');
+    expect(
+      Object.keys(okutta[0].b).sort(),
+      '★「載せる」 以外も 送っています（隠れた 率が 丸まる）★'
+    ).toEqual(['show_car_sales', 'updated_at']);
+    const saved = await page.evaluate(
+      () => (document.getElementById('carSaved') || {}).textContent || ''
+    );
+    expect(saved, '★車の 箱の 中に 保存の 合図が 出ていません★').toContain('保存しました');
+  } finally {
+    Object.keys(FIX.settings[0]).forEach((k) => delete FIX.settings[0][k]);
+    Object.assign(FIX.settings[0], moto);
+  }
+});
+
+test('★★⑥ 給料の 設定 ぜんぶの 保存でも 名簿に 無い 自分の 車を 空に しない★★', async ({
+  page,
+}) => {
+  const moto = FIX.settings[0].owner_device_id;
+  FIX.settings[0].owner_device_id = 'zz-meibo-ni-nai-kuruma';
+  try {
+    await kyuryoHiraku(page, '?henshu=1#set');
+    await okuttaMiru(page);
+    await page.evaluate(() => document.getElementById('btnSaveSet').onclick());
+    await page.waitForTimeout(600);
+    const okutta = await page.evaluate(() => window.__okutta__);
+    expect(okutta.length).toBe(1);
+    const b = Array.isArray(okutta[0].b) ? okutta[0].b[0] : okutta[0].b;
+    expect(b.owner_device_id, '★見えない 自分の 車を 空に しました★').toBe(
+      'zz-meibo-ni-nai-kuruma'
+    );
+  } finally {
+    FIX.settings[0].owner_device_id = moto;
+  }
+});
+
+// ★★⑦ 「載せる」の 書き込みは keepalive（押して すぐ 戻っても 切らない）・書けなければ 印を 戻す・行が 無ければ 作る★★
+test('★★⑦ 「載せる」の 枝（keepalive・書けない・行が 無い）★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#kuruma');
+  const kekka = await page.evaluate(async () => {
+    const S = window.DKSession;
+    const r0 = S.rest;
+    const sc = document.getElementById('showCarSales');
+    const matsu = () => new Promise((ok) => setTimeout(ok, 400));
+    const out = {};
+    // ① keepalive が 付く
+    let opt = null;
+    S.rest = function (s, p, o) {
+      if (o && o.method === 'PATCH') opt = o;
+      return r0.apply(this, arguments);
+    };
+    sc.click();
+    await matsu();
+    out.keepalive = !!(opt && opt.keepalive);
+    // ② 書けない＝印を 戻し、合図を 出す
+    const mae = sc.checked;
+    S.rest = function (s, p, o) {
+      if (o && o.method === 'PATCH')
+        return Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) });
+      return r0.apply(this, arguments);
+    };
+    sc.click();
+    await matsu();
+    out.modotta = sc.checked === mae;
+    out.ngAizu = (document.getElementById('carSaved') || {}).textContent || '';
+    // ③ 行が 無い（0行）＝全部の 保存へ 倒さない（隠れた 率が 丸まる）＝送らず 印を 戻して 知らせる
+    const mae3 = sc.checked;
+    let post = 0;
+    S.rest = function (s, p, o) {
+      if (o && o.method === 'PATCH')
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve([]) });
+      if (o && o.method === 'POST' && String(p).indexOf('dk_payroll_settings') === 0) post++;
+      return r0.apply(this, arguments);
+    };
+    sc.click();
+    await matsu();
+    out.post = post;
+    out.modotta3 = sc.checked === mae3;
+    out.zeroAizu = (document.getElementById('carSaved') || {}).textContent || '';
+    S.rest = r0;
+    return out;
+  });
+  expect(kekka.keepalive, '★「載せる」の 書き込みに keepalive が 無い＝戻ると 切られる★').toBe(
+    true
+  );
+  expect(kekka.modotta, '★書けなかったのに 印が 変わった まま★').toBe(true);
+  expect(kekka.ngAizu).toContain('保存できませんでした');
+  expect(kekka.post, '★行が 無い 時に 全部の 保存へ 倒した（隠れた 率が 丸まる）★').toBe(0);
+  expect(kekka.modotta3, '★行が 無いのに 印が 変わった まま★').toBe(true);
+  expect(kekka.zeroAizu).toContain('保存できませんでした');
+});
+
+// ★★⑧「← 会社設定へ 戻る」は 書いている 最中の 保存が 済んでから 移る★★ 2026-10-16（対立役 S-B）
+//   keepalive では、別の 住所への 問い合わせの 最中に 画面を 移ると 書き込みが 届かなかった
+test('★★⑧ 戻るは 書き終わってから 移る★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#kuruma');
+  await page.evaluate(() => {
+    localStorage.removeItem('__kaketa__');
+    window.__PATCH_OSOKU__ = 900;
+  });
+  await page.locator('#showCarSales').click();
+  const oshita = await page.evaluate(() => Date.now());
+  await page.locator('#modoruSet a').click();
+  await page.waitForURL(/dashboard\.html/, { timeout: 15000 });
+  const kaketa = Number(await page.evaluate(() => localStorage.getItem('__kaketa__') || '0'));
+  expect(kaketa, '★書き終わる 前に 画面を 移った（書き込みが 消える）★').toBeGreaterThan(0);
+  expect(kaketa - oshita, '★待たずに 移った★').toBeGreaterThanOrEqual(800);
 });

@@ -556,9 +556,20 @@
              ★他の 画面（月次集計・売上表・料金表・給料明細）は 見るだけ★ -->
         <div class="chips" id="chips">
           <button class="chip on" type="button" data-chip="kaisha">会社</button>
-          <button class="chip" type="button" data-chip="kuruma">車</button>
+          <!-- ★★押したら そのまま 決める 画面へ★★ 2026-10-16（司さん「車と従業員のボタンおしても またそこから
+               決めるボタン押さないかんのは めんどくさいやろが」）＝間の 説明の 札と「決める」ボタンを 消した -->
+          <button
+            class="chip"
+            type="button"
+            data-chip="kuruma"
+            data-href="kyuryo.html?henshu=1#kuruma"
+          >
+            車
+          </button>
           <button class="chip" type="button" data-chip="ryokin">料金</button>
-          <button class="chip" type="button" data-chip="hito">従業員</button>
+          <button class="chip" type="button" data-chip="hito" data-href="kyuryo.html?henshu=1#emp">
+            従業員
+          </button>
           <!-- ★★実費の 名前を 自由に する★★ 2026-09-06（司さん
                「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ」）
                ★前は 高速代・橋代・その他の ★3つ 固定★でした★（倉庫の 列が 3本）
@@ -651,20 +662,6 @@
             <div id="devList"></div>
           </div>
         </div>
-        <!-- ★車★（次の 回で uriage / kyuryo から 移します） -->
-        <div data-pane="kuruma" style="display: none">
-          <div class="card">
-            <div style="font-weight: 800; margin-bottom: 6px">車</div>
-            <div class="mada">
-              車の <b>名前</b>と <b>並び</b>を ここで 決めます。<br />
-              決めた 物は <b>給料明細の「売上1・売上2…」</b>と <b>売上表</b>に そのまま 出ます。
-            </div>
-            <div style="margin-top: 10px">
-              <a class="btn" href="kyuryo.html?henshu=1#set">車を 決める</a>
-            </div>
-          </div>
-        </div>
-
         <!-- ★料金★（次の 回で ryokinhyou から 移します） -->
         <div data-pane="ryokin" style="display: none">
           <!-- ★★説明を やめて、その 場所に 料金表★★ 2026-09-08
@@ -721,20 +718,6 @@
               <button class="btn" id="jippiAdd" type="button">足す</button>
             </div>
             <div class="mada" id="jippiMsg" style="margin-top: 8px"></div>
-          </div>
-        </div>
-
-        <!-- ★従業員★（次の 回で kyuryo から 移します） -->
-        <div data-pane="hito" style="display: none">
-          <div class="card">
-            <div style="font-weight: 800; margin-bottom: 6px">従業員</div>
-            <div class="mada">
-              従業員の <b>名前・時給・歩合</b>を ここで 決めます。<br />
-              決めた 物は <b>給料明細</b>に そのまま 出ます。
-            </div>
-            <div style="margin-top: 10px">
-              <a class="btn" href="kyuryo.html?henshu=1#emp">従業員を 決める</a>
-            </div>
           </div>
         </div>
       </div>
@@ -1110,6 +1093,31 @@
           }
           Array.prototype.forEach.call(document.querySelectorAll('[data-chip]'), function (b) {
             b.onclick = function () {
+              // 決める 画面が 別に 在る チップ（車・従業員）は そのまま そこへ（覚える 場所は 変えない）
+              var iki = b.getAttribute('data-href');
+              if (iki) {
+                // 欄を 離れた 時の 保存（車の 名前・実費）を 先に 出し、書き終わって（最長 10 秒）から 移る
+                var a = document.activeElement;
+                if (a && a.blur) a.blur();
+                setTimeout(function () {
+                  var owari = false;
+                  var go = function () {
+                    if (owari) return;
+                    owari = true;
+                    location.href = iki;
+                  };
+                  Promise.all(
+                    DASH_KAKI_CHU.slice().map(function (p) {
+                      return p.then(
+                        function () {},
+                        function () {}
+                      );
+                    })
+                  ).then(go);
+                  setTimeout(go, 10000);
+                }, 0);
+                return;
+              }
               dasu(b.getAttribute('data-chip'));
             };
           });
@@ -1135,6 +1143,7 @@
         }
 
         // ---------- REST ----------
+        var DASH_KAKI_CHU = [];
         function api(path, opts) {
           opts = opts || {};
           var h = {
@@ -1144,7 +1153,22 @@
           };
           if (opts.headers) for (var k in opts.headers) h[k] = opts.headers[k];
           opts.headers = h;
-          return fetch(REST + path, opts);
+          // ★書く 時は 画面を 移っても 切らない★ 2026-10-16（車・従業員の チップは 押すと すぐ 画面を 移る＝
+          //   名前を 打って すぐ 押すと、欄を 離れた 時の 保存が 切られた・対立役 M-a）
+          if (opts.method && opts.method !== 'GET' && opts.keepalive === undefined)
+            opts.keepalive = true;
+          var x = fetch(REST + path, opts);
+          // 書いている 最中の 物を 数える（チップで 画面を 移る 時は これが 済んでから・keepalive だけでは
+          //   問い合わせの 最中に 移ると 届かなかった＝対立役 S-B）
+          if (opts.method && opts.method !== 'GET') {
+            DASH_KAKI_CHU.push(x);
+            var owari = function () {
+              var i = DASH_KAKI_CHU.indexOf(x);
+              if (i >= 0) DASH_KAKI_CHU.splice(i, 1);
+            };
+            x.then(owari, owari);
+          }
+          return x;
         }
 
         function getUser() {

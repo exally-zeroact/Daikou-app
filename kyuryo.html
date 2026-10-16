@@ -403,6 +403,13 @@
         }
 
         /* 車の名前と並びも同じ形（1台1枚） */
+
+        /* ★車だけ★（会社設定の「車」から 来た時）＝車の 箱と 保存の 帯 以外は 出さない */
+        #paneSet.kuruma-dake > .card:not(.car-pane),
+        #paneSet.kuruma-dake > .save-bar {
+          display: none !important;
+        }
+
         .car-body td[data-l]::before {
           content: attr(data-l);
           display: block;
@@ -3659,8 +3666,23 @@
           if (h) {
             // ★どの タブで 開くか★（会社設定の チップが #set / #emp を 付けて 来る）
             var doko = (location.hash || '').replace('#', '');
+            // ★★#kuruma＝車だけ★★ 2026-10-16（司さん「車の決めるとこに なんで 関係ないものが あるんど」）
+            //   前は 車の チップが「給料の 設定」を まるごと 開き、役割・売上の 分け方・明細の 期間・配る が 並んでいた。
+            //   ⇒ 車の 箱（と 保存）だけ 出す。他は 給料の 画面の「給料の 設定」の タブに 今までどおり 在る
+            var kurumaDake = doko === 'kuruma';
+            if (kurumaDake) doko = 'set';
             if (doko === 'set' || doko === 'emp') {
               var b2 = document.querySelector('.tab[data-tab="' + doko + '"]');
+              if (kurumaDake) {
+                var ps = document.getElementById('paneSet');
+                if (ps) ps.classList.add('kuruma-dake');
+                // ★「載せる」の 印も 変えたら その場で 保存★（車ごとの 印・名前と 同じ。保存を 押し忘れて 戻ると
+                //   黙って 消えた・保存の 帯は 下の 帯に 覆われて 押せなかった＝対立役）
+                //   ★送るのは この 印 だけ★（設定 ぜんぶを 送ると、隠れた 積立・段階の 率が 画面の 丸めで
+                //     0.0525→0.053 に 書き換わった＝お金の 決まりが 黙って 変わる・対立役）
+                var sc = document.getElementById('showCarSales');
+                if (sc) sc.addEventListener('change', noseruDakeHozon);
+              }
               if (b2) {
                 TAB = doko;
                 Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
@@ -3679,7 +3701,9 @@
                 if (modoru) {
                   modoru.style.display = '';
                   var mi = document.getElementById('modoruMidashi');
-                  if (mi) mi.textContent = doko === 'emp' ? '従業員' : '給料の設定（車）';
+                  if (mi)
+                    mi.textContent =
+                      doko === 'emp' ? '従業員' : kurumaDake ? '車' : '給料の設定（車）';
                 }
               }
             }
@@ -3701,6 +3725,61 @@
             render();
           };
         });
+        // ★車だけの 画面の「載せる」＝この 印 だけを 書く★ 2026-10-16（対立役 S-1・M-b・軽1）
+        //   保存している 間は 押せない／書けたら 車の 箱の 中に「保存しました」／書けなければ 印を 戻して 知らせる。
+        //   まだ 設定の 行が 無い 会社（1行も 当たらない）は 今までの 保存（既定の 値）で 行を 作る
+        function noseruDakeHozon() {
+          var sc = document.getElementById('showCarSales');
+          if (!sc || !COMPANY) return;
+          var ima = sc.checked;
+          var modosu = function (msg) {
+            sc.checked = !ima;
+            showErr(msg);
+            flash('carSaved', '保存できませんでした');
+          };
+          if (SET && SET.yomenai)
+            return modosu('給料の 設定を 読めていないので 保存しません。もう一度 開いてください。');
+          sc.disabled = true;
+          DKSession.rest(
+            SESS,
+            'dk_payroll_settings?company_id=eq.' + encodeURIComponent(COMPANY.company_id),
+            {
+              method: 'PATCH',
+              headers: { Prefer: 'return=representation' },
+              // 押して すぐ「戻る」でも 切らない（倉庫は 別の 住所＝問い合わせを 挟む 間に 切られた・対立役 S-2）
+              keepalive: true,
+              body: JSON.stringify({ show_car_sales: ima, updated_at: new Date().toISOString() }),
+            }
+          )
+            .then(function (r) {
+              if (!r || !r.ok) throw new Error('保存できない');
+              return r.json();
+            })
+            .then(function (rows) {
+              if (!Array.isArray(rows)) throw new Error('返りが 読めない');
+              if (rows.length === 0) {
+                // 設定の 行が まだ 無い（または 当たらない）＝ここでは 作らない（全部の 保存へ 倒すと 隠れた 率が
+                //   画面の 丸めで 書き換わり、結果も 待たずに「保存しました」と 出した・対立役 S-A）
+                modosu(
+                  'まだ 給料の 設定が 保存されていません。給料の 画面の「給料の 設定」で 一度 保存してから 選んでください。'
+                );
+                return;
+              }
+              showErr('');
+              if (SET) SET.show_car_sales = ima;
+              RAW.payrollSettings = SET;
+              flash('carSaved', '保存しました');
+              recalc();
+            })
+            .catch(function () {
+              modosu(
+                '「給料明細に 車ごとの売上を 載せる」を 保存できませんでした。通信を 確かめて もう一度 押してください。'
+              );
+            })
+            .then(function () {
+              sc.disabled = false;
+            });
+        }
         // ★「人ごとに 変えたい」から 従業員タブへ 1押しで 飛ぶ★ 2026-09-03（司さん）
         //   ★探し回らせない為★＝設定が 2つのタブに 分かれているのを 埋める。
         //   ★タブの押し方は 上と 同じ物を 使う★（決まりを 2か所に 書かない）
@@ -3710,6 +3789,16 @@
           b.onclick = function () {
             var t = document.querySelector('.tab[data-tab="emp"]');
             if (t && t.onclick) t.onclick();
+            // 会社設定から 来た時の 見出しも 合わせる（「車」の まま 従業員を 出さない）
+            var mi = document.getElementById('modoruMidashi');
+            if (mi && mi.textContent) {
+              mi.textContent = '従業員';
+              try {
+                history.replaceState(null, '', location.pathname + location.search + '#emp');
+              } catch (_) {
+                /* 合わせられなくても 動く */
+              }
+            }
           };
         })();
 
@@ -3728,6 +3817,67 @@
         function afterLoad(retry) {
           DKSession.showUnknownBar(LOAD, retry);
         }
+        // ★書いている 最中の 物★ 2026-10-16（「← 会社設定へ 戻る」は これが 済んでから 移る）
+        var KAKI_CHU = [];
+        function kakiNoseru(p) {
+          KAKI_CHU.push(p);
+          var owari = function () {
+            var i = KAKI_CHU.indexOf(p);
+            if (i >= 0) KAKI_CHU.splice(i, 1);
+          };
+          p.then(owari, owari);
+          return p;
+        }
+        (function kakiWoMiru() {
+          var S = window.DKSession;
+          if (S && S.rest) {
+            var r0 = S.rest;
+            S.rest = function (s, p, o) {
+              var x = r0.apply(this, arguments);
+              return o && o.method && o.method !== 'GET' && x && x.then ? kakiNoseru(x) : x;
+            };
+          }
+          var f0 = window.fetch;
+          if (f0)
+            window.fetch = function (u, o) {
+              var x = f0.apply(this, arguments);
+              return o && o.method && o.method !== 'GET' && x && x.then ? kakiNoseru(x) : x;
+            };
+        })();
+        // 欄を 離れた 時の 保存も 拾う ため 先に 欄を 離し、書き終わって（最長 10 秒）から 移る
+        function kakiOwattekara(go) {
+          var a = document.activeElement;
+          if (a && a.blur) a.blur();
+          setTimeout(function () {
+            var owari = false;
+            var iku = function () {
+              if (owari) return;
+              owari = true;
+              go();
+            };
+            Promise.all(
+              KAKI_CHU.slice().map(function (p) {
+                return p.then(
+                  function () {},
+                  function () {}
+                );
+              })
+            ).then(iku);
+            setTimeout(iku, 10000);
+          }, 0);
+        }
+        (function modoruWaMatsu() {
+          var a = document.querySelector('#modoruSet a');
+          if (!a) return;
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            var iki = a.href;
+            a.textContent = '保存の 終わりを 待っています…';
+            kakiOwattekara(function () {
+              location.href = iki;
+            });
+          });
+        })();
         function upsert(table, conflict, body) {
           return DKSession.rest(SESS, table + '?on_conflict=' + conflict, {
             method: 'POST',
@@ -6555,7 +6705,11 @@
           $('showCarSales').checked = !(SET && SET.show_car_sales === false);
           shimeKataIreru(); // ★締めの 形★ 2026-10-07
 
-          var devs = (CTX && CTX.devices) || [];
+          var devs = ((CTX && CTX.devices) || []).slice();
+          // ★今の 自分の 車が 名簿に 無くても 選び肢に 残す★ 2026-10-16 対立役
+          //   （名前が 無く この 期に 走っていない 車だと「決めていない」に なり、保存で 黙って 空に なった＝
+          //     売上の 分け方「自分の車を 除いた 全部」の 取り分が 変わる）
+          if (st.ownerDeviceId && devs.indexOf(st.ownerDeviceId) < 0) devs.push(st.ownerDeviceId);
           $('ownerDev').innerHTML =
             '<option value="">（決めていない）</option>' +
             devs
