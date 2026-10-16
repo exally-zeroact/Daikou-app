@@ -497,3 +497,38 @@ test('★★⑩b 会社設定の チップは 書けなければ 移らずに �
   expect(r.url, '★書けなかったのに 移った★').toContain('dashboard');
   expect(r.msg).toContain('画面を 移りませんでした');
 });
+
+// ★★⑫ 辞めた 人の 明細には QR・送るを 出さない★★ 2026-10-16（押すと「今居るか 確かめて」と 出て、辞めた 人を 戻させた）
+test('★★⑫ 辞めた 人の 明細には QR・送るが 無く、訳が 出る★★', async ({ page }) => {
+  const hataraita = [...new Set((FIX.workHours || []).map((w) => w.employee_id))][0];
+  const e0 = FIX.emps.find((e) => e.employee_id === hataraita);
+  const moto = e0.active;
+  e0.active = false;
+  try {
+    // 試験の 材料は 2026-08 の 働いた 日＝その 月を 開く（今日の 日付に 頼らない・日本と UTC で 同じ 日に なる 時刻）
+    await page.clock.setFixedTime(new Date('2026-08-05T03:00:00Z'));
+    await kyuryoHiraku(page, '');
+    await page.waitForTimeout(800);
+    const deteiru = await page.evaluate(
+      (id) => !!document.querySelector('.slip-pick[data-emp="' + id + '"]'),
+      hataraita
+    );
+    expect(deteiru, '★働いた 月なのに 辞めた 人の 明細が 出ていない★').toBe(true);
+    const r = await page.evaluate((id) => {
+      const qr = document.querySelectorAll(
+        '[data-meisai-qr="' + id + '"], [data-meisai-okuru="' + id + '"]'
+      ).length;
+      const hoka = document.querySelectorAll('[data-meisai-qr]').length;
+      return {
+        qr,
+        hoka,
+        wake: document.body.innerText.includes('辞めた人には 新しく リンクを 作れません'),
+      };
+    }, hataraita);
+    expect(r.qr, '★辞めた 人に QR・送るが 出ている★').toBe(0);
+    expect(r.wake, '★訳が 出ていない★').toBe(true);
+    expect(r.hoka, '★今いる人の QR・送るまで 消えた★').toBeGreaterThan(0);
+  } finally {
+    e0.active = moto;
+  }
+});

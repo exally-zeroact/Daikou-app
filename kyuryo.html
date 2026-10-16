@@ -2783,7 +2783,36 @@
         // ★★明細の「送る」★★ 2026-09-04（司さん「ないやないか」）
         //   ★まだ 配っていない時は その場で 配ってから 送る★
         //   中身は 設定タブの「送る」と ★同じ 1か所★（決まりを 2つに しない）
+        // ★辞めた 人には QR・送るを 出さない★ 2026-10-16（押すと 必ず「今居るか 確かめて」と 出て、
+        //   辞めた 人を 今いる人に 戻させる 道に なった＝閉じた 門が また 開く・対立役・指示役）
+        // 明細を 組んだ 後に、辞めた 人の「QRを 見せる」を 訳に、「送る」を 消す
+        function yameBtnKesu(box) {
+          if (!box) return;
+          Array.prototype.forEach.call(box.querySelectorAll('[data-meisai-qr]'), function (b) {
+            if (!yametaHito(b.getAttribute('data-meisai-qr'))) return;
+            var s = document.createElement('span');
+            s.innerHTML = yameNote();
+            b.parentNode.replaceChild(s.firstChild, b);
+          });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-meisai-okuru]'), function (b) {
+            if (yametaHito(b.getAttribute('data-meisai-okuru'))) b.parentNode.removeChild(b);
+          });
+        }
+        function yameNote() {
+          return '<span class="note" style="margin:0">辞めた人には 新しく リンクを 作れません（紙・PDF で 渡してください）。</span>';
+        }
+        // 辞めた 人か（名簿の active が false）
+        function yametaHito(eid) {
+          var e = (RAW.employees || []).filter(function (x) {
+            return x.employee_id === eid;
+          })[0];
+          return !!e && e.active === false;
+        }
         function meisaiOkuru(eid) {
+          if (yametaHito(eid))
+            return showErr(
+              '辞めた人には 新しく リンクを 作れません（紙・PDF で 渡してください）。'
+            );
           if (!eid) return;
           var x = null;
           for (var i = 0; i < HAIFU.length; i++) {
@@ -2811,6 +2840,10 @@
         }
 
         function meisaiQr(eid) {
+          if (yametaHito(eid))
+            return showErr(
+              '辞めた人には 新しく リンクを 作れません（紙・PDF で 渡してください）。'
+            );
           if (!eid) return;
           var aru = false;
           for (var i = 0; i < HAIFU.length; i++) {
@@ -5329,6 +5362,7 @@
             hrs(REP.poolHoursTotal) +
             ' 時間</div></div>';
           box.innerHTML = html;
+          yameBtnKesu(box);
           kamiMadoNuru();
         }
 
