@@ -29,7 +29,8 @@
 --   それで 正しい（門は「その update が 足すだけか」を 読めない）。
 --   ★門を ゆるめる のでは なく、この 1件しか 出来ない 道具を 作った★：
 --     node scripts/apply-dkmeteryen-backfill.mjs          … ★見るだけ★
---     node scripts/apply-dkmeteryen-backfill.mjs --yaru   … 当てる
+--     node scripts/apply-dkmeteryen-backfill.mjs --yaru   … テストの 倉庫に 当てる
+--     node scripts/apply-dkmeteryen-backfill.mjs --yaru --honban … ★本番に 当てる（本番の 手元で）★ --honban が 無いと 止まる（2026-10-17）
 --   この 紙は ★何を やるかの 記録★として 残す（このままでは 当てられない）。
 -- ============================================================
 
