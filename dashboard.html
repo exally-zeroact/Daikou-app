@@ -576,6 +576,12 @@
                ⇒ 会社ごとに 足す／消す／並べ替えが 出来るように します。 -->
           <button class="chip" type="button" data-chip="jippi">実費</button>
         </div>
+        <!-- 車・従業員の チップで 移る 前に 保存が 書けなかった 時の 知らせ（移らずに ここへ 出す） -->
+        <div
+          id="chipMsg"
+          role="alert"
+          style="color: #c62828; font-weight: 700; margin: 0 0 8px"
+        ></div>
 
         <!-- ★会社★（今まで 在った 中身） -->
         <div data-pane="kaisha">
@@ -1099,22 +1105,41 @@
                 // 欄を 離れた 時の 保存（車の 名前・実費）を 先に 出し、書き終わって（最長 10 秒）から 移る
                 var a = document.activeElement;
                 if (a && a.blur) a.blur();
+                // 書けなかった 物が 1つでも 在れば 移らずに 知らせる（移ると 赤字が 消えて「保存できた」に 見えた）
+                var cm = document.getElementById('chipMsg');
+                if (cm) cm.textContent = '';
+                var go = function () {
+                  location.href = iki;
+                };
+                var tomaru = function () {
+                  if (cm)
+                    cm.textContent =
+                      '保存できなかった 物が あるので、画面を 移りませんでした。下の 知らせを 見て 直してから もう一度 押してください。';
+                };
                 setTimeout(function () {
                   var owari = false;
-                  var go = function () {
+                  var kimeru = function (yoi) {
                     if (owari) return;
                     owari = true;
-                    location.href = iki;
+                    yoi ? go() : tomaru();
                   };
                   Promise.all(
                     DASH_KAKI_CHU.slice().map(function (p) {
                       return p.then(
-                        function () {},
-                        function () {}
+                        function (r) {
+                          return !(r && r.ok === false);
+                        },
+                        function () {
+                          return false;
+                        }
                       );
                     })
-                  ).then(go);
-                  setTimeout(go, 10000);
+                  ).then(function (kekka) {
+                    kimeru(kekka.every(Boolean));
+                  });
+                  setTimeout(function () {
+                    kimeru(false);
+                  }, 10000);
                 }, 0);
                 return;
               }

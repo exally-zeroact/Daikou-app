@@ -49,6 +49,8 @@ function kyuryoSess() {
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p,o){var x={ok:true,status:200,json:function(){return Promise.resolve(rows(p));}};' +
     // ⑧ の 為：__PATCH_OSOKU__ が 立つ 時だけ PATCH を 遅らせ、書けた 時刻を 残す
+    // ⑨ の 為：__PATCH_NG__ が 立つ 時は PATCH を 書けなかった 形で 返す
+    'if(o&&o.method==="PATCH"&&window.__PATCH_NG__)return new Promise(function(ok){setTimeout(function(){ok({ok:false,status:500,json:function(){return Promise.resolve({});}});},300);});' +
     'if(o&&o.method==="PATCH"&&window.__PATCH_OSOKU__)return new Promise(function(ok){setTimeout(function(){localStorage.setItem("__kaketa__",String(Date.now()));ok(x);},window.__PATCH_OSOKU__);});' +
     'return Promise.resolve(x);};' +
     'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
@@ -407,4 +409,91 @@ test('★★⑧ 戻るは 書き終わってから 移る★★', async ({ page 
   const kaketa = Number(await page.evaluate(() => localStorage.getItem('__kaketa__') || '0'));
   expect(kaketa, '★書き終わる 前に 画面を 移った（書き込みが 消える）★').toBeGreaterThan(0);
   expect(kaketa - oshita, '★待たずに 移った★').toBeGreaterThanOrEqual(800);
+});
+
+// ★★⑨ 書けなかったら「戻る」は 移らずに 赤字を 残す★★ 2026-10-16（指示役・対立役：移ると 赤字が 消え「保存できた」に 見えた）
+test('★★⑨ 書けなかったら 戻るは 移らない★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#kuruma');
+  await page.evaluate(() => {
+    window.__PATCH_NG__ = 1;
+  });
+  await page.locator('#showCarSales').click();
+  await page.locator('#modoruSet a').click();
+  await page.waitForTimeout(2000);
+  const r = await page.evaluate(() => ({
+    url: location.pathname,
+    ji: (document.querySelector('#modoruSet a') || {}).textContent || '',
+    aka: document.body.innerText.includes('画面を 移りませんでした'),
+  }));
+  expect(r.url, '★書けなかったのに 画面を 移った（赤字が 消える）★').toContain('kyuryo.html');
+  expect(r.ji).toContain('会社設定へ');
+  expect(r.aka, '★移らなかった 訳を 出していない★').toBe(true);
+});
+
+// ★★⑩ 会社設定の チップも 書き終わってから 移り、書けなければ 移らない★★ 2026-10-16（対立役：試験が 無かった）
+async function dashHiraku(page, kakiKaesu) {
+  const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
+  const stub =
+    moto +
+    ';(function(){var co=' +
+    JSON.stringify(KAISHA) +
+    ';var S=window.DKSession;if(!S)return;' +
+    'S.ensure=function(){return Promise.resolve({access_token:"t",user:{id:"u1"}});};' +
+    'S.goLogin=function(){};S.logout=function(){};' +
+    'S.rememberedCompanyId=function(){return co.company_id;};' +
+    'S.pickCompany=function(){return {mode:"one",company:co};};' +
+    'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
+    'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(String(p||"").indexOf("dk_companies")===0?[co]:[]);}});};' +
+    'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(String(p||"").indexOf("dk_companies")===0?[co]:[]);};})();';
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: stub })
+  );
+  await page.route('**/auth/v1/**', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'u1', email: 'x@example.com' }),
+    })
+  );
+  const kaki = { owatta: 0 };
+  await page.route('**/rest/v1/**', async (r) => {
+    const m = r.request().method();
+    if (m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS') {
+      await new Promise((ok) => setTimeout(ok, 900));
+      kaki.owatta = Date.now();
+      return r.fulfill({ status: kakiKaesu, contentType: 'application/json', body: '[]' });
+    }
+    return r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(r.request().url().indexOf('dk_companies') >= 0 ? [KAISHA] : []),
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/dashboard.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2600);
+  return kaki;
+}
+test('★★⑩a 会社設定の チップは 書き終わってから 移る★★', async ({ page }) => {
+  const kaki = await dashHiraku(page, 204);
+  await page.locator('#homeCity').fill('松山市');
+  await page.locator('#saveHomeCity').click();
+  await page.locator('[data-chip="kuruma"]').click();
+  await page.waitForURL(/kyuryo\.html\?henshu=1#kuruma$/, { timeout: 15000 });
+  const utsutta = Date.now();
+  expect(kaki.owatta, '★書き込みが 届いていない★').toBeGreaterThan(0);
+  expect(utsutta, '★書き終わる 前に 移った★').toBeGreaterThanOrEqual(kaki.owatta);
+});
+test('★★⑩b 会社設定の チップは 書けなければ 移らずに 知らせる★★', async ({ page }) => {
+  await dashHiraku(page, 500);
+  await page.locator('#homeCity').fill('松山市');
+  await page.locator('#saveHomeCity').click();
+  await page.locator('[data-chip="kuruma"]').click();
+  await page.waitForTimeout(2500);
+  const r = await page.evaluate(() => ({
+    url: location.pathname,
+    msg: (document.getElementById('chipMsg') || {}).textContent || '',
+  }));
+  expect(r.url, '★書けなかったのに 移った★').toContain('dashboard');
+  expect(r.msg).toContain('画面を 移りませんでした');
 });

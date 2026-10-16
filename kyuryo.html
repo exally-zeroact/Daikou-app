@@ -3845,25 +3845,35 @@
             };
         })();
         // 欄を 離れた 時の 保存も 拾う ため 先に 欄を 離し、書き終わって（最長 10 秒）から 移る
-        function kakiOwattekara(go) {
+        // ★書けなかった 物が 1つでも 在れば 移らない★ 2026-10-16（指示役・対立役：待った 後に 移ると 赤字が 消え、
+        //   事務所の 人が 直した 設定が 倉庫に 入っていないのに「保存できた」に 見えた）。10 秒で 終わらない 時も 移らない
+        function kakiOwattekara(go, tomaru) {
           var a = document.activeElement;
           if (a && a.blur) a.blur();
           setTimeout(function () {
             var owari = false;
-            var iku = function () {
+            var kimeru = function (yoi) {
               if (owari) return;
               owari = true;
-              go();
+              yoi ? go() : tomaru();
             };
             Promise.all(
               KAKI_CHU.slice().map(function (p) {
                 return p.then(
-                  function () {},
-                  function () {}
+                  function (r) {
+                    return !(r && r.ok === false);
+                  },
+                  function () {
+                    return false;
+                  }
                 );
               })
-            ).then(iku);
-            setTimeout(iku, 10000);
+            ).then(function (kekka) {
+              kimeru(kekka.every(Boolean));
+            });
+            setTimeout(function () {
+              kimeru(false);
+            }, 10000);
           }, 0);
         }
         (function modoruWaMatsu() {
@@ -3872,10 +3882,19 @@
           a.addEventListener('click', function (e) {
             e.preventDefault();
             var iki = a.href;
+            var moto = a.textContent;
             a.textContent = '保存の 終わりを 待っています…';
-            kakiOwattekara(function () {
-              location.href = iki;
-            });
+            kakiOwattekara(
+              function () {
+                location.href = iki;
+              },
+              function () {
+                a.textContent = moto;
+                showErr(
+                  '保存できなかった 物が あるので、画面を 移りませんでした。赤字を 見て 直してから もう一度 押してください。'
+                );
+              }
+            );
           });
         })();
         function upsert(table, conflict, body) {
