@@ -26,6 +26,12 @@ const { test, expect } = require('@playwright/test');
 //   代わりに #btnResumeLandscape が 出る（index.html:3477）。
 //   ★既定の 1280x720 は 横画面★なので、そのままだと 客が 押す ボタンを 押せない。
 test.use({ viewport: { width: 390, height: 844 } });
+// ★service worker を 止めて 中身を 数える★ 2026-10-17
+//   WebKit では service worker が 握る 画面の 要求に page.route が 効かない 事が あり、POST は 出ているのに
+//   「1回目の POST が 出ない」で 赤に なった（手元の webkit・service worker あり 8回中 2回／止めると 8回中 0回）。
+//   sw.js は GET 以外を 触らない（sw.js:391）ので、止めても アプリの 送りの 道は 変わらない。
+//   ★service worker が 握っている 時も POST が 出る 事は okuru-sw-keiyu.spec.js が 縛る★
+test.use({ serviceWorkers: 'block' });
 
 test('[終了]→送信→[続ける]→[終了] で 続きの 代行が 事務所へ 出て行く', async ({ page }) => {
   await page.addInitScript(() => {
