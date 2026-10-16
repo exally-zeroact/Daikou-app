@@ -37,6 +37,7 @@
 // ============================================================
 const fs = require('fs');
 const path = require('path');
+const { gitKankyo } = require('../lib/kari-git');
 const os = require('os');
 const { execFileSync } = require('child_process');
 
@@ -70,7 +71,7 @@ function tameshi(mae, ato, shikii) {
   if (path.resolve(dir).startsWith(path.resolve(ROOT))) {
     throw new Error('★試しの 置き場が repo の 中です（本物を 触る恐れ）: ' + dir + '★');
   }
-  const kankyo = Object.assign({}, process.env, {
+  const kankyo = gitKankyo({
     GIT_DIR: path.join(dir, '.git'),
     GIT_WORK_TREE: dir,
     GIT_CONFIG_NOSYSTEM: '1',

@@ -9,6 +9,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { gitKankyo } = require('../lib/kari-git');
 const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -25,7 +26,7 @@ function mise(pois) {
 function hashiru(args, env) {
   return spawnSync(process.execPath, [TOOL, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, KINSHI_JI: GO, ...env },
+    env: gitKankyo({ KINSHI_JI: GO, ...env }),
   });
 }
 
@@ -136,8 +137,7 @@ describe('★店データの 当たりを 施設ごとに 出す（10-11）★',
     const g = dir('gitrepo');
     // ★hook（pre-push）から 走る 時は git が GIT_DIR 等を 渡す＝外さないと 作り物の git が 本物の repo を 書き換える★
     //   （10-11 実測：外し忘れて 本物の 枝に 作り物の commit が 出来・索引が 替わり・主の config が 書き換わった）
-    const env = { ...process.env, KINSHI_JI: GO };
-    for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
+    const env = gitKankyo({ KINSHI_JI: GO });
     const run = (...a) => spawnSync('git', ['-C', g, ...a], { encoding: 'utf8', env });
     fs.mkdirSync(path.join(g, 'scripts'));
     fs.mkdirSync(path.join(g, 'tests'));
