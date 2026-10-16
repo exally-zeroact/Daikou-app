@@ -33,6 +33,38 @@ describe('★届いていない事に その場で 気づく★', () => {
     );
   });
 
+  // ★★2026-10-17★★ ① の push は bot の 版名の コミット（GITHUB_TOKEN の 押し）では 起きない＝1143本で 0回 だった。
+  //   版名を 付ける workflow が 終わった 時の workflow_run で 走る 事と、その 名前が auto-version.yml の name と 同じ 事を 縛る。
+  //   わざと壊す：workflow_run を 消す／名前を 1字 変える／failure で 赤に しない／concurrency を 外す ⇒ ①-2 が 赤
+  it('★①-2 版名を 付ける workflow が 終わった 時に 走る（bot の 押しでも 起きる 引き金）★', () => {
+    const s = y();
+    const av = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'auto-version.yml'), 'utf8');
+    const avName = ((av.match(/^name:\s*(.+)$/m) || [])[1] || '')
+      .trim()
+      .replace(/^['"]|['"]$/g, '');
+    expect(avName, '★auto-version.yml の name が 読めません★').toBeTruthy();
+    const m = s.match(
+      /workflow_run:\s*\n\s*workflows:\s*\[([^\]]*)\]\s*\n\s*types:\s*\[([^\]]*)\]/
+    );
+    expect(
+      m,
+      '★workflow_run の 引き金が ありません（bot の 版名の コミットでは 走りません）★'
+    ).toBeTruthy();
+    const names = m[1].split(',').map((x) => x.trim().replace(/^['"]|['"]$/g, ''));
+    expect(names, '★workflow_run の 名前が auto-version.yml の name と 合いません★').toContain(
+      avName
+    );
+    expect(m[2], '★終わった 時（completed）で ありません★').toContain('completed');
+    // 落ちた 時（failure）は 赤に する（前は「合っている」で 緑に なった・対立役 直す-2）
+    expect(s, '★版名を 付ける workflow の 終わり方を 見ていません★').toMatch(
+      /github\.event\.workflow_run\.conclusion \}\}" = "failure" \]; then[\s\S]{0,120}exit 1/
+    );
+    // 並んで 走らせない（偽の 赤・対立役 直す-1）
+    expect(s, '★並んで 走ります（前の 走りが 偽の 赤を 出す）★').toMatch(
+      /concurrency:\s*\n\s*group: hanmei-mihari\s*\n\s*cancel-in-progress: true/
+    );
+  });
+
   it('★② 毎日の 見張りも 残っている（push が 来ない 日も 見る）★', () => {
     expect(y(), '★毎日の 見張りが 消えています★').toContain('schedule:');
   });

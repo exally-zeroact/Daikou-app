@@ -70,7 +70,6 @@ const NOKORI = [
   'tests/property/obd-certk-overcount-zero.test.js',
   'tests/property/obd-tireratio-overcount-zero.test.js',
   'tests/property/pipeline-physclamp-phantom.test.js',
-  'tests/unit/build-1kai.test.js',
   'tests/unit/dk-config-app-base-host.test.js',
   'tests/unit/env-badge.test.js',
   'tests/unit/fare-config-itsuno.test.js',
@@ -150,7 +149,7 @@ describe('★見張りは「わざと壊して 赤に なった」記録を 残�
       '★名簿の 物を 直したなら 名簿から 消してください（黙って 減らさない）★'
     ).toBe(0);
     expect(NOKORI.length, '★名簿を 増やさないでください（新しい 見張りには 記録を 書く）★').toBe(
-      43
+      42
     );
   });
 });

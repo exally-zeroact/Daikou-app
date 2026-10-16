@@ -89,6 +89,22 @@ describe('★本番ビルドを 1回に する（Vercel の お金）★', () =>
     expect(kado, '★門に ぶら下がっていない 段が あります★').toBe(3);
   });
 
+  // ★★2026-10-17★★ 押す所は scripts/cache-name-oshi.sh に 移した。yml が その 道具を 呼ぶ 行を 消す／名前を 変えると
+  //   全部 緑の まま 版名の コミットが 0本に なり、人の コミットは ignoreCommand で 建たない＝配信が 黙って 止まる（対立役 直す-1）。
+  //   わざと壊す：呼ぶ 行を 消す／道具の 名前を 1字 変える／その 段を 門から 外す ⇒ ④-2 が 赤
+  it('★④-2 版名を 付けて 押す 道具を 呼び、その 段が 門に ぶら下がっている★', () => {
+    const y = fs.readFileSync(YML, 'utf8');
+    const dougu = path.join(ROOT, 'scripts', 'cache-name-oshi.sh');
+    expect(fs.existsSync(dougu), '★道具が ありません★').toBe(true);
+    const dan = y
+      .split(/\n(?= {6}- name:)/)
+      .filter((d) => /bash scripts\/cache-name-oshi\.sh main/.test(d));
+    expect(dan.length, '★yml が 道具を 呼んでいません（呼ぶ 段が 1つで ない）★').toBe(1);
+    expect(dan[0], '★道具を 呼ぶ 段が 門に ぶら下がっていません★').toMatch(
+      /if: steps\.sumi\.outputs\.already != 'yes'/
+    );
+  });
+
   it('★⑤ 版名は 空に ならない（空だと 写しが 効かない）★', () => {
     const now = /const CACHE_NAME = '([^']*)'/.exec(fs.readFileSync(SW, 'utf8'));
     expect(now, '★sw.js に 版名が ありません★').toBeTruthy();

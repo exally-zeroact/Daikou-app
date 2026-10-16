@@ -25,8 +25,18 @@ name: 版名の見張り（実配信 と repo が 合っているか）
 #     ⇒★版名を 付けた 直後に その場で 数えます★（回数は 増やしません＝
 #       版名の コミットは 客に 届く版を 作る 唯一の 引き金なので、
 #       ★そこ 1回だけ★ 見れば 足ります）。
+#
+#   ★★2026-10-17 直し：上の push の 引き金は bot の 版名の コミットでは 1回も 走っていなかった★★
+#     bot は GITHUB_TOKEN で 押す。GITHUB_TOKEN で 押した コミットは 別の workflow を 起こさない（GitHub の 決まり）。
+#     数え：テスト線の bot の 版名の コミット 1143本で 0回・本番の push で 走った 7本は 全部 人の コミット（対立役 10-17）。
+#     ⇒ 版名を 付ける workflow（auto-version.yml・名前「Auto Update sw.js CACHE_NAME」）が 終わった 時に 走る
+#       workflow_run を 足す（これは GITHUB_TOKEN の 押しでも 起きる）。push は 人が sw.js を 変えた 時の 為に 残す。
+#     ★auto-version.yml の name を 変えたら ここも 変える★（tests/unit/todoita-ka-sonoba-de.test.js が 名前の 一致を 縛る）
 
 on:
+  workflow_run:
+    workflows: ['Auto Update sw.js CACHE_NAME']
+    types: [completed]
   schedule:
     - cron: '0 22 * * *' # 毎日 07:00 JST
   workflow_dispatch:
@@ -36,12 +46,33 @@ on:
     paths:
       - 'sw.js'
 
+# ★並んで 走らせない★ 2026-10-17（対立役 直す-1）
+#   8回 待っている 間に 次の 版名が 押されると、前の 版名の 建ちは Vercel で 取り消され 配信が その版に ならない
+#   ＝客は 新しい 版を 受け取っているのに 前の 走りが 8分後に 赤（偽の 赤）。古い 方は 取り消し（赤で ない）で 終わらせる。
+#   版名の コミットの 間隔が 8分 未満だった 回：テスト線 418回中 34回・本番 262回中 10回（08-01〜）。
+concurrency:
+  group: hanmei-mihari
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 15  # ★8分 待つので 10分では 足りない（2026-09-01）★
     steps:
       - uses: actions/checkout@v4
+
+      # ★版名を 付ける workflow が 落ちた 時は 赤★ 2026-10-17（対立役 直す-2）
+      #   落ちると main の sw.js は 前の 版名の まま・配信も 前の 版名＝下の 突き合わせは「合っている」で 緑に なる。
+      #   ＝この 見張りが 一番 気づけない と 書いた「auto-version が 落ちたら 何も 配信されない」を 緑で 通していた。
+      #   cancelled は 後の 走りが 引き継ぐ ので 通す。failure だけ 赤。
+      - name: 版名を 付ける workflow が 落ちていないか
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "版名を 付ける workflow の 終わり方: ${{ github.event.workflow_run.conclusion }}"
+          if [ "${{ github.event.workflow_run.conclusion }}" = "failure" ]; then
+            echo "★版名を 付ける workflow が 落ちました（客に 新しい 版が 届いていない 見込み）★"
+            exit 1
+          fi
 
       - name: 実配信の 版名と repo の 版名を 突き合わせる
         run: |
