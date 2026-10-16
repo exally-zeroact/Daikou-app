@@ -67,26 +67,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           
-          if git diff --quiet sw.js; then
-            echo "No changes to sw.js (CACHE_NAME already up-to-date)"
-            exit 0
-          fi
-          
-          git add sw.js
-          # ★設計変更宣言 (2026-05-29 PM・[skip ci] 削除):
-          #   旧: [skip ci] でこのワークフロー自身の連鎖実行を防止
-          #   問題: 司さん「反映遅くなった」 真因 = Vercel も [skip ci] を解釈して deploy skip
-          #         → auto-update CACHE_NAME bump 後の sw.js が Vercel に反映されない事象。
-          #   新: [skip ci] 削除。workflow 連鎖は paths-ignore: 'sw.js' (= L8) で既に防止済 (= 冗長)。
-          git commit -m "chore: auto-update CACHE_NAME to daikome-${{ steps.sha.outputs.short_sha }}"
-          # 連続 push との race 対策: 失敗時に rebase してリトライ (最大 3 回)
-          for attempt in 1 2 3; do
-            if git push; then
-              echo "Pushed (attempt $attempt)"
-              exit 0
-            fi
-            echo "Push failed at attempt $attempt, rebasing..."
-            git pull --rebase origin main || exit 1
-          done
-          echo "Failed after 3 attempts"
-          exit 1
+          # ★2026-10-17★ 押し返された時に rebase で sw.js が ぶつかっていた（10-16）＝取り直して 付け直す形を 道具に 移した
+          #   中身と 試験＝scripts/cache-name-oshi.sh ／ tests/unit/cache-name-oshi.test.js
+          # ★設計変更宣言 (2026-05-29 PM・[skip ci] 削除): Vercel も その合図で deploy を 止めるので 付けない。
+          #   workflow の 連鎖は paths-ignore: 'sw.js' で 防いでいる。
+          bash scripts/cache-name-oshi.sh main
