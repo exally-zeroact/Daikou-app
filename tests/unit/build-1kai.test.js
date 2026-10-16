@@ -91,18 +91,32 @@ describe('★本番ビルドを 1回に する（Vercel の お金）★', () =>
 
   // ★★2026-10-17★★ 押す所は scripts/cache-name-oshi.sh に 移した。yml が その 道具を 呼ぶ 行を 消す／名前を 変えると
   //   全部 緑の まま 版名の コミットが 0本に なり、人の コミットは ignoreCommand で 建たない＝配信が 黙って 止まる（対立役 直す-1）。
-  //   わざと壊す：呼ぶ 行を 消す／道具の 名前を 1字 変える／その 段を 門から 外す ⇒ ④-2 が 赤
+  //   わざと壊す：呼ぶ 行を 消す／道具の 名前を 1字 変える／その 段を 門から 外す／行を # で 殺す／|| true を 足す／continue-on-error を 付ける ⇒ ④-2 が 赤
   it('★④-2 版名を 付けて 押す 道具を 呼び、その 段が 門に ぶら下がっている★', () => {
-    const y = fs.readFileSync(YML, 'utf8');
+    const d = require('js-yaml').load(fs.readFileSync(YML, 'utf8'));
     const dougu = path.join(ROOT, 'scripts', 'cache-name-oshi.sh');
     expect(fs.existsSync(dougu), '★道具が ありません★').toBe(true);
-    const dan = y
-      .split(/\n(?= {6}- name:)/)
-      .filter((d) => /bash scripts\/cache-name-oshi\.sh main/.test(d));
-    expect(dan.length, '★yml が 道具を 呼んでいません（呼ぶ 段が 1つで ない）★').toBe(1);
-    expect(dan[0], '★道具を 呼ぶ 段が 門に ぶら下がっていません★').toMatch(
-      /if: steps\.sumi\.outputs\.already != 'yes'/
+    // ★yml を 読み解き、注で ない 行が ちょうど その 1行で ある 段を 数える★（前は 字の 目印で、# で 殺す・|| true を 足すでも 緑だった・直す-3）
+    const steps = (d.jobs['update-cache-name'] || {}).steps || [];
+    const yobu = steps.filter((st) =>
+      String(st.run || '')
+        .split('\n')
+        .map((l) => l.trim())
+        .some((l) => l === 'bash scripts/cache-name-oshi.sh main')
     );
+    expect(
+      yobu.length,
+      '★yml が 道具を 呼んでいません（呼ぶ 段が 1つで ない・行が 殺されている・後ろに 何か 付いている）★'
+    ).toBe(1);
+    expect(yobu[0].if, '★道具を 呼ぶ 段が 門に ぶら下がっていません★').toBe(
+      "steps.sumi.outputs.already != 'yes'"
+    );
+    // 赤を 握りつぶす 書き方が 無い 事（落ちても 緑の まま 版名の commit が 0本に なる・対立役 10-17）
+    expect(yobu[0]['continue-on-error'], '★道具を 呼ぶ 段の 赤が 握りつぶされます★').toBeFalsy();
+    expect(
+      d.jobs['update-cache-name']['continue-on-error'],
+      '★job の 赤が 握りつぶされます★'
+    ).toBeFalsy();
   });
 
   it('★⑤ 版名は 空に ならない（空だと 写しが 効かない）★', () => {
