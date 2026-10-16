@@ -146,16 +146,31 @@ jobs:
         timeout-minutes: 15
         shell: bash
         run: |
+          # ★店の 印が 同じ 店データは 白名簿の blob の 頭を 書き継ぐ★ 2026-10-16（B''・指示役の 決め）
+          #   店データは 毎月 作り直す ので blob が 変わり、当たった 店が 同じでも 見張りが 赤に なった。
+          #   tests/kinshi-mise-shiro.txt の 鍵付きの 印と 今の 当たった 店が 一致した 道だけ 書き継ぐ。
+          #   出すのは 道と 決まった 文だけ（語・番号・施設は 出さない）。止めても 見張りが 下で 判じる
+          if ! node scripts/kinshi-mise-tsugi.mjs --tsugi > "$RUNNER_TEMP/tsugi.out"; then
+            echo "書き継ぎを 止めた（下の 見張りが 判じる）"
+          fi
+          cat "$RUNNER_TEMP/tsugi.out"
+          git add tests/kinshi-ji-shiro.txt
           # 公開の ログに 一覧の 番号を 出さない 包み（判じは 全文 kinshi.out で 行う・kinshi.out は どこにも 出さない）
           bash scripts/kinshi-tsutsumu.sh
         env:
           KINSHI_JI: ${{ secrets.KINSHI_JI }}
           KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
 
+      # ★commit の 前の 門★：足した 物が data/ と 白名簿 だけで、白名簿は 店データの 行の blob しか 変えていない（一覧は 要らない）
+      - name: commit の 前の 門（白名簿は 店データの 行の blob だけ）
+        id: mon
+        if: steps.diff.outputs.changed == 'true'
+        run: node scripts/kinshi-mise-tsugi.mjs --mon
+
       # ★成果物は 置かない★ 2026-10-16（公開 repo の artifact は 誰でも 取れる＝赤の 店データと 当たりの 組を 置いていた・指示役の 決めで 6本 消した）。
       #   赤の 時は commit せず、issue に 道と 決まった 文だけ 書く。中身は 席が 手元で 地図を 取り直して 見る
       - name: 見張りが赤＝commit しないで 知らせる（issue）
-        if: failure() && steps.kinshi.outcome == 'failure'
+        if: failure() && (steps.kinshi.outcome == 'failure' || steps.mon.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -165,7 +180,8 @@ jobs:
           記録：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           作った店データは 公開の 場所に 置いていません（公開 repo の 成果物は 誰でも 取れるため）。
           席が 手元で 地図を 取り直して data/poi-*.js を 作り、見張りと node scripts/poi-kinshi-atari.mjs --mae-git HEAD を 回して、前の版に無い 当たりの施設を 施設ごとに 見てください（字は ここに 書かない・終わり値 2 は 分からない＝止まる）。
-          ★白名簿の「当たりN」は 語の種類の数で 施設の数ではない★。"
+          ★白名簿の「当たりN」は 語の種類の数で 施設の数ではない★。
+          commit の 前の 門（店データの 行の blob だけ）で 止まった 時は、書き継ぎの 道具が 白名簿の 他の 所を 変えようとした＝scripts/kinshi-mise-tsugi.mjs を 見直してください。"
 
       - name: 自動コミット & プッシュ
         if: steps.diff.outputs.changed == 'true'
@@ -178,7 +194,13 @@ jobs:
           set +e
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore(poi): OSM自動更新 $(date -u +'%Y-%m') C案PBF [skip ci]"
+          # 白名簿を 書き継いだ 時は 道を commit 文に 残す（店の印が同じなので blob の頭を書き換えた: 道）
+          KAKETA=$(grep '^店の印が同じなので' "$RUNNER_TEMP/tsugi.out" 2>/dev/null)
+          if [ -n "$KAKETA" ]; then
+            git commit -m "chore(poi): OSM自動更新 $(date -u +'%Y-%m') C案PBF [skip ci]" -m "$KAKETA"
+          else
+            git commit -m "chore(poi): OSM自動更新 $(date -u +'%Y-%m') C案PBF [skip ci]"
+          fi
 
           # 並行ワークフロー（auto-version 等）と衝突したときは
           # 「rebase ではなく cherry-pick で main 先端の上に積み直す」方式を採用。

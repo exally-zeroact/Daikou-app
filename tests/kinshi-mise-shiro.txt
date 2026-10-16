@@ -1,0 +1,28 @@
+# ★店データの 鍵付きの 印★（scripts/kinshi-mise-tsugi.mjs が 読む・人が 施設を 見直した 時だけ 書く・bot は 書かない）
+# 道<TAB>印（当たった 施設の JSON を 一覧の 語を 鍵に した HMAC-SHA256 の 頭16字）<TAB>訳
+data/poi-akita.js	a23f4b59775f599a	公の地図データ・店ごとに見た
+data/poi-ehime.js	a18f35d7c4406be2	公の地図データ・店ごとに見た
+data/poi-fukuoka.js	f2daa8bef52ba73b	公の地図データ・店ごとに見た
+data/poi-fukushima.js	f0fb8b53ca657c60	公の地図データ・店ごとに見た
+data/poi-gunma.js	bfb413f5f6d402e7	公の地図データ・店ごとに見た
+data/poi-hiroshima.js	6fbd48a4e4086415	公の地図データ・店ごとに見た
+data/poi-hokkaido.js	c9dec83e4833b3b1	公の地図データ・店ごとに見た
+data/poi-hyogo.js	9530a90926a02a6e	公の地図データ・店ごとに見た
+data/poi-kagawa.js	c7734d14b165120d	公の地図データ・店ごとに見た
+data/poi-kanagawa.js	55595dfbfd2f75cf	公の地図データ・店ごとに見た
+data/poi-kumamoto.js	3d8f4bcee0885bf8	公の地図データ・店ごとに見た
+data/poi-kyoto.js	ae44ba2257f67334	公の地図データ・店ごとに見た
+data/poi-miyagi.js	e826f2116ce08267	公の地図データ・店ごとに見た
+data/poi-miyazaki.js	3deb44966ab86853	公の地図データ・店ごとに見た
+data/poi-nagano.js	c89b17d42ffd76d5	公の地図データ・店ごとに見た
+data/poi-nagasaki.js	e09bd07a74312b0e	公の地図データ・店ごとに見た
+data/poi-oita.js	fb9519eae632e4ce	公の地図データ・店ごとに見た
+data/poi-okayama.js	c898f8479d5a3c83	公の地図データ・店ごとに見た
+data/poi-osaka.js	f55a036432d2cce7	公の地図データ・店ごとに見た
+data/poi-saga.js	d0daba6edbb7ac1a	公の地図データ・店ごとに見た
+data/poi-saitama.js	e7798d0666b32691	公の地図データ・店ごとに見た
+data/poi-shizuoka.js	b81c43e5c5a7f54a	公の地図データ・店ごとに見た
+data/poi-tochigi.js	25fd32bffbaa2049	公の地図データ・店ごとに見た
+data/poi-tokushima.js	21e602265bef2af1	公の地図データ・店ごとに見た
+data/poi-tokyo.js	f053c181d9b9b235	公の地図データ・店ごとに見た
+data/poi-yamagata.js	311bad4725a1d707	公の地図データ・店ごとに見た
