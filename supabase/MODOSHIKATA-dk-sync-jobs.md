@@ -47,7 +47,8 @@ git commit -m "revert(kansuu): dk-sync-jobs を ver15 の 論理に 戻す（借
 
 # ④ 配る
 node scripts/deploy-edge-function.mjs --probe dk-sync-jobs   # 見るだけ
-node scripts/deploy-edge-function.mjs dk-sync-jobs           # 配る
+node scripts/deploy-edge-function.mjs dk-sync-jobs           # テストの 倉庫に 配る（テスト線の 手元で）
+node scripts/deploy-edge-function.mjs --honban dk-sync-jobs # ★本番に 配る（本番の 手元で）★ --honban が 無いと 止まる（2026-10-17）
 
 # ⑤ ★版が 上がった だけでは 証しに ならない★ ＝ 中身を 数える
 node scripts/check-function-body.mjs dk-sync-jobs

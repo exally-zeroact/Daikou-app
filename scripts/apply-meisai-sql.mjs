@@ -18,7 +18,8 @@
 //
 //   使い方（★読むだけの 確かめ★→★当てる★）:
 //     node scripts/apply-meisai-sql.mjs --probe
-//     node scripts/apply-meisai-sql.mjs supabase/apply-meisai-dkref-index.sql
+//     node scripts/apply-meisai-sql.mjs supabase/apply-meisai-dkref-index.sql          … テストの 倉庫
+//     node scripts/apply-meisai-sql.mjs --honban supabase/apply-meisai-dkref-index.sql … ★本番（本番の 手元で）★ 無いと 止まる（2026-10-17）
 //
 //   ▼安全のしくみ（どれか1つでも 落ちたら ★1文字も 当てない★）
 //     ・向き先は ★js/dk-config.js から読む★（このrepoの向き先以外には当たらない）

@@ -1,6 +1,6 @@
 'use strict';
 // ============================================================
-// ★倉庫に 書く 道具 3本の 本番の 止めを、道具を 本当に 走らせて 縛る★ 2026-10-17
+// ★倉庫に 書く 道具の 本番の 止めを、道具を 本当に 走らせて 縛る★ 2026-10-17（本番は 4本・テスト線は 6本）
 //   前の 試験は 止めの 字の 位置しか 見ず、`if (tome)` や process.exit(3) を 外しても 緑だった（対立役 直す-2）。
 //   ここでは 一時の 根に 道具を 写し、向き先（js/dk-config.js）を 書き換え、fetch を 偽物に 替えて 子で 走らせ、
 //   ★終わり値★ と ★倉庫へ 向かった fetch の 数★ を 数える（偽の fetch は 何も 送らない・鍵も 作り物）。
@@ -27,6 +27,8 @@ const DOUGU = [
   { f: 'apply-supabase-sql.mjs', hiki: ['supabase/nai.sql'] },
   { f: 'apply-meisai-sql.mjs', hiki: ['supabase/nai.sql'] },
   { f: 'deploy-edge-function.mjs', hiki: ['dk-sync-jobs'] },
+  // 2026-10-17 請求明細の 1回きりの 書き直しも 寄せた（本番：本人リンクの 関数 2本 get・saihakkou は 退職の 件で 運ぶ＝ここには まだ 無い）
+  { f: 'apply-dkmeteryen-backfill.mjs', hiki: ['--yaru'] },
 ];
 
 function ne(ref) {

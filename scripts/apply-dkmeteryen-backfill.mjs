@@ -30,7 +30,10 @@
 //
 //   使い方:
 //     node scripts/apply-dkmeteryen-backfill.mjs            … ★見るだけ★（当てない）
-//     node scripts/apply-dkmeteryen-backfill.mjs --yaru     … 当てる
+//     node scripts/apply-dkmeteryen-backfill.mjs --yaru     … 当てる（テストの 倉庫）
+//     node scripts/apply-dkmeteryen-backfill.mjs --yaru --honban … 本番に 当てる（本番の 手元で）
+//   ★本番の 止め★ 2026-10-17（前は --yaru だけで 本番の 請求明細に 書けた・--honban の 字が 0件・対立役）
+//     判じは scripts/honban-tome.mjs の 1か所（白名簿）。--yaru の 時は 倉庫に 届く 前に 止める（見るだけは 止めない）
 //
 //   ▼向き先は ★js/dk-config.js から読む★（このrepoの向き先にしか 当てない）
 //   ▼鍵は %TEMP% のファイルから読む。★画面に 出さない★。
@@ -41,6 +44,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readToken } from './db-token.mjs';
+import { honbanNoTome } from './honban-tome.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HEYA = 'daikou';
@@ -94,6 +98,11 @@ from (select amount, extra, 0 as jsonb_object_keys_count from ${HEYA}.${TANA}) z
 async function main() {
   const yaru = process.argv.includes('--yaru');
   const ref = projectRef();
+  const tome = honbanNoTome(ref, process.argv.slice(2), !yaru);
+  if (tome) {
+    console.error(tome);
+    process.exit(3);
+  }
   const { token, from } = readToken();
   const q = async (sql) => {
     const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
@@ -171,8 +180,7 @@ async function main() {
   console.log(`  金額の 合計 …………… ${ato.kingaku_kei} 円  （前 ${mae.kingaku_kei}）`);
 
   const warui = [];
-  if (String(ato.kingaku_kei) !== String(mae.kingaku_kei))
-    warui.push('★金額の 合計が 動いた★');
+  if (String(ato.kingaku_kei) !== String(mae.kingaku_kei)) warui.push('★金額の 合計が 動いた★');
   if (String(ato.zenbu) !== String(mae.zenbu)) warui.push('★行の 数が 変わった★');
   if (String(ato.dkref) !== String(mae.dkref)) warui.push('★dk_ref の 数が 変わった★');
   if (Number(ato.in_ari) !== Number(mae.in_ari) + Number(shirabe.betsubetsu))
@@ -195,7 +203,8 @@ async function main() {
   console.log('BACKFILL RESULT: OK');
 }
 
-main().catch((e) => {
-  console.error('BACKFILL RESULT: ★NG★ ' + (e && e.message ? e.message : e));
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]))
+  main().catch((e) => {
+    console.error('BACKFILL RESULT: ★NG★ ' + (e && e.message ? e.message : e));
+    process.exit(1);
+  });
