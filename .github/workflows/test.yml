@@ -61,8 +61,8 @@ jobs:
         # shell: bash＝-eo pipefail（書かないと -e だけで、tee の 前の 終わり値が 捨てられる）
         shell: bash
         run: |
-          npm run kinshi | tee kinshi.out
-          grep -q "^✓ 実在の 字 0 件" kinshi.out
+          # 公開の ログに 一覧の 番号を 出さない 包み（判じは 全文 kinshi.out で 行う・kinshi.out は どこにも 出さない）
+          bash scripts/kinshi-tsutsumu.sh
         env:
           KINSHI_JI: ${{ secrets.KINSHI_JI }}
           KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
@@ -109,8 +109,8 @@ jobs:
       - name: 実在の字が戻っていないか（node 24）
         shell: bash
         run: |
-          node tests/kinshi-ji.test.mjs | tee kinshi24.out
-          grep -q "^✓ 実在の 字 0 件" kinshi24.out
+          # 公開の ログに 一覧の 行を 出さない 包み（判じは 全文 kinshi24.out で 行う・どこにも 出さない）
+          KINSHI_OUT=kinshi24.out bash scripts/kinshi-tsutsumu.sh node tests/kinshi-ji.test.mjs
         env:
           KINSHI_JI: ${{ secrets.KINSHI_JI }}
           KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}

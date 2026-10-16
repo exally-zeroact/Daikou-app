@@ -146,8 +146,8 @@ jobs:
         timeout-minutes: 15
         shell: bash
         run: |
-          npm run kinshi | tee kinshi.out
-          grep -q "^✓ 実在の 字 0 件" kinshi.out
+          # 公開の ログに 一覧の 番号を 出さない 包み（判じは 全文 kinshi.out で 行う・kinshi.out は どこにも 出さない）
+          bash scripts/kinshi-tsutsumu.sh
         env:
           KINSHI_JI: ${{ secrets.KINSHI_JI }}
           KINSHI_JI_FINGER: ${{ vars.KINSHI_JI_FINGER }}
