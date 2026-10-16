@@ -11,7 +11,10 @@
 //
 //   使い方:
 //     node scripts/deploy-edge-function.mjs --probe dk-sync-jobs   … 今の版を 見るだけ
-//     node scripts/deploy-edge-function.mjs dk-sync-jobs           … 配る
+//     node scripts/deploy-edge-function.mjs dk-sync-jobs           … 配る（テストの 倉庫）
+//     node scripts/deploy-edge-function.mjs --honban dk-sync-jobs  … 本番に 配る（本番の 手元で）
+//   ★本番の 止め★ 2026-10-17（前は --honban の 字が 0件＝本番の 手元で 打つと そのまま 本番の 関数を 配った・対立役）
+//     判じは scripts/honban-tome.mjs の 1か所。倉庫に 届く 前に 止める（--probe は 読むだけなので 止めない）
 //
 //   ▼安全のしくみ
 //     ・向き先は ★js/dk-config.js から読む★（このrepoの向き先以外には 配らない）
@@ -28,6 +31,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readToken, whereWeLooked } from './db-token.mjs';
+import { HONBAN_REF, honbanNoTome } from './honban-tome.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -71,7 +75,14 @@ async function main() {
   }
   const token = kagi.token;
   const ref = projectRef();
-  console.log(`向き先: ${ref}  /  鍵: ${kagi.from}（中身は出さない）`);
+  console.log(
+    `向き先: ${ref === HONBAN_REF ? '★本番★ ' : ''}${ref}  /  鍵: ${kagi.from}（中身は出さない）`
+  );
+  const tome = honbanNoTome(ref, args, args.includes('--probe'));
+  if (tome) {
+    console.error(tome);
+    process.exit(3);
+  }
 
   const mae = await ima(token, ref, slug);
   console.log(
@@ -130,7 +141,8 @@ async function main() {
   console.log('DEPLOY RESULT: OK');
 }
 
-main().catch((e) => {
-  console.error('NG: ' + e.message);
-  process.exitCode = 1;
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]))
+  main().catch((e) => {
+    console.error('NG: ' + e.message);
+    process.exitCode = 1;
+  });

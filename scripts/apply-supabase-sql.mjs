@@ -24,15 +24,18 @@ import { fileURLToPath } from 'node:url';
 import { guard } from './sql-guard.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HONBAN_REF = 'tnfwipbgfgjaymlszeid';
-
 // ★本番の止め★（2026-10-17 対立役 N7）前は本番の手元で走らせると、そのまま本番に当たった。
-//   当てる時（--probe で無い時）に、向き先が本番で --honban が無ければ止める。
+//   当てる時（--probe で無い時）に、向き先が本番で --honban が無ければ止める。知らない倉庫も止める。
+//   判じは scripts/honban-tome.mjs の 1か所（書く 道具 3本で 同じ 物を 使う）。
+import { HONBAN_REF, honbanNoTome as tome0 } from './honban-tome.mjs';
 export function honbanNoTome(ref, args) {
-  if (args.includes('--probe')) return null;
-  if (ref === HONBAN_REF && !args.includes('--honban'))
-    return 'NG: 向き先が本番。本番に当てるのは --honban を付けた時だけ（1文字も当てていない）';
-  return null;
+  return tome0(ref, args, args.includes('--probe'));
+}
+
+// 当てた ファイルの 名前を ATO_NO_KAKUNIN の 鍵の 形（repo の 根から・/ 区切り）に 揃える
+//   前は 打った 字の まま 引き、「./supabase/…」で 打つと 確かめが 0本の まま OK に なった（対立役 10-17）
+export function kagiNoNa(f) {
+  return path.relative(ROOT, path.resolve(ROOT, f)).split(path.sep).join('/');
 }
 
 // ★ファイルごとの当てた後の確かめ★（2026-10-17 対立役 N7）棚の数だけでは、窓の列や守りが入ったか分からない。
@@ -129,7 +132,7 @@ async function main() {
   const loaded = [];
   let blocked = false;
   for (const f of files) {
-    const sql = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const sql = fs.readFileSync(path.resolve(ROOT, f), 'utf8');
     const g = guard(sql);
     console.log(`\n■ ${f}`);
     console.log(`  触る棚: ${g.tables.join(', ') || '(なし)'}`);
@@ -181,7 +184,7 @@ async function main() {
   console.log(`  dk_shift_edits.hours = ${cols.body?.length ? 'あり' : 'なし'}`);
   let atoNg = 0;
   for (const { f } of loaded) {
-    for (const k of ATO_NO_KAKUNIN[f.split(path.sep).join('/')] || []) {
+    for (const k of ATO_NO_KAKUNIN[kagiNoNa(f)] || []) {
       const r = await runSql(ref, key.token, k.q);
       const ok = r.ok && k.ok(r.body);
       if (!ok) atoNg++;

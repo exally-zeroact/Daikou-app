@@ -10,7 +10,20 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { honbanNoTome, ATO_NO_KAKUNIN } from '../../scripts/apply-supabase-sql.mjs';
+import { honbanNoTome, ATO_NO_KAKUNIN, kagiNoNa } from '../../scripts/apply-supabase-sql.mjs';
+
+// ⑤ 2026-10-17：打ち方が 違っても 当てた後の 確かめの 鍵に 当たる（前は「./supabase/…」で 0本の まま OK だった・対立役）
+//   わざと壊す：kagiNoNa を 打った 字の まま 返す 形に 戻す ⇒ ⑤ が 赤
+describe('★当てた後の 確かめの 鍵★', () => {
+  it('⑤ ./ 付き・repo の 根からの 絶対の 道でも 同じ 鍵', () => {
+    const k = 'supabase/apply-jugyoin-taishoku.sql';
+    const root = path.resolve(__dirname, '..', '..');
+    expect(kagiNoNa('./' + k)).toBe(k);
+    expect(kagiNoNa(path.join(root, k))).toBe(k);
+    expect(kagiNoNa(k.split('/').join(path.sep))).toBe(k);
+    expect(ATO_NO_KAKUNIN[kagiNoNa('./' + k)]).toBeTruthy();
+  });
+});
 
 const HON = 'tnfwipbgfgjaymlszeid';
 const TEST = 'khawdrnvssdenumbiwfg';

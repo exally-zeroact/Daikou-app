@@ -35,6 +35,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { guard } from './sql-guard.mjs';
 import { readToken, whereWeLooked } from './db-token.mjs';
+import { HONBAN_REF, honbanNoTome } from './honban-tome.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HEYA = 'daikou'; // 触ってよい部屋
@@ -83,7 +84,20 @@ async function main() {
   }
   const token = kagi.token;
   const ref = projectRef();
-  console.log(`向き先: ${ref}  /  鍵: ${kagi.from}（中身は出さない）`);
+  console.log(
+    `向き先: ${ref === HONBAN_REF ? '★本番★ ' : ''}${ref}  /  鍵: ${kagi.from}（中身は出さない）`
+  );
+  // ★本番の 止め★ 2026-10-17（前は --honban の 字が 0件＝本番の 手元で 打つと 請求明細の 倉庫に そのまま 当たった・対立役）
+  //   判じは scripts/honban-tome.mjs の 1か所。倉庫に 届く 前に 止める（--probe・ファイル 無しは 読むだけなので 止めない）
+  const tome = honbanNoTome(
+    ref,
+    args,
+    args.includes('--probe') || !args.filter((a) => !a.startsWith('--')).length
+  );
+  if (tome) {
+    console.error(tome);
+    process.exit(3);
+  }
   console.log(`触ってよい: ${HEYA}.${TANA}*  だけ`);
 
   const ima = await sakuin(token, ref);
@@ -139,7 +153,8 @@ async function main() {
   console.log('\nAPPLY RESULT: OK');
 }
 
-main().catch((e) => {
-  console.error('NG: ' + e.message);
-  process.exitCode = 1;
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]))
+  main().catch((e) => {
+    console.error('NG: ' + e.message);
+    process.exitCode = 1;
+  });
