@@ -48,6 +48,14 @@ function kyuryoSess() {
     'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p,o){var x={ok:true,status:200,json:function(){return Promise.resolve(rows(p));}};' +
+    // ⑮ の 為：__HITORI_OK__ が 立つ 時だけ 1人ぶんの 配るが 通る（立たない 時は 何も 返さない＝配れない）
+    'if(o&&o.method==="POST"&&String(p).indexOf("rpc/dk_kyuryo_haifu_hitori")===0&&window.__HITORI_OK__){var bb=JSON.parse(o.body||"{}");return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve({ok:true,hito:{employee_id:bb.p_employee_id,name:"仮",token:"zz-tok",init_code:"ZZ",pw_ari:false,active:false}});}});}' +
+    // ⑬ の 為：__EMP_NG__ が "0gyou" なら 0行、"400" なら 倉庫が 断った 形（列が 無い）で 返す
+    'if(o&&o.method==="PATCH"&&String(p).indexOf("dk_employees?employee_id=eq.")===0&&window.__EMP_NG__){window.__EMP_PATCH__=(window.__EMP_PATCH__||[]).concat([JSON.parse(o.body)]);' +
+    'if(window.__EMP_NG__==="0gyou")return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve([]);}});' +
+    'return Promise.resolve({ok:false,status:400,text:function(){return Promise.resolve(JSON.stringify({code:"PGRST204",message:"Could not find the retired_on column of dk_employees"}));},json:function(){return Promise.resolve({});}});}' +
+    // ⑪ の 為：dk_employees の PATCH は 書いた 1行を 返す（return=representation と 同じ 形）
+    'if(o&&o.method==="PATCH"&&String(p).indexOf("dk_employees?employee_id=eq.")===0){var id=decodeURIComponent(String(p).split("eq.")[1]);var e0=(F.emps||[]).filter(function(e){return e.employee_id===id;})[0];var b=JSON.parse(o.body);var row=Object.assign({},e0,b);window.__EMP_PATCH__=(window.__EMP_PATCH__||[]).concat([b]);return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(e0?[row]:[]);}});}' +
     // ⑧ の 為：__PATCH_OSOKU__ が 立つ 時だけ PATCH を 遅らせ、書けた 時刻を 残す
     // ⑨ の 為：__PATCH_NG__ が 立つ 時は PATCH を 書けなかった 形で 返す
     'if(o&&o.method==="PATCH"&&window.__PATCH_NG__)return new Promise(function(ok){setTimeout(function(){ok({ok:false,status:500,json:function(){return Promise.resolve({});}});},300);});' +
@@ -112,7 +120,8 @@ test('★★② 会社設定から 来たら 入口は 1つ＋戻るが 在る�
       tabMieru: !!(t && t.offsetHeight > 0),
       modoruMieru: !!(m && m.offsetHeight > 0),
       iki: a ? a.getAttribute('href') : null,
-      midashi: (document.getElementById('modoruMidashi') || {}).textContent || '',
+      // 2026-10-16 見出しの 字は「従業員／退職者」の 切り替えの ボタンに 替えた（司さん）＝見出しの 帯の 中の 字で 見る
+      midashi: (m || {}).textContent || '',
       empAru: !!emp,
     };
   });
@@ -498,8 +507,65 @@ test('★★⑩b 会社設定の チップは 書けなければ 移らずに �
   expect(r.msg).toContain('画面を 移りませんでした');
 });
 
-// ★★⑫ 辞めた 人の 明細には QR・送るを 出さない★★ 2026-10-16（押すと「今居るか 確かめて」と 出て、辞めた 人を 戻させた）
-test('★★⑫ 辞めた 人の 明細には QR・送るが 無く、訳が 出る★★', async ({ page }) => {
+// ★★⑪ 従業員／退職者の 切り替え・退職・復職★★ 2026-10-16（司さん）
+test('★★⑪ 退職で 従業員から 消えて 退職者に 移り、復職で 戻る★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#emp');
+  const mae = await page.evaluate(() => ({
+    kiriMieru: !!(document.querySelector('#modoruSet #empKiri') || {}).offsetHeight,
+    nin: document.querySelectorAll('#empBody [data-taishoku]').length,
+  }));
+  expect(mae.kiriMieru, '★見出しの 横に 従業員／退職者の 切り替えが 無い★').toBe(true);
+  expect(mae.nin, '従業員が 居ない').toBeGreaterThan(0);
+  const na = await page.evaluate(() => {
+    const b = document.querySelector('#empBody [data-taishoku]');
+    return b.closest('tr').querySelector('input[data-f="name"]').value;
+  });
+  await page.locator('#empBody [data-taishoku]').first().click();
+  await page.locator('#empBody .taishoku-hi').fill('2026-09-30');
+  await page.locator('#empBody [data-kakutei]').click();
+  await page.waitForTimeout(500);
+  const ato = await page.evaluate(() => ({
+    nin: document.querySelectorAll('#empBody [data-taishoku]').length,
+    okutta: window.__EMP_PATCH__ || [],
+  }));
+  expect(ato.nin, '★退職しても 従業員に 残っている★').toBe(mae.nin - 1);
+  expect(ato.okutta[0]).toMatchObject({ active: false, retired_on: '2026-09-30' });
+  // 配る 一覧には 残り、その 場で（退職）の 印が 付く 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
+  //   （10-16 は「消える」だった。わざと壊す：一覧の 描き直しを 外す・印を 外す ⇒ 赤）
+  const haifu = await page.evaluate((na) => {
+    const fuda = [...document.querySelectorAll('#haifuList .card')].find((c) =>
+      c.textContent.includes(na)
+    );
+    return fuda ? fuda.textContent.includes('（退職）') : null;
+  }, na);
+  expect(haifu, '★退職した 人が 配る 一覧に 居ない／（退職）の 印が 付いていない★').toBe(true);
+  // 退職者：1行目に 辞めた日、2行目に 名前と 復職
+  await page.locator('[data-kiri="yame"]').click();
+  const yame = await page.evaluate(() =>
+    [...document.querySelectorAll('#empBody tr')].map((tr) => ({
+      hi: (tr.querySelector('.yame-hi') || {}).textContent || '',
+      na: (tr.querySelector('.yame-na span') || {}).textContent || '',
+      fuku: !!tr.querySelector('[data-fukushoku]'),
+    }))
+  );
+  const r = yame.find((x) => x.na === na);
+  expect(r, '★退職者に 出ていない★').toBeTruthy();
+  expect(r.hi).toBe('2026/09/30');
+  expect(r.fuku).toBe(true);
+  await page.locator('#empBody [data-fukushoku]').first().click();
+  await page.waitForTimeout(500);
+  const fuku = await page.evaluate(() => window.__EMP_PATCH__);
+  expect(fuku[fuku.length - 1]).toMatchObject({ active: true, retired_on: null });
+  await page.locator('[data-kiri="ima"]').click();
+  const modori = await page.evaluate(
+    () => document.querySelectorAll('#empBody [data-taishoku]').length
+  );
+  expect(modori, '★復職しても 従業員に 戻らない★').toBe(mae.nin);
+});
+
+// ★★⑫ 辞めた 人の 明細にも QR・送るが 出る★★ 2026-10-17 司さん「向こうが URL 消すまで 見れないかん・退職者のページからでもURLの配付ができないかん」
+//   （10-16 は「出さない」だった＝逆に した。倉庫の 1人ぶん・作り直しも 辞めた 人を 通す。わざと壊す：yameBtnKesu を 戻す ⇒ 赤）
+test('★★⑫ 辞めた 人の 明細にも QR・送るが 出る★★', async ({ page }) => {
   const hataraita = [...new Set((FIX.workHours || []).map((w) => w.employee_id))][0];
   const e0 = FIX.emps.find((e) => e.employee_id === hataraita);
   const moto = e0.active;
@@ -525,10 +591,198 @@ test('★★⑫ 辞めた 人の 明細には QR・送るが 無く、訳が 出
         wake: document.body.innerText.includes('辞めた人には 新しく リンクを 作れません'),
       };
     }, hataraita);
-    expect(r.qr, '★辞めた 人に QR・送るが 出ている★').toBe(0);
-    expect(r.wake, '★訳が 出ていない★').toBe(true);
+    expect(r.qr, '★辞めた 人に QR・送るが 出ていない★').toBe(2);
+    expect(r.wake, '★前の「作れません」の 訳が 残っている★').toBe(false);
     expect(r.hoka, '★今いる人の QR・送るまで 消えた★').toBeGreaterThan(0);
   } finally {
     e0.active = moto;
   }
+});
+
+// ★★⑬ 退職が 書けない 時は 訳を 分けて 出し、ボタンを 戻す／先の 日は 送らない★★ 2026-10-17（対立役 N1・N2・N3・N4）
+//   前は 倉庫が 断っても 0行でも「通信を 確かめて」と 出し、押した ボタンが 灰色の まま だった。
+//   1行の 確かめを 外しても ⑪ は 緑だった（偽物が いつも 1行 返す）＝0行の 道を ここで 縛る。
+async function taishokuOsu(page, hi) {
+  await page.locator('#empBody [data-taishoku]').first().click();
+  await page.locator('#empBody .taishoku-hi').fill(hi);
+  await page.locator('#empBody [data-kakutei]').click();
+  await page.waitForTimeout(500);
+  return page.evaluate(() => ({
+    err: (document.getElementById('err') || {}).textContent || '',
+    nin: document.querySelectorAll('#empBody input[data-f="name"]').length,
+    kakuteiOseru: !!document.querySelector('#empBody [data-kakutei]:not([disabled])'),
+    okutta: (window.__EMP_PATCH__ || []).length,
+  }));
+}
+test('★★⑬ 退職が 書けない 時は 訳を 分けて 出し、ボタンを 戻す★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#emp');
+  const nin = await page.evaluate(
+    () => document.querySelectorAll('#empBody input[data-f="name"]').length
+  );
+  // 0行
+  await page.evaluate(() => {
+    window.__EMP_NG__ = '0gyou';
+  });
+  const a = await taishokuOsu(page, '2026-09-30');
+  expect(a.okutta, '★送っていない★').toBe(1);
+  expect(a.err, '★0行の 訳が 出ていない★').toContain('書けた 行が ありません');
+  expect(a.err).not.toContain('通信');
+  expect(a.nin, '★書けていないのに 従業員から 消えた★').toBe(nin);
+  expect(a.kakuteiOseru, '★失敗の 後も ボタンが 押せない★').toBe(true);
+  // 倉庫が 断った（列が 無い）＝倉庫の 言い分を 出す
+  await page.evaluate(() => {
+    window.__EMP_NG__ = '400';
+  });
+  await page.locator('#empBody [data-kakutei]').click();
+  await page.waitForTimeout(500);
+  const b = await page.evaluate(() => ({
+    err: (document.getElementById('err') || {}).textContent || '',
+    kakuteiOseru: !!document.querySelector('#empBody [data-kakutei]:not([disabled])'),
+  }));
+  expect(b.err, '★倉庫の 言い分が 出ていない★').toContain('retired_on');
+  expect(b.err).toContain('[400]');
+  expect(b.kakuteiOseru, '★失敗の 後も ボタンが 押せない★').toBe(true);
+});
+test('★★⑬-2 先の 日は 辞めた日に できない（送らない）★★', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-17T03:00:00Z'));
+  await kyuryoHiraku(page, '?henshu=1#emp');
+  const nin = await page.evaluate(
+    () => document.querySelectorAll('#empBody input[data-f="name"]').length
+  );
+  const max = await page.evaluate(() => {
+    document.querySelector('#empBody [data-taishoku]').click();
+    return document.querySelector('#empBody .taishoku-hi').getAttribute('max');
+  });
+  expect(max, '★日付の 欄に 上限が 無い★').toBe('2026-10-17');
+  await page.locator('#empBody .taishoku-hi').fill('2026-10-18');
+  await page.locator('#empBody [data-kakutei]').click();
+  await page.waitForTimeout(300);
+  const r = await page.evaluate(() => ({
+    err: (document.getElementById('err') || {}).textContent || '',
+    okutta: (window.__EMP_PATCH__ || []).length,
+    nin: document.querySelectorAll('#empBody input[data-f="name"]').length,
+  }));
+  expect(r.okutta, '★先の 日を 送った★').toBe(0);
+  expect(r.err).toContain('今日より 先に できません');
+  expect(r.nin).toBe(nin);
+});
+
+// ★★⑭ 退職者の 辞めた 日は 押すと 直せる★★ 2026-10-17（対立役 N5＝前は 復職して 退職し直すしか 無く、元の 日が 今日に 戻った）
+test('★★⑭ 退職者の 辞めた 日を 押して 直す★★', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-17T03:00:00Z'));
+  await kyuryoHiraku(page, '?henshu=1#emp');
+  await page.locator('#empBody [data-taishoku]').first().click();
+  await page.locator('#empBody .taishoku-hi').fill('2026-09-30');
+  await page.locator('#empBody [data-kakutei]').click();
+  await page.waitForTimeout(500);
+  await page.locator('[data-kiri="yame"]').click();
+  await page.locator('#empBody [data-hi-naosu]').first().click();
+  const mae = await page.locator('#empBody [data-hi-naosu] .taishoku-hi').inputValue();
+  expect(mae, '★今の 辞めた 日が 入っていない★').toBe('2026-09-30');
+  await page.locator('#empBody [data-hi-naosu] .taishoku-hi').fill('2026-09-01');
+  await page.locator('#empBody [data-hi-kakutei]').click();
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => ({
+    okutta: window.__EMP_PATCH__ || [],
+    hi: [...document.querySelectorAll('#empBody .yame-hi')].map((d) => d.textContent),
+    fuku: document.querySelectorAll('#empBody [data-fukushoku]').length,
+  }));
+  expect(r.okutta[r.okutta.length - 1]).toMatchObject({ active: false, retired_on: '2026-09-01' });
+  expect(r.hi, '★直した 日が 出ていない★').toContain('2026/09/01');
+  expect(r.fuku, '★退職者から 消えた★').toBeGreaterThan(0);
+});
+
+// ★★⑮ 退職者の ページから リンクを 配れる★★ 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
+//   2行（辞めた日／名前と 復職）は そのままに、名前の 横の「配る」で 配る 札を 下に 開く・もう一度 押すと 閉じる。
+//   わざと壊して 赤に なった 記録（2026-10-17）：「配る」の ボタンを 消す ⇒ 赤／開く 箱を 描かない ⇒ 赤。戻すと 緑。
+test('★★⑮ 退職者の ページの「配る」で 配る 札が 開き、2行の 形は そのまま★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#emp');
+  await page.locator('[data-kiri="yame"]').click();
+  const mae = await page.evaluate(() => ({
+    gyo: document.querySelectorAll('#empBody .yame-hi').length,
+    na: document.querySelectorAll('#empBody .yame-na span').length,
+    fuku: document.querySelectorAll('#empBody [data-fukushoku]').length,
+    haifu: document.querySelectorAll('#empBody [data-yame-haifu]').length,
+  }));
+  expect(mae.gyo, '★退職者が 居ない（見本に 辞めた 人が 1人 居る筈）★').toBeGreaterThan(0);
+  expect(mae.na, '★2行目の 名前が 無い★').toBe(mae.gyo);
+  expect(mae.fuku, '★復職の ボタンが 無い★').toBe(mae.gyo);
+  expect(mae.haifu, '★配る ボタンが 無い★').toBe(mae.gyo);
+  await page.locator('#empBody [data-yame-haifu]').first().click();
+  const aki = await page.evaluate(() => {
+    const b = document.querySelector('#empBody [data-yame-box]');
+    return {
+      mieru: !!b && b.style.display !== 'none' && b.offsetHeight > 0,
+      botan: !!b && !!b.querySelector('[data-hhito], [data-hokuru], [data-hmise], [data-hsai]'),
+    };
+  });
+  expect(aki.mieru, '★配る 札が 開かない★').toBe(true);
+  expect(aki.botan, '★配る 札に 配る・送る・見せる・作り直すの どれも 無い★').toBe(true);
+  // 配れなかった 時は 訳が 見える（前は 隠れた 設定の 枠の 箱にだけ 書いた・対立役 N1）。
+  //   偽の 倉庫は 1人ぶんの 道に 何も 返さない＝配れない 形
+  const hhito = page.locator('#empBody [data-yame-box] [data-hhito]');
+  expect(
+    await hhito.count(),
+    '★配る 札に「配る」が 無い（見本の 辞めた 人は まだ 配っていない筈）★'
+  ).toBe(1);
+  await hhito.first().click();
+  await page.waitForTimeout(500);
+  const err = await page.evaluate(() => {
+    const e = document.getElementById('err');
+    return { mieru: !!e && e.offsetParent !== null, ji: (e && e.textContent) || '' };
+  });
+  expect(err.mieru, '★配れなかった 訳が 見えない★').toBe(true);
+  expect(err.ji, '★配れなかった 訳の 字で ない★').toContain('配');
+  // 押し直して 通ったら 赤字は 消える（前は 残り、客が 作り直すを 押して 渡した リンクを 殺す 恐れ・対立役 直す1）
+  await page.evaluate(() => {
+    window.__HITORI_OK__ = true;
+  });
+  await page.locator('#empBody [data-yame-box] [data-hhito]').first().click();
+  await page.waitForTimeout(500);
+  const ato = await page.evaluate(() => {
+    const e = document.getElementById('err');
+    return {
+      ji: (e && e.offsetParent !== null && e.textContent) || '',
+      fuda: !!document.querySelector(
+        '#empBody [data-yame-box] [data-hokuru], #empBody [data-yame-box] [data-hmise]'
+      ),
+    };
+  });
+  expect(ato.ji, '★押し直して 通ったのに 赤字が 残っている★').toBe('');
+  expect(ato.fuda, '★通った 後に 配る 札（見せる・送る）が 出ない★').toBe(true);
+  await page.locator('#empBody [data-yame-haifu]').first().click();
+  const toji = await page.evaluate(
+    () => (document.querySelector('#empBody [data-yame-box]') || {}).style.display
+  );
+  expect(toji, '★もう一度 押しても 閉じない★').toBe('none');
+});
+
+// ★★⑮-2 配るの 訳を 消す 時に、保存の 失敗 等 他の 訳を 消さない★★ 2026-10-17（対立役：前の 直しは 他の 訳まで 消し、直った 様に 見えた）
+//   わざと壊して 赤に なった 記録（2026-10-17）：消す 時に いつも showErr('') を 呼ぶ 形に 戻す ⇒ 赤。戻すと 緑。
+test('★★⑮-2 配るの 訳を 消しても 他の 訳は 残る★★', async ({ page }) => {
+  await kyuryoHiraku(page, '?henshu=1#emp');
+  await page.locator('[data-kiri="yame"]').click();
+  // 保存の 失敗 等 他の 所が 画面の 上に 出した 訳（showErr と 同じ 形で 置く）
+  await page.evaluate(() => {
+    window.__HITORI_OK__ = true;
+    const e = document.getElementById('err');
+    e.textContent = '保存できませんでした（試し）';
+    e.style.display = 'block';
+  });
+  await page.locator('#empBody [data-yame-haifu]').first().click();
+  await page.locator('#empBody [data-yame-box] [data-hhito]').first().click();
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() => {
+    const e = document.getElementById('err');
+    return {
+      ji: (e && e.textContent) || '',
+      fuda: !!document.querySelector(
+        '#empBody [data-yame-box] [data-hokuru], #empBody [data-yame-box] [data-hmise]'
+      ),
+    };
+  });
+  expect(r.fuda, '★配る 札が 出ない（配るが 通っていない）★').toBe(true);
+  expect(r.ji, '★配るを 押したら 保存の 失敗の 訳が 消えた★').toContain(
+    '保存できませんでした（試し）'
+  );
 });

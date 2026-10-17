@@ -55,7 +55,10 @@ begin
     'list', (
       select coalesce(jsonb_agg(x order by x.sort_order nulls last, x.name), '[]'::jsonb)
       from (
+        -- ★辞めた 人も 出す（リンクを 持っている 人だけ）★ 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
+        --   作るのは 今いる人だけ（上の insert）。辞めた 人の 新しい リンクは 1人ぶんの 道（dk_kyuryo_haifu_hitori）で 作る
         select e.employee_id, e.name, e.sort_order,
+               coalesce(e.active, true) as active, e.retired_on,
                p.token,
                -- ★パスワードを 決めていない人だけ 初回コードを 返す★（URL に 埋める為）
                case when p.pw_hash is null then p.init_code else null end as init_code,
@@ -63,7 +66,7 @@ begin
         from daikome.dk_employees e
         join daikome.dk_kyuryo_pub p
           on p.company_id = e.company_id and p.employee_id = e.employee_id
-        where e.company_id = cid and coalesce(e.active, true) = true
+        where e.company_id = cid
       ) x
     )
   );
@@ -95,6 +98,9 @@ begin
   ) then
     return json_build_object('ok', false, 'reason', 'not_yours');
   end if;
+  -- ★辞めた 人にも 作り直せる★ 2026-10-17 司さん「向こうが URL 消すまで 見れないかん・退職者のページからでもURLの配付ができないかん」
+  --   （10-16 に 入れた「辞めた 人には 作り直さない」は 外した。見える 範囲は 本人の 関数 dk_kyuryo_get が 決める＝
+  --    辞めた 人は 自分が 働いたか 手当・控除が 在る 月だけ・会社の 売上は 働いた 月の 次の 月の 末まで）
 
   atarashii := upper(substr(encode(extensions.gen_random_bytes(8), 'hex'), 1, 8));
   update daikome.dk_kyuryo_pub

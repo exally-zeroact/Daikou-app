@@ -89,6 +89,9 @@ set search_path = daikome, public, extensions
 as $fn$
 declare
   r daikome.dk_kyuryo_pub;
+  v_saigo date; -- 辞めた 人の 最後に 働いた 日
+  v_saigo_a date; -- 辞めた 人の 最後に 働いた 日 か 手当・控除の 日 の 遅い 方
+  v_kaisha_to date; -- 会社の 物（勤務・直し・勤務時間・同乗・手入力の日）を 返す 終わりの 日
 begin
   select * into r from daikome.dk_kyuryo_pub where token = p_token;
   if not found or r.pw_hash is null then
@@ -99,6 +102,47 @@ begin
   end if;
   if p_from is null or p_to is null or p_to < p_from or (p_to - p_from) > 400 then
     return json_build_object('ok', false, 'reason', 'bad_range');
+  end if;
+  v_kaisha_to := p_to;
+  -- ★★辞めた 人（今いる人で ない・名簿に 居ない）★★ 2026-10-16 → 10-17 司さん「向こうが URL 消すまで 見れないかん」
+  --   辞めた 人も 自分の リンクで 明細を 見続けられる。ただし 頼む 窓は 93 日 以内で、その 窓に
+  --   ★本人の 勤務時間 か 本人の 手当・控除★ が 在る 時だけ（前は 勤務時間 だけ＝手当・控除だけの 月が 見えなかった）。
+  --   本人の 画面は 前の 月の 1日〜次の 月の 末日（最長 92 日）を 頼む（_honninHaba）。
+  if not exists (
+    select 1 from daikome.dk_employees e
+    where e.employee_id = r.employee_id and e.company_id = r.company_id and e.active
+  ) then
+    if (p_to - p_from) > 93 or not (
+      exists (
+        select 1 from daikome.dk_work_hours w
+        where w.company_id = r.company_id and w.employee_id = r.employee_id
+          and w.work_date between p_from and p_to
+      ) or exists (
+        select 1 from daikome.dk_pay_adjustments a
+        where a.company_id = r.company_id and a.employee_id = r.employee_id
+          and a.work_date between p_from and p_to
+      )
+    ) then
+      return json_build_object('ok', false, 'reason', 'taishoku');
+    end if;
+    -- ★返す 物ごとに 終わりの 日を 分ける★ 2026-10-17（対立役 S2）
+    --   会社の 売上（勤務・直し・手入力の日）は 手当・控除の 計算に 要らない（node で 測った：売上 あり・無し とも 払う額 1,800）。
+    --   ＝会社の 物は「最後に 働いた 月の 次の 月の 末日」まで。手当・控除は「最後に 働いたか 手当・控除が 在った 月の 次の 月の 末日」まで。
+    --   最後に 働いた 日を 含む 給料の 期間（締めが 月を またいでも 1か月 以内）は 次の 月の 末日 までに 必ず 終わる＝最後の 明細の 額は 変わらない。
+    --   ★働いた 日が 1日も 無い 人は 会社の 物を 返さない★（least(p_to, NULL) は p_to を 返し、黙って 93 日ぶん 全部 返る＝fail-open）
+    select max(w.work_date) into v_saigo
+      from daikome.dk_work_hours w
+      where w.company_id = r.company_id and w.employee_id = r.employee_id;
+    select greatest(v_saigo, max(a.work_date)) into v_saigo_a
+      from daikome.dk_pay_adjustments a
+      where a.company_id = r.company_id and a.employee_id = r.employee_id;
+    v_saigo_a := coalesce(v_saigo_a, v_saigo);
+    if v_saigo is null then
+      v_kaisha_to := p_from - 1; -- 会社の 物は 0件
+    else
+      v_kaisha_to := least(p_to, (date_trunc('month', v_saigo) + interval '2 month' - interval '1 day')::date);
+    end if;
+    p_to := least(p_to, (date_trunc('month', v_saigo_a) + interval '2 month' - interval '1 day')::date);
   end if;
 
   return json_build_object(
@@ -135,7 +179,7 @@ begin
                sh.fare_total_yen, sh.trip_count, sh.excluded
         from daikome.dk_shifts sh
         where sh.company_id = r.company_id
-          and (sh.started_at at time zone 'Asia/Tokyo')::date between p_from and p_to
+          and (sh.started_at at time zone 'Asia/Tokyo')::date between p_from and v_kaisha_to
       ) x
     ),
     -- ★★2026-10-02 直し＝★会社全部の 行を 列ごと 丸ごと 返していた★★★
@@ -161,6 +205,14 @@ begin
         -- uriage_yen＝事務所が 直した 売上（2026-10-14・apply-uriage-naoshi.sql と 同じ 送りで 当てる）
         select ed.shift_id, ed.toll_yen, ed.bridge_yen, ed.other_yen, ed.expenses, ed.hours, ed.uriage_yen
         from daikome.dk_shift_edits ed where ed.company_id = r.company_id
+          -- ★返す 勤務（同じ 日付の 窓）の 直しだけ★ 2026-10-16（前は 会社の 直しを 全部 返し、辞めた 人も
+          --   働いた 日の 窓を 1回 通れば 新しい 直しの 額を 見続けられた・対立役）。
+          --   画面は 直しを 返した 勤務の shift_id からしか 引かない（payroll-daily.js editById）＝額は 変わらない
+          and ed.shift_id in (
+            select sh2.shift_id from daikome.dk_shifts sh2
+            where sh2.company_id = r.company_id
+              and (sh2.started_at at time zone 'Asia/Tokyo')::date between p_from and v_kaisha_to
+          )
       ) x
     ),
     'workHours', (
@@ -169,7 +221,7 @@ begin
         from daikome.dk_work_hours w
         where w.company_id = r.company_id
           and w.employee_id = r.employee_id
-          and w.work_date between p_from and p_to
+          and w.work_date between p_from and v_kaisha_to
       ) x
     ),
     -- ★★その日 その車に 乗った 人の 役だけ★★ 2026-10-06（司さん「回数距離は1台としてやろが」）
@@ -180,7 +232,7 @@ begin
         from daikome.dk_work_hours w
         join daikome.dk_employees e on e.employee_id = w.employee_id and e.company_id = w.company_id
         where w.company_id = r.company_id
-          and w.work_date between p_from and p_to
+          and w.work_date between p_from and v_kaisha_to
           and w.device_id is not null
           -- ★本人が 乗った 車と 日だけ★（他の 車の 乗り方は 返さない・対立役 10-06）
           and exists (
@@ -208,7 +260,7 @@ begin
                -- ★距離★ 2026-10-06（距離歩合の 材料＝事務所の 画面と 同じ 額に する）
                m.actual_total_m, m.total_distance_m
         from daikome.dk_manual_days m
-        where m.company_id = r.company_id and m.work_date between p_from and p_to
+        where m.company_id = r.company_id and m.work_date between p_from and v_kaisha_to
       ) x
     )
   );

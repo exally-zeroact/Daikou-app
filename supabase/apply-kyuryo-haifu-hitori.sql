@@ -16,7 +16,7 @@
 --   ★守り（既に 在る 2本と 同じ）★
 --     ・★自分の 会社の 人だけ★（dk_companies.owner_id = auth.uid()）
 --     ・★よその 会社の 人は 1人も 触らない／返さない★
---     ・★今 居る人（active）だけ★
+--     ・★自分の 会社の 人★（10-17 から 辞めた 人も 配れる＝退職者ページから 配る 為）
 --     ・パスワードそのもの（pw_hash）は ★1度も 返さない★
 --     ・security definer ＋ ★search_path 固定★
 -- ============================================================
@@ -38,12 +38,11 @@ begin
     return json_build_object('ok', false, 'reason', 'no_company');
   end if;
 
-  -- ★自分の 会社の 人か／今 居る人か★
+  -- ★自分の 会社の 人か★（辞めた 人も 配れる・2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」）
   if not exists (
     select 1 from daikome.dk_employees e
      where e.employee_id = p_employee_id
        and e.company_id = cid
-       and coalesce(e.active, true) = true
   ) then
     return json_build_object('ok', false, 'reason', 'not_yours');
   end if;

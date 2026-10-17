@@ -13,6 +13,7 @@
 //       ★はじめ「④ が 赤になる」と 書いたが 測ったら 緑のまま だった★
 //       （直す前の 形は ARU が 欠けて 別の 理由で NG に なる＝NAI を 見ていなかった）⇒ ④-2 を 足した
 //     戻すと 全部 緑。テスト倉庫では 当てる前 KAKUNIN まだ → 当てた後 OK（実測）
+//   ⑤ 2026-10-17：ARU から 足した 3つの 字を 外す ⇒ ⑤ が 赤（外す 前は「'taishoku'」の 字だけで 古い 版も OK だった）
 // ============================================================
 const fs = require('fs');
 const path = require('path');
@@ -55,5 +56,35 @@ describe('★dk_kyuryo_get だけを 当てる 道具★', () => {
     const b = T.kiridasu(SQL);
     const mazari = b + '\n-- 残り: select to_jsonb(w) from daikome.dk_work_hours w';
     expect(T.kazoeru(mazari).ok, '★to_jsonb(w) が 残っているのに OK★').toBe(false);
+  });
+  it('⑤ 辞めた 人の 門の 古い 版・欠けた 版は NG（10-17 対立役 N7）', () => {
+    const b = T.kiridasu(SQL);
+    const kaeru = [
+      ['(p_to - p_from) > 93', '(p_to - p_from) > 62'],
+      [
+        'select sh2.shift_id from daikome.dk_shifts sh2',
+        'select sh2.id from daikome.dk_shifts sh2',
+      ],
+      // 2026-10-17 手当・控除だけの 月を 通す・切る 日を 分ける（前の 版＝手当・控除を 見ない／1本の p_to で 全部 切る）
+      ['select 1 from daikome.dk_pay_adjustments a', 'select 1 from daikome.dk_work_hours a'],
+      [
+        "p_to := least(p_to, (date_trunc('month', v_saigo_a)",
+        "p_to := least(p_to, (date_trunc('month', v_saigo)",
+      ],
+      [
+        "v_kaisha_to := least(p_to, (date_trunc('month', v_saigo)",
+        "v_kaisha_to := least(p_to, (date_trunc('month', v_saigo_a)",
+      ],
+      ['v_kaisha_to := p_from - 1', 'v_kaisha_to := p_to'],
+      [
+        "and (sh.started_at at time zone 'Asia/Tokyo')::date between p_from and v_kaisha_to",
+        "and (sh.started_at at time zone 'Asia/Tokyo')::date between p_from and p_to",
+      ],
+      ['m.work_date between p_from and v_kaisha_to', 'm.work_date between p_from and p_to'],
+    ];
+    for (const [a, z] of kaeru) {
+      expect(b.split(a).length, '★置き換える 所が 1か所 でない（' + a + '）★').toBe(2);
+      expect(T.kazoeru(b.replace(a, z)).ok, '★' + a + ' が 無いのに OK★').toBe(false);
+    }
   });
 });

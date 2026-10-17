@@ -26,10 +26,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readToken, whereWeLooked } from './db-token.mjs';
+import { HONBAN_REF, honbanNoTome } from './honban-tome.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SQL_FILE = path.join(ROOT, 'supabase', 'apply-kyuryo-honnin-kansuu.sql');
-const HONBAN_REF = 'tnfwipbgfgjaymlszeid';
 
 // ★当てた 後に 在って ほしい 字／無くて ほしい 字★（倉庫から 読み戻した 関数で 数える）
 export const ARU = [
@@ -40,6 +40,29 @@ export const ARU = [
   ['m.actual_total_m, m.total_distance_m', '手入力の日の 距離を 返す（距離歩合・10-06）'],
   ['jsonb_agg(coalesce(e.role', '乗った 人の 役だけ 返す（回数・距離を 1台で 分ける・10-06）'],
   ['and a.employee_id = r.employee_id', '手当・控除は 本人の 分だけ（10-06）'],
+  ["'taishoku'", '辞めた 人は 働いた 日を 含む 93 日 以内 だけ（会社の 売上を 見続けない・10-16）'],
+  // ★'taishoku' の 字だけでは 62 日の 古い 版・p_to を 切らない 版・直しを 絞らない 版でも OK に なった（対立役 N7・10-17）★
+  ['(p_to - p_from) > 93', '辞めた 人の 窓は 93 日まで（62 日の 古い 版で ない）'],
+  ['select sh2.shift_id from daikome.dk_shifts sh2', '直し（edits）は 窓の 中の 勤務の 分だけ'],
+  // 2026-10-17 司さん「向こうが URL 消すまで 見れないかん」＝手当・控除だけの 月も 通し、会社の 物と 手当・控除で 切る 日を 分ける（対立役 S2）
+  ['select 1 from daikome.dk_pay_adjustments a', '辞めた 人は 手当・控除だけの 月も 通す'],
+  [
+    "p_to := least(p_to, (date_trunc('month', v_saigo_a)",
+    '手当・控除は 最後に 働いたか 手当・控除が 在った 月の 次の 月の 末で 切る',
+  ],
+  [
+    "v_kaisha_to := least(p_to, (date_trunc('month', v_saigo)",
+    '会社の 物は 最後に 働いた 月の 次の 月の 末で 切る',
+  ],
+  [
+    'v_kaisha_to := p_from - 1',
+    '働いた 日が 無い 人は 会社の 物を 返さない（NULL で 全部 返る 穴を 塞ぐ）',
+  ],
+  [
+    "and (sh.started_at at time zone 'Asia/Tokyo')::date between p_from and v_kaisha_to",
+    '勤務（会社の 売上）は 会社の 物の 終わりの 日で 切る',
+  ],
+  ['m.work_date between p_from and v_kaisha_to', '手入力の 日も 会社の 物の 終わりの 日で 切る'],
 ];
 export const NAI = [
   ['to_jsonb(ed)', '直しを 行ごと 丸ごと'],
@@ -50,7 +73,8 @@ export const NAI = [
 // ★dk_kyuryo_get の 1本だけを 切り出す★（他の 文が 紛れていたら 投げる）
 export function kiridasu(sql) {
   const s = String(sql).replace(/\r\n/g, '\n');
-  const re = /create or replace function public\.dk_kyuryo_get\(p_token text, p_pw text, p_from date, p_to date\)\n[\s\S]*?\n\$fn\$;/;
+  const re =
+    /create or replace function public\.dk_kyuryo_get\(p_token text, p_pw text, p_from date, p_to date\)\n[\s\S]*?\n\$fn\$;/;
   const m = s.match(re);
   if (!m) throw new Error('dk_kyuryo_get の 塊が 見つからない');
   const block = m[0];
@@ -110,7 +134,10 @@ async function yomimodosu(ref, token) {
     token,
     "select pg_get_functiondef('public.dk_kyuryo_get(text,text,date,date)'::regprocedure) as d"
   );
-  if (!r.ok) throw new Error('関数を 読み戻せない: ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 200));
+  if (!r.ok)
+    throw new Error(
+      '関数を 読み戻せない: ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 200)
+    );
   return (r.body && r.body[0] && r.body[0].d) || '';
 }
 
@@ -122,13 +149,18 @@ function dasu(k) {
 async function main() {
   const args = process.argv.slice(2);
   const ateru = args.includes('--ateru');
-  const honban = args.includes('--honban');
   const t = readToken();
   if (!t) {
     console.error('NG: 鍵が無い（探した所: ' + whereWeLooked().join(' / ') + '）');
     process.exit(2);
   }
   const ref = readProjectRef();
+  // ★本番の 止め★ 判じは scripts/honban-tome.mjs の 1か所（白名簿・知らない 倉庫も 止める・10-17）。--ateru の 時は 倉庫に 届く 前に 止める
+  const tome = honbanNoTome(ref, process.argv.slice(2), !ateru);
+  if (tome) {
+    console.error(tome);
+    process.exit(3);
+  }
   const basho = ref === HONBAN_REF ? '★本番★' : 'テスト';
   console.log('向き先: ' + basho + ' ' + ref + ' ／ 鍵: ' + t.from);
 
@@ -139,14 +171,12 @@ async function main() {
     console.log('\n見るだけ（当てるには --ateru）。KAKUNIN: ' + (mae.ok ? 'OK' : 'まだ'));
     return;
   }
-  if (ref === HONBAN_REF && !honban) {
-    console.error('\nNG: 向き先が 本番。本番に 当てるのは --honban を 付けた 時だけ');
-    process.exit(3);
-  }
   const block = kiridasu(fs.readFileSync(SQL_FILE, 'utf8'));
   const r = await runSql(ref, t.token, block);
   if (!r.ok) {
-    console.error('\nNG: 当てられなかった ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 300));
+    console.error(
+      '\nNG: 当てられなかった ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 300)
+    );
     process.exit(4);
   }
   console.log('\n■ 当てた 後（倉庫から 読み戻した 関数）');
