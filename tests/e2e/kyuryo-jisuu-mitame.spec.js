@@ -598,3 +598,49 @@ test('売上の 直しが 読めない 業務が 在れば 明細の 画面・PD
   await page.waitForTimeout(500);
   await expect(page.locator('#err')).toContainText('売上の 直しが 読めない');
 });
+
+// ★役割の 決まりが 無くて 計算できない 人が 居れば 明細・PDF を 止める★ 2026-10-17
+//   今の 穴：役割の 名前を 直す・消すと 人の 役割は 古い 名前の まま 残り、歩合0・保証0で 黙って 出ていた
+test('役割の 決まりに 無い 人（歩合・保証が 空）が 居れば 明細の 画面・PDF を 止め、名前と 役割を 出す', async ({
+  page,
+}) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.emps.forEach((e) => {
+        if (e.employee_id === TARO) e.role = '丙';
+      });
+    },
+  });
+  await page.click('.tab[data-tab="slip"]');
+  await page.waitForTimeout(600);
+  await expect(page.locator('#slips')).toContainText('役割の 決まりが 無くて');
+  await expect(page.locator('#slips')).toContainText('テスト太郎（丙）');
+  await expect(page.locator('#slips .slip')).toHaveCount(0);
+  await page.evaluate(() => {
+    document.getElementById('err').textContent = '';
+  });
+  await page.click('#btnPrint');
+  await page.waitForTimeout(500);
+  await expect(page.locator('#err')).toContainText('役割の 決まりが 無くて');
+});
+
+test('役割の 決まりに 無くても 歩合と 保証を 両方 打った 人は 止めない（司さん 08-25）', async ({
+  page,
+}) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.emps.forEach((e) => {
+        if (e.employee_id === TARO) {
+          e.role = '丙';
+          e.pay_rate = '0.3000';
+          e.pay_floor = 1000;
+        }
+      });
+    },
+  });
+  await page.click('.tab[data-tab="slip"]');
+  await page.waitForTimeout(600);
+  await expect(page.locator('#slips')).not.toContainText('役割の 決まりが 無くて');
+  await expect(page.locator('#slips')).toContainText('テスト太郎');
+  await expect(page.locator('#slips .slip').first()).toBeVisible();
+});

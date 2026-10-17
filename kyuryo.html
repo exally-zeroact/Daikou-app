@@ -2555,9 +2555,9 @@
           var box = document.getElementById('slips');
           if (!box) return;
           // 売上の 直しが 読めない 業務が 在れば 本人の 明細も 出さない（事務所と 同じ 門）2026-10-14
-          if (uriageDameBun(CTX)) {
+          if (kyuDameBun(CTX)) {
             box.innerHTML =
-              '<div class="card"><div class="msg">' + esc(uriageDameBun(CTX)) + '</div></div>';
+              '<div class="card"><div class="msg">' + esc(kyuDameBun(CTX)) + '</div></div>';
             return;
           }
           var atama =
@@ -3445,7 +3445,7 @@
               payrollSettings: SET,
             });
             // 売上の 直しが 読めない 業務が 在れば 紙を 出さない 2026-10-14
-            if (uriageDameBun(ctx)) throw new Error(uriageDameBun(ctx));
+            if (kyuDameBun(ctx)) throw new Error(kyuDameBun(ctx));
             // ★★紙の 日 ＝ この月に 締める 期の 日 全部★★ 2026-10-07（司さん「イ」＝締めた 分）
             //   月3回 等は 暦の 月と 同じ 日（対立役 132か月で 0か月 違い）。期が 0 の 月は 暦の 日
             var hibi = [];
@@ -4215,7 +4215,7 @@
           _CAR_NAMES = null; // ★データを読み直したら車の名前も作り直す★
           CTX = PayrollDaily.buildCtx(RAW);
           REP = PayrollDaily.report(PERIOD ? PERIOD.dates : [], CTX);
-          var ub = uriageDameBun(CTX);
+          var ub = kyuDameBun(CTX);
           if (ub) showErr(ub);
         }
         // 売上の 直しが 読めない 業務が 在る 時の 字（明細・紙を 止める）2026-10-14
@@ -4227,6 +4227,12 @@
                 k +
                 '件 あります。給料の 明細・紙は 止めています。「時数を入れる」で その 売上を 直してください。'
             : '';
+        }
+
+        // ★給料を 止める 訳★（売上の 直しが 読めない・役割の 決まりが 無くて 計算できない）2026-10-17
+        //   明細・紙・PDF・本人の 画面は 全部 ここを 見る（訳の 字は PayrollDaily の 1か所）
+        function kyuDameBun(ctx) {
+          return uriageDameBun(ctx) || (ctx && ctx.yakuDameRiyuu) || '';
         }
 
         // ---------- 描画 ----------
@@ -4938,7 +4944,7 @@
         function printOne(ei) {
           if (yomikomichuTomeru()) return;
           // 売上の 直しが 読めない 業務が 在れば 明細の PDF を 作らない（画面の 明細と 同じ 門）2026-10-14
-          if (uriageDameBun(CTX)) return showErr(uriageDameBun(CTX));
+          if (kyuDameBun(CTX)) return showErr(kyuDameBun(CTX));
           var kiOne = PERIOD;
           if (DKSession.loadFailed(LOAD)) {
             yomiNaoshiObi(); // ★帯を 出す★（押す 所が 無い 文で 止めない・対立役 10-07）
@@ -5058,7 +5064,7 @@
                 })
               : zenin;
           // 売上の 直しが 読めない 業務が 在れば 明細の PDF を 作らない（画面の 明細と 同じ 門）2026-10-14
-          if (uriageDameBun(CTX)) return showErr(uriageDameBun(CTX));
+          if (kyuDameBun(CTX)) return showErr(kyuDameBun(CTX));
           // ★「選んだ人」で 呼ばれたのに 選びが 空＝★全員には しない★（10-03 対立役：前は 全員ぶん 出た）
           if (Array.isArray(dake) && !dake.length) {
             showErr('選んだ人が いません。明細の チェックで 選んでください。');
@@ -5217,7 +5223,7 @@
               : '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
             return;
           }
-          var ubDame = uriageDameBun(CTX);
+          var ubDame = kyuDameBun(CTX);
           if (ubDame) {
             box.innerHTML = '<div class="card"><div class="msg">' + esc(ubDame) + '</div></div>';
             return;

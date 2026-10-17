@@ -200,6 +200,9 @@
       // 売上の 直し（dk_shift_edits.uriage_yen）が 読めない 業務（shift_id）2026-10-14
       //   ★メーターの 額に 倒さない★。画面は これが 1件でも 在れば 明細・紙を 止めて 知らせる
       uriageDame: [],
+      // 役割の 決まりが 無くて 計算できない 人の 日 2026-10-17（yakuDameWoKazoeru）
+      //   ★歩合0・保証0に 倒さない★。画面は これが 1件でも 在れば 明細・紙を 止めて 知らせる
+      yakuDame: [],
     };
     try {
       const r = raw && typeof raw === 'object' ? raw : {};
@@ -361,7 +364,114 @@
     } catch (_) {
       /* ignore: 壊れたデータでも動く形で返す */
     }
+    // ★数え損ねたら 止める側★（黙って 0件＝通す に しない）
+    try {
+      yakuDameWoKazoeru(ctx);
+    } catch (_) {
+      ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: '', wake: 'yomenai' });
+    }
+    ctx.yakuDameRiyuu = yakuDameBun(ctx.yakuDame);
     return ctx;
+  }
+
+  // 止める 訳の 字（明細・紙・月次・本人で 同じ 字＝ここ 1か所）
+  function yakuDameBun(list) {
+    const l = arr(list);
+    if (!l.length) return '';
+    if (
+      l.some(function (x) {
+        return x && x.wake === 'yomenai';
+      })
+    )
+      return '役割の 決まりを 確かめられませんでした。給料の 明細・紙は 止めています。もう一度 開いてください。';
+    const na = [];
+    l.forEach(function (x) {
+      const s = (x.name || '名前の 無い 人') + '（' + (x.role || '役割 なし') + '）';
+      if (na.indexOf(s) < 0) na.push(s);
+    });
+    const hi = l.some(function (x) {
+      return x.wake === 'hi';
+    });
+    return (
+      '役割の 決まりが 無くて 給料を 計算できない 人が 居ます：' +
+      na.slice(0, 5).join('・') +
+      (na.length > 5 ? ' ほか ' + (na.length - 5) + '人' : '') +
+      '（' +
+      l.length +
+      '日ぶん）。給料の 明細・紙は 止めています。「給料の 設定 → 役割ごとの 決まり」で その 役割を 足すか、' +
+      (hi
+        ? '回数・距離の 分け方を 人数で 等分に するか、'
+        : 'その 人の 歩合と 最低保証を 両方 打つか、') +
+      '「従業員」で 役割を 決まりに 在る 物に 直してください。'
+    );
+  }
+
+  // ★★役割の 決まりが 無くて 計算できない 人の 日を 数える★★ 2026-10-17
+  //   決まりに 無い 役割の 人は daiko-payroll.js の compute で 歩合0・保証0に 黙って 倒れていた
+  //   （役割の 名前を 直す・消すと 人の 役割は 古い 名前の まま 残る）。司さん「計算できなければ 止めて 警告」。
+  //   ・人の 歩合と 最低保証が 両方 打って あれば 止めない（司さん 08-25「役割は 選んでも 打っても いい」）
+  //   ・回数・距離を 役割の 率の 比で 分ける 日は、その 車に 乗った 全員（自分も）の 役割が 決まりに 要る
+  //     （比は 役割の 率だけで 引く＝決まりに 無い 役割は 0 として 扱われ、取り分が 黙って 動く）
+  //   見る 人と 日は dayInput と 同じ（時数が 在る 人だけ）
+  function yakuDameWoKazoeru(ctx) {
+    const roles = (ctx.settings && ctx.settings.roles) || {};
+    const ex = (ctx.settings && ctx.settings.extra) || {};
+    const aru = function (y) {
+      return Object.prototype.hasOwnProperty.call(roles, y);
+    };
+    const has = function (v) {
+      return v !== null && v !== undefined && v !== '' && isFinite(parseFloat(v));
+    };
+    const hiru = n(ex.kaisu) > 0 || n(ex.kyori) > 0;
+    Object.keys(ctx.hoursByDate)
+      .sort()
+      .forEach(function (date) {
+        const wh = ctx.hoursByDate[date] || {};
+        const cars = ctx.byDate[date] || {};
+        Object.keys(wh).forEach(function (empId) {
+          const emp = ctx.empById[empId];
+          if (!emp) return;
+          const w = wh[empId];
+          const car = cars[w.device_id];
+          const hours = w.hours > 0 ? w.hours : car ? car.hours : 0;
+          if (!(hours > 0)) return;
+          const role = emp.role || '';
+          let wake = '';
+          if (!aru(role) && !(has(emp.pay_rate) && has(emp.pay_floor))) wake = 'yaku';
+          if (!wake && hiru && ex.bunpai !== 'touwari' && car) {
+            const km = n(ex.kyoriShu === 'sou' ? car.sou_m : car.jissha_m) / 1000;
+            const dai = n(ex.kaisu) * n(car.trips) + n(ex.kyori) * km;
+            if (dai > 0) {
+              // 乗った 人の 役は dayInput の crewByCar と 同じ 作り方
+              const cr = ctx.crewByDate && ctx.crewByDate[date];
+              const crew = cr
+                ? arr(cr[w.device_id])
+                : Object.keys(wh)
+                    .filter(function (id) {
+                      return ctx.empById[id] && wh[id] && wh[id].device_id === w.device_id;
+                    })
+                    .map(function (id) {
+                      return ctx.empById[id].role || '';
+                    });
+              if (!crew.length) crew.push(role);
+              if (
+                crew.some(function (y) {
+                  return !aru(y);
+                })
+              )
+                wake = 'hi';
+            }
+          }
+          if (wake)
+            ctx.yakuDame.push({
+              employee_id: empId,
+              name: emp.name || '',
+              date: date,
+              role: role,
+              wake: wake,
+            });
+        });
+      });
   }
 
   // ★画面に出す車の名前 (2026-08-05)★

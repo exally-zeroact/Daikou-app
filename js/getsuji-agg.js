@@ -121,6 +121,13 @@
           '件 あります。給料の「時数を入れる」で 直してください';
         return out;
       }
+      // 役割の 決まりが 無くて 計算できない 人が 居れば 止める 2026-10-17（歩合0・保証0の 額で 出さない）
+      if (ctx.yakuDame && ctx.yakuDame.length) {
+        out.dame = true;
+        out.yaku = true; // 払い方の 設定とは 別の 止め（画面の 字を 分ける 印・字で 分けない）
+        out.riyuu = ctx.yakuDameRiyuu || '役割の 決まりが 無くて 給料を 計算できない 人が 居ます';
+        return out;
+      }
       const kata = (ctx.settings && ctx.settings.periodKata) || {
         dame: true,
         riyuu: '払い方の 設定が ありません',
@@ -216,6 +223,7 @@
           out.total.riyuu = mm.riyuu;
           out.total.tsushin = mm.tsushin === true;
           if (mm.uriage) out.total.uriage = true;
+          if (mm.yaku) out.total.yaku = true;
         }
       });
       const byIdx = {};
