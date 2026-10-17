@@ -983,6 +983,12 @@
         margin-top: 8px;
       }
 
+      /* ★何日から の 日付と 記録の 欄★ 2026-10-18＝iPhone で 押すと 拡大しない 大きさ（kyuryo-sumaho の 見張り） */
+      .hi-in,
+      .rireki-r input {
+        font-size: 16px;
+      }
+
       .hito-sel {
         min-width: 0;
         width: 100%;
@@ -1667,6 +1673,9 @@
                        空欄なら役割どおり。打てばその人だけ変わる。 -->
                   <th>歩合<span class="th-sub">空欄=役割どおり</span></th>
                   <th>最低保証<span class="th-sub">空欄=役割どおり</span></th>
+                  <!-- ★何日から★ 2026-10-18（司さん「何日から変えれるかはユーザーが自由に指定できるように」）
+                       役割・歩合・最低保証は この 日の 値を 出し、直すと この 日から 次の 変更まで 効く -->
+                  <th>何日から<span class="th-sub">空=最初から（記録より前）</span></th>
                   <th>並び</th>
                   <!-- ★その人だけの車 (2026-08-25・司さん指示)★
                        司さん「個人個人で給料明細に載せるかも選びたいんや
@@ -2024,6 +2033,8 @@
           manualDays: [], // 手で入れた1日分（スマホが無くても給料を出せる）
           salesSettings: null,
           payrollSettings: null,
+          // ★人ごとの 歩合・保証・役割の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
+          rireki: [],
         };
         var CTX = null;
         var REP = null;
@@ -2436,6 +2447,8 @@
             // ★その日 その車に 乗った 人の 役（名前・時間は 無し）★ 2026-10-06＝回数・距離の 1台の 額を 分ける 為
             //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
             if (Array.isArray(r.crew)) RAW.crew = r.crew;
+            // ★自分の 変えた 記録（何日から）★ 2026-10-18＝返って こない（古い 倉庫の 関数）時は null＝計算が 止める
+            RAW.rireki = Array.isArray(r.rireki) ? r.rireki : null;
             // ★自分の 手当・控除★ 2026-10-06（倉庫の 関数が 本人の 分だけ 返す）
             // ★返って こない（古い 倉庫の 関数）時は 止める★ 2026-10-07（前は 空＝控除 0 の 明細が 出た・対立役）
             if (!Array.isArray(r.adjustments)) {
@@ -3441,6 +3454,7 @@
               adjustments: res[4] || [],
               labels: RAW.labels,
               employees: RAW.employees,
+              rireki: RAW.rireki, // ★何日から★ 2026-10-18
               salesSettings: RAW.salesSettings,
               payrollSettings: SET,
             });
@@ -4080,6 +4094,7 @@
             else loadPeriod();
           });
         }
+        var RIREKI_YOMI = { tried: 0, failed: 0 };
         function loadMasters() {
           LOAD.tried = 0;
           LOAD.failed = 0;
@@ -4090,8 +4105,18 @@
             ((SET_YOMI = { tried: 0, failed: 0 }),
             DKSession.softList(SESS, kaishaDake('dk_payroll_settings?select=*&limit=1'), SET_YOMI)),
             soft('dk_sales_settings?select=*&limit=1'),
+            // ★変えた 記録（何日から）は 読めたかを 別に 数える★ 2026-10-18（読めない 時に 列の 値で 出さない）
+            ((RIREKI_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(
+              SESS,
+              kaishaDake('dk_hito_rireki?select=*&order=from_date.asc&limit=100000'),
+              RIREKI_YOMI
+            )),
           ]).then(function (res) {
             RAW.employees = res[0] || [];
+            LOAD.tried += RIREKI_YOMI.tried;
+            LOAD.failed += RIREKI_YOMI.failed;
+            RAW.rireki = RIREKI_YOMI.failed > 0 ? null : res[4] || [];
             RAW.labels = res[1] || [];
             SET = (res[2] && res[2][0]) || null;
             LOAD.tried += SET_YOMI.tried; // ★取れなかった 帯にも 出す★
@@ -6649,8 +6674,10 @@
           if (EMP_MIRU === 'yame') return renderYame();
           var roles = roleNames();
           var html = '';
-          RAW.employees.forEach(function (e) {
-            if (e.active === false) return; // 辞めた 人は「退職者」に 出す
+          RAW.employees.forEach(function (e0) {
+            if (e0.active === false) return; // 辞めた 人は「退職者」に 出す
+            // ★役割・歩合・最低保証は「何日から」の 日の 値★ 2026-10-18（計算と 同じ PayrollDaily.empOn）
+            var e = hiNoHito(e0);
             // data-l は★スマホで1人1枚にした時の見出し★（横スクロールさせないため）
             html +=
               '<tr><td data-l="名前"><input class="txt" data-emp="' +
@@ -6688,6 +6715,17 @@
               '" value="' +
               (e.pay_floor === null || e.pay_floor === undefined ? '' : e.pay_floor) +
               '"> 円</td>' +
+              '<td data-l="何日から"><input type="date" class="hi-in" data-hi="' +
+              esc(e.employee_id) +
+              '" value="' +
+              esc(empHi(e.employee_id)) +
+              '"> <button class="btn ghost" type="button" data-rireki="' +
+              esc(e.employee_id) +
+              '">記録 ' +
+              rirekiNoHito(e.employee_id).length +
+              '</button>' +
+              hiNoChui(e) +
+              '</td>' +
               '<td data-l="並び"><input class="hrs" data-emp="' +
               esc(e.employee_id) +
               '" data-f="sort_order" value="' +
@@ -6700,13 +6738,14 @@
               // ★★退職★★ 2026-10-16（司さん「青丸の所に退職ボタンを作って 従業員のページから消せるように」）＝箱の 右下
               '<td data-l="退職" class="taishoku-ran"><button class="btn ghost" type="button" data-taishoku="' +
               esc(e.employee_id) +
-              '">退職</button></td></tr>';
+              '">退職</button></td></tr>' +
+              (RIREKI_HIRAKU[e.employee_id] ? rirekiNoGyou(e0) : '');
           });
           if (!html) {
             // 全員が 辞めた 時に「まだ誰も」と 出していた（10-17 対立役 K3）
             html = RAW.employees.length
-              ? '<tr><td colspan="7" class="empty">今いる人は 居ません（辞めた 人は「退職者」に 居ます）。</td></tr>'
-              : '<tr><td colspan="7" class="empty">まだ誰も登録されていません。</td></tr>';
+              ? '<tr><td colspan="8" class="empty">今いる人は 居ません（辞めた 人は「退職者」に 居ます）。</td></tr>'
+              : '<tr><td colspan="8" class="empty">まだ誰も登録されていません。</td></tr>';
           }
           // ★打つ時の候補★（決まりが在る役割を出す・打ちたければ そのまま打てる）
           html +=
@@ -6760,9 +6799,270 @@
                 // ★空欄なら null＝役割どおりに戻す★（0 は「0にしたい」なので通す）
                 v = String(i.value).trim() === '' ? null : num(i.value);
               } else v = i.value;
-              saveEmp(i.getAttribute('data-emp'), f, v);
+              var id = i.getAttribute('data-emp');
+              // ★何日から★ 日付が 在れば 記録に（その 日から 次の 変更まで）・空なら 列（最初から）
+              if ((f === 'role' || f === 'pay_rate' || f === 'pay_floor') && empHi(id))
+                return saveRireki(id, f, v, empHi(id));
+              saveEmp(id, f, v);
             };
           });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-hi]'), function (i) {
+            i.onchange = function () {
+              EMP_HI[i.getAttribute('data-hi')] = i.value || '';
+              renderEmp();
+            };
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-rireki]'), function (b) {
+            b.onclick = function () {
+              var id = b.getAttribute('data-rireki');
+              RIREKI_HIRAKU[id] = !RIREKI_HIRAKU[id];
+              renderEmp();
+            };
+          });
+          rirekiNoBotan();
+        }
+
+        // ★★人ごとの 歩合・最低保証・役割の「何日から」★★ 2026-10-18（docs/nannichi-kara-hito.md）
+        //   司さん 10-17「その日より前は前の値」「1週間前の日付で設定したら遡って変わる」
+        //   「何日から変えれるかはユーザーが自由に指定できるように」（記録の 日付も 値も 直せて 消せる）
+        //   ★記録が 無い 日（一番 古い 記録より 前）は 列の 値★＝記録0の 人は 今と 同じ
+        var EMP_HI = {}; // 人 → 選んだ 日（既定は 今日の 日本時間・空＝最初から）
+        var RIREKI_HIRAKU = {}; // 記録の 一覧を 開いた 人
+        var RIREKI_NA = { pay_rate: '歩合', pay_floor: '最低保証', role: '役割' };
+        function empHi(id) {
+          return Object.prototype.hasOwnProperty.call(EMP_HI, id) ? EMP_HI[id] : kyouJst();
+        }
+        function rirekiNoHito(id) {
+          return (RAW.rireki || []).filter(function (x) {
+            return x && x.employee_id === id;
+          });
+        }
+        // 選んだ 日の その 人（計算と 同じ 引き方）。空＝最初から＝列の 値
+        function hiNoHito(e) {
+          var hi = empHi(e.employee_id);
+          if (!hi || !Array.isArray(RAW.rireki)) return e;
+          var c = PayrollDaily.buildCtx({ employees: [e], rireki: rirekiNoHito(e.employee_id) });
+          return PayrollDaily.empOn(c, e.employee_id, hi) || e;
+        }
+        // ★日付を 空（最初から）に した 時の 注意★（記録が 在る 人は 一番 古い 記録より 前だけに 効く）
+        function hiNoChui(e) {
+          if (empHi(e.employee_id)) return '';
+          var l = rirekiNoHito(e.employee_id)
+            .map(function (x) {
+              return x.from_date;
+            })
+            .sort();
+          if (!l.length) return '';
+          return (
+            '<div class="th-sub">最初から＝' + esc(l[0]) + ' より 前の 日だけに 効きます</div>'
+          );
+        }
+        function rirekiAtai(x) {
+          if (x.value === null || x.value === undefined) return '';
+          return String(x.value);
+        }
+        function rirekiNoGyou(e) {
+          var l = rirekiNoHito(e.employee_id)
+            .slice()
+            .sort(function (a, b) {
+              return a.from_date < b.from_date ? -1 : a.from_date > b.from_date ? 1 : 0;
+            });
+          var h =
+            '<tr class="rireki-tr"><td colspan="8"><div class="rireki-waku"><b>' +
+            esc(e.name || '') +
+            ' の 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 値＝役割 ' +
+            esc(e.role || '空') +
+            '・歩合 ' +
+            esc(e.pay_rate == null ? '役割どおり' : e.pay_rate) +
+            '・最低保証 ' +
+            esc(e.pay_floor == null ? '役割どおり' : e.pay_floor) +
+            '）';
+          if (!Array.isArray(RAW.rireki))
+            return (
+              h +
+              '<div class="rolewarn">記録を 読めませんでした。開き直してください。</div></div></td></tr>'
+            );
+          if (!l.length) h += '<div class="th-sub">まだ 記録は ありません。</div>';
+          l.forEach(function (x) {
+            h +=
+              '<div class="rireki-r"><input type="date" data-rk-hi="' +
+              esc(x.rireki_id) +
+              '" value="' +
+              esc(x.from_date) +
+              '"> から ' +
+              esc(RIREKI_NA[x.key] || x.key) +
+              ' <input class="txt" data-rk-v="' +
+              esc(x.rireki_id) +
+              '" data-rk-key="' +
+              esc(x.key) +
+              '" value="' +
+              esc(rirekiAtai(x)) +
+              '" placeholder="' +
+              (x.key === 'role' ? '役割の 名前' : '空＝役割どおり') +
+              '"> <button class="btn ghost" type="button" data-rk-del="' +
+              esc(x.rireki_id) +
+              '">消す</button></div>';
+          });
+          return h + '</div></td></tr>';
+        }
+        function rirekiNoAtai(key, v) {
+          if (key === 'role')
+            return String(v == null ? '' : v).trim() === '' ? null : String(v).trim();
+          if (v === null || v === undefined || String(v).trim() === '') return null;
+          return num(v);
+        }
+        // 記録を 読み直して 出し直す（書いた 後）
+        function rirekiYomiNaoshi() {
+          var y = { tried: 0, failed: 0 };
+          return DKSession.softList(
+            SESS,
+            kaishaDake('dk_hito_rireki?select=*&order=from_date.asc&limit=100000'),
+            y
+          ).then(function (rows) {
+            RAW.rireki = y.failed > 0 ? null : rows || [];
+            recalc();
+            renderEmp();
+          });
+        }
+        // ★書けた 行が 1つか まで 見る★（RLS で 0行でも 204 で「保存しました」と 出さない・10-18 対立役 D3）
+        function rirekiKaku(path, method, body) {
+          return DKSession.rest(SESS, path, {
+            method: method,
+            headers: { Prefer: 'return=representation' },
+            body: body === undefined ? undefined : JSON.stringify(body),
+          }).then(function (r) {
+            if (!r.ok) return { ok: false, r: r };
+            return r.json().then(function (rows) {
+              return {
+                ok: Array.isArray(rows) && rows.length === 1,
+                r: r,
+                zero: !(rows && rows.length),
+              };
+            });
+          });
+        }
+        function rirekiErr(msg, x) {
+          if (x && x.r && x.r.status === 409)
+            return showErr(
+              'その 人の 同じ 欄に 同じ 日の 記録が もう 在ります。そちらを 直すか 消してください。'
+            );
+          if (x && x.zero) return showErr(msg + '（書けた 行が ありません。開き直してください）');
+          return saveErr(msg, x && x.r);
+        }
+        function rirekiOwari(msg, flashMsg) {
+          return function (x) {
+            if (!x.ok) return rirekiErr(msg, x);
+            showErr('');
+            if (flashMsg) flash('empSaved', flashMsg);
+            return rirekiYomiNaoshi();
+          };
+        }
+        // 選んだ 日から この 値（同じ 人・欄・日の 記録が 在れば 直す・無ければ 足す）
+        function saveRireki(id, key, v, hi) {
+          if (!Array.isArray(RAW.rireki))
+            return showErr('記録を 読めていないので 保存しません。開き直してください。');
+          var aru = rirekiNoHito(id).filter(function (x) {
+            return x.key === key && x.from_date === hi;
+          })[0];
+          var atai = rirekiNoAtai(key, v);
+          var p = aru
+            ? rirekiKaku(
+                'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(aru.rireki_id),
+                'PATCH',
+                {
+                  value: atai,
+                }
+              )
+            : rirekiKaku('dk_hito_rireki', 'POST', {
+                company_id: COMPANY.company_id,
+                employee_id: id,
+                key: key,
+                from_date: hi,
+                value: atai,
+              });
+          return p
+            .then(rirekiOwari('保存できませんでした。', hi + ' から 保存しました'))
+            .catch(function () {
+              showErr('保存できませんでした。');
+            });
+        }
+        function rirekiNoBotan() {
+          Array.prototype.forEach.call(document.querySelectorAll('[data-rk-hi]'), function (i) {
+            i.onchange = function () {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(i.value)) return showErr('日付を 入れてください。');
+              rirekiKaku(
+                'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-rk-hi')),
+                'PATCH',
+                {
+                  from_date: i.value,
+                }
+              )
+                .then(rirekiOwari('日付を 直せませんでした。', '日付を 直しました'))
+                .catch(function () {
+                  showErr('日付を 直せませんでした。');
+                });
+            };
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-rk-v]'), function (i) {
+            i.onchange = function () {
+              rirekiKaku(
+                'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-rk-v')),
+                'PATCH',
+                {
+                  value: rirekiNoAtai(i.getAttribute('data-rk-key'), i.value),
+                }
+              )
+                .then(rirekiOwari('値を 直せませんでした。', '値を 直しました'))
+                .catch(function () {
+                  showErr('値を 直せませんでした。');
+                });
+            };
+          });
+          Array.prototype.forEach.call(document.querySelectorAll('[data-rk-del]'), function (b) {
+            b.onclick = function () {
+              b.disabled = true;
+              rirekiKaku(
+                'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(b.getAttribute('data-rk-del')),
+                'DELETE'
+              )
+                .then(function (x) {
+                  if (!x.ok) b.disabled = false;
+                  return rirekiOwari('記録を 消せませんでした。', '記録を 消しました')(x);
+                })
+                .catch(function () {
+                  b.disabled = false;
+                  showErr('記録を 消せませんでした。');
+                });
+            };
+          });
+        }
+        // ★役割の 名前を 直した 時は 役割の 記録の 名前も 直す★ 2026-10-18（対立役 止2）
+        //   名前の 直し（dk_yaku_namae_naoshi）は 人の 列と 決まりの 鍵だけ 直す。記録は 名前の 字で 持つので ここで 直す。
+        //   入れ替え（甲⇔乙）でも 壊れない様に、直す 前の 記録から 1行ずつ 新しい 名前を 決めて 送る。
+        //   途中で 落ちたら 古い 名前が 残る＝計算は「決まりに 無い 役割」で 止まる（黙って 0円には ならない）
+        function rirekiNoYakuNaoshi(map) {
+          var l = (RAW.rireki || []).filter(function (x) {
+            return (
+              x &&
+              x.key === 'role' &&
+              typeof x.value === 'string' &&
+              Object.prototype.hasOwnProperty.call(map, x.value)
+            );
+          });
+          return l.reduce(function (p, x) {
+            return p.then(function (ok) {
+              if (!ok) return false;
+              return rirekiKaku(
+                'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(x.rireki_id),
+                'PATCH',
+                {
+                  value: map[x.value],
+                }
+              ).then(function (y) {
+                return y.ok;
+              });
+            });
+          }, Promise.resolve(true));
         }
 
         // ★その人だけの車のチェック (2026-08-25)★
@@ -6894,6 +7194,8 @@
               if (!j || !j.length) return showErr('従業員を足せませんでした。');
               showErr('');
               RAW.employees.push(j[0]);
+              // ★足したばかりの 人は「最初から」★（今日から に すると 前の 日の 時数が 打った 歩合で 出ない・10-18 対立役 止3）
+              if (j[0] && j[0].employee_id) EMP_HI[j[0].employee_id] = '';
               recalc();
               renderEmp();
               flash('empSaved', '足しました');
@@ -7561,7 +7863,17 @@
           var moto = Object.prototype.hasOwnProperty.call(YAKU_MOTO, r) ? YAKU_MOTO[r] : r;
           return (RAW.employees || [])
             .filter(function (e) {
-              return e && (e.role || '') === moto;
+              if (!Array.isArray(RAW.rireki)) return true; // ★記録を 読めない 時は 全員を「使う 人」に 数える＝消させない★
+              // ★変えた 記録で その 役割に なる 人も★（何日から・10-18＝記録だけで 使う 役割を 消すと その 日から 止まる）
+              return (
+                e &&
+                ((e.role || '') === moto ||
+                  (RAW.rireki || []).some(function (x) {
+                    return (
+                      x && x.employee_id === e.employee_id && x.key === 'role' && x.value === moto
+                    );
+                  }))
+              );
             })
             .map(function (e) {
               return (e.name || '名前の 無い 人') + (e.active === false ? '（退職）' : '');
@@ -7709,6 +8021,13 @@
             });
           var yakuMae = function () {
             if (!Object.keys(yMap).length) return Promise.resolve(null);
+            // ★変えた 記録を 読めていない 時は 直さない★（記録の 役割の 名前を 一緒に 直せない・10-18）
+            if (!Array.isArray(RAW.rireki))
+              return Promise.reject(
+                new Error(
+                  '変えた 記録を 読めていないので 役割の 名前を 直せません。開き直してください。設定も 保存していません。'
+                )
+              );
             return DKSession.rest(SESS, 'rpc/dk_yaku_namae_naoshi', {
               method: 'POST',
               body: JSON.stringify({ p_company_id: COMPANY.company_id, p_map: yMap }),
@@ -7740,10 +8059,21 @@
                   YAKU_YOMI = Object.keys(st.roles);
                   // 倉庫が 書いた 時刻に 揃える（upsert が 落ちた 後の 次の 保存で 自分を 止めない）
                   if (SET && j.updated_at) SET.updated_at = j.updated_at;
-                  return j;
+                  // ★役割の 記録の 名前も 直す★（何日から・10-18 対立役 止2）
+                  //   ★直しきれなくても 設定の 保存は 続ける★（名前は もう 倉庫で 直った＝同じ 押しの 歩合等を 黙って 捨てない・10-18 対立役 止A）
+                  //   落ちた 時も 読み直す（手元に 古い 名前を 残さない）
+                  return rirekiNoYakuNaoshi(yMap).then(function (ok) {
+                    if (!ok)
+                      yakuRirekiChui =
+                        '役割の 名前と 設定は 保存しましたが、変えた 記録の 役割の 名前を 直しきれませんでした。今すぐ 従業員の「記録」で 直してください（直すまで、その 日から 後の 給料は 止まるか、名前を 入れ替えた 時は 前の 役割の 決まりで 出ます）。';
+                    return rirekiYomiNaoshi().then(function () {
+                      return j;
+                    });
+                  });
                 });
             });
           };
+          var yakuRirekiChui = '';
           kawariMae
             .then(yakuMae)
             .then(
@@ -7758,7 +8088,7 @@
             .then(function (r) {
               if (r === null) return;
               if (!r.ok) return saveErr('給料の設定を保存できませんでした。', r);
-              showErr('');
+              showErr(yakuRirekiChui);
               SET = body;
               RAW.payrollSettings = SET;
               flash('setSaved', '保存しました');

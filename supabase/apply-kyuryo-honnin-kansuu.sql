@@ -228,9 +228,20 @@ begin
     --   回数・距離の 1台の 額を 乗った 人で 分けるのに 相方の 役が 要る。★名前・ID・時間は 返さない★
     'crew', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
-        select w.work_date, w.device_id, jsonb_agg(coalesce(e.role, '') order by e.role) as roles
+        -- ★役は その 日の 役★ 2026-10-18（何日から＝dk_hito_rireki の from_date ≤ その日 の 一番 新しい 記録・無ければ 列）
+        --   事務所の 画面（payroll-daily.js empOn）と 同じ 決まり。記録の value が null＝空
+        select w.work_date, w.device_id,
+               jsonb_agg(coalesce(hr.role, e.role, '') order by coalesce(hr.role, e.role, '')) as roles
         from daikome.dk_work_hours w
         join daikome.dk_employees e on e.employee_id = w.employee_id and e.company_id = w.company_id
+        left join lateral (
+          select coalesce(h.value #>> '{}', '') as role
+            from daikome.dk_hito_rireki h
+           where h.employee_id = w.employee_id and h.company_id = w.company_id
+             and h.key = 'role' and h.from_date <= w.work_date
+           order by h.from_date desc
+           limit 1
+        ) hr on true
         where w.company_id = r.company_id
           and w.work_date between p_from and v_kaisha_to
           and w.device_id is not null
@@ -241,6 +252,15 @@ begin
               and w2.work_date = w.work_date and w2.device_id = w.device_id
           )
         group by w.work_date, w.device_id
+      ) x
+    ),
+    -- ★★自分の 歩合・最低保証・役割の 変えた 記録★★ 2026-10-18（何日から）＝本人の 分だけ・全部の 日付
+    --   画面は 返りに rireki が 無ければ（古い 関数）止める
+    'rireki', (
+      select coalesce(jsonb_agg(to_jsonb(x) order by x.from_date), '[]'::jsonb) from (
+        select h.employee_id, h.key, h.from_date, h.value
+        from daikome.dk_hito_rireki h
+        where h.company_id = r.company_id and h.employee_id = r.employee_id
       ) x
     ),
     -- ★★自分の 手当・控除だけ★★ 2026-10-06（司さん「ア」）＝他の 人の 行は 返さない

@@ -72,6 +72,7 @@ async function nise(page, hajimete, mazeru) {
         edits: [],
         workHours: [],
         adjustments: [], // ★本物の 関数は 必ず 返す（10-07：返らない 時は 止める 様に した）★
+        rireki: [], // ★本物の 関数は 必ず 返す（10-18：返らない 時は 止める）★
         uriageNaoshi: true, // 売上の 直しを 返す 版の 印（10-14：無い 時は 止める）
         manualDays: [],
         ...(mazeru || {}),
@@ -221,4 +222,29 @@ test('売上の 直しが 読めない 業務が 在れば 本人の 明細を �
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
   await expect(page.locator('#slips')).toContainText('売上の 直しが 読めない');
+});
+
+// ★本人の 関数が 古い（変えた 記録 rireki を 返さない）時は 明細を 出さない★ 2026-10-18（何日から・対立役）
+//   前の 列の 値で 出すと、事務所が 記録の 日から 新しい 歩合で 出す 額と ずれる
+//   ★わざと壊して 赤★：kyuryo.html の RAW.rireki = Array.isArray(r.rireki) ? r.rireki : null を || [] に すると 明細が 出る
+test('本人の 関数が 古い（変えた 記録を 返さない）時は 明細を 出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  const t = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  await nise(page, false, {
+    rireki: undefined,
+    shifts: [
+      {
+        shift_id: 's1',
+        device_id: 'd1',
+        started_at: t + 'T03:00:00+00:00',
+        fare_total_yen: 10000,
+        elapsed_sec: 3600,
+      },
+    ],
+    workHours: [{ work_date: t, employee_id: 'e1', device_id: 'd1', hours: 1 }],
+  });
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#slips')).toContainText('変えた 記録を 読めませんでした');
 });

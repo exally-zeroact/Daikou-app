@@ -405,6 +405,8 @@
     dk_shift_edits: 'shift_id.asc',
     dk_manual_days: 'company_id.asc,work_date.asc,device_id.asc',
     dk_work_hours: 'company_id.asc,work_date.asc,employee_id.asc',
+    // ★変えた 記録（何日から）★ 2026-10-18＝from_date は 重なる ので 行の id で 継ぎ目を 決める（抜け・ダブり 無し）
+    dk_hito_rireki: 'from_date.asc,rireki_id.asc',
   };
   function tanomiKazu(p) {
     const m = /[?&]limit=(\d+)/.exec(String(p));

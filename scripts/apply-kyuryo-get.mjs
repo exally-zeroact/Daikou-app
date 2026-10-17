@@ -38,7 +38,9 @@ export const ARU = [
   ['m.work_date, m.device_id, m.sales_yen', '手入力の日も 列を 名指し'],
   ['from daikome.dk_sales_settings ss', '売上から 何を 引くか（会社の 設定）を 返す（10-02 夜）'],
   ['m.actual_total_m, m.total_distance_m', '手入力の日の 距離を 返す（距離歩合・10-06）'],
-  ['jsonb_agg(coalesce(e.role', '乗った 人の 役だけ 返す（回数・距離を 1台で 分ける・10-06）'],
+  ['jsonb_agg(coalesce(hr.role, e.role', '乗った 人の 役だけ 返す・役は その 日の 記録（何日から・10-18）'],
+  ['from daikome.dk_hito_rireki h', '人の 変えた 記録を 読む（何日から・10-18）'],
+  ["'rireki', (", '本人の 変えた 記録を 返す（何日から・10-18）'],
   ['and a.employee_id = r.employee_id', '手当・控除は 本人の 分だけ（10-06）'],
   ["'taishoku'", '辞めた 人は 働いた 日を 含む 93 日 以内 だけ（会社の 売上を 見続けない・10-16）'],
   // ★'taishoku' の 字だけでは 62 日の 古い 版・p_to を 切らない 版・直しを 絞らない 版でも OK に なった（対立役 N7・10-17）★

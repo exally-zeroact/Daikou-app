@@ -364,6 +364,20 @@
     } catch (_) {
       /* ignore: 壊れたデータでも動く形で返す */
     }
+    // ★★人ごとの 歩合・最低保証・役割の「何日から」★★ 2026-10-18（docs/nannichi-kara-hito.md）
+    //   raw.rireki＝dk_hito_rireki の 行。undefined＝記録を 渡さない 呼び方（記録 無し）。
+    //   ★null・配列で ない＝読めなかった★＝止める（列の 値に 黙って 倒さない）
+    ctx.rireki = {};
+    let rirekiDame = false;
+    try {
+      const rr = raw ? raw.rireki : undefined;
+      if (rr !== undefined && !Array.isArray(rr)) rirekiDame = true;
+      else rirekiWoKumu(ctx, rr || []);
+    } catch (_) {
+      rirekiDame = true;
+    }
+    if (rirekiDame)
+      ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: '', wake: 'rireki' });
     // ★数え損ねたら 止める側★（黙って 0件＝通す に しない）
     try {
       yakuDameWoKazoeru(ctx);
@@ -374,10 +388,64 @@
     return ctx;
   }
 
+  // ★記録を 人・鍵ごとに 日付の 古い 順へ★（同じ 人・鍵・日は 倉庫の unique で 1つ）
+  const RIREKI_KEYS = ['pay_rate', 'pay_floor', 'role'];
+  function rirekiWoKumu(ctx, rows) {
+    arr(rows).forEach(function (x) {
+      if (!x || !x.employee_id) throw new Error('rireki');
+      const d = String(x.from_date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || RIREKI_KEYS.indexOf(x.key) < 0)
+        throw new Error('rireki');
+      // ★値の 形★ 歩合・保証は 数 か null・役割は 字 か null（違えば 止める＝黙って 役割どおりに 倒さない）
+      const v = x.value === undefined ? null : x.value;
+      if (
+        v !== null &&
+        (x.key === 'role' ? typeof v !== 'string' : typeof v !== 'number' || !isFinite(v))
+      )
+        throw new Error('rireki');
+      const p = ctx.rireki[x.employee_id] || (ctx.rireki[x.employee_id] = {});
+      (p[x.key] || (p[x.key] = [])).push({ d: d, v: x.value === undefined ? null : x.value });
+    });
+    Object.keys(ctx.rireki).forEach(function (id) {
+      Object.keys(ctx.rireki[id]).forEach(function (k) {
+        ctx.rireki[id][k].sort(function (a, b) {
+          return a.d < b.d ? -1 : a.d > b.d ? 1 : 0;
+        });
+      });
+    });
+  }
+
+  // ★その 日の 人★＝from_date ≤ date の 一番 新しい 記録。記録が 無ければ 列の 値（今と 同じ）
+  //   value の null＝「空」（歩合・保証は 役割どおり／役割は 空）
+  function empOn(ctx, empId, date) {
+    const emp = ctx && ctx.empById ? ctx.empById[empId] : null;
+    if (!emp) return emp;
+    const p = ctx.rireki && ctx.rireki[empId];
+    if (!p) return emp;
+    const d = String(date || '').slice(0, 10);
+    let out = null;
+    RIREKI_KEYS.forEach(function (k) {
+      const l = p[k];
+      if (!l) return;
+      let hit;
+      for (let i = 0; i < l.length; i++) if (l[i].d <= d) hit = l[i];
+      if (!hit) return;
+      if (!out) out = Object.assign({}, emp);
+      out[k] = k === 'role' ? (hit.v === null ? '' : String(hit.v)) : hit.v;
+    });
+    return out || emp;
+  }
+
   // 止める 訳の 字（明細・紙・月次・本人で 同じ 字＝ここ 1か所）
   function yakuDameBun(list) {
     const l = arr(list);
     if (!l.length) return '';
+    if (
+      l.some(function (x) {
+        return x && x.wake === 'rireki';
+      })
+    )
+      return '歩合・最低保証・役割の 変えた 記録を 読めませんでした。給料の 明細・紙は 止めています。もう一度 開いてください。';
     if (
       l.some(function (x) {
         return x && x.wake === 'yomenai';
@@ -429,7 +497,7 @@
         const wh = ctx.hoursByDate[date] || {};
         const cars = ctx.byDate[date] || {};
         Object.keys(wh).forEach(function (empId) {
-          const emp = ctx.empById[empId];
+          const emp = empOn(ctx, empId, date); // ★その 日の 人★（何日から）
           if (!emp) return;
           const w = wh[empId];
           const car = cars[w.device_id];
@@ -451,7 +519,7 @@
                       return ctx.empById[id] && wh[id] && wh[id].device_id === w.device_id;
                     })
                     .map(function (id) {
-                      return ctx.empById[id].role || '';
+                      return empOn(ctx, id, date).role || '';
                     });
               if (!crew.length) crew.push(role);
               if (
@@ -582,7 +650,7 @@
       } else {
         const wh0 = (ctx.hoursByDate && ctx.hoursByDate[date]) || {};
         Object.keys(wh0).forEach(function (empId) {
-          const emp = ctx.empById[empId];
+          const emp = empOn(ctx, empId, date);
           const w = wh0[empId];
           if (!emp || !w || !w.device_id) return;
           if (!out.crewByCar[w.device_id]) out.crewByCar[w.device_id] = [];
@@ -625,7 +693,7 @@
 
       const wh = (ctx.hoursByDate && ctx.hoursByDate[date]) || {};
       Object.keys(wh).forEach(function (empId) {
-        const emp = ctx.empById[empId];
+        const emp = empOn(ctx, empId, date); // ★その 日の 歩合・保証・役割★（何日から）
         if (!emp) return; // 知らない人は入れない
         const w = wh[empId];
         const car = cars[w.device_id];
@@ -883,6 +951,7 @@
     carHoursOf: carHoursOf,
     normSettings: normSettings,
     buildCtx: buildCtx,
+    empOn: empOn,
     carsOf: carsOf,
     dayInput: dayInput,
     computeDay: computeDay,
