@@ -112,6 +112,19 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
     S.rest = function (s, p, o) {
       if (o && o.method === 'POST' && String(p).indexOf('dk_payroll_settings') === 0)
         window.__okutta.push(JSON.parse(o.body));
+      // ★保存の 前の「他の 画面で 変わったか」の 読み★ 2026-10-17：本物の 倉庫と 同じく 最後に 保存した 時刻を 返す
+      //   （偽の 倉庫は 保存を 覚えないので、そのままだと 2回目の 保存が「変わった」で 止まる）
+      const last = window.__okutta[window.__okutta.length - 1];
+      if (
+        (!o || !o.method) &&
+        String(p).indexOf('dk_payroll_settings?select=updated_at') === 0 &&
+        last
+      )
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([{ updated_at: last.updated_at }]),
+        });
       return moto.apply(this, arguments);
     };
   });

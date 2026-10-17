@@ -31,6 +31,8 @@ const DOUGU = [
   { f: 'apply-dkmeteryen-backfill.mjs', hiki: ['--yaru'] },
   { f: 'apply-kyuryo-get.mjs', hiki: ['--ateru'] },
   { f: 'apply-kyuryo-saihakkou.mjs', hiki: ['--ateru'] },
+  // 2026-10-17 役割の 名前を 直す 関数（決まりと 人の 役割を 1つの 取引で）
+  { f: 'apply-yaku-namae.mjs', hiki: ['--ateru'] },
 ];
 
 function ne(ref) {
@@ -40,7 +42,11 @@ function ne(ref) {
   fs.mkdirSync(path.join(d, 'js'));
   // 当てる 前に SQL を 切り出す 道具（配る 関数 3本・10-17）の 為に、読む SQL も 写す
   fs.mkdirSync(path.join(d, 'supabase'));
-  for (const f of ['apply-kyuryo-haifu.sql', 'apply-kyuryo-haifu-hitori.sql'])
+  for (const f of [
+    'apply-kyuryo-haifu.sql',
+    'apply-kyuryo-haifu-hitori.sql',
+    'apply-yaku-namae.sql',
+  ])
     fs.copyFileSync(path.join(ROOT, 'supabase', f), path.join(d, 'supabase', f));
   for (const f of [...DOUGU.map((x) => x.f), 'db-token.mjs', 'sql-guard.mjs', 'honban-tome.mjs'])
     fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(d, 'scripts', f));
