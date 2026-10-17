@@ -1328,8 +1328,20 @@
           }
           return tsugi(0);
         }
+        // ★★ダイコメの 表を 読む 時は この 会社だけに 絞る★★ 2026-10-17
+        //   前は 会社で 絞らず 読んでいた（設定は limit=1）＝会社を 2つ 持つ 人は 別の 会社の 歩合・人・売上が 混ざる
+        //   （今は テスト・本番とも 0人＝害は 0）。dk_ の 表だけ（請求の 表 meisai 等には 足さない）
+        function kaishaDake(p) {
+          if (!COMPANY || !/^dk_/.test(p) || /[?&]company_id=/.test(p)) return p;
+          return (
+            p +
+            (p.indexOf('?') < 0 ? '?' : '&') +
+            'company_id=eq.' +
+            encodeURIComponent(COMPANY.company_id)
+          );
+        }
         function soft(path) {
-          return DKSession.softList(SESS, path, LOAD);
+          return DKSession.softList(SESS, kaishaDake(path), LOAD);
         }
         var SET_YOMI = { tried: 0, failed: 0 };
         function afterLoad(retry) {
@@ -1414,7 +1426,7 @@
                 '&limit=5000'
             ),
             ((SET_YOMI = { tried: 0, failed: 0 }),
-            DKSession.softList(SESS, 'dk_payroll_settings?select=*&limit=1', SET_YOMI)),
+            DKSession.softList(SESS, kaishaDake('dk_payroll_settings?select=*&limit=1'), SET_YOMI)),
             soft('dk_sales_settings?select=*&limit=1'),
             // ★★請求書の もと＝請求書アプリの 明細（meisai）★★ 2026-10-06
             //   前は ★運転手の アプリで「請求書払い」を 押した 代行（dk_trips）だけ★ を 数えていた

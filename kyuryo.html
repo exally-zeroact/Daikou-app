@@ -3370,7 +3370,7 @@
             );
           }
           var kSoft = function (p) {
-            return DKSession.softList(SESS, p, KST);
+            return DKSession.softList(SESS, kaishaDake(p), KST);
           };
           var st = PayrollDaily.normSettings(SET);
           // ★★締めの 形は 設定の 1か所★★ 2026-10-07（読めなければ 紙を 出さない）
@@ -3924,8 +3924,20 @@
         //   新: 空は返す（落ちないため）が ★失敗は必ず数える★。
         //       数えた結果は画面の上に出し、数字は「—」にする。
         var LOAD = DKSession.newLoadState();
+        // ★★ダイコメの 表を 読む 時は この 会社だけに 絞る★★ 2026-10-17
+        //   前は 会社で 絞らず 読んでいた（設定は limit=1）＝会社を 2つ 持つ 人は 別の 会社の 歩合・人・売上が 混ざる
+        //   （今は テスト・本番とも 0人＝害は 0）。dk_ の 表だけ（請求の 表 meisai 等には 足さない）
+        function kaishaDake(p) {
+          if (!COMPANY || !/^dk_/.test(p) || /[?&]company_id=/.test(p)) return p;
+          return (
+            p +
+            (p.indexOf('?') < 0 ? '?' : '&') +
+            'company_id=eq.' +
+            encodeURIComponent(COMPANY.company_id)
+          );
+        }
         function soft(path) {
-          return DKSession.softList(SESS, path, LOAD);
+          return DKSession.softList(SESS, kaishaDake(path), LOAD);
         }
         var SET_YOMI = { tried: 0, failed: 0 };
         function afterLoad(retry) {
@@ -4074,7 +4086,7 @@
             soft('dk_device_labels?select=*&limit=500'),
             // ★給料の 設定は 読めたかを 別に 数える★ 2026-10-07（対立役 D：読めない 時に 月3回で 明細が 出た）
             ((SET_YOMI = { tried: 0, failed: 0 }),
-            DKSession.softList(SESS, 'dk_payroll_settings?select=*&limit=1', SET_YOMI)),
+            DKSession.softList(SESS, kaishaDake('dk_payroll_settings?select=*&limit=1'), SET_YOMI)),
             soft('dk_sales_settings?select=*&limit=1'),
           ]).then(function (res) {
             RAW.employees = res[0] || [];

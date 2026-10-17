@@ -855,8 +855,20 @@
           // ★2026-08-09: 取れなかったことを 数える★
           //   旧: 通信が失敗しても黙って空配列 → 画面には 0 と出ていた。
           //   新: 空は返すが ★失敗は必ず数える★。画面の上に出して 数字は「—」にする。
+          // ★★ダイコメの 表を 読む 時は この 会社だけに 絞る★★ 2026-10-17
+          //   前は 会社で 絞らず 読んでいた（設定は limit=1）＝会社を 2つ 持つ 人は 別の 会社の 歩合・人・売上が 混ざる
+          //   （今は テスト・本番とも 0人＝害は 0）。dk_ の 表だけ（請求の 表 meisai 等には 足さない）
+          function kaishaDake(p) {
+            if (!COMPANY || !/^dk_/.test(p) || /[?&]company_id=/.test(p)) return p;
+            return (
+              p +
+              (p.indexOf('?') < 0 ? '?' : '&') +
+              'company_id=eq.' +
+              encodeURIComponent(COMPANY.company_id)
+            );
+          }
           function soft(path) {
-            return DKSession.softList(SESS, path, LOAD);
+            return DKSession.softList(SESS, kaishaDake(path), LOAD);
           }
           function afterLoad(retry) {
             DKSession.showUnknownBar(LOAD, retry);
@@ -868,7 +880,7 @@
             (function shiftsZenbu() {
               var out = [];
               function tsugi(from) {
-                return DKSession.rest(SESS, q + '&limit=1000&offset=' + from)
+                return DKSession.rest(SESS, kaishaDake(q) + '&limit=1000&offset=' + from)
                   .then(function (x) {
                     if (!x.ok) throw new Error('shifts');
                     return x.json();
