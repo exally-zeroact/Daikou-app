@@ -64,6 +64,17 @@ begin
     return json_build_object('ok', false, 'reason', 'dup');
   end if;
 
+  -- ★役割の 決まりの 記録（dk_yaku_rireki・何日から 10-18）★ 直さない 名前の 記録が 新しい 名前に 在る＝
+  --   その 記録が 新しい 役割に 黙って 付く＝断る（古い 版の 画面で 役割だけ 消した 時に 残る 記録）
+  if exists (
+    select 1 from daikome.dk_yaku_rireki y, jsonb_each(p_map) m
+     where y.company_id = p_company_id
+       and y.yaku = (m.value #>> '{}')
+       and not (p_map ? y.yaku)
+  ) then
+    return json_build_object('ok', false, 'reason', 'kiroku_nokori');
+  end if;
+
   select s.roles, s.pay_extra into v_roles, v_extra
     from daikome.dk_payroll_settings s
    where s.company_id = p_company_id
@@ -76,6 +87,10 @@ begin
      where e.company_id = p_company_id
        and p_map ? e.role;
     get diagnostics n_hito = row_count;
+    update daikome.dk_yaku_rireki y
+       set yaku = p_map ->> y.yaku
+     where y.company_id = p_company_id
+       and p_map ? y.yaku;
     return json_build_object('ok', true, 'hito', n_hito, 'roles', null);
   end if;
   -- 直す 前の 名前が 決まりに 無い
@@ -123,6 +138,12 @@ begin
    where e.company_id = p_company_id
      and p_map ? e.role;
   get diagnostics n_hito = row_count;
+
+  -- ★役割の 決まりの 記録も 同じ 取引で 新しい 名前へ★（何日から 10-18・unique は deferrable＝入れ替えも 1つの 文で）
+  update daikome.dk_yaku_rireki y
+     set yaku = p_map ->> y.yaku
+   where y.company_id = p_company_id
+     and p_map ? y.yaku;
 
   -- 書いた 時刻も 返す（画面が 手元の updated_at を 揃える＝次の 保存で 自分を「他の 画面で 変わった」と 止めない）
   return json_build_object('ok', true, 'hito', n_hito, 'roles', v_new_roles,

@@ -130,9 +130,13 @@ describe('呼び口', () => {
       const re = /PayrollDaily\.buildCtx\(([\s\S]*?)\);/g;
       let m;
       while ((m = re.exec(s))) {
-        n++;
         const a = m[1].trim();
-        const ok = /^RAW\b|^toshiDake\(RAW\)/.test(a) || (/^\{/.test(a) && /\brireki:/.test(a));
+        // 人を 渡さない 呼び口（役割の 決まりの 日の 値だけ 引く・10-18）は 人の 記録が 要らない
+        if (/^\{ payrollSettings: SET, yakuRireki: mine \}$/.test(a)) continue;
+        n++;
+        const ok =
+          /^RAW\b|^toshiDake\(RAW\)|^Object\.assign\(\{\}, RAW,/.test(a) ||
+          (/^\{/.test(a) && /\brireki:/.test(a));
         expect(ok, f + ' の buildCtx(' + a.slice(0, 40) + ') が 記録を 渡していない').toBe(true);
       }
     }

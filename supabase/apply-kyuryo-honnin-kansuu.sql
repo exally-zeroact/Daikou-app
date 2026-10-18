@@ -263,6 +263,14 @@ begin
         where h.company_id = r.company_id and h.employee_id = r.employee_id
       ) x
     ),
+    -- ★★役割の 決まりの 変えた 記録（何日から）★★ 2026-10-18（docs/nannichi-kara-yaku.md）＝会社の 記録（決まりは 会社で 1つ）
+    'yakuRireki', (
+      select coalesce(jsonb_agg(to_jsonb(x) order by x.from_date), '[]'::jsonb) from (
+        select y.yaku, y.key, y.from_date, y.value
+        from daikome.dk_yaku_rireki y
+        where y.company_id = r.company_id
+      ) x
+    ),
     -- ★★自分の 手当・控除だけ★★ 2026-10-06（司さん「ア」）＝他の 人の 行は 返さない
     'adjustments', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (

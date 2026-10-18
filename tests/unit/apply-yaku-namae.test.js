@@ -2,7 +2,7 @@
 // scripts/apply-yaku-namae.mjs の 守り（切り出し・書き換えて よい 表・呼べる 人の 読み）2026-10-17
 //   ①本物の SQL から 関数の 塊だけ 切り出せる（呼べる 人の 文は 塊に 入らない）
 //   ②中に delete・insert・grant 等が 混ざったら 止まる
-//   ③書き換えて よい 表は dk_payroll_settings と dk_employees だけ
+//   ③書き換えて よい 表は dk_payroll_settings と dk_employees と dk_yaku_rireki だけ
 //   ④本物の SQL は 在って ほしい 字を 全部 持つ
 //   ⑤呼べる 人は anon・PUBLIC が 呼べず authenticated が 呼べる 時だけ OK
 // ============================================================

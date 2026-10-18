@@ -7,7 +7,7 @@
 //   ★守り★
 //     ・SQL の ファイルから ★その 関数の 塊だけ★ 切り出す（$fn$ の 外に ; が 1つ だけ・security definer・search_path 固定）
 //     ・中身に drop・truncate・alter・grant・revoke・create・delete・insert が 無い。update は
-//       daikome.dk_payroll_settings と daikome.dk_employees だけ
+//       daikome.dk_payroll_settings と daikome.dk_employees と daikome.dk_yaku_rireki（10-18）だけ
 //     ・呼べる 人は ★道具が 書く 決まった 2文★（PUBLIC・anon から 外し authenticated に）＝ファイルの 字を 当てない
 //     ・向き先は js/dk-config.js・判じは scripts/honban-tome.mjs（白名簿・本番は --honban の 時だけ）
 //     ・当てた 後 ★倉庫に 入った 関数の 字と 呼べる 人を 読み戻して★ 数える（KAKUNIN）
@@ -37,6 +37,7 @@ export const K = {
     ["'exists'", '直さない 役割の 名前と ぶつかる 時は 断る'],
     ['p_map ? e.role', '人の 役割を 倉庫の 側で 古い 名前を 条件に 直す（辞めた 人も）'],
     ["jsonb_set(v_extra, '{roles}'", '日給・段階歩合の 鍵も 一緒に 直す'],
+    ['update daikome.dk_yaku_rireki y', '役割の 決まりの 記録の 名前も 同じ 取引で 直す'],
   ],
   NAI: [],
 };
@@ -78,7 +79,11 @@ export function kiridasu(sql, k) {
       .replace(/^update\s+(?:only\s+)?/i, '')
       .replace(/["\s]/g, '')
       .toLowerCase();
-    if (t !== 'daikome.dk_payroll_settings' && t !== 'daikome.dk_employees')
+    if (
+      t !== 'daikome.dk_payroll_settings' &&
+      t !== 'daikome.dk_employees' &&
+      t !== 'daikome.dk_yaku_rireki' // 役割の 決まりの 記録（何日から 10-18）
+    )
       throw new Error(k.na + ' が ' + t + ' を 書き換える');
   }
   return block;

@@ -378,6 +378,29 @@
     }
     if (rirekiDame)
       ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: '', wake: 'rireki' });
+    // ★★役割の 決まり（歩合・最低保証）の「何日から」★★ 2026-10-18（docs/nannichi-kara-yaku.md）
+    //   raw.yakuRireki＝dk_yaku_rireki の 行。undefined＝記録 無し（今と 同じ）。null・形が 違う＝止める
+    ctx.yakuRireki = Object.create(null); // ★__proto__ と いう 名前でも 汚さない★
+    let yakuRirekiDame = false;
+    try {
+      const yr = raw ? raw.yakuRireki : undefined;
+      if (yr !== undefined && !Array.isArray(yr)) yakuRirekiDame = true;
+      else yakuRirekiWoKumu(ctx, yr || []);
+    } catch (_) {
+      yakuRirekiDame = true;
+    }
+    if (yakuRirekiDame)
+      ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: '', wake: 'yakuRireki' });
+    // ★決まり（列）に 無い 役割の 記録が 残っている＝止める★（対立役 10-18 2回目 止1）
+    //   古い 版の 画面で 役割だけ 消すと 記録が 残り、後で 同じ 名前の 役割を 足すと 黙って 生き返る。
+    //   黙って 使わない／黙って 効かせる の どちらも せず、給料の 設定で 消して もらう
+    else {
+      const ro = (ctx.settings && ctx.settings.roles) || {};
+      Object.keys(ctx.yakuRireki).forEach(function (y) {
+        if (!Object.prototype.hasOwnProperty.call(ro, y))
+          ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: y, wake: 'yakuNokori' });
+      });
+    }
     // ★数え損ねたら 止める側★（黙って 0件＝通す に しない）
     try {
       yakuDameWoKazoeru(ctx);
@@ -415,6 +438,53 @@
     });
   }
 
+  // ★役割の 決まりの 記録を 役割・鍵ごとに 日付の 古い 順へ★（同じ 役割・鍵・日は 倉庫の unique で 1つ）
+  const YAKU_RIREKI_KEYS = ['rate', 'floor'];
+  function yakuRirekiWoKumu(ctx, rows) {
+    arr(rows).forEach(function (x) {
+      if (!x || typeof x.yaku !== 'string') throw new Error('yakuRireki');
+      const d = String(x.from_date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || YAKU_RIREKI_KEYS.indexOf(x.key) < 0)
+        throw new Error('yakuRireki');
+      // 倉庫の numeric は 字で 来る 事が ある＝数に 直せる 字だけ 通す（空・null・字は 止める）
+      const v = typeof x.value === 'string' && x.value.trim() !== '' ? Number(x.value) : x.value;
+      if (typeof v !== 'number' || !isFinite(v)) throw new Error('yakuRireki');
+      const p = ctx.yakuRireki[x.yaku] || (ctx.yakuRireki[x.yaku] = Object.create(null));
+      (p[x.key] || (p[x.key] = [])).push({ d: d, v: v });
+    });
+    Object.keys(ctx.yakuRireki).forEach(function (y) {
+      Object.keys(ctx.yakuRireki[y]).forEach(function (k) {
+        ctx.yakuRireki[y][k].sort(function (a, b) {
+          return a.d < b.d ? -1 : a.d > b.d ? 1 : 0;
+        });
+      });
+    });
+  }
+
+  // ★その 日の 決まり★＝各 役割の 各 鍵で from_date ≤ date の 一番 新しい 記録。無ければ 列の 値
+  //   記録が 無い 会社は ctx.settings を そのまま 返す（今と 1円も 違わない）。列に 無い 役割の 記録は 使わない
+  function settingsOn(ctx, date) {
+    const st = ctx && ctx.settings;
+    const yr = ctx && ctx.yakuRireki;
+    if (!st || !st.roles || !yr || !Object.keys(yr).length) return st;
+    const d = String(date || '').slice(0, 10);
+    let roles = null;
+    Object.keys(yr).forEach(function (y) {
+      if (!Object.prototype.hasOwnProperty.call(st.roles, y)) return;
+      YAKU_RIREKI_KEYS.forEach(function (k) {
+        const l = yr[y][k];
+        if (!l) return;
+        let hit;
+        for (let i = 0; i < l.length; i++) if (l[i].d <= d) hit = l[i];
+        if (!hit) return;
+        if (!roles) roles = Object.assign({}, st.roles);
+        if (roles[y] === st.roles[y]) roles[y] = Object.assign({}, st.roles[y]);
+        roles[y][k] = hit.v;
+      });
+    });
+    return roles ? Object.assign({}, st, { roles: roles }) : st;
+  }
+
   // ★その 日の 人★＝from_date ≤ date の 一番 新しい 記録。記録が 無ければ 列の 値（今と 同じ）
   //   value の null＝「空」（歩合・保証は 役割どおり／役割は 空）
   function empOn(ctx, empId, date) {
@@ -446,6 +516,26 @@
       })
     )
       return '歩合・最低保証・役割の 変えた 記録を 読めませんでした。給料の 明細・紙は 止めています。もう一度 開いてください。';
+    if (
+      l.some(function (x) {
+        return x && x.wake === 'yakuRireki';
+      })
+    )
+      return '役割の 決まりの 変えた 記録を 読めませんでした。給料の 明細・紙は 止めています。もう一度 開いてください。';
+    const nokori = l
+      .filter(function (x) {
+        return x && x.wake === 'yakuNokori';
+      })
+      .map(function (x) {
+        return '「' + x.role + '」';
+      });
+    if (nokori.length)
+      return (
+        '決まりに 無い 役割 ' +
+        nokori.slice(0, 5).join('・') +
+        ' の 変えた 記録が 残っています。給料の 明細・紙は 止めています。' +
+        '「給料の 設定」の 役割ごとの 決まりで その 記録を 消してください（名前を 直した 後なら「保存する」で 直ります）。'
+      );
     if (
       l.some(function (x) {
         return x && x.wake === 'yomenai';
@@ -743,7 +833,7 @@
       const Payroll = _need('DaikoPayroll', './daiko-payroll.js');
       if (!Payroll || !ctx) return empty;
       const inp = dayInput(date, ctx);
-      const r = Payroll.compute(inp, ctx.settings);
+      const r = Payroll.compute(inp, settingsOn(ctx, date)); // ★その 日の 決まり★（何日から）
       // ★計算エンジンは「誰か」を持たない（名前と時数と役割だけ）★
       //   明細は人ごとに並べるので、渡した順で employee_id を戻してやる。
       arr(r.staff).forEach(function (s, i) {
@@ -952,6 +1042,7 @@
     normSettings: normSettings,
     buildCtx: buildCtx,
     empOn: empOn,
+    settingsOn: settingsOn,
     carsOf: carsOf,
     dayInput: dayInput,
     computeDay: computeDay,

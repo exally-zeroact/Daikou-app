@@ -923,9 +923,11 @@
           salesSettings: null,
           payrollSettings: null,
           rireki: [], // ★人の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
+          yakuRireki: [], // ★役割の 決まりの 変えた 記録（何日から）★ 2026-10-18
         };
         var PAYS = []; // ★日ごとの 請求書／電子決済（recalc が 作る／紙も これを 見る）
         var RIREKI_YOMI = { tried: 0, failed: 0 }; // 人の 変えた 記録を 読めたか（何日から）
+        var YAKU_RIREKI_YOMI = { tried: 0, failed: 0 }; // 役割の 決まりの 変えた 記録を 読めたか
         var PAYMENTS = []; // 日ごとの 請求書 / 電子決済
         var PP = {}; // 月ごとの 電子決済 手入力（'2026-01' → 円）
         // ★★日ごとの 電子決済★★ 2026-09-06（司さん「毎日 入れれるように」）
@@ -1461,11 +1463,21 @@
               kaishaDake('dk_hito_rireki?select=*&order=from_date.asc&limit=100000'),
               RIREKI_YOMI
             )),
+            // ★役割の 決まりの 変えた 記録（何日から）★ 2026-10-18＝res[13]
+            ((YAKU_RIREKI_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(
+              SESS,
+              kaishaDake('dk_yaku_rireki?select=*&order=from_date.asc&limit=100000'),
+              YAKU_RIREKI_YOMI
+            )),
           ]).then(function (res) {
             RAW.shifts = res[0] || [];
             LOAD.tried += RIREKI_YOMI.tried;
             LOAD.failed += RIREKI_YOMI.failed;
             RAW.rireki = RIREKI_YOMI.failed > 0 ? null : res[12] || [];
+            LOAD.tried += YAKU_RIREKI_YOMI.tried;
+            LOAD.failed += YAKU_RIREKI_YOMI.failed;
+            RAW.yakuRireki = YAKU_RIREKI_YOMI.failed > 0 ? null : res[13] || [];
             RAW.edits = res[1] || [];
             RAW.labels = res[2] || [];
             RAW.employees = res[3] || [];

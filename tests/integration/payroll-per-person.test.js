@@ -229,8 +229,9 @@ describe('★画面がそろっていること★', () => {
   });
 
   it('打たなかった時にどうなるかを薄く見せている（役割の値をプレースホルダに）', () => {
-    expect(HTML).toContain('_roleRateOf(e.role)');
-    expect(HTML).toContain('_roleFloorOf(e.role)');
+    // 10-18 何日から：その 人の 選んだ 日の 決まりを 薄く 出す
+    expect(HTML).toContain('_roleRateOf(e.role, empHi(e.employee_id))');
+    expect(HTML).toContain('_roleFloorOf(e.role, empHi(e.employee_id))');
   });
 
   it('列を足したぶん、空のときの colspan も合っている', () => {
