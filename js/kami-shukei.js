@@ -23,29 +23,63 @@
   }
 
   // ★会社の 設定を 1つの 形に まとめる★（紙は これだけ 見る＝焼き付け 0）
-  function kaisha(name, year, month, payrollSettings, salesSettings, kinds, denshiAri) {
-    let ks = [];
+  //   kumi … 売上から 引く 物の 記録（UriageAgg.rirekiKumu の 返り値・ctx.uriageKumi）2026-10-18
+  //     ★月の 中で 引く／引かないが 変わる 物は 引いた 日の 幅を 名前に 付ける★（「高速代（1〜14日）」）
+  function kaisha(name, year, month, payrollSettings, salesSettings, kinds, denshiAri, kumi) {
+    const ks = [];
     const s = salesSettings || {};
+    const retsu = {
+      toll: s.deduct_toll !== false,
+      bridge: s.deduct_bridge !== false,
+      other: s.deduct_other === true,
+    };
+    // 古い 3つの その 月の 引き方（月の 全部の 日で 同じ なら 真偽・変わる なら 引いた 日の 幅の 字）
+    function tsukiNo(id) {
+      const l = kumi && Array.isArray(kumi[id]) ? kumi[id] : [];
+      if (!l.length) return retsu[id];
+      const y = n(year);
+      const m = n(month);
+      const sue = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const pre = y + '-' + ('0' + m).slice(-2) + '-';
+      // ★その 日の 引き方は 計算と 同じ 1か所（UriageAgg.settingsOnDay）★（対立役 直4）
+      const U =
+        (global && global.UriageAgg) ||
+        (typeof require === 'function' ? require('./uriage-agg.js') : null); // eslint-disable-line no-undef
+      const hi = [];
+      for (let d = 1; d <= sue; d++) {
+        const ymd = pre + ('0' + d).slice(-2);
+        hi.push(!!U.settingsOnDay(salesSettings, kumi, ymd)['deduct_' + id]);
+      }
+      if (hi.every(Boolean)) return true;
+      if (!hi.some(Boolean)) return false;
+      const haba = [];
+      let kara = 0;
+      for (let d = 1; d <= sue + 1; d++) {
+        const v = d <= sue && hi[d - 1];
+        if (v && !kara) kara = d;
+        if (!v && kara) {
+          haba.push(kara === d - 1 ? kara + '日' : kara + '〜' + (d - 1) + '日');
+          kara = 0;
+        }
+      }
+      return '（' + haba.join('・') + '）';
+    }
+    function oshi(label, h) {
+      ks.push(
+        typeof h === 'string' ? { label: label + h, hiku: true } : { label: label, hiku: !!h }
+      );
+    }
     // ★古い 3つは 売上設定の チェックで 引く／引かない が 決まる★
     (kinds || []).forEach(function (k) {
       if (!k || k.deleted_at) return;
       const id = k.kind_id;
-      const hiku =
-        id === 'toll'
-          ? s.deduct_toll !== false
-          : id === 'bridge'
-            ? s.deduct_bridge !== false
-            : id === 'other'
-              ? s.deduct_other === true
-              : true; // ★会社が 足した 物は いつも 引く★（apply-jippi-jiyuu.sql の 決まり）
-      ks.push({ label: k.label, hiku: !!hiku });
+      if (id === 'toll' || id === 'bridge' || id === 'other') oshi(k.label, tsukiNo(id));
+      else ks.push({ label: k.label, hiku: true }); // ★会社が 足した 物は いつも 引く★（apply-jippi-jiyuu.sql の 決まり）
     });
     if (!ks.length) {
-      ks = [
-        { label: '高速代', hiku: s.deduct_toll !== false },
-        { label: '橋代', hiku: s.deduct_bridge !== false },
-        { label: s.other_label || 'その他', hiku: s.deduct_other === true },
-      ];
+      oshi('高速代', tsukiNo('toll'));
+      oshi('橋代', tsukiNo('bridge'));
+      oshi(s.other_label || 'その他', tsukiNo('other'));
     }
     return {
       name: name || '',

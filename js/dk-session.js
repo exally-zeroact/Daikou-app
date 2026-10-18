@@ -408,6 +408,7 @@
     // ★変えた 記録（何日から）★ 2026-10-18＝from_date は 重なる ので 行の id で 継ぎ目を 決める（抜け・ダブり 無し）
     dk_hito_rireki: 'from_date.asc,rireki_id.asc',
     dk_yaku_rireki: 'from_date.asc,rireki_id.asc',
+    dk_uriage_rireki: 'from_date.asc,rireki_id.asc',
   };
   function tanomiKazu(p) {
     const m = /[?&]limit=(\d+)/.exec(String(p));

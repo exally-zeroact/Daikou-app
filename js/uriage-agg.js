@@ -128,12 +128,53 @@
     }
   }
 
+  // ─── 売上から 引く 物の「何日から」──────────────────────── 2026-10-18（docs/nannichi-kara-uriage.md）
+  //   rows＝dk_uriage_rireki の 行 {key:'toll'|'bridge'|'other', from_date, value:true|false}
+  //   ★形が 違えば throw★（呼ぶ 側が 止めて 知らせる＝黙って 列の 値に 倒さない）。undefined＝記録 無し
+  const RIREKI_KEYS = { toll: 'deduct_toll', bridge: 'deduct_bridge', other: 'deduct_other' };
+  function rirekiKumu(rows) {
+    if (rows === undefined) return null;
+    if (!Array.isArray(rows)) throw new Error('uriageRireki');
+    const out = {};
+    rows.forEach(function (x) {
+      if (!x || typeof x !== 'object' || !Object.prototype.hasOwnProperty.call(RIREKI_KEYS, x.key))
+        throw new Error('uriageRireki');
+      const d = String(x.from_date || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || typeof x.value !== 'boolean')
+        throw new Error('uriageRireki');
+      (out[x.key] || (out[x.key] = [])).push({ d: d, v: x.value });
+    });
+    Object.keys(out).forEach(function (k) {
+      out[k].sort(function (a, b) {
+        return a.d < b.d ? -1 : a.d > b.d ? 1 : 0;
+      });
+    });
+    return Object.keys(out).length ? out : null;
+  }
+  // ★その 日の 引き方★＝列（normSettings）に、各 鍵の from_date ≤ 日 で 一番 新しい 記録を 重ねる
+  //   kumi が 無い（記録 0）＝normSettings(列) そのもの（今と 1円も 違わない）
+  function settingsOnDay(settings, kumi, date) {
+    const st = normSettings(settings);
+    if (!kumi) return st;
+    const d = String(date || '').slice(0, 10);
+    Object.keys(RIREKI_KEYS).forEach(function (k) {
+      let v;
+      arr(kumi[k]).forEach(function (x) {
+        if (x.d <= d) v = x.v;
+      });
+      if (v !== undefined) st[RIREKI_KEYS[k]] = v;
+    });
+    return st;
+  }
+
   // 車ごとにまとめる
   //   shifts   … dk_shifts の行
   //   edits    … dk_shift_edits の行（手入力: 高速代・橋代・その他）
   //   labels   … dk_device_labels の行（車の呼び名）
   //   settings … 売上から何を引くか（会社ごと）
-  function byDevice(shifts, edits, labels, settings) {
+  //   kumi     … 売上から 引く 物の 記録（rirekiKumu の 返り値・無ければ null）2026-10-18
+  //   ★引く 額は 業務ごとに その 日の 引き方で 出して 足す★（足し算は 線形＝記録が 無ければ 今と 同じ 額）
+  function byDevice(shifts, edits, labels, settings, kumi) {
     try {
       const st = normSettings(settings);
       // 手入力を勤務IDで引けるようにする
@@ -197,6 +238,7 @@
             expenses: {}, // ★会社が 足した 実費（名前つき）の 合計★ 2026-10-05
             expense_yen: 0,
             deduct_yen: 0, // 売上から引く分（設定で選ばれた項目だけ）
+            deduct_hi: 0, // 記録が 在る 時の 業務ごとの 引く 額の 合計（下で deduct_yen に する）
             net_fare_yen: 0, // ★これが「売上」★（実費を引いた分）
             shifts: [],
           };
@@ -228,6 +270,8 @@
             r.expenses[k] = n(r.expenses[k]) + n(ex[k]);
           });
         }
+        // ★記録が 在る 時だけ★ 業務の 日（dayOf＝給料と 同じ 日本時間）の 引き方で 引く 額を 足す
+        if (kumi) r.deduct_hi += deductOf(e, settingsOnDay(settings, kumi, dayOf(s.started_at)));
         r.shifts.push(s);
       });
 
@@ -241,15 +285,19 @@
         });
         r.expense_yen = r.toll_yen + r.bridge_yen + r.other_yen + soto; // 手入力した実費ぜんぶ
         // ★売上から引く分＝会社が「引く」と選んだ項目だけ★（給料と同じ関数を通す）
-        r.deduct_yen = deductOf(
-          {
-            toll_yen: r.toll_yen,
-            bridge_yen: r.bridge_yen,
-            other_yen: r.other_yen,
-            expenses: r.expenses,
-          },
-          st
-        );
+        //   記録が 無い 会社は 今と 同じ（車の 合計に 1回）。在れば 業務ごとに その 日の 引き方で 足した 額
+        r.deduct_yen = kumi
+          ? r.deduct_hi
+          : deductOf(
+              {
+                toll_yen: r.toll_yen,
+                bridge_yen: r.bridge_yen,
+                other_yen: r.other_yen,
+                expenses: r.expenses,
+              },
+              st
+            );
+        delete r.deduct_hi;
         r.net_fare_yen = r.fare_total_yen - r.deduct_yen; // ★これが売上★
         return r;
       });
@@ -288,7 +336,7 @@
 
   //   返す形: [{ date, …車ごとと同じ合計…, cars:[車ごとの行], shifts:[その日の勤務] }]
   //   ★数字は1円も変えない★ 日ごとの合計 ＝ 車ごとの合計（試験で毎回突き合わせる）
-  function byDay(shifts, edits, labels, settings) {
+  function byDay(shifts, edits, labels, settings, kumi) {
     try {
       // 日ごとに勤務を仕分けてから、★車ごとと同じ関数(byDevice)に通す★
       //   別々に足すと、引く物の設定や「印を付けた勤務」の扱いがズレる。
@@ -304,7 +352,7 @@
       return Object.keys(bucket)
         .sort()
         .map(function (d) {
-          const cars = byDevice(bucket[d], edits, labels, settings);
+          const cars = byDevice(bucket[d], edits, labels, settings, kumi);
           const t = total(cars);
           t.date = d;
           // ★車の並びは js/car-name.js が1箇所で決める★（売上・給料・請求書と揃える）
@@ -370,6 +418,8 @@
     total: total,
     normSettings: normSettings,
     deductOf: deductOf,
+    rirekiKumu: rirekiKumu, // 売上から 引く 物の 記録（何日から）2026-10-18
+    settingsOnDay: settingsOnDay,
     uriageOf: uriageOf,
     yomuUriage: yomuUriage,
     DEFAULT_DEDUCT: DEFAULT_DEDUCT,

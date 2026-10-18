@@ -74,6 +74,7 @@ async function nise(page, hajimete, mazeru) {
         adjustments: [], // ★本物の 関数は 必ず 返す（10-07：返らない 時は 止める 様に した）★
         rireki: [], // ★本物の 関数は 必ず 返す（10-18：返らない 時は 止める）★
         yakuRireki: [],
+        uriageRireki: [],
         uriageNaoshi: true, // 売上の 直しを 返す 版の 印（10-14：無い 時は 止める）
         manualDays: [],
         ...(mazeru || {}),
@@ -200,6 +201,19 @@ test('本人の 関数が 古い（売上の 直しの 印が 無い）時は �
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
   await expect(page.locator('#slips')).toContainText('売上の 直しを 読めなかった');
+});
+
+// ★売上から 引く 物の 記録を 返さない（古い 倉庫の 関数）★ 2026-10-18（対立役 2回目 直2）
+//   わざと壊して 赤：kyuryo.html の Array.isArray(r.uriageRireki) の 止めを 外す ⇒ 赤（明細が 出た）
+test('本人の 関数が 売上から 引く 物の 記録を 返さない 時は 明細を 出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false, { uriageRireki: undefined });
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#slips')).toContainText(
+    '売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。'
+  );
 });
 
 test('売上の 直しが 読めない 業務が 在れば 本人の 明細を 出さない（事務所と 同じ 門）', async ({

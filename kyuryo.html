@@ -2038,6 +2038,8 @@
           rireki: [],
           // ★役割の 決まりの 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
           yakuRireki: [],
+          // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
+          uriageRireki: [],
         };
         var CTX = null;
         var REP = null;
@@ -2462,6 +2464,15 @@
               return;
             }
             RAW.adjustments = r.adjustments;
+            // ★売上から 引く 物の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-18
+            //   本人が 開き直しても 直らない＝会社に 知らせる 字（対立役 直5）
+            if (!Array.isArray(r.uriageRireki)) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+              return;
+            }
+            RAW.uriageRireki = r.uriageRireki;
             // ★売上の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-14
             //   返さないと 本人だけ メーターの 額で 計算し、事務所と 給料が 黙って ずれる（対立役）
             if (r.uriageNaoshi !== true) {
@@ -3460,6 +3471,7 @@
               employees: RAW.employees,
               rireki: RAW.rireki, // ★何日から★ 2026-10-18
               yakuRireki: yakuRirekiNoIma(),
+              uriageRireki: RAW.uriageRireki,
               salesSettings: RAW.salesSettings,
               payrollSettings: SET,
             });
@@ -4101,6 +4113,7 @@
         }
         var RIREKI_YOMI = { tried: 0, failed: 0 };
         var YAKU_RIREKI_YOMI = { tried: 0, failed: 0 };
+        var URIAGE_RIREKI_YOMI = { tried: 0, failed: 0 };
         function loadMasters() {
           LOAD.tried = 0;
           LOAD.failed = 0;
@@ -4125,8 +4138,18 @@
               kaishaDake('dk_yaku_rireki?select=*&order=from_date.asc&limit=100000'),
               YAKU_RIREKI_YOMI
             )),
+            // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18＝res[6]
+            ((URIAGE_RIREKI_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(
+              SESS,
+              kaishaDake('dk_uriage_rireki?select=*&order=from_date.asc&limit=100000'),
+              URIAGE_RIREKI_YOMI
+            )),
           ]).then(function (res) {
             RAW.employees = res[0] || [];
+            LOAD.tried += URIAGE_RIREKI_YOMI.tried;
+            LOAD.failed += URIAGE_RIREKI_YOMI.failed;
+            RAW.uriageRireki = URIAGE_RIREKI_YOMI.failed > 0 ? null : res[6] || [];
             LOAD.tried += RIREKI_YOMI.tried;
             LOAD.failed += RIREKI_YOMI.failed;
             RAW.rireki = RIREKI_YOMI.failed > 0 ? null : res[4] || [];
