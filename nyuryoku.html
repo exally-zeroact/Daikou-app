@@ -43,6 +43,15 @@
         --line: #dbe7f7;
       }
 
+      /* ★自動で 入っている 数（placeholder）を 濃く★ 2026-10-19
+         司さん「入力の自動反映されてる数値が薄くて分かりにくい」
+         ⇒ 前は ブラウザの 既定（薄い 灰）。今は 説明の 字と 同じ 濃さ（--muted）。打った 値（--ink）とは 少し 違う 濃さ */
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--muted);
+        opacity: 1;
+      }
+
       * {
         box-sizing: border-box;
         margin: 0;

@@ -144,6 +144,9 @@ test('★夜の 割増：時間帯 22:00〜05:00・×1.25 を 保存すると �
   await page.locator('.tab[data-tab="set"]').click();
   await page.locator('#hokaHarai > summary').click();
   const m = page.locator('#hokaBody [data-hk="yMult"]');
+  // 空の 欄の 字は「例」（濃く した 自動の 数と 見分けが 付く＝空なら 割増 無し）2026-10-19
+  await expect(m).toHaveValue('');
+  await expect(m).toHaveAttribute('placeholder', '例 1.25');
   await m.fill('1.25');
   await m.dispatchEvent('change');
   await page.locator('#hokaBody [data-hk="yMode"]').selectOption('zentai');

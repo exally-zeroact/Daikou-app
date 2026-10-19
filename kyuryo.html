@@ -20,6 +20,15 @@
         --danger: #e0483d;
       }
 
+      /* ★自動で 入っている 数（placeholder）を 濃く★ 2026-10-19
+         司さん「入力の自動反映されてる数値が薄くて分かりにくい」
+         ⇒ 前は ブラウザの 既定（薄い 灰）。今は 説明の 字と 同じ 濃さ（--muted）。打った 値（--ink）とは 少し 違う 濃さ */
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--muted);
+        opacity: 1;
+      }
+
       * {
         box-sizing: border-box;
         margin: 0;
@@ -8392,7 +8401,8 @@
             hmOf(ex.yakan && ex.yakan.made, '05:00') +
             '"> × <input class="yen" data-hk="yMult" value="' +
             ((ex.yakan && ex.yakan.mult) || '') +
-            '" style="width:60px" inputmode="decimal" placeholder="1.25"></div>' +
+            // 空の 時は 割増 無し（計算は 1 より 大きい 時だけ）＝例と 分かる 字に する 2026-10-19（自動の 数を 濃く した 時の 対立役 指摘）
+            '" style="width:72px" inputmode="decimal" placeholder="例 1.25"></div>' +
             '<div class="hoka-gyou">掛け方 <select data-hk="yMode"><option value="buai"' +
             (ex.yakan && ex.yakan.mode === 'zentai' ? '' : ' selected') +
             '>歩合だけに 掛ける</option><option value="zentai"' +
