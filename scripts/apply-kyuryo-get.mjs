@@ -33,6 +33,10 @@ const SQL_FILE = path.join(ROOT, 'supabase', 'apply-kyuryo-honnin-kansuu.sql');
 
 // ★当てた 後に 在って ほしい 字／無くて ほしい 字★（倉庫から 読み戻した 関数で 数える）
 export const ARU = [
+  [
+    'if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then',
+    '空（null）の パスワードは 必ず 違う（10-19 前は パスワード 無しで 開いた）',
+  ],
   ['w.employee_id = r.employee_id', '勤務時間は 本人の 分だけ'],
   ['ed.shift_id, ed.toll_yen', '直しは 列を 名指し'],
   ['m.work_date, m.device_id, m.sales_yen', '手入力の日も 列を 名指し'],
@@ -78,6 +82,7 @@ export const ARU = [
   ['m.work_date between p_from and v_kaisha_to', '手入力の 日も 会社の 物の 終わりの 日で 切る'],
 ];
 export const NAI = [
+  ['if r.pw_hash <> crypt(p_pw, r.pw_hash) then', 'null で 素通りする 古い 照らし方'],
   ['to_jsonb(ed)', '直しを 行ごと 丸ごと'],
   ['to_jsonb(w)', '勤務時間を 行ごと 丸ごと'],
   ['to_jsonb(m)', '手入力の日を 行ごと 丸ごと'],

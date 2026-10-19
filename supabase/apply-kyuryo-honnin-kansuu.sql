@@ -44,7 +44,8 @@ begin
   if r.init_code is null then
     return json_build_object('ok', false, 'reason', 'already_set');
   end if;
-  if r.init_code <> p_init then
+  -- ★空（null）の 初回コードは 必ず 違う★ 2026-10-19（前は null で 比べが 真に ならず、初回コードを 知らなくても 決められた）
+  if p_init is null or r.init_code is distinct from p_init then
     return json_build_object('ok', false, 'reason', 'bad_init');
   end if;
   update daikome.dk_kyuryo_pub
@@ -72,7 +73,8 @@ begin
   if not found or r.pw_hash is null then
     return json_build_object('ok', false, 'reason', 'no_token');
   end if;
-  if r.pw_hash <> crypt(p_pw, r.pw_hash) then
+  -- ★空（null）は 必ず 違う★ 2026-10-19（前は crypt(null) が null で、比べが 真に ならず 素通りした＝パスワード 無しで 開いた）
+  if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then
     return json_build_object('ok', false, 'reason', 'bad_pw');
   end if;
   select e.name into nm from daikome.dk_employees e where e.employee_id = r.employee_id;
@@ -97,7 +99,8 @@ begin
   if not found or r.pw_hash is null then
     return json_build_object('ok', false, 'reason', 'no_token');
   end if;
-  if r.pw_hash <> crypt(p_pw, r.pw_hash) then
+  -- ★空（null）は 必ず 違う★ 2026-10-19（前は crypt(null) が null で、比べが 真に ならず 素通りした＝パスワード 無しで 開いた）
+  if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then
     return json_build_object('ok', false, 'reason', 'bad_pw');
   end if;
   if p_from is null or p_to is null or p_to < p_from or (p_to - p_from) > 400 then
