@@ -29,9 +29,21 @@ const KATA = [
   { kind: 'shuu', youbi: 3, nazuke: 'hajime' },
   { kind: 'hi' },
   { kind: 'tsuki', hi: [1], nazuke: 'shime' },
-  { kind: 'tsuki', hi: [30], nazuke: 'hajime' },
+  { kind: 'tsuki', hi: [30], nazuke: 'hajime' }, // 28〜30日締めは 締めた 日の 月の 分に 読む（司さん 10-19）
+  { kind: 'tsuki', hi: [27], nazuke: 'hajime' },
 ];
 const k = (v) => P.seiki(v).kata;
+// ★乱数＝mulberry32★（前の seed % n は 下の 桁が 短く 回り、形の 組が 偏った＝空く 組が 600通りで 0・2026-10-19 対立役 小2）
+function ranSu(seed) {
+  let a = seed >>> 0;
+  return (n) => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((((t ^ (t >>> 14)) >>> 0) / 4294967296) * n) | 0;
+  };
+}
 const tsuki = [];
 for (let i = 0; i < 24; i++) tsuki.push({ y: 2026 + Math.floor(i / 12), m: (i % 12) + 1 });
 const kugiri = (ps) => ps.map((p) => p.start + '〜' + p.end + (p.kiri ? '*' : ''));
@@ -128,11 +140,7 @@ describe('締めの 何日から', () => {
   });
 
   it('④ どの 日も ちょうど 1つの 期・1つの 月（乱数の 歴 600通り）', () => {
-    let seed = 12345;
-    const rnd = (n) => {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed % n;
-    };
+    const rnd = ranSu(12345);
     const pad = (x) => String(x).padStart(2, '0');
     const zure = [];
     let nichi = 0;
@@ -167,7 +175,8 @@ describe('締めの 何日から', () => {
         if (ps.length === 1 && ps[0].aki) {
           akiTsuki++;
           if (!P.akiTsuki(kt).includes(y + '-' + pad(m))) zure.push([t, y, m, 'aki-ga-mienai']);
-          return;
+          // ★continue（return は 試験ごと 抜けて 後ろの 確かめが 1回も 走らなかった＝0f1b67d82 から 空振り・対立役 本番前5 止1）★
+          continue;
         }
         ps.forEach((p, j) => {
           if (p.dame) zure.push([t, y, m, 'dame']);
@@ -175,7 +184,6 @@ describe('締めの 何日から', () => {
           if (j > 0 && !(p.start > ps[j - 1].end)) zure.push([t, y, m, 'kasanari', p.start]);
           // ★どの 期も 始まりの 日の 月より 前の 月の 分に しない★（払い終えた 月に 後から 日を 入れない・司さん 10-19 2回目）
           //   ＝変えた 日 以後に 始まる 期は、その 変えた 日の 月より 前の 月の 分に しない（対立役 止1 2026-10-19）
-          //   （素の 形は 28〜30日締めの 始まった 日の 月の 分で 3/1〜3/30 が 2月分＝tsukiKey・毎月 1つ）
           const kawari = rows
             .map((r) => r.from_date)
             .filter((d) => d <= p.start)
@@ -275,7 +283,7 @@ describe('締めの 何日から', () => {
   });
 
   // わざと壊す：rirekiPeriods の 空いた 月の 止め（aki）を 外す ⇒ 赤（9月分が [] で 月次が 0円）
-  //           atamaNazuke を atamaKiri に 戻す ⇒ 赤（3/1 から 30日締め(始) の 3/1〜3/30 が 2月分）
+  //           atamaNazuke を atamaKiri に 戻す ⇒ 赤（末日 → 9/21 から 20日締め → 10/1 から 末日 の 9/21〜9/30 が 10月分）
   it('⑨ 月が 空く（給料は 毎月 払う 決まり）＝空いた 月は 止める・訳を 分ける（2026-10-19）', () => {
     const A = { kind: 'tsuki', hi: [20], nazuke: 'hajime' };
     const B = { kind: 'tsuki', hi: [1], nazuke: 'shime' };
@@ -304,10 +312,19 @@ describe('締めの 何日から', () => {
     const yr = G.year(2026, ctx, []);
     expect([yr.total.dame, yr.total.aki]).toEqual([true, true]);
     // 変えた 日に ちょうど 始まる 期は 変えた 日の 月より 前の 月に しない（対立役 止1）
-    const k30 = P.rirekiKata(k({ kind: 'tsuki', hi: [28], nazuke: 'shime' }), [
-      { from_date: '2026-03-01', value: { kind: 'tsuki', hi: [30], nazuke: 'hajime' } },
+    //   ＝変えた 日に ちょうど 始まり 後ろも 切られた 期は 切った 後の 日付で（司さん 10-19 2回目）
+    const kAt = P.rirekiKata(k({ kind: 'tsuki', hi: [0] }), [
+      { from_date: '2026-09-21', value: { kind: 'tsuki', hi: [20], nazuke: 'shime' } },
+      { from_date: '2026-10-01', value: { kind: 'tsuki', hi: [0] } },
     ]);
-    P.periodsOf(2026, 2, { kata: k30 }).forEach((p) => expect(p.start < '2026-03-01').toBe(true));
+    expect(kugiri(P.periodsOf(2026, 9, { kata: kAt }))).toEqual([
+      '2026-09-01〜2026-09-20*',
+      '2026-09-21〜2026-09-30*',
+    ]);
+    expect(kugiri(P.periodsOf(2026, 10, { kata: kAt }))).toEqual(['2026-10-01〜2026-10-31']);
+    // 28〜30 を 1つでも 含めば 締めた 日の 月の 分（[10,30] も・2026-10-19 対立役 本番前6 直B）
+    expect(P.seiki({ kind: 'tsuki', hi: [10, 30], nazuke: 'hajime' }).kata.nazuke).toBe('shime');
+    expect(P.seiki({ kind: 'tsuki', hi: [10, 27], nazuke: 'hajime' }).kata.nazuke).toBe('hajime');
     // 素の 形は どれも 空く 月が 無い（28〜30日締めの 始まった 日の 月の 分も）
     [28, 29, 30].forEach((h) => {
       const kk = k({ kind: 'tsuki', hi: [h], nazuke: 'hajime' });
@@ -323,11 +340,7 @@ describe('締めの 何日から', () => {
 
   // わざと壊す：rirekiPeriods の 窓を その 月だけに 狭める（madoA を m-1・madoB を m）⇒ 赤（期が 違う 月が 出る）。前後1か月 までは 同じ＝5か月は 余り
   it('⑩ 遠い 区間を 見ない 速い 道は 全部 見る 道と 一字一句 同じ（記録 1〜30件 100通り×40か月）', () => {
-    let seed = 7;
-    const rnd = (n) => {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      return seed % n;
-    };
+    const rnd = ranSu(7);
     const pad = (x) => String(x).padStart(2, '0');
     const zure = [];
     for (let t = 0; t < 100; t++) {

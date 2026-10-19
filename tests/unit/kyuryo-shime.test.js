@@ -58,6 +58,10 @@ const KATA = [];
   [30],
   [31],
   [5, 10, 15, 20, 25, 0],
+  [10, 30], // 28〜30 を 含む＝締めた 日の 月の 分に 読む（2026-10-19）
+  [15, 28],
+  [28, 30],
+  [5, 15, 25], // 27 以下だけ＝始まった 日の 月の 分も 選べる
 ].forEach((hi) => {
   ['shime', 'hajime'].forEach((nz) => KATA.push({ kind: 'tsuki', hi: hi, nazuke: nz }));
 });
@@ -78,6 +82,30 @@ describe('★どの 形でも 全部の 日が ちょうど 1回★（2020〜203
       // ★期が 0 の 月は どの 形でも 0か月★（給料は 毎月 払う 決まり・労基法24条）
       //   2026-10-19 前は 30日締め＋始まった月の分 で 2020〜2030 に 55か月 空いた（3/31〜4/30 が 3月分で 4月分 無し）＝tsukiKey で 直した
       expect(r.kara.length, '期が 0 の 月 ' + r.kara.slice(0, 3).join(',')).toBe(0);
+    });
+  });
+});
+
+// ★1か月の 給料の 日数は 28〜31日★ 2026-10-19（[10,30] の 始まった 日の 月の 分で 1〜58日に 振れた＝対立役 本番前6 止A）
+//   わざと壊す：seiki の 28〜30 の 決めを 全部 28〜30 の 時だけ（every）に ⇒ 赤（[10,30] 始まり で 2月 18日）
+describe('★1か月の 日数は 28〜31日（月を またぐ 形・2020〜2030）★', () => {
+  const kata = [];
+  for (let a = 1; a <= 30; a++) {
+    kata.push([a]);
+    for (let b = a + 1; b <= 30; b++) kata.push([a, b]);
+  }
+  ['shime', 'hajime'].forEach((nz) => {
+    it(nz, () => {
+      const zure = [];
+      kata.forEach((hi) => {
+        const y0 = P.seiki({ kind: 'tsuki', hi: hi, nazuke: nz });
+        for (let yy = 2020; yy <= 2030; yy++)
+          for (let m = 1; m <= 12; m++) {
+            const n = P.periodsOf(yy, m, { kata: y0.kata }).reduce((s2, p) => s2 + p.days, 0);
+            if (n < 28 || n > 31) zure.push([hi.join(','), yy, m, n]);
+          }
+      });
+      expect(zure.slice(0, 5)).toEqual([]);
     });
   });
 });

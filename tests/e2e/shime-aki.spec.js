@@ -80,29 +80,68 @@ test('① 20日締め(始) を 9/10 から 1日締め(締) ⇒ 9月分が 無く
   expect(err).toEqual([]);
 });
 
-// わざと壊す：shimeAkiMon の「近い 日」を 探さない ⇒ 赤（9/30 が 出ない）
-test('② 30日締め(始) を 10/1 から 末日締め ⇒ 止めて「10/2 に すると 空きません」', async ({
+// わざと壊す：shimeAkiMon の「近い 日」を 探さない ⇒ 赤（9/1 が 出ない）
+test('② 止めた 時の「近い 日」＝9/1 に すると 空かない・その 日なら 保存できる', async ({
   page,
 }) => {
-  await settaiAke(page, [], { kind: 'tsuki', hi: [30], nazuke: 'hajime' });
-  await page.fill('#pHi', '2026-10-01');
+  await settaiAke(page, []);
+  await page.fill('#pHi', '2026-09-10');
   await page.dispatchEvent('#pHi', 'change');
-  await page.selectOption('#pMode', 'matsu');
+  await page.selectOption('#pMode', 'tsuki1');
+  await page.fill('#pShimeHi', '1');
+  await page.dispatchEvent('#pShimeHi', 'input');
+  await page.selectOption('#pNazuke', 'shime');
   await page.click('#btnSaveSet');
-  await expect(page.locator('#err')).toContainText('2026年9月分の 給料が 無くなります');
-  await expect(page.locator('#err')).toContainText('変える 日を 10/2 に すると 空きません');
+  await expect(page.locator('#err')).toContainText('変える 日を 9/1 に すると 空きません');
   await page.waitForTimeout(300);
   expect(await kaki(page)).toEqual([]);
   // 言われた 日に すると 保存できる
-  await page.fill('#pHi', '2026-10-02');
+  await page.fill('#pHi', '2026-09-01');
   await page.dispatchEvent('#pHi', 'change');
-  await page.selectOption('#pMode', 'matsu');
+  await page.selectOption('#pMode', 'tsuki1');
+  await page.fill('#pShimeHi', '1');
+  await page.dispatchEvent('#pShimeHi', 'input');
+  await page.selectOption('#pNazuke', 'shime');
   await page.click('#btnSaveSet');
   await page.waitForTimeout(800);
   expect(await kaki(page)).toEqual([
     ['POST', 'dk_payroll_settings'],
     ['POST', 'dk_shime_rireki'],
   ]);
+});
+
+// ★28・29・30日締めは「締めた 日の 月の 分」だけ★（司さん 10-19「3/1〜3/30 が 2月分 おかしくないか」→「直せ」）
+// わざと壊す：kikanDashiwake の 28 以上で 何月分の 欄を 隠す 所を 外す ⇒ 赤（欄が 見えた）
+//            nijuhachiShime を 外す ⇒ 赤（記録に 'hajime' を 書いた）
+test('②b 30日締めを 選ぶ ⇒ 何月分の 欄は 出ない・締めた 日の 月の 分で 書く', async ({ page }) => {
+  await settaiAke(page, []);
+  await page.fill('#pHi', '2026-10-01');
+  await page.dispatchEvent('#pHi', 'change');
+  await page.selectOption('#pMode', 'tsuki1');
+  await page.fill('#pShimeHi', '20');
+  await page.dispatchEvent('#pShimeHi', 'input');
+  await expect(page.locator('#pNazukeRow')).toBeVisible();
+  await page.selectOption('#pNazuke', 'hajime');
+  await page.fill('#pShimeHi', '30');
+  await page.dispatchEvent('#pShimeHi', 'input');
+  await expect(page.locator('#pNazukeRow')).toBeHidden();
+  // 締め日を 並べる 欄でも 28〜30 を 含めば 隠れる（[10,30]・2026-10-19 対立役 本番前6 直B）
+  await page.selectOption('#pMode', 'narabe');
+  await page.fill('#pNarabe', '10,30');
+  await page.dispatchEvent('#pNarabe', 'input');
+  await expect(page.locator('#pNazukeRow')).toBeHidden();
+  await page.fill('#pNarabe', '10,27');
+  await page.dispatchEvent('#pNarabe', 'input');
+  await expect(page.locator('#pNazukeRow')).toBeVisible();
+  await page.selectOption('#pMode', 'tsuki1');
+  await page.fill('#pShimeHi', '30');
+  await page.dispatchEvent('#pShimeHi', 'input');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(800);
+  const o = await page.evaluate(() => window.__okutta);
+  const ki = o.filter((x) => x.p.indexOf('dk_shime_rireki') === 0);
+  expect(ki.length).toBe(1);
+  expect(ki[0].b.value).toEqual({ kind: 'tsuki', hi: [30], nazuke: 'shime' });
 });
 
 // わざと壊す：shimeAkiFueta で 今 空いて いる 月を 引かない ⇒ 赤（もう 空いた 会社が 何も 保存 できない）

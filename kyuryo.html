@@ -7385,6 +7385,14 @@
         //   ★今★ 払い方を 選ぶ ⇒ ★その 払い方に 要る 欄だけ★ 出す ＋ 今の 区切りを 字で 出す
         // ★★画面の 欄 → 締めの 形（period_shime）★★ 2026-10-07
         //   月3回は null（昔の 列 period_end_mode='thirds' の まま＝今の 本番の 1社と 同じ 読み）
+        // ★28・29・30日締めは「締めた 日の 月の 分」で 書く★（読む 側 seiki と 同じ・司さん 10-19）
+        function nijuhachiShime(k) {
+          //   28〜30 を 1つでも 含めば（seiki と 同じ。31・末＝0 は 末日締め＝何月分は 要らない）
+          var nijuhachi = (k.hi || []).some(function (h) {
+            return Number(h) >= 28 && Number(h) <= 30;
+          });
+          return nijuhachi ? Object.assign({}, k, { nazuke: 'shime' }) : k;
+        }
         function shimeKataYomu() {
           var m = ($('pMode') || {}).value || '';
           var nz = ($('pNazuke') || {}).value || undefined;
@@ -7396,7 +7404,7 @@
             // ★空は 0（末日）に しない★（対立役 ③）
             if (!dTxt) return { dame: '何日に 締めるかを 入れてください' };
             var d = Number(dTxt);
-            return { kata: { kind: 'tsuki', hi: [d], nazuke: nz } };
+            return { kata: nijuhachiShime({ kind: 'tsuki', hi: [d], nazuke: nz }) };
           }
           if (m === 'narabe') {
             var hi = String(($('pNarabe') || {}).value || '')
@@ -7407,7 +7415,7 @@
               .map(function (x) {
                 return x === '末' || x === '末日' ? 0 : Number(x);
               });
-            return { kata: { kind: 'tsuki', hi: hi, nazuke: nz } };
+            return { kata: nijuhachiShime({ kind: 'tsuki', hi: hi, nazuke: nz }) };
           }
           if (m === 'shuu')
             return { kata: { kind: 'shuu', youbi: Number(($('pYoubi') || {}).value), nazuke: nz } };
@@ -7429,10 +7437,15 @@
           if (y.kata) {
             // 月を またぐ 期が 在るか（何月分を 決めないと 区切れない）
             var t = PayrollPeriod.seiki(Object.assign({}, y.kata, { nazuke: 'shime' }));
+            // ★28・29・30日締めは「締めた 日の 月の 分」だけ＝欄を 出さない★（司さん 10-19）
             kosu =
               !!t.ok &&
               (t.kata.kind === 'shuu' ||
-                (t.kata.kind === 'tsuki' && t.kata.hi[t.kata.hi.length - 1] !== 0));
+                (t.kata.kind === 'tsuki' &&
+                  t.kata.hi[t.kata.hi.length - 1] !== 0 &&
+                  !t.kata.hi.some(function (h) {
+                    return h >= 28;
+                  })));
           }
           show('pNazukeRow', kosu);
           if (!ms) return;
@@ -7481,19 +7494,8 @@
           var akiF = (zen ? PayrollPeriod.akiTsuki(zen) : []).filter(function (x) {
             return akiMae.indexOf(x) < 0;
           });
-          // ★28〜30日締めの 始まった 日の 月の 分★＝短い 月の 後の 期は 1日から 始まっても 前の 月の 分（毎月 1回・対立役 直1）
-          var nijuhachi =
-            r.kata &&
-            r.kata.kind === 'tsuki' &&
-            r.kata.nazuke === 'hajime' &&
-            r.kata.hi.some(function (h) {
-              return h >= 28;
-            })
-              ? '始まった 日の 月の 分は、その 月の 1つ目の 締め日で 締める 期を 前の 月の 分に します（短い 月の 後は 1日から 始まる 期も 前の 月の 分）。　'
-              : '';
           ms.textContent =
             (akiF.length ? shimeAkiBun(akiF) + 'この ままでは 保存できません。　' : '') +
-            nijuhachi +
             '区切り … ' +
             gyou.join('　｜　');
         }

@@ -186,6 +186,13 @@
       if (hi.length === 3 && hi[0] === 10 && hi[1] === 20 && hi[2] === 0)
         return { ok: true, kata: { kind: 'thirds' } };
       const kosu = hi[hi.length - 1] !== 0; // 最後が 末日で ない ＝ 月を またぐ 期が ある
+      // ★28・29・30日締めは「締めた 日の 月の 分」だけ★（司さん 10-19「3/1〜3/30 が 2月分 おかしくないか」→「直せ」）
+      //   短い 月が ある＝始まった 日の 月で 呼ぶと 同じ 月に 2つ・次の 月に 0（毎月 払う 決まりに 反する）。
+      //   前の 月から 入る 日は 1〜3日だけ＝締めた 日の 月の 分が 中身の 日と 合う。古い 行の 'hajime' も こう 読む（本番 0社）
+      //   ★28〜30 を 1つでも 含めば★（全部 28〜30 の 時だけに 狭めると、[10,30] の 始まった 日の 月の 分で
+      //    1か月の 給料が 1〜58日に 振れた＝対立役 本番前6 止A・2026-10-19。司さんの「直せ」の 形に 戻した）
+      if (kosu && hi.some((h) => h >= 28))
+        return { ok: true, kata: { kind: 'tsuki', hi: hi, nazuke: 'shime' } };
       if (kosu && !NAZUKE[sh.nazuke]) return dame('何月分と 呼ぶかが 決まっていません');
       return { ok: true, kata: { kind: 'tsuki', hi: hi, nazuke: kosu ? sh.nazuke : 'shime' } };
     }
@@ -224,22 +231,10 @@
   function ymKey(d) {
     return d.getFullYear() * 12 + d.getMonth();
   }
-  // ★何月分（月の 鍵）★：締めた 日の 月の 分＝締めた 日の 月。
-  //   始まった 日の 月の 分（月で 締める 形）＝★その 月の 1つ目の 締め日で 締める 期は 前の 月・他は 締めた 日の 月★
-  //   （2026-10-19＝前は 始まった 日の 月で 数えた。28〜30日締めは 短い 月の 後に 期が 末日から 始まり、
-  //    同じ 月に 2つ・次の 月に 0（例 30日締め：3/31〜4/30 が 3月分で 4月分が 無い）＝毎月 払う 決まり（労基法24条）に 反する。
-  //    27日以下は 始まった 日の 月と 1日も 違わない）
+  // ★何月分（月の 鍵）★：締めた 日の 月の 分＝締めた 日の 月・始まった 日の 月の 分＝始まった 日の 月
+  //   （2026-10-19：28〜30日締めは seiki で「締めた 日の 月の 分」だけに した＝始まった 日で 呼ぶ 形は 27日 以下だけ＝月が 空かない）
   function tsukiKey(kata, p) {
-    if (kata.nazuke !== 'hajime') return ymKey(p.end);
-    if (kata.kind !== 'tsuki') return ymKey(p.start);
-    const e = p.end;
-    const tl = daysInMonth(e.getFullYear(), e.getMonth() + 1);
-    let mn = 99;
-    kata.hi.forEach(function (h) {
-      const d = h === 0 ? tl : Math.min(h, tl);
-      if (d < mn) mn = d;
-    });
-    return ymKey(e) - (e.getDate() === mn ? 1 : 0);
+    return ymKey(kata.nazuke === 'hajime' ? p.start : p.end);
   }
   // 締め日（Date）の 並び → 期（start〜end）
   function kugiru(shimebi) {
