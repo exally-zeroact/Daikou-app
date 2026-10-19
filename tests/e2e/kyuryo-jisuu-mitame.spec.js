@@ -644,3 +644,28 @@ test('役割の 決まりに 無くても 歩合と 保証を 両方 打った �
   await expect(page.locator('#slips')).toContainText('テスト太郎');
   await expect(page.locator('#slips .slip').first()).toBeVisible();
 });
+
+// ★空の 人の 欄にも 車の 時数★ 2026-10-19（司さん「車の時数入れてから乗った人選んだら自動で反映されるようにしとけよ」）
+test('乗った人の 欄が 空なら 欄の 中に 車の 時数・打った 人と 車が 0h の 人は 出さない', async ({
+  page,
+}) => {
+  await hiraku(page);
+  const ran = (d, emp) =>
+    hi(page, d).locator('[data-wh-emp="' + emp + '"][data-wh-date="' + d + '"]');
+  // 8/1 太郎＝空・1号車は 9 + 1 = 10h
+  await expect(ran('2026-08-01', TARO)).toHaveValue('');
+  await expect(ran('2026-08-01', TARO)).toHaveAttribute('placeholder', '10');
+  // 8/1 次郎＝自分で 7h を 打っている＝その 値・placeholder は 空
+  await expect(ran('2026-08-01', JIRO)).toHaveValue('7');
+  await expect(ran('2026-08-01', JIRO)).toHaveAttribute('placeholder', '');
+  // 8/2 次郎＝空・2号車は 0h＝出さない（「給料は出ません」の 警告の 方を 出す）
+  await expect(ran('2026-08-02', JIRO)).toHaveAttribute('placeholder', '');
+  // 触っただけでは 保存しない
+  await ran('2026-08-01', TARO).focus();
+  await ran('2026-08-01', TARO).blur();
+  await page.waitForTimeout(300);
+  const wh = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_work_hours') === 0)
+  );
+  expect(wh).toHaveLength(0);
+});

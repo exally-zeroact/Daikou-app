@@ -6104,6 +6104,11 @@
                     esc(dev) +
                     '" value="' +
                     (jibun ? w.hours : '') +
+                    // ★空の 人の 欄にも 車の 時数を 出す★ 2026-10-19（司さん「車の時数入れてから乗った人選んだら
+                    //   自動で反映されるようにしとけよ、各々修正できるのは今の仕様でええけど」）
+                    //   値（value）では なく placeholder＝触っても 保存されない・打てば その人だけ 変わる（今の まま）
+                    '" placeholder="' +
+                    (!jibun && carHours > 0 ? String(Math.round(carHours * 100) / 100) : '') +
                     '"><span class="u">h</span></label>' +
                     '<button class="xbtn" type="button" aria-label="外す" data-del-emp="' +
                     esc(w.employee_id) +
