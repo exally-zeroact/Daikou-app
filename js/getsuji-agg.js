@@ -158,7 +158,15 @@
         })
       ) {
         out.dame = true;
-        out.riyuu = '締めの 変えた 記録から 期を 区切れません';
+        // ★締めの 変え方で 空いた 月（期が 0）★＝0円で 黙って 進まない・訳を 分ける（2026-10-19・対立役 直5）
+        if (periods.length === 1 && periods[0].aki) {
+          out.aki = true;
+          out.riyuu =
+            y +
+            '年' +
+            m +
+            '月分の 給料が 締めの 変え方で 無くなっています（給料は 毎月 払う 決まり）';
+        } else out.riyuu = '締めの 変えた 記録から 期を 区切れません';
         return out;
       }
       periods.forEach(function (p) {
@@ -244,6 +252,7 @@
           out.total.riyuu = mm.riyuu;
           out.total.tsushin = mm.tsushin === true;
           out.total.kiroku = mm.kiroku === true;
+          out.total.aki = mm.aki === true;
           if (mm.uriage) out.total.uriage = true;
           if (mm.yaku) out.total.yaku = true;
           if (mm.uriageRireki) out.total.uriageRireki = true;

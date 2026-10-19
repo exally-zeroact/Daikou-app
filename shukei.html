@@ -1224,10 +1224,12 @@
                     ? SHIME_YAKU
                       ? '役割の 決まりが 無くて 給料を 計算できない 人が 居るので 紙は 出せません'
                       : '売上の 直しが 読めない 業務が 在るので 紙は 出せません'
-                    : SHIME_TSUSHIN
-                      ? (SHIME_KIROKU ? '締めの 変えた 記録' : '給料の 設定') +
-                        'を 読めなかったので 紙は 出せません（もう一度 開いてください）'
-                      : '払い方の 設定が 読めないので 紙は 出せません'
+                    : SHIME_AKI
+                      ? '締めの 変え方で 給料の 無い 月が 在るので 紙は 出せません'
+                      : SHIME_TSUSHIN
+                        ? (SHIME_KIROKU ? '締めの 変えた 記録' : '給料の 設定') +
+                          'を 読めなかったので 紙は 出せません（もう一度 開いてください）'
+                        : '払い方の 設定が 読めないので 紙は 出せません'
                 : '読み込み中…'
             );
           KamiPdf.mise($('kamiMado'), r.mai, function () {
@@ -1681,6 +1683,7 @@
             SHIME_URI_RIREKI = YR.total.uriageRireki === true;
             SHIME_TSUSHIN = YR.total.tsushin === true;
             SHIME_KIROKU = YR.total.kiroku === true;
+            SHIME_AKI = YR.total.aki === true;
             YR = null;
             return;
           }
@@ -1690,6 +1693,7 @@
           SHIME_YAKU = false;
           SHIME_URI_RIREKI = false;
           SHIME_KIROKU = false;
+          SHIME_AKI = false;
           try {
             kamiTsukiSel(); // ★PDFの 月の 選択肢★（年を 変えた 時も 作り直す）
             // ★選んでいる 紙を 画面に 出す★（描き終わった 後＝同じ 数を 使う）2026-10-05
@@ -2134,6 +2138,7 @@
         var SHIME_URIAGE = false;
         var SHIME_YAKU = false; // 役割の 決まりが 無くて 計算できない 止め 2026-10-17
         var SHIME_KIROKU = false; // 締めの 変えた 記録を 読めなかった 止め 2026-10-19
+        var SHIME_AKI = false; // 締めの 変え方で 月の 給料が 無くなった 止め 2026-10-19
         var SHIME_URI_RIREKI = false; // 売上から 引く 物の 記録が 読めない 止め 2026-10-18
         var URI_RIREKI_KAMI =
           '売上から 引く 物の 変えた 記録を 読めないので 紙は 出せません（もう一度 開いてください）';
@@ -2143,12 +2148,15 @@
             showErr(
               SHIME_URIAGE
                 ? SHIME_DAME + '。それまで 月次の 売上・給料・紙は 出しません。'
-                : SHIME_TSUSHIN
-                  ? (SHIME_KIROKU ? '締めの 変えた 記録' : '給料の 設定') +
-                    'を 読めなかったので 止めました（通信）。もう一度 開いてください。'
-                  : '給料の 払い方の 設定が 読めないので 止めました（' +
-                    SHIME_DAME +
-                    '）。給料の 画面の「給料の 設定」で 払い方を 選び直してください。'
+                : SHIME_AKI
+                  ? SHIME_DAME +
+                    '。給料の 画面の「給料の 設定」→ 明細の 期間の「記録」で 直してください。それまで 月次の 給料・紙は 出しません。'
+                  : SHIME_TSUSHIN
+                    ? (SHIME_KIROKU ? '締めの 変えた 記録' : '給料の 設定') +
+                      'を 読めなかったので 止めました（通信）。もう一度 開いてください。'
+                    : '給料の 払い方の 設定が 読めないので 止めました（' +
+                      SHIME_DAME +
+                      '）。給料の 画面の「給料の 設定」で 払い方を 選び直してください。'
             );
             $('tbody').innerHTML = '';
             $('tbody2').innerHTML = '';
@@ -2160,7 +2168,9 @@
                   ? SHIME_YAKU
                     ? '役割の 決まりが 無くて 給料を 計算できない 人が 居るので 紙は 出せません'
                     : '売上の 直しが 読めない 業務が 在るので 紙は 出せません'
-                  : '払い方の 設定が 読めないので 紙は 出せません'
+                  : SHIME_AKI
+                    ? '締めの 変え方で 給料の 無い 月が 在るので 紙は 出せません'
+                    : '払い方の 設定が 読めないので 紙は 出せません'
             );
             return;
           }

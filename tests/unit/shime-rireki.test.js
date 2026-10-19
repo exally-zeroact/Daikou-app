@@ -136,6 +136,7 @@ describe('締めの 何日から', () => {
     const pad = (x) => String(x).padStart(2, '0');
     const zure = [];
     let nichi = 0;
+    let akiTsuki = 0;
     for (let t = 0; t < 600; t++) {
       const rows = [];
       const used = {};
@@ -162,12 +163,26 @@ describe('締めの 何日から', () => {
         // ★月の 中で 期の 名前が 重ならない★（紙の 列の 見出し・対立役 4回目 直1）
         const na = ps.map((p) => p.name);
         if (new Set(na).size !== na.length) zure.push([t, y, m, 'namae', na.join(',')]);
+        // ★空いた 月（締めの 変え方で 期が 0）＝止める 印★（0円に しない・保存の 門が 止める 側・2026-10-19）
+        if (ps.length === 1 && ps[0].aki) {
+          akiTsuki++;
+          if (!P.akiTsuki(kt).includes(y + '-' + pad(m))) zure.push([t, y, m, 'aki-ga-mienai']);
+          return;
+        }
         ps.forEach((p, j) => {
           if (p.dame) zure.push([t, y, m, 'dame']);
           // 月の 中の 期は 日付順で 重ならない
           if (j > 0 && !(p.start > ps[j - 1].end)) zure.push([t, y, m, 'kasanari', p.start]);
           // ★どの 期も 始まりの 日の 月より 前の 月の 分に しない★（払い終えた 月に 後から 日を 入れない・司さん 10-19 2回目）
-          if (p.start.slice(0, 7) > y + '-' + pad(m)) zure.push([t, y, m, 'mae-no-tsuki', p.start]);
+          //   ＝変えた 日 以後に 始まる 期は、その 変えた 日の 月より 前の 月の 分に しない（対立役 止1 2026-10-19）
+          //   （素の 形は 28〜30日締めの 始まった 日の 月の 分で 3/1〜3/30 が 2月分＝tsukiKey・毎月 1つ）
+          const kawari = rows
+            .map((r) => r.from_date)
+            .filter((d) => d <= p.start)
+            .sort()
+            .pop();
+          if (kawari && kawari.slice(0, 7) > y + '-' + pad(m))
+            zure.push([t, y, m, 'mae-no-tsuki', p.start]);
           p.dates.forEach((d) => (kazu[d] = (kazu[d] || 0) + 1));
           p.dates.forEach((d) => (tsukiNo[d] = y * 12 + m));
         });
@@ -185,6 +200,8 @@ describe('締めの 何日から', () => {
     // ★食い違いは 集めて 1回で 比べる★（日ごとに expect を 呼ぶと 14万回＝重くて 時間切れ・2026-10-19）
     expect(zure.slice(0, 5)).toEqual([]);
     expect(nichi).toBe(600 * 699);
+    // 乱数の 歴には 空く 変え方も 混ざる（門が 止める 側）＝0 でない 事を 見る（印が 死んで いない）
+    expect(akiTsuki).toBeGreaterThan(0);
   }, 20000); // ★重い 試験（600通り×699日）＝並べて 回すと 5秒を 越える★
 
   it('⑤ 隣と 同じ 形は まとめる（期を 切らない）', () => {
@@ -256,6 +273,85 @@ describe('締めの 何日から', () => {
     const cz = D.buildCtx({ payrollSettings: row, shimeRireki: null });
     expect(G.month(2026, 10, cz, []).dame).toBe(true);
   });
+
+  // わざと壊す：rirekiPeriods の 空いた 月の 止め（aki）を 外す ⇒ 赤（9月分が [] で 月次が 0円）
+  //           atamaNazuke を atamaKiri に 戻す ⇒ 赤（3/1 から 30日締め(始) の 3/1〜3/30 が 2月分）
+  it('⑨ 月が 空く（給料は 毎月 払う 決まり）＝空いた 月は 止める・訳を 分ける（2026-10-19）', () => {
+    const A = { kind: 'tsuki', hi: [20], nazuke: 'hajime' };
+    const B = { kind: 'tsuki', hi: [1], nazuke: 'shime' };
+    const kt = P.rirekiKata(k(A), [{ from_date: '2026-09-10', value: B }]);
+    expect(P.akiTsuki(kt)).toEqual(['2026-09']);
+    const ps = P.periodsOf(2026, 9, { kata: kt });
+    expect(ps.length).toBe(1);
+    expect([ps[0].dame, ps[0].aki]).toEqual([true, true]);
+    expect(kugiri(P.periodsOf(2026, 8, { kata: kt }))).toEqual(['2026-08-21〜2026-09-09*']);
+    expect(kugiri(P.periodsOf(2026, 10, { kata: kt }))).toEqual(['2026-09-10〜2026-10-01*']);
+    // 同じ 呼び方（始まった 日）なら 空かない＝9/10〜10/1 が 9月分（司さん「10/1 までのが 9月分が 普通」）
+    const kh = P.rirekiKata(k(A), [
+      { from_date: '2026-09-10', value: Object.assign({}, B, { nazuke: 'hajime' }) },
+    ]);
+    expect(P.akiTsuki(kh)).toEqual([]);
+    expect(kugiri(P.periodsOf(2026, 9, { kata: kh }))).toEqual(['2026-09-10〜2026-10-01*']);
+    // 月次＝0円で 進まず 止める・訳は 空いた 月
+    const row = { period_shime: A, period_end_mode: 'shime' };
+    const ctx = D.buildCtx({
+      payrollSettings: row,
+      shimeRireki: [{ from_date: '2026-09-10', value: B }],
+    });
+    const mo = G.month(2026, 9, ctx, []);
+    expect([mo.dame, mo.aki]).toEqual([true, true]);
+    expect(mo.riyuu).toContain('2026年9月分の 給料が 締めの 変え方で 無くなっています');
+    const yr = G.year(2026, ctx, []);
+    expect([yr.total.dame, yr.total.aki]).toEqual([true, true]);
+    // 変えた 日に ちょうど 始まる 期は 変えた 日の 月より 前の 月に しない（対立役 止1）
+    const k30 = P.rirekiKata(k({ kind: 'tsuki', hi: [28], nazuke: 'shime' }), [
+      { from_date: '2026-03-01', value: { kind: 'tsuki', hi: [30], nazuke: 'hajime' } },
+    ]);
+    P.periodsOf(2026, 2, { kata: k30 }).forEach((p) => expect(p.start < '2026-03-01').toBe(true));
+    // 素の 形は どれも 空く 月が 無い（28〜30日締めの 始まった 日の 月の 分も）
+    [28, 29, 30].forEach((h) => {
+      const kk = k({ kind: 'tsuki', hi: [h], nazuke: 'hajime' });
+      for (let i = 0; i < 60; i++) {
+        const t = P.shift({ year: 2026, month: 1 }, i);
+        expect(
+          P.periodsOf(t.year, t.month, { kata: kk }).length,
+          h + '日 ' + t.year + '/' + t.month
+        ).toBe(1);
+      }
+    });
+  });
+
+  // わざと壊す：rirekiPeriods の 窓を その 月だけに 狭める（madoA を m-1・madoB を m）⇒ 赤（期が 違う 月が 出る）。前後1か月 までは 同じ＝5か月は 余り
+  it('⑩ 遠い 区間を 見ない 速い 道は 全部 見る 道と 一字一句 同じ（記録 1〜30件 100通り×40か月）', () => {
+    let seed = 7;
+    const rnd = (n) => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    const pad = (x) => String(x).padStart(2, '0');
+    const zure = [];
+    for (let t = 0; t < 100; t++) {
+      const rows = [];
+      const used = {};
+      const nRec = 1 + rnd(30);
+      for (let i = 0; i < nRec; i++) {
+        const d = new Date(2025 + rnd(3), rnd(12), 1 + rnd(28));
+        const hi = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        if (used[hi]) continue;
+        used[hi] = 1;
+        rows.push({ from_date: hi, value: KATA[rnd(KATA.length)] });
+      }
+      const kt = P.rirekiKata(k(KATA[rnd(KATA.length)]), rows);
+      for (let i = 0; i < 40; i++) {
+        const y = 2024 + Math.floor(i / 12);
+        const m = (i % 12) + 1;
+        const a = JSON.stringify(P.periodsOf(y, m, { kata: kt }));
+        const b = JSON.stringify(P.periodsOf(y, m, { kata: kt, zenbuMiru: true }));
+        if (a !== b) zure.push([t, y, m]);
+      }
+    }
+    expect(zure.slice(0, 5)).toEqual([]);
+  }, 60000); // ★全部 見る 道は 重い（並べて 回すと 20秒 近く かかった＝1回 時間切れで 赤・2026-10-19）★
 
   it('⑧ 画面の 呼び口が 全部 記録を 渡す（呼び忘れると 黙って 列の 形で 区切る・対立役 止2）', () => {
     const ky = fs.readFileSync(path.join(__dirname, '../../kyuryo.html'), 'utf8');

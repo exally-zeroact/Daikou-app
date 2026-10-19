@@ -230,6 +230,39 @@ test('本人の 関数が 締めの 記録を 返さない 時は 明細を 出�
   );
 });
 
+// ★締めの 変え方で 空いた 月★ 2026-10-19（0円の 明細を 出さない・本人は 設定を 触れない＝会社に 知らせて）
+//   わざと壊して 赤：kyuryo.html の 本人の kikanKowareta の 止めを 外す ⇒ 赤（空いた 月で 明細の 枠が 出た）
+test('締めの 変え方で 空いた 月は 本人の 明細を 出さずに 訳', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await page.clock.setFixedTime(new Date('2026-10-07T12:00:00+09:00'));
+  await nise(page, false, {
+    settings: [
+      Object.assign({}, SET, {
+        period_end_mode: 'shime',
+        period_shime: { kind: 'tsuki', hi: [20], nazuke: 'hajime' },
+      }),
+    ],
+    shimeRireki: [
+      {
+        rireki_id: 'r1',
+        company_id: 'c1',
+        from_date: '2026-09-10',
+        value: { kind: 'tsuki', hi: [1], nazuke: 'shime' },
+      },
+    ],
+  });
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+  // 今日（10/7）は 11月分（10/2〜11/1）→ 10月分 → 9月分（空いた 月）
+  await page.click('#hnMae');
+  await page.waitForTimeout(800);
+  await page.click('#hnMae');
+  await expect(page.locator('#slips')).toContainText(
+    '締めの 変え方で この 月の 給料が 無くなっています。会社に 知らせてください。'
+  );
+});
+
 test('売上の 直しが 読めない 業務が 在れば 本人の 明細を 出さない（事務所と 同じ 門）', async ({
   page,
 }) => {

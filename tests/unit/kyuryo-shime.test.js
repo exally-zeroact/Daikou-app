@@ -75,10 +75,9 @@ describe('★どの 形でも 全部の 日が ちょうど 1回★（2020〜203
       const r = zenbu(y.kata);
       expect(r.mondai.slice(0, 5)).toEqual([]);
       expect(r.nHi, '抜け/重なり ' + r.hi.join(',')).toBe(0);
-      // ★期が 0 の 月は 30日締め＋始まった月の分 だけ（2月の 前の 1/31 から 始まる 期は 1月分）★
-      const ari =
-        sh.kind === 'tsuki' && sh.nazuke === 'hajime' && sh.hi.length === 1 && sh.hi[0] === 30;
-      expect(r.kara.length > 0, '期が 0 の 月 ' + r.kara.slice(0, 3).join(',')).toBe(ari);
+      // ★期が 0 の 月は どの 形でも 0か月★（給料は 毎月 払う 決まり・労基法24条）
+      //   2026-10-19 前は 30日締め＋始まった月の分 で 2020〜2030 に 55か月 空いた（3/31〜4/30 が 3月分で 4月分 無し）＝tsukiKey で 直した
+      expect(r.kara.length, '期が 0 の 月 ' + r.kara.slice(0, 3).join(',')).toBe(0);
     });
   });
 });
