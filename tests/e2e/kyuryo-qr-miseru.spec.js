@@ -276,7 +276,9 @@ for (const d of [
     const onaji = await page.evaluate(() => {
       const o = document.getElementById('haifuMise');
       const dete = o.querySelector('svg').innerHTML;
-      const url = location.origin + '/kyuryo.html?t=7c4383b6aaaa1111bbbb2222cccc3333&c=07041B0C';
+      // ★先は 事務所の 公開の 住所（今 開いている 住所で ない）★ 2026-10-19
+      const url =
+        window.DKConfig.OFFICE_BASE + '/kyuryo.html?t=7c4383b6aaaa1111bbbb2222cccc3333&c=07041B0C';
       const q = window.qrcode(0, 'M');
       q.addData(url);
       q.make();

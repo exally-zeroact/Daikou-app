@@ -2764,7 +2764,15 @@
         function haifuUrl(x) {
           // ★配る URL★ … 同じ画面の ★本人モード★へ（?t= と 初回コード ?c=）
           //   ★初回コードは パスワードを 決めていない人だけ★（決めた人には 付けない）
-          var b = location.href.split('?')[0].split('#')[0];
+          // ★★先は いつも 事務所の 公開の 住所★★ 2026-10-19（司さん「QRも送るもおれのパソコンがネットに
+          //   繋がってないと使えん仕様にすんなや ほかのユーザーが使えるように考えろや」）
+          //   ★前★ 今 開いている 画面の 住所（location.href）＝パソコンの 中や 別の 住所から 開くと そこを 指した
+          //   ★今★ DKConfig.OFFICE_BASE（テスト線は テストの 住所・本番は 本番の 住所＝1か所で 決まる）
+          //   読めない 時だけ 今の 住所（前と 同じ）
+          var ofc = window.DKConfig && window.DKConfig.OFFICE_BASE;
+          var b = ofc
+            ? String(ofc).replace(/\/+$/, '') + '/kyuryo.html'
+            : location.href.split('?')[0].split('#')[0];
           return (
             b +
             '?t=' +
