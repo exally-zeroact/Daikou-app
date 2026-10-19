@@ -130,6 +130,9 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
   });
   // ★#set で 給料の 設定が もう 開いている★
   await page.waitForSelector('#pMode', { state: 'visible' });
+  // ★何日から を 空（最初から）に＝列を 直す 道を 見る★ 2026-10-19（既定は 今日＝記録に なる）
+  await page.fill('#pHi', '');
+  await page.dispatchEvent('#pHi', 'change');
   await page.selectOption('#pMode', 'tsuki1');
   // ★日を 空の まま 保存 ⇒ 末日締めに しない・保存しない★（対立役 ③）
   await page.click('#btnSaveSet');

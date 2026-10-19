@@ -126,6 +126,7 @@ async function nise(page, hajimete) {
         rireki: [], // ★本物の 関数は 必ず 返す（10-18：返らない 時は 止める）★
         yakuRireki: [],
         uriageRireki: [],
+        shimeRireki: [],
         uriageNaoshi: true, // 売上の 直しを 返す 版の 印（10-14：無い 時は 止める）
         manualDays: [],
       }),

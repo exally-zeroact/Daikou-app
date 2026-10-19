@@ -1845,6 +1845,16 @@
                ★今★ ★払い方を 一番 上に★ ⇒ ★選んだ 物に 要る 欄だけ 出す★ -->
           <table>
             <tbody>
+              <!-- ★何日から★ 2026-10-19（司さん 10-17「何日から変えれるかはユーザーが自由に指定できるように」・docs/nannichi-kara-shime.md）
+                   空＝最初から（今まで 通り 列を 直す） -->
+              <tr>
+                <td>何日から</td>
+                <td>
+                  <input type="date" class="hi-in" id="pHi" />
+                  <button class="btn ghost" type="button" id="pRirekiBtn">記録 0</button>
+                  <div class="th-sub" id="pHiChui"></div>
+                </td>
+              </tr>
               <tr>
                 <td>払い方</td>
                 <td>
@@ -1898,6 +1908,7 @@
             </tbody>
           </table>
           <div class="note" id="pMsg" style="margin-top: 8px"></div>
+          <div id="pRireki" style="display: none; margin-top: 8px"></div>
           <div style="margin-top: 12px">
             <button class="btn" id="btnSaveSet">保存する</button>
             <span class="saved" id="setSaved"></span>
@@ -2040,6 +2051,8 @@
           yakuRireki: [],
           // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
           uriageRireki: [],
+          // ★締めの 形の 変えた 記録（何日から）★ 2026-10-19＝null は 読めなかった（区切りが 止める）
+          shimeRireki: [],
         };
         var CTX = null;
         var REP = null;
@@ -2387,7 +2400,8 @@
         }
 
         // ★月を 動かす（0＝今の まま／-1＝前の月／+1＝次の月）★
-        function honninTsuki(zure) {
+        //   haba＝取る 幅（期が いつもの 幅の 外へ 出る 月だけ 広げて 渡す）
+        function honninTsuki(zure, haba) {
           var d = new Date(HN_Y, HN_M - 1 + zure, 1);
           var now = jstNow();
           // ★先の 月へは 行かせない★（締めが 月を またぐ 会社は 今日の 期の 月まで・10-07）
@@ -2401,7 +2415,7 @@
           HN_M = d.getMonth() + 1;
           var box = document.getElementById('slips');
           if (box) box.innerHTML = '<div class="card"><div class="msg">読み込み中…</div></div>';
-          var h = _honninHaba(HN_Y, HN_M);
+          var h = haba || _honninHaba(HN_Y, HN_M);
           honninRpc('dk_kyuryo_get', {
             p_token: HONNIN.token,
             p_pw: HONNIN.pw,
@@ -2473,6 +2487,14 @@
               return;
             }
             RAW.uriageRireki = r.uriageRireki;
+            // ★締めの 形の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-19（列の 形で 区切らない）
+            if (!Array.isArray(r.shimeRireki)) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">締めの 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+              return;
+            }
+            RAW.shimeRireki = r.shimeRireki;
             // ★売上の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-14
             //   返さないと 本人だけ メーターの 額で 計算し、事務所と 給料が 黙って ずれる（対立役）
             if (r.uriageNaoshi !== true) {
@@ -2482,7 +2504,7 @@
               return;
             }
             HN_YOMI = HN_Y + '-' + HN_M;
-            var st = PayrollDaily.normSettings(SET);
+            var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
             // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
             if (!st.periodKata || st.periodKata.dame) {
               if (box)
@@ -2504,6 +2526,23 @@
               }
             }
             PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, { kata: st.periodKata });
+            if (kikanKowareta(PERIODS)) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">' + esc(KIKAN_KOWARE_BUN) + '</div></div>';
+              return;
+            }
+            // ★期が 取った 幅の 外へ 出る（締めの 形が 変わる 月・始まった 日の 月の 分）＝1回だけ 広げて 取り直す★ 2026-10-19
+            //   取らないと 幅の 外の 日の 勤務が 0 の まま 明細に 出る（対立役 主張4）
+            //   ★記録の 在る 会社だけ★（記録0の 会社の 本人の 幅は 今の まま＝別件・1押し＝1件・対立役 2回目 直1）
+            if (PERIODS.length && !haba && st.periodKata.kind === 'rireki') {
+              var hS = PERIODS[0].start;
+              var hE = PERIODS[PERIODS.length - 1].end;
+              if (hS < h.from || hE > h.to) {
+                honninTsuki(0, { from: hS < h.from ? hS : h.from, to: hE > h.to ? hE : h.to });
+                return;
+              }
+            }
             if (!PERIODS.length) {
               if (box)
                 box.innerHTML =
@@ -2511,7 +2550,9 @@
               return;
             }
             // ★月3回は 今まで 通り 最初の 期★（今の 会社の 見え方を 変えない）・他は 今日を 含む 期
-            PIDX = st.periodKata.kind === 'thirds' ? 0 : kyouNoKi(PERIODS);
+            //   締めの 形が 月の 中で 変わる 月は その月の 形で 見る（何日から 2026-10-19）
+            var hnTk = PayrollPeriod.tsukiNoKata(st.periodKata, HN_Y, HN_M);
+            PIDX = hnTk && hnTk.kind === 'thirds' ? 0 : kyouNoKi(PERIODS);
             PERIOD = PERIODS[PIDX];
             recalc();
             TAB = 'slip';
@@ -2519,9 +2560,24 @@
           });
         }
 
+        // ★締めで 止めた 時も 給料の 設定を 開いて いれば 描く★ 2026-10-19（壊れた 記録を 消せる 様に・対立役 直5）
+        //   設定か 記録を 読めて いない 時は 描かない（既定の 値を 本物の 様に 見せない）
+        function shimeTomeSet() {
+          if (TAB === 'set' && !(SET && SET.yomenai) && Array.isArray(RAW.shimeRireki)) render();
+        }
+        // ★締めの 変えた 記録から 期を 区切れない（PayrollPeriod が dame の 期を 返した）★ 2026-10-19
+        var KIKAN_KOWARE_BUN =
+          '締めの 変えた 記録から 期を 区切れないので 止めました。「給料の 設定」の 明細の 期間で 記録を 直してください。';
+        function kikanKowareta(ps) {
+          return (ps || []).some(function (p) {
+            return p && p.dame;
+          });
+        }
         // ★★払い方（締め）が 読めない 時の 文★★ 2026-10-07（金額を 出さずに 止める）
         function shimeDameBun(kata) {
           // ★通信で 読めなかった 時は「選び直して」でなく「開き直して」★（対立役：選び直して 保存すると 本物の 設定が 既定で 上書き）
+          if (kata && kata.tsushin === true && kata.kiroku === true)
+            return '締めの 変えた 記録を 読めなかったので 止めました（通信）。もう一度 開いてください。';
           if (kata && kata.tsushin === true)
             return '給料の 設定を 読めなかったので 止めました（通信）。もう一度 開いてください。';
           return (
@@ -3400,11 +3456,14 @@
           var kSoft = function (p) {
             return DKSession.softList(SESS, kaishaDake(p), KST);
           };
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           // ★★締めの 形は 設定の 1か所★★ 2026-10-07（読めなければ 紙を 出さない）
           if (!st.periodKata || st.periodKata.dame)
             return Promise.reject(new Error(shimeDameBun(st.periodKata)));
           var ps = PayrollPeriod.periodsOf(y, m, { kata: st.periodKata });
+          // ★区切れない・この 月に 締める 期が 無い＝紙を 出さない★ 2026-10-19（暦の 日で 刷ると よその 月の 給料が 載る・対立役 止4）
+          if (kikanKowareta(ps)) return Promise.reject(new Error(KIKAN_KOWARE_BUN));
+          if (!ps.length) return Promise.reject(new Error('この 月に 締める 給料は ありません。'));
           var matsu = new Date(y, m, 0).getDate();
           var c1 = y + '-' + kamiPad(m) + '-01';
           var c2 = y + '-' + kamiPad(m) + '-' + kamiPad(matsu);
@@ -3472,6 +3531,7 @@
               rireki: RAW.rireki, // ★何日から★ 2026-10-18
               yakuRireki: yakuRirekiNoIma(),
               uriageRireki: RAW.uriageRireki,
+              shimeRireki: RAW.shimeRireki, // ★締めの 何日から★ 2026-10-19
               salesSettings: RAW.salesSettings,
               payrollSettings: SET,
             });
@@ -3485,13 +3545,15 @@
                 hibi.push(d);
               });
             });
-            if (!hibi.length)
-              for (var i = 1; i <= matsu; i++) hibi.push(y + '-' + kamiPad(m) + '-' + kamiPad(i));
             return {
               ps: ps,
               hibi: hibi,
               // ★毎日 払いは 期の 列を 出さない★（31列は 紙に 入らない）
-              mainichi: !!(st.periodKata && st.periodKata.kind === 'hi'),
+              //   締めの 形が 月の 中で 変わる 月は その月の 形で 見る（何日から 2026-10-19）
+              mainichi: !!(
+                PayrollPeriod.tsukiNoKata(st.periodKata, y, m) &&
+                PayrollPeriod.tsukiNoKata(st.periodKata, y, m).kind === 'hi'
+              ),
               matsu: matsu,
               kire: kire,
               kikanRep: ps.map(function (x) {
@@ -4114,6 +4176,7 @@
         var RIREKI_YOMI = { tried: 0, failed: 0 };
         var YAKU_RIREKI_YOMI = { tried: 0, failed: 0 };
         var URIAGE_RIREKI_YOMI = { tried: 0, failed: 0 };
+        var SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }; // ★締めの 記録★ 2026-10-19
         function loadMasters() {
           LOAD.tried = 0;
           LOAD.failed = 0;
@@ -4145,8 +4208,18 @@
               kaishaDake('dk_uriage_rireki?select=*&order=from_date.asc&limit=100000'),
               URIAGE_RIREKI_YOMI
             )),
+            // ★締めの 形の 変えた 記録（何日から）★ 2026-10-19＝res[7]
+            ((SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(
+              SESS,
+              kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+              SHIME_RIREKI_YOMI
+            )),
           ]).then(function (res) {
             RAW.employees = res[0] || [];
+            LOAD.tried += SHIME_RIREKI_YOMI.tried;
+            LOAD.failed += SHIME_RIREKI_YOMI.failed;
+            RAW.shimeRireki = SHIME_RIREKI_YOMI.failed > 0 ? null : res[7] || [];
             LOAD.tried += URIAGE_RIREKI_YOMI.tried;
             LOAD.failed += URIAGE_RIREKI_YOMI.failed;
             RAW.uriageRireki = URIAGE_RIREKI_YOMI.failed > 0 ? null : res[6] || [];
@@ -4186,7 +4259,7 @@
           LP_YOMICHU = true; // ★読み込み中は 明細の PDF を 作らない★（対立役 10-08 A）
           LOAD.tried = LOAD_KIHON.tried; // ★期間の 分は 読み直す 度に 数え直す★
           LOAD.failed = LOAD_KIHON.failed;
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
           //   読めない ⇒ ★止める★（前は 知らない 値を 黙って 月3回に した）
           if (!st.periodKata || st.periodKata.dame) {
@@ -4197,6 +4270,7 @@
             showMsg('');
             showErr(shimeDameBun(st.periodKata));
             LP_YOMICHU = false; // ★止めた／期が 無い＝読み込み中 では ない★
+            shimeTomeSet();
             return;
           }
           if (!YM_KIMETA) {
@@ -4204,6 +4278,17 @@
             YM = kyouNoTsuki(st.periodKata);
           }
           PERIODS = PayrollPeriod.periodsOf(YM.year, YM.month, { kata: st.periodKata });
+          if (kikanKowareta(PERIODS)) {
+            PERIODS = [];
+            PERIOD = null;
+            if ($('slips')) $('slips').innerHTML = '';
+            renderPeriodBar();
+            showMsg('');
+            showErr(KIKAN_KOWARE_BUN);
+            LP_YOMICHU = false;
+            shimeTomeSet();
+            return;
+          }
           if (!PERIODS.length) {
             PERIOD = null;
             if ($('slips')) $('slips').innerHTML = '';
@@ -6499,7 +6584,7 @@
 
         // ── 従業員 ─────────────────────────────
         function roleNames() {
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           return Object.keys(st.roles);
         }
 
@@ -7156,7 +7241,7 @@
           if (!role) return null; // まだ何も打っていない人には出さない
           var st;
           try {
-            st = PayrollDaily.normSettings(SET);
+            st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           } catch (_) {
             return null;
           }
@@ -7196,7 +7281,7 @@
         // 役割の値（打たなかった時にどうなるかを薄く見せる）
         function _roleRateOf(role, hi) {
           try {
-            var st = PayrollDaily.normSettings(SET);
+            var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
             var r = yakuNoHiAtai(role || '', hi) || st.roles[role || ''];
             return r ? String(r.rate) : '';
           } catch (_) {
@@ -7205,7 +7290,7 @@
         }
         function _roleFloorOf(role, hi) {
           try {
-            var st = PayrollDaily.normSettings(SET);
+            var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
             var r = yakuNoHiAtai(role || '', hi) || st.roles[role || ''];
             return r ? String(r.floor) : '';
           } catch (_) {
@@ -7341,13 +7426,24 @@
             ms.textContent = r.riyuu;
             return;
           }
+          // ★記録と 合わせた 区切り★（何日から 2026-10-19＝選んだ 日から この 形に した 時の 本当の 区切り・切り替わりの 短い 期も 出る）
+          var zen = shimeMitoshi(y.kata);
+          if (zen && zen.dame) {
+            ms.textContent = zen.riyuu || '締めの 記録が 読めません';
+            return;
+          }
           var ima = jstNow();
           var ym = { year: ima.getFullYear(), month: ima.getMonth() + 1 };
+          // 選んだ 日の 月と 次の 月（過去の 日でも 切り替わりの 月が 見える・対立役 小3）
+          var hh = shimeHi();
+          if (hh) ym = { year: Number(hh.slice(0, 4)), month: Number(hh.slice(5, 7)) };
           var gyou = [0, 1].map(function (z) {
             var t2 = PayrollPeriod.shift(ym, z);
-            var ps = PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata });
+            var kk = zen || r.kata;
+            var ps = PayrollPeriod.periodsOf(t2.year, t2.month, { kata: kk });
+            var tk = PayrollPeriod.tsukiNoKata(kk, t2.year, t2.month);
             var naka =
-              r.kata.kind === 'hi'
+              tk && tk.kind === 'hi'
                 ? '1日ずつ（' + ps.length + '回）'
                 : ps.length
                   ? ps
@@ -7366,12 +7462,273 @@
             if (!n) return;
             n.addEventListener('change', kikanDashiwake);
             n.addEventListener('input', kikanDashiwake);
+            // ★欄を 触ったか★（触って いない 時は 日付が 在っても 記録を 書かない・対立役 直4）
+            n.addEventListener('change', function () {
+              SHIME_SAWATTA = true;
+            });
+            n.addEventListener('input', function () {
+              SHIME_SAWATTA = true;
+            });
           });
+          if ($('pHi'))
+            $('pHi').addEventListener('change', function () {
+              SHIME_HI = $('pHi').value || '';
+              shimeKataIreru();
+              renderShimeRireki();
+            });
+          if ($('pRirekiBtn'))
+            $('pRirekiBtn').onclick = function () {
+              SHIME_RIREKI_HIRAKU = !SHIME_RIREKI_HIRAKU;
+              renderShimeRireki();
+            };
         })();
+        // ★★締めの 形の「何日から」★★ 2026-10-19（docs/nannichi-kara-shime.md）
+        //   記録は dk_shime_rireki（列 period_shime に 置かない＝古い 版の 画面が 保存しても 消えない）
+        //   日付が 在る 保存＝列の 締めは 変えず、欄の 形が その 日の 形と 違えば 記録を 書く／空＝列を 直す
+        var SHIME_HI = null; // 選んだ 日（null＝まだ 選んで いない＝今日・''＝最初から）
+        var SHIME_SAWATTA = false; // 締めの 欄を 触ったか
+        var SHIME_RIREKI_HIRAKU = false;
+        function shimeHi() {
+          return SHIME_HI === null ? kyouJst() : SHIME_HI;
+        }
+        // 列の 形（記録より 前の 日）。読めなければ null
+        function shimeRetsuKata() {
+          if (!SET || SET.yomenai) return null;
+          var y = PayrollPeriod.yomu(SET);
+          return y && y.ok ? y.kata : null;
+        }
+        // 選んだ 日に 効く 形（計算と 同じ 引き方）。空・読めない＝null（列の 形を 出す）
+        function shimeNoHiKata(hi) {
+          if (!hi || !Array.isArray(RAW.shimeRireki)) return null;
+          var b = shimeRetsuKata();
+          if (!b) return null;
+          var k = PayrollPeriod.rirekiKata(b, RAW.shimeRireki);
+          if (!k || k.dame) return null;
+          return PayrollPeriod.kataNoHi(k, hi);
+        }
+        // 欄の 形（raw）を 選んだ 日から 入れた 時の 区切り（記録 込み）。日付が 空＝欄の 形を 列に した 時
+        function shimeMitoshi(rawKata) {
+          if (!Array.isArray(RAW.shimeRireki)) return null;
+          var hi = shimeHi();
+          var mine = rawKata || { kind: 'tsuki', hi: [10, 20, 0] };
+          if (!hi) {
+            var t = PayrollPeriod.seiki(mine);
+            if (!t.ok) return null;
+            return PayrollPeriod.rirekiKata(t.kata, RAW.shimeRireki);
+          }
+          var b = shimeRetsuKata();
+          if (!b) return null;
+          var rows = RAW.shimeRireki
+            .filter(function (x) {
+              return x && String(x.from_date).slice(0, 10) !== hi;
+            })
+            .concat([{ from_date: hi, value: mine }]);
+          return PayrollPeriod.rirekiKata(b, rows);
+        }
+        var YOUBI_NA = ['日', '月', '火', '水', '木', '金', '土'];
+        // 形の 字（記録の 一覧）
+        function shimeNoNa(v) {
+          var t = PayrollPeriod.seiki(v);
+          if (!t.ok) return '読めない 形（' + t.riyuu + '）＝消してください';
+          var k = t.kata;
+          var nz = k.nazuke === 'hajime' ? '・始まった 日の 月の 分' : '';
+          if (k.kind === 'thirds') return '月3回（10日・20日・末日 締め）';
+          if (k.kind === 'hi') return '毎日';
+          if (k.kind === 'shuu') return '週1回（' + YOUBI_NA[k.youbi] + '曜 締め' + nz + '）';
+          var hiJi = k.hi
+            .map(function (h) {
+              return h === 0 ? '末日' : h + '日';
+            })
+            .join('・');
+          var kosu = k.hi[k.hi.length - 1] !== 0;
+          return (
+            '締め日 ' +
+            hiJi +
+            (kosu
+              ? k.nazuke === 'hajime'
+                ? '・始まった 日の 月の 分'
+                : '・締めた 日の 月の 分'
+              : '')
+          );
+        }
+        function renderShimeRireki() {
+          var l = Array.isArray(RAW.shimeRireki)
+            ? RAW.shimeRireki.slice().sort(function (a, b) {
+                return a.from_date < b.from_date ? -1 : a.from_date > b.from_date ? 1 : 0;
+              })
+            : null;
+          if ($('pHi') && $('pHi').value !== shimeHi()) $('pHi').value = shimeHi();
+          if ($('pRirekiBtn')) $('pRirekiBtn').textContent = '記録 ' + (l ? l.length : '?');
+          var hi = shimeHi();
+          var chui = '';
+          if (!l)
+            chui = '締めの 変えた 記録を 読めませんでした。開き直してください（保存しません）。';
+          else if (hi) {
+            chui = hi + ' から 次の 記録の 日まで、この 払い方で 区切ります。';
+            var tsugi = l
+              .map(function (x) {
+                return String(x.from_date).slice(0, 10);
+              })
+              .filter(function (d) {
+                return d > hi;
+              })[0];
+            if (tsugi) chui += '（' + tsugi + ' の 記録まで）';
+            chui += ' 切り替わりの 期は 短く なります。';
+          } else if (l.length)
+            chui =
+              '空（最初から）＝ ' +
+              String(l[0].from_date).slice(0, 10) +
+              ' より 前の 日だけ 変わります。';
+          if ($('pHiChui')) $('pHiChui').textContent = chui;
+          var box = $('pRireki');
+          if (!box) return;
+          box.style.display = SHIME_RIREKI_HIRAKU ? '' : 'none';
+          if (!SHIME_RIREKI_HIRAKU) return;
+          var h =
+            '<div class="rireki-waku"><b>締めの 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 払い方）' +
+            '<div class="th-sub">形を 直す 時は「何日から」に その 日を 入れて 払い方を 選び直し「保存する」</div>';
+          if (!l) h += '<div class="rolewarn">記録を 読めませんでした。開き直してください。</div>';
+          else if (!l.length) h += '<div class="th-sub">まだ 記録は ありません。</div>';
+          (l || []).forEach(function (x) {
+            h +=
+              '<div class="rireki-r"><input type="date" data-sk-hi="' +
+              esc(x.rireki_id) +
+              '" value="' +
+              esc(String(x.from_date).slice(0, 10)) +
+              '"> から ' +
+              esc(shimeNoNa(x.value)) +
+              ' <button class="btn ghost" type="button" data-sk-del="' +
+              esc(x.rireki_id) +
+              '">消す</button></div>';
+          });
+          box.innerHTML = h + '</div>';
+          Array.prototype.forEach.call(box.querySelectorAll('[data-sk-hi]'), function (i) {
+            i.onchange = function () {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(i.value)) return showErr('日付を 入れてください。');
+              rirekiKaku(
+                'dk_shime_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-sk-hi')),
+                'PATCH',
+                { from_date: i.value }
+              )
+                .then(shimeRirekiOwari('日付を 直せませんでした。', '日付を 直しました'))
+                .catch(function () {
+                  // 訳は 読み直し（loadPeriod が 字を 消す）の 後に 出す
+                  return shimeRirekiYomiNaoshi().then(function () {
+                    showErr('日付を 直せませんでした。');
+                  });
+                });
+            };
+          });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-sk-del]'), function (b) {
+            b.onclick = function () {
+              rirekiKaku(
+                'dk_shime_rireki?rireki_id=eq.' + encodeURIComponent(b.getAttribute('data-sk-del')),
+                'DELETE'
+              )
+                .then(shimeRirekiOwari('消せませんでした。', '消しました'))
+                .catch(function () {
+                  // 訳は 読み直し（loadPeriod が 字を 消す）の 後に 出す
+                  return shimeRirekiYomiNaoshi().then(function () {
+                    showErr('消せませんでした。');
+                  });
+                });
+            };
+          });
+        }
+        //   nokosu＝欄を 倉庫の 形に 戻さない（書けなかった 時＝選んだ 形を 残して もう一度 押せる・対立役 3回目 直1）
+        function shimeRirekiYomiNaoshi(nokosu) {
+          var y = { tried: 0, failed: 0 };
+          return DKSession.softList(
+            SESS,
+            kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+            y
+          ).then(function (rows) {
+            RAW.shimeRireki = y.failed > 0 ? null : rows || [];
+            recalc();
+            shimeKataIreru(!nokosu);
+            renderShimeRireki();
+            loadPeriod(); // 期が 変わる
+            return RAW.shimeRireki;
+          });
+        }
+        function shimeRirekiOwari(msg, flashMsg) {
+          return function (x) {
+            if (!x.ok) {
+              // ★読み直し（loadPeriod が 字を 消す）の 後に 訳を 出す★（前は 訳が すぐ 消えた・2026-10-19）
+              return shimeRirekiYomiNaoshi().then(function () {
+                if (x && x.r && x.r.status === 409)
+                  showErr(
+                    'その 日には もう 締めの 記録が 在ります。そちらを 直すか 消してください。'
+                  );
+                else if (x && x.zero)
+                  showErr(msg + '（書けた 行が ありません。開き直してください）');
+                else saveErr(msg, x && x.r);
+              });
+            }
+            showErr('');
+            return shimeRirekiYomiNaoshi().then(function () {
+              if (flashMsg) flash('setSaved', flashMsg);
+            });
+          };
+        }
+        // ★保存の 後に 締めの 記録を 書く★（倉庫の 今の 記録を 読み直して 比べる・同じ 形なら 書かない＝対立役 直4）
+        //   返り：'' ＝書いた／書かなくて よかった ・ 字＝書けなかった 訳
+        function shimeKirokuKaku(hi, rawKata) {
+          var y = { tried: 0, failed: 0 };
+          var mine = rawKata || { kind: 'tsuki', hi: [10, 20, 0] };
+          return DKSession.softList(
+            SESS,
+            kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+            y
+          ).then(function (rows) {
+            if (y.failed > 0) return '締めの 記録を 読み直せませんでした（通信）';
+            RAW.shimeRireki = rows || [];
+            var b = shimeRetsuKata();
+            var k = b ? PayrollPeriod.rirekiKata(b, RAW.shimeRireki) : null;
+            var t = PayrollPeriod.seiki(mine);
+            if (!t.ok) return t.riyuu;
+            if (
+              k &&
+              !k.dame &&
+              JSON.stringify(PayrollPeriod.kataNoHi(k, hi)) === JSON.stringify(t.kata)
+            )
+              return '';
+            return DKSession.rest(SESS, 'dk_shime_rireki?on_conflict=company_id,from_date', {
+              method: 'POST',
+              headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+              body: JSON.stringify({ company_id: COMPANY.company_id, from_date: hi, value: mine }),
+            }).then(function (r) {
+              if (r && (r.status === 401 || r.status === 403))
+                return 'ログインが 切れました。ログインし直してください';
+              if (!r || !r.ok) return '倉庫が 断りました（' + (r ? r.status : '?') + '）';
+              return r.json().then(function (j) {
+                return Array.isArray(j) && j.length === 1 ? '' : '書けた 行が ありません';
+              });
+            });
+          });
+        }
         // ★★倉庫の 設定 → 画面の 欄★★
-        function shimeKataIreru() {
+        //   tsuyoku＝触った 欄も 倉庫の 形に 戻す（保存・記録の 読み直しの 後だけ）
+        //   ★触った 欄は 役割の 足し消し・タブ・日付の 変更で 黙って 戻さない★（対立役 2回目 直3）
+        function shimeKataIreru(tsuyoku) {
+          if (SHIME_SAWATTA && !tsuyoku) {
+            kikanDashiwake();
+            return;
+          }
           var sh = SET && SET.period_shime;
           var mo = SET && SET.period_end_mode;
+          // ★日付が 在る＝その 日に 効く 形を 出す★（何日から 2026-10-19・列の 形を 出すと 直した 後に 戻って 見える）
+          var hiNoK = shimeNoHiKata(shimeHi());
+          if (hiNoK) {
+            if (hiNoK.kind === 'thirds') {
+              sh = null;
+              mo = 'thirds';
+            } else {
+              sh = hiNoK;
+              mo = 'shime';
+            }
+          }
+          SHIME_SAWATTA = false;
           $('pShimeHi').value = '';
           $('pNarabe').value = '';
           $('pYoubi').value = '0';
@@ -7407,7 +7764,7 @@
         }
 
         function renderSet() {
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           kikanDashiwake();
           renderRoles();
           hokaKaku(st);
@@ -7419,6 +7776,7 @@
           // ★既定は 載せる（true）★＝倉庫にまだ無い会社も 今までと同じ見た目
           $('showCarSales').checked = !(SET && SET.show_car_sales === false);
           shimeKataIreru(); // ★締めの 形★ 2026-10-07
+          renderShimeRireki(); // ★締めの 何日から★ 2026-10-19
 
           var devs = ((CTX && CTX.devices) || []).slice();
           // ★今の 自分の 車が 名簿に 無くても 選び肢に 残す★ 2026-10-16 対立役
@@ -7446,7 +7804,7 @@
         // ★役割の 表だけ 描き直す★ 2026-10-18（何日から・対立役 3回目 直2）
         //   日付・記録・値の 直しで renderSet を 呼ぶと、打っただけで 保存していない 積立・締め 等の 欄が SET の 値に 戻った
         function renderRoles() {
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           var html = '';
           // data-l は★スマホで1行1枚にした時の見出し★（横スクロールさせない）
           //   ★欄には 選んだ 日に 効く 値★（何日から 10-18・対立役 止2＝列の 値を 出すと 直した 後に 戻って 見える）
@@ -7497,7 +7855,7 @@
           Array.prototype.forEach.call(document.querySelectorAll('[data-role-del]'), function (b) {
             b.onclick = function () {
               var r = b.getAttribute('data-role-del');
-              var st2 = PayrollDaily.normSettings(SET);
+              var st2 = PayrollDaily.normSettings(SET, RAW.shimeRireki);
               // ★最後の 1つは 消させない★（空に すると 既定の 役割に 黙って 戻る）2026-10-17
               if (Object.keys(st2.roles).length <= 1)
                 return showErr('役割を 全部 消す 事は できません。1つは 残してください。');
@@ -7531,7 +7889,7 @@
           });
           Array.prototype.forEach.call(document.querySelectorAll('[data-role]'), function (i) {
             i.onchange = function () {
-              var st2 = PayrollDaily.normSettings(SET);
+              var st2 = PayrollDaily.normSettings(SET, RAW.shimeRireki);
               var old = i.getAttribute('data-role');
               var f = i.getAttribute('data-f');
               var cur = st2.roles[old] || { rate: 0, floor: 0 };
@@ -7960,7 +8318,10 @@
         function yakuMotoKesu() {
           YAKU_MOTO = {};
           // 設定の 行が まだ 無い 会社も 画面は 既定の 役割を 出している＝その 名前を 直したら 人も 直す（対立役 S2）
-          YAKU_YOMI = SET && SET.yomenai ? [] : Object.keys(PayrollDaily.normSettings(SET).roles);
+          YAKU_YOMI =
+            SET && SET.yomenai
+              ? []
+              : Object.keys(PayrollDaily.normSettings(SET, RAW.shimeRireki).roles);
         }
         // その 役割の 人（辞めた 人も）の 名前。人の 役割は 保存までは 読み込んだ 時の 名前の まま
         function yakuNoHito(r) {
@@ -8315,7 +8676,7 @@
             return showErr(
               '役割の 変えた 記録を 読めていないので 足せません。開き直してください。'
             );
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
           var i = 1;
           while (
             st.roles['役割' + i] ||
@@ -8347,7 +8708,21 @@
             return showErr(
               '給料の 設定を 読めていないので 保存しません。もう一度 開いてください。'
             );
-          var st = PayrollDaily.normSettings(SET);
+          var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+          // ★締めの 変えた 記録を 読めて いない 時は 保存しない★ 2026-10-19（列だけ 直すと 記録との 食い違いが 見えない）
+          if (!Array.isArray(RAW.shimeRireki))
+            return showErr(
+              '締めの 変えた 記録を 読めていないので 保存しません。開き直してください。'
+            );
+          var shHi = shimeHi();
+          if (shHi && !/^\d{4}-\d{2}-\d{2}$/.test(shHi))
+            return showErr('何日からの 日付を 入れてください。');
+          var shKaku = !!shHi && SHIME_SAWATTA; // ★日付が 在って 欄を 触った 時だけ 記録を 書く★
+          // ★最初からの 形（列）が 読めない 時は 記録を 書いても 止まった まま★＝空で 直して もらう（対立役 2回目 直4）
+          if (shHi && !shimeRetsuKata())
+            return showErr(
+              '最初からの 払い方が 読めないので、何日からの 記録では 直せません。「何日から」を 空にして 払い方を 選び直し、保存してください。'
+            );
           // ★★締めの 形を 確かめてから 保存★★ 2026-10-07（壊れた 形・何月分 無しは 保存しない）
           var sk = shimeKataYomu();
           if (sk.dame) return showErr(sk.dame);
@@ -8363,10 +8738,15 @@
             reserve_owner_rate: num($('resOwner').value) / 100,
             // ★昔の 列は 今の 値を そのまま 運ぶ★（月3回 以外は 'shime'＝新しい 版は period_shime を 読む）
             period_start_day: st.periodStartDay,
-            period_end_mode: sk.kata ? 'shime' : 'thirds',
+            //   ★日付が 在る 時は 列の 締めを 読んだ 値の まま 運ぶ★（その 日からは 記録・何日から 2026-10-19）
+            period_end_mode: shHi
+              ? (SET && SET.period_end_mode) || 'thirds'
+              : sk.kata
+                ? 'shime'
+                : 'thirds',
             period_days: st.periodDays,
             // ★月3回に 戻す 時は null を はっきり 書く★（書かないと 古い 締めが 勝ち続ける・対立役 J）
-            period_shime: sk.kata,
+            period_shime: shHi ? (SET && SET.period_shime) || null : sk.kata,
             owner_device_id: $('ownerDev').value || '',
             show_car_sales: $('showCarSales').checked, // ★車ごとの売上を載せるか★ 2026-08-25
             roles: st.roles,
@@ -8503,7 +8883,28 @@
               // ★下に 貼り付けた 側にも 同じ 合図を 出す★ 2026-09-04
               //   （下のボタンから 押した時に ★何も 起きていない様に 見える★のを 防ぐ）
               if (document.getElementById('setSaved2')) flash('setSaved2', '保存しました');
-              loadPeriod(); // 期間が変わることがあるので読み直す
+              if (!shKaku) {
+                SHIME_SAWATTA = false; // 保存できた＝欄は 倉庫の 形
+                loadPeriod(); // 期間が変わることがあるので読み直す
+                return;
+              }
+              // ★締めの 記録（何日から）は 設定を 保存 できた 後に 書く★
+              return shimeKirokuKaku(shHi, sk.kata)
+                .catch(function () {
+                  return '倉庫に 届きませんでした';
+                })
+                .then(function (wake) {
+                  if (!wake) SHIME_SAWATTA = false; // 書けた＝読み直しで 欄を 倉庫の 形へ
+                  // ★訳は 読み直し（loadPeriod が 字を 消す）の 後に 出す★
+                  return shimeRirekiYomiNaoshi(!!wake).then(function () {
+                    if (wake)
+                      showErr(
+                        '締めの 払い方は 保存できませんでした（' +
+                          wake +
+                          '）。他は 保存しました。もう一度「保存する」を 押してください。'
+                      );
+                  });
+                });
             })
             .catch(function () {
               showErr('給料の設定を保存できませんでした。');

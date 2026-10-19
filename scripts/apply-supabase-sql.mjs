@@ -41,6 +41,23 @@ export function kagiNoNa(f) {
 // ★ファイルごとの当てた後の確かめ★（2026-10-17 対立役 N7）棚の数だけでは、窓の列や守りが入ったか分からない。
 //   q を読んで ok(rows) が true の時だけ OK。
 export const ATO_NO_KAKUNIN = {
+  'supabase/apply-shime-rireki.sql': [
+    {
+      w: '窓 public.dk_shime_rireki が security_invoker=true',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_shime_rireki' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: 'daikome.dk_shime_rireki に 持ち主の policy が 4本',
+      q: "select count(*)::int as n from pg_policies where schemaname='daikome' and tablename='dk_shime_rireki'",
+      ok: (rows) => rows?.[0]?.n === 4,
+    },
+    {
+      w: '同じ 会社・同じ 日の unique（on_conflict=company_id,from_date が 効く）',
+      q: "select count(*)::int as n from pg_constraint where conname='dk_shime_rireki_uq' and contype='u'",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+  ],
   'supabase/apply-jugyoin-taishoku.sql': [
     {
       w: 'dk_employees（窓）に retired_on が在る',

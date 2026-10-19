@@ -143,10 +143,24 @@
         out.dame = true;
         out.riyuu = kata.riyuu || '払い方の 設定が 読めません';
         out.tsushin = kata.tsushin === true;
+        out.kiroku = kata.kiroku === true; // 締めの 変えた 記録を 読めなかった（画面の 字を 分ける 印）
         return out;
       }
-      out.kind = kata.kind;
+      // ★締めの 形の 何日から★ 2026-10-19＝その月の 形（記録で 形が 混ざる 月は 'rireki'）
+      const tsukiKata = Period.tsukiNoKata(kata, y, m);
+      out.kind = tsukiKata ? tsukiKata.kind : 'rireki';
+      out.kataKagi = tsukiKata ? JSON.stringify(tsukiKata) : '';
       const periods = Period.periodsOf(y, m, { kata: kata });
+      // ★区切れない（記録の 道で 転んだ）＝止める★（0円で 黙って 進まない・対立役 止3）
+      if (
+        periods.some(function (p) {
+          return p && p.dame;
+        })
+      ) {
+        out.dame = true;
+        out.riyuu = '締めの 変えた 記録から 期を 区切れません';
+        return out;
+      }
       periods.forEach(function (p) {
         // ★★給料は その月に 締めた 期の 全部の 日★★（司さん 10-07「イ」＝月を またぐ 期も 期の 全部）
         //   足し順は 今まで 通り（期の 中の 日 → 期の 小計 → 月）＝月3回の 数は ビットで 変わらない
@@ -229,13 +243,21 @@
           out.total.dame = true;
           out.total.riyuu = mm.riyuu;
           out.total.tsushin = mm.tsushin === true;
+          out.total.kiroku = mm.kiroku === true;
           if (mm.uriage) out.total.uriage = true;
           if (mm.yaku) out.total.yaku = true;
           if (mm.uriageRireki) out.total.uriageRireki = true;
         }
       });
       const byIdx = {};
+      // ★形が 変わった 年は 期ごとの 合計を 出さない★ 2026-10-19（違う 区切りの n回目を 同じ 列に 足さない・対立役 直2）
+      const kagi = {};
       out.months.forEach(function (mm) {
+        if (!mm.dame) kagi[mm.kataKagi || ''] = 1;
+      });
+      const hitotsu = Object.keys(kagi).length <= 1 && !kagi[''];
+      out.months.forEach(function (mm) {
+        if (!hitotsu) return;
         if (mm.kind !== 'thirds' && mm.kind !== 'tsuki') return;
         arr(mm.periods).forEach(function (p) {
           if (!byIdx[p.index])

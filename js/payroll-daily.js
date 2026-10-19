@@ -127,7 +127,8 @@
   }
 
   // ─── 設定（DBの行 → 計算エンジンの設定）──────────────────
-  function normSettings(row) {
+  //   shimeRows＝dk_shime_rireki の 行（締めの 形の 何日から・2026-10-19）。undefined＝記録 無し・null＝読めなかった（止める）
+  function normSettings(row, shimeRows) {
     const Payroll = _need('DaikoPayroll', './daiko-payroll.js');
     const base = Payroll
       ? Payroll.normSettings(null)
@@ -165,7 +166,7 @@
       const yomi = Period ? Period.yomu(r) : null;
       out.periodKata = yomi
         ? yomi.ok
-          ? yomi.kata
+          ? Period.rirekiKata(yomi.kata, shimeRows)
           : yomi
         : { dame: true, riyuu: '区切りの 道具が 読めません' };
       return out;
@@ -185,7 +186,7 @@
   function buildCtx(raw) {
     const Uriage = _need('UriageAgg', './uriage-agg.js');
     const ctx = {
-      settings: normSettings(raw && raw.payrollSettings),
+      settings: normSettings(raw && raw.payrollSettings, raw ? raw.shimeRireki : undefined),
       salesSettings: raw ? raw.salesSettings : null,
       byDate: {}, // 日付 → { 車ID → {sales, expense, hours, label} }
       hoursByDate: {}, // 日付 → { 従業員ID → {device_id, hours} }

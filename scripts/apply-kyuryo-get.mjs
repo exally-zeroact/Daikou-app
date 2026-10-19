@@ -50,6 +50,8 @@ export const ARU = [
     'from daikome.dk_uriage_rireki u',
     '売上から 引く 物の 変えた 記録は 記録の 表から 読む（10-18）',
   ],
+  ["'shimeRireki', (", '締めの 形の 変えた 記録を 返す（何日から・10-19）'],
+  ['from daikome.dk_shime_rireki k', '締めの 形の 変えた 記録は 記録の 表から 読む（10-19）'],
   ['and a.employee_id = r.employee_id', '手当・控除は 本人の 分だけ（10-06）'],
   ["'taishoku'", '辞めた 人は 働いた 日を 含む 93 日 以内 だけ（会社の 売上を 見続けない・10-16）'],
   // ★'taishoku' の 字だけでは 62 日の 古い 版・p_to を 切らない 版・直しを 絞らない 版でも OK に なった（対立役 N7・10-17）★

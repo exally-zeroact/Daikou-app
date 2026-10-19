@@ -279,6 +279,14 @@ begin
         where u.company_id = r.company_id
       ) x
     ),
+    -- ★★締めの 形の 変えた 記録（何日から）★★ 2026-10-19（docs/nannichi-kara-shime.md）＝会社の 記録
+    'shimeRireki', (
+      select coalesce(jsonb_agg(to_jsonb(x) order by x.from_date), '[]'::jsonb) from (
+        select k.from_date, k.value
+        from daikome.dk_shime_rireki k
+        where k.company_id = r.company_id
+      ) x
+    ),
     -- ★★自分の 手当・控除だけ★★ 2026-10-06（司さん「ア」）＝他の 人の 行は 返さない
     'adjustments', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (

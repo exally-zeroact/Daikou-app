@@ -95,6 +95,7 @@ async function openKyuryo(page, naosu, opts) {
     ' if(p.indexOf("dk_hito_rireki")===0)return F.rireki||[];' +
     ' if(p.indexOf("dk_yaku_rireki")===0)return F.yakuRireki||[];' +
     ' if(p.indexOf("dk_uriage_rireki")===0)return F.uriageRireki||[];' +
+    ' if(p.indexOf("dk_shime_rireki")===0)return F.shimeRireki||[];' +
     ' return [];}' +
     'var S=window.DKSession;' +
     'S.ensure=function(){return Promise.resolve({token:"dummy"});};' +

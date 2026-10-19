@@ -75,6 +75,7 @@ async function nise(page, hajimete, mazeru) {
         rireki: [], // ★本物の 関数は 必ず 返す（10-18：返らない 時は 止める）★
         yakuRireki: [],
         uriageRireki: [],
+        shimeRireki: [],
         uriageNaoshi: true, // 売上の 直しを 返す 版の 印（10-14：無い 時は 止める）
         manualDays: [],
         ...(mazeru || {}),
@@ -213,6 +214,19 @@ test('本人の 関数が 売上から 引く 物の 記録を 返さない 時�
   await page.waitForTimeout(1200);
   await expect(page.locator('#slips')).toContainText(
     '売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。'
+  );
+});
+
+// ★締めの 形の 記録を 返さない（古い 倉庫の 関数）★ 2026-10-19（列の 形で 黙って 区切らない）
+//   わざと壊して 赤：kyuryo.html の Array.isArray(r.shimeRireki) の 止めを 外す ⇒ 赤（明細が 出た）
+test('本人の 関数が 締めの 記録を 返さない 時は 明細を 出さない', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false, { shimeRireki: undefined });
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#slips')).toContainText(
+    '締めの 記録を 読めなかったので 出せません。会社に 知らせてください。'
   );
 });
 

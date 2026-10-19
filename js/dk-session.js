@@ -409,6 +409,7 @@
     dk_hito_rireki: 'from_date.asc,rireki_id.asc',
     dk_yaku_rireki: 'from_date.asc,rireki_id.asc',
     dk_uriage_rireki: 'from_date.asc,rireki_id.asc',
+    dk_shime_rireki: 'from_date.asc,rireki_id.asc',
   };
   function tanomiKazu(p) {
     const m = /[?&]limit=(\d+)/.exec(String(p));
