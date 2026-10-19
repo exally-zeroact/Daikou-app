@@ -845,10 +845,6 @@
         opacity: 0.5;
       }
 
-      .chips select {
-        font-size: 16px;
-      }
-
       .carkesu {
         background: none;
         border: none;
@@ -5824,6 +5820,8 @@
           if (!PERIOD) return;
           hibar();
           box.className = 'dlist';
+          // 1台に 乗る 人の 数（代行は 運転手と 随伴の 2人）。この 数に なったら 札を 出さない
+          var NORI_MAX = 2;
           var actives = RAW.employees.filter(function (e) {
             return e.active !== false;
           });
@@ -6105,7 +6103,11 @@
                     '">✕</button></div>';
                 });
 
-                // 足す（その日 まだ 乗っていない 人を 札で 並べる。多い 時は 選ぶ 箱）
+                // 足す（その日 まだ 乗っていない 人を 札で 並べる）
+                // ★★いつも 札★★ 2026-10-19（司さん「最初だけ選ぶで人選ぶけど2人からこの選び方になってるのはなぜ？
+                //   これなら最初から見せて2人選んだら消えるようにしろや、間違えて選んだら右の✖️押したらまた人が選べるようにしろ」）
+                //   ★前★ 9人 以上 残っている 時は「選ぶ」の 箱・8人 以下で 札＝1人 選ぶと 形が 変わった
+                //   ★今★ 人数に よらず 札。その 車の 乗った人が 2人に なったら 札を 出さない（✕ で 外せば 戻る）
                 var taken = {};
                 wh.forEach(function (w) {
                   taken[w.employee_id] = true;
@@ -6113,34 +6115,20 @@
                 var rest = actives.filter(function (a) {
                   return !taken[a.employee_id];
                 });
-                if (rest.length && !nashi) {
+                if (rest.length && !nashi && crew.length < NORI_MAX) {
                   html += '<div class="chips">＋ 乗った人';
-                  if (rest.length <= 8) {
-                    rest.forEach(function (a) {
-                      html +=
-                        '<button class="chip" type="button" data-chip-date="' +
-                        date +
-                        '" data-chip-dev="' +
-                        esc(dev) +
-                        '" data-chip-emp="' +
-                        esc(a.employee_id) +
-                        '">' +
-                        esc(a.name) +
-                        '</button>';
-                    });
-                  } else {
+                  rest.forEach(function (a) {
                     html +=
-                      '<select data-add-date="' +
+                      '<button class="chip" type="button" data-chip-date="' +
                       date +
-                      '" data-add-dev="' +
+                      '" data-chip-dev="' +
                       esc(dev) +
-                      '"><option value="">選ぶ</option>';
-                    rest.forEach(function (a) {
-                      html +=
-                        '<option value="' + esc(a.employee_id) + '">' + esc(a.name) + '</option>';
-                    });
-                    html += '</select>';
-                  }
+                      '" data-chip-emp="' +
+                      esc(a.employee_id) +
+                      '">' +
+                      esc(a.name) +
+                      '</button>';
+                  });
                   html += '</div>';
                 }
 
@@ -6262,21 +6250,7 @@
               });
             };
           });
-          // 乗った人を足す
-          Array.prototype.forEach.call(document.querySelectorAll('[data-add-date]'), function (s) {
-            s.onchange = function () {
-              if (!s.value) return;
-              hozonSuru(function () {
-                return saveWorkHour(
-                  s.getAttribute('data-add-date'),
-                  s.value,
-                  s.getAttribute('data-add-dev'),
-                  ''
-                );
-              });
-            };
-          });
-          // 乗った人を足す（札）＝選ぶ箱と同じ保存。保存中は 他の 札を 押せなくする
+          // 乗った人を足す（札）。保存中は 他の 札を 押せなくする
           //   （対立役：描き直しの前に 別の 車の 札で 同じ 人を 押すと 黙って 後の 車へ 移る）
           Array.prototype.forEach.call(document.querySelectorAll('[data-chip-emp]'), function (b) {
             b.onclick = function () {
