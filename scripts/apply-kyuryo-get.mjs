@@ -27,6 +27,23 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readToken, whereWeLooked } from './db-token.mjs';
 import { HONBAN_REF, honbanNoTome } from './honban-tome.mjs';
+import { KANSUU as K4, honbunMd5, kazoeru as kazoeru4 } from './apply-kyuryo-pw-4keta.mjs';
+// ★4桁の 件の 後に 当てる 時の md5 の 門★ 2026-10-20（司さん「揃えろ」＝手入力の 日の 足した 実費）
+//   前は「4桁の 件が 入った 倉庫には この 道具で 当てない（exit 7）」だった＝古い 形を 運ばない 為。
+//   今は 守る 中身を 字と md5 で 決める：①倉庫の 今の 関数が 4桁の 版（MAE_4KETA）か 当てる 版
+//   ②当てる 塊の md5 が 4桁の 道具に 書いた 版（K4 の ato）③4桁の 守りの 字（照らし方・3回で 止める）が 全部 在る
+export const MAE_4KETA = 'f8466f060d89895efde720ac7c7b907e';
+export function yonketaNoMon(block, kuraMd5) {
+  const k = K4.find((x) => x.na === 'dk_kyuryo_get');
+  const ng = [];
+  const m = honbunMd5(block);
+  if (!k || m !== k.ato)
+    ng.push('当てる 塊の md5（' + m + '）が 4桁の 道具に 書いた 版（' + (k && k.ato) + '）と 違う');
+  if (!k || !kazoeru4(block, k).ok) ng.push('当てる 塊に 4桁の 守りの 字が 足りない');
+  if (kuraMd5 !== MAE_4KETA && kuraMd5 !== m)
+    ng.push('倉庫の 今の 関数（' + kuraMd5 + '）が 4桁の 版でも 当てる 版でも ない');
+  return ng;
+}
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SQL_FILE = path.join(ROOT, 'supabase', 'apply-kyuryo-honnin-kansuu.sql');
@@ -42,6 +59,11 @@ export const ARU = [
   ['m.work_date, m.device_id, m.sales_yen', '手入力の日も 列を 名指し'],
   ['from daikome.dk_sales_settings ss', '売上から 何を 引くか（会社の 設定）を 返す（10-02 夜）'],
   ['m.actual_total_m, m.total_distance_m', '手入力の日の 距離を 返す（距離歩合・10-06）'],
+  ['m.expenses', '手入力の日の 会社が 足した 実費を 返す（司さん「揃えろ」・10-20）'],
+  [
+    "'tebikiJippi', true",
+    '手入力の日の 足した 実費を 返す 版の 印（画面は 無ければ 止める・10-20）',
+  ],
   [
     'jsonb_agg(coalesce(hr.role, e.role',
     '乗った 人の 役だけ 返す・役は その 日の 記録（何日から・10-18）',
@@ -196,20 +218,41 @@ async function main() {
   }
   // ★4桁の 件（2026-10-20）の 後は この 道具で 当てない★（pw_miss の 列が 在る 倉庫に 古い 形を 運ばない・対立役 直2）
   //   当てるのは scripts/apply-kyuryo-pw-4keta.mjs（列・窓・関数 6本を 1つの 取引で・md5 の 門つき）
+  const block = kiridasu(fs.readFileSync(SQL_FILE, 'utf8'));
   {
     const c = await runSql(
       ref,
       t.token,
       "select count(*)::int as n from information_schema.columns where table_schema = 'daikome' and table_name = 'dk_kyuryo_pub' and column_name = 'pw_miss'"
     );
-    if (!c.ok || !c.body || !c.body[0] || c.body[0].n !== 0) {
+    if (!c.ok || !c.body || !c.body[0]) {
+      console.error('NG: 4桁の 件の 列を 確かめられない');
+      process.exit(7);
+    }
+    // ★4桁の 列が 無い 倉庫にも 当てない★（列の 名前だけで 門が 開く 形に しない・対立役 3回目 指1）
+    if (c.body[0].n === 0) {
       console.error(
-        'NG: この 倉庫は 4桁の 件が 入って いる（または 列を 確かめられない）。scripts/apply-kyuryo-pw-4keta.mjs で 当てて ください'
+        'NG: 4桁の 件が 入って いない 倉庫。先に scripts/apply-kyuryo-pw-4keta.mjs で 当てて ください'
       );
       process.exit(7);
     }
+    {
+      // 4桁の 件が 入った 倉庫＝md5 の 門を 通った 時だけ 当てる（古い 形を 運ばない）
+      const q = await runSql(
+        ref,
+        t.token,
+        "select md5(p.prosrc) as m from pg_proc p where p.oid = 'public.dk_kyuryo_get(text, text, date, date)'::regprocedure"
+      );
+      const kura = (q.ok && q.body && q.body[0] && q.body[0].m) || '';
+      const ng = yonketaNoMon(block, kura);
+      if (ng.length) {
+        ng.forEach((x) => console.error('  ★門★ ' + x));
+        console.error('NG: 門で 止めた。当てていない');
+        process.exit(7);
+      }
+      console.log('4桁の 門: OK（倉庫 ' + kura + ' → 当てる ' + honbunMd5(block) + '）');
+    }
   }
-  const block = kiridasu(fs.readFileSync(SQL_FILE, 'utf8'));
   const r = await runSql(ref, t.token, block);
   if (!r.ok) {
     console.error(
@@ -220,8 +263,17 @@ async function main() {
   console.log('\n■ 当てた 後（倉庫から 読み戻した 関数）');
   const ato = kazoeru(await yomimodosu(ref, t.token));
   dasu(ato);
-  console.log('\nKAKUNIN: ' + (ato.ok ? 'OK' : '★NG★'));
-  if (!ato.ok) process.exit(5);
+  // ★当てた 後の md5 も 数える★（字の 数えだけに しない・対立役 3回目 指2）
+  const q2 = await runSql(
+    ref,
+    t.token,
+    "select md5(p.prosrc) as m from pg_proc p where p.oid = 'public.dk_kyuryo_get(text, text, date, date)'::regprocedure"
+  );
+  const atoMd5 = (q2.ok && q2.body && q2.body[0] && q2.body[0].m) || '';
+  const onaji = atoMd5 === honbunMd5(block);
+  console.log('md5(後)=' + atoMd5 + (onaji ? '  当てた 塊と 同じ' : '  ★当てた 塊と 違う★'));
+  console.log('\nKAKUNIN: ' + (ato.ok && onaji ? 'OK' : '★NG★'));
+  if (!ato.ok || !onaji) process.exit(5);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

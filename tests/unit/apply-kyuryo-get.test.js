@@ -88,3 +88,25 @@ describe('★dk_kyuryo_get だけを 当てる 道具★', () => {
     }
   });
 });
+
+// ★4桁の 件の 後に 当てる md5 の 門★ 2026-10-20（司さん「揃えろ」）
+//   わざと壊す：門の 判じの 1つを 外す ⇒ 下の どれかが 赤
+describe('★4桁の 後の md5 の 門（yonketaNoMon）★', () => {
+  it('倉庫が 4桁の 版・塊が 道具に 書いた 版 ⇒ 通す', () => {
+    const b = T.kiridasu(SQL);
+    expect(T.yonketaNoMon(b, T.MAE_4KETA)).toEqual([]);
+  });
+  it('倉庫が 知らない 版（4桁の 前の 版 等）⇒ 止める', () => {
+    const b = T.kiridasu(SQL);
+    expect(T.yonketaNoMon(b, '695e805f903928247b788f3f22e9d563').length).toBe(1);
+  });
+  it('塊が 道具に 書いた 版と 違う（1字 変えた）⇒ 止める', () => {
+    const b = T.kiridasu(SQL).replace("'tebikiJippi', true", "'tebikiJippi', false");
+    expect(T.yonketaNoMon(b, T.MAE_4KETA).length).toBeGreaterThan(0);
+  });
+  it('4桁の 守りの 字（3回で 止める）が 無い 塊 ⇒ 止める', () => {
+    const b = T.kiridasu(SQL).replace('set pw_miss = least(pw_miss + 1, 3),', 'set pw_miss = 0,');
+    const ng = T.yonketaNoMon(b, T.MAE_4KETA);
+    expect(ng.some((x) => x.indexOf('4桁の 守り') >= 0)).toBe(true);
+  });
+});

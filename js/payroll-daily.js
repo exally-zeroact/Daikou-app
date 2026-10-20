@@ -311,7 +311,13 @@
           sales: n(m.sales_yen),
           expense: Uriage
             ? Uriage.deductOf(
-                { toll_yen: m.toll_yen, bridge_yen: m.bridge_yen, other_yen: m.other_yen },
+                // ★会社が 足した 実費（expenses）も 引く★ 2026-10-20（司さん「揃えろ」＝メーターの 日と 同じ 引き方）
+                {
+                  toll_yen: m.toll_yen,
+                  bridge_yen: m.bridge_yen,
+                  other_yen: m.other_yen,
+                  expenses: m.expenses,
+                },
                 hikiKata(date)
               )
             : 0,
@@ -1120,6 +1126,8 @@
           toll_yen: n(m.toll_yen),
           bridge_yen: n(m.bridge_yen),
           other_yen: n(m.other_yen),
+          // ★会社が 足した 実費も 渡す★ 2026-10-20（司さん「揃えろ」＝前は 3列だけで 売上表が 引かなかった）
+          expenses: m.expenses && typeof m.expenses === 'object' ? m.expenses : {},
           hours: n(m.hours),
           isManual: true,
         });

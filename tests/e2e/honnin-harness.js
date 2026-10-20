@@ -54,6 +54,7 @@ async function hiraku(page, set, nidome) {
         uriageRireki: [],
         shimeRireki: [],
         uriageNaoshi: true,
+        tebikiJippi: true,
         manualDays: [],
         ...(kai > 1 && nidome ? nidome : {}),
       }),

@@ -247,6 +247,9 @@ begin
     -- 売上の 直し（edits.uriage_yen）を 返す 版の 印 2026-10-14。画面は 印が 無ければ 止める
     --   （古い 関数の まま だと 本人だけ メーターの 額で 計算し 事務所と ずれる＝対立役）
     'uriageNaoshi', true,
+    -- 手入力の 日の 会社が 足した 実費（manualDays.expenses）を 返す 版の 印 2026-10-20（司さん「揃えろ」）。
+    --   画面は 印が 無ければ 止める（古い 関数の まま だと 本人だけ 引かれず 高く 出る＝対立役）
+    'tebikiJippi', true,
     'edits', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
         -- uriage_yen＝事務所が 直した 売上（2026-10-14・apply-uriage-naoshi.sql と 同じ 送りで 当てる）
@@ -349,7 +352,9 @@ begin
         select m.work_date, m.device_id, m.sales_yen, m.hours,
                m.toll_yen, m.bridge_yen, m.other_yen, m.trip_count,
                -- ★距離★ 2026-10-06（距離歩合の 材料＝事務所の 画面と 同じ 額に する）
-               m.actual_total_m, m.total_distance_m
+               m.actual_total_m, m.total_distance_m,
+               -- ★会社が 足した 実費★ 2026-10-20（司さん「揃えろ」＝事務所の 給料と 同じく 引く・無いと 本人だけ 高く 出る）
+               m.expenses
         from daikome.dk_manual_days m
         where m.company_id = r.company_id and m.work_date between p_from and v_kaisha_to
       ) x

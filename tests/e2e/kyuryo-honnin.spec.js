@@ -77,6 +77,7 @@ async function nise(page, hajimete, mazeru) {
         uriageRireki: [],
         shimeRireki: [],
         uriageNaoshi: true, // 売上の 直しを 返す 版の 印（10-14：無い 時は 止める）
+        tebikiJippi: true, // 手入力の 日の 足した 実費を 返す 版の 印（10-20：無い 時は 止める）
         manualDays: [],
         ...(mazeru || {}),
       }),

@@ -2683,6 +2683,14 @@
                   '<div class="card"><div class="msg">売上の 直しを 読めなかったので 出せません。会社に 知らせてください。</div></div>';
               return;
             }
+            // ★手入力の 日の 足した 実費を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-20（司さん「揃えろ」）
+            //   返さないと 本人だけ 足した 実費を 引かず、事務所と 給料が 黙って ずれる（対立役）
+            if (r.tebikiJippi !== true) {
+              if (box)
+                box.innerHTML =
+                  '<div class="card"><div class="msg">手入力の 日の 実費を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+              return;
+            }
             HN_YOMI = HN_Y + '-' + HN_M;
             var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
             // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
@@ -6822,7 +6830,9 @@
               RAW.manualDays = RAW.manualDays.map(function (m) {
                 if (m.work_date === date && m.device_id === dev) {
                   found = true;
-                  return body;
+                  // ★送った 中身で 置き換えず 重ねる★ 2026-10-20（置き換えると 足した 実費 expenses と 距離が 消え、
+                  //   引かれない 額＝給料が 高く 出た・メーターの 日の 10-14 の 直しと 同じ 形・司さん「揃えろ」）
+                  return Object.assign({}, m, body);
                 }
                 return m;
               });

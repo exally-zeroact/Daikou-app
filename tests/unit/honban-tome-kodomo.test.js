@@ -48,7 +48,14 @@ function ne(ref) {
     'apply-yaku-namae.sql',
   ])
     fs.copyFileSync(path.join(ROOT, 'supabase', f), path.join(d, 'supabase', f));
-  for (const f of [...DOUGU.map((x) => x.f), 'db-token.mjs', 'sql-guard.mjs', 'honban-tome.mjs'])
+  // apply-kyuryo-pw-4keta.mjs＝apply-kyuryo-get.mjs が 4桁の 後の md5 の 門で 読む（2026-10-20）
+  for (const f of [
+    ...DOUGU.map((x) => x.f),
+    'db-token.mjs',
+    'sql-guard.mjs',
+    'honban-tome.mjs',
+    'apply-kyuryo-pw-4keta.mjs',
+  ])
     fs.copyFileSync(path.join(ROOT, 'scripts', f), path.join(d, 'scripts', f));
   const conf = fs
     .readFileSync(path.join(ROOT, 'js', 'dk-config.js'), 'utf8')

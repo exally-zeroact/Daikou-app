@@ -533,6 +533,39 @@ describe('★手で入れた1日分（司さん「おれが使えるようにし
     expect(r.poolSales).toBe(48680); // 経費1,520を引いた後
   });
 
+  // ★★手で 入れた 日の「会社が 足した 実費」も 引く★★ 2026-10-20（司さん「揃えろ」）
+  //   前は 3列（高速・橋・その他）だけ 渡し、入力の 画面で 打てる 足した 実費（expenses）を 引いていなかった。
+  //   わざと壊す：buildCtx の expenses を 外す ⇒ 赤／manualAsShifts の expenses を 外す ⇒ 赤
+  it('手で入れた日の「会社が 足した 実費」も売上から引かれる（メーターの日と同じ）', () => {
+    const ctx = D.buildCtx(
+      Object.assign({}, base, {
+        shifts: [],
+        manualDays: [
+          { work_date: '2026-01-07', device_id: 'dev2', sales_yen: 23900, hours: 8 },
+          {
+            work_date: '2026-01-07',
+            device_id: 'dev3',
+            sales_yen: 26300,
+            hours: 7.75,
+            toll_yen: 1520,
+            expenses: { kabc: 300 },
+          },
+        ],
+        workHours: CTX_0107.workHours,
+      })
+    );
+    const r = D.computeDay('2026-01-07', ctx);
+    expect(r.poolSales).toBe(48380); // 経費 1,520 と 足した 実費 300 を 引いた後
+  });
+  it('manualAsShifts は 足した 実費（expenses）も 渡す（売上表の 引き算に 入る）', () => {
+    const c = D.manualAsShifts([
+      { work_date: '2026-01-07', device_id: 'dev3', sales_yen: 1000, expenses: { kabc: 300 } },
+      { work_date: '2026-01-08', device_id: 'dev3', sales_yen: 1000, expenses: 'こわれ' },
+    ]);
+    expect(c.edits[0].expenses).toEqual({ kabc: 300 });
+    expect(c.edits[1].expenses).toEqual({});
+  });
+
   it('★同じ日・同じ車にメーターの記録もある時は足し算しない（二重計上しない）★', () => {
     const ctx = D.buildCtx(
       Object.assign({}, base, {

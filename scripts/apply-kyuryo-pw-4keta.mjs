@@ -80,7 +80,9 @@ export const KANSUU = [
   },
   {
     na: 'dk_kyuryo_get',
-    ato: 'f8466f060d89895efde720ac7c7b907e',
+    // 2026-10-20 司さん「揃えろ」＝手入力の 日の 足した 実費（m.expenses）と 印 tebikiJippi を 足した 版。
+    //   4桁の 版（f8466f06…）の 倉庫へは scripts/apply-kyuryo-get.mjs が md5 の 門（MAE_4KETA）で 当てる
+    ato: 'eb7fe6bb3c31cafa4cd920f9e04d8474',
     sig: 'dk_kyuryo_get(text, text, date, date)',
     file: 'supabase/apply-kyuryo-honnin-kansuu.sql',
     atama:
