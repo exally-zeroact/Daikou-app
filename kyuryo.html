@@ -1510,23 +1510,78 @@
         cursor: default;
       }
 
+      /* ★期間の ボタンは 1行★ 2026-10-20（司さん「赤丸のところは1行にしろ」）
+         3つ まで（月3回・締め日2つ/3つ）＝幅を 等分して 画面に 収める
+         4つ 以上（週1回・毎日）＝1行の まま その 中だけ 横に 送る（字を 潰さない・ページは 横に すべらない） */
       .hn-kikan {
         display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
+        gap: 6px;
+        flex-wrap: nowrap;
         justify-content: center;
         margin: 0 0 10px;
       }
 
+      .hn-kikan.ooi {
+        justify-content: flex-start;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+      }
+
       .hn-chip {
+        flex: 0 0 auto;
+        white-space: nowrap;
         min-height: 38px;
-        padding: 0 12px;
+        padding: 0 10px;
         border: 1px solid var(--line);
         background: #fff;
         border-radius: 999px;
         font-family: inherit;
         font-size: 13px;
         cursor: pointer;
+      }
+
+      .hn-kikan.sukunai .hn-chip {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: 160px;
+        padding: 0 4px;
+      }
+
+      /* ★字の 大きさは「11/26〜12/10」（11字）が 3つ 並んでも iPhone の 字（Windows の 試験の 字より 2割 広い）で 入る 様に★（対立役 直1） */
+      @media (max-width: 400px) {
+        .hn-kikan.sukunai .hn-chip {
+          font-size: 12px;
+        }
+      }
+
+      @media (max-width: 380px) {
+        .hn-kikan.sukunai {
+          gap: 4px;
+        }
+
+        .hn-kikan.sukunai .hn-chip {
+          font-size: 11px;
+          padding: 0 2px;
+        }
+      }
+
+      @media (max-width: 340px) {
+        .hn-kikan.sukunai .hn-chip {
+          font-size: 10px;
+        }
+      }
+
+      /* ★300px 未満（折りたたみの 閉じた 画面）は 3つが 1行に 入らない★＝字を 潰さず 折り返す（対立役 D1：280px で 字が はみ出した） */
+      @media (max-width: 299px) {
+        .hn-kikan.sukunai {
+          flex-wrap: wrap;
+        }
+
+        .hn-kikan.sukunai .hn-chip {
+          flex: 1 1 auto;
+          max-width: none;
+        }
       }
 
       .hn-chip.on {
@@ -2800,7 +2855,7 @@
             '</div>';
           // 1つの 月に 期間が 2つ以上 在る 会社だけ 出す
           if (PERIODS && PERIODS.length > 1) {
-            atama += '<div class="hn-kikan">';
+            atama += '<div class="hn-kikan ' + (PERIODS.length <= 3 ? 'sukunai' : 'ooi') + '">';
             for (var k = 0; k < PERIODS.length; k++)
               atama +=
                 '<button class="hn-chip' +
@@ -2808,7 +2863,8 @@
                 '" data-k="' +
                 k +
                 '">' +
-                esc(PERIODS[k].rangeLabel || k + 1 + '枚目') +
+                // ★「〜」の 前後の 空きは 詰める★（iPhone の 字は 広い＝空きが 在ると 3つが 1行に 入らない）
+                esc(String(PERIODS[k].rangeLabel || k + 1 + '枚目').replace(/\s*〜\s*/g, '〜')) +
                 '</button>';
             atama += '</div>';
           }
@@ -2873,6 +2929,16 @@
               honninKikan(Number(b.getAttribute('data-k')));
             };
           });
+          // ★4つ 以上で 横に 送る 時は 選んだ 期間を 見える 所へ★（週1回・毎日 2026-10-20）
+          var kikanBox = box.querySelector('.hn-kikan.ooi');
+          var onChip = kikanBox && kikanBox.querySelector('.hn-chip.on');
+          if (onChip)
+            kikanBox.scrollLeft = Math.max(
+              0,
+              onChip.offsetLeft -
+                kikanBox.offsetLeft -
+                (kikanBox.clientWidth - onChip.offsetWidth) / 2
+            );
         }
 
         // ============================================================
