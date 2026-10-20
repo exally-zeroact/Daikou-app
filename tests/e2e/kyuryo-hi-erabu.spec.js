@@ -110,6 +110,9 @@ test('★★日を 選ぶと その日だけ 出る（短く なる）★★', a
   const zenbu = await page.evaluate(() => ({
     hi: document.querySelectorAll('#days [data-date]').length,
     takasa: document.getElementById('days').getBoundingClientRect().height,
+    hibi: [...document.querySelectorAll('#days [data-date]')].map((x) =>
+      x.getAttribute('data-date')
+    ),
   }));
   // eslint-disable-next-line no-console
   console.log('全部 ' + JSON.stringify(zenbu));
@@ -119,20 +122,13 @@ test('★★日を 選ぶと その日だけ 出る（短く なる）★★', a
   // 1日ずつに 戻して、カレンダーで 3日目を 選ぶ
   await page.click('#hiZen');
   await page.waitForTimeout(300);
-  const sanbanme = await page.evaluate(() => {
+  // （2026-10-20 欄の min を 外した＝期間の 外も 選べる。3日目は 全部の 並びから 取る）
+  const sanbanme = await page.evaluate((v) => {
     const i = document.getElementById('hiSel');
-    const d = new Date(i.min + 'T00:00:00');
-    d.setDate(d.getDate() + 2);
-    const v =
-      d.getFullYear() +
-      '-' +
-      String(d.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(d.getDate()).padStart(2, '0');
     i.value = v;
     i.dispatchEvent(new Event('change'));
     return v;
-  });
+  }, zenbu.hibi[2]);
   await page.waitForTimeout(300);
   await expect(page.locator('#days [data-date]')).toHaveCount(1);
   await expect(page.locator('#days [data-date="' + sanbanme + '"]')).toHaveCount(1);
@@ -143,4 +139,130 @@ test('★★日を 選ぶと その日だけ 出る（短く なる）★★', a
   const tsugi = await page.evaluate(() => document.getElementById('hiSel').value);
   expect(tsugi > sanbanme, '次の日へ 進んでいません').toBe(true);
   await expect(page.locator('#days [data-date="' + tsugi + '"]')).toHaveCount(1);
+});
+
+// ============================================================
+// ★★期間の 外の 日を 選ぶと その 日の 期間へ 切り替わる★★ 2026-10-20 司さん
+//   「1〜10日の タブを 選択中に 10/14 を 選択しても 11〜20日に 切り替わらない
+//     ちゃんと 反応して 切り替わるようにしろ」
+//   前は 期間の 端に 寄せて いた（min/max と onchange の 寄せ）
+//   わざと壊す：onchange で 期間の 外を 端に 寄せる 形に 戻す ⇒ 赤（期間が 変わらない）
+// ============================================================
+async function hoursWoHiraku(page) {
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: sess() })
+  );
+  await page.route('**/auth/v1/**', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"u1"}' })
+  );
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/kyuryo.html#hours', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2600);
+  await page.evaluate(() => {
+    const b = document.querySelector('.tab[data-tab="hours"]');
+    if (b && b.onclick) b.onclick();
+  });
+  await page.waitForTimeout(700);
+}
+function hiTasu(v, n) {
+  const d = new Date(v + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return (
+    d.getFullYear() +
+    '-' +
+    String(d.getMonth() + 1).padStart(2, '0') +
+    '-' +
+    String(d.getDate()).padStart(2, '0')
+  );
+}
+async function mitame(page) {
+  return page.evaluate(() => ({
+    ki: ((document.querySelector('#periodBar .pbtn.on') || {}).textContent || '').trim(),
+    tsuki: ((document.getElementById('monthLabel') || {}).textContent || '').trim(),
+    sel: (document.getElementById('hiSel') || {}).value || '',
+    hi: [...document.querySelectorAll('#days [data-date]')].map((x) => x.getAttribute('data-date')),
+  }));
+}
+for (const [na, saki] of [
+  ['次の 期間（次の 日）', 1],
+  ['前の 期間（前の 日）', -1],
+  ['次の 期間の 離れた 日（司さんの 10/14 と 同じ 形）', 4],
+]) {
+  test('★★期間の 外の 日を 選ぶと その 期間へ 切り替わる：' + na + '★★', async ({ page }) => {
+    const err = [];
+    page.on('pageerror', (x) => err.push(x.message));
+    await hoursWoHiraku(page);
+    await page.click('#hiZen');
+    await page.waitForTimeout(300);
+    const hibi = await page.evaluate(() =>
+      [...document.querySelectorAll('#days [data-date]')].map((x) => x.getAttribute('data-date'))
+    );
+    await page.click('#hiZen');
+    await page.waitForTimeout(300);
+    const mae = await mitame(page);
+    const v = saki > 0 ? hiTasu(hibi[hibi.length - 1], saki) : hiTasu(hibi[0], saki);
+    await page.fill('#hiSel', v);
+    await page.dispatchEvent('#hiSel', 'change');
+    await page.waitForTimeout(1500);
+    const ato = await mitame(page);
+    // eslint-disable-next-line no-console
+    console.log('★外の 日★ ' + JSON.stringify({ v: v, mae: mae, ato: ato }));
+    expect(ato.sel, '★選んだ 日に ならない（端に 寄せた）★').toBe(v);
+    expect(ato.hi, '★選んだ 日の 箱が 出ていない★').toEqual([v]);
+    expect(ato.ki + ato.tsuki, '★期間が 切り替わっていない★').not.toBe(mae.ki + mae.tsuki);
+    expect(err).toEqual([]);
+  });
+}
+
+test('★★期間の 端で「次の日」「前の日」を 押すと 隣の 期間へ 移る★★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (x) => err.push(x.message));
+  await hoursWoHiraku(page);
+  await page.click('#hiZen');
+  await page.waitForTimeout(300);
+  const hibi = await page.evaluate(() =>
+    [...document.querySelectorAll('#days [data-date]')].map((x) => x.getAttribute('data-date'))
+  );
+  await page.click('#hiZen');
+  await page.waitForTimeout(300);
+  // 期間の 最後の 日へ
+  await page.fill('#hiSel', hibi[hibi.length - 1]);
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(400);
+  const hashi = await mitame(page);
+  await page.click('#nextD');
+  await page.waitForTimeout(1500);
+  const tsugi = await mitame(page);
+  const tsugiHi = hiTasu(hibi[hibi.length - 1], 1);
+  // eslint-disable-next-line no-console
+  console.log('★次の日で 隣へ★ ' + JSON.stringify({ hashi: hashi, tsugi: tsugi }));
+  expect(tsugi.sel, '★次の日で 隣の 期間へ 移らない★').toBe(tsugiHi);
+  expect(tsugi.hi).toEqual([tsugiHi]);
+  expect(tsugi.ki + tsugi.tsuki).not.toBe(hashi.ki + hashi.tsuki);
+  // 戻る（新しい 期間の 最初の 日で「前の日」）
+  await page.click('#prevD');
+  await page.waitForTimeout(1500);
+  const modori = await mitame(page);
+  expect(modori.sel, '★前の日で 前の 期間へ 戻らない★').toBe(hibi[hibi.length - 1]);
+  expect(modori.ki + modori.tsuki).toBe(hashi.ki + hashi.tsuki);
+  expect(err).toEqual([]);
+});
+
+test('★★ありえない 年（打ち直しの 途中の 0202年 等）では 動かない★★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (x) => err.push(x.message));
+  await hoursWoHiraku(page);
+  const mae = await mitame(page);
+  await page.evaluate(() => {
+    const i = document.getElementById('hiSel');
+    i.value = '0202-10-14';
+    i.dispatchEvent(new Event('change'));
+  });
+  await page.waitForTimeout(1000);
+  const ato = await mitame(page);
+  // eslint-disable-next-line no-console
+  console.log('★ありえない年★ ' + JSON.stringify({ mae: mae, ato: ato }));
+  expect(ato.ki + ato.tsuki, '★ありえない 年へ 飛んだ★').toBe(mae.ki + mae.tsuki);
+  expect(ato.hi).toEqual(mae.hi);
+  expect(err).toEqual([]);
 });

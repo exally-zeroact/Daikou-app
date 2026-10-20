@@ -425,8 +425,8 @@ test('保存中は 日を 選ぶ 帯も 押せない（描き直しで 札が �
     prev: document.getElementById('prevD').disabled,
     sel: document.getElementById('hiSel').disabled,
   }));
-  // 済んだら 戻る（8/1 は 期間の 最初の 日なので 前の日 は もとから 押せない）
-  expect(ato).toEqual({ next: false, prev: true, sel: false });
+  // 済んだら 戻る（2026-10-20 から 期間の 最初の 日でも「前の日」で 前の 期間へ 行ける＝押せる）
+  expect(ato).toEqual({ next: false, prev: false, sel: false });
   const wh = await page.evaluate(() =>
     window.__calls.filter((c) => c.p.indexOf('dk_work_hours') === 0)
   );
