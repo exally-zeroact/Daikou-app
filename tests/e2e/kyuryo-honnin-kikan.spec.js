@@ -159,8 +159,11 @@ for (const [na, hi, set, hiroi] of SCAN) {
           ).length
       );
       if (hanpa) dame.push(`${w}px 字の 大きさが 半端 ${hanpa}`);
-      // ★320px（iPhone SE 初代 等）は 前の 10px より 小さく しない（本番前の 対立役：8.8 で 割ると 9px に 縮んだ）★
-      if (w === 320) {
+      // ★前の 本番（400/380/340px の 段）より 字を 小さく しない★（本番前の 対立役：320px の 1幅しか 見ていなかった）
+      //   前より 小さくて よいのは 前が「字×1.1 が 入る」を 破っていた 幅か、大きい 方が Linux の CI で 確かめて いない 幅だけ
+      if (w >= 311) {
+        const mae = w <= 340 ? 10 : w <= 380 ? 11 : w <= 400 ? 12 : 13;
+        const yurusu = (w >= 311 && w <= 318) || (w >= 341 && w <= 343) || (w >= 401 && w <= 405);
         const fs = await page.evaluate(() =>
           Math.min(
             ...Array.from(document.querySelectorAll('#slips .hn-chip')).map((c) =>
@@ -168,7 +171,7 @@ for (const [na, hi, set, hiroi] of SCAN) {
             )
           )
         );
-        if (fs < 10) dame.push(`320px 字が ${fs}px（前は 10px）`);
+        if (fs < mae && !yurusu) dame.push(`${w}px 字が ${fs}px（前は ${mae}px）`);
       }
       // ★その 幅で 開けた 回数を 数える（setViewportSize が 効かずに 430px の まま 測るのを 緑に しない・対立役 直2）★
       if (haba === w) mita++;
