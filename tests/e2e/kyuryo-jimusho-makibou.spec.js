@@ -10,6 +10,7 @@
 //     （1280×1000・1人 は 直す 前でも 箱の 幅が 変わらず 赤に なれない＝外した・対立役）
 //   ★数（8本）★ 直す 前 5本 赤／1回 測り直すだけ 2本 赤（後から 伸びる 2本）／
 //     ResizeObserver の 中で その場で 縮める 2本 赤（window の error に ResizeObserver loop）／次の 絵で 縮める 8本 緑
+//   ★2026-10-21★ 後から 伸びる 2本を 高さに 頼らない 形（自分で ページを 伸ばす）に 替えた（本番 657a793 の CI で 赤）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
@@ -32,9 +33,6 @@ for (const [w, h, naosu, na] of [
   [1000, 900, hitori, '1人'],
   [1050, 900, hitori, '1人'],
   [1100, 900, hitori, '1人'],
-  // 紙を 入れた 後に 下の 帯（js/jimusho-footer.js）が 出て ページが 伸び、巻き棒が 出る 形（対立役）
-  [1000, 1360, hitori, '1人・後から 伸びる'],
-  [1100, 1440, hitori, '1人・後から 伸びる'],
 ]) {
   test(`★事務所の 紙：PC ${w}×${h}・${na} で 右が 切れない★`, async ({ page }) => {
     // ★window の error も 数える★（ResizeObserver の 輪の 知らせは pageerror に 出ない・対立役）
@@ -66,6 +64,60 @@ for (const [w, h, naosu, na] of [
     expect(m.bou, '★巻き棒が 幅を 取っていない＝この 形を 測っていない★').toBeGreaterThan(0);
     expect(m.maisu, '★紙が 1枚も 無い＝何も 測っていない★').toBeGreaterThan(0);
     expect(m.page, '★ページが 横に はみ出している★').toBeLessThanOrEqual(0);
+    expect(m.migi, '★紙が 右で 切れている（見切れ）★').toBeLessThanOrEqual(1);
+  });
+}
+
+// ★紙を 入れた 後に ページが 伸びて 巻き棒が 出ても 縮め直す（ResizeObserver）★
+//   前は 高さ 1360・1440 で「下の 帯が 後から 出る」形を 当てていた＝テスト線では 伸びて 巻き棒が 出たが、
+//   本番は 帯の 中身が 違って ページが 短く 巻き棒が 出ず「この 形を 測っていない」で 赤（本番 657a793 の CI）
+//   ⇒ 高さに 頼らない：巻き棒が 無い 高さで 開き、紙を 入れた 後に 自分で ページを 伸ばして 巻き棒を 出す
+for (const w of [1000, 1100]) {
+  test(`★事務所の 紙：PC ${w}・1人・紙の 後で ページが 伸びて 巻き棒が 出ても 右が 切れない★`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.__errs = [];
+      window.addEventListener('error', (e) => window.__errs.push(String(e.message)));
+    });
+    await page.setViewportSize({ width: w, height: 2400 });
+    await openKyuryo(page, hitori);
+    await page.waitForTimeout(1500);
+    const mae = await page.evaluate(() => window.innerWidth - document.documentElement.clientWidth);
+    expect(mae, '★伸ばす 前から 巻き棒が 在る＝後から 出る 形を 測っていない★').toBe(0);
+    // 紙の 後で 伸びる（後から 出る 帯・知らせ の 代わり）
+    await page.evaluate(() => {
+      const d = document.createElement('div');
+      d.id = 'nobasu';
+      d.style.height = '3000px';
+      document.body.appendChild(d);
+    });
+    await page.evaluate(
+      () =>
+        new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))
+        )
+    );
+    await page.waitForTimeout(300);
+    const m = await page.evaluate(() => {
+      const d = document.documentElement;
+      const waku = Array.from(document.querySelectorAll('#slips .kami-mado .hn-kami-waku'));
+      return {
+        bou: window.innerWidth - d.clientWidth,
+        maisu: waku.length,
+        migi: Math.max(
+          0,
+          ...waku.map((x) =>
+            Math.round(
+              x.firstElementChild.getBoundingClientRect().right - x.getBoundingClientRect().right
+            )
+          )
+        ),
+      };
+    });
+    expect(await page.evaluate(() => window.__errs), '★window の error が 出ている★').toEqual([]);
+    expect(m.bou, '★伸ばしても 巻き棒が 出ない＝この 形を 測っていない★').toBeGreaterThan(0);
+    expect(m.maisu, '★紙が 1枚も 無い＝何も 測っていない★').toBeGreaterThan(0);
     expect(m.migi, '★紙が 右で 切れている（見切れ）★').toBeLessThanOrEqual(1);
   });
 }
