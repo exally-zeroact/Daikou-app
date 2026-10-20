@@ -1594,9 +1594,8 @@
 
       /* ★紙は A4 の 大きさで 組まれる★ので 縮めて 入れる（はみ出しを 切らない） */
       .hn-kami-waku {
-        /* ★横に 送って 見る★（A4横を スマホ幅に 押し込むと 字が 潰れる） */
-        overflow: auto hidden;
-        -webkit-overflow-scrolling: touch;
+        /* ★幅に 合わせて 縮めるので 横に 送らない★（2026-10-20 本人の 画面も 事務所と 同じ） */
+        overflow: hidden;
         background: #fff;
         border: 1px solid var(--line);
         border-radius: 10px;
@@ -2564,6 +2563,7 @@
         // ★月を 動かす（0＝今の まま／-1＝前の月／+1＝次の月）★
         //   haba＝取る 幅（期が いつもの 幅の 外へ 出る 月だけ 広げて 渡す）
         function honninTsuki(zure, haba) {
+          clearTimeout(window.__hnT); // ★待っている 描き直しを 捨てる★（前の 月の 紙を 出さない）
           var d = new Date(HN_Y, HN_M - 1 + zure, 1);
           var now = jstNow();
           // ★先の 月へは 行かせない★（締めが 月を またぐ 会社は 今日の 期の 月まで・10-07）
@@ -2890,9 +2890,12 @@
             }
             // ★紙は A4 の 大きさで 組まれる★ので 画面の 幅に 合わせて 縮める
             var haba = mado.clientWidth || box.clientWidth || 360;
-            // ★幅に 合わせて 縮めるだけだと スマホで 字が 読めない★（実測＝0.32倍）
-            //   ⇒ ★読める 下限まで しか 縮めない★。はみ出た 分は ★横に 送って 見る★。
-            var sc = Math.max(0.62, Math.min(1, haba / 1123));
+            // ★紙 1枚が 画面に 全部 入る 大きさ★（事務所の kamiMadoNuru と 同じ 縮め方）2026-10-20
+            //   司さん「給料明細の表が見切れとんは直したんやないんか…事務所の直した時に一緒にやってない」
+            //   前は 0.62倍 より 縮めず 横に 送らせて いた（08-25）＝スマホでは 右が 切れて 見えた。
+            //   細かい 字は 指で 広げて 見る（viewport は 拡大を 止めていない）。
+            var sc = Math.min(1, (haba - 2) / 1123);
+            _hnHaba = haba;
             for (var i = 0; i < tabaH.length; i++) {
               var el = tabaH[i];
               el.style.position = 'static';
@@ -2906,6 +2909,16 @@
               el.style.width = '1123px'; // ★縮めても 中身の 組み方は 変えない★
               waku.appendChild(el);
               mado.appendChild(waku);
+            }
+            // ★紙を 入れた 後で 幅を 測り直す★（PC は 紙で 縦の 巻き棒が 出て 幅が 縮む＝resize は 起きない・対立役 止2）
+            var haba2 = mado.clientWidth;
+            if (haba2 && haba2 < haba) {
+              var sc2 = Math.min(1, (haba2 - 2) / 1123);
+              Array.prototype.forEach.call(mado.querySelectorAll('.hn-kami-waku'), function (w) {
+                w.firstElementChild.style.transform = 'scale(' + sc2 + ')';
+                w.style.height = Math.ceil(794 * sc2) + 'px';
+              });
+              _hnHaba = haba2;
             }
           }
           var mae = document.getElementById('hnMae');
@@ -5872,6 +5885,22 @@
           _slipHaba = w;
           clearTimeout(window.__slipT);
           window.__slipT = setTimeout(renderSlips, 150);
+        });
+        // ★本人の 画面も 幅が 変わったら 描き直す★（スマホの 向きを 変えた 時に 右が 切れない）2026-10-20
+        var _hnHaba = 0;
+        window.addEventListener('resize', function () {
+          if (!HONNIN || !REP) return;
+          // ★紙が 出ている 時だけ★（止めた 文・読み込み中は 箱ごと 書き換わり #hnKami が 無い＝描かない。
+          //   描くと 前の 月の 紙が 新しい 月の 見出しの 下に 出る・対立役 S2）
+          var m = document.getElementById('hnKami');
+          var w = m ? m.clientWidth : 0;
+          if (!w || w === _hnHaba) return;
+          _hnHaba = w;
+          clearTimeout(window.__hnT);
+          window.__hnT = setTimeout(function () {
+            // ★走る 時にも 見直す★（縮めて すぐ 月を 送ると 止めた 文の 上に 前の 月の 紙が 出た・対立役 止1）
+            if (document.getElementById('hnKami')) honninKami();
+          }, 150);
         });
         // ★明細の 箱に PDF と 同じ 紙を 入れる★（本人の 画面 honninKami と 同じ 縮め方）2026-10-05
         // ★★PDF の 字体（DKKami）が 入ったら 画面の 紙を 組み直す★★ 2026-10-07（対立役 C）
