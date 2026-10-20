@@ -1318,10 +1318,36 @@
 
       .yame-na {
         display: flex;
+        flex-wrap: wrap; /* ボタンが 3つに なっても 字を 縦に 割らない（10-20） */
         align-items: center;
         gap: 10px;
         margin-top: 4px;
         font-weight: 700;
+      }
+
+      .yame-na > span,
+      .yame-na .btn {
+        white-space: nowrap;
+      }
+
+      /* ★辞めた 人の 歩合・役割を 直す 欄★ 2026-10-20（見出し行が 無いので 欄ごとに 名前を 付ける） */
+      .yame-naosu {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 16px;
+        align-items: flex-start;
+        margin: 4px 0 0;
+      }
+
+      .yame-naosu .yn-ran {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .yame-naosu .yn-mi {
+        color: #555;
+        font-size: 12px;
       }
 
       .modoru-bar {
@@ -6852,19 +6878,49 @@
                 // ★配る（QR・送る・作り直す）★ 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
                 '<button class="btn ghost" type="button" data-yame-haifu="' +
                 esc(e.employee_id) +
-                '">配る</button></div>' +
+                '">配る</button>' +
+                // ★歩合・役割を 直す★ 2026-10-20 司さん 10-17「辞めた人の歩合等を復職させずに直せる様に」
+                '<button class="btn ghost" type="button" data-yame-naosu="' +
+                esc(e.employee_id) +
+                '" aria-expanded="' +
+                (YAME_NAOSU[e.employee_id] ? 'true' : 'false') +
+                '">歩合・役割を直す</button></div>' +
                 '<div class="yame-haifu" data-yame-box="' +
                 esc(e.employee_id) +
-                '" style="display:none"></div></td></tr>'
+                '" style="display:none"></div>' +
+                (YAME_NAOSU[e.employee_id] ? yameNaosuRan(e) : '') +
+                '</td></tr>' +
+                // 記録の 一覧は 行の 隣に（td の 中に tr を 入れない・対立役 壊5）
+                (YAME_NAOSU[e.employee_id] && RIREKI_HIRAKU[e.employee_id] ? rirekiNoGyou(e) : '')
               );
             })
             .join('');
           if (!yame.length)
             html = '<tr><td colspan="7" class="empty">退職者は 居ません。</td></tr>';
-          $('empBody').innerHTML = html;
+          $('empBody').innerHTML = html + roleDatalist();
+          // 開いて いた 配る 箱は 描き直しても 開いた まま（対立役 壊1）
+          yame.forEach(function (e) {
+            if (!YAME_HAIFU[e.employee_id]) return;
+            var box = document.querySelector('[data-yame-box="' + e.employee_id + '"]');
+            if (!box) return;
+            yameHaifuNuru(box, e.employee_id);
+            box.style.display = '';
+          });
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-yame-naosu]'),
+            function (b) {
+              b.onclick = function () {
+                var id = b.getAttribute('data-yame-naosu');
+                YAME_NAOSU[id] = !YAME_NAOSU[id];
+                renderEmp();
+              };
+            }
+          );
+          empOshiguchi();
           Array.prototype.forEach.call(document.querySelectorAll('[data-fukushoku]'), function (b) {
             b.onclick = function () {
               b.disabled = true;
+              YAME_NAOSU[b.getAttribute('data-fukushoku')] = false; // 復職したら 閉じる（また 退職しても 勝手に 開かない・対立役 2回目）
               empTaishoku(b.getAttribute('data-fukushoku'), true, null).then(function (ok) {
                 if (!ok) b.disabled = false;
               });
@@ -6880,10 +6936,12 @@
                 if (!box) return;
                 if (box.style.display !== 'none') {
                   box.style.display = 'none';
+                  YAME_HAIFU[eid] = false;
                   return;
                 }
                 yameHaifuNuru(box, eid);
                 box.style.display = '';
+                YAME_HAIFU[eid] = true;
               };
             }
           );
@@ -6919,6 +6977,36 @@
             };
           });
         }
+        // ★退職者ページで 開いて いる 物★（描き直しても 閉じない・対立役 壊1）
+        var YAME_NAOSU = {}; // 歩合・役割を 直す 欄
+        var YAME_HAIFU = {}; // 配る 箱
+        // 辞めた 人の 歩合・役割・最低保証を 直す 欄（今いる人と 同じ 欄・同じ 押し口・復職は しない）
+        //   ★何日から の 既定は 今日★（司さん 10-17「今いる人も 辞めた人も 同じ」）
+        //   選んだ 日より 後の 分だけに 効く＝前の 分を 直す 時の 日の 選び方を いつも 字で 出す
+        //   （辞めた 日で「効きません」とは 言い切らない＝計算は 辞めた 日を 見ない・対立役 止1。
+        //    辞めた 日より 後を 選んだ 時に 黙らない・対立役 2回目 C）
+        function yameNaosuRan(e0) {
+          var hi = empHi(e0.employee_id);
+          var md = function (d) {
+            return String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/');
+          };
+          return (
+            '<div class="yame-naosu">' +
+            hitoRan(hiNoHito(e0), 'label') +
+            '</div>' +
+            (hi
+              ? '<div class="th-sub yame-naosu-chui">' +
+                esc(md(hi)) +
+                ' から 後の 分だけに 効きます（前の 分は 前の 値の まま）。' +
+                (e0.retired_on && hi > e0.retired_on
+                  ? '辞めた 日（' +
+                    esc(md(e0.retired_on)) +
+                    '）より 後に 働いた 日・手当・控除が 無ければ、明細は 変わりません。'
+                  : '') +
+                '前の 分を 直す 時は「何日から」に 直したい 初めの 日を 選んでください。</div>'
+              : '')
+          );
+        }
         // 退職者ページの 配る 札を 描く（配ってあれば 札・まだなら「配る」）
         function yameHaifuNuru(box, eid) {
           var x = haifuHito(eid);
@@ -6942,13 +7030,93 @@
             if (ichiran && typeof ichiran.onclick === 'function') ichiran.onclick(ev);
           };
         }
+        // ★役割・歩合・最低保証・何日から の 欄★ 2026-10-20（今いる人の 行と 退職者ページで 同じ 物を 使う）
+        //   kata='td'＝今いる人の 表の 升（名前は data-l＝スマホの 見出し）
+        //   kata='label'＝退職者ページ（見出し行が 無いので 欄ごとに 名前を 付ける）
+        //   e は 選んだ 日の その 人（hiNoHito）
+        function hitoRan(e, kata) {
+          function waku(mi, naka) {
+            if (kata === 'td') return '<td data-l="' + mi + '">' + naka + '</td>';
+            return (
+              '<div class="yn-ran"><span class="yn-mi">' +
+              mi +
+              '</span><div>' +
+              naka +
+              '</div></div>'
+            );
+          }
+          return (
+            // ★役割は 選んでも 打ってもいい★ 2026-08-25（司さん
+            //   「乙の所が 自由に入力してカスタムできるようにしたらええやないか」）
+            //   前は select だけ＝「給料の設定」で足すまで 新しい役割を書けなかった。
+            //   ★決まりに無い役割は 給料が 黙って0円になる★ ので、その時は赤く知らせる。
+            waku(
+              '役割',
+              '<input class="txt rolein" list="roleList" data-emp="' +
+                esc(e.employee_id) +
+                '" data-f="role" value="' +
+                esc(e.role || '') +
+                '" placeholder="役割を打つ／選ぶ">' +
+                (function () {
+                  var w = _roleWarn(e);
+                  return w ? '<div class="rolewarn">' + w + '</div>' : '';
+                })()
+            ) +
+            // ★人ごとの歩合・最低保証 (2026-08-05・A案)★
+            //   空欄＝役割どおり。役割の値を薄く出しておく＝何もしなければどうなるか見える。
+            waku(
+              '歩合',
+              '<input class="hrs" data-emp="' +
+                esc(e.employee_id) +
+                '" data-f="pay_rate" inputmode="decimal" placeholder="' +
+                _roleRateOf(e.role, empHi(e.employee_id)) +
+                '" value="' +
+                (e.pay_rate === null || e.pay_rate === undefined ? '' : e.pay_rate) +
+                '">'
+            ) +
+            waku(
+              '最低保証',
+              '<input class="yen" data-emp="' +
+                esc(e.employee_id) +
+                '" data-f="pay_floor" inputmode="numeric" placeholder="' +
+                _roleFloorOf(e.role, empHi(e.employee_id)) +
+                '" value="' +
+                (e.pay_floor === null || e.pay_floor === undefined ? '' : e.pay_floor) +
+                '"> 円'
+            ) +
+            waku(
+              '何日から',
+              '<input type="date" class="hi-in" data-hi="' +
+                esc(e.employee_id) +
+                '" value="' +
+                esc(empHi(e.employee_id)) +
+                '"> <button class="btn ghost" type="button" data-rireki="' +
+                esc(e.employee_id) +
+                '">記録 ' +
+                rirekiNoHito(e.employee_id).length +
+                '</button>' +
+                hiNoChui(e)
+            )
+          );
+        }
+        // ★打つ時の候補★（決まりが在る役割を出す・打ちたければ そのまま打てる）
+        function roleDatalist() {
+          return (
+            '<datalist id="roleList">' +
+            roleNames()
+              .map(function (r) {
+                return '<option value="' + esc(r) + '"></option>';
+              })
+              .join('') +
+            '</datalist>'
+          );
+        }
         function renderEmp() {
           var tbl = $('empBody') && $('empBody').closest('table');
           if (tbl) tbl.classList.toggle('yame-miru', EMP_MIRU === 'yame');
           var tasu = document.getElementById('btnAddEmp');
           if (tasu) tasu.style.display = EMP_MIRU === 'yame' ? 'none' : '';
           if (EMP_MIRU === 'yame') return renderYame();
-          var roles = roleNames();
           var html = '';
           RAW.employees.forEach(function (e0) {
             if (e0.active === false) return; // 辞めた 人は「退職者」に 出す
@@ -6961,47 +7129,7 @@
               '" data-f="name" value="' +
               esc(e.name) +
               '"></td>' +
-              // ★役割は 選んでも 打ってもいい★ 2026-08-25（司さん
-              //   「乙の所が 自由に入力してカスタムできるようにしたらええやないか」）
-              //   前は select だけ＝「給料の設定」で足すまで 新しい役割を書けなかった。
-              //   ★決まりに無い役割は 給料が 黙って0円になる★ ので、その時は赤く知らせる。
-              '<td data-l="役割"><input class="txt rolein" list="roleList" data-emp="' +
-              esc(e.employee_id) +
-              '" data-f="role" value="' +
-              esc(e.role || '') +
-              '" placeholder="役割を打つ／選ぶ">' +
-              (function () {
-                var w = _roleWarn(e);
-                return w ? '<div class="rolewarn">' + w + '</div>' : '';
-              })() +
-              '</td>' +
-              // ★人ごとの歩合・最低保証 (2026-08-05・A案)★
-              //   空欄＝役割どおり。役割の値を薄く出しておく＝何もしなければどうなるか見える。
-              '<td data-l="歩合"><input class="hrs" data-emp="' +
-              esc(e.employee_id) +
-              '" data-f="pay_rate" inputmode="decimal" placeholder="' +
-              _roleRateOf(e.role, empHi(e.employee_id)) +
-              '" value="' +
-              (e.pay_rate === null || e.pay_rate === undefined ? '' : e.pay_rate) +
-              '"></td>' +
-              '<td data-l="最低保証"><input class="yen" data-emp="' +
-              esc(e.employee_id) +
-              '" data-f="pay_floor" inputmode="numeric" placeholder="' +
-              _roleFloorOf(e.role, empHi(e.employee_id)) +
-              '" value="' +
-              (e.pay_floor === null || e.pay_floor === undefined ? '' : e.pay_floor) +
-              '"> 円</td>' +
-              '<td data-l="何日から"><input type="date" class="hi-in" data-hi="' +
-              esc(e.employee_id) +
-              '" value="' +
-              esc(empHi(e.employee_id)) +
-              '"> <button class="btn ghost" type="button" data-rireki="' +
-              esc(e.employee_id) +
-              '">記録 ' +
-              rirekiNoHito(e.employee_id).length +
-              '</button>' +
-              hiNoChui(e) +
-              '</td>' +
+              hitoRan(e, 'td') +
               '<td data-l="並び"><input class="hrs" data-emp="' +
               esc(e.employee_id) +
               '" data-f="sort_order" value="' +
@@ -7023,15 +7151,7 @@
               ? '<tr><td colspan="8" class="empty">今いる人は 居ません（辞めた 人は「退職者」に 居ます）。</td></tr>'
               : '<tr><td colspan="8" class="empty">まだ誰も登録されていません。</td></tr>';
           }
-          // ★打つ時の候補★（決まりが在る役割を出す・打ちたければ そのまま打てる）
-          html +=
-            '<datalist id="roleList">' +
-            roles
-              .map(function (r) {
-                return '<option value="' + esc(r) + '"></option>';
-              })
-              .join('') +
-            '</datalist>';
+          html += roleDatalist();
           $('empBody').innerHTML = html;
           // 退職：押すと 辞めた 日（既定は 日本時間の 今日・遡って 直せる）と「退職にする」「やめる」を 出す
           Array.prototype.forEach.call(document.querySelectorAll('[data-taishoku]'), function (b) {
@@ -7064,6 +7184,10 @@
               };
             };
           });
+          empOshiguchi();
+        }
+        // ★欄の 押し口★（今いる人の 表と 退職者ページで 同じ 物）2026-10-20
+        function empOshiguchi() {
           Array.prototype.forEach.call(document.querySelectorAll('[data-emp]'), function (i) {
             i.onchange = function () {
               var f = i.getAttribute('data-f');
