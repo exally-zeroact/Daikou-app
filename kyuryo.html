@@ -833,6 +833,16 @@
         border-bottom: 1px solid #eaeff5;
       }
 
+      /* 勤め始める 前の 人は 畳んで 置く 2026-10-19 */
+      .mada {
+        flex-basis: 100%;
+      }
+
+      .mada-s {
+        cursor: pointer;
+        padding: 4px 0;
+      }
+
       /* 代行請求書の「よく行く所」の札と同じ形 */
       .chip {
         border: 1.5px solid #cfe0ff;
@@ -5513,9 +5523,12 @@
           hitoErabiTsukuru();
           if (!REP || !REP.employees.length) {
             // 本人の 画面で 0人＝その 月に 働いた 日も 手当・控除も 無い（辞めた 人など）＝「登録して」は 嘘に なる
+            // 事務所で 人は 居るのに 0人＝全員 この 期間より 後に 勤め始めた（「登録して」は 嘘・D の 本番前の 叩き N1）2026-10-20
             box.innerHTML = HONNIN
               ? '<div class="card"><div class="msg">この 月は 働いた 日が ありません。</div></div>'
-              : '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
+              : CTX && CTX.employees.length
+                ? '<div class="card"><div class="msg">この 期間に 勤めて いた 人は いません。</div></div>'
+                : '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
             return;
           }
           var ubDame = kyuDameBun(CTX);
@@ -6233,12 +6246,24 @@
                 wh.forEach(function (w) {
                   taken[w.employee_id] = true;
                 });
+                // ★勤め始める 前の 日には 出さない★ 2026-10-19（明細と 同じ PayrollDaily.hajimatteIru）
+                var mada = []; // 勤め始める 前の 人（畳んだ 所に 出す＝登録日より 前の 日に 乗せる 道を 残す・対立役 直1）
                 var rest = actives.filter(function (a) {
-                  return !taken[a.employee_id];
+                  if (taken[a.employee_id]) return false;
+                  if (PayrollDaily.hajimatteIru(CTX, a.employee_id, date)) return true;
+                  mada.push(a);
+                  return false;
                 });
-                if (rest.length && !nashi && crew.length < NORI_MAX) {
+                if ((rest.length || mada.length) && !nashi && crew.length < NORI_MAX) {
                   html += '<div class="chips">＋ 乗った人';
-                  rest.forEach(function (a) {
+                  rest.concat(mada.length ? [null] : [], mada).forEach(function (a) {
+                    if (!a) {
+                      html +=
+                        '<details class="mada"><summary class="mada-s">勤め始める 前の 人（' +
+                        mada.length +
+                        '）</summary>';
+                      return;
+                    }
                     html +=
                       '<button class="chip" type="button" data-chip-date="' +
                       date +
@@ -6248,8 +6273,21 @@
                       esc(a.employee_id) +
                       '">' +
                       esc(a.name) +
+                      (mada.indexOf(a) >= 0
+                        ? '（' +
+                          esc(
+                            // 年が 違う 時は 年も 出す（N5）
+                            (function (h) {
+                              return h.slice(0, 4) === date.slice(0, 4)
+                                ? h.slice(5).replace('-', '/')
+                                : h.replace(/-/g, '/');
+                            })(PayrollDaily.hajimeOf(CTX, a.employee_id))
+                          ) +
+                          '〜）'
+                        : '') +
                       '</button>';
                   });
+                  if (mada.length) html += '</details>';
                   html += '</div>';
                 }
 
