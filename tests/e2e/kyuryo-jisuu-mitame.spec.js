@@ -68,13 +68,19 @@ function sess(F) {
     'function rows(p){ if(p.indexOf("dk_employees")===0)return F.emps||[]; if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +
     ' if(p.indexOf("dk_payroll_settings")===0)return F.settings||[]; if(p.indexOf("dk_shifts")===0)return F.shifts||[];' +
     ' if(p.indexOf("dk_shift_edits")===0)return F.edits||[]; if(p.indexOf("dk_work_hours")===0)return F.workHours||[];' +
-    ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[]; return [];}' +
+    ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[];' +
+    ' if(p.indexOf("dk_uriage_rireki")===0)return F.uriageRireki||[]; return [];}' +
     'var S=window.DKSession;S.ensure=function(){return Promise.resolve({access_token:"t"});};S.goLogin=function(){};S.logout=function(){};' +
     'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p,o){var m=(o&&o.method)||"GET";if(m!=="GET")window.__calls.push({p:p,m:m,b:o&&o.body?JSON.parse(o.body):null});' +
     'return Promise.resolve({ok:true,status:200,text:function(){return Promise.resolve("");},json:function(){return Promise.resolve(rows(p));}});};' +
-    'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
+    'S.softList=function(s,p,st){if(st)st.tried++;' +
+    // 売上から 引く 物の 記録が 読めない 形（F.uriageRirekiDame）
+    ' if(F.uriageRirekiDame&&p.indexOf("dk_uriage_rireki")===0){if(st)st.failed++;return Promise.resolve([]);}' +
+    // 読めない 表を 名指し（F.dame＝["dk_shift_edits"] 等）
+    ' if((F.dame||[]).some(function(t){return p.indexOf(t)===0;})){if(st)st.failed++;return Promise.resolve([]);}' +
+    'return Promise.resolve(rows(p));};})();'
   );
 }
 
@@ -669,3 +675,305 @@ test('乗った人の 欄が 空なら 欄の 中に 車の 時数・打った �
   );
   expect(wh).toHaveLength(0);
 });
+
+// ★実費が 在る 業務の 売上の 欄は「引いた 後」で 見せ、しまう 額は「引く 前」★ 2026-10-19
+//   司さん「入力で経費いれてメーター実費って出すなら自動反映で26,180にしろや」
+test('実費が 在る 業務の 売上の 欄＝引いた 後・打った 値に 実費を 足して しまう', async ({
+  page,
+}) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002'; // 8/1 2号車 メーター 7,400
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+    },
+  });
+  const ran = hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]');
+  // 自動の 数＝7,400 − 1,520 ＝ 5,880
+  await expect(ran).toHaveAttribute('placeholder', '5,880');
+  await expect(ran).toHaveAttribute('aria-label', '売上（実費を 引いた 後）');
+  // 目に 見える 字でも「引いた 後」（aria は スマホで 見えない・4回目の 叩き 直す3/4）
+  await expect(
+    hi(page, '2026-08-01').locator('.carrow:has([data-uri-sid="' + SID2 + '"]) .unote')
+  ).toContainText('売上の 欄は 実費を 引いた 後');
+
+  // ★幅 390 で 名前の 列が 潰れない・横に はみ出さない★（5回目の 叩き 止1：1px に 潰れた）
+  const haba = await page.evaluate((sid) => {
+    const r = document.querySelector('.carrow:has([data-uri-sid="' + sid + '"])');
+    return {
+      name: r.querySelector('.cname').getBoundingClientRect().width,
+      doc: document.documentElement.scrollWidth,
+    };
+  }, SID2);
+  expect(haba.name).toBeGreaterThan(60);
+  expect(haba.doc).toBeLessThanOrEqual(390);
+  // 実費の 無い 業務は 今まで 通り（引く 前＝メーター）
+  const ran1 = hi(page, '2026-08-01').locator(
+    '[data-uri-sid="00000000-0000-4000-a000-000000000001"]'
+  );
+  await expect(ran1).toHaveAttribute('placeholder', '9,800');
+  // 6,000 と 打つ（引いた 後）⇒ しまう 額は 6,000 ＋ 1,520 ＝ 7,520（引く 前）
+  const utsu = (v) =>
+    page.evaluate(
+      (a) => {
+        const i = document.querySelector('[data-uri-sid="' + a.sid + '"]');
+        i.value = a.v;
+        i.dispatchEvent(new Event('change'));
+      },
+      { sid: SID2, v: v }
+    );
+  await utsu('6000');
+  await page.waitForTimeout(600);
+  const ed = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(ed).toHaveLength(1);
+  expect(ed[0].b.uriage_yen).toBe(7520);
+  // 描き直した 後も 欄は 引いた 後の 6000
+  await expect(hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]')).toHaveValue('6000');
+  // 空に すると メーターに 戻す（null を しまう）
+  await utsu('');
+  await page.waitForTimeout(600);
+  const ed2 = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(ed2[1].b.uriage_yen).toBe(null);
+});
+
+// ★その 日の 引き方（何日から）で 引く★ 2026-10-19（対立役 止2：記録が 在る 形を 守る）
+test('売上から 引く 物の 記録が 在る 日は その 日の 引き方で 引く（7/1 から 高速代を 引かない）', async ({
+  page,
+}) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+      F.uriageRireki = [{ company_id: CO, key: 'toll', from_date: '2026-07-01', value: false }];
+    },
+  });
+  const ran = hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]');
+  // 高速代は 引かない 日＝メーターの まま 7,400・字も「引く 前」
+  await expect(ran).toHaveAttribute('placeholder', '7,400');
+  await expect(ran).toHaveAttribute('aria-label', '売上（実費を 引く 前）');
+  await page.evaluate((sid) => {
+    const i = document.querySelector('[data-uri-sid="' + sid + '"]');
+    i.value = '6000';
+    i.dispatchEvent(new Event('change'));
+  }, SID2);
+  await page.waitForTimeout(600);
+  const ed = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(ed).toHaveLength(1);
+  expect(ed[0].b.uriage_yen).toBe(6000);
+});
+
+// ★引き方が 読めない 時は 売上を 直せない★ 2026-10-19（対立役 止1：違う 引き方で 引く 前を しまわない）
+test('売上から 引く 物の 記録が 読めない 時は 売上の 欄を 押せず 保存も しない', async ({
+  page,
+}) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+      F.uriageRirekiDame = true;
+    },
+  });
+  const ran = hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]');
+  await expect(ran).toBeDisabled();
+  // 押せない 欄に 無理に 打っても しまわない
+  await page.evaluate((sid) => {
+    const i = document.querySelector('[data-uri-sid="' + sid + '"]');
+    i.disabled = false;
+    i.value = '6000';
+    i.dispatchEvent(new Event('change'));
+  }, SID2);
+  await page.waitForTimeout(600);
+  const ed = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(ed).toHaveLength(0);
+  await expect(page.locator('#err')).toContainText('売上は 直せません');
+  // 訳は 目に 見える 字で 日の 並びの 頭に 1回 だけ（車の 行に 付けない＝実費の 無い 車に 付いた）
+  await expect(page.locator('#days .keikoku', { hasText: '開き直して' })).toHaveCount(1);
+  await expect(page.locator('#days > .uri-dame:first-child')).toContainText('開き直して');
+  await expect(page.locator('#days .carrow .keikoku', { hasText: '開き直して' })).toHaveCount(0);
+  // 警告の 赤（ほかの 警告と 同じ 色・太さ）で 出る（8回目の 叩き：本文の 字に 見えた）
+  const iro = await page.evaluate(() => {
+    const a = getComputedStyle(document.querySelector('#days > .uri-dame .keikoku'));
+    const r = document.createElement('div');
+    r.className = 'carrow';
+    r.innerHTML = '<span class="keikoku">x</span>';
+    document.body.appendChild(r);
+    const b = getComputedStyle(r.querySelector('.keikoku'));
+    const out = { a: a.color, b: b.color, w: a.fontWeight };
+    r.remove();
+    return out;
+  });
+  expect(iro.a).toBe(iro.b);
+  expect(Number(iro.w)).toBeGreaterThanOrEqual(700);
+  // 読めない 時は 引く 前の 額（7,400）を 欄に 見せない
+  await expect(ran).toHaveValue('');
+  await expect(ran).toHaveAttribute('placeholder', '—');
+
+  // ★幅 390 で 名前の 列が 潰れない・横に はみ出さない★（5回目の 叩き 止1：1px に 潰れた）
+  const haba = await page.evaluate((sid) => {
+    const r = document.querySelector('.carrow:has([data-uri-sid="' + sid + '"])');
+    return {
+      name: r.querySelector('.cname').getBoundingClientRect().width,
+      doc: document.documentElement.scrollWidth,
+    };
+  }, SID2);
+  expect(haba.name).toBeGreaterThan(60);
+  expect(haba.doc).toBeLessThanOrEqual(390);
+});
+
+// ★実費が メーターより 多い 時は 負の 数を 打てる・引く 前が 0 未満には ならない★ 2026-10-19（対立役 直3）
+test('実費が メーターより 多い 業務は 負の 数で 打てる', async ({ page }) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 9000, uriage_yen: null }];
+    },
+  });
+  const ran = hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]');
+  await expect(ran).toHaveAttribute('placeholder', '-1,600');
+  const utsu = (v) =>
+    page.evaluate(
+      (a) => {
+        const i = document.querySelector('[data-uri-sid="' + a.sid + '"]');
+        i.value = a.v;
+        i.dispatchEvent(new Event('change'));
+      },
+      { sid: SID2, v: v }
+    );
+  await utsu('-1000');
+  await page.waitForTimeout(600);
+  let ed = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(ed.map((x) => x.b.uriage_yen)).toEqual([8000]);
+  // 実費より 少なく（引く 前が 0 未満）は 断る
+  await utsu('-9001');
+  await page.waitForTimeout(600);
+  ed = await page.evaluate(() => window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0));
+  expect(ed).toHaveLength(1);
+  await expect(page.locator('#err')).toContainText('実費');
+});
+
+// ★実費（業務の 直し）や 売上の 設定が 読めない 時も 売上を 直せない★ 2026-10-19（2回目の 叩き 止A・直D）
+for (const t of ['dk_shift_edits', 'dk_sales_settings']) {
+  test(
+    '読めない 物（' + t + '）が ある 時は 売上の 欄を 押せず 保存も しない',
+    async ({ page }) => {
+      const SID2 = '00000000-0000-4000-a000-000000000002';
+      await hiraku(page, {
+        tweak: (F) => {
+          F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+          F.dame = [t];
+        },
+      });
+      const ran = hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]');
+      await expect(ran).toBeDisabled();
+      await page.evaluate((sid) => {
+        const i = document.querySelector('[data-uri-sid="' + sid + '"]');
+        i.disabled = false;
+        i.value = '6000';
+        i.dispatchEvent(new Event('change'));
+      }, SID2);
+      await page.waitForTimeout(600);
+      const ed = await page.evaluate(() =>
+        window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+      );
+      expect(ed).toHaveLength(0);
+    }
+  );
+}
+
+// ★「-」だけは 読めない 字＝直した 売上を 消さない★ 2026-10-19（2回目の 叩き 直B）
+test('実費が 在る 業務で「-」だけを 打っても メーターに 戻さない', async ({ page }) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 9000, uriage_yen: 8000 }];
+    },
+  });
+  await page.evaluate((sid) => {
+    const i = document.querySelector('[data-uri-sid="' + sid + '"]');
+    i.value = '-';
+    i.dispatchEvent(new Event('change'));
+  }, SID2);
+  await page.waitForTimeout(600);
+  const ed = await page.evaluate(() =>
+    window.__calls.filter((c) => c.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(ed).toHaveLength(0);
+  await expect(page.locator('#err')).toContainText('数で 入れて');
+});
+
+// ★記録の 形が 壊れて 計算が 止めた 時も 売上を 直せない★ 2026-10-19（3回目の 叩き 直す1）
+test('売上から 引く 物の 記録の 形が 壊れている 時は 売上の 欄を 押せない', async ({ page }) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+      F.uriageRireki = [{ company_id: CO, key: 'toll', from_date: '2026-07-01', value: 'x' }];
+    },
+  });
+  await expect(hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]')).toBeDisabled();
+});
+
+// ★業務の 日より 後から 効く 記録は その 日に 効かせない★ 2026-10-20（4回目の 叩き 直す1・M1＝日付を 変えても 緑だった）
+test('売上から 引く 物を 8/2 から 引かない 記録でも 8/1 は 引いた 後（5,880）のまま', async ({
+  page,
+}) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+      F.uriageRireki = [{ company_id: CO, key: 'toll', from_date: '2026-08-02', value: false }];
+    },
+  });
+  await expect(hi(page, '2026-08-01').locator('[data-uri-sid="' + SID2 + '"]')).toHaveAttribute(
+    'placeholder',
+    '5,880'
+  );
+});
+
+// ★「直した（メーター ¥…）」も 引いた 後★ 2026-10-20（4回目の 叩き 直す1・M3＝戻しても 緑だった）
+test('直した 売上の 横の「メーター」の 額も 実費を 引いた 後', async ({ page }) => {
+  const SID2 = '00000000-0000-4000-a000-000000000002';
+  await hiraku(page, {
+    tweak: (F) => {
+      F.edits = [{ shift_id: SID2, company_id: CO, toll_yen: 1520, uriage_yen: 8000 }];
+    },
+  });
+  await expect(hi(page, '2026-08-01')).toContainText('直した（メーター ¥5,880）');
+});
+
+// ★2回 走った 車でも「引いた 後」の 字は 横 いっぱいの 1行★ 2026-10-20（6回目の 叩き 止1'：名前の 列に 置くと 行が 705px に）
+//   名前の 列 その物が 狭い（幅 390 で 19px）のは E の 前から＝別の 1件
+for (const w of [390, 375, 360]) {
+  test(
+    '2回 走った 車の 片方に 実費＝「引いた 後」の 字は .unote で 横 いっぱい（幅 ' + w + '）',
+    async ({ page }) => {
+      const SID9 = '00000000-0000-4000-a000-000000000009';
+      await hiraku(page, {
+        tweak: (F) => {
+          F.edits = [{ shift_id: SID9, company_id: CO, toll_yen: 1520, uriage_yen: null }];
+        },
+      });
+      await page.setViewportSize({ width: w, height: 900 });
+      const note = hi(page, '2026-08-01').locator(
+        '.carrow:has([data-uri-sid="' + SID9 + '"]) .unote'
+      );
+      await expect(note).toHaveText('売上の 欄は 実費を 引いた 後');
+      const m = await note.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { w: r.width, h: r.height, doc: document.documentElement.scrollWidth };
+      });
+      expect(m.w).toBeGreaterThan(w - 80);
+      expect(m.h).toBeLessThan(40);
+      expect(m.doc).toBeLessThanOrEqual(w);
+    }
+  );
+}

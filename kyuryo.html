@@ -766,6 +766,24 @@
         color: var(--muted);
       }
 
+      /* 売上の 欄を 直せない 訳（日の 並びの 頭に 1行・ほかの 警告と 同じ 赤）8回目の 叩き */
+      .uri-dame {
+        margin: 0 0 6px;
+      }
+
+      .uri-dame .keikoku {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--danger);
+      }
+
+      .carrow .unote {
+        grid-column: 1 / -1;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
       .carrow .camt {
         font-weight: 700;
         font-variant-numeric: tabular-nums;
@@ -5981,6 +5999,7 @@
             return e.active !== false;
           });
           var html = '';
+          var uriDameDeta = false; // 売上の 欄を 直せない 訳は 日の 並びの 頭に 1回 だけ（下で 足す）
 
           // 選んだ 日だけ（期間を 全部＝HI が 'zenbu'）2026-09-06 / 2026-10-14
           PERIOD.dates
@@ -6122,8 +6141,30 @@
                 var sub = nashi ? '' : isManual ? '<span class="manual">手入力</span>' : 'メーター';
                 if (own) sub += '（自分の車）';
                 if (c && num(c.expense) > 0) {
-                  // 売上の 欄は 実費を 引く 前の 額。日の 売上は 実費を 引いた 後（対立役：同じ 画面で 食い違って 見えた）
+                  // 日の 売上は 実費を 引いた 後（メーターの 欄も 引いた 後で 見せる・手入力の 欄は 打った 引く 前の 額）
                   sub += ' 実費 −¥' + yen(c.expense) + ' → ¥' + yen(num(c.sales) - num(c.expense));
+                }
+                // 売上の 欄が 引いた 後か 引く 前かを 目に 見える 字で（aria だけ では スマホで 見えない）2026-10-20
+                //   ★欄の 横や 名前の 列に 置くと 潰れた（5回目 止1・2回 走った 車は 名前の 列が 19px＝6回目 止1'）★
+                //   ⇒ 車の 行の 下に 横 いっぱいの 1行（.unote・grid-column 1 / -1）
+                //   手入力の 車は 打った 額（引く 前）の まま＝入れた 売上と 高速代を そのまま 見せる
+                var uriNote = '';
+                if (!nashi) {
+                  if (isManual) {
+                    if (c && num(c.expense) > 0) uriNote = '売上の 欄は 実費を 引く 前';
+                  } else {
+                    var hikuAru = false;
+                    var uriDame = false;
+                    ss.forEach(function (s) {
+                      var h = uriageHiku(s.shift_id, date);
+                      if (h === null) uriDame = true;
+                      else if (h > 0) hikuAru = true;
+                    });
+                    // 読めない 時は 画面の メーターの 欄が 全部 押せない（uriageHiku の 止める 訳は 画面 全体）
+                    //   ⇒ 訳は 車の 行で なく 日の 並びの 頭に 1回（7回目の 叩き 直A：最初の 車に 付けると 実費の 無い 車に 付いた）
+                    if (uriDame) uriDameDeta = true;
+                    else if (hikuAru) uriNote = '売上の 欄は 実費を 引いた 後';
+                  }
                 }
                 if (!isManual && !nashi) {
                   // 事務所が 直した 売上が 在る 時は メーターの 額を 横に 出す 2026-10-14
@@ -6133,7 +6174,10 @@
                       return e1.uriage_yen !== null && e1.uriage_yen !== undefined;
                     })
                     .map(function (s) {
-                      return '¥' + yen(num(s.fare_total_yen));
+                      // 欄と 同じ「実費を 引いた 後」で 出す 2026-10-19（対立役 直1：同じ 行に 引く 前と 後が 並んだ）
+                      var hk1 = uriageHiku(s.shift_id, date);
+                      // 読めない 時は 引く 前の 額を 出さない（6回目の 叩き 直1）
+                      return hk1 === null ? '—' : '¥' + yen(num(s.fare_total_yen) - hk1);
                     });
                   if (naoshiMoto.length) sub += ' 直した（メーター ' + naoshiMoto.join('・') + '）';
                 }
@@ -6164,7 +6208,7 @@
                   html += '<div class="camt"></div>';
                 } else if (isManual) {
                   html +=
-                    '<div class="camt">¥<input class="yen" inputmode="numeric" aria-label="売上" data-man-date="' +
+                    '<div class="camt">¥<input class="yen" inputmode="numeric" aria-label="売上（実費を 引く 前）" data-man-date="' +
                     date +
                     '" data-man-dev="' +
                     esc(dev) +
@@ -6173,22 +6217,36 @@
                     '"></div>';
                 } else {
                   // メーターの 車の 売上も 直せる 2026-10-14（司さん「赤丸の売上の数も任意でユーザーが修正できるようにしとけよ」）
-                  //   欄は 1回の 業務ごと（同じ 車で 2回 働いた 日は 2つ）。実費を 引く 前の 額。
+                  //   欄は 1回の 業務ごと（同じ 車で 2回 働いた 日は 2つ）。実費が 在れば 引いた 後（下）。
                   //   空＝メーターの 額（placeholder）に 戻す。印は data-uri-sid（data-sid は 時間の 保存に 結ばれている）
                   html += '<div class="camt hcell">';
+                  // ★★実費が 在る 業務は 欄を「実費を 引いた 後」で 見せる★★ 2026-10-19
+                  //   司さん「入力で経費いれてメーター実費って出すなら自動反映で26,180にしろや」
+                  //   ★倉庫に しまう 額は 今まで 通り「引く 前」★（入力の 画面 nyuryoku.html と 同じ 意味）
+                  //   ⇒ 見せる 時 ＝ 引く 前 − その 業務の 実費 ／ 打った 時 ＝ 打った 値 ＋ その 業務の 実費（saveCarUriage）
+                  //   実費は 計算と 同じ 1か所（UriageAgg.deductOf・その 日の 引き方）
                   ss.forEach(function (s, i) {
                     var e0 = EDIT_BY_SHIFT[s.shift_id] || {};
                     var naoshi = e0.uriage_yen !== null && e0.uriage_yen !== undefined;
+                    var hk0 = uriageHiku(s.shift_id, date);
+                    var hiku = hk0 === null ? 0 : hk0;
                     html +=
                       '<label>' +
                       (ss.length > 1 ? i + 1 + '回目 ' : '') +
-                      '¥<input class="yen" inputmode="numeric" aria-label="売上（実費を 引く 前）" data-uri-sid="' +
+                      '¥<input class="yen" inputmode="numeric" aria-label="' +
+                      (hiku > 0 ? '売上（実費を 引いた 後）' : '売上（実費を 引く 前）') +
+                      '" data-uri-sid="' +
                       esc(s.shift_id) +
+                      '" data-uri-date="' +
+                      date +
                       '" value="' +
-                      (naoshi ? esc(String(e0.uriage_yen)) : '') +
+                      // 読めない 時は 引く 前の 額を 見せない（いつもの 引いた 後と 違う 数に 見える・6回目の 叩き 直1）
+                      (hk0 === null ? '' : naoshi ? esc(String(num(e0.uriage_yen) - hiku)) : '') +
                       '" placeholder="' +
-                      yen(num(s.fare_total_yen)) +
-                      '"></label>';
+                      (hk0 === null ? '—' : yen(num(s.fare_total_yen) - hiku)) +
+                      '"' +
+                      (hk0 === null ? ' disabled title="' + esc(uriageDameWake()) + '"' : '') +
+                      '></label>';
                   });
                   html += '</div>';
                 }
@@ -6223,7 +6281,10 @@
                   });
                 }
                 // 4つ目の 列は 空（乗った人の ✕ の 列。時間の 欄を 縦に 揃える）
-                html += '</div><div></div></div>';
+                html +=
+                  '</div><div></div>' +
+                  (uriNote ? '<div class="unote">' + uriNote + '</div>' : '') +
+                  '</div>';
 
                 // 乗った人（車ごとに 1回）
                 crew.forEach(function (w) {
@@ -6340,6 +6401,12 @@
               }
               html += addSel + '</div>';
             });
+          if (uriDameDeta)
+            html =
+              '<div class="uri-dame"><span class="keikoku">' +
+              esc(uriageDameWake()) +
+              '</span></div>' +
+              html;
           box.innerHTML = html;
           wireDays();
           if (HOZON > 0) kakeru();
@@ -6418,7 +6485,11 @@
           Array.prototype.forEach.call(document.querySelectorAll('[data-uri-sid]'), function (i) {
             i.onchange = function () {
               hozonSuru(function () {
-                return saveCarUriage(i.getAttribute('data-uri-sid'), i.value);
+                return saveCarUriage(
+                  i.getAttribute('data-uri-sid'),
+                  i.value,
+                  i.getAttribute('data-uri-date')
+                );
               });
             };
           });
@@ -6666,13 +6737,67 @@
         // メーターの 車の 売上を 事務所が 直す（dk_shift_edits.uriage_yen）2026-10-14
         //   元の 記録（dk_shifts）は 書かない。送るのは この 2列だけ（他の 列を 古い 値で 上書きしない）
         //   請求書の 一覧で 後から 直すと dk-fix-fare が 空に 戻す＝後から 直した 方が 勝つ
-        function saveCarUriage(shiftId, value) {
+        // その 業務の 実費（計算と 同じ UriageAgg.deductOf・その 日の 引き方）2026-10-19
+        //   ★引き方が 読めない 時は null★（記録・売上の 設定・計算の 材料の どれかが 読めていない＝対立役 止1）
+        //   ⇒ 描く 側は 欄を 押せなくし、保存も 止める（その 時の 違う 引き方で 引く 前の 額を しまわない）
+        function uriageHiku(shiftId, date) {
+          //   2回目の 叩き：実費（dk_shift_edits）は 期間の 読み（LOAD）＝その 失敗も 見る（止A）。
+          //   記録の 形が 壊れて 計算が 止めた 時（yakuDame の uriageRireki）も 見る（直C）。
+          //   読めない 物が 売上と 関係 無くても 止まる 側に 倒す（開き直せば 直る・違う 額を しまうより 良い）
+          if (
+            !CTX ||
+            RAW.uriageRireki === null ||
+            (LOAD_KIHON && LOAD_KIHON.failed > 0) ||
+            (LOAD && LOAD.failed > 0) ||
+            (CTX.yakuDame || []).some(function (x) {
+              return x && x.wake === 'uriageRireki';
+            })
+          )
+            return null;
+          var st = UriageAgg.settingsOnDay(
+            CTX ? CTX.salesSettings : null,
+            CTX ? CTX.uriageKumi : null,
+            date
+          );
+          return num(UriageAgg.deductOf(EDIT_BY_SHIFT[shiftId] || null, st));
+        }
+
+        // 欄が 使えない 訳（目に 見える 字で 出す）2026-10-20
+        //   ★行数の 門は 置かない★：直しの 読み（DKSession.softList）は 1000 行を 超えると 全部 読む（zenbuYomu）＝切れない（5回目の 叩き 止2）
+        function uriageDameWake() {
+          return '読めなかった 物が あるので、売上は 直せません。画面を 開き直してください';
+        }
+
+        function saveCarUriage(shiftId, value, date) {
           if (!COMPANY) return;
-          var v = UriageAgg.yomuUriage(value); // 字の 読み方は 1か所（js/uriage-agg.js）
+          // 実費が メーターより 多い 業務は「引いた 後」が 負に なる＝その 時だけ 先頭の −／- を 許す（引く 前は 0 以上の まま）
+          var hk0 = uriageHiku(shiftId, date);
+          var fu = !!hk0 && /^\s*[-−－]/.test(String(value || ''));
+          var v = UriageAgg.yomuUriage(fu ? String(value).replace(/^\s*[-−－]/, '') : value); // 字の 読み方は 1か所（js/uriage-agg.js）
+          // 「-」だけ は 読めない 字（空＝メーターに 戻す と 読まない・2回目の 叩き 直B）
+          if (fu && v === null) {
+            showErr('売上は 数で 入れてください（空に すると メーターの 額に 戻ります）。');
+            renderDays();
+            return;
+          }
+          if (fu && v !== undefined && v !== null) v = -v;
           if (v === undefined) {
             showErr(
               '売上は 0以上の 整数で 入れてください（空に すると メーターの 額に 戻ります）。'
             );
+            renderDays();
+            return;
+          }
+          // ★欄は「実費を 引いた 後」で 見せている★ 2026-10-19＝しまう 額は 引く 前に 戻す（今の その 業務の 実費を 足す）
+          var hk = uriageHiku(shiftId, date);
+          if (hk === null) {
+            showErr(uriageDameWake() + '。');
+            renderDays();
+            return;
+          }
+          if (v !== null) v += hk;
+          if (v !== null && v < 0) {
+            showErr('売上は 実費（¥' + yen(hk) + '）より 少なく できません。');
             renderDays();
             return;
           }
