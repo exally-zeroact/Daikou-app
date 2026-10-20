@@ -1613,7 +1613,7 @@
       }
 
       /* ★319〜330px（iPhone SE 初代 の 320px 等）は 10px★（318px の 10px は CI の Linux で 赤・4136497＝9px の まま） 8.8 で 割って 切り下げると 9px に 縮む（前の 本番は 10px・本番前の 対立役）
-         この 幅の 10px は CI の Linux の chromium の 1px 走査で 緑（a7d7eae）。331px から 上は 上の 式で 10px 以上 */
+         この 幅の 10px は 9171e81 の CI の Linux の chromium の 1px 走査で 緑（a7d7eae の 走査は 396px で 赤・319〜330px は 崩れに 出なかった）。331px から 上は 上の 式で 10px 以上 */
       @media (min-width: 319px) and (max-width: 330px) {
         .hn-kikan.sukunai .hn-chip {
           font-size: 10px;
