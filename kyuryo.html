@@ -808,6 +808,49 @@
         color: var(--muted);
       }
 
+      /* ★2回 以上 走った 車＝600px 以下は 名前を 1行目に 横 いっぱい・売上と 時間の 欄は 2行目の 右★ 2026-10-20
+         （欄に「1回目」が 付いて 広がり 名前の 列が 390px で 19px・360px 以下で 0px に 潰れた）
+         PC（601px 以上）は 名前の 列が 広い＝前の 1行の まま（行を 高く しない・対立役） */
+      @media (max-width: 600px) {
+        .carrow.nikai .cname {
+          grid-column: 1 / -1;
+        }
+
+        .carrow.nikai .camt {
+          grid-column: 2;
+        }
+
+        .carrow.nikai .hcell:not(.camt) {
+          grid-column: 3;
+        }
+      }
+
+      /* ★400px 以下は 全部の 車の 行で 名前を 1行目に★（412・428・430px の 大きい スマホは 1行の まま＝10字の 名前は 2行に 折れるが 列は 60px 以上）
+         名前の 長さや 字体で 境を 決めない（「1号車」の 3字で 360px に 決めると 長い 名前・別の 字体で 割れた・対立役）
+         1回の 車も 300〜325px で「1号車」が 列から はみ出し、342px まで 2行に 折れた（E の 前から）
+         2回 以上 走った 車は 売上の 欄（1回目・2回目）と 時間の 欄が 1行に 並ばない（361〜374px で 行の 右から 出た）
+         ＝売上の 欄を 2行目に 横 いっぱい（右寄せ）・時間の 欄は 3行目（時間の 欄の 右端は 全部の 行で 揃う） */
+      @media (max-width: 400px) {
+        .carrow .cname {
+          grid-column: 1 / -1;
+        }
+
+        /* 2行目の 左は 空く＝売上の 欄は 1〜2列目に 跨がせて 右寄せ（300〜302px で 1〜2px 出た） */
+        .carrow .camt {
+          grid-column: 1 / 3;
+          justify-self: end;
+        }
+
+        .carrow .hcell:not(.camt) {
+          grid-column: 3;
+        }
+
+        .carrow.nikai .camt {
+          grid-column: 1 / -1;
+          justify-self: end;
+        }
+      }
+
       .carrow .hrs,
       .crewrow .hrs {
         width: 4.2em;
@@ -6408,8 +6451,12 @@
                   if (naoshiMoto.length) sub += ' 直した（メーター ' + naoshiMoto.join('・') + '）';
                 }
 
+                // ★同じ 車で 2回 以上 走った 日は 名前を 1行目に 横 いっぱい・欄は 2行目★ 2026-10-20
+                //   欄に「1回目」が 付いて 広がり、名前の 列が 390px で 19px・360px 以下で 0px に 潰れた
                 html +=
-                  '<div class="carrow"><div class="cname">' +
+                  '<div class="carrow' +
+                  (!isManual && ss.length > 1 ? ' nikai' : '') +
+                  '"><div class="cname">' +
                   esc(label) +
                   '<span class="csub">' +
                   sub +

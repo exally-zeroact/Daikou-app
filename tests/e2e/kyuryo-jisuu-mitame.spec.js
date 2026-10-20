@@ -977,3 +977,164 @@ for (const w of [390, 375, 360]) {
     }
   );
 }
+
+// ★★2回 走った 車も 名前の 列が 潰れない★★ 2026-10-20（E の 前から 在った 細さ）
+// ★★車の 行＝300〜430px を 1px ずつ：名前が 潰れない・行の 子が 全部 行から 出ない・時間の 欄の 右端が 揃う★★ 2026-10-20
+//   ★前★ 2回 走った 車は 名前の 列が 390px で 19px・360px 以下で 0px（欄に「1回目」が 付いて 広がる）
+//         1回の 車も 300〜325px で「1号車」が 名前の 列から はみ出した
+//   ★今★ 2回 以上＝名前は 1行目に 横 いっぱい・400px 以下は 全部の 車で 名前を 1行目に（2回 以上は 欄を 3行に）
+//   ★対立役★ 欄（input）だけ 見ると ✕ の 列が はみ出しを 吸って 隠れた（361〜368px）／境を「1号車」の 3字で 決めると 長い 名前で 割れる
+//     ⇒ 行の 子の 全部・時間の 欄の 揃い・名前の 列の 幅（60px 以上）を 見る。名前 3字と 10字の 2形
+//   ★わざと壊して 赤に なるのを 見た（2026-10-20 実測）★ 直す 前の kyuryo.html … 走査 3形とも 赤
+//     2回 走った 車の 時間の 欄を 20px ずらす … 赤（欄の 右端で 見る）／PC でも 名前を 1行目に 回す … PC の 3本 赤
+//     境を 360px に した 形（前の 案）… 361〜368px 等で 赤
+// 名前の 長い 車（10字）でも 見る＝境を「1号車」の 3字で 決めない（対立役）
+const nagaiNa = (F) => {
+  (F.labels || []).forEach((l) => {
+    if (l.device_id === CAR1) l.label = '第一営業所ワゴン車X';
+    if (l.device_id === CAR2) l.label = 'アルファード大阪の車';
+  });
+};
+// いろいろ 入った 形＝3回 走った 車・実費の 注（.unote）・直した 売上の csub・長い 名前（対立役：extra の 形が 1つも 無かった）
+const iroiro = (F) => {
+  nagaiNa(F);
+  F.shifts.push({
+    shift_id: '00000000-0000-4000-a000-00000000000a',
+    device_id: CAR1,
+    started_at: '2026-08-01 07:00:00+00',
+    ended_at: '2026-08-01 08:00:00+00',
+    elapsed_sec: 3600,
+    fare_total_yen: 1234567,
+    trip_count: 1,
+  });
+  F.edits = [
+    {
+      shift_id: '00000000-0000-4000-a000-000000000002',
+      company_id: CO,
+      toll_yen: 1520,
+      uriage_yen: null,
+    },
+    {
+      shift_id: '00000000-0000-4000-a000-000000000009',
+      company_id: CO,
+      toll_yen: 300,
+      uriage_yen: 5000,
+    },
+  ];
+};
+for (const [na, tweak] of [
+  ['名前 3字', undefined],
+  ['名前 10字', nagaiNa],
+  ['3回・実費・直した 売上', iroiro],
+]) {
+  test(`車の 行＝300〜430px を 1px ずつ・${na}・名前が 潰れない・行から 出ない・時間の 欄が 揃う`, async ({
+    page,
+  }) => {
+    test.setTimeout(200000);
+    await hiraku(page, { tweak });
+    const SIDb = '00000000-0000-4000-a000-000000000009'; // 8/1 1号車 の 2回目
+    await expect(hi(page, '2026-08-01').locator('[data-uri-sid="' + SIDb + '"]')).toHaveCount(1);
+    const dame = [];
+    let mita = 0;
+    for (let w = 300; w <= 430; w++) {
+      await page.setViewportSize({ width: w, height: 844 });
+      await page.evaluate(
+        () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      );
+      const m = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll('.carrow'));
+        return {
+          haba: document.documentElement.clientWidth,
+          page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          nikai: document.querySelectorAll('.carrow.nikai').length,
+          // 時間の 欄（input）の 右端＝車の 行と 乗った人の 行の 全部で 揃うか（箱の 右端だと 中で ずれても 緑・対立役）
+          jikan: Array.from(document.querySelectorAll('.carrow input.hrs, .crewrow input.hrs')).map(
+            (h) => Math.round(h.getBoundingClientRect().right)
+          ),
+          rows: rows.map((r) => {
+            const n = r.querySelector('.cname');
+            const rb = r.getBoundingClientRect();
+            const rr = rb.right;
+            const kids = Array.from(r.querySelectorAll('*')).filter((c) => {
+              const b = c.getBoundingClientRect();
+              return b.width > 0 && b.height > 0;
+            });
+            return {
+              na: n.firstChild ? n.firstChild.textContent : '',
+              // 名前の 列の 幅（字ごとに 折れて 縦に 積まれると 細く なる＝はみ出しでは 見えない）
+              nw: Math.round(n.getBoundingClientRect().width),
+              // 行の 子の 全部（名前・欄・✕ の 列・注）が 行の 右から 出ないか（欄だけ 見ると ✕ の 列が 吸って 隠れた・対立役）
+              migi: Math.max(...kids.map((c) => Math.round(c.getBoundingClientRect().right - rr))),
+              hidari: Math.max(
+                ...kids.map((c) => Math.round(rb.left - c.getBoundingClientRect().left))
+              ),
+            };
+          }),
+        };
+      });
+      if (m.haba === w) mita++;
+      else dame.push(`${w}px のはずが ${m.haba}px`);
+      if (!m.nikai) dame.push(`${w}px 2回 走った 車の 行が 無い`);
+      if (m.page > 0) dame.push(`${w}px ページが 横に ${m.page}px`);
+      if (m.jikan.length && Math.max(...m.jikan) - Math.min(...m.jikan) > 1)
+        dame.push(
+          `${w}px 時間の 欄の 右端が 揃わない ${Math.min(...m.jikan)}〜${Math.max(...m.jikan)}`
+        );
+      m.rows.forEach((r) => {
+        if (r.nw < 60) dame.push(`${w}px ${r.na} 名前の 列が ${r.nw}px（細い）`);
+        if (r.migi > 0) dame.push(`${w}px ${r.na} 行の 右から ${r.migi}px 出る`);
+        if (r.hidari > 0) dame.push(`${w}px ${r.na} 行の 左から ${r.hidari}px 出る`);
+      });
+    }
+    expect(mita, '★その 幅で 見た 数が 違う★').toBe(131);
+    expect(dame, '★この 幅で 車の 行が 崩れる★').toEqual([]);
+  });
+}
+
+// ★PC（601px 以上）は 2回 走った 車も 前の 1行の まま（名前と 欄が 同じ 行）＝事務所の PC の 見え方を 変えない★
+for (const w of [601, 800, 1280]) {
+  test(`2回 走った 車＝PC ${w}px は 名前と 欄が 同じ 行`, async ({ page }) => {
+    await hiraku(page);
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.waitForTimeout(300);
+    const SIDb = '00000000-0000-4000-a000-000000000009';
+    const m = await page.evaluate((sid) => {
+      const r = document.querySelector('.carrow:has([data-uri-sid="' + sid + '"])');
+      return {
+        nikai: r.classList.contains('nikai'),
+        na: Math.round(r.querySelector('.cname').getBoundingClientRect().top),
+        ran: Math.round(r.querySelector('.camt').getBoundingClientRect().top),
+      };
+    }, SIDb);
+    expect(m.nikai, '★2回 走った 車の 行に 印が 無い＝この 形を 測っていない★').toBe(true);
+    expect(m.ran, '★PC で 欄が 名前の 下の 行に 落ちた★').toBeLessThanOrEqual(m.na + 10);
+  });
+}
+
+for (const w of [390, 375, 360, 320]) {
+  test(`2回 走った 車の 名前の 列＝${w}px でも 潰れない・横に はみ出さない`, async ({ page }) => {
+    await hiraku(page);
+    await page.setViewportSize({ width: w, height: 844 });
+    await page.waitForTimeout(300);
+    const SIDb = '00000000-0000-4000-a000-000000000009'; // 8/1 1号車 の 2回目
+    await expect(hi(page, '2026-08-01').locator('[data-uri-sid="' + SIDb + '"]')).toHaveCount(1);
+    const m = await page.evaluate((sid) => {
+      const r = document.querySelector('.carrow:has([data-uri-sid="' + sid + '"])');
+      const n = r.querySelector('.cname');
+      return {
+        name: Math.round(n.getBoundingClientRect().width),
+        hami: n.scrollWidth - n.clientWidth,
+        doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        migi: Math.max(
+          ...Array.from(r.querySelectorAll('input')).map((i) =>
+            Math.round(i.getBoundingClientRect().right - r.getBoundingClientRect().right)
+          )
+        ),
+      };
+    }, SIDb);
+    expect(m.name, '★2回 走った 車の 名前の 列が 細い★').toBeGreaterThan(60);
+    expect(m.hami, '★名前が 列から はみ出している★').toBeLessThanOrEqual(0);
+    expect(m.migi, '★欄が 行の 右から はみ出している★').toBeLessThanOrEqual(0);
+    expect(m.doc, '★ページが 横に はみ出している★').toBeLessThanOrEqual(0);
+  });
+}
