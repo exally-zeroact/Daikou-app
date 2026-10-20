@@ -106,3 +106,80 @@ test('★期間の ボタン：締め日 10・20・25 の 12月・280px は 折�
   expect(m.chipMigi, '★期間の ボタンが 画面の 右へ はみ出している★').toBeLessThanOrEqual(0);
   expect(m.page, '★ページが 横に はみ出している★').toBeLessThanOrEqual(0);
 });
+
+// ★★段の 境の 幅も 見る＝240〜430px を 1px ずつ★★ 2026-10-20（本番前の 対立役 直1）
+//   ★前★ 字の 大きさを 400/380/340px の 段で 変えていた＝試験の 5つの 幅（390/375/360/320/280）は 緑でも
+//   段の 境の すぐ 上で「字×1.1 が 入る」を 破った（月3回 282〜312・401〜403px／締め日 10・20・25 は 291〜315・341〜342・381〜382・401〜406px
+//   ＝iPhone 16 Pro/17 の 402px も）。
+//   ★今★ 字の 大きさを ボタンの 並びの 幅から 続けて 決める（段を 作らない）。310px 以下は 2つ＋1つに 折る（300px が CI の Linux で 赤・03f4873）。選んだ ボタンは 太字に しない。
+//   一番 広い 字の ボタンを 選んだ 形で 測る（太字の 分 広がる 形を 見る・対立役 直3）。
+//   ★わざと壊して 赤に なるのを 見た（2026-10-20 実測）★ 段の 形（前の kyuryo.html）… 締め日 35幅・月3回 34幅 赤
+const SCAN = [
+  [
+    '締め日 10・20・25 の 12月',
+    '2025-12-15T12:00:00+09:00',
+    { period_shime: { kind: 'tsuki', hi: [10, 20, 25], nazuke: 'shime' } },
+    '12/21〜12/25',
+  ],
+  ['月3回', '2026-10-05T12:00:00+09:00', undefined, '10/21〜10/31'],
+];
+for (const [na, hi, set, hiroi] of SCAN) {
+  test(`★期間の ボタン：${na}・240〜430px を 1px ずつ★`, async ({ page }) => {
+    test.setTimeout(240000);
+    await page.clock.setFixedTime(new Date(hi));
+    await page.setViewportSize({ width: 430, height: 844 });
+    await hiraku(page, set);
+    await jitaiKotei(page);
+    // ★一番 広い 字が 出ている＝短い 字で 緑に ならない★（対立役 直2）
+    const hiroiChip = page.locator('#slips .hn-chip', { hasText: hiroi });
+    await expect(hiroiChip, '★一番 広い 期間の 字が 無い＝この 形を 測っていない★').toHaveCount(1);
+    await hiroiChip.click();
+    await expect(page.locator('#slips .hn-chip.on')).toHaveText(hiroi);
+    // ★選んだ ボタンも 字の 太さは 同じ（太字で 広がらない）★
+    const futosa = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('#slips .hn-chip')).map(
+        (c) => getComputedStyle(c).fontWeight
+      )
+    );
+    expect(new Set(futosa).size, '★選んだ ボタンだけ 字の 太さが 違う★').toBe(1);
+    const dame = [];
+    let mita = 0;
+    for (let w = 240; w <= 430; w++) {
+      await page.setViewportSize({ width: w, height: 844 });
+      await page.evaluate(
+        () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      );
+      const m = await hakaru(page);
+      const haba = await page.evaluate(() => document.documentElement.clientWidth);
+      // ★字の 大きさは 1px 刻み（半端な 大きさは CI の Linux だけで 崩れた・fd4f830）★
+      const hanpa = await page.evaluate(
+        () =>
+          Array.from(document.querySelectorAll('#slips .hn-chip')).filter(
+            (c) => parseFloat(getComputedStyle(c).fontSize) % 1 !== 0
+          ).length
+      );
+      if (hanpa) dame.push(`${w}px 字の 大きさが 半端 ${hanpa}`);
+      // ★320px（iPhone SE 初代 等）は 前の 10px より 小さく しない（本番前の 対立役：8.8 で 割ると 9px に 縮んだ）★
+      if (w === 320) {
+        const fs = await page.evaluate(() =>
+          Math.min(
+            ...Array.from(document.querySelectorAll('#slips .hn-chip')).map((c) =>
+              parseFloat(getComputedStyle(c).fontSize)
+            )
+          )
+        );
+        if (fs < 10) dame.push(`320px 字が ${fs}px（前は 10px）`);
+      }
+      // ★その 幅で 開けた 回数を 数える（setViewportSize が 効かずに 430px の まま 測るのを 緑に しない・対立役 直2）★
+      if (haba === w) mita++;
+      else dame.push(`${w}px のはずが ${haba}px`);
+      const gyou = w <= 310 ? 2 : 1;
+      if (m.chips !== 3 || m.gyou !== gyou || m.jiHami || m.jiYoyuu || m.chipMigi > 0 || m.page > 0)
+        dame.push(
+          `${w}px 行${m.gyou} はみ${m.jiHami} ゆとり無し${m.jiYoyuu} 右${m.chipMigi} 頁${m.page}`
+        );
+    }
+    expect(mita, '★その 幅で 見た 数が 違う★').toBe(191);
+    expect(dame, '★この 幅で 期間の ボタンが 崩れる★').toEqual([]);
+  });
+}

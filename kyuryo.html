@@ -1542,46 +1542,55 @@
         cursor: pointer;
       }
 
+      /* ★字の 大きさは ボタンの 並びの 幅から 続けて 決める（段を 作らない）★ 2026-10-20（本番前の 対立役 直1）
+         前は 400/380/340px の 段で 変えた＝段の 境の すぐ 上（月3回 282〜312・401〜403px／締め日 10・20・25 は 291〜315・341〜342・381〜382・401〜406px
+         ＝iPhone 16 Pro/17 の 402px も）で iPhone の 字（1割 広い）が ボタンに 入らなかった。
+         並びの 幅＝C。ボタンの 中＝(C−8)/3 −2(枠) −4(左右の 空き)。一番 広い「12/21〜12/25」は 字の 大きさの 7.69倍。
+         7.69 × 1.1 ＝ 8.46 より 少し 大きい 8.8 で 割る＝ C/26.4 − 0.985px（13px で 止める）。
+         8.55 で 割ると CI の Linux の chromium で 396px（13px）が 赤（a7d7eae）＝8.8 に 戻し、320px だけ 下の 段で 10px を 守る。
+         C は cqw で 測る（PC の 巻き棒が 在っても ずれない・対立役 a）。cqw が 読めない 古い iPhone（iOS 16 より 前）は 上の 100vw の 行（C＝画面−36）が 効く。 */
+      .hn-kikan.sukunai {
+        gap: 4px;
+        container-type: inline-size;
+      }
+
       .hn-kikan.sukunai .hn-chip {
         flex: 1 1 0;
         min-width: 0;
         max-width: 160px;
-        padding: 0 4px;
+        padding: 0 2px;
+        font-size: clamp(9px, calc(100vw / 26.4 - 2.35px), 13px);
+        font-size: clamp(9px, calc(100cqw / 26.4 - 0.985px), 13px);
+
+        /* ★字の 大きさは 1px 刻みに 切り下げる★ 半端な 大きさ（11.5px 等）だと CI の Linux の chromium だけ
+           9.5・11.5・12.5px を 越えた すぐ 上の 幅（313〜318・366〜369・393〜396px 等）で ゆとりが 消えた（fd4f830 の CI・Windows と webkit は 緑）。
+           見立て＝Linux は 半端な 大きさを 整数の 大きさで 描く（測っていない）。
+           切り下げなので 入る 側に しか 動かない。round() が 読めない 古い 中身は 上の 行が 効く */
+        font-size: round(down, clamp(9px, calc(100cqw / 26.4 - 0.985px), 13px), 1px);
       }
 
-      /* ★字の 大きさは「11/26〜12/10」（11字）が 3つ 並んでも iPhone の 字（Windows の 試験の 字より 2割 広い）で 入る 様に★（対立役 直1） */
-      @media (max-width: 400px) {
-        .hn-kikan.sukunai .hn-chip {
-          font-size: 12px;
-        }
-      }
-
-      @media (max-width: 380px) {
-        .hn-kikan.sukunai {
-          gap: 4px;
-        }
-
-        .hn-kikan.sukunai .hn-chip {
-          font-size: 11px;
-          padding: 0 2px;
-        }
-      }
-
-      @media (max-width: 340px) {
+      /* ★319〜330px（iPhone SE 初代 の 320px 等）は 10px★ 8.8 で 割って 切り下げると 9px に 縮む（前の 本番は 10px・本番前の 対立役）
+         この 幅の 10px は CI の Linux の chromium の 1px 走査で 緑（a7d7eae）。331px から 上は 上の 式で 10px 以上 */
+      @media (min-width: 319px) and (max-width: 330px) {
         .hn-kikan.sukunai .hn-chip {
           font-size: 10px;
         }
       }
 
-      /* ★300px 未満（折りたたみの 閉じた 画面）は 3つが 1行に 入らない★＝字を 潰さず 折り返す（対立役 D1：280px で 字が はみ出した） */
-      @media (max-width: 299px) {
+      /* ★310px 以下（折りたたみの 閉じた 画面）は 3つが 1行に 入らない★＝必ず 2つ＋1つに 折る（対立役 D1：280px で 字が はみ出した）
+         300〜305px は 字が 下限の 9px で ゆとりが 1px 無く、CI の Linux で 300px が 赤（03f4873）＝境を 310px に 上げた（よく 在る 一番 狭い 機械は 320px）
+         ボタンの 中＝(C−4)/2 −2 −4 を 8.8 で 割る＝ C/17.6 − 0.909px（12px で 止める） */
+      @media (max-width: 310px) {
         .hn-kikan.sukunai {
           flex-wrap: wrap;
         }
 
         .hn-kikan.sukunai .hn-chip {
-          flex: 1 1 auto;
+          flex: 1 1 40%;
           max-width: none;
+          font-size: min(12px, calc(100vw / 17.6 - 2.95px));
+          font-size: min(12px, calc(100cqw / 17.6 - 0.909px));
+          font-size: round(down, min(12px, calc(100cqw / 17.6 - 0.909px)), 1px);
         }
       }
 
@@ -1590,6 +1599,11 @@
         border-color: #0a5fd0;
         color: #fff;
         font-weight: 700;
+      }
+
+      /* ★選んだ ボタンは 色だけで 見せる（太字に しない）★ 一番 広い 字が 太字に なると iPhone の 太字の 幅の 分 ゆとりが 減る（対立役 直3） */
+      .hn-kikan.sukunai .hn-chip.on {
+        font-weight: 400;
       }
 
       /* ★紙は A4 の 大きさで 組まれる★ので 縮めて 入れる（はみ出しを 切らない） */
