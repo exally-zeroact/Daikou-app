@@ -92,7 +92,12 @@ export function hanni(cwd, lines, url) {
       ),
     ];
     if (!shas.length) return (known = []);
-    const have = git(['cat-file', '--batch-check'], shas.join('\n') + '\n');
+    let have;
+    try {
+      have = git(['cat-file', '--batch-check'], shas.join('\n') + '\n');
+    } catch (_) {
+      throw new Error('押す先の頭を 手元で 調べられない（git fetch してから 押す）');
+    }
     const missing = have.split('\n').filter((l) => / missing$/.test(l)).length;
     if (missing)
       throw new Error(
@@ -162,6 +167,9 @@ export function tagMiru(cwd, lines, words) {
       try {
         type = git('cat-file', '-t', sha).trim();
       } catch (_) {
+        bad++;
+        console.error('★タグの型を 読めませんでした★（字は出しません）');
+        deep = false; // 訳の 違う「深すぎて」を 重ねない（叩き 5回目）
         break;
       }
       if (type !== 'tag') {
@@ -171,10 +179,15 @@ export function tagMiru(cwd, lines, words) {
       if (depth === 10) break;
       n++;
       // ★UTF-8 として 読めない 文（Shift_JIS 等）は 止める★＝utf8 で 読むと 字が 化けて 当たらない（10-11 taiketsu 実測）
-      const buf = execFileSync('git', ['-C', cwd, 'cat-file', 'tag', sha], {
-        env: NO_REPLACE(),
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      let buf;
+      try {
+        buf = gitYomu(['-C', cwd, 'cat-file', 'tag', sha]); // 落ちても タグの 文を 出さない
+      } catch (_) {
+        bad++;
+        console.error('★タグの文を 読めませんでした★（字は出しません）');
+        deep = false;
+        break;
+      }
       let body;
       let yomenai = false;
       try {
@@ -193,6 +206,8 @@ export function tagMiru(cwd, lines, words) {
         // タグの中の 名前（tag 行）＝ref を 付け替えても 中に 残り、clone した人が 読める
         ataru((/^tag (.*)$/m.exec(head) || [])[1] || '', words) > 0 && 'タグの中の名前',
         ataru(sigCut(msg), words) > 0 && 'タグの文',
+        // タグの文の メールも 本文と 同じ 決まり（叩き 5回目：tag -a -m 'p@example.com' が exit 0 で 通った）
+        !honbunMails(sigCut(msg)).every(honbunMailOk) && 'タグの文のメール',
         yomenai && 'タグの文（UTF-8 で 読めない）',
       ].filter(Boolean);
       if (which.length) {
@@ -309,6 +324,122 @@ function hanniCases() {
     g(w, 'checkout', '-q', c2);
     out.push(['押す前の門：字の入った新しい枝を 止める', mon(nb(c2, 'x'), 'の文に 実在の字'), 1]);
     out.push(['押す前の門：きれいな新しい枝は 通す', mon(nb(ck, 'k')), 0]);
+    // 本文の Co-authored-by（10-21・Exally 席の横断）：ふつうのメールの 共作者は 止め、Claude の 印は 通す
+    g(w, 'checkout', '-q', '-b', 'kyou1', c1);
+    const cx = ci(w, 'ふつうの点\n\nCo-authored-by: P <p@example.com>');
+    out.push([
+      '押す前の門：本文の 共作者が ふつうのメールなら 止める',
+      mon(nb(cx, 'kx'), 'Co-authored-by'),
+      1,
+    ]);
+    g(w, 'checkout', '-q', '-b', 'kyou2', c1);
+    const cy = ci(w, 'ふつうの点2\n\nCo-authored-by: Claude <noreply@anthropic.com>');
+    out.push(['押す前の門：本文の 共作者が Claude の 印なら 通す', mon(nb(cy, 'ky')), 0]);
+    //   止めて、しかも ★メールの 字（pzzqq）が stdout にも stderr にも 出ない★ 時だけ 1（出たら 2・通したら 0）
+    const monMore = (lines, why) => {
+      try {
+        const so = execFileSync(process.execPath, [SELF, '--pre-push', 'o', bare], {
+          cwd: w,
+          input: lines.join('\n') + '\n',
+          env: { ...process.env, KINSHI_JI: '見本太郎' },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        return String(so).includes('pzzqq') ? 2 : 0;
+      } catch (e) {
+        const dashi = String(e.stdout || '') + String(e.stderr || '');
+        return !dashi.includes('pzzqq') && String(e.stderr || '').includes(why) ? 1 : 2;
+      }
+    };
+    const kyou = (eda, msg) => {
+      g(w, 'checkout', '-q', '-b', eda, c1);
+      return nb(ci(w, msg), eda);
+    };
+    // 折り返した 値（続きの 行に メール）＝止める・メールの 頭を 出しに 出さない（叩き 3）
+    out.push([
+      '押す前の門：折り返した 共作者を 止め、メールの 字を 出さない',
+      monMore(
+        kyou('kyou3', 'ふつうの点3\n\nCo-authored-by: P\n <pzzqq@example.com>'),
+        'Co-authored-by'
+      ),
+      1,
+    ]);
+    // 値に \x01（記録の 区切り）＝読めない で 止め、字を 出さない（叩き 中1）
+    out.push([
+      '押す前の門：値に 区切りの 字＝読めないで 止め、字を 出さない',
+      monMore(
+        kyou(
+          'kyou4',
+          'ふつうの点4\n\nCo-authored-by: C <noreply@anthropic.com>\x01<pzzqq@example.com>'
+        ),
+        '読めませんでした'
+      ),
+      1,
+    ]);
+    // trailer に ならない 所の メール（本文の 途中・Signed-off-by）も 止める（叩き 重1）
+    out.push([
+      '押す前の門：本文の 途中の メールを 止める',
+      monMore(
+        kyou('kyou5', 'ふつうの点5\n\n連絡は pzzqq@example.com へ\n\n後ろの 段落'),
+        '本文のメール'
+      ),
+      1,
+    ]);
+    out.push([
+      '押す前の門：Signed-off-by の メールを 止める',
+      monMore(kyou('kyou6', 'ふつうの点6\n\nSigned-off-by: P <pzzqq@example.com>'), '本文のメール'),
+      1,
+    ]);
+    // 読む git が 落ちる道（叩き 4回目）：出しの 上限を 50 に して 落とし、止まる＋字（pzzqq も @ も）を 出さない 時だけ 1
+    const otosu = (args, input) => {
+      try {
+        execFileSync(process.execPath, [SELF, ...args], {
+          cwd: w,
+          input: input || '',
+          env: { ...process.env, KINSHI_JI: '見本太郎', KINSHI_MAXBUF: '50' },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        return 0;
+      } catch (e) {
+        const dashi = String(e.stdout || '') + String(e.stderr || '');
+        // 読めない 訳で 止めた 事も 照らす（上限が 効かず 別の 訳で 止まっても 緑に 見えないように）
+        return !/pzzqq|@/.test(dashi) && String(e.stderr || '').includes('読めませんでした')
+          ? 1
+          : 2;
+      }
+    };
+    const kp = kyou('kyou7', 'ふつうの点7\n\n連絡は pzzqq@example.com');
+    const kpSha = kp[0].split(' ')[1];
+    out.push(['落ちる道：range で 止め、字を 出さない', otosu(['--range', `${c1}..${kpSha}`]), 1]);
+    out.push([
+      '落ちる道：押す前の門で 止め、字を 出さない',
+      otosu(['--pre-push', 'o', bare], kp.join('\n') + '\n'),
+      1,
+    ]);
+    g(
+      w,
+      '-c',
+      'user.name=x',
+      '-c',
+      'user.email=1+x@users.noreply.github.com',
+      'tag',
+      '-a',
+      'tpz',
+      '-m',
+      'タグ pzzqq@example.com',
+      c1
+    );
+    const tpz = g(w, 'rev-parse', 'refs/tags/tpz');
+    out.push([
+      'タグの 文の メールを 止め、字を 出さない',
+      monMore([`refs/tags/tpz ${tpz} refs/tags/tpz ${Z}`], 'タグの文のメール'),
+      1,
+    ]);
+    out.push([
+      '落ちる道：タグの 文で 止め、字を 出さない',
+      otosu(['--pre-push', 'o', bare], `refs/tags/tpz ${tpz} refs/tags/tpz ${Z}\n`),
+      1,
+    ]);
+    g(w, 'checkout', '-q', c2);
     // 注釈付きタグ（押し済みの c1 に付ける＝範囲は空・タグだけを見る）
     const tag = (name, msg, mail) => {
       g(w, '-c', 'user.name=x', '-c', `user.email=${mail}`, 'tag', '-a', name, '-m', msg, c1);
@@ -556,6 +687,13 @@ function hanniCases() {
   return out;
 }
 
+const honTome = (s) => (honbunMails(s).every(honbunMailOk) ? 0 : 1);
+// 1秒 以内に 返り、しかも 1つ 拾えた 時だけ 1
+const hayai = (fn) => {
+  const t = Date.now();
+  const n = fn().length;
+  return Date.now() - t < 1000 && n === 1 ? 1 : 0;
+};
 function selfTest() {
   const words = ['見本太郎', 'SAMPLE Co', '架空区見本台1-2-3'];
   const all = [...words, ...FUDA];
@@ -572,6 +710,60 @@ function selfTest() {
     ['GitHub 自身は通す', mailOk('noreply@github.com') ? 1 : 0, 1],
     ['ふつうのメールは止める', mailOk('someone@example.com') ? 1 : 0, 0],
     ['noreply に似せた偽物は止める', mailOk('x@users.noreply.github.com.example.com') ? 1 : 0, 0],
+    // ↓ 本文 全部の メールの 形（10-21）。版の 字（react@18.3.1・@scope/x）は メールに 数えない
+    ['本文：途中の メールを 拾う', honbunMails('連絡は p@example.com へ\n\n後ろ').length, 1],
+    ['本文：全角の ： の 後ろも 拾う', honbunMails('共作者：P <p@example.co.jp>').length, 1],
+    [
+      '本文：版の 字は 拾わない',
+      honbunMails('react@18.3.1 と @supabase/supabase-js@2 を 上げた').length,
+      0,
+    ],
+    // ↓ 揃えてから 判じる（叩き 中B）・GitHub 自身の 口は 通す（叩き 重A・軽D）。1＝止める・0＝通す
+    ['本文：全角の ＠ を 止める', honTome('連絡は p＠example.com'), 1],
+    ['本文：全部 全角の メールを 止める', honTome('ｐ＠ｅｘａｍｐｌｅ．ｃｏｍ'), 1],
+    ['本文：幅0の字 入りを 止める', honTome('p\u200b@example.com'), 1],
+    ['本文：LRM 入りを 止める', honTome('p' + String.fromCharCode(0x200e) + '@example.com'), 1],
+    ['本文：U+2061 入りを 止める', honTome('p@example' + String.fromCharCode(0x2061) + '.com'), 1],
+    ['本文：日本語が くっついた Claude の 印は 通す', honTome('共作はnoreply@anthropic.com'), 0],
+    ['本文：日本語が くっついた support は 通す', honTome('宛先はsupport@github.com'), 0],
+    ['本文：support に 似せた 偽物は 止める', honTome('x.support@github.com'), 1],
+    [
+      '本文：長い 日本語（10万字）でも 1秒 以内',
+      hayai(() => honbunMails('あ'.repeat(100000) + ' p@example.com')),
+      1,
+    ],
+    ['本文：日本語の 頭を 止める', honTome('山田@example.co.jp'), 1],
+    ['本文：IDN の ドメインを 止める', honTome('p@例え.jp'), 1],
+    [
+      '本文：dependabot の Signed-off-by は 通す',
+      honTome('Signed-off-by: dependabot[bot] <support@github.com>'),
+      0,
+    ],
+    ['本文：ssh の 遠くの 道は 通す', honTome('git@github.com:o/r.git に 替えた'), 0],
+    [
+      '本文：日本語が くっついた noreply は 通す',
+      honTome('作者を271668854+x@users.noreply.github.comに'),
+      0,
+    ],
+    // ↓ 本文の Co-authored-by（10-21）
+    ['共作者：Claude の 印は通す', coMailOk('noreply@anthropic.com') ? 1 : 0, 1],
+    ['共作者：ふつうのメールは止める', coMailOk('someone@example.com') ? 1 : 0, 0],
+    ['共作者：作者の欄では anthropic を通さない', mailOk('noreply@anthropic.com') ? 1 : 0, 0],
+    [
+      '共作者：<> が 2つ（2つ目が ふつうのメール）',
+      coMails('Claude <noreply@anthropic.com> <p@example.com>').every(coMailOk) ? 1 : 0,
+      0,
+    ],
+    [
+      '共作者：名前の 欄に ふつうのメール',
+      coMails('p@example.com <noreply@anthropic.com>').every(coMailOk) ? 1 : 0,
+      0,
+    ],
+    [
+      '共作者：2人の 内 1人が ふつうのメール',
+      coMails('C <noreply@anthropic.com>\x02P <p@example.com>').every(coMailOk) ? 1 : 0,
+      0,
+    ],
     ['名前に @ があれば止める', nameOk('someone@example.com', []) ? 1 : 0, 0],
     ['名前に一覧の字があれば止める', nameOk('見本太郎', words) ? 1 : 0, 0],
     ['ふつうの名前は通す', nameOk('exally-zeroact', words) ? 1 : 0, 1],
@@ -716,24 +908,118 @@ export function mailOk(mail) {
     .toLowerCase();
   return m.endsWith('@users.noreply.github.com') || m === 'noreply@github.com';
 }
+// ★本文の Co-authored-by のメール★ 2026-10-21（Exally 席の横断・Exally の scripts/pre-push-noreply.sh と 同じ 決まり）
+//   前は 作者と commit した人の 欄だけ 見て、本文の 共作者の メールは 素通り した（作り物の repo で exit 0）。
+//   通すのは mailOk の 物と noreply@anthropic.com（Claude の 共作の 印＝人の 受信箱で ない）だけ
+export function coMailOk(mail) {
+  const m = String(mail || '')
+    .trim()
+    .toLowerCase();
+  return mailOk(m) || m === 'noreply@anthropic.com';
+}
+// 本文の Co-authored-by の 行から メールを 取り出す（git の trailers の 値・区切りは \x02）
+export function coMails(trailers) {
+  const out = [];
+  //   ★値の 中の メールの 形を 全部★（<> が 2つ・名前の 欄に メール も 見る・対立役 叩き H／I）
+  for (const v of String(trailers || '').split('\x02')) {
+    if (!v.trim()) continue;
+    const kakko = [...v.matchAll(/<([^>]*)>/g)].map((m) => m[1]);
+    const soto = v.replace(/<[^>]*>/g, ' ').match(/[^\s<>]+@[^\s<>]+/g) || [];
+    const l = kakko.concat(soto);
+    out.push(...(l.length ? l : [v.trim()])); // メールの 形が 無い 書き方は 字 そのものを 判じる（止める 側）
+  }
+  return out;
+}
+// ★本文 全部の メールの 形★（10-21 叩き 重1：trailer に ならない 所＝本文の 途中・Signed-off-by・全角の ： は
+//   git の trailers に 出ず 素通り した）。<> は 行を またいで 長い 字を 拾う（履歴で 47本）ので 本文では 形だけ 見る
+//   ★先に 揃える★（叩き 中B）：全角の ＠・全角の 英字・幅0の字・ソフトハイフンは 画面では メールに 読めるのに 素通りした
+//   （narasu は 空白まで 消して 語が くっつくので 使わない）。頭と ドメインの 字は 日本語・IDN も 拾う（終わりは 英字の TLD）
+export function honbunMails(body) {
+  const s = String(body || '')
+    .normalize('NFKC')
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, ''); // 見えない字を 全部（名指しの 6字では LRM 等 13字が 素通り した）
+  //   頭は 64字・ドメインの 一節は 63字まで（RFC の 上限）＝長い 日本語の 連なりで 開始位置ごとに やり直して
+  //   二乗の 時間を 食った（2万字で 7秒・10万字で 返らず・叩き 5回目）
+  return (
+    s.match(
+      /[\p{L}\p{N}._%+-]{1,64}@[\p{L}\p{N}-]{1,63}(?:\.[\p{L}\p{N}-]{1,63})*\.[A-Za-z]{2,63}/gu
+    ) || []
+  );
+}
+// 本文で 通す メール：noreply の 類＋ GitHub 自身の 口（人の 受信箱で ない）
+//   support@github.com＝dependabot の Signed-off-by（毎週 来る・叩き 重A）／git@github.com＝ssh の 遠くの 道（叩き 軽D）
+//   日本語が 頭に くっついた 口（「共作はnoreply@anthropic.com」）は 頭の 英字で ない 字を 外して 同じ字かで 判じる
+//   （x.support@github.com の 様な 偽物は 同じ字に ならず 止まる）
+export function honbunMailOk(mail) {
+  const m = String(mail || '')
+    .trim()
+    .toLowerCase();
+  const e = m.replace(/^[^!-~]+/, '');
+  return coMailOk(e) || e === 'support@github.com' || e === 'git@github.com';
+}
 // 名前の欄：@ を含む（メールを名前に書いた）・一覧の字に当たる 物は 止める
 export function nameOk(name, words) {
   const n = String(name || '');
   return !n.includes('@') && ataru(n, words) === 0;
 }
+// ★文や メールを 読む git は ここだけ★（10-21 叩き 4回目）：execFileSync の 例外は err.stdout＝読みかけの 文 丸ごとを 持ち、
+//   捕まえないと Node が 画面と 公開の CI の 記録に 出す（上限 50 で 試すと @ が 30個 出た）。落ちたら 字の 無い 例外に 替える
+//   KINSHI_MAXBUF＝出しの 上限（自己確認が 小さくして 落ちる道を 試す・小さくしても 止まる 側に 倒れるだけ）
+const MAXBUF = Number(process.env.KINSHI_MAXBUF) || 512 * 1024 * 1024;
+export function gitYomu(args, opts = {}) {
+  try {
+    return execFileSync('git', args, {
+      env: NO_REPLACE(),
+      maxBuffer: MAXBUF,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...opts,
+    });
+  } catch (_) {
+    throw new Error('git で 文を 読めませんでした（字は出しません）');
+  }
+}
 function mailMiru(revs, words, input) {
-  const out = execFileSync('git', ['log', '--format=%H%x00%ae%x00%ce%x00%an%x00%cn', ...revs], {
-    env: NO_REPLACE(),
-    encoding: 'utf8',
-    input,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  let out;
+  try {
+    out = mailLog(revs, input);
+  } catch (e) {
+    console.error('★作者と本文の欄を 読めませんでした★（字は出しません）');
+    return false;
+  }
+  return mailHanji(out, words);
+}
+function mailLog(revs, input) {
+  return gitYomu(
+    [
+      'log',
+      // 1つの commit を \x01 で 区切る（値の 中の 改行で 行が 割れ、メールの 頭が SHA の 欄に 出た・叩き 3）・折り返しは unfold で 1行に
+      '--format=%H%x00%ae%x00%ce%x00%an%x00%cn%x00%(trailers:key=Co-authored-by,valueonly,unfold,separator=%x02)%x00%B%x01',
+      ...revs,
+    ],
+    { encoding: 'utf8', input }
+  );
+}
+function mailHanji(out, words) {
   let bad = 0;
-  for (const line of out.split('\n').filter(Boolean)) {
-    const [sha, ae, ce, an, cn] = line.split('\x00');
+  let coBad = 0;
+  for (const rec of out.split('\x01')) {
+    const line = rec.replace(/^\s+/, '');
+    if (!line) continue;
+    const [sha, ae, ce, an, cn, co, body] = line.split('\x00');
+    if (!/^[0-9a-f]{40}$/.test(sha)) {
+      // 区切りが 壊れた＝読めない 物は 止める（字は 出さない）
+      bad++;
+      console.error('★commit の 欄を 読めませんでした★（字は出しません）');
+      continue;
+    }
+    const coDame = !coMails(co).every(coMailOk);
+    const honDame = !honbunMails(body).every(honbunMailOk);
+    if (coDame || honDame) coBad++;
     const which = [
       !mailOk(ae) && '作者のメール',
       !mailOk(ce) && 'commit した人のメール',
+      coDame && '本文の Co-authored-by のメール',
+      honDame && '本文のメール',
       !nameOk(an, words) && '作者の名前',
       !nameOk(cn, words) && 'commit した人の名前',
     ].filter(Boolean);
@@ -748,21 +1034,26 @@ function mailMiru(revs, words, input) {
     console.error(
       '  git config --local user.email を GitHub の noreply に、user.name を ふつうの名前にしてください（global は触らない）。'
     );
+    if (coBad)
+      console.error(
+        '  本文の メール（Co-authored-by・Signed-off-by・文の 中）は 設定では 直りません。commit の 文から 消すか noreply に 書き換えて 作り直してください。'
+      );
     return false;
   }
-  console.log('✓ 作者と commit した人の欄 全部 noreply・名前に字の漏れ 0');
+  console.log('✓ 作者と commit した人の欄・本文のメール 全部 noreply・名前に字の漏れ 0');
   return true;
 }
 
 // git log の範囲の commit の文を全部見る。全部 0件なら true
 function miru(revs, words, zeroOk, input) {
-  // ★出しの上限を広げる★（既定 1MB では 全履歴を見ると ENOBUFS で落ちた＝赤だが 何も見ていない）
-  const out = execFileSync('git', ['log', '--format=%H%x00%B%x01', ...revs], {
-    env: NO_REPLACE(),
-    encoding: 'utf8',
-    input,
-    maxBuffer: 512 * 1024 * 1024,
-  });
+  // ★出しの上限を広げる★（既定 1MB では 全履歴を見ると ENOBUFS で落ちた＝赤だが 何も見ていない）・落ちても 字を 出さない
+  let out;
+  try {
+    out = gitYomu(['log', '--format=%H%x00%B%x01', ...revs], { encoding: 'utf8', input });
+  } catch (e) {
+    console.error('★commit の文を 読めませんでした★（字は出しません）');
+    return false;
+  }
   const commits = out
     .split('\x01')
     .map((c) => c.trim())
