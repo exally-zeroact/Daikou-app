@@ -74,7 +74,15 @@ create policy own_company on daikome.dk_kyuryo_pub
 
 -- ★事務所の 画面から 見る 窓★（★初回コードと パスワードは 出さない★）
 --   ★出すのは「配ったか／パスワードを 決めたか」だけ★＝画面に 秘密を 置かない。
-create or replace view public.dk_kyuryo_pub as
+-- ★★3回 続けて 間違えたら 止める★★ 2026-10-20（docs/pw-4keta.md）
+--   pw_miss＝続けて 間違えた 数（0〜3・窓から 負の 数に できない）・tomatta_at＝止めた 時刻（null＝止まって いない）
+--   当てるのは scripts/apply-kyuryo-pw-4keta.mjs（列・窓・関数 6本を 1つの 取引で）
+alter table daikome.dk_kyuryo_pub
+  add column if not exists pw_miss int not null default 0 constraint dk_kyuryo_pub_pw_miss_chk check (pw_miss between 0 and 3),
+  add column if not exists tomatta_at timestamptz;
+
+-- ★窓は security_invoker を 同じ 1文で 付ける★ 2026-10-20（create or replace view は security_invoker を 落とす＝測った）
+create or replace view public.dk_kyuryo_pub with (security_invoker = on) as
 select
   p.token,
   p.company_id,
@@ -83,7 +91,18 @@ select
   (p.pw_hash is not null)   as pw_ari,          -- 本人が パスワードを 決めたか
   p.consent_at,
   p.created_at,
-  p.updated_at
+  p.updated_at,
+  -- 続けて 間違えた 数・止めた 時刻（2026-10-20・最後に 足す）
+  --   ★式で 出す★（窓から 書き換えられない＝事務所が 作り直さずに 止めを 外して 総当たり できない・対立役 本番前 直1）
+  (p.pw_miss + 0) as pw_miss,
+  (p.tomatta_at + interval '0 second') as tomatta_at
 from daikome.dk_kyuryo_pub p;
 
 alter view public.dk_kyuryo_pub set (security_invoker = on);
+
+-- ★★表と 窓を 画面の 鍵（anon・authenticated）から 直に 読み書き させない★★ 2026-10-20（対立役 本番前 S1）
+--   前は 事務所の ログインで daikome の 表を REST から 直に 読め（pw_hash）、止め（pw_miss・tomatta_at）も 書けた。
+--   4桁は 1万通り＝pw_hash を 読めれば 手元で 当てられる。画面と js は この 表も 窓も 読まない（関数 6本だけ・grep 0件）
+--   関数は security definer＝持ち主の 権限で 動く＝これで 壊れない
+revoke all on table daikome.dk_kyuryo_pub from anon, authenticated;
+revoke all on table public.dk_kyuryo_pub from anon, authenticated;

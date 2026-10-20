@@ -67,7 +67,8 @@ begin
         'token', p.token,
         -- ★パスワードを 決めていない人だけ 初回コードを 返す★（URL に 埋める為）
         'init_code', case when p.pw_hash is null then p.init_code else null end,
-        'pw_ari', (p.pw_hash is not null)
+        'pw_ari', (p.pw_hash is not null),
+        'tomatta', (p.tomatta_at is not null)
       )
       from daikome.dk_employees e
       join daikome.dk_kyuryo_pub p

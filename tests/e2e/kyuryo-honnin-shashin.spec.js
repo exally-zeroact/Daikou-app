@@ -150,8 +150,8 @@ test('★本人の 画面を 撮る（はじめて → 決めた後）★', asyn
   await page.screenshot({ path: OUT('honnin-1-hajimete.png'), fullPage: true });
 
   // ② パスワードを 決めた 後
-  await page.fill('#hnPw', 'abcd1234');
-  await page.fill('#hnPw2', 'abcd1234');
+  await page.fill('#hnPw', '1234');
+  await page.fill('#hnPw2', '1234');
   await page.click('#hnGo');
   await expect(page.locator('#slips')).toContainText(EMP.name, { timeout: 15000 });
   await page.waitForTimeout(600);

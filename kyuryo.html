@@ -2270,6 +2270,23 @@
         //     （今日 SQLの門でも 同じ形を 踏んだ＝黒名簿は 終わらない）
         //   ⇒ ★出してよい 物だけ 出す（白名簿）★ に した。
         //     新しい カードを 足しても ★既定で 出ない★。
+        // ★止まった・作り直された 時の 字★ 2026-10-20（docs/pw-4keta.md）
+        var HONNIN_TOMATTA_BUN =
+          '3回 続けて 間違えたので 止めました。会社（事務所）に、リンクを 作り直して もらってください。';
+        var HONNIN_TSUKURINAOSHI_BUN =
+          'この リンクは 作り直されました。会社から 新しい リンク（QR）を もらってください。';
+        // 入口の 箱を 訳だけに する（欄と ボタンを 出さない）
+        function honninTomeru(bun) {
+          var box = document.getElementById('slips');
+          if (box)
+            box.innerHTML = '<div class="card"><div class="msg">' + esc(bun) + '</div></div>';
+        }
+        function honninErr(t) {
+          var e = document.getElementById('hnErr');
+          if (!e) return;
+          e.style.display = t ? '' : 'none';
+          e.textContent = t || '';
+        }
         function honninStart() {
           // ★出してよい 物★ … 画面の 頭／小見出し／明細の 置き場 だけ
           var DASU_WRAP = { topBar: 1, sub: 1, paneSlip: 1 };
@@ -2303,14 +2320,18 @@
             (hajimete ? 'はじめての 方' : '自分の 給料明細を 見る') +
             '</div><div class="note" style="margin:0 0 10px">' +
             (hajimete
-              ? '自分の パスワードを 決めてください（8文字以上）。<br />次からは この パスワードだけで 見られます。'
+              ? '自分の パスワード（数字 4桁）を 決めてください。銀行などの 暗証番号と 同じに しないでください。<br />次からは この パスワードだけで 見られます。'
               : 'パスワードを 入れてください。<br />忘れた／漏れた ときは 会社に「作り直し」を 頼んでください。') +
             '</div>' +
             '<input id="hnPw" type="password" autocomplete="' +
             (hajimete ? 'new-password' : 'current-password') +
-            '" placeholder="パスワード" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:10px" />' +
+            // ★はじめては 数字 4桁★ 2026-10-20（2回目は 絞らない＝古い 8文字の 人も 打てる・対立役 N2）
+            (hajimete ? '" inputmode="numeric" maxlength="4' : '') +
+            '" placeholder="' +
+            (hajimete ? 'パスワード（数字 4桁）' : 'パスワード') +
+            '" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:10px" />' +
             (hajimete
-              ? '<input id="hnPw2" type="password" autocomplete="new-password" placeholder="パスワード（確認）" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:8px" />'
+              ? '<input id="hnPw2" type="password" autocomplete="new-password" inputmode="numeric" maxlength="4" placeholder="パスワード（確認）" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:8px" />'
               : '') +
             '<div class="err" id="hnErr" style="display:none"></div>' +
             '<button class="btn" id="hnGo" style="margin-top:10px">' +
@@ -2323,11 +2344,20 @@
             e.style.display = t ? '' : 'none';
             e.textContent = t || '';
           };
+          // ★全角の 数字は 半角に 直してから 送る★（決める・入れる 両方で 同じ＝合っているのに 違う、に しない）
+          var hankaku = function (v) {
+            return String(v || '')
+              .trim()
+              .replace(/[０-９]/g, function (c) {
+                return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+              });
+          };
           document.getElementById('hnGo').onclick = function () {
-            var pw = (document.getElementById('hnPw').value || '').trim();
+            var pw = hankaku(document.getElementById('hnPw').value);
             if (hajimete) {
-              var pw2 = (document.getElementById('hnPw2').value || '').trim();
-              if (pw.length < 8) return err('パスワードは 8文字以上に してください。');
+              var pw2 = hankaku(document.getElementById('hnPw2').value);
+              // ★数字 4桁★ 2026-10-20 司さん「パスワードは 4桁に しろ」
+              if (!/^[0-9]{4}$/.test(pw)) return err('パスワードは 数字 4桁に してください。');
               if (pw !== pw2) return err('2つの パスワードが 違います。');
               err('');
               return honninRpc('dk_kyuryo_pw_set', {
@@ -2336,11 +2366,20 @@
                 p_pw: pw,
               }).then(function (r) {
                 if (!r || r.ok !== true) {
+                  // ★もう 決めた 人は 2回目の 画面へ 回す★ 2026-10-20（前は「もう一度 開いて」で 同じ リンクを 回り続けた・対立役 k1）
+                  if (r && r.reason === 'already_set') {
+                    HONNIN.init = '';
+                    honninStart();
+                    return honninErr(
+                      'もう パスワードを 決めてあります。パスワードを 入れてください。'
+                    );
+                  }
+                  if (r && r.reason === 'no_token') return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
                   return err(
-                    r && r.reason === 'already_set'
-                      ? 'もう 決めてあります。パスワードを 入れて ください（このリンクを もう一度 開いてください）。'
-                      : r && r.reason === 'bad_init'
-                        ? 'このリンクが 古いようです。会社に 作り直しを 頼んでください。'
+                    r && r.reason === 'bad_init'
+                      ? 'このリンクが 古いようです。会社に 作り直しを 頼んでください。'
+                      : r && r.reason === 'pw_4keta'
+                        ? 'パスワードは 数字 4桁に してください。'
                         : 'できませんでした。もう一度 お試しください。'
                   );
                 }
@@ -2352,7 +2391,15 @@
             err('');
             return honninRpc('dk_kyuryo_verify', { p_token: HONNIN.token, p_pw: pw }).then(
               function (r) {
-                if (!r || r.ok !== true) return err('パスワードが 違います。');
+                // ★3回 続けて 間違えたら 止める★ 2026-10-20（止まった・作り直された 時は 打ち続けさせない）
+                if (r && r.reason === 'tomatta') return honninTomeru(HONNIN_TOMATTA_BUN);
+                if (r && r.reason === 'no_token') return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+                if (!r || r.ok !== true)
+                  return err(
+                    r && r.reason === 'bad_pw' && r.nokori > 0
+                      ? 'パスワードが 違います（あと ' + r.nokori + '回 間違えると 止まります）。'
+                      : 'パスワードが 違います。'
+                  );
                 HONNIN.pw = pw;
                 HONNIN.name = r.name || '';
                 honninMiru();
@@ -2428,6 +2475,10 @@
             p_to: h.to,
           }).then(function (r) {
             if (!r || r.ok !== true) {
+              // ★途中で 止まった・作り直された★ 2026-10-20（覚えた パスワードで 取り直す 間に 事務所が 作り直した 等）
+              if (r && r.reason === 'tomatta') return honninTomeru(HONNIN_TOMATTA_BUN);
+              if (r && (r.reason === 'no_token' || r.reason === 'bad_pw'))
+                return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
               // 辞めた 後の 月（働いた 日が 無い 月）は 倉庫が 返さない（会社の 売上を 見続けない・10-16）
               var taishoku = r && r.reason === 'taishoku';
               if (box)
@@ -2976,17 +3027,8 @@
 
         function meisaiQr(eid) {
           if (!eid) return;
-          var aru = false;
-          for (var i = 0; i < HAIFU.length; i++) {
-            if (String(HAIFU[i].employee_id) === String(eid)) aru = true;
-          }
-          if (aru) {
-            haifuMiseru(eid);
-            return;
-          }
-          haifuHitori(eid).then(function () {
-            haifuMiseru(eid);
-          });
+          // ★控えに 居ても 見せる 前に 取り直す★ 2026-10-20（対立役 本番前 N1）
+          haifuMiseruAtarashiku(eid);
         }
 
         // 配るの 訳を 画面の 上（#err）に 出した 時の 字（消す 時は、この 字が まだ 出ている 時だけ 消す）
@@ -3026,6 +3068,17 @@
           return null;
         }
 
+        // ★画面に 戻った 時に 配る 一覧を 取り直す★ 2026-10-20（別の 端末で 作り直した 後に 古い リンクを 送らない・対立役 本番前 直2）
+        //   「送る」は 押した その 場で 共有の 窓を 開く 決まり（待つと 開かない）ので、押す 前に 新しく して おく
+        var HAIFU_TORINAOSHI = 0;
+        document.addEventListener('visibilitychange', function () {
+          if (document.visibilityState !== 'visible' || HONNIN || !HAIFU.length) return;
+          if (Date.now() - HAIFU_TORINAOSHI < 30000) return;
+          HAIFU_TORINAOSHI = Date.now();
+          HAIFU.slice().forEach(function (x) {
+            if (x && x.employee_id) haifuHitori(x.employee_id, true);
+          });
+        });
         function renderHaifu() {
           var box = $('haifuList');
           if (!box) return;
@@ -3084,9 +3137,11 @@
                 : '') +
               '</div>' +
               '<div class="note" style="margin:2px 0 8px">' +
-              (x.pw_ari
-                ? 'もう 自分の パスワードを 決めています（このQRは そのまま 使えます）'
-                : 'まだ パスワードを 決めていません（このQRから 決めます）') +
+              (x.tomatta
+                ? '<span class="rolewarn">3回 続けて 間違えて 止まっています。「作り直す」で 新しい リンク（QR）を 配ってください（古い リンクは 使えなく なります）。</span>'
+                : x.pw_ari
+                  ? 'もう 自分の パスワードを 決めています（このQRは そのまま 使えます）'
+                  : 'まだ パスワードを 決めていません（このQRから 決めます）') +
               '</div>' +
               // ★★一覧には QR も URL も 出しません★★ 2026-09-04（司さん）
               //   「★一気に 見せる メリット ないやろが★」
@@ -3306,9 +3361,14 @@
         // ★★1人ぶんだけ 配る★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
         //   ★渡していない 人の 鍵まで 作らない★（鍵は 渡す 相手 1人にだけ）
         //   ★もう 在る人は そのまま★（作り直しでは ない＝押しても 壊れない）
-        function haifuHitori(eid) {
-          haifuErr('');
-          var b = document.querySelector('[data-hhito="' + eid + '"]');
+        // ★取り直しの 番号★ 2026-10-20（後から 着いた 古い 返りで 新しい token を 上書きしない・対立役 本番前 N5）
+        var HAIFU_BAN = {};
+        //   damatte＝画面に 戻った 時の 取り直し（赤字を 出さない・ボタンも 触らない・対立役 本番前 N3）
+        //   返り：true＝取れた／false＝取れなかった（見せる 側が 訳を 出す・対立役 本番前 N4）
+        function haifuHitori(eid, damatte) {
+          var ban = (HAIFU_BAN[eid] = (HAIFU_BAN[eid] || 0) + 1);
+          if (!damatte) haifuErr('');
+          var b = damatte ? null : document.querySelector('[data-hhito="' + eid + '"]');
           if (b) {
             b.disabled = true;
             b.textContent = '用意中…';
@@ -3325,14 +3385,16 @@
                 b.disabled = false;
                 b.textContent = '配る';
               }
+              if (HAIFU_BAN[eid] !== ban) return 'atarashii'; // もっと 新しい 取り直し か 作り直しが 在る（落ちたのでは ない）
               if (!j || j.ok !== true) {
                 // ★出来なかった事を 0件で 隠さない★（「0人 配った」に 見せない）
-                haifuErr(
-                  '配れませんでした（' +
-                    ((j && j.reason) || '理由不明') +
-                    '）。もう一度 お試しください。'
-                );
-                return;
+                if (!damatte)
+                  haifuErr(
+                    '配れませんでした（' +
+                      ((j && j.reason) || '理由不明') +
+                      '）。もう一度 お試しください。'
+                  );
+                return false;
               }
               // ★その人ぶんだけ 差し替える★（他の 人は 触らない）
               var h = j.hito;
@@ -3347,14 +3409,34 @@
                 if (!atta) HAIFU.push(h);
               }
               renderHaifu();
+              return true;
             })
             .catch(function () {
               if (b) {
                 b.disabled = false;
                 b.textContent = '配る';
               }
-              haifuErr('配れませんでした（通信）。もう一度 お試しください。');
+              if (!damatte) haifuErr('配れませんでした（通信）。もう一度 お試しください。');
+              return false;
             });
+        }
+        // ★見せる 前に 取り直してから 大きく 見せる★ 2026-10-20（別の 端末で 作り直すと token が 替わる・対立役 本番前 直2・N1・N4）
+        //   取れなかった 時は 前の 控えで 見せるが、窓の 中に その 事を 出す（黙って 古い QR を 見せない）
+        function haifuMiseruAtarashiku(eid) {
+          return haifuHitori(eid).then(function (toreta) {
+            haifuMiseru(eid);
+            // 'atarashii'＝別の 取り直しが 先に 走って いた（落ちたのでは ない＝警告を 出さない・対立役 本番前 D5）
+            if (toreta) return;
+            var m = document.getElementById('haifuMiseQr');
+            if (m && m.parentNode) {
+              var n = document.createElement('div');
+              n.className = 'rolewarn';
+              n.id = 'haifuMiseFurui';
+              n.textContent =
+                'この QR が 新しいか 確かめられませんでした。別の 画面で 作り直して いれば 使えません。';
+              m.parentNode.insertBefore(n, m);
+            }
+          });
         }
 
         (function () {
@@ -3365,7 +3447,9 @@
             if (!t) return;
             var mi = t.getAttribute && t.getAttribute('data-hmise');
             if (mi) {
-              haifuMiseru(mi);
+              // ★見せる 前に その人を 取り直す★ 2026-10-20（別の 端末で 作り直すと token が 替わる＝古い QR を 見せない・対立役 本番前 直2）
+              //   取り直しが 落ちても 前の 控えで 見せる（前と 同じ）
+              haifuMiseruAtarashiku(mi);
               return;
             }
             var hh = t.getAttribute && t.getAttribute('data-hhito');
@@ -3401,6 +3485,21 @@
                     );
                     return;
                   }
+                  // 走って いる 取り直しの 古い 返りは 捨てる（対立役 本番前 N5）
+                  HAIFU_BAN[sai] = (HAIFU_BAN[sai] || 0) + 1;
+                  // ★作り直すと token も 替わる★ 2026-10-20＝返りの token・初回コードで すぐ 控えを 差し替える
+                  //   （1人ぶんの 取り直しが 落ちても、古い 死んだ リンクを 黙って 送らない・対立役 小）
+                  for (var hi = 0; hi < HAIFU.length; hi++) {
+                    if (String(HAIFU[hi].employee_id) === String(sai)) {
+                      HAIFU[hi] = Object.assign({}, HAIFU[hi], {
+                        token: j.token,
+                        init_code: j.init_code,
+                        pw_ari: false,
+                        tomatta: false,
+                      });
+                    }
+                  }
+                  renderHaifu();
                   // ★作り直した後の 札を 出し直す★（その人だけ）
                   haifuHitori(sai);
                 })

@@ -34,13 +34,12 @@ as $fn$
 declare
   r daikome.dk_kyuryo_pub;
 begin
-  if p_pw is null or length(p_pw) < 8 then
-    return json_build_object('ok', false, 'reason', 'pw_short');
-  end if;
-  select * into r from daikome.dk_kyuryo_pub where token = p_token;
+  -- ★最初に 行を 鍵で 取る★ 2026-10-20（読むだけの 取引＝GET の rpc では 落ちる・同時に 来ても 順に 並ぶ）
+  select * into r from daikome.dk_kyuryo_pub where token = p_token for update;
   if not found then
     return json_build_object('ok', false, 'reason', 'no_token');
   end if;
+  -- ★もう 決めた 人は 形を 見る 前に 返す★（古い 8文字の 人が c= 付きの URL を 開いても 2回目の 画面へ 回れる）
   if r.init_code is null then
     return json_build_object('ok', false, 'reason', 'already_set');
   end if;
@@ -48,9 +47,16 @@ begin
   if p_init is null or r.init_code is distinct from p_init then
     return json_build_object('ok', false, 'reason', 'bad_init');
   end if;
+  -- ★新しく 決める パスワードは 数字 4桁 ちょうど★ 2026-10-20 司さん「パスワードは 4桁に しろ」
+  --   null は 必ず 断る（not (null ~ …) は 通るので 先に 見る）・全角を 通さない様に [0-9] で 書く
+  if p_pw is null or p_pw !~ '^[0-9]{4}$' then
+    return json_build_object('ok', false, 'reason', 'pw_4keta');
+  end if;
   update daikome.dk_kyuryo_pub
      set pw_hash = crypt(p_pw, gen_salt('bf')),
          init_code = null,
+         pw_miss = 0,
+         tomatta_at = null,
          consent_at = coalesce(consent_at, now()),
          updated_at = now()
    where token = p_token;
@@ -68,14 +74,33 @@ as $fn$
 declare
   r daikome.dk_kyuryo_pub;
   nm text;
+  v_miss int; -- 続けて 間違えた 数
 begin
-  select * into r from daikome.dk_kyuryo_pub where token = p_token;
+  -- ★最初に 行を 鍵で 取る★ 2026-10-20（読むだけの 取引＝GET の rpc では 落ちる＝数えずに 照らせない・同時に 来ても 順に 並ぶ）
+  select * into r from daikome.dk_kyuryo_pub where token = p_token for update;
   if not found or r.pw_hash is null then
     return json_build_object('ok', false, 'reason', 'no_token');
   end if;
+  -- ★3回 続けて 間違えたら 止める★ 2026-10-20 司さん「3回 間違えたら」「続けて 3回」（戻すのは 事務所の 作り直し）
+  if r.tomatta_at is not null then
+    return json_build_object('ok', false, 'reason', 'tomatta');
+  end if;
   -- ★空（null）は 必ず 違う★ 2026-10-19（前は crypt(null) が null で、比べが 真に ならず 素通りした＝パスワード 無しで 開いた）
   if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then
-    return json_build_object('ok', false, 'reason', 'bad_pw');
+    update daikome.dk_kyuryo_pub
+       set pw_miss = least(pw_miss + 1, 3),
+           tomatta_at = case when pw_miss + 1 >= 3 then now() else tomatta_at end,
+           updated_at = now()
+     where token = p_token
+    returning pw_miss into v_miss;
+    if v_miss >= 3 then
+      return json_build_object('ok', false, 'reason', 'tomatta');
+    end if;
+    return json_build_object('ok', false, 'reason', 'bad_pw', 'nokori', 3 - v_miss);
+  end if;
+  -- 合った＝続けての 数を 0 に（止めた 時刻には 触らない）
+  if r.pw_miss <> 0 then
+    update daikome.dk_kyuryo_pub set pw_miss = 0 where token = p_token;
   end if;
   select e.name into nm from daikome.dk_employees e where e.employee_id = r.employee_id;
   return json_build_object('ok', true, 'name', coalesce(nm, ''));
@@ -94,14 +119,33 @@ declare
   v_saigo date; -- 辞めた 人の 最後に 働いた 日
   v_saigo_a date; -- 辞めた 人の 最後に 働いた 日 か 手当・控除の 日 の 遅い 方
   v_kaisha_to date; -- 会社の 物（勤務・直し・勤務時間・同乗・手入力の日）を 返す 終わりの 日
+  v_miss int; -- 続けて 間違えた 数
 begin
-  select * into r from daikome.dk_kyuryo_pub where token = p_token;
+  -- ★最初に 行を 鍵で 取る★ 2026-10-20（読むだけの 取引＝GET の rpc では 落ちる＝数えずに 照らせない・同時に 来ても 順に 並ぶ）
+  select * into r from daikome.dk_kyuryo_pub where token = p_token for update;
   if not found or r.pw_hash is null then
     return json_build_object('ok', false, 'reason', 'no_token');
   end if;
+  -- ★3回 続けて 間違えたら 止める★ 2026-10-20 司さん「3回 間違えたら」「続けて 3回」（戻すのは 事務所の 作り直し）
+  if r.tomatta_at is not null then
+    return json_build_object('ok', false, 'reason', 'tomatta');
+  end if;
   -- ★空（null）は 必ず 違う★ 2026-10-19（前は crypt(null) が null で、比べが 真に ならず 素通りした＝パスワード 無しで 開いた）
   if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then
-    return json_build_object('ok', false, 'reason', 'bad_pw');
+    update daikome.dk_kyuryo_pub
+       set pw_miss = least(pw_miss + 1, 3),
+           tomatta_at = case when pw_miss + 1 >= 3 then now() else tomatta_at end,
+           updated_at = now()
+     where token = p_token
+    returning pw_miss into v_miss;
+    if v_miss >= 3 then
+      return json_build_object('ok', false, 'reason', 'tomatta');
+    end if;
+    return json_build_object('ok', false, 'reason', 'bad_pw', 'nokori', 3 - v_miss);
+  end if;
+  -- 合った＝続けての 数を 0 に（止めた 時刻には 触らない）
+  if r.pw_miss <> 0 then
+    update daikome.dk_kyuryo_pub set pw_miss = 0 where token = p_token;
   end if;
   if p_from is null or p_to is null or p_to < p_from or (p_to - p_from) > 400 then
     return json_build_object('ok', false, 'reason', 'bad_range');

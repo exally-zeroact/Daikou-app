@@ -6,7 +6,7 @@
 //       個人が 勝手に 確認できるようにも しろやぼけ」
 //
 //   ★ここで 見張る 事★
-//     ①パスワードの 決め方（8文字未満／確認と 違う → 断る）
+//     ①パスワードの 決め方（数字 4桁で ない／確認と 違う → 断る・2026-10-20 から 4桁）
 //     ②2回目は パスワードだけ（違えば 断る）
 //     ③★事務所の 物を 出さない★（タブ・全員印刷・事務所へのリンク）
 //     ④★事務所の 読み込みを 1度も 呼ばない★（材料は 倉庫の 関数だけ）
@@ -91,18 +91,34 @@ async function nise(page, hajimete, mazeru) {
   return kazoe;
 }
 
-test('★① はじめて＝パスワードの 線（8文字・確認）★', async ({ page }) => {
+// ★2026-10-20 司さん「パスワードは 4桁に しろ」★（前は 8文字 以上）
+//   わざと壊す：hnGo の /^[0-9]{4}$/ を 外す ⇒ 赤（abcd で 倉庫へ 送った）
+test('★① はじめて＝パスワードの 線（数字 4桁・確認）★', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 900 });
   await nise(page, true);
   await expect(page.locator('#hnGo')).toHaveText('パスワードを 決める');
-  await page.fill('#hnPw', '1234567');
-  await page.fill('#hnPw2', '1234567');
+  await expect(page.locator('#hnPw')).toHaveAttribute('inputmode', 'numeric');
+  await expect(page.locator('#hnPw')).toHaveAttribute('maxlength', '4');
+  await expect(page.locator('#slips')).toContainText(
+    '銀行などの 暗証番号と 同じに しないでください'
+  );
+  let okutta = 0;
+  page.on('request', (q) => {
+    if (q.url().includes('dk_kyuryo_pw_set')) okutta++;
+  });
+  await page.fill('#hnPw', 'abcd');
+  await page.fill('#hnPw2', 'abcd');
   await page.click('#hnGo');
-  await expect(page.locator('#hnErr')).toContainText('8文字以上');
-  await page.fill('#hnPw', 'abcd1234');
-  await page.fill('#hnPw2', 'chigau12');
+  await expect(page.locator('#hnErr')).toContainText('数字 4桁');
+  await page.fill('#hnPw', '123');
+  await page.fill('#hnPw2', '123');
+  await page.click('#hnGo');
+  await expect(page.locator('#hnErr')).toContainText('数字 4桁');
+  await page.fill('#hnPw', '1234');
+  await page.fill('#hnPw2', '1235');
   await page.click('#hnGo');
   await expect(page.locator('#hnErr')).toContainText('違います');
+  expect(okutta, '★形の 違う パスワードを 倉庫へ 送った★').toBe(0);
 });
 
 test('★② 2回目＝パスワードだけ（違えば 断る）★', async ({ page }) => {
@@ -309,4 +325,89 @@ test('本人の 関数が 古い（変えた 記録を 返さない）時は 明
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
   await expect(page.locator('#slips')).toContainText('変えた 記録を 読めませんでした');
+});
+
+// ============================================================
+// ★★3回 続けて 間違えたら 止める・作り直しで 戻る★★ 2026-10-20（docs/pw-4keta.md）
+//   司さん 10-19「3回 間違えたら」「新しく URL や QR コードを 作成し直す」・10-20「続けて 3回」
+// ============================================================
+async function verifyNoKotae(page, kotae) {
+  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
+    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(kotae) })
+  );
+}
+// わざと壊す：verify の 返りで nokori を 見ない ⇒ 赤（「あと 2回」が 出ない）
+test('違う 時は「あと N回 間違えると 止まります」', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false);
+  await verifyNoKotae(page, { ok: false, reason: 'bad_pw', nokori: 2 });
+  await page.fill('#hnPw', '0000');
+  await page.click('#hnGo');
+  await expect(page.locator('#hnErr')).toContainText('あと 2回 間違えると 止まります');
+});
+// わざと壊す：honninTomeru を 呼ばず err だけ ⇒ 赤（欄が 残って 打ち続けられる）
+test('止まった 時は 訳だけ 出して 欄を 消す（会社に 作り直しを 頼む）', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false);
+  await verifyNoKotae(page, { ok: false, reason: 'tomatta' });
+  await page.fill('#hnPw', '0000');
+  await page.click('#hnGo');
+  await expect(page.locator('#slips')).toContainText('3回 続けて 間違えたので 止めました');
+  await expect(page.locator('#hnPw')).toHaveCount(0);
+});
+test('作り直された リンク（no_token）は 新しい リンクを もらう 訳', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false);
+  await verifyNoKotae(page, { ok: false, reason: 'no_token' });
+  await page.fill('#hnPw', '1234');
+  await page.click('#hnGo');
+  await expect(page.locator('#slips')).toContainText('この リンクは 作り直されました');
+  await expect(page.locator('#hnPw')).toHaveCount(0);
+});
+// わざと壊す：get の tomatta を 見ない ⇒ 赤（「出せませんでした」で 止まる 訳が 出ない）
+test('明細を 取る 途中で 止まったら 訳を 出す', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, false);
+  await page.route('**/rest/v1/rpc/dk_kyuryo_get', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false, reason: 'tomatta' }),
+    })
+  );
+  await page.fill('#hnPw', 'abcd1234');
+  await page.click('#hnGo');
+  await expect(page.locator('#slips')).toContainText('3回 続けて 間違えたので 止めました');
+});
+// わざと壊す：already_set で 2回目の 画面へ 回さない ⇒ 赤（はじめての 画面の まま）
+test('もう 決めた 人が 初回の リンクを 開き直したら 2回目の 画面へ', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, true);
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false, reason: 'already_set' }),
+    })
+  );
+  await page.fill('#hnPw', '1234');
+  await page.fill('#hnPw2', '1234');
+  await page.click('#hnGo');
+  await expect(page.locator('#hnGo')).toHaveText('見る');
+  await expect(page.locator('#hnErr')).toContainText('もう パスワードを 決めてあります');
+  await expect(page.locator('#hnPw2')).toHaveCount(0);
+});
+// 全角の 数字は 半角に 直して 送る（決める・入れる 両方で 同じ）
+test('全角の 数字で 決めても 半角で 送る', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await nise(page, true);
+  let okutta = null;
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) => {
+    okutta = JSON.parse(r.request().postData() || '{}').p_pw;
+    return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  await page.fill('#hnPw', '１２３４');
+  await page.fill('#hnPw2', '１２３４');
+  await page.click('#hnGo');
+  await expect.poll(() => okutta).toBe('1234');
 });

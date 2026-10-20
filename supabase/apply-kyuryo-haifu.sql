@@ -62,7 +62,8 @@ begin
                p.token,
                -- ★パスワードを 決めていない人だけ 初回コードを 返す★（URL に 埋める為）
                case when p.pw_hash is null then p.init_code else null end as init_code,
-               (p.pw_hash is not null) as pw_ari
+               (p.pw_hash is not null) as pw_ari,
+               (p.tomatta_at is not null) as tomatta -- 3回 続けて 間違えて 止まっている（作り直すと 戻る）
         from daikome.dk_employees e
         join daikome.dk_kyuryo_pub p
           on p.company_id = e.company_id and p.employee_id = e.employee_id
@@ -103,10 +104,15 @@ begin
   --    辞めた 人は 自分が 働いたか 手当・控除が 在る 月だけ・会社の 売上は 働いた 月の 次の 月の 末まで）
 
   atarashii := upper(substr(encode(extensions.gen_random_bytes(8), 'hex'), 1, 8));
+  -- ★token も 作り直す★ 2026-10-20 司さん「新しく URL や QR コードを 作成し直す」＝古い URL・QR は 開かない（no_token）。
+  --   止めた 時刻と 続けての 数も 消す（3回 間違えて 止まった 人は ここで 戻る）
   update daikome.dk_kyuryo_pub
-     set init_code = atarashii,
+     set token = encode(extensions.gen_random_bytes(16), 'hex'),
+         init_code = atarashii,
          pw_hash = null,
          device_tokens = '{}',
+         pw_miss = 0,
+         tomatta_at = null,
          updated_at = now()
    where company_id = cid and employee_id = p_employee_id;
 

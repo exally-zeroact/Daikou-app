@@ -177,6 +177,21 @@ async function main() {
     console.log('\n見るだけ（当てるには --ateru）');
     return;
   }
+  // ★4桁の 件（2026-10-20）の 後は この 道具で 当てない★（pw_miss の 列が 在る 倉庫に 古い 形を 運ばない・対立役 直2）
+  //   当てるのは scripts/apply-kyuryo-pw-4keta.mjs（列・窓・関数 6本を 1つの 取引で・md5 の 門つき）
+  {
+    const c = await runSql(
+      ref,
+      t.token,
+      "select count(*)::int as n from information_schema.columns where table_schema = 'daikome' and table_name = 'dk_kyuryo_pub' and column_name = 'pw_miss'"
+    );
+    if (!c.ok || !c.body || !c.body[0] || c.body[0].n !== 0) {
+      console.error(
+        'NG: この 倉庫は 4桁の 件が 入って いる（または 列を 確かめられない）。scripts/apply-kyuryo-pw-4keta.mjs で 当てて ください'
+      );
+      process.exit(7);
+    }
+  }
   const r = await runSql(ref, t.token, 'begin;\n' + blocks.join('\n') + '\ncommit;');
   if (!r.ok) {
     console.error(
