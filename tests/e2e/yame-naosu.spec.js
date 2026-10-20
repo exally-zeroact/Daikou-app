@@ -235,3 +235,60 @@ test('④ スマホの 幅：欄が 潰れない・辞めた 日より 後を �
   );
   expect(err).toEqual([]);
 });
+
+// ★⑤ スマホの 幅：名前の 見出しの 太字が 名前の 欄の 外へ 移らない★ 2026-10-20
+//   前は `.emp-pane td:first-child .txt`（名前の 見出し＝16px 太字・幅いっぱい）が、升が 1つしか 無い 行の 中の
+//   欄にも 効いていた＝①退職者の 行の 役割の 欄 ②「記録」の 行の 値の 欄（今いる人・退職者の 両方）。
+//   直した 後は どれも 今いる 人の 役割の 欄と 同じ（400・16px・同じ 幅）。名前だけ 700・16px。
+//   わざと壊す：規則を `td:first-child .txt` に 戻す ⇒ ⑤ 赤／.rolein に 太字 ⇒ ⑤ 赤
+test('⑤ スマホの 幅：名前の 見出しの 太字が 役割・記録の 欄に 移らない（今いる人・退職者）', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (x) => err.push(x.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  // 記録を 1本ずつ（辞めた 人＝emps[0]・今いる 人＝emps[1]）
+  await yameWoHiraku(page, (f) => {
+    f.rireki = [0, 1].map((i) => ({
+      rireki_id: 'rk' + i,
+      employee_id: f.emps[i].employee_id,
+      key: 'pay_floor',
+      value: 1300,
+      from_date: '2026-08-01',
+    }));
+    return f;
+  });
+  const kata = (s) =>
+    page.$eval(s, (x) => {
+      const c = getComputedStyle(x);
+      return { w: c.fontWeight, s: c.fontSize, haba: Math.round(x.getBoundingClientRect().width) };
+    });
+  await page.click('#empBody [data-yame-naosu]');
+  await page.waitForSelector('#empBody .yame-naosu [data-f="role"]', { state: 'visible' });
+  const yameRole = await kata('#empBody .yame-naosu [data-f="role"]');
+  await page.click('#empBody .yame-naosu [data-rireki]');
+  await page.waitForSelector('#empBody .rireki-r [data-rk-v]', { state: 'visible' });
+  const yameRk = await kata('#empBody .rireki-r [data-rk-v]');
+  await page.locator('[data-kiri="ima"]').click();
+  await page.waitForSelector('#empBody td[data-l="役割"] [data-f="role"]', { state: 'visible' });
+  const imaRole = await kata('#empBody td[data-l="役割"] [data-f="role"]');
+  const na = await kata('#empBody td[data-l="名前"] > .txt');
+  await page.click('#empBody td [data-rireki]');
+  await page.waitForSelector('#empBody .rireki-r [data-rk-v]', { state: 'visible' });
+  const imaRk = await kata('#empBody .rireki-r [data-rk-v]');
+  // eslint-disable-next-line no-console
+  console.log('★⑤★ ' + JSON.stringify({ yameRole, yameRk, imaRole, imaRk, na }));
+  // 幅も 値で 決める（9em＝144px・PC と 同じ）＝全部が 幅いっぱいに 揃っても 緑に しない（対立役 2回目 穴A）
+  const futsuu = { w: '400', s: '16px', haba: 144 };
+  expect(imaRole.w, '★今いる 人の 役割が 太字★').toBe('400');
+  expect(yameRole, '★辞めた 人の 役割の 欄が 今いる 人と 違う★').toEqual(futsuu);
+  expect(yameRk, '★退職者の 記録の 値の 欄が 今いる 人の 役割と 違う★').toEqual(futsuu);
+  expect(imaRk, '★今いる 人の 記録の 値の 欄が 役割と 違う★').toEqual(futsuu);
+  // 名前の 見出しは 前の まま（直し過ぎて 名前まで 細くしない）
+  expect({ w: na.w, s: na.s }, '★名前の 見出しが 太字・16px で なくなった★').toEqual({
+    w: '700',
+    s: '16px',
+  });
+  expect(na.haba, '★名前の 見出しが 幅いっぱいで なくなった★').toBeGreaterThan(250);
+  expect(err).toEqual([]);
+});

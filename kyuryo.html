@@ -392,8 +392,9 @@
           white-space: normal;
         }
 
-        /* 名前は1枚の見出しとして大きく */
-        .emp-pane td:first-child .txt {
+        /* 名前は1枚の見出しとして大きく（名前の 升に 直に 置いた 欄だけ・2026-10-20）
+           前は 升が 1つの 行の 中にも 効いた＝退職者の 役割の 欄と「記録」の 値の 欄が 太字・幅いっぱいだった */
+        .emp-pane td:first-child > .txt {
           width: 100%;
           font-size: 16px;
           font-weight: 700;
