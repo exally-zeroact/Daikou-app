@@ -4690,6 +4690,13 @@
           CTX = PayrollDaily.buildCtx(Object.assign({}, RAW, { yakuRireki: yakuRirekiNoIma() }));
           REP = PayrollDaily.report(PERIOD ? PERIOD.dates : [], CTX);
           var ub = kyuDameBun(CTX);
+          // 保存中の 字は 赤い 字に 出さない。その 時は 他の 止めの 訳を 出す（隠さない・対立役 11回目 ⑯）
+          if (ub === EMP_HOZONCHU) ub = kyuDameBunHoka(CTX);
+          // 返事待ちの 字は 赤い 字が 空か 止めの 字の 時だけ 出す（他の 欄の 断られた 訳を 上書き しない・対立役 12回目 止1）
+          if (ub && empTomeNoJi(ub)) {
+            var imaJi = String($('err').textContent || '');
+            if (imaJi && !empTomeNoJi(imaJi)) ub = '';
+          }
           if (ub) showErr(ub);
         }
         // 売上の 直しが 読めない 業務が 在る 時の 字（明細・紙を 止める）2026-10-14
@@ -4705,8 +4712,13 @@
 
         // ★給料を 止める 訳★（売上の 直しが 読めない・役割の 決まりが 無くて 計算できない）2026-10-17
         //   明細・紙・PDF・本人の 画面は 全部 ここを 見る（訳の 字は PayrollDaily の 1か所）
-        function kyuDameBun(ctx) {
+        // 従業員の 欄の 保存中 以外の 止める 訳（売上の 直しが 読めない・役割の 決まりが 無い）
+        function kyuDameBunHoka(ctx) {
           return uriageDameBun(ctx) || (ctx && ctx.yakuDameRiyuu) || '';
+        }
+        function kyuDameBun(ctx) {
+          // 従業員の 欄の 保存が 返らない 間も 止める（歩合・最低保証が 計算に 入って いない かも しれない・2026-10-21）
+          return empTomeBun() || kyuDameBunHoka(ctx);
         }
 
         // ---------- 描画 ----------
@@ -7706,6 +7718,9 @@
             return x.key === key && x.from_date === hi;
           })[0];
           var atai = rirekiNoAtai(key, v);
+          // ★保存中は 明細・紙を 止める★（日付付きの 歩合・最低保証・役割も 同じ・対立役 9回目 止1）
+          //   記録を 書いて 読み直して 計算に 入るまで（rirekiYomiNaoshi まで）を 数える
+          var matsuOwari = empMatsuHajime('rk|' + id + '|' + key);
           var p = aru
             ? rirekiKaku(
                 'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(aru.rireki_id),
@@ -7725,7 +7740,8 @@
             .then(rirekiOwari('保存できませんでした。', hi + ' から 保存しました'))
             .catch(function () {
               showErr('保存できませんでした。');
-            });
+            })
+            .then(matsuOwari, matsuOwari); // 書けた 時は rirekiOwari の 読み直しが recalc 済み
         }
         function rirekiNoBotan() {
           Array.prototype.forEach.call(document.querySelectorAll('[data-rk-hi]'), function (i) {
@@ -7946,33 +7962,235 @@
             });
         };
 
+        // ★書けた 行に その 人が 居るか まで 見る★ 2026-10-20（前は 0行でも「保存しました」と 出し、画面の 値だけ 変えていた）
+        //   退職・復職（empTaishoku）・記録（rirekiKaku）と 同じ 形。主キーで 絞るので 本物は 1行か 0行
+        // ★書けなかった 欄 1つだけを 倉庫の 値（RAW）へ 戻す★ 2026-10-20
+        //   表 全体を 描き直すと 他の 欄の 打ちかけ・開いた 日付の 欄・フォーカスが 飛び、
+        //   後から 通った 別の 欄の 保存と 食い違う（対立役 2回目 指1・指2）＝その 欄だけ 触る
+        function empRanModosu(id, field) {
+          var e = null;
+          (RAW.employees || []).forEach(function (x) {
+            if (x && x.employee_id === id) e = x;
+          });
+          if (!e) return;
+          // ★欄を 描く 時と 同じ 値で 戻す★（役割・歩合・最低保証は 選んだ 日の 値＝hiNoHito・並びの 空は 0）
+          //   列の 値で 戻すと、日付を 挟んだ 時に 今日の 欄へ「最初から」の 値が 出た（対立役 3回目 指1）
+          var d = hiNoHito(e);
+          if (field === 'slip_cars') {
+            // 明細に出す車は 描く 所（_empCarBoxes）で その人の 箱を 描き直す＝決め方を 2か所に 書かない
+            var box = document.querySelector('[data-emp="' + id + '"][data-f="slip_cars"]');
+            var td = box && box.closest('.empcars');
+            if (td) {
+              td.innerHTML = _empCarBoxes(e);
+              empOshiguchi();
+            }
+            return;
+          }
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-emp="' + id + '"][data-f="' + field + '"]'),
+            function (el) {
+              if (el.type === 'checkbox') el.checked = !!d[field];
+              else if (field === 'sort_order') el.value = String(d.sort_order || 0);
+              else el.value = d[field] === null || d[field] === undefined ? '' : String(d[field]);
+            }
+          );
+        }
+        // ★人と 欄ごとの 通し番号★ 2026-10-20（対立役 4回目 指1）
+        //   同じ 欄を 続けて 打つと 返りの 順が 入れ替わる。古い 返りが 欄を 戻したり 訳を 消したり すると
+        //   歩合の 欄と 計算の 値が 食い違った ⇒ 欄を 戻す・訳を 出す／消すのは ★一番 新しい 送り★の 返りだけ。
+        //   倉庫に 書けた 古い 返りは RAW（計算）には 入れ、新しい 送りが もう 失敗で 終わって いれば 欄も 描き直す。
+        var EMP_SOKU = {};
+        // ★保存中は 給料の 明細・紙を 止める★ 2026-10-21（対立役 8回目 止1・9回目 止1 止2）
+        //   従業員の 欄（歩合・最低保証・役割・名前…）を 送ってから 返りが 着いて 計算に 入るまでは、
+        //   明細・紙・PDF が 古い 値で 出る＝お金の 出力は 計算できなければ 止めて 警告（司さん 10-04）。
+        //   人と 欄ごとに 数え（EMP_MATSU）、kyuDameBun（明細・紙・PDF が 全部 見る 1か所）が 止める。
+        //   15秒を 過ぎても 返らない 送りは「返事が 来ません」に 字を 変える。saveEmp と saveRireki（日付付き）の 両方が 使う
+        var EMP_MATSU = {};
+        // 返事を 待つ 長さ（hozonSuru の HOZON_MATSU_MS と 同じ）。試験だけ window.__EMP_MATSU_MS で 短くできる
+        var EMP_MATSU_MS =
+          Number(window.__EMP_MATSU_MS) > 0 ? Number(window.__EMP_MATSU_MS) : 15000;
+        // 止めの 字の 頭（作る 所も 片付けを 判じる 所も これ 1つを 使う＝字を 言い換えても ずれない・対立役 11回目 中2）
+        var EMP_OSOI_ATAMA = '従業員の 欄の 保存の 返事が 来ません';
+        // 保存中（0.1秒 ほど）の 字＝明細・紙の 箱に だけ 出す。recalc は 赤い 字の 欄（#err）に 出さない
+        //   （出すと 他の 操作の 失敗の 訳を 上書きして 消した・対立役 10回目 止2）
+        var EMP_HOZONCHU =
+          '従業員の 欄を 保存して います。終わるまで 給料の 明細・紙は 止めています。';
+        function empTomeBun() {
+          var kazu = 0;
+          var osoi = 0;
+          Object.keys(EMP_MATSU).forEach(function (k) {
+            kazu += EMP_MATSU[k].kazu || 0;
+            osoi += EMP_MATSU[k].osoi || 0;
+          });
+          if (osoi)
+            return (
+              EMP_OSOI_ATAMA +
+              '（' +
+              osoi +
+              '件）。給料の 明細・紙は 止めています。電波を 確かめてください。返事が 来ない ままなら 画面を 読み込み直して 保存されたか 確かめてください。'
+            );
+          return kazu ? EMP_HOZONCHU : '';
+        }
+        // 赤い 字が この 止めの 字（保存中 か 返事待ち）か
+        function empTomeNoJi(ji) {
+          ji = String(ji || '');
+          return ji === EMP_HOZONCHU || ji.indexOf(EMP_OSOI_ATAMA) === 0;
+        }
+        // 止めが 変わった 時に 明細を 開いて いれば 描き直す（札が 残り続けない・対立役 10回目 止1）
+        function empMeisaiNuriNaoshi() {
+          if (TAB === 'slip') render();
+        }
+        function empMatsuHajime(kagi) {
+          var m = (EMP_MATSU[kagi] = EMP_MATSU[kagi] || { kazu: 0, osoi: 0 });
+          m.kazu++;
+          var osoi = false;
+          var sumi = false;
+          var t = setTimeout(function () {
+            if (sumi) return;
+            osoi = true;
+            m.osoi++;
+            // 赤い 字が 空か この 止めの 字の 時だけ 出す（他の 失敗の 訳を 上書き しない）
+            var mae = String($('err').textContent || '');
+            if (!mae || empTomeNoJi(mae)) showErr(empTomeBun());
+            empMeisaiNuriNaoshi();
+          }, EMP_MATSU_MS);
+          // 終わり＝計算（recalc）に 入れた 後に 呼ぶ（前に 呼ぶと 古い 額で 明細を 描き直した・対立役 11回目 止1）
+          return function () {
+            if (sumi) return; // 2回 減らさない
+            sumi = true;
+            clearTimeout(t);
+            m.kazu = Math.max(0, m.kazu - 1);
+            if (osoi) m.osoi = Math.max(0, m.osoi - 1);
+            // 赤い 字が この 止めの 字（PDF を 押した 時の 保存中・返事待ち）なら 今の 止めに 合わせる
+            //   保存中は 赤い 字に 残さない＝返事待ちが 在る 時だけ 出し直し、無ければ 消す（対立役 11回目 止2）
+            if (empTomeNoJi($('err').textContent)) {
+              var nokori = empTomeBun();
+              // 返事待ちが 無ければ 他の 止め（売上が 読めない 等）を 出し直す（隠さない・対立役 12回目 中1）
+              showErr(nokori && nokori !== EMP_HOZONCHU ? nokori : kyuDameBunHoka(CTX) || '');
+            }
+            empMeisaiNuriNaoshi();
+          };
+        }
+        // 今 出ている 保存の 訳を 出した 欄と ★その 字そのもの★（字が 同じ 時だけ 消す＝他の 操作の 訳を 消さない・対立役 6回目 止B）
+        var EMP_ERR = null;
+        // ★失敗の 字は その場で 作る★（列の 1段の 中で 倉庫の 訳も 読む＝後から 字を 出して 書けた 後に 古い 訳が 残る 事を 作らない・対立役 6回目 中1・7回目 中1）
+        function empErrJi(r, t) {
+          var st = r && r.status;
+          if (st === 401 || st === 403)
+            return (
+              '保存できませんでした。 ' +
+              ((COMPANY && COMPANY.name) || '(会社が選ばれていません)') +
+              ' には書き込めません。'
+            );
+          var wake = '';
+          try {
+            var j = JSON.parse(t);
+            wake = [j.message, j.details, j.hint].filter(Boolean).join(' / ');
+          } catch (_) {
+            wake = String(t || '').slice(0, 200);
+          }
+          return '保存できませんでした。' + (st ? ' [' + st + ']' : '') + (wake ? ' ' + wake : '');
+        }
         function saveEmp(id, field, value) {
+          var kagi = id + '|' + field;
+          var me = (EMP_SOKU[kagi] = EMP_SOKU[kagi] || { n: 0 });
+          me.n++;
+          var ban = me.n;
+          var saishin = function () {
+            return ban === me.n;
+          };
+          // 打った 時から 数える（列で 待つ 間も 計算に 入って いない＝止める）
+          var matsuOwari = empMatsuHajime(kagi);
+          var shiraseru = function (ji) {
+            showErr(ji);
+            EMP_ERR = { kagi: kagi, ji: ji };
+          };
+          // 失敗＝一番 新しい 送りの 時だけ 欄を 戻し 訳を 出す
+          var shippai = function (ji) {
+            matsuOwari(); // 保存中の 止めを 外す（明細は 描き直す・赤い 字は 触らない）
+            if (!saishin()) return; // 古い 送りの 失敗は 新しい 送りに 任せる
+            try {
+              empRanModosu(id, field);
+            } catch (_) {
+              /* 欄を 戻せなくても 訳は 必ず 出す（対立役 6回目 中2） */
+            }
+            shiraseru(ji);
+          };
           var body = {};
           body[field] = value;
           body.updated_at = new Date().toISOString();
-          DKSession.rest(SESS, 'dk_employees?employee_id=eq.' + encodeURIComponent(id), {
-            method: 'PATCH',
-            body: JSON.stringify(body),
-          })
-            .then(function (r) {
-              if (!r.ok) return saveErr('保存できませんでした。', r);
-              showErr('');
-              RAW.employees.forEach(function (e) {
-                if (e.employee_id === id) e[field] = value;
-              });
-              RAW.employees.sort(function (a, b) {
-                return num(a.sort_order) - num(b.sort_order);
-              });
-              recalc();
-              // ★役割を打ち替えたら その場で 出し直す★ 2026-08-25
-              //   決まりの無い役割を打った時の ★赤い注意★ を すぐ出す為。
-              //   （打ち終わって 欄から離れた時に来るので 字が消える事は無い）
-              if (field === 'role') renderEmp();
-              flash('empSaved', '保存しました');
+          // ★人と 欄ごとに 送りを 1本の 列に 並べる★（前の 返りを 待って から 次を 送る・対立役 5回目 止1）
+          //   並べないと 返りの 順が 入れ替わり、倉庫と 計算（RAW）が 古い 値に なった。
+          //   返事が 遅い 時も 列は 進めない（進めると 前と 次が 同時に 飛び 倉庫だけ 古い 値に なった・7回目 止1〜3）。
+          //   遅れて 着いた 返りは いつも 通り 扱う（書けて いれば 計算に 入れ、止めも 外れる）
+          me.retsu = (me.retsu || Promise.resolve()).then(function () {
+            return DKSession.rest(SESS, 'dk_employees?employee_id=eq.' + encodeURIComponent(id), {
+              method: 'PATCH',
+              headers: { Prefer: 'return=representation' },
+              body: JSON.stringify(body),
             })
-            .catch(function () {
-              showErr('保存できませんでした。');
-            });
+              .then(function (r) {
+                // ★書けない 時は その 欄を 倉庫の 値へ 戻す★（打った 字が 残ると 保存済みに 見える・対立役 指4）
+                if (!r.ok)
+                  return (typeof r.text === 'function' ? r.text() : Promise.resolve(''))
+                    .catch(function () {
+                      return '';
+                    })
+                    .then(function (txt) {
+                      return { ng: empErrJi(r, txt) };
+                    });
+                return r.json().then(function (rows) {
+                  return { rows: rows };
+                });
+              })
+              .then(function (x) {
+                if (x.ng) return shippai(x.ng);
+                var kaketa =
+                  Array.isArray(x.rows) &&
+                  x.rows.some(function (e) {
+                    return e && e.employee_id === id;
+                  });
+                if (!kaketa)
+                  return shippai(
+                    '保存できませんでした。倉庫に 書けた 行が ありません。会社が 合っているか 確かめて、開き直してください。'
+                  );
+                // ★自分が 出した 訳だけ 消す・recalc より 前に★（recalc が 出す 明細・紙の 止めの 警告を 消さない・対立役 5回目 止2）
+                if (EMP_ERR && EMP_ERR.kagi === kagi) {
+                  if (String($('err').textContent || '') === EMP_ERR.ji) showErr('');
+                  EMP_ERR = null;
+                }
+                RAW.employees.forEach(function (e) {
+                  if (e.employee_id === id) e[field] = value;
+                });
+                RAW.employees.sort(function (a, b) {
+                  return num(a.sort_order) - num(b.sort_order);
+                });
+                recalc();
+                matsuOwari(); // 計算に 入れた 後に 保存中を 外す（明細の 描き直しが 新しい 額で 描く）
+                if (!saishin()) return; // 次の 送りが 列で 待って いる＝欄は その 送りに 任せる
+                // ★役割を打ち替えたら その場で 出し直す★ 2026-08-25
+                //   決まりの無い役割を打った時の ★赤い注意★ を すぐ出す為。
+                //   （打ち終わって 欄から離れた時に来るので 字が消える事は無い）
+                if (field === 'role') renderEmp();
+                else {
+                  // 返りを 待つ 間に 日付を 変えた 時も 欄を 今の 値に（打っている 欄は 触らない・指3）
+                  var ima = document.activeElement;
+                  var ran = document.querySelector(
+                    '[data-emp="' + id + '"][data-f="' + field + '"]'
+                  );
+                  if (ran && ran !== ima && field !== 'slip_cars') empRanModosu(id, field);
+                }
+                flash('empSaved', '保存しました');
+              })
+              .catch(function () {
+                // 通信が 切れた・返りが 読めない 時も 戻す（対立役 2回目 指3）
+                try {
+                  shippai('保存できませんでした。通信を 確かめて、もう一度 打ってください。');
+                } catch (_) {
+                  matsuOwari(); // 列と 止めは 必ず 進める
+                }
+              });
+          });
         }
 
         // ── 決め方 ─────────────────────────────
