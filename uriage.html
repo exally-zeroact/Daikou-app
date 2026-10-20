@@ -487,9 +487,18 @@
         </div>
         <div class="setrow" style="margin-top: 10px">
           <span class="setlabel">売上から引くもの</span>
-          <label class="chk"><input type="checkbox" id="dToll" /> 高速代</label>
-          <label class="chk"><input type="checkbox" id="dBridge" /> 橋代</label>
-          <label class="chk"><input type="checkbox" id="dOther" /> その他</label>
+          <!-- ★名前は 会社設定の「実費」の 名前★ 2026-10-20（司さん「会社で設定したものがここや月次などに反映されるんやろが」）
+               消した 物は 出さない・会社が 足した 物は いつも 引く（押せない チェック）＝hikiNaNuru -->
+          <label class="chk" id="dTollL"
+            ><input type="checkbox" id="dToll" /> <span id="dTollNa">高速代</span></label
+          >
+          <label class="chk" id="dBridgeL"
+            ><input type="checkbox" id="dBridge" /> <span id="dBridgeNa">橋代</span></label
+          >
+          <label class="chk" id="dOtherL"
+            ><input type="checkbox" id="dOther" /> <span id="dOtherNa">その他</span></label
+          >
+          <span id="dSoto"></span>
           <!-- ★何日から★ 2026-10-18（docs/nannichi-kara-uriage.md）既定は 今日・空＝最初から -->
           <label class="hiki-hi">何日から <input type="date" id="dHi" /></label>
           <button class="navb" id="dRireki" type="button">記録</button>
@@ -534,14 +543,15 @@
              ★入れる 所は 前から 在りました★。ただ 下の 札を 開かないと 出て こない。
              ⇒ ★表の すぐ下に 道順を 書く★＝探さなくて よい。 -->
           <div class="note" id="jippiNote">
-            <b>実費（高速代・橋代）</b>と <b>電子決済で 受け取った 分</b>は、下の 帯の
-            <b>「入力」</b>で 日ごとに 入れられます。
+            <b>実費（<span id="jippiNa">会社設定の 名前</span>）</b>と
+            <b>電子決済で 受け取った 分</b>は、下の 帯の <b>「入力」</b>で 日ごとに 入れられます。
           </div>
           <div id="list"></div>
           <div class="note">
             件数・実車距離・総走行距離は<b>メーターが確定した数字</b>です（ここでは変えられません）。<br />
             <b>売上＝メーターの合計から、上で選んだ実費を引いた分</b>です。<br />
-            高速代・橋代などは<b>手で入力</b>します。車名をタップすると名前を付けられます。
+            実費は<b>手で入力</b>します（名前は 会社設定 →
+            実費）。車名をタップすると名前を付けられます。
           </div>
         </div>
       </details>
@@ -884,6 +894,7 @@
         }
 
         function load() {
+          MIETA = {}; // 月を 替えたら 前の 月に 出した 欄の 控えを 空に（対立役 4回目 指2）
           if (!COMPANY) return;
           showErr('');
           showMsg('読み込み中…');
@@ -960,6 +971,7 @@
               var st = Array.isArray(res[3]) && res[3].length ? res[3][0] : null;
               // ★★実費の 名前★★ 2026-09-06（司さん「自由に 足せる ように」）
               //   ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
+              RAW.kindsZenbu = Array.isArray(res[4]) && res[4].length ? res[4] : null;
               RAW.kinds = (Array.isArray(res[4]) ? res[4] : []).filter(function (k) {
                 return k && k.active !== false;
               });
@@ -1075,7 +1087,77 @@
         // ---------- 売上から引くものの設定 ----------
         //   ★チェックは 選んだ 日に 効く 引き方★（空＝最初から＝列の 値）2026-10-18
         var HIKI_KEY = { dToll: 'toll', dBridge: 'bridge', dOther: 'other' };
-        var HIKI_NA = { toll: '高速代', bridge: '橋代', other: 'その他' };
+        var HIKI_NA = { toll: '高速代', bridge: '橋代', other: 'その他' }; // 実費の 一覧が 読めない 時だけ
+        // ★実費の 名前は 会社設定の 一覧（dk_expense_kinds）から★ 2026-10-20（司さん「経費に設定しとんのに」）
+        //   RAW.kindsZenbu＝絞らずに 読んだ 一覧（読めない・空なら null＝今までの 3つ）
+        function kindOf(k) {
+          var l = RAW.kindsZenbu || [];
+          for (var i = 0; i < l.length; i++) if (l[i] && l[i].kind_id === k) return l[i];
+          return null;
+        }
+        function hikiNa(k) {
+          var x = kindOf(k);
+          return (x && x.label) || HIKI_NA[k] || k;
+        }
+        // その 月に 入っている 額（消した 物でも 額が 在れば 隠さない＝隠れたまま 引かれる 事を 作らない・対立役 指3）
+        function tsukiGaku(k) {
+          var by = window.__editsById || {};
+          var g = 0;
+          (RAW.shifts || []).forEach(function (s) {
+            g += JippiHozon.ima(by[s.shift_id], k) || 0;
+          });
+          return g;
+        }
+        // ★出す 物の 決まりは js/jippi-hozon.js mieruKinds の 1か所★（月次集計の 紙・画面と 同じ）
+        var MIETA = {}; // この 画面で 一度 出した 打つ 欄（0 を 打っても 消さない）
+        function mieruNo(o) {
+          return JippiHozon.mieruKinds(RAW.kindsZenbu, tsukiGaku, o);
+        }
+        function hikiMieru(k) {
+          return mieruNo({ mieta: MIETA }).some(function (x) {
+            return x.kind_id === k;
+          });
+        }
+        // 1回の 業務で 打てる 実費＝[{kind_id, label}]（「使う」を 外した 物は 出さない＝入力の 画面と 同じ）
+        function uteruKinds() {
+          var l = mieruNo({ nyuryoku: true, mieta: MIETA });
+          l.forEach(function (x) {
+            MIETA[x.kind_id] = 1;
+          });
+          return l;
+        }
+        function hikiNaNuru() {
+          [
+            ['dToll', 'toll'],
+            ['dBridge', 'bridge'],
+            ['dOther', 'other'],
+          ].forEach(function (a) {
+            $(a[0] + 'Na').textContent = hikiNa(a[1]);
+            $(a[0] + 'L').style.display = hikiMieru(a[1]) ? '' : 'none';
+          });
+          if ($('jippiNa'))
+            $('jippiNa').textContent =
+              uteruKinds()
+                .map(function (x) {
+                  return x.label;
+                })
+                .join('・') || '会社設定で 決めた 物';
+          // 会社が 足した 物は いつも 引く（js/uriage-agg.js deductOf の soto）＝押せない チェックで 並べる
+          $('dSoto').innerHTML = mieruNo({ mieta: MIETA })
+            .filter(function (x) {
+              return ['toll', 'bridge', 'other'].indexOf(x.kind_id) < 0;
+            })
+            .map(function (x) {
+              return (
+                '<label class="chk" title="会社が 足した 実費は いつも 引きます"><input type="checkbox" checked disabled data-soto="' +
+                esc(x.kind_id) +
+                '" /> ' +
+                esc(x.label || '') +
+                '</label>'
+              );
+            })
+            .join('');
+        }
         // 書かせない 訳（読めていない 物が 在る）。無ければ ''
         function kakasenai() {
           if (SS_DAME)
@@ -1108,6 +1190,7 @@
             hi && KUMI
               ? UriageAgg.settingsOnDay(SETTINGS, KUMI, hi)
               : SETTINGS || UriageAgg.normSettings(null);
+          hikiNaNuru();
           $('dToll').checked = !!s.deduct_toll;
           $('dBridge').checked = !!s.deduct_bridge;
           $('dOther').checked = !!s.deduct_other;
@@ -1255,8 +1338,9 @@
           var h =
             '<b>売上から 引く 物の 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 引き方＝' +
             ['toll', 'bridge', 'other']
+              .filter(hikiMieru)
               .map(function (k) {
-                return HIKI_NA[k] + (s['deduct_' + k] ? ' 引く' : ' 引かない');
+                return esc(hikiNa(k)) + (s['deduct_' + k] ? ' 引く' : ' 引かない');
               })
               .join('・') +
             '）';
@@ -1279,7 +1363,7 @@
               '" value="' +
               esc(String(x.from_date).slice(0, 10)) +
               '"> から ' +
-              esc(HIKI_NA[x.key] || x.key) +
+              esc(hikiNa(x.key)) +
               ' <select data-uk-v="' +
               id +
               '"><option value="1"' +
@@ -1438,19 +1522,21 @@
             '<div class="dedit">' +
             (s.isManual
               ? '手で入れた分（給料の画面で直せます）'
-              : '高速 <input class="yen" data-sid="' +
-                esc(s.shift_id) +
-                '" data-f="toll_yen" value="' +
-                (e.toll_yen || 0) +
-                '"> 橋 <input class="yen" data-sid="' +
-                esc(s.shift_id) +
-                '" data-f="bridge_yen" value="' +
-                (e.bridge_yen || 0) +
-                '"> その他 <input class="yen" data-sid="' +
-                esc(s.shift_id) +
-                '" data-f="other_yen" value="' +
-                (e.other_yen || 0) +
-                '">') +
+              : // ★欄は 会社設定の 実費の 一覧★ 2026-10-20（前は「高速・橋・その他」固定＝司さん「経費に設定しとんのに」）
+                uteruKinds()
+                  .map(function (k) {
+                    return (
+                      esc(k.label) +
+                      ' <input class="yen" data-sid="' +
+                      esc(s.shift_id) +
+                      '" data-f="' +
+                      esc(k.kind_id) +
+                      '" value="' +
+                      (JippiHozon.ima(e, k.kind_id) || 0) +
+                      '">'
+                    );
+                  })
+                  .join(' ')) +
             '</div>' +
             '</div>'
           );
@@ -1569,7 +1655,7 @@
                 // ★★中に 何が 在るか 名前に 書く★★ 2026-09-06（司さん「橋代や高速代など入力するタブは？」）
                 //   ★入れる 所は 前から 在りました★。ただ ★『日ごと ▾』の 中に 隠れていて 見つからない★。
                 //   ⇒ ★名前に 何が 出来るかを 書く★＝開かなくても 分かる。
-                openText: '日ごと ▾（高速代・橋代を 入れる）',
+                openText: '日ごと ▾（実費を 入れる）',
                 detail: r.shifts.map(shiftLine).join(''),
               });
             }
@@ -1661,6 +1747,7 @@
               window.__editsById[shiftId] = body;
               recalc(); // 売上（差引後）と合計に即反映
               render();
+              hikiNaNuru(); // 額で 出す 物が 変わる（対立役 2回目 指3）
             })
             .catch(function () {
               showErr('保存できませんでした。通信を確認してください。');

@@ -76,7 +76,8 @@
       if (id === 'toll' || id === 'bridge' || id === 'other') oshi(k.label, tsukiNo(id));
       else ks.push({ label: k.label, hiku: true }); // ★会社が 足した 物は いつも 引く★（apply-jippi-jiyuu.sql の 決まり）
     });
-    if (!ks.length) {
+    // ★一覧を 渡されて 全部 消してある 会社は「引く 物 なし」★（古い 3つの 名前に 落とさない・対立役 指4）2026-10-20
+    if (!ks.length && !Array.isArray(kinds)) {
       oshi('高速代', tsukiNo('toll'));
       oshi('橋代', tsukiNo('bridge'));
       oshi(s.other_label || 'その他', tsukiNo('other'));

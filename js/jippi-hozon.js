@@ -197,7 +197,52 @@
     });
   }
 
+  // ★★画面・紙に 出す 実費の 名前の 決まり（1か所）★★ 2026-10-20（司さん「会社で設定したものがここや月次などに反映されるんやろが」）
+  //   kinds  … 会社設定の 一覧（dk_expense_kinds を 絞らずに）。読めない・空 ⇒ 今までの 3つ
+  //   gakuOf … その 月（その 範囲）に 入っている 額（kind_id ⇒ 円）
+  //   o.nyuryoku … 打つ 欄（「使う」を 外した 物は 出さない＝入力の 画面と 同じ）
+  //   o.mieta    … 一度 出した 物（0 を 打っても その 場では 欄を 消さない＝打ち直せる）
+  //   出す＝消していない 物 ＋ ★消した・一覧に 行が 無い 物でも その 月に 額が 在れば★（隠れたまま 引かれる 事を 作らない）
+  //   ★お金は 見ない★（引く 額は js/uriage-agg.js deductOf＝名前の 一覧に 関わらず 前と 同じ）
+  const FURUI_NA = { toll: '高速代', bridge: '橋代', other: 'その他' };
+  function mieruKinds(kinds, gakuOf, o) {
+    o = o || {};
+    const gaku =
+      typeof gakuOf === 'function'
+        ? gakuOf
+        : function () {
+            return 0;
+          };
+    const mieta = o.mieta || {};
+    if (!Array.isArray(kinds) || !kinds.length)
+      return ['toll', 'bridge', 'other'].map(function (k) {
+        return { kind_id: k, label: FURUI_NA[k] };
+      });
+    // 同じ kind_id が 2行 在る 時は 消していない 行を 使う（対立役 3回目 指4）
+    const yoi = {};
+    kinds.forEach(function (k) {
+      if (!k || !k.kind_id) return;
+      const m = yoi[k.kind_id];
+      if (!m || (m.deleted_at && !k.deleted_at)) yoi[k.kind_id] = k;
+    });
+    const out = [];
+    const mita = {};
+    kinds.forEach(function (k0) {
+      if (!k0 || !k0.kind_id || mita[k0.kind_id]) return;
+      mita[k0.kind_id] = 1;
+      const k = yoi[k0.kind_id];
+      const ikiteru = !k.deleted_at && (!o.nyuryoku || k.active !== false);
+      if (ikiteru || gaku(k.kind_id) > 0 || mieta[k.kind_id])
+        out.push({ kind_id: k.kind_id, label: k.label || FURUI_NA[k.kind_id] || k.kind_id });
+    });
+    ['toll', 'bridge', 'other'].forEach(function (k) {
+      if (!mita[k] && (gaku(k) > 0 || mieta[k])) out.push({ kind_id: k, label: FURUI_NA[k] });
+    });
+    return out;
+  }
+
   global.JippiHozon = {
+    mieruKinds: mieruKinds,
     FURUI: FURUI,
     seisuu: seisuu,
     ima: ima,

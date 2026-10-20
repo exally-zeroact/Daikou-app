@@ -743,8 +743,7 @@
             </table>
           </div>
           <div class="note">
-            <b>売上</b
-            >＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<b
+            <b>売上</b>＝メーターの合計から、売上表で選んだ実費を引いた分です。<b
               >オーナーの車も入ります。</b
             ><br />
             <b>給料</b
@@ -792,8 +791,7 @@
             </table>
           </div>
           <div class="note">
-            <b>売上</b
-            >＝メーターの合計から、売上表で選んだ実費（高速代・橋代など）を引いた分です。<br />
+            <b>売上</b>＝メーターの合計から、売上表で選んだ実費を引いた分です。<br />
             <b>オーナーの車も入ります。</b>
           </div>
         </div>
@@ -880,6 +878,7 @@
     <script src="js/daiko-payroll.js"></script>
     <script src="js/payroll-period.js"></script>
     <script src="js/payroll-daily.js"></script>
+    <script src="js/jippi-hozon.js"></script>
     <script src="js/getsuji-agg.js"></script>
     <!-- ★紙（A4のPDF）★ 2026-09-25 … 押した時だけ vendor を読む（js/kami-pdf.js の中） -->
     <script src="js/kami-kumu.js"></script>
@@ -932,6 +931,7 @@
         var YAKU_RIREKI_YOMI = { tried: 0, failed: 0 }; // 役割の 決まりの 変えた 記録を 読めたか
         var URIAGE_RIREKI_YOMI = { tried: 0, failed: 0 }; // 売上から 引く 物の 変えた 記録を 読めたか
         var SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }; // 締めの 形の 変えた 記録を 読めたか（2026-10-19）
+        var KINDS_YOMI = { tried: 0, failed: 0 }; // 実費の 名前の 一覧を 読めたか（2026-10-20・名前だけ＝止めない）
         var PAYMENTS = []; // 日ごとの 請求書 / 電子決済
         var PP = {}; // 月ごとの 電子決済 手入力（'2026-01' → 円）
         // ★★日ごとの 電子決済★★ 2026-09-06（司さん「毎日 入れれるように」）
@@ -1038,10 +1038,14 @@
             tsuki,
             RAW.payrollSettings,
             RAW.salesSettings,
-            // ★この画面は 実費の 一覧（dk_expense_kinds）を 読んでいない★（2026-09-25 実測）
-            //   ⇒ null を 渡すと KamiShukei.kaisha が ★売上設定から 3つ★ を 作る。
-            //   ★勝手に 読みに 行かない★＝1押し1件／読む回に 名指しで 足す。
-            null,
+            // ★実費の 一覧（dk_expense_kinds）を 渡す★ 2026-10-20＝会社が 決めた 名前で 刷る（消した 物は 刷らない）
+            //   読めない・空の 時は null＝KamiShukei.kaisha が ★売上設定から 3つ★ を 作る（今まで 通り）
+            //   出す 物の 決まりは js/jippi-hozon.js mieruKinds（消した 物でも その 月に 額が 在れば 刷る＝引いた 額と 名前を 揃える）
+            RAW.kinds && RAW.kinds.length
+              ? JippiHozon.mieruKinds(RAW.kinds, jippiGakuOf(tsuki)).map(function (x) {
+                  return { kind_id: x.kind_id, label: x.label };
+                })
+              : null,
             true,
             // ★売上から 引く 物の 記録（何日から）★ 2026-10-18＝月の 中で 変わる 物は 日の 幅を 刷る
             CTX && CTX.uriageKumi
@@ -1495,8 +1499,17 @@
               kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
               SHIME_RIREKI_YOMI
             )),
+            // ★実費の 名前（会社設定の 一覧）★ 2026-10-20＝res[16]（司さん「会社で設定したものがここや月次などに反映されるんやろが」）
+            //   紙の「引いた 実費」の 名前に 使う だけ＝読めなくても 数字は 止めない（今までの 3つの 名前に 戻る）
+            ((KINDS_YOMI = { tried: 0, failed: 0 }),
+            DKSession.softList(
+              SESS,
+              kaishaDake('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
+              KINDS_YOMI
+            )),
           ]).then(function (res) {
             RAW.shifts = res[0] || [];
+            RAW.kinds = KINDS_YOMI.failed > 0 || !Array.isArray(res[16]) ? null : res[16];
             LOAD.tried += RIREKI_YOMI.tried;
             LOAD.failed += RIREKI_YOMI.failed;
             RAW.rireki = RIREKI_YOMI.failed > 0 ? null : res[12] || [];
@@ -2390,6 +2403,46 @@
           });
         })();
 
+        // ★経費の 内わけの 名前＝会社設定の 実費の 一覧（消した 物は 出さない）★ 2026-10-20
+        //   読めない・空 ⇒ 前と 同じ「経費（高速・橋など）」
+        //   ★名前は 紙と 同じ 1か所（kamiKaisha の「引く 物」）★（対立役 3回目 指1＝引かない 物を 並べない）
+        //   年（ONE＝0）は 1〜12月の どこかで 引いた 物（並びは 一覧の 順）
+        function keihiNoNa() {
+          if (!RAW.kinds || !RAW.kinds.length) return '経費（高速・橋など）';
+          var tsuki = ONE ? [ONE] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+          var l = [];
+          tsuki.forEach(function (t) {
+            (kamiKaisha(t).kinds || []).forEach(function (x) {
+              if (!x || !x.hiku) return;
+              // 外すのは kami-shukei の tsukiNo が 付ける 日の 幅（「（1〜14日・20日）」）だけ＝会社の 名前は 削らない
+              var na = String(x.label || '').replace(/（[0-9〜・日]+日）$/, '');
+              if (na && na !== '経費' && l.indexOf(na) < 0) l.push(na);
+            });
+          });
+          return l.length ? '経費（' + l.join('・') + '）' : '経費';
+        }
+        // ★その 月（0＝年 まるごと）に 入っている 実費の 額★（名前を 出すか 決める 為だけ＝お金の 計算には 使わない）
+        function jippiGakuOf(tsuki) {
+          var pre = YEAR + '-' + (tsuki ? ('0' + tsuki).slice(-2) + '-' : '');
+          var naka = {};
+          (RAW.shifts || []).forEach(function (s) {
+            if (s && String(PayrollDaily.dateOf(s.started_at) || '').indexOf(pre) === 0)
+              naka[s.shift_id] = 1;
+          });
+          var l = (RAW.edits || []).filter(function (e) {
+            return e && naka[e.shift_id];
+          });
+          (RAW.manualDays || []).forEach(function (m) {
+            if (m && String(m.work_date || '').indexOf(pre) === 0) l.push(m);
+          });
+          return function (k) {
+            var g = 0;
+            l.forEach(function (e) {
+              g += JippiHozon.ima(e, k) || 0;
+            });
+            return g;
+          };
+        }
         function renderOne() {
           var m = ONE ? YR.months[ONE - 1] : YR.total;
           tsukibar();
@@ -2405,7 +2458,7 @@
             { k: '　請求書', v: m.invoice },
             { k: '　電子決済', v: m.denshi },
             { k: '給料 合計', v: m.payTotal },
-            { k: '経費（高速・橋など）', v: m.expense },
+            { k: keihiNoNa(), v: m.expense },
             { k: '積立金', v: m.reserve },
             { k: '会社に残る分', v: m.ownerShare, hi: true },
           ];

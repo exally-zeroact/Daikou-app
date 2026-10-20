@@ -238,12 +238,16 @@ test('★★② 高速代を 打つと 売上（実費を引いた後）が そ�
   console.log('★後★ ' + JSON.stringify(ato));
 
   const sa = (k) => (ato[k] || 0) - (mae[k] || 0);
+  // ★経費の 行の 名前は 会社設定の 実費の 名前★ 2026-10-20（前は「経費（高速・橋など）」固定）＝「経費」で 始まる 行
+  const keihi = (o) => {
+    const k = Object.keys(o).filter((x) => x.indexOf('経費') === 0);
+    expect(k.length, '★経費の 行が 1つで ない★ ' + JSON.stringify(k)).toBe(1);
+    return o[k[0]] || 0;
+  };
   // eslint-disable-next-line no-console
-  console.log(
-    '★増減★ 売上=' + sa('売上（実費を引いた後）') + ' 経費=' + sa('経費（高速・橋など）')
-  );
+  console.log('★増減★ 売上=' + sa('売上（実費を引いた後）') + ' 経費=' + (keihi(ato) - keihi(mae)));
   expect(sa('売上（実費を引いた後）'), '★売上が 1,200 減っていません★').toBe(-1200);
-  expect(sa('経費（高速・橋など）'), '★経費が 1,200 増えていません★').toBe(1200);
+  expect(keihi(ato) - keihi(mae), '★経費が 1,200 増えていません★').toBe(1200);
 });
 
 test('★★③ 打っていない 日の 分は 混ざらない★★', async ({ page }) => {

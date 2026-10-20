@@ -63,10 +63,13 @@ describe('★今できていた事を落としていない★', () => {
     expect(HTML, '★名前を変える所を消している★').toContain('class="carname"');
   });
 
-  it('高速代・橋代・その他を手で直せる', () => {
-    expect(HTML).toContain('data-f="toll_yen"');
-    expect(HTML).toContain('data-f="bridge_yen"');
-    expect(HTML).toContain('data-f="other_yen"');
+  // ★2026-10-20 定義を 変えた★ 欄は 字の 固定（toll_yen 等）を やめ、会社設定の 実費の 一覧から 作る
+  //   （司さん「会社で設定したものがここや月次などに反映されるんやろが」）。
+  //   守る 中身は 同じ＝「実費を 手で 直せる」。振る舞いは tests/e2e/jippi-na-hanei.spec.js ⑦ が 押して 見る。
+  it('実費（会社設定の 一覧の 物）を手で直せる', () => {
+    expect(HTML).toContain('uteruKinds()');
+    expect(HTML).toContain('esc(k.kind_id)');
+    expect(HTML).toContain('JippiHozon.saveJippi(');
   });
 
   it('売上から引く物の設定が残っている', () => {

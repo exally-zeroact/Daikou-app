@@ -36,8 +36,9 @@ test('★★① 札の 名前に「高速代・橋代を 入れる」と 書い�
   console.log('★札の 名前★ ' + JSON.stringify(fuda));
   const ji = fuda.shiftLine || '';
   expect(ji, '★入れる欄に 繋がる 札が 読めません（形が 変わりました）★').toBeTruthy();
-  expect(ji, '★開かないと 何が 在るか 分かりません★').toContain('高速代');
-  expect(ji, '★開かないと 何が 在るか 分かりません★').toContain('橋代');
+  // ★2026-10-20★ 名前は 会社設定で 変わる（司さん「経費に設定しとんのに」）＝札は「実費を 入れる」
+  expect(ji, '★開かないと 何が 在るか 分かりません★').toContain('実費');
+  expect(ji, '★開かないと 何が 在るか 分かりません★').toContain('入れる');
 });
 
 // ★画面を 開かずに 実物の 中身で 見る★
@@ -54,8 +55,9 @@ test('★★② 昔の 表は 無く 実費の 道順は 在る★★', async ()
   expect(t, '★昔の 罫線の 表が 戻っています（はみ出す）★').toBe(-1);
   expect(n, '★実費の 道順が ありません★').toBeGreaterThan(0);
   const ji = SRC.slice(n, n + 400).replace(/\s+/g, '');
-  expect(ji, '★高速代・橋代と 書いていません★').toContain('高速代');
-  expect(ji, '★高速代・橋代と 書いていません★').toContain('橋代');
+  // ★2026-10-20★ 名前は 会社設定の 一覧から 入れる（id="jippiNa"・司さん「経費に設定しとんのに」）
+  expect(ji, '★実費と 書いていません★').toContain('実費');
+  expect(ji, '★会社設定の 名前を 入れる 所が ありません★').toContain('id="jippiNa"');
   // ★★道順は「入力タブ」を 指す★★ 2026-09-06（司さん「入力するなら入力タブつくれよ」）
   //   ★前★「下の 札を 開け」と 書いていた ⇒ ★開かないと 打てない のは 同じ★だった
   // ★★札の 名前が 変わった★★ 2026-09-06（司さん「入力タブは」）
@@ -64,12 +66,14 @@ test('★★② 昔の 表は 無く 実費の 道順は 在る★★', async ()
 });
 
 test('★★③ 入れる 欄そのものは 前から 在る（消していない）★★', async () => {
-  // ★直しで 中身を 消していない事★＝3つの 欄が そのまま 在る
-  ['toll_yen', 'bridge_yen', 'other_yen'].forEach(function (f) {
-    expect(SRC.indexOf('data-f="' + f + '"'), '★' + f + ' の 欄が 消えています★').toBeGreaterThan(
-      0
-    );
-  });
+  // ★直しで 中身を 消していない事★
+  //   ★2026-10-20 定義を 変えた★ 欄は 会社設定の 実費の 一覧から 作る（uteruKinds）＝固定の 3つの 字は もう 無い。
+  //   一覧が 読めない 時は 今までの 3つ（js/jippi-hozon.js mieruKinds）。振る舞いは jippi-na-hanei.spec.js ③⑦
+  const hozon = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'jippi-hozon.js'), 'utf8');
+  expect(SRC, '★入れる 欄を 作っていません★').toContain('uteruKinds()');
+  expect(hozon, '★読めない 時の 3つが 消えています★').toContain(
+    "FURUI_NA = { toll: '高速代', bridge: '橋代', other: 'その他' }"
+  );
 });
 
 // ★★入力は フッターの「入力」へ 出しました★★ 2026-09-07
