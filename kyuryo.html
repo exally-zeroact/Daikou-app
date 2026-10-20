@@ -5946,6 +5946,7 @@
         });
         function kamiMadoNuru() {
           if (!window.__paper) return;
+          if (_kamiRO) _kamiRO.disconnect(); // ★前に 描いた 箱は 見張らない★
           Array.prototype.forEach.call(
             document.querySelectorAll('#slips .kami-mado'),
             function (mado) {
@@ -5988,9 +5989,46 @@
                 waku.appendChild(el);
                 mado.appendChild(waku);
               }
+              mado.setAttribute('data-sc', String(sc));
+              if (_kamiRO) _kamiRO.observe(mado);
             }
           );
+          // ★紙を 全部 入れた 後で 幅を 測り直す★ 2026-10-20（本人の 画面 honninKami の 止2 と 同じ 穴）
+          //   PC で 人が 少ないと 紙を 入れる 前は ページが 短く 巻き棒が 無い＝入れた 後に 縦の 巻き棒が 出て 幅が 縮む
+          //   （resize は 起きない）＝1人・1000×900 で 紙の 右が 14px 切れた
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#slips .kami-mado'),
+            kamiChijimeru
+          );
         }
+        // ★紙を 入れた 後に ページが 伸びても（下の 帯・知らせ が 後から 出る）縮め直す★（対立役：1000×1340〜1400 で 15px 切れた）
+        //   縮める 向きだけ（広げると 巻き棒が 消えて また 出る＝描き直しが 回り続ける）。
+        //   ★縮めた 後に 巻き棒が 消える 境目の 高さ（1人・1000×1400 等）では 右に 16px の 隙間が 残る★（切れは しない・対立役）
+        //   窓の 大きさを 変えると たいてい 描き直して 戻るが、境目の 高さでは 描き直しても また 同じ 隙間に なる
+        function kamiChijimeru(mado) {
+          var haba2 = mado.clientWidth;
+          var sc1 = Number(mado.getAttribute('data-sc')) || 0;
+          if (!haba2 || !sc1) return;
+          var sc2 = Math.min(1, (haba2 - 2) / 1123);
+          if (sc2 >= sc1) return;
+          mado.setAttribute('data-sc', String(sc2));
+          Array.prototype.forEach.call(mado.querySelectorAll('.hn-kami-waku'), function (w) {
+            w.firstElementChild.style.transform = 'scale(' + sc2 + ')';
+            w.style.height = Math.ceil(794 * sc2) + 'px';
+          });
+        }
+        var _kamiRO =
+          typeof ResizeObserver === 'function'
+            ? new ResizeObserver(function (ents) {
+                // ★縮め直しは 次の 絵で★（見張りの 中で 箱の 高さを 変えると「ResizeObserver loop completed with
+                //   undelivered notifications」が window の error に 出た・対立役 14/184形）
+                requestAnimationFrame(function () {
+                  ents.forEach(function (e) {
+                    kamiChijimeru(e.target);
+                  });
+                });
+              })
+            : null;
 
         // ── 時数を入れる ────────────────────────
         // ★★どの 日を 見せるか★★ 2026-09-06（司さん「その日だけ見せてスッキリさせろ」）
