@@ -300,6 +300,71 @@ function planMeisaiWrite(rows, existing) {
   return { inserts, updates };
 }
 
+// ★★現金に 戻した 代行の 行を 外す／請求書払いに 戻ったら 戻す（2026-10-12）★★
+//   司さんの 決まり「外したら 外す」＝運転手が 乗車の 直しで 現金に したのに 請求書に 行が 残っていた
+//   （入れるのは 請求書払いの 代行だけで、外す 道が 無かった）。
+//   ★分からない 時は 触らない★（taiketsu の 叩き）:
+//     ・外すのは 同じ seq の 代行が ★はっきり 現金★（送られた payment_type が 'cash' で customer_id が null）の 時だけ。
+//       代行が 居ない・名前が 空・区分が 変 … どれも 触らない（黙って 請求漏れに しない）。
+//     ・戻すのは ★端末が 外した 行★（ダイコメ側の 表 dk_meisai_hazushi に 記録が 在る 行）だけ。
+//       事務所が 消した 行は 今まで 通り 生き返らせない。印を extra に 置かないのは、
+//       請求書アプリの 保存（meisaiToDb）が extra を 丸ごと 作り直して 消すため。
+//     ・★請求書を 出した 月も 外す・戻す★ 2026-10-22（前は 止めていた＝司さんの 答え待ちだった）
+//       司さん 10-14「変えろ（編集したらちゃんと反映）」・10-21「よい」＝出した 月の 明細も 運転手の 直しで 変える。
+//       出した 紙（控え rows_json）との 差は 請求書アプリの 入金の 画面が「出した後に明細が変わりました」で 出す。
+//     ・★戻すのは 端末が 立てた 消した 時刻と 今の deleted_at が 同じ 行だけ★（taiketsu：
+//       記録だけ 残った 後に 事務所が 消した 行を 生き返らせて 二重請求に しない）。
+//       行が 生きているのに 記録が 在る・時刻が 違う 記録は 捨てる（sutekiroku）。
+function planMeisaiHazushi(opts) {
+  const o = opts || {};
+  const head = String(o.deviceId || '') + ':' + String(o.shiftStartMs || 0) + ':';
+  const bySeq = new Map();
+  (Array.isArray(o.trips) ? o.trips : []).forEach((t) => {
+    if (t && Number.isFinite(Number(t.seq))) bySeq.set(Number(t.seq), t);
+  });
+  const kiroku = new Map();
+  (Array.isArray(o.kiroku) ? o.kiroku : []).forEach((k) => {
+    if (k && k.meisai_id) kiroku.set(String(k.meisai_id), k);
+  });
+  const jikoku = (v) => {
+    const n = Date.parse(String(v || ''));
+    return Number.isFinite(n) ? n : null;
+  };
+  const hides = [];
+  const restores = [];
+  const sutekiroku = [];
+  (Array.isArray(o.existing) ? o.existing : []).forEach((e) => {
+    const ref = e && e.extra && e.extra.dk_ref ? String(e.extra.dk_ref) : '';
+    if (!ref || ref.indexOf(head) !== 0) return;
+    const seqStr = ref.slice(head.length);
+    if (!/^[0-9]+$/.test(seqStr)) return;
+    const k = kiroku.get(String(e.id));
+    const onaji =
+      !!k &&
+      !!e.deleted_at &&
+      jikoku(e.deleted_at) !== null &&
+      jikoku(e.deleted_at) === jikoku(k.hidden_at);
+    const t = bySeq.get(Number(seqStr));
+    // 古い 記録（もう 端末が 外した 状態では ない）は 捨てる。
+    //   ★ただし これから 外す 行の 記録は 捨てない★（taiketsu：同じ 送りで 外して 記録を 消すと
+    //   戻せない 行に なり 請求が 漏れる）＝外す 側は 既に 在る 記録の 時刻を 使う（index.ts）
+    const korekaraHazusu =
+      !!t && !e.deleted_at && t.payment_type === 'cash' && t.customer_id === null;
+    if (k && !onaji && !korekaraHazusu) sutekiroku.push(e.id);
+    if (!t) return; // ★代行が 居ない＝分からない＝触らない★
+    const genkin = t.payment_type === 'cash' && t.customer_id === null;
+    const seikyu =
+      t.payment_type === 'invoice' &&
+      typeof t.customer_id === 'string' &&
+      !!t.customer_id &&
+      typeof t.customer_name === 'string' &&
+      !!t.customer_name;
+    if (!e.deleted_at && genkin) hides.push({ id: e.id, ref: ref });
+    else if (e.deleted_at && seikyu && onaji) restores.push({ id: e.id, ref: ref });
+  });
+  return { hides, restores, sutekiroku };
+}
+
 // ★★事務所が 直した 額を 送り直しで 戻さない（dk_trips の 側）★★ 2026-10-22 司さん「触ってよし」
 //   ★穴★ 送りが 届くと 受け口は dk_trips を 消して 端末の 額で 入れ直す（dk_shifts.fare_total_yen も 端末の 値）。
 //     事務所が 請求書の 一覧で 額を 直すと dk-fix-fare が meisai.amount を dk_trips.fare_yen に 写すが、
@@ -347,6 +412,7 @@ export {
   refOf,
   buildMeisaiRows,
   planMeisaiWrite,
+  planMeisaiHazushi,
   planJimushoModoshi,
   UPDATABLE,
 };

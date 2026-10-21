@@ -54,6 +54,13 @@ SELECT company_id,
    FROM daikome.dk_device_labels;
 alter view public.dk_device_labels set (security_invoker = true);
 
+create or replace view public.dk_meisai_hazushi as
+SELECT meisai_id,
+    dk_ref,
+    hidden_at
+   FROM daikome.dk_meisai_hazushi;
+alter view public.dk_meisai_hazushi set (security_invoker = true);
+
 create or replace view public.dk_employees as
 SELECT employee_id,
     company_id,

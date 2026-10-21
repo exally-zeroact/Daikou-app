@@ -24,6 +24,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.116.0';
 import {
   buildMeisaiRows,
   businessDate,
+  planMeisaiHazushi,
   planMeisaiWrite,
   planJimushoModoshi,
 } from './meisai-row.js';
@@ -146,6 +147,20 @@ Deno.serve(async (req: Request) => {
           customer_name: str(t.customer_name),
           payment_type: t.customer_id && t.payment_type === 'invoice' ? 'invoice' : 'cash',
         }));
+      // ★現金に 戻した 代行の 行を 外す／請求書払いに 戻ったら 戻す（2026-10-12）★
+      //   入れる・直す より 先に 走らせる（戻した 行を 下の 直しが そのまま 直せる）
+      //   ★明細の 先読みより も 前★ 2026-10-22（対立役 直A：後だと、現金→請求書払いに 戻した 乗車は 先読みの
+      //   時点で まだ 消した 行に 見え、事務所が 直した 額が 売上に 乗らないまま 確定した）
+      const hazushiKekka = await hazushiMeisai(sb, co.owner_id as string | null, device_id, s);
+      meisai.push(hazushiKekka);
+      // ★外しが 転んだ（読めない・書けなかった）勤務は 受け取らない★ 2026-10-22（対立役 止2：受け取ると 端末は
+      //   二度と 送らず、現金で 払った 客に 請求書の 行が 残る）＝端末が 送り直す（外しは 何度 走っても 同じ 形）
+      if (hazushiKekka.startsWith('hazushi-error') || hazushiKekka.includes('件 書けなかった')) {
+        console.warn(
+          '[dk-sync-jobs] ' + device_id + ' 外しが 転んだので 受け取らない: ' + hazushiKekka
+        );
+        continue;
+      }
       let modoshi: { bySeq: Record<string, number>; sa: number } = { bySeq: {}, sa: 0 };
       const seikyuRefs = tripsKiroku
         .filter((t) => t.payment_type === 'invoice' && t.customer_name)
@@ -278,6 +293,130 @@ Deno.serve(async (req: Request) => {
 
   return json({ ok: true, accepted, meisai });
 });
+
+// ★★現金に 戻した 代行の 行を 外す（2026-10-12）★★
+//   決めは meisai-row.js の planMeisaiHazushi（試験が 同じ 物を 触る）。ここは 読んで 書くだけ。
+//   ・外した 記録は ダイコメ側の 表 dk_meisai_hazushi（請求書アプリの 保存で 消えない 所）
+//   ・請求書を 出した 月は 外さない・戻さない（司さんの 決め待ち）＝止めた 数を 返事に 出す
+//   ・何が 起きても 勤務の 受け取りは 止めない
+async function hazushiMeisai(
+  sb: ReturnType<typeof createClient>,
+  ownerId: string | null,
+  deviceId: string,
+  shift: Record<string, unknown>
+): Promise<string> {
+  try {
+    if (Deno.env.get('DK_MEISAI_AUTOPUSH') !== '1') return 'hazushi-off';
+    if (!ownerId) return 'hazushi-skip:会社がアカウント登録していない';
+    const shiftStart = isNum(shift.start_time) ? shift.start_time : 0;
+    if (!shiftStart) return 'hazushi-skip:勤務の開始が読めない';
+    const raw = Array.isArray(shift.trips) ? (shift.trips as Record<string, unknown>[]) : [];
+    const trips = raw
+      .filter((t) => t && isNum(t.distance_m) && isNum(t.fare_yen))
+      .slice(0, MAX_TRIPS)
+      .map((t, i) => ({
+        seq: isNum(t.seq) ? Math.round(t.seq) : i + 1,
+        payment_type: t.payment_type,
+        customer_id: t.customer_id === undefined ? undefined : t.customer_id,
+        customer_name: t.customer_name,
+      }));
+    // like の 特別な 字（% _ \）を 逃がす
+    const head = `${deviceId}:${shiftStart}:`.replace(/[\\%_]/g, (c) => '\\' + c);
+    const { data: exist, error: exErr } = await sb
+      .from('meisai')
+      .select('id, extra, company, date, deleted_at')
+      .eq('user_id', ownerId)
+      .like('extra->>dk_ref', head + '%');
+    if (exErr)
+      return 'hazushi-error:明細を 読めない ' + String(exErr.message || exErr).slice(0, 60);
+    if (!exist || !exist.length) return 'hazushi-skip:この 勤務の 行が 無い';
+    const ids = exist.map((e: Record<string, unknown>) => e.id as string);
+    const { data: log, error: lErr } = await sb
+      .from('dk_meisai_hazushi')
+      .select('meisai_id, hidden_at')
+      .in('meisai_id', ids);
+    if (lErr)
+      return 'hazushi-error:外した 記録を 読めない ' + String(lErr.message || lErr).slice(0, 60);
+    // ★出した 月も 外す・戻す★ 2026-10-22（司さん「よい」）＝請求書（invoices・invoice_no）は 読まない
+    const plan = planMeisaiHazushi({
+      deviceId,
+      shiftStartMs: shiftStart,
+      trips,
+      existing: exist,
+      kiroku: log || [],
+    });
+    let hazushita = 0;
+    let modoshita = 0;
+    let ochita = 0;
+    for (const h of plan.hides) {
+      // ★記録に「端末が 立てる 消した 時刻」を 持たせ、同じ 時刻を 行に 書く★
+      //   記録を 先に 書く（記録が 無いまま 消すと 戻せない 行に なる）。
+      //   ★記録は 上書きしない★（taiketsu：同じ 端末の 送りが 重なると 記録と 行の 時刻が ずれ、
+      //   戻せない 行に なる）。既に 記録が 在れば その 時刻を 使う＝前の 送りで 行の 書きが
+      //   落ちて 残った 記録も、重なった 送りも、同じ 時刻で 揃う。
+      let ts = new Date().toISOString();
+      const { error: e1 } = await sb
+        .from('dk_meisai_hazushi')
+        .insert({ meisai_id: h.id, dk_ref: h.ref, hidden_at: ts });
+      if (e1) {
+        if (!/duplicate key|23505/i.test(String(e1.message || e1))) {
+          ochita++;
+          continue;
+        }
+        const { data: aru, error: e1b } = await sb
+          .from('dk_meisai_hazushi')
+          .select('hidden_at')
+          .eq('meisai_id', h.id)
+          .maybeSingle();
+        if (e1b || !aru || !aru.hidden_at) {
+          ochita++;
+          continue;
+        }
+        ts = String(aru.hidden_at);
+      }
+      const { data: kaita, error: e2 } = await sb
+        .from('meisai')
+        .update({ deleted_at: ts })
+        .eq('id', h.id)
+        .is('deleted_at', null)
+        .select('id');
+      if (e2) ochita++;
+      else if (kaita && kaita.length) hazushita++; // 0行＝重なった 送りが 先に 外した
+    }
+    for (const r of plan.restores) {
+      const { error: e3 } = await sb.from('meisai').update({ deleted_at: null }).eq('id', r.id);
+      if (e3) {
+        ochita++;
+        continue;
+      }
+      const { error: e4 } = await sb.from('dk_meisai_hazushi').delete().eq('meisai_id', r.id);
+      if (e4) ochita++; // 残っても 時刻が 合わないので 次の 送りで 捨てる
+      modoshita++;
+    }
+    // 古い 記録（行が 生きている・時刻が 違う＝事務所が 消し直した）は 捨てる
+    for (const id of plan.sutekiroku) {
+      const { error: e5 } = await sb.from('dk_meisai_hazushi').delete().eq('meisai_id', id);
+      if (e5) ochita++;
+    }
+    // ★版の 印★ 2026-10-22（配ったかの 見張りが 字を 消すだけの 直しを 見分けられる 様に・対立役 直N1）
+    const kekka =
+      'hazushi-ok(出した月も):' +
+      hazushita +
+      '件外した/' +
+      modoshita +
+      '件戻した' +
+      (ochita ? '/★' + ochita + '件 書けなかった★' : '');
+    // ★返事の 字は 端末が 読まない★（taiketsu）＝関数の ログにも 残す（Supabase の Logs で 読める）
+    if (ochita) console.warn('[dk-sync-jobs] ' + deviceId + ' ' + kekka);
+    if (!hazushita && !modoshita && !ochita) return 'hazushi-skip:変わっていない';
+    return kekka;
+  } catch (e) {
+    console.warn(
+      '[dk-sync-jobs] hazushi-error ' + String((e as Error)?.message || e).slice(0, 120)
+    );
+    return 'hazushi-error:' + String((e as Error)?.message || e).slice(0, 120);
+  }
+}
 
 // 代行請求書アプリの `meisai` に、請求書払いの代行を1件1行で入れる。
 //   meisai の列: company(会社名) / date / destination(行き先) / amount(金額) / distance(距離) /

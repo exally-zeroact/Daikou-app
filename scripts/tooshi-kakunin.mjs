@@ -20,6 +20,9 @@
 //     ① 請求書払いを 1件 送ると 明細が ★1行 増える★
 //     ② その 行に ★extra.dk_meter_yen（守りの 印）が 付く★
 //     ③ 事務所が 額を 手で 直した 後に 送り直しても ★戻らない★（`skip:変わっていない`）
+//        ★2026-10-22★ 明細だけで なく 売上（dk_trips.fare_yen・dk_shifts.fare_total_yen）も 見る。
+//        前は 明細しか 見ず、「続ける」の 送り直しで 売上だけ 端末の 額に 戻る 穴を 緑で 通した（対立役 N2）。
+//        事務所の 直しは dk-fix-fare が 売上にも 写すので、ここでも 同じ 形を 作ってから 送り直す。
 //     ④ 運転手が メーターを 値引きしたら ★届く★（印も 進む）
 //     ★③だけ 見て 終わると 前に 踏んだ 穴（値引きが 一生 届かない）を 見落とす★
 //
@@ -96,7 +99,7 @@ async function main() {
 
   // ★持ち主の 在る 会社＋その 端末★（持ち主が 無いと 249行目で 弾かれる）
   const co = (
-    await q(`select c.url_token, c.name, d.device_id
+    await q(`select c.url_token, c.name, c.owner_id, d.device_id
                from daikome.dk_companies c
                join daikome.dk_company_devices d on d.company_id = c.company_id
               where c.owner_id is not null
@@ -109,16 +112,28 @@ async function main() {
     (
       await q(`select (select count(*) from daikome.dk_shifts) a,
                       (select count(*) from daikome.dk_trips) b,
-                      (select count(*) from daikou.meisai) c;`)
+                      (select count(*) from daikou.meisai) c,
+                      (select count(*) from daikome.dk_meisai_hazushi) d,
+                      (select count(*) from daikou.invoices) e,
+                      (select count(*) from daikou.invoice_no) f;`)
     )[0];
   const gyou = async () =>
     (
-      await q(`select amount, note, extra->>'dk_meter_yen' as shirushi
-                 from daikou.meisai
+      await q(`select id, amount, note, deleted_at, extra->>'dk_meter_yen' as shirushi,
+                      (select count(*) from daikome.dk_meisai_hazushi h where h.meisai_id = m.id) kiroku
+                 from daikou.meisai m
                 where extra->>'dk_ref' = '${co.device_id}:${MS}:1';`)
     )[0];
 
-  const okuru = async (yen) => {
+  // ★売上の 額★（その 勤務の 1件目の 乗車・業務の 合計）
+  const uriage = async () =>
+    (
+      await q(`select t.fare_yen, s.fare_total_yen
+                 from daikome.dk_shifts s join daikome.dk_trips t on t.shift_id = s.shift_id and t.seq = 1
+                where s.started_at = to_timestamp(${MS} / 1000.0);`)
+    )[0] || {};
+
+  const okuru = async (yen, genkin) => {
     const r = await fetch(url + '/functions/v1/dk-sync-jobs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: key, Authorization: 'Bearer ' + key },
@@ -136,9 +151,9 @@ async function main() {
                 seq: 1,
                 distance_m: 5362,
                 fare_yen: yen,
-                customer_id: 'tooshi-kakunin',
-                customer_name: '【通し確認】お客',
-                payment_type: 'invoice',
+                customer_id: genkin ? null : 'tooshi-kakunin',
+                customer_name: genkin ? '' : '【通し確認】お客',
+                payment_type: genkin ? 'cash' : 'invoice',
                 start_time: MS + 60000,
                 end_time: MS + 900000,
                 start_address: '今治市 A町',
@@ -156,7 +171,9 @@ async function main() {
 
   const warui = [];
   const mae = await kazu();
-  console.log(`\n★前★ dk_shifts=${mae.a} dk_trips=${mae.b} meisai=${mae.c}`);
+  console.log(
+    `\n★前★ dk_shifts=${mae.a} dk_trips=${mae.b} meisai=${mae.c} 外した記録=${mae.d} 請求書=${mae.e} 番号=${mae.f}`
+  );
 
   try {
     // ── ① 通すと 1行 増える／② 印が 付く ──
@@ -176,10 +193,37 @@ async function main() {
     console.log('\n③ 事務所が 2,500 → 1,600円に 下げた ふり → 送り直す');
     await q(`update daikou.meisai set amount = 1600, note = '【通し確認】事務所が 手で 直した'
               where extra->>'dk_ref' = '${co.device_id}:${MS}:1';`);
+    // dk-fix-fare と 同じ 形（その 乗車の 額と 業務の 合計を 事務所の 額に）
+    await q(`update daikome.dk_trips set fare_yen = 1600
+              where seq = 1 and shift_id in (select shift_id from daikome.dk_shifts
+                                              where started_at = to_timestamp(${MS} / 1000.0));`);
+    await q(`update daikome.dk_shifts set fare_total_yen = 1600
+              where started_at = to_timestamp(${MS} / 1000.0);`);
     console.log('   返事 =', await okuru(2500));
     const g2 = await gyou();
-    console.log(`   → ${g2.amount}円 / 備考「${g2.note}」`);
+    const u2 = await uriage();
+    console.log(
+      `   → 明細 ${g2.amount}円 / 乗車 ${u2.fare_yen}円 / 業務 ${u2.fare_total_yen}円 / 備考「${g2.note}」`
+    );
     if (Number(g2.amount) !== 1600) warui.push('★事務所の 額が メーターに 戻された★');
+    if (Number(u2.fare_yen) !== 1600) warui.push('★売上の 乗車の 額が 端末の 額に 戻った★');
+    if (Number(u2.fare_total_yen) !== 1600) warui.push('★売上の 業務の 合計が 端末の 額に 戻った★');
+    // ★印は 端末の 額の まま★（明細を 書く 所に 事務所の 額を 渡すと 印が 1600 に 進み、次で 戻る・対立役 直B）
+    if (String(g2.shirushi) !== '2500')
+      warui.push('★印が 事務所の 額に 進んだ＝次の 送り直しで 戻る★');
+    console.log('   もう 1回 同じ 2,500円で 送り直す');
+    console.log('   返事 =', await okuru(2500));
+    const g2b = await gyou();
+    const u2b = await uriage();
+    console.log(
+      `   → 明細 ${g2b.amount}円 / 乗車 ${u2b.fare_yen}円 / 業務 ${u2b.fare_total_yen}円 / 印=${g2b.shirushi}`
+    );
+    if (
+      Number(g2b.amount) !== 1600 ||
+      Number(u2b.fare_yen) !== 1600 ||
+      Number(u2b.fare_total_yen) !== 1600
+    )
+      warui.push('★2回目の 送り直しで 事務所の 額が 戻った★');
     if (!String(g2.note).includes('事務所が 手で 直した')) warui.push('★備考が 消えた★');
 
     // ── ④ 運転手の 値引きは 届く ──
@@ -188,18 +232,106 @@ async function main() {
     const g3 = await gyou();
     console.log(`   → ${g3.amount}円 / 印=${g3.shirushi}`);
     if (Number(g3.amount) !== 2200) warui.push('★運転手の 値引きが 届かない★');
+    const u3 = await uriage();
+    console.log(`   → 乗車 ${u3.fare_yen}円 / 業務 ${u3.fare_total_yen}円`);
+    if (Number(u3.fare_yen) !== 2200 || Number(u3.fare_total_yen) !== 2200)
+      warui.push('★運転手の 値引きが 売上に 届かない★');
     if (String(g3.shirushi) !== '2200') warui.push('★印が 進んでいない＝次は 守れない★');
+
+    // ── ⑤ 運転手が 現金に 戻すと 明細から 外れる（2026-10-12）──
+    console.log(
+      '\n⑤ 運転手が 請求書払い → 現金 に 直して 送る（前の 送りで 行の 書きが 落ちて 残った 記録が 在る ふり）'
+    );
+    // ★事務所が 2,200 → 1,800円に 直した 形（明細と 売上）★ 2026-10-22（対立役 直A：現金→請求書払いに 戻した 時に
+    //   事務所の 額が 売上に 乗るかを ⑥で 見る）
+    await q(
+      `update daikou.meisai set amount = 1800 where extra->>'dk_ref' = '${co.device_id}:${MS}:1';`
+    );
+    await q(`update daikome.dk_trips set fare_yen = 1800
+              where seq = 1 and shift_id in (select shift_id from daikome.dk_shifts
+                                              where started_at = to_timestamp(${MS} / 1000.0));`);
+    await q(`update daikome.dk_shifts set fare_total_yen = 1800
+              where started_at = to_timestamp(${MS} / 1000.0);`);
+    // ★taiketsu の 指摘★ 記録だけ 残った 行を 同じ 送りで 外して 記録を 捨てると 戻せなくなる
+    await q(`insert into daikome.dk_meisai_hazushi (meisai_id, dk_ref, hidden_at)
+             values ('${g3.id}', '${co.device_id}:${MS}:1', '2020-09-13T00:00:00Z');`);
+    console.log('   返事 =', await okuru(2200, true));
+    const g5 = await gyou();
+    if (!g5.deleted_at || Date.parse(g5.deleted_at) !== Date.parse('2020-09-13T00:00:00Z'))
+      warui.push('★残っていた 記録の 時刻で 外していない＝戻せない 行に なる★');
+    console.log(`   → 消した印=${g5.deleted_at ? 'あり' : 'なし'} / 外した記録=${g5.kiroku}`);
+    if (!g5.deleted_at) warui.push('★現金に 戻したのに 明細に 残った★');
+    if (String(g5.kiroku) !== '1') warui.push('★外した 記録が 無い＝戻せない★');
+
+    // ── ⑥ 請求書払いに 戻すと 戻る（事務所の 備考も 残る）──
+    console.log('\n⑥ 運転手が また 請求書払いに 直して 送る');
+    console.log('   返事 =', await okuru(2200));
+    const g6 = await gyou();
+    console.log(
+      `   → 消した印=${g6.deleted_at ? 'あり' : 'なし'} / 外した記録=${g6.kiroku} / 備考「${g6.note}」`
+    );
+    if (g6.deleted_at) warui.push('★請求書払いに 戻したのに 戻らない★');
+    const u6 = await uriage();
+    console.log(`   → 明細 ${g6.amount}円 / 乗車 ${u6.fare_yen}円 / 業務 ${u6.fare_total_yen}円`);
+    if (
+      Number(g6.amount) !== 1800 ||
+      Number(u6.fare_yen) !== 1800 ||
+      Number(u6.fare_total_yen) !== 1800
+    )
+      warui.push('★請求書払いに 戻した 時、事務所の 額（1800）が 明細と 売上で 揃わない★');
+    if (String(g6.kiroku) !== '0') warui.push('★外した 記録が 残った★');
+    if (!String(g6.note).includes('事務所が 手で 直した'))
+      warui.push('★戻した 時に 備考が 消えた★');
+
+    // ── ⑦ 請求書を 出した 月でも 現金に したら 外す（2026-10-22 司さん「よい」・前は 外さなかった）──
+    console.log('\n⑦ その 会社・その 月の 請求書を 出した ふり → 現金に 直して 送る');
+    const tsuki = new Date(MS + 9 * 3600000).toISOString().slice(0, 7);
+    await q(`insert into daikou.invoices (user_id, month, company, invoice_no, issued_at, total, tax)
+             values ('${co.owner_id}', '${tsuki}', '【通し確認】お客', 'TOOSHI-1', now(), 2200, 0);`);
+    console.log('   返事 =', await okuru(2200, true));
+    const g7 = await gyou();
+    console.log(`   → 消した印=${g7.deleted_at ? 'あり' : 'なし'}`);
+    if (!g7.deleted_at)
+      warui.push('★請求書を 出した 月の 行が 外れない（出した 月の 止めが 残っている）★');
+    // ★⑦と ⑧の 間に 請求書払いで 戻す★（戻さないと ⑧が 外れた 行の まま＝空振り・対立役 直N2）
+    console.log('\n⑦b 請求書払いに 戻して 送る（出した 月でも 戻る）');
+    console.log('   返事 =', await okuru(2200));
+    const g7b = await gyou();
+    console.log(`   → 消した印=${g7b.deleted_at ? 'あり' : 'なし'}`);
+    if (g7b.deleted_at) warui.push('★出した 月で 請求書払いに 戻したのに 戻らない★');
+
+    // ── ⑧ 全社の PDF・印刷で 出した 月（番号だけ 決めた・控えは 無い）でも 外す ──
+    console.log('\n⑧ 控えを 消し、番号だけ 決めた ふり（全社の PDF）→ 現金に 直して 送る');
+    await q(
+      `delete from daikou.invoices where invoice_no = 'TOOSHI-1' and company = '【通し確認】お客';`
+    );
+    await q(`insert into daikou.invoice_no (user_id, month, company, invoice_no, decided_at)
+             values ('${co.owner_id}', '${tsuki}', '【通し確認】お客', 'TOOSHI-2', now());`);
+    console.log('   返事 =', await okuru(2200, true));
+    const g8 = await gyou();
+    console.log(`   → 消した印=${g8.deleted_at ? 'あり' : 'なし'}`);
+    if (!g8.deleted_at)
+      warui.push('★番号を 決めた 月の 行が 外れない（全社の PDF の 道の 止めが 残っている）★');
   } finally {
     // ── 後片付け（★失敗しても 必ず 消す★）──
     console.log('\n★後片付け★');
+    await q(`delete from daikome.dk_meisai_hazushi where dk_ref = '${co.device_id}:${MS}:1';`);
+    await q(
+      `delete from daikou.invoices where invoice_no = 'TOOSHI-1' and company = '【通し確認】お客';`
+    );
+    await q(
+      `delete from daikou.invoice_no where invoice_no = 'TOOSHI-2' and company = '【通し確認】お客';`
+    );
     await q(`delete from daikou.meisai where extra->>'dk_ref' = '${co.device_id}:${MS}:1';`);
     await q(`delete from daikome.dk_trips
               where shift_id in (select shift_id from daikome.dk_shifts
                                   where started_at = to_timestamp(${MS} / 1000.0));`);
     await q(`delete from daikome.dk_shifts where started_at = to_timestamp(${MS} / 1000.0);`);
     const ato = await kazu();
-    console.log(`   後 dk_shifts=${ato.a} dk_trips=${ato.b} meisai=${ato.c}`);
-    if (String(ato.a) !== String(mae.a) || String(ato.b) !== String(mae.b) || String(ato.c) !== String(mae.c))
+    console.log(
+      `   後 dk_shifts=${ato.a} dk_trips=${ato.b} meisai=${ato.c} 外した記録=${ato.d} 請求書=${ato.e} 番号=${ato.f}`
+    );
+    if (['a', 'b', 'c', 'd', 'e', 'f'].some((k) => String(ato[k]) !== String(mae[k])))
       warui.push('★元の 数に 戻っていない（片付け残り）★');
   }
 
@@ -210,7 +342,10 @@ async function main() {
     process.exit(1);
   }
   console.log('  ①1行 増えた ②印が 付いた ③事務所の 額が 守られた ④値引きが 届いた');
-  console.log('TOOSHI RESULT: OK（4 / 4）');
+  console.log(
+    '  ⑤現金で 外れた ⑥請求書払いで 戻った ⑦出した 月でも 外れ 戻った ⑧番号だけの 月でも 外れた'
+  );
+  console.log('TOOSHI RESULT: OK（8 / 8）');
 }
 
 main().catch((e) => {
