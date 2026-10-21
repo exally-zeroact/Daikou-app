@@ -101,6 +101,39 @@
     );
   }
 
+  // ★紙を 入れた 後に 箱の 幅が 縮んだら 縮め直す★ 2026-10-21（事務所の 給料画面 kamiMadoNuru と 同じ 穴）
+  //   紙を 入れる 前に 幅を 測る＝PC で 紙を 入れた 後に 縦の 巻き棒が 出て 幅が 縮む（resize は 起きない）
+  //   ＝800px で 売上表・月次集計の 紙の 右が 14px 切れた（測った）
+  //   縮める 向きだけ（広げると 巻き棒が 消えて また 出る＝描き直しが 回り続ける）。広がった 時は 各 画面の resize の 描き直しに 任せる
+  //   ★残る 隙間★ ページが 一時だけ 伸びて 戻る（巻き棒が 出て 消える）と、紙は 縮めた まま 右に 約15px の 隙間が 残る
+  //   （窓の 大きさを 変えるか 月・紙を 選び直すと 戻る。切れは しない・対立役が 48形で 測った）
+  function chijimeru(mado) {
+    const haba2 = mado.clientWidth;
+    if (!haba2) return;
+    Array.prototype.forEach.call(mado.querySelectorAll('.kami-mise-waku'), function (w) {
+      const bw = Number(w.getAttribute('data-bw')) || 0;
+      const bh = Number(w.getAttribute('data-bh')) || 0;
+      const sc1 = Number(w.getAttribute('data-sc')) || 0;
+      if (!bw || !bh || !sc1) return;
+      const sc2 = Math.min(1, (haba2 - 2) / bw);
+      if (sc2 >= sc1) return;
+      w.setAttribute('data-sc', String(sc2));
+      w.firstElementChild.style.transform = 'scale(' + sc2 + ')';
+      w.style.height = Math.ceil(bh * sc2) + 'px';
+    });
+  }
+  // 見張りの 中で その場で 高さを 変えると「ResizeObserver loop」が window の error に 出る＝次の 絵で 縮める
+  const MIHARI =
+    typeof ResizeObserver === 'function'
+      ? new ResizeObserver(function (ents) {
+          requestAnimationFrame(function () {
+            ents.forEach(function (e) {
+              chijimeru(e.target);
+            });
+          });
+        })
+      : null;
+
   // ★★紙を そのまま 画面に 見せる★★ 2026-10-05
   //   司さん「PDFつくっとんやけんそれを見せろや」「見切れてめちゃくちゃな所あるし」
   //   ★PDF に する 紙（{el, muki}）を ★画面の 幅に ぴったり★ 縮めて 並べる★＝PDF と 同じ 見た目。
@@ -108,6 +141,7 @@
   //   ★PDF に する 時は 紙を 作り直す★こと（ここで 縮めた 板を dasu に 渡すと 測り直しが ずれる）。
   function mise(mado, itas, osu) {
     if (!mado) return 0;
+    if (MIHARI) MIHARI.unobserve(mado);
     mado.innerHTML = '';
     itas = [].concat(itas || []);
     const haba = mado.clientWidth || 360;
@@ -125,6 +159,9 @@
       el.style.transform = 'scale(' + sc + ')';
       const waku = document.createElement('div');
       waku.className = 'kami-mise-waku';
+      waku.setAttribute('data-bw', String(s.bw));
+      waku.setAttribute('data-bh', String(s.bh));
+      waku.setAttribute('data-sc', String(sc));
       waku.style.cssText =
         'height:' +
         Math.ceil(s.bh * sc) +
@@ -138,6 +175,9 @@
       waku.appendChild(el);
       mado.appendChild(waku);
     });
+    // 紙を 全部 入れた 後で 測り直す（入れて 出た 巻き棒の 分）＋ 後で ページが 伸びても 見張る
+    chijimeru(mado);
+    if (MIHARI) MIHARI.observe(mado);
     return itas.length;
   }
 
