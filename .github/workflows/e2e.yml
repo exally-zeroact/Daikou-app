@@ -13,7 +13,9 @@ jobs:
     # ★15分では 足りなくなった★ 2026-10-08（総なめ 295本＝実測 約 840秒・919秒で 時間切れ＝「cancelled」と 出た）
     # ★25分でも 足りなくなった★ 2026-10-20（468本・テスト線 d4e00cb で 464本 通した 所で 25分に 当たり cancelled・失敗 0）
     #   本番③は 22.3分。workers を 増やすと 試験どうしの 当たりが 新しく 出得る＝今は 上限を 上げる（前と 同じ 形）
-    timeout-minutes: 45
+    # ★38分の 段でも 足りなく なる★ 2026-10-22（テスト線 420c9c2 で 678本＝35.6分・残り 2.4分。retries の 再走りで 越える・対立役）
+    #   段 50分・job 60分 に 上げる（公開の repo＝Actions の 時間で お金は 増えない）
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -30,8 +32,8 @@ jobs:
 
       - name: Run Playwright tests
         # ★段にも 時間の 上限★ 2026-10-20（固まった 時は job の cancelled で なく 段の 失敗で 出す＝手で 止めた 時と 区別する・webkit と 同じ 形）
-        timeout-minutes: 38
-        # ★10本 落ちたら そこで 止める★ 2026-10-20（倉庫が 引けない 等で 一斉に 落ちた 時に 38分を 使い切らず、まとめの 行も 出る・対立役）
+        timeout-minutes: 50
+        # ★10本 落ちたら そこで 止める★ 2026-10-20（倉庫が 引けない 等で 一斉に 落ちた 時に 上限を 使い切らず、まとめの 行も 出る・対立役）
         run: npx playwright test --retries=2 --max-failures=10
         env:
           CI: true
