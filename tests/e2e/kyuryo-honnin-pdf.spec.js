@@ -17,6 +17,9 @@
 const { test, expect } = require('@playwright/test');
 const { hiraku } = require('./honnin-harness');
 
+// ★時計を 止める（⑦）なら 時間帯も 止める★（tests/unit/tokei-tomeru-nara-jikantai-mo.test.js・客は 日本に 居る）
+test.use({ timezoneId: 'Asia/Tokyo' });
+
 async function kyouyuNise(page, mode) {
   await page.addInitScript((m) => {
     window.__kyouyu = [];
@@ -47,6 +50,11 @@ async function kyouyuNise(page, mode) {
         window.__kyouyu.push(
           (d.files || []).map((f) => ({ name: f.name, type: f.type, size: f.size }))
         );
+        if (m === 'futatabi') {
+          const e = new Error('開いている 間に もう一度');
+          e.name = 'InvalidStateError';
+          return Promise.reject(e);
+        }
         if (m === 'tojita') {
           const e = new Error('閉じた');
           e.name = 'AbortError';
@@ -114,6 +122,8 @@ test('② 共有が 無い 端末は 新しい 窓で PDF を 開く', async ({ 
   await page.click('#hnPdf');
   await expect.poll(() => page.evaluate(() => window.__mado.length)).toBe(1);
   expect(await page.evaluate(() => window.__mado[0])).toMatch(/^blob:/);
+  // 窓に 落ちる 時は 必ず 案内（LINE の 中 等で 黙って 何も 起きない まま に しない・対立役 直2）
+  await expect(page.locator('#hnPdfErr')).toContainText('Safari か Chrome');
 });
 
 // わざと壊す：AbortError でも 窓を 開く ⇒ 赤（二重に 出る）
@@ -163,4 +173,49 @@ test('⑤ 作っている 途中で 月を 替えたら できた PDF を 捨て
   await page.waitForTimeout(3000);
   await expect(page.locator('#hnPdf')).toHaveText('PDFで 保存・印刷');
   expect(await page.evaluate(() => window.__kyouyu.length)).toBe(0);
+});
+
+// わざと壊す：InvalidStateError を 閉じた 扱いに しない ⇒ 赤（窓が 二重に 出る）
+test('⑥ 共有の 画面を 開いている 間に もう一度 押しても 窓を 開かない', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'futatabi');
+  await hiraku(page);
+  await tsukuru(page);
+  await page.click('#hnPdf');
+  await expect.poll(() => page.evaluate(() => window.__kyouyu.length)).toBe(1);
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__mado.length)).toBe(0);
+});
+
+// わざと壊す：道具の 読み込みの 時間切れを 外す ⇒ 赤（「作っています…」の まま）
+test('⑦ 道具の 読み込みが 返らない 時は 時間切れで 訳を 出し 押し直せる', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'ari');
+  await page.route('**/js/kami-egaku.js', () => {
+    /* 返さない（電波が 止まった） */
+  });
+  await hiraku(page);
+  await page.clock.install();
+  await page.click('#hnPdf');
+  await expect(page.locator('#hnPdf')).toHaveText('PDFを 作っています…');
+  await page.clock.runFor(31000);
+  await expect(page.locator('#hnPdfErr')).toContainText('道具を 読めませんでした');
+  await expect(page.locator('#hnPdf')).toHaveText('PDFで 保存・印刷');
+  await expect(page.locator('#hnPdf')).toBeEnabled();
+});
+
+// わざと壊す：「道具が 古い」の 訳を 外す ⇒ 赤（「もう一度 押して」と 出る＝押しても 直らない）
+test('⑧ 道具が 古い（tsukuru が 無い）時は 開き直しを 頼む', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'ari');
+  await page.route('**/js/kami-egaku.js', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: 'window.KamiEgaku = { yomu: function () { return Promise.resolve(); }, dasu: function () {} };',
+    })
+  );
+  await hiraku(page);
+  await page.click('#hnPdf');
+  await expect(page.locator('#hnPdfErr')).toContainText('開き直して');
 });

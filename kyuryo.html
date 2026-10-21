@@ -3113,7 +3113,8 @@
           var dougu = false;
           HN_PDF_CHU = no;
           hnPdfBotan();
-          loadPdfLibs()
+          // ★道具の 読み込みにも 時間切れ★（字体 約 4.7MB・電波が 止まると「作っています…」の まま 押せなくなる・対立役 軽2）
+          _withTimeout(loadPdfLibs(), PDF_TIMEOUT_MS, '道具')
             .then(function (E) {
               dougu = true;
               if (no !== HN_NO) return null;
@@ -3147,6 +3148,10 @@
                     Math.round(PDF_TIMEOUT_MS / 1000) +
                     '秒 かかっても 終わりませんでした。もう一度 押してください。'
                 );
+              if (m === 'PDF の 道具が 古い')
+                return hnPdfErr(
+                  'PDF の 道具が 古いので 作れません。この 画面を 一度 閉じて 開き直してください。'
+                );
               if (!dougu)
                 return hnPdfErr(
                   'PDF の 道具を 読めませんでした（通信）。もう一度 押してください。'
@@ -3155,7 +3160,7 @@
             });
         }
         // ★渡す★：共有の 画面（ファイルを 渡せる 端末）→ 無ければ 新しい 窓
-        //   閉じた（AbortError）時は 窓を 開かない（二重に 出さない）
+        //   閉じた（AbortError）・開いている 間に もう一度 押した（InvalidStateError）時は 窓を 開かない（二重に 出さない）
         function hnPdfWatasu(p) {
           var f = null;
           var nav = window.navigator;
@@ -3172,11 +3177,16 @@
           }
           if (!f) return hnPdfMado(p);
           nav.share({ files: [f] }).catch(function (e) {
-            if (e && e.name === 'AbortError') return;
+            if (e && (e.name === 'AbortError' || e.name === 'InvalidStateError')) return;
             hnPdfMado(p);
           });
         }
+        // ★窓に 落ちる 時は 必ず 案内を 出す★（LINE の 中の ブラウザ・Android の WebView は 窓も 保存も 黙って 効かない 事が 在る＝
+        //   押しても 何も 起きない まま に しない・対立役 直2）
         function hnPdfMado(p) {
+          hnPdfErr(
+            '開かない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。'
+          );
           var url = URL.createObjectURL(p.blob);
           var w = window.open(url, '_blank');
           if (!w) {
