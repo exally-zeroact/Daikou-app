@@ -17,6 +17,11 @@
 //     ・向き先は js/dk-config.js・★本番は --honban を 付けた 時だけ★（scripts/honban-tome.mjs）
 //     ・当てた 後 ★読み戻して★ 2つの md5・在って ほしい 字・誰が 呼べるか（proacl）を 数える
 //
+//   ★出す 順＝倉庫が 先・画面が 後★（古い 画面は 'fuda:' を 送らない＝倉庫だけ 先に 入っても 何も 変わらない）
+//   ★戻す 順＝画面が 先・倉庫が 後★（本番前の 対立役 N2）：倉庫の get だけ 古い 版に 戻すと、札を 持つ 端末が
+//     'fuda:…' を パスワードとして 送り、開く たびに 間違いを 数えて 3回で 止まる（事務所の 作り直しが 要る）
+//   ★本番の 手元（js/dk-config.js が 本番）で 打つ★：--honban なのに 向き先が 本番で ない 時は 止める（対立役 S1）
+//
 //   使い方:
 //     node scripts/apply-kyuryo-fuda.mjs            … 見るだけ
 //     node scripts/apply-kyuryo-fuda.mjs --ateru    … テスト線で 当てる
@@ -107,8 +112,18 @@ export function kazoeruFuda(def) {
 }
 
 // ★当てる 前の 門★（倉庫の 今の get の md5 と 当てる 塊）＝止める 訳の 一覧（空なら 通す）
-export function fudaNoMon(getBlock, fudaBlock, kuraGetMd5) {
+export function fudaNoMon(getBlock, fudaBlock, kuraGetMd5, kuraVerifyMd5) {
   const ng = [];
+  // ★札は 照らしを verify に 任せる＝倉庫の verify が 4桁の 道具に 書いた 版で ない 時は 当てない★（本番前の 対立役 N3）
+  const v = K4.find((x) => x.na === 'dk_kyuryo_verify');
+  if (!v || kuraVerifyMd5 !== v.ato)
+    ng.push(
+      '倉庫の verify（' +
+        kuraVerifyMd5 +
+        '）が 4桁の 道具に 書いた 版（' +
+        (v && v.ato) +
+        '）と 違う'
+    );
   const k = K4.find((x) => x.na === 'dk_kyuryo_get');
   const m = honbunMd5(getBlock);
   if (!k || m !== k.ato)
@@ -125,6 +140,26 @@ export function fudaNoMon(getBlock, fudaBlock, kuraGetMd5) {
 // ★1つの 取引で 送る 字★
 export function okuruJi(getBlock, fudaBlock) {
   return ['begin;', getBlock, fudaBlock, GRANT, 'commit;'].join('\n');
+}
+
+// ★--honban なのに 向き先が 本番で ない 時は 止める★（本番前の 対立役 S1：テスト線の 手元で 打つと
+//   テストの 倉庫に 当たり「OK」が 出て、本番には 何も 入らない）＝止める 訳（無ければ null）
+export function honbanNoMuki(ref, args) {
+  if (args.includes('--honban') && ref !== HONBAN_REF)
+    return (
+      'NG: --honban なのに 向き先が 本番で ない（js/dk-config.js は ' +
+      ref +
+      '）。本番の 手元で 打って ください'
+    );
+  return null;
+}
+// ★札の 関数の 形★（security definer・search_path 固定）＝止める 訳の 一覧
+export function katachiNoMon(secdef, config) {
+  const ng = [];
+  if (secdef !== true) ng.push('fuda が security definer で ない');
+  if (!/search_path=daikome, public, extensions/.test(String(config || '')))
+    ng.push('fuda の search_path が 固定されて いない（' + config + '）');
+  return ng;
 }
 
 // ★誰が 呼べるか★（anon と authenticated が 在る・知らない 役が 無い）
@@ -167,7 +202,7 @@ async function yomu(ref, token) {
   const r = await runSql(
     ref,
     token,
-    "select md5(g.prosrc) as gm, pg_get_functiondef(g.oid) as gd, md5(f.prosrc) as fm, pg_get_functiondef(f.oid) as fd, f.proacl::text as acl from pg_proc g left join pg_proc f on f.oid = to_regprocedure('public.dk_kyuryo_fuda(text,text)') where g.oid = 'public.dk_kyuryo_get(text,text,date,date)'::regprocedure"
+    "select md5(g.prosrc) as gm, pg_get_functiondef(g.oid) as gd, md5(f.prosrc) as fm, pg_get_functiondef(f.oid) as fd, f.proacl::text as acl, f.prosecdef as secdef, array_to_string(f.proconfig, ';') as config, (select md5(v.prosrc) from pg_proc v where v.oid = 'public.dk_kyuryo_verify(text,text)'::regprocedure) as vm from pg_proc g left join pg_proc f on f.oid = to_regprocedure('public.dk_kyuryo_fuda(text,text)') where g.oid = 'public.dk_kyuryo_get(text,text,date,date)'::regprocedure"
   );
   if (!r.ok || !r.body || !r.body[0])
     throw new Error('関数を 読めない: ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 200));
@@ -183,6 +218,11 @@ async function main() {
     process.exit(2);
   }
   const ref = readProjectRef();
+  const muki = honbanNoMuki(ref, args);
+  if (muki) {
+    console.error(muki);
+    process.exit(3);
+  }
   const tome = honbanNoTome(ref, args, !ateru);
   if (tome) {
     console.error(tome);
@@ -195,8 +235,10 @@ async function main() {
   const getBlock = kiridasuGet(sql);
   const fudaBlock = kiridasuFuda(sql);
   const mae = await yomu(ref, t.token);
-  console.log('当てる 前: get ' + mae.gm + ' ／ fuda ' + (mae.fm || '（無い）'));
-  const ng = fudaNoMon(getBlock, fudaBlock, mae.gm);
+  console.log(
+    '当てる 前: get ' + mae.gm + ' ／ verify ' + mae.vm + ' ／ fuda ' + (mae.fm || '（無い）')
+  );
+  const ng = fudaNoMon(getBlock, fudaBlock, mae.gm, mae.vm);
   if (ng.length) {
     ng.forEach((x) => console.error('  ★門★ ' + x));
     console.error('NG: 門で 止めた。当てていない');
@@ -214,7 +256,7 @@ async function main() {
   const ato = await yomu(ref, t.token);
   const gOk = ato.gm === honbunMd5(getBlock) && kazoeruFudaGet(ato.gd).ok;
   const fOk = ato.fm === honbunMd5(fudaBlock) && kazoeruFuda(ato.fd).ok;
-  const aclNg = proaclNoMon(ato.acl);
+  const aclNg = proaclNoMon(ato.acl).concat(katachiNoMon(ato.secdef, ato.config));
   console.log('当てた 後: get ' + ato.gm + (gOk ? ' 当てた 塊と 同じ' : ' ★違う★'));
   console.log('           fuda ' + ato.fm + (fOk ? ' 当てた 塊と 同じ' : ' ★違う★'));
   console.log(
