@@ -290,6 +290,18 @@
         font-size: 13px;
         margin-top: 10px;
       }
+
+      /* ★★保存の 訳は 打った 所から 見える 所へ★★ 2026-10-21（対立役 8回目 直す-1・直す-2：
+         一覧の 下に 在る ので 車の 多い 日は 画面の はるか 下＝倉庫に 入らなかった 事を 客が 見ない）
+         一覧の 直後に 置き、下の 帯（62px）の すぐ 上に 貼り付ける。
+         ★箱は 1つ★（2つ 貼ると 重なって 時間切れの 出口が 隠れた・対立役 9回目 直す-1）＝残った 訳は 全部 この 箱に 並べる */
+      #err {
+        white-space: pre-line;
+        position: sticky;
+        bottom: calc(70px + env(safe-area-inset-bottom));
+        z-index: 40;
+        box-shadow: 0 2px 8px rgb(161 40 30 / 15%);
+      }
     </style>
   </head>
   <body>
@@ -363,6 +375,113 @@
         var SESS = null;
         var COMPANY = null;
         var LOAD = DKSession.newLoadState();
+        // ★★保存が 頼る 読みが 1つでも 失敗したら 打たせない★★ 2026-10-21（対立役が 測った）
+        //   前：実費の 読みが 失敗しても 欄は 押せた＝電子決済を 打つと 実費を 0 で 送り、倉庫の 高速代を 0 で 上書き（売上が 増える）
+        //   今：保存が 頼る 読み（実費・手で 入れた 日）の どちらかが 読めない 日は 欄を 全部 押せなく し、保存の 口も 断る
+        //   （実費の 名前・日ごとの 電子決済 は 送る 中身に 効かない＝門に 入れない・対立役 直2）
+        //   ★読んでいる 間も 押せない★（日を 変えた 直後に 前の 日の 欄へ 打つと 前の 日の 額を 今の 日に 送った・対立役 止2）
+        //   ★読めなかった（失敗）時も 押せない まま★（前の 日の 欄が 残って 押せた・対立役 止1）
+        //   ★古い 返事は 捨てる★（LOADNO が 違う 読みの 返事・保存の 返事は 画面と 手元の 記録に 入れない）
+        var YOMENAI = '';
+        var LOADNO = 0;
+        // ★★同じ 行の 保存は 1本ずつ 順に 送る★★ 2026-10-21（対立役 3回目 直す-1・直す-2）
+        //   前：続けて 2つの 欄を 打つと 2つ目の 中身が 1つ目の 返事の 前の 記録で 作られ、1つ目の 額を 前の 額に 戻した
+        //       保存の 返事待ちの 間に 読み直すと、保存 前の 写しで 読んだ 返事が 記録を 置き換えて 打った 額が 消えた
+        //   今：鍵（業務／日・車）ごとに 順に 送り、中身は 前の 返事の 後で 作る。返事待ちが 残る 間は 読み直しを 始めない
+        var HOZON_Q = {};
+        var HOZON_KAZU = 0;
+        var LOAD_MACHI = false;
+        var TEBIKI_HI = ''; // TEBIKI が どの 日の 表か
+        // ★保存の 失敗の 字は 同じ 欄（行＋欄）の 次の 成功でだけ 消す★（別の 欄の 成功で 消えて 客に 黙った・対立役 3回目 直す-3）
+        //   ★失敗した 欄は 全部 覚える★（1つだけ 覚えると 2つ 失敗して 1つ 直った 時に 字が 消えた・対立役 4回目 直す-A）
+        //   鍵 → その 字（残った 字は 残った 欄の 字で 出す・対立役 5回目 直す-3：直った 欄の 字の まま 残った）
+        var ERR_KAGI = {};
+        // ★★返事が 来ない 保存★★ 2026-10-21（対立役 4回目 直す-B・5回目 止め-1・止め-2）
+        //   4回目：倉庫への 送りに 時間切れが 無く、返事の 来ない 保存 1本で 画面が 何も 言わずに「読み込み中」の まま 固まった
+        //   5回目：時間切れで 順番と 読み直しを 開けると、遅れて 返事が 来た 時に 次の 保存が 前の 中身で 作られ（打った 額が 戻る）、
+        //          読み直しが 保存 前の 写しで 画面を 置き換えた（打った 額が 消える）
+        //   ⇒ 時間切れでは ★字を 出すだけ★。順番と 読み直しは 本物の 返事まで 待つ（止める 側に 倒す）。字は その 送りが 返った 時に だけ 消す
+        var HOZON_MATSU_MS = 20000;
+        var HOZON_KIRE_JI =
+          '保存の 返事が 来ません。倉庫に 入ったか 分からない ので、画面を 読み込み直して 確かめてください（返事が 来るまで、その 車の 次の 保存と 画面の 読み直しは 待っています）。';
+        // 試験だけ 縮める（数で 1秒 以上の 時だけ 効く＝字や 0 で 毎回 すぐ 切れる 事は 無い）
+        function matsuMs() {
+          var m = Number(window.__DK_HOZON_MATSU_MS);
+          return m >= 1000 ? m : HOZON_MATSU_MS;
+        }
+        // 返事待ちで 読み直しが 止まって いる 間は 車の 上の 字にも 時間切れの 訳と 出口を 出す
+        //   （#err は 一覧の 下＝1台でも 画面の 外。上は「読み込み中です」だけで 訳も 出口も 見えなかった・対立役 6回目 直す-2）
+        //   同じ 日に 留まる 間（YOMENAI が 空）は 欄を 止めずに 一覧の 上へ 字だけ 出す（対立役 7回目 直す-A：
+        //   #err は 画面の 外＝訳が 見えない まま 打ち続けた。tomeruRan は 欄を 全部 止める＝空の 時に 呼ぶと 固まる・直す-C）
+        //   返事が 来て 時間切れが 残らなく なったら 消す（読み込み中なら 元の 字に 戻す）
+        function kireUe() {
+          var aru = Object.keys(ERR_KAGI).some(function (k) {
+            return /:kire$/.test(k);
+          });
+          //   同じ 日に 留まる 間は 貼り付いた 訳の 箱（#err・errNuru）が 出す＝ここでは 何も しない
+          if (YOMENAI) {
+            if (aru) tomeruRan(HOZON_KIRE_JI);
+            else if ($('tomeJi') && $('tomeJi').textContent === HOZON_KIRE_JI)
+              tomeruRan(yomenaiJi());
+          }
+          errNuru();
+        }
+        // 残った 訳を 全部 1つの 箱に 並べる（同じ 字は 1回・後から 来た 字は 下）。
+        //   読み込み中は 時間切れの 訳を 上の 止めの 字が 出す ので 箱には 重ねない
+        function errNuru() {
+          var ji = [];
+          Object.keys(ERR_KAGI).forEach(function (k) {
+            if (YOMENAI && /:kire$/.test(k)) return;
+            if (ji.indexOf(ERR_KAGI[k]) < 0) ji.push(ERR_KAGI[k]);
+          });
+          showErr(ji.join(String.fromCharCode(10)));
+        }
+        function junban(kagi, tsukuru) {
+          HOZON_KAZU++;
+          var owari = function () {
+            HOZON_KAZU--;
+            if (HOZON_KAZU === 0 && LOAD_MACHI) {
+              LOAD_MACHI = false;
+              load();
+            }
+          };
+          var mae = HOZON_Q[kagi] || Promise.resolve();
+          var p = mae.then(function () {
+            return tsukuru();
+          });
+          mae.then(function () {
+            var kire = kagi + ':kire';
+            var t = setTimeout(function () {
+              ERR_KAGI[kire] = HOZON_KIRE_JI;
+              errNuru();
+              kireUe();
+            }, matsuMs());
+            var yame = function () {
+              clearTimeout(t);
+              if (ERR_KAGI[kire]) {
+                delete ERR_KAGI[kire];
+                errNuru();
+                kireUe();
+              }
+            };
+            p.then(yame, yame);
+          });
+          HOZON_Q[kagi] = p.then(owari, owari);
+          return p;
+        }
+        function hozonDekita(kagi) {
+          if (!ERR_KAGI[kagi]) return;
+          delete ERR_KAGI[kagi];
+          errNuru();
+        }
+        function hozonDekinai(kagi, msg, r) {
+          // 出した 字（401/403 の 会社名つき）を そのまま しまう（会社名の 無い 字に 置き換わった・対立役 6回目 直す-1）
+          delete ERR_KAGI[kagi]; // しまい直すと 最後に なる（残った 字は 最後の 字で 出す）
+          ERR_KAGI[kagi] = saveErrJi(msg, r);
+          errNuru();
+        }
+        var YOMENAI_JI =
+          'の 記録が 読めません。今 打つと 前に 入れた 額が 消える ので、この 日は 打てません。上の「もう一度 読む」を 押してください。';
         var HI = ''; // 'YYYY-MM-DD'（今 見ている 日）
         var RAW = { shifts: [], labels: [], kinds: [] };
         var EDITS = {}; // shift_id → 手で入れた1行
@@ -387,23 +506,62 @@
         function showErr(m) {
           $('err').textContent = m;
           $('err').style.display = m ? 'block' : 'none';
+          nigasu();
+          // 箱が 出た・高く なった 瞬間に 今 打って いる 欄を 覆わない（対立役 10回目 直す-1：最初の 箱が 出た 時に 打って いる 欄を 覆った）
+          //   欄が 今 画面に 見えて いる 時だけ（上へ 戻って 見て いる 時に 打った 欄まで 6,700px 飛んだ・対立役 11回目 直す-1）
+          var a = document.activeElement;
+          if (a && a.getBoundingClientRect) {
+            var ab = a.getBoundingClientRect();
+            if (ab.bottom > 0 && ab.top < window.innerHeight) okuriAgeru(a);
+          }
         }
+        // ★貼り付いた 箱と 下の 帯の 裏に 欄を 潜らせない★（対立役 9回目 直す-3：Tab で 入った 欄が 赤い 箱の 裏で 見えなかった）
+        //   塞いで いる 物（下の 帯・出て いる 箱）の 上の 端を その場で 測る（62px の 決め打ちや safe-area の ずれを 持たない・10回目 見立て-3）
+        //   箱は「貼り付いた 時の 位置」（画面の 下から CSS の bottom＋箱の 高さ）で 数える。今 どこに 居るかでは 数えない
+        //   （貼り付く 前の 位置で 余白を 決めると、見えて いる 欄で 画面が 240〜300px 跳ねた・対立役 11回目 直す-2）。
+        //   一覧の 欄は 箱より 前に 並ぶ ので、箱が 貼り付いて いない 時も この 線より 上に 居る
+        function sokoNoY() {
+          var y = window.innerHeight;
+          var f = document.querySelector('.dk-foot');
+          if (f && f.offsetHeight) y = Math.min(y, f.getBoundingClientRect().top);
+          var e = $('err');
+          if (e && e.style.display !== 'none' && e.offsetHeight) {
+            var shita = parseFloat(getComputedStyle(e).bottom) || 0;
+            y = Math.min(y, window.innerHeight - shita - e.offsetHeight);
+          }
+          return y - 8;
+        }
+        function nigasu() {
+          document.documentElement.style.scrollPaddingBottom =
+            window.innerHeight - sokoNoY() + 'px';
+        }
+        function okuriAgeru(t) {
+          if (!t || !t.closest || !t.closest('#shaList')) return;
+          var b = t.getBoundingClientRect();
+          var soko = sokoNoY();
+          if (b.bottom > soko) window.scrollBy(0, b.bottom - soko);
+        }
+        document.addEventListener('focusin', function (ev) {
+          okuriAgeru(ev.target);
+        });
+        // 画面を 回す・大きさが 変わる と 箱の 高さが 変わる＝余白を 測り直す（縦で 決めた 余白が 横で 残り 見えて いる 欄で 跳ねた・対立役 12回目 直す-1）
+        window.addEventListener('resize', nigasu);
         function showMsg(m) {
           $('msg').textContent = m;
           $('msg').style.display = m ? 'block' : 'none';
         }
         // ★断られた 時に「どの会社に 書こうとして 断られたか」まで 出す★
-        function saveErr(msg, r) {
+        function saveErrJi(msg, r) {
           try {
             var st = r && r.status;
             if (st === 401 || st === 403) {
               var nm = (COMPANY && COMPANY.name) || '(会社が選ばれていません)';
-              return showErr(msg + ' ' + nm + ' には書き込めません。');
+              return msg + ' ' + nm + ' には書き込めません。';
             }
           } catch (_) {
             /* 名前が 出せなくても 元の 言い方は 出す */
           }
-          return showErr(msg);
+          return msg;
         }
 
         // ★★日は 日本時間で 切る★★ 2026-10-08（司さん「対応させろや」）
@@ -509,6 +667,20 @@
 
         function load() {
           if (!COMPANY) return;
+          var no = ++LOADNO;
+          // 打ち方の 間違いの 字は 描き直すと 欄の 字が 消える ので 一緒に 消す
+          Object.keys(ERR_KAGI).forEach(function (k) {
+            if (/:katachi$/.test(k)) delete ERR_KAGI[k];
+          });
+          errNuru();
+          YOMENAI = '読み込み中';
+          tomeruRan('読み込み中です。読み終わるまで 打てません。');
+          // 保存の 返事待ちが 残る 間は 読まない（読むと 保存 前の 写しで 記録を 置き換える）＝済んだら 読む
+          if (HOZON_KAZU > 0) {
+            LOAD_MACHI = true;
+            kireUe();
+            return;
+          }
           var r = hiRange(HI);
           var q =
             // ★売上（fare_total_yen）も 取る★ 2026-10-05（対立役が 実測：
@@ -522,20 +694,30 @@
             '&started_at=lt.' +
             encodeURIComponent(r.to) +
             '&order=started_at.asc&limit=200';
-          function soft(path) {
-            return DKSession.softList(SESS, path, LOAD);
+          // ★読むたびに 数えを 0 に 戻す★（前は 1回 しくじると ずっと 数えが 残った）
+          LOAD = DKSession.newLoadState();
+          function soft(path, st) {
+            return DKSession.softList(SESS, path, st || LOAD);
           }
+          // 保存が 頼る 読みは 別々に 数える（どれが 読めないかを 字に 出す）
+          var stE = DKSession.newLoadState();
+          var stK = DKSession.newLoadState();
+          var stX = DKSession.newLoadState();
+          var stM = DKSession.newLoadState();
           Promise.all([
             DKSession.rest(SESS, q).then(function (x) {
               if (!x.ok) throw new Error('shifts');
               return x.json();
             }),
-            soft('dk_shift_edits?select=*&limit=2000'),
+            soft('dk_shift_edits?select=*&limit=2000', stE),
             soft('dk_device_labels?select=*&limit=500'),
-            soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
-            soft('dk_day_extras?select=*&pay_date=eq.' + encodeURIComponent(HI) + '&limit=5'),
+            soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200', stK),
+            soft('dk_day_extras?select=*&pay_date=eq.' + encodeURIComponent(HI) + '&limit=5', stX),
             // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
-            soft('dk_manual_days?select=*&work_date=eq.' + encodeURIComponent(HI) + '&limit=50'),
+            soft(
+              'dk_manual_days?select=*&work_date=eq.' + encodeURIComponent(HI) + '&limit=50',
+              stM
+            ),
             // ★★距離の 列が 倉庫に 在るか★★ 2026-10-05（supabase/apply-tebiki-kyori.sql を 当てた 線だけ 在る）
             //   在る ⇒ 実車距離・総走行距離の 欄を 出す／無い（400）⇒ 出さない（回数は 前から 在るので 出す）
             DKSession.rest(SESS, 'dk_manual_days?select=actual_total_m,total_distance_m&limit=1')
@@ -555,6 +737,15 @@
               }),
           ])
             .then(function (res) {
+              if (no !== LOADNO) return; // ★古い 読みの 返事は 捨てる★
+              var nai = [];
+              if (stE.failed) nai.push('実費');
+              if (stM.failed) nai.push('手で 入れた 日');
+              YOMENAI = nai.join('・');
+              [stE, stK, stX, stM].forEach(function (st) {
+                LOAD.tried += st.tried;
+                LOAD.failed += st.failed;
+              });
               // ★使わない 印の 業務は 入力の 画面にも 出さない★ 2026-10-07（給料・売上表・月次集計と 揃える）
               RAW.shifts = (Array.isArray(res[0]) ? res[0] : []).filter(function (x) {
                 return x && x.excluded !== true;
@@ -593,6 +784,7 @@
               KYORI_ARU = res[6] === true;
               SEIKYU_ARU = res[7] === true;
               TEBIKI = {};
+              TEBIKI_HI = HI;
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
                 if (x && x.device_id) TEBIKI[x.device_id] = x;
               });
@@ -600,8 +792,31 @@
               DKSession.showUnknownBar(LOAD, load);
             })
             .catch(function () {
-              showErr('読み込めませんでした。通信を確認してください。');
+              if (no !== LOADNO) return;
+              // ★読めなかった 時も 前の 日の 欄を 押せる まま 残さない★（対立役 止1）
+              YOMENAI = 'この 日の 業務';
+              tomeruRan('この 日の 業務' + YOMENAI_JI);
+              DKSession.showUnknownBar({ tried: 1, failed: 1 }, load);
             });
+        }
+
+        // 欄を 全部 押せなく して、訳を 車の 上（見える 所）に 出す
+        function tomeruRan(ji) {
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList input, #shaList select, #shaList textarea'),
+            function (i) {
+              i.disabled = true;
+            }
+          );
+          var mae = document.getElementById('tomeJi');
+          if (mae) mae.parentNode.removeChild(mae);
+          var d = document.createElement('div');
+          d.id = 'tomeJi';
+          d.className = 'err';
+          d.style.display = 'block';
+          d.textContent = ji;
+          $('shaList').insertBefore(d, $('shaList').firstChild);
+          // ★#err（保存の 失敗）には 書かない・消さない★（読み込みで 保存の 失敗を 黙って 消した・対立役 止A）
         }
 
         function render() {
@@ -754,7 +969,9 @@
             '&started_at=lt.' +
             encodeURIComponent(tsukiMade) +
             '&order=started_at.desc&limit=1';
+          var no = LOADNO;
           DKSession.softList(SESS, q, LOAD).then(function (r) {
+            if (no !== LOADNO) return; // ★古い 返事は 捨てる★（別の 月の 画面に 前の 月の「走った 日へ」が 出た・対立役 直す-3）
             var x = Array.isArray(r) && r.length ? r[0] : null;
             if (!x || !x.started_at) return;
             // ★この 画面の 日の 切り方（hiKey＝端末の 日）で★ 2026-10-07（前は UTC の 日付＝日本時間 0〜9時の 業務が 前の 日に なった）
@@ -947,6 +1164,10 @@
           });
           if (!ids.length) {
             $('shaList').innerHTML = '';
+            // 車が 0台なのに「下に 会社の 車を 出しています」と 出さない（対立役 直4）
+            showMsg(
+              'この日は 走った 記録が ありません。会社の 車が 読めない か 登録が ない ので、打つ 欄を 出せません。'
+            );
             return;
           }
           // 会社設定の「並び」の 順（走った 車が 1台も 無い 日も 同じ・対立役 10-14）
@@ -989,67 +1210,131 @@
               };
             }
           );
+          if (YOMENAI) tomeruRan(yomenaiJi());
+        }
+        // 保存の 口でも 断る（押せない 欄に 字が 入っても 送らない）
+        function yomenaiNara() {
+          if (!YOMENAI) return false;
+          tomeruRan(yomenaiJi());
+          return true;
+        }
+        // 読み込み中は「読み込み中です」・読めない 時は「◯◯の 記録が 読めません…」（対立役 4回目 直す-C：読み込み中に「読めません」と 出た）
+        function yomenaiJi() {
+          return YOMENAI === '読み込み中'
+            ? '読み込み中です。読み終わるまで 打てません。'
+            : YOMENAI + YOMENAI_JI;
         }
 
         // メーターの 車の 売上を 事務所が 直す（dk_shift_edits.uriage_yen・給料の 画面と 同じ）2026-10-14
         //   送るのは この 2列だけ。請求書の 一覧で 後から 直すと dk-fix-fare が 空に 戻す＝後から 直した 方が 勝つ
         function saveUriage(inp, shiftId, value) {
           if (!COMPANY) return;
+          if (yomenaiNara()) return;
           var v = UriageAgg.yomuUriage(value);
+          var kagi = 's:' + shiftId;
           if (v === undefined) {
-            showErr(
-              '売上は 0以上の 整数で 入れてください（空に すると メーターの 額に 戻ります）。'
-            );
+            // 打ち方の 間違いも 同じ 欄の 次の 成功で 消す（対立役 4回目 直す-C：直して 書けても 残った）
+            //   日を 動かすと 打った 字は 消える ので その 時も 消す（対立役 5回目 直す-3）
+            delete ERR_KAGI[kagi + ':katachi'];
+            ERR_KAGI[kagi + ':katachi'] =
+              '売上は 0以上の 整数で 入れてください（空に すると メーターの 額に 戻ります）。';
+            errNuru();
             return;
           }
           inp.disabled = true;
           // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
-          JippiHozon.saveUriage(SESS, shiftId, COMPANY.company_id, v)
-            .then(function (body) {
-              inp.disabled = false;
-              showErr('');
-              EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
-              inp.value = v === null ? '' : String(v);
-            })
-            .catch(function (r) {
-              inp.disabled = false;
-              saveErr('売上を 保存できませんでした。通信を確認してください。', r);
-            });
+          // EDITS は 業務（shift_id）ごと・日で 絞らず 読む＝日を 変えた 後の 返事も 重ねて よい（捨てると 次の 1打で 前の 額に 戻った・対立役 止B）
+          return junban(kagi, function () {
+            return JippiHozon.saveUriage(SESS, shiftId, COMPANY.company_id, v)
+              .then(function (body) {
+                inp.disabled = !!YOMENAI; // 読み込み中・読めない 日は 押せない まま（対立役 4回目 直す-C）
+                hozonDekita(kagi + ':katachi');
+                hozonDekita(kagi + ':uriage');
+                EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
+                inp.value = v === null ? '' : String(v);
+              })
+              .catch(function (r) {
+                inp.disabled = !!YOMENAI;
+                hozonDekinai(
+                  kagi + ':uriage',
+                  '売上を 保存できませんでした。通信を確認してください。',
+                  r
+                );
+              });
+          });
         }
 
         // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
         function saveTebiki(deviceId, field, value) {
           if (!COMPANY) return;
-          JippiHozon.saveTebiki(
-            SESS,
-            COMPANY.company_id,
-            HI,
-            deviceId,
-            TEBIKI[deviceId],
-            field,
-            value
-          )
-            .then(function (body) {
-              showErr('');
-              TEBIKI[deviceId] = body;
-            })
-            .catch(function (r) {
-              saveErr('保存できませんでした。通信を確認してください。', r);
-            });
+          if (yomenaiNara()) return;
+          var hi0 = HI;
+          var kagi = 'd:' + hi0 + ':' + deviceId;
+          return junban(kagi, function () {
+            // 中身は 順番が 来た 時の 記録で 作る（前の 返事を 重ねた 後）。TEBIKI が 別の 日の 表なら 送らない
+            //   今の 作り（返事を 待って 読み直す）では 通らない 道。通ったら 黙って 捨てずに 訳を 出す（対立役 7回目 叩く点 3）
+            if (TEBIKI_HI !== hi0) {
+              hozonDekinai(
+                kagi + ':' + field,
+                '日を 変えた ので 保存しませんでした。その 日を 開いて もう一度 入れてください。'
+              );
+              return;
+            }
+            return JippiHozon.saveTebiki(
+              SESS,
+              COMPANY.company_id,
+              hi0,
+              deviceId,
+              TEBIKI[deviceId],
+              field,
+              value
+            )
+              .then(function (body) {
+                // 書けた＝失敗の 字は 日を 変えて いても 消す（対立役 5回目 直す-3：日を 変えた 後に 書けても 残った）
+                hozonDekita(kagi + ':' + field);
+                // TEBIKI は 日の 表＝別の 日の 表に なって いたら 入れない（入れると 前の 日の 額を 今の 日へ 送った・対立役）
+                if (TEBIKI_HI !== hi0) return;
+                TEBIKI[deviceId] = body;
+              })
+              .catch(function (r) {
+                hozonDekinai(
+                  kagi + ':' + field,
+                  '保存できませんでした。通信を確認してください。',
+                  r
+                );
+              });
+          });
         }
 
         // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
         function saveJippi(shiftId, field, value) {
           if (!COMPANY) return;
-          JippiHozon.saveJippi(SESS, shiftId, COMPANY.company_id, EDITS[shiftId], field, value)
-            .then(function (body) {
-              showErr('');
-              // 前の 行に 重ねる（置き換えると 売上の 直し などが 読み直すまで 画面から 消える）
-              EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
-            })
-            .catch(function (r) {
-              saveErr('保存できませんでした。通信を確認してください。', r);
-            });
+          if (yomenaiNara()) return;
+          // EDITS は 業務（shift_id）ごと＝返事は いつでも 重ねる（捨てると 次の 1打で 前の 額に 戻った・対立役 止B）
+          var kagi = 's:' + shiftId;
+          return junban(kagi, function () {
+            // 中身は 順番が 来た 時の 記録で 作る（前の 返事を 重ねた 後＝前の 額に 戻さない）
+            return JippiHozon.saveJippi(
+              SESS,
+              shiftId,
+              COMPANY.company_id,
+              EDITS[shiftId],
+              field,
+              value
+            )
+              .then(function (body) {
+                hozonDekita(kagi + ':' + field);
+                // 前の 行に 重ねる（置き換えると 売上の 直し などが 読み直すまで 画面から 消える）
+                EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
+              })
+              .catch(function (r) {
+                hozonDekinai(
+                  kagi + ':' + field,
+                  '保存できませんでした。通信を確認してください。',
+                  r
+                );
+              });
+          });
         }
 
         // ★★日ごとの 電子決済の 保存は この 画面では 使いません★★ 2026-09-11
