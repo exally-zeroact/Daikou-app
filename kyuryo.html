@@ -3253,7 +3253,7 @@
           var mado = document.getElementById('hnKami');
           if (!n) {
             mado.innerHTML =
-              '<div class="card"><div class="msg">この月の 記録は ありません。</div></div>';
+              '<div class="card"><div class="msg">この期間の 記録は ありません。</div></div>';
           } else {
             // ★★PDF と 同じ 紙の 束（日と 車の 両方で 分けた 後）を 見せる★★ 2026-10-07（対立役：
             //   画面は 日だけで 分けて いて 車が 多いと 下が 切れた）
@@ -5037,6 +5037,8 @@
         function recalc() {
           _CAR_NAMES = null; // ★データを読み直したら車の名前も作り直す★
           CTX = PayrollDaily.buildCtx(Object.assign({}, RAW, { yakuRireki: yakuRirekiNoIma() }));
+          // 本人の 画面は 1人＝その人の 登録日で 勤め始める 前の 期を 出さない（N4・js/payroll-daily.js の hajimeOf）
+          if (HONNIN) CTX.honnin = true;
           REP = PayrollDaily.report(PERIOD ? PERIOD.dates : [], CTX);
           var ub = kyuDameBun(CTX);
           // 保存中の 字は 赤い 字に 出さない。その 時は 他の 止めの 訳を 出す（隠さない・対立役 11回目 ⑯）

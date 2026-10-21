@@ -181,10 +181,68 @@ describe('勤め始めの 日', () => {
     expect(D.hajimeOf(ctx, 'atara')).toBe('2026-10-19');
   });
 
-  it('⑥人が 1人しか 居ない（本人の 画面）時は 登録日を 使わない', () => {
+  it('⑥事務所の 画面で 人が 1人しか 居ない 時は 登録日を 使わない（本人の 画面＝ctx.honnin は 下）', () => {
     const r = raw();
     r.employees = [r.employees[2]];
     const ctx = D.buildCtx(r);
     expect(D.hajimeOf(ctx, 'atara')).toBe('');
+  });
+});
+
+// ★本人の 画面（1人・ctx.honnin）★ 2026-10-21（N4：勤め始める 前の 期が ¥0 の 紙で 出た）
+//   わざと 壊して 赤：hajimeOf の honnin の 道を 外す ⇒ ⑤-1 が 赤（空＝いつも 出す）
+describe('勤め始めの 日・本人の 画面', () => {
+  const hitori = (extra) =>
+    raw(
+      Object.assign(
+        {
+          employees: [
+            {
+              employee_id: 'atara',
+              name: '新しい',
+              role: '2種',
+              active: true,
+              created_at: '2026-10-19T01:00:00Z',
+            },
+          ],
+        },
+        extra || {}
+      )
+    );
+  it('⑤-1 本人の 画面は 1人でも 登録日から（勤め始める 前の 日は 勤めていない）', () => {
+    const ctx = D.buildCtx(hitori());
+    ctx.honnin = true;
+    expect(D.hajimeOf(ctx, 'atara')).toBe('2026-10-19');
+    expect(D.hajimatteIru(ctx, 'atara', '2026-10-14')).toBe(false);
+    expect(D.hajimatteIru(ctx, 'atara', '2026-10-19')).toBe(true);
+  });
+  it('⑤-2 事務所の 画面で 1人しか 居ない 時は 今まで 通り 使わない（まとめて 作ったか 分からない）', () => {
+    const ctx = D.buildCtx(hitori());
+    expect(D.hajimeOf(ctx, 'atara')).toBe('');
+  });
+  it('⑤-3 本人の 画面でも 登録日が 無い 人は 空＝いつも 出す', () => {
+    const ctx = D.buildCtx(
+      hitori({
+        employees: [{ employee_id: 'nazo', name: '分からない', role: '2種', active: true }],
+      })
+    );
+    ctx.honnin = true;
+    expect(D.hajimeOf(ctx, 'nazo')).toBe('');
+  }); // ★登録日は 日本の 日付で 切る★（対立役 2回目 M3：UTC の 日付に しても 赤が 0本だった）
+  it('⑤-4 本人の 画面の 登録日は 日本時間の 日付（10/10 15:30Z＝10/11・14:59Z＝10/10）', () => {
+    const hi = (t) => {
+      const ctx = D.buildCtx(
+        hitori({
+          employees: [
+            { employee_id: 'atara', name: '新しい', role: '2種', active: true, created_at: t },
+          ],
+        })
+      );
+      ctx.honnin = true;
+      return D.hajimeOf(ctx, 'atara');
+    };
+    expect(hi('2026-10-10T15:30:00Z')).toBe('2026-10-11');
+    expect(hi('2026-10-10T14:59:00Z')).toBe('2026-10-10');
+    expect(hi('2026-10-19 01:00:00.123456+00')).toBe('2026-10-19');
   });
 });

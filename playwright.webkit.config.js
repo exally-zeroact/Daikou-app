@@ -57,6 +57,8 @@ export const WEBKIT_KUMI = [
   'kyuryo-honnin-fuda.spec.js',
   // 従業員の 明細の 期間の ボタン（iPhone の 中身でも 1行に 入るか・対立役 M1 2026-10-20）
   'kyuryo-honnin-kikan.spec.js',
+  // 従業員の 明細＝勤め始める 前の 期を ¥0 の 紙で 出さない（登録日の 字の 読みが Safari で 違えば iPhone だけ 戻る・N4 対立役 2026-10-21）
+  'kyuryo-honnin-hajime.spec.js',
   'kyuryo-meisai-miseru.spec.js',
 ];
 

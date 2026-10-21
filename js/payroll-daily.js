@@ -525,27 +525,36 @@
           if (!id || !d) return;
           if (!h[id] || d < h[id]) h[id] = d;
         };
-        // 人が 1人しか 居ない 時（本人の 画面）は まとめて 作ったか 分からない＝登録日を 使わない（対立役 直2）
+        // 人が 1人しか 居ない 時は まとめて 作ったか 分からない＝登録日を 使わない（対立役 直2）
+        //   ★本人の 画面（ctx.honnin）だけは その人の 登録日を 使う★ 2026-10-21（N4：勤め始める 前の 期が ¥0 の 紙で 出た）
+        //   まとめて 作った 人で 登録日が 本当より 遅くても、働いた 日・手当・控除が 在る 期は report が 出す（aru）＝額は 消えない
         if (arr(ctx.employees).length < 2) {
-          ctx._hajime = h;
-          return '';
+          if (ctx.honnin) {
+            arr(ctx.employees).forEach(function (e) {
+              if (e && e.created_at) mae(e.employee_id, dateOf(e.created_at));
+            });
+          } else {
+            ctx._hajime = h;
+            return '';
+          }
+        } else {
+          const kagi = function (e) {
+            const s = String(e.created_at)
+              .trim()
+              .replace(' ', 'T')
+              .replace(/(\.\d{3})\d+/, '$1')
+              .replace(/([+-]\d\d)$/, '$1:00');
+            const t = Date.parse(s);
+            return isNaN(t) ? 'x' + String(e.created_at) : 't' + t;
+          };
+          const kazu = {};
+          arr(ctx.employees).forEach(function (e) {
+            if (e && e.created_at) kazu[kagi(e)] = (kazu[kagi(e)] || 0) + 1;
+          });
+          arr(ctx.employees).forEach(function (e) {
+            if (e && e.created_at && kazu[kagi(e)] === 1) mae(e.employee_id, dateOf(e.created_at));
+          });
         }
-        const kagi = function (e) {
-          const s = String(e.created_at)
-            .trim()
-            .replace(' ', 'T')
-            .replace(/(\.\d{3})\d+/, '$1')
-            .replace(/([+-]\d\d)$/, '$1:00');
-          const t = Date.parse(s);
-          return isNaN(t) ? 'x' + String(e.created_at) : 't' + t;
-        };
-        const kazu = {};
-        arr(ctx.employees).forEach(function (e) {
-          if (e && e.created_at) kazu[kagi(e)] = (kazu[kagi(e)] || 0) + 1;
-        });
-        arr(ctx.employees).forEach(function (e) {
-          if (e && e.created_at && kazu[kagi(e)] === 1) mae(e.employee_id, dateOf(e.created_at));
-        });
         // 乗った 記録は 登録日より 前に する 時だけ 使う（登録日が 使えない 人には 使わない＝いつも 出す まま）
         Object.keys(ctx.hoursByDate || {}).forEach(function (d) {
           Object.keys(ctx.hoursByDate[d] || {}).forEach(function (id) {
