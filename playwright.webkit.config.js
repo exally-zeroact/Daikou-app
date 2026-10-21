@@ -51,6 +51,8 @@ export const WEBKIT_KUMI = [
   'kyuryo-sumaho.spec.js',
   'kyuryo-honnin.spec.js',
   'kyuryo-honnin-shashin.spec.js',
+  // 従業員が 自分で PDF に する（iPhone の 中身で 共有の 画面へ 渡す 道・2026-10-21）
+  'kyuryo-honnin-pdf.spec.js',
   // 24時間 パスワード 無しで 見る 札（iPhone の 中身の localStorage・2026-10-21）
   'kyuryo-honnin-fuda.spec.js',
   // 従業員の 明細の 期間の ボタン（iPhone の 中身でも 1行に 入るか・対立役 M1 2026-10-20）

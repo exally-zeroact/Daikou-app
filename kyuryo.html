@@ -1554,6 +1554,33 @@
         cursor: default;
       }
 
+      /* ★本人の PDF（保存・印刷）★ 2026-10-21 */
+      .hn-pdf {
+        text-align: center;
+        margin: 0 0 10px;
+      }
+
+      .hn-pdf-b {
+        min-height: 44px;
+        padding: 0 18px;
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 15px;
+        cursor: pointer;
+      }
+
+      .hn-pdf-b:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .hn-pdf-err {
+        margin-top: 6px;
+        color: var(--danger);
+      }
+
       /* ★期間の ボタンは 1行★ 2026-10-20（司さん「赤丸のところは1行にしろ」）
          3つ まで（月3回・締め日2つ/3つ）＝幅を 等分して 画面に 収める
          4つ 以上（週1回・毎日）＝1行の まま その 中だけ 横に 送る（字を 潰さない・ページは 横に すべらない） */
@@ -2752,6 +2779,7 @@
             return;
           HN_Y = d.getFullYear();
           HN_M = d.getMonth() + 1;
+          hnPdfSuteru(); // ★前の 月の PDF を 渡さない★
           var box = document.getElementById('slips');
           if (box) box.innerHTML = '<div class="card"><div class="msg">読み込み中…</div></div>';
           var h = haba || _honninHaba(HN_Y, HN_M);
@@ -3024,8 +3052,144 @@
           if (!PERIODS || !PERIODS[i]) return;
           PIDX = i;
           PERIOD = PERIODS[i];
+          hnPdfSuteru(); // ★前の 期間の PDF を 渡さない★
           recalc();
           honninKami();
+        }
+
+        // ★★本人の 明細を 自分で PDF に する（保存・印刷）★★ 2026-10-21 司さん
+        //   「明細だが従業員が各々自由にPDFや印刷するボタンがない
+        //     代行請求書のように（毎回のミスをしない）自作でPDF（データの重さも）を作成するやり方をパクってつくれ」
+        //   ・作るのは 事務所と 同じ 紙（_empSheets）と 同じ 道具（KamiEgaku＝代行請求書と 同じ pdf-lib・軽い 字体）
+        //   ・★2回 押し★：1回目で 作り、2回目で 共有の 画面（iPhone＝保存・印刷・LINE）に 渡す
+        //     （字体の 読み込みは 電波で 数秒＝待った 後では 共有の 画面を 開けない・iPhone の ホーム画面で
+        //       window.open すると 戻れない 前例が 在る＝共有の 画面を 先に 使う）
+        //   ・事務所の printOne は 使わない（本人の 画面には #slip-0 が 無い・YM は 本人の 月を 持たない＝対立役）
+        //   ・★月・期間を 替えたら 作った PDF を 捨てる★（HN_NO が 印・作っている 途中に 替えても 古い 物を 渡さない）
+        var HN_NO = 0; // 月・期間を 替えた 回数
+        var HN_PDF = null; // 作った PDF { no, blob, name }
+        var HN_PDF_CHU = -1; // 作っている 途中の 印（HN_NO と 同じ 時だけ 作っている 途中）
+        function hnPdfSuteru() {
+          HN_NO++;
+          HN_PDF = null;
+        }
+        function hnPdfAru() {
+          return !!(HN_PDF && HN_PDF.no === HN_NO);
+        }
+        function hnPdfJi() {
+          if (hnPdfAru()) return 'PDFを 開く（保存・印刷）';
+          if (HN_PDF_CHU === HN_NO) return 'PDFを 作っています…';
+          return 'PDFで 保存・印刷';
+        }
+        function hnPdfBotan() {
+          var b = document.getElementById('hnPdf');
+          if (!b) return;
+          b.textContent = hnPdfJi();
+          b.disabled = HN_PDF_CHU === HN_NO && !hnPdfAru();
+        }
+        // ★訳は ボタンの すぐ 下に 出す★（#err は 画面の 一番 上＝下で 押した 人には 見えない・対立役）
+        function hnPdfErr(bun) {
+          var el = document.getElementById('hnPdfErr');
+          if (!el) return;
+          el.textContent = bun || '';
+          el.hidden = !bun;
+        }
+        // ★名前は 本人が 見ている 月から★（事務所の YM は 本人の 月を 持たない・期間が 2つ以上の 月は 期間も 付ける）
+        function hnPdfNamae(emp) {
+          var nm = '給料明細_' + HN_Y + '-' + String(HN_M).padStart(2, '0');
+          if (PERIODS && PERIODS.length > 1 && PERIOD)
+            nm += '_' + String(PERIOD.start).slice(5) + '〜' + String(PERIOD.end).slice(5);
+          nm += '_' + String((emp && emp.name) || '');
+          return nm.replace(/[\\/:*?"<>|]/g, '_') + '.pdf';
+        }
+        function honninPdf() {
+          hnPdfErr('');
+          if (hnPdfAru()) return hnPdfWatasu(HN_PDF);
+          if (HN_PDF_CHU === HN_NO) return;
+          if (kyuDameBun(CTX)) return hnPdfErr(kyuDameBun(CTX));
+          var emp = REP && REP.employees ? REP.employees[0] : null;
+          if (!emp) return hnPdfErr('この月の 記録は ありません。');
+          var no = HN_NO;
+          var dougu = false;
+          HN_PDF_CHU = no;
+          hnPdfBotan();
+          loadPdfLibs()
+            .then(function (E) {
+              dougu = true;
+              if (no !== HN_NO) return null;
+              if (typeof E.tsukuru !== 'function') throw new Error('PDF の 道具が 古い');
+              // ★字体を 読んだ 後で 測る★（事務所の hamiTomeru と 同じ・控えの 字体で 測ると 食い違う）
+              if (window.__paper.maisu(0).hamidasu) throw new Error('hamidasu');
+              return _withTimeout(
+                E.tsukuru(_empSheets(emp, slipCars(REP.cars, emp.employee_id)), KAMI_KATA),
+                PDF_TIMEOUT_MS,
+                'PDF'
+              );
+            })
+            .then(function (d) {
+              if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
+              if (no !== HN_NO || !d) return; // 替えた 後に できた 物は 捨てる
+              HN_PDF = { no: no, blob: d.blob, name: hnPdfNamae(emp) };
+              hnPdfBotan();
+            })
+            .catch(function (err) {
+              if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
+              if (no !== HN_NO) return;
+              hnPdfBotan();
+              var m = String((err && err.message) || err || '');
+              if (m === 'hamidasu')
+                return hnPdfErr(
+                  '手当・控除が 多すぎて 明細の 紙に 入らないので PDF は 作りません。会社に 知らせてください。'
+                );
+              if (m.indexOf('PDF が ') === 0)
+                return hnPdfErr(
+                  '紙を 作るのに ' +
+                    Math.round(PDF_TIMEOUT_MS / 1000) +
+                    '秒 かかっても 終わりませんでした。もう一度 押してください。'
+                );
+              if (!dougu)
+                return hnPdfErr(
+                  'PDF の 道具を 読めませんでした（通信）。もう一度 押してください。'
+                );
+              hnPdfErr('明細の 紙を 作れませんでした（' + m + '）。もう一度 押してください。');
+            });
+        }
+        // ★渡す★：共有の 画面（ファイルを 渡せる 端末）→ 無ければ 新しい 窓
+        //   閉じた（AbortError）時は 窓を 開かない（二重に 出さない）
+        function hnPdfWatasu(p) {
+          var f = null;
+          var nav = window.navigator;
+          try {
+            f = new File([p.blob], p.name, { type: 'application/pdf' });
+            if (
+              typeof nav.share !== 'function' ||
+              typeof nav.canShare !== 'function' ||
+              !nav.canShare({ files: [f] })
+            )
+              f = null;
+          } catch (_) {
+            f = null;
+          }
+          if (!f) return hnPdfMado(p);
+          nav.share({ files: [f] }).catch(function (e) {
+            if (e && e.name === 'AbortError') return;
+            hnPdfMado(p);
+          });
+        }
+        function hnPdfMado(p) {
+          var url = URL.createObjectURL(p.blob);
+          var w = window.open(url, '_blank');
+          if (!w) {
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = p.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+          }, 60000);
         }
 
         // ★★給料明細を 出す＝事務所の 紙と 同じ 物★★
@@ -3064,10 +3228,19 @@
                 '</button>';
             atama += '</div>';
           }
+          var n = window.__paper && window.__paper.ninzu ? window.__paper.ninzu() : 0;
+          // ★本人の PDF（保存・印刷）★ 2026-10-21（記録の 在る 月だけ）
+          if (n)
+            atama +=
+              '<div class="hn-pdf"><button class="hn-pdf-b" id="hnPdf">' +
+              esc(hnPdfJi()) +
+              '</button><div class="msg hn-pdf-err" id="hnPdfErr" hidden></div></div>';
           box.innerHTML = atama + '<div id="hnKami"></div>';
+          hnPdfBotan();
+          var pdfB = document.getElementById('hnPdf');
+          if (pdfB) pdfB.onclick = honninPdf;
 
           var mado = document.getElementById('hnKami');
-          var n = window.__paper && window.__paper.ninzu ? window.__paper.ninzu() : 0;
           if (!n) {
             mado.innerHTML =
               '<div class="card"><div class="msg">この月の 記録は ありません。</div></div>';
