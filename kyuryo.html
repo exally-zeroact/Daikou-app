@@ -2315,6 +2315,8 @@
           });
         }
         function showErr(m) {
+          // 期の 計算が 転んだ 間は 他の 成功で 訳を 消さない（対立役 3回目 直す-2：画面が 直って 見えるのに 断られた）
+          if (!m && typeof KEISAN_NG !== 'undefined' && KEISAN_NG) m = KEISAN_NG_JI;
           $('err').textContent = m || '';
           $('err').style.display = m ? 'block' : 'none';
         }
@@ -3837,6 +3839,7 @@
         function adjTasu(eid) {
           var p = adjPanelOf(eid);
           if (!p || !COMPANY) return;
+          if (keisanNgNara()) return;
           var v = function (k) {
             var el = p.querySelector('[data-adj-f="' + k + '"]');
             return el ? el.value : '';
@@ -3873,6 +3876,7 @@
             });
         }
         function adjKesu(id) {
+          if (keisanNgNara()) return;
           DKSession.rest(SESS, 'dk_pay_adjustments?adj_id=eq.' + encodeURIComponent(id), {
             method: 'DELETE',
           })
@@ -4693,6 +4697,38 @@
           return DKSession.softList(SESS, kaishaDake(path), LOAD);
         }
         var SET_YOMI = { tried: 0, failed: 0 };
+        // ★★乗った人・手で 入れた 日 の 記録が 読めない 期は その 保存を 断る★★ 2026-10-21（入力の 画面と 同じ 穴・対立役が 測った）
+        //   前：dk_manual_days が 読めないと 手入力の 車が「＋ 手で車を足す」に 戻り、選ぶと 倉庫の 売上 12000・高速 800 等の 行へ
+        //   {"sales_yen":0,"hours":0,"toll_yen":0,...} を 送って 上書きした。乗った人（dk_work_hours）も 1行 丸ごと 送る 同じ 形
+        var WH_DAME = false;
+        var MD_DAME = false;
+        // ★期を 読み込み中も 断る★ 2026-10-21（対立役 K-1：期を 変えた 直後に 描き直すと 新しい 期の 日が 前の 期の 記録で 描かれ、
+        //   「＋ 手で車を足す」・乗った人の 札から 0 を 送った）。断った 訳は 押した 所から 見える 所へ 出す（対立役 K-3：#err は 画面の 上の 外だった）
+        var YOMICHU_JI = '期間の 記録を 読み込み中です。読み終えてから もう一度 入れてください。';
+        // ★期の 計算が 転んだ★（対立役 2回目 直す-2：読み終えの 印が 下りず「読み込み中です」の 断りが 終わらなかった）
+        var KEISAN_NG_JI = '画面の計算で問題が出ました。画面を読み込み直してください。';
+        var KEISAN_NG = false;
+        // ★計算が 転んだ 間は 描かない・書かない★（対立役 4回目 直す-A・直す-B：名前で 選ぶ・日の 帯 は render を 通らずに
+        //   前の 期の 明細・日の 欄を 描き、そこから 車の 時間・売上・手当を 送れた）
+        function keisanNgNara() {
+          if (!KEISAN_NG) return false;
+          showErr(KEISAN_NG_JI);
+          return true;
+        }
+        function dameNara(dame, na) {
+          if (!dame && !LP_YOMICHU && !KEISAN_NG) return false;
+          showErr(
+            KEISAN_NG
+              ? KEISAN_NG_JI
+              : LP_YOMICHU
+                ? YOMICHU_JI
+                : na +
+                  'の 記録が 読めません。今 保存すると 前に 入れた 額が 消える ので 保存しません。上の「もう一度 読む」を 押してください。'
+          );
+          var e = $('err');
+          if (e && e.scrollIntoView) e.scrollIntoView({ block: 'center' });
+          return true;
+        }
         function afterLoad(retry) {
           DKSession.showUnknownBar(LOAD, retry);
         }
@@ -4914,6 +4950,9 @@
           // ★設定を 読み終える 前は 組まない★ 2026-10-07（読む 前は 月3回に 見え、20日締めの 会社でも 月3回で 明細を 組んだ・対立役 Q）
           if (!SET_YONDA) return;
           var lpNo = ++LP_NO;
+          // 乗った人・手で 入れた 日 は 読めたかを 別に 数える（読めない 期は その 保存を 断る）
+          var WH_YOMI = DKSession.newLoadState();
+          var MD_YOMI = DKSession.newLoadState();
           LP_YOMICHU = true; // ★読み込み中は 明細の PDF を 作らない★（対立役 10-08 A）
           LOAD.tried = LOAD_KIHON.tried; // ★期間の 分は 読み直す 度に 数え直す★
           LOAD.failed = LOAD_KIHON.failed;
@@ -4990,19 +5029,27 @@
                 '&order=started_at.asc&limit=2000'
             ),
             soft('dk_shift_edits?select=*&limit=2000'),
-            soft(
-              'dk_work_hours?select=*&work_date=gte.' +
-                PERIOD.start +
-                '&work_date=lte.' +
-                PERIOD.end +
-                '&limit=2000'
+            DKSession.softList(
+              SESS,
+              kaishaDake(
+                'dk_work_hours?select=*&work_date=gte.' +
+                  PERIOD.start +
+                  '&work_date=lte.' +
+                  PERIOD.end +
+                  '&limit=2000'
+              ),
+              WH_YOMI
             ),
-            soft(
-              'dk_manual_days?select=*&work_date=gte.' +
-                PERIOD.start +
-                '&work_date=lte.' +
-                PERIOD.end +
-                '&limit=2000'
+            DKSession.softList(
+              SESS,
+              kaishaDake(
+                'dk_manual_days?select=*&work_date=gte.' +
+                  PERIOD.start +
+                  '&work_date=lte.' +
+                  PERIOD.end +
+                  '&limit=2000'
+              ),
+              MD_YOMI
             ),
             // ★手当・控除★ 2026-10-06
             soft(
@@ -5015,6 +5062,10 @@
           ]).then(function (res) {
             // ★古い 返事は 捨てる★ 2026-10-07（月を 素早く 送ると 前の 月の 返事が 後から 上書きした・対立役 Q）
             if (lpNo !== LP_NO) return;
+            LOAD.tried += WH_YOMI.tried + MD_YOMI.tried;
+            LOAD.failed += WH_YOMI.failed + MD_YOMI.failed;
+            WH_DAME = WH_YOMI.failed > 0;
+            MD_DAME = MD_YOMI.failed > 0;
             RAW.shifts = res[0] || [];
             RAW.adjustments = res[4] || [];
             RAW.edits = res[1] || [];
@@ -5025,7 +5076,25 @@
               if (e && e.shift_id) EDIT_BY_SHIFT[e.shift_id] = e;
             });
             showMsg('');
-            recalc();
+            // 読み込み中に 断った 字は 読み終えたら 消す（対立役 2回目 直す-1：読み終えた 後も「読み込み中です」が 残った）
+            //   recalc の 前で 消す（recalc は 赤い 字が 在ると 返事待ちの 字を 出さない・対立役 3回目 見-1）
+            if (String($('err').textContent || '') === YOMICHU_JI) showErr('');
+            // 計算が 転んだら 読み込み直しの 訳を 出す（「読み込み中です」の まま 黙って 待たせない・対立役 2回目 直す-2）
+            //   ★読み込み中の 印は 下ろさない★（下ろすと 前の 期の 額で 新しい 月の 明細 PDF が 出た・対立役 3回目 止め-1）
+            //   明細と 日の 欄は 描かず、月の 札だけ 新しい 期に 揃える（対立役 3回目 直す-1）
+            try {
+              recalc();
+              if (KEISAN_NG) {
+                KEISAN_NG = false;
+                if (String($('err').textContent || '') === KEISAN_NG_JI) showErr('');
+              }
+            } catch (e) {
+              if (window.console) console.warn('[期の 計算]', e);
+              KEISAN_NG = true;
+              showErr(KEISAN_NG_JI);
+              render();
+              return;
+            }
             // ★読み込み中の 印は 計算し終えた 後で 下ろす★（前で 下ろすと recalc が 投げた 時に 新しい 期・古い 中身で 押せた・対立役）
             LP_YOMICHU = false;
             render();
@@ -5093,6 +5162,14 @@
           $('paneHours').style.display = TAB === 'hours' ? '' : 'none';
           $('paneEmp').style.display = TAB === 'emp' ? '' : 'none';
           $('paneSet').style.display = TAB === 'set' ? '' : 'none';
+          // 期の 計算が 転んだ 時は 明細・日の 欄を 描かない（前の 期の 額を 新しい 期の 札の 下に 出さない・対立役 3回目）
+          if (KEISAN_NG && (TAB === 'slip' || TAB === 'hours')) {
+            if ($('slips')) $('slips').innerHTML = '';
+            if ($('days')) $('days').innerHTML = '';
+            if ($('hibar')) $('hibar').innerHTML = '';
+            showErr(KEISAN_NG_JI);
+            return;
+          }
           if (TAB === 'slip') renderSlips();
           if (TAB === 'hours') renderDays();
           if (TAB === 'emp') renderEmp();
@@ -5774,6 +5851,11 @@
         // ★★1人ぶん★★
         // ★読み込み中は 作らない★（押した 時の 期で 作る）
         function yomikomichuTomeru() {
+          // 期の 計算が 転んだ 時も 作らない（前の 期の 額で 新しい 月の 明細を 作った・対立役 3回目 止め-1）
+          if (KEISAN_NG) {
+            showErr(KEISAN_NG_JI);
+            return true;
+          }
           if (!LP_YOMICHU) return false;
           showErr('まだ 読み込み中です。読み終わってから もう一度 押してください。');
           return true;
@@ -6049,6 +6131,11 @@
         }
 
         function renderSlips() {
+          if (KEISAN_NG) {
+            $('slips').innerHTML = '';
+            showErr(KEISAN_NG_JI);
+            return;
+          }
           var SHOW_CAR_SALES = showCarSalesNow();
           var box = $('slips');
           // ★名前の 選ぶ欄を 今の 人で 作り直す★（いなくなった人を 選んだままに しない・0人の 時も）
@@ -6567,6 +6654,12 @@
 
         function renderDays() {
           var box = $('days');
+          if (KEISAN_NG) {
+            box.innerHTML = '';
+            if ($('hibar')) $('hibar').innerHTML = '';
+            showErr(KEISAN_NG_JI);
+            return;
+          }
           if (!PERIOD) return;
           hibar();
           box.className = 'dlist';
@@ -7153,6 +7246,11 @@
               var date = sel.getAttribute('data-man-add');
               var dev = sel.value;
               if (dev === '__new__') {
+                // ★名前を 書く 前に 断る★（対立役 K-2：読めない 期は 車の 名前だけ 倉庫に 残った）
+                if (dameNara(MD_DAME, '手で 入れた 日')) {
+                  sel.value = '';
+                  return;
+                }
                 var name = String(
                   window.prompt('車の名前を入れてください（例: 2号車）') || ''
                 ).trim();
@@ -7218,6 +7316,7 @@
         }
         function saveManual(date, dev, field, value) {
           if (!COMPANY) return;
+          if (dameNara(MD_DAME, '手で 入れた 日')) return Promise.resolve();
           var cur = manualRow(date, dev) || {};
           var v = num(value);
           if (v < 0) v = 0;
@@ -7258,6 +7357,7 @@
 
         function delManual(date, dev) {
           if (!COMPANY) return;
+          if (dameNara(MD_DAME, '手で 入れた 日')) return Promise.resolve();
           return DKSession.rest(
             SESS,
             'dk_manual_days?company_id=eq.' +
@@ -7282,6 +7382,7 @@
         }
 
         function saveCarHours(shiftId, value) {
+          if (keisanNgNara()) return Promise.resolve();
           var cur = EDIT_BY_SHIFT[shiftId] || {};
           var v = parseFloat(value);
           // 時間の 列だけ 送る（2026-10-14 対立役）
@@ -7353,6 +7454,7 @@
 
         function saveCarUriage(shiftId, value, date) {
           if (!COMPANY) return;
+          if (keisanNgNara()) return Promise.resolve();
           // 実費が メーターより 多い 業務は「引いた 後」が 負に なる＝その 時だけ 先頭の −／- を 許す（引く 前は 0 以上の まま）
           var hk0 = uriageHiku(shiftId, date);
           var fu = !!hk0 && /^\s*[-−－]/.test(String(value || ''));
@@ -7415,6 +7517,7 @@
         }
 
         function saveWorkHour(date, employeeId, deviceId, value) {
+          if (dameNara(WH_DAME, '乗った人')) return Promise.resolve();
           var v = parseFloat(value);
           var body = {
             company_id: COMPANY.company_id,
@@ -7445,6 +7548,7 @@
         }
 
         function delWorkHour(date, employeeId) {
+          if (dameNara(WH_DAME, '乗った人')) return Promise.resolve();
           return DKSession.rest(
             SESS,
             'dk_work_hours?company_id=eq.' +

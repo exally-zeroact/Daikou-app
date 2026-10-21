@@ -80,7 +80,9 @@ function sess(F) {
     ' if(F.uriageRirekiDame&&p.indexOf("dk_uriage_rireki")===0){if(st)st.failed++;return Promise.resolve([]);}' +
     // 読めない 表を 名指し（F.dame＝["dk_shift_edits"] 等）
     ' if((F.dame||[]).some(function(t){return p.indexOf(t)===0;})){if(st)st.failed++;return Promise.resolve([]);}' +
-    'return Promise.resolve(rows(p));};})();'
+    // 読みを 遅らせる（window.__osoi ミリ秒・期を 変えた 直後の 読み込み中を 作る）
+    'if(!window.__osoi)return Promise.resolve(rows(p));' +
+    'return new Promise(function(ok){setTimeout(function(){ok(rows(p));},window.__osoi);});};})();'
   );
 }
 
@@ -1138,3 +1140,399 @@ for (const w of [390, 375, 360, 320]) {
     expect(m.doc, '★ページが 横に はみ出している★').toBeLessThanOrEqual(0);
   });
 }
+
+// ★★乗った人・手で 入れた 日 の 記録が 読めない 期は その 保存を 断る★★ 2026-10-21（対立役が 測った）
+//   前：手で 入れた 日が 読めないと 手入力の 車が「＋ 手で車を足す」に 戻り、選ぶと 倉庫の 行へ 売上・高速代 0 を 送って 上書きした
+//   ★わざと壊して 赤に なるのを 見た（2026-10-21 実測）★ 直す 前の kyuryo.html … 読めない 2本 赤（送った）
+test('手で 入れた 日が 読めない 期は「＋ 手で車を足す」を 選んでも 送らない・訳を 出す', async ({
+  page,
+}) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.dame = ['dk_manual_days'];
+    },
+  });
+  const sel = page.locator('[data-man-add]').first();
+  expect(await sel.count(), '★「＋ 手で車を足す」が 無い＝この 形を 測っていない★').toBe(1);
+  const opt = await sel.evaluate((s) =>
+    Array.from(s.options)
+      .map((o) => o.value)
+      .find((v) => v && v !== '__new__')
+  );
+  expect(opt, '★足せる 車が 無い＝この 形を 測っていない★').toBeTruthy();
+  await sel.selectOption(opt);
+  await page.waitForTimeout(600);
+  const c = await page.evaluate(() =>
+    window.__calls.filter((x) => x.p.indexOf('dk_manual_days') === 0)
+  );
+  expect(c, '★読めないのに 手で 入れた 日を 送った（前の 額を 0 で 上書きする）★').toEqual([]);
+  await expect(page.locator('#err')).toContainText('読めません');
+});
+
+test('乗った人が 読めない 期は 札を 押しても 送らない・訳を 出す', async ({ page }) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.dame = ['dk_work_hours'];
+    },
+  });
+  const chip = page.locator('[data-chip-emp]').first();
+  expect(await chip.count(), '★乗った人の 札が 無い＝この 形を 測っていない★').toBe(1);
+  await chip.evaluate((b) => b.click());
+  await page.waitForTimeout(600);
+  const c = await page.evaluate(() =>
+    window.__calls.filter((x) => x.p.indexOf('dk_work_hours') === 0)
+  );
+  expect(c, '★読めないのに 乗った人を 送った（前の 車・時間を 上書きする）★').toEqual([]);
+  await expect(page.locator('#err')).toContainText('読めません');
+});
+
+test('読めた 期は 今まで 通り 札を 押すと 乗った人を 送る', async ({ page }) => {
+  await hiraku(page);
+  const chip = page.locator('[data-chip-emp]').first();
+  expect(await chip.count()).toBe(1);
+  await chip.evaluate((b) => b.click());
+  await page.waitForTimeout(600);
+  const c = await page.evaluate(() =>
+    window.__calls.filter((x) => x.p.indexOf('dk_work_hours') === 0)
+  );
+  expect(c.length, '★読めたのに 送らない★').toBeGreaterThan(0);
+});
+
+// ★★期を 読み込み中は 手で 入れた 日・乗った人 を 送らない★★ 2026-10-21（対立役 K-1 が 測った）
+//   前：読みを 遅らせて「次の月」を 押し、タブを 切り替えると 9月の 日が 8月の 記録で 描かれ、
+//   「＋ 手で車を足す」・乗った人の 札から 9/1 へ 売上 0・時間 0 を 送った（倉庫に 行が 在れば 0 で 上書き）
+//   ★わざと壊して 赤に なるのを 見た（2026-10-21 実測）★ dameNara の 読み込み中の 断りを 外す … この 1本 赤
+test('期を 変えた 読み込み中に 描き直しても 手で 入れた 日・乗った人 を 送らない', async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    window.__osoi = 4000;
+  });
+  await page.click('#nextM');
+  await page.waitForTimeout(300);
+  await page.evaluate(() => {
+    for (const t of ['slip', 'hours']) {
+      const b = document.querySelector('.tab[data-tab="' + t + '"]');
+      if (b && b.onclick) b.onclick();
+    }
+  });
+  await page.waitForTimeout(300);
+  const sel = page.locator('[data-man-add]').first();
+  const chip = page.locator('[data-chip-emp]').first();
+  expect(
+    (await sel.count()) + (await chip.count()),
+    '★読み込み中に 押せる 物が 無い＝この 形を 測っていない★'
+  ).toBeGreaterThan(0);
+  if (await sel.count()) {
+    const opt = await sel.evaluate((s) =>
+      Array.from(s.options)
+        .map((o) => o.value)
+        .find((v) => v && v !== '__new__')
+    );
+    if (opt) await sel.selectOption(opt);
+  }
+  if (await chip.count()) await chip.evaluate((b) => b.click());
+  await page.waitForTimeout(600);
+  const c = await page.evaluate(() =>
+    window.__calls.filter(
+      (x) => x.p.indexOf('dk_manual_days') === 0 || x.p.indexOf('dk_work_hours') === 0
+    )
+  );
+  expect(c, '★読み込み中に 前の 期の 記録で 描いた 欄から 送った（0 で 上書きする）★').toEqual([]);
+  await expect(page.locator('#err')).toContainText('読み込み中');
+});
+
+// ★読めない 期に「＋ 新しい車」を 選んでも 車の 名前を 倉庫に 書かない★（対立役 K-2：名前だけ 残って 次に「もう あります」で 弾かれた）
+test('手で 入れた 日が 読めない 期は「＋ 新しい車」でも 車の 名前を 書かない', async ({ page }) => {
+  page.on('dialog', (d) => d.accept('9号車'));
+  await hiraku(page, {
+    tweak: (F) => {
+      F.dame = ['dk_manual_days'];
+    },
+  });
+  const sel = page.locator('[data-man-add]').first();
+  expect(await sel.count(), '★「＋ 手で車を足す」が 無い＝この 形を 測っていない★').toBe(1);
+  await sel.selectOption('__new__');
+  await page.waitForTimeout(600);
+  const c = await page.evaluate(() =>
+    window.__calls.filter(
+      (x) => x.p.indexOf('dk_device_labels') === 0 || x.p.indexOf('dk_manual_days') === 0
+    )
+  );
+  expect(c, '★読めないのに 車の 名前か 手で 入れた 日を 送った★').toEqual([]);
+  await expect(page.locator('#err')).toContainText('読めません');
+});
+
+// ★断った 訳は 押した 所から 見える★（対立役 K-3：下の 日の 札を 押すと #err は 画面の 上の 外＝何も 起きない ように 見えた）
+test('乗った人が 読めない 期に 下の 日の 札を 押すと 断った 訳が 画面に 見える', async ({
+  page,
+}) => {
+  await hiraku(page, {
+    tweak: (F) => {
+      F.dame = ['dk_work_hours'];
+    },
+  });
+  const last = page.locator('[data-chip-emp]').last();
+  expect(await last.count(), '★乗った人の 札が 無い＝この 形を 測っていない★').toBe(1);
+  await last.scrollIntoViewIfNeeded();
+  await last.click();
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => {
+    const e = document.getElementById('err');
+    const b = e.getBoundingClientRect();
+    return { top: b.top, bottom: b.bottom, vh: innerHeight, ji: e.textContent };
+  });
+  expect(r.ji).toContain('読めません');
+  expect(r.top, '★断った 訳が 画面の 上の 外★').toBeGreaterThanOrEqual(0);
+  expect(r.bottom, '★断った 訳が 画面の 下の 外★').toBeLessThanOrEqual(r.vh);
+});
+
+// ★★読み込み中の 断りの 後始末★★ 2026-10-21（対立役 2回目 直す-1・直す-2・見立て）
+const errJi = (page) =>
+  page.evaluate(() => {
+    const e = document.getElementById('err');
+    return getComputedStyle(e).display === 'none' ? '' : e.textContent;
+  });
+
+// 直す-1：読み込み中に 入れて 断られた 後、読み終えても「読み込み中です」が 残った
+test('読み込み中に 断った「読み込み中です」の 字は 読み終えたら 消える', async ({ page }) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    window.__osoi = 2000;
+  });
+  await page.click('#nextM');
+  await page.waitForTimeout(200);
+  const f = page.locator('[data-man-f="sales_yen"]').first();
+  expect(await f.count(), '★手で 入れた 日の 欄が 無い＝この 形を 測っていない★').toBeGreaterThan(
+    0
+  );
+  await f.evaluate((i) => {
+    i.value = '5000';
+    i.dispatchEvent(new Event('change'));
+  });
+  await page.waitForTimeout(300);
+  expect(await errJi(page)).toContain('読み込み中');
+  await page.waitForTimeout(2700);
+  expect(await errJi(page), '★読み終えたのに「読み込み中です」が 残る★').not.toContain(
+    '読み込み中'
+  );
+});
+
+// 直す-2：期の 計算が 転ぶと 読み込み中の 印が 下りず、何も 出ないまま「読み込み中です」で 断り続けた
+test('期の 計算が 転んだら 読み込み直しの 訳を 出し 保存は 断る・直れば 戻る', async ({ page }) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    const P = window.PayrollDaily;
+    const o = P.buildCtx;
+    window.__nage = true;
+    P.buildCtx = function () {
+      if (window.__nage) throw new Error('見張り');
+      return o.apply(this, arguments);
+    };
+  });
+  await page.click('#nextM');
+  await page.waitForTimeout(1500);
+  expect(await errJi(page), '★計算が 転んだのに 何も 出ない★').toContain(
+    '画面の計算で問題が出ました'
+  );
+  const f = page.locator('[data-man-f="sales_yen"]').first();
+  if (await f.count())
+    await f.evaluate((i) => {
+      i.value = '5000';
+      i.dispatchEvent(new Event('change'));
+    });
+  await page.waitForTimeout(500);
+  expect(await errJi(page), '★「読み込み中です」と 違う 訳で 断った★').toContain(
+    '画面の計算で問題が出ました'
+  );
+  expect(await page.evaluate(() => window.__calls.length), '★計算が 転んだ 画面から 送った★').toBe(
+    0
+  );
+  await page.evaluate(() => {
+    window.__nage = false;
+  });
+  await page.click('#prevM');
+  await page.waitForTimeout(1500);
+  expect(await errJi(page), '★直ったのに 訳が 残る★').not.toContain('画面の計算で問題が出ました');
+});
+
+// 見立て：前の 期の 画面に 残った 乗った人の 札・「外す」を 読み込み中に 押しても 送らない（札の 道の 試験が 0本だった）
+test('期を 変えた 読み込み中に 前の 期の 札・外す を 押しても 乗った人を 送らない', async ({
+  page,
+}) => {
+  await hiraku(page);
+  await page.evaluate(() => {
+    window.__osoi = 3000;
+  });
+  await page.click('#nextM');
+  await page.waitForTimeout(300);
+  const chip = page.locator('[data-chip-emp]').first();
+  const del = page.locator('[data-del-emp]').first();
+  expect(
+    (await chip.count()) + (await del.count()),
+    '★札も 外すも 無い＝この 形を 測っていない★'
+  ).toBeGreaterThan(0);
+  page.on('dialog', (d) => d.accept());
+  if (await chip.count()) await chip.evaluate((b) => b.click());
+  await page.waitForTimeout(200);
+  if (await del.count()) await del.evaluate((b) => b.click());
+  await page.waitForTimeout(200);
+  const c = await page.evaluate(() =>
+    window.__calls.filter((x) => x.p.indexOf('dk_work_hours') === 0)
+  );
+  expect(c, '★読み込み中に 前の 期の 札から 乗った人を 送った★').toEqual([]);
+});
+
+// ★★期の 計算が 転んだ 後に 前の 期の 額で 明細 PDF を 作らない・札は 新しい 期★★ 2026-10-21（対立役 3回目 止め-1・直す-1・直す-2）
+//   2c7aa93：計算が 転んだ 時に 読み込み中の 印を 下ろした ので、PDF の 門が 通り「給料明細_2026-09」を 8月の 額（¥19,500）で 作った
+for (const nageruNo of ['buildCtx', 'report']) {
+  test(`期の 計算が 転んだ（${nageruNo}）後は 明細 PDF を 作らない・明細を 描かない・札は 新しい 期`, async ({
+    page,
+  }) => {
+    await hiraku(page);
+    await page.evaluate((w) => {
+      window.__pdf = [];
+      window.KamiEgaku = {
+        yomu: () => Promise.resolve(),
+        dasu: (mai, title) => {
+          window.__pdf.push({ title: title, n: mai.length });
+          return Promise.resolve();
+        },
+      };
+      const P = window.PayrollDaily;
+      const o = P[w];
+      window.__nage = true;
+      P[w] = function () {
+        if (window.__nage) throw new Error('見張り');
+        return o.apply(this, arguments);
+      };
+    }, nageruNo);
+    await page.click('#nextM');
+    await page.waitForTimeout(1500);
+    await expect(
+      page.locator('#monthLabel'),
+      '★計算が 転んだのに 札が 前の 期の まま★'
+    ).toContainText('9月');
+    await page.click('.tab[data-tab="slip"]');
+    await page.waitForTimeout(800);
+    expect(
+      (await page.locator('#slips').innerText()).trim(),
+      '★計算が 転んだ 期の 札の 下に 前の 期の 明細が 出た★'
+    ).toBe('');
+    await page.click('#btnPrint');
+    await page.waitForTimeout(800);
+    await page.evaluate(() => {
+      try {
+        window.printOne(0);
+      } catch (_) {
+        /* 断って 投げても 良い */
+      }
+    });
+    await page.waitForTimeout(800);
+    expect(
+      await page.evaluate(() => window.__pdf),
+      '★計算が 転んだ 期から 前の 期の 額で 明細 PDF を 作った★'
+    ).toEqual([]);
+    expect(await errJi(page)).toContain('画面の計算で問題が出ました');
+  });
+}
+
+// ★★計算が 転んだ 後の 描き直しの 別の 道（名前で 選ぶ・日の 帯）からも 描かない・送らない★★ 2026-10-21（対立役 4回目 直す-A・直す-B・見立て）
+async function korobu(page, w) {
+  await page.evaluate((x) => {
+    const P = window.PayrollDaily;
+    const o = P[x];
+    window.__nage = true;
+    P[x] = function () {
+      if (window.__nage) throw new Error('見張り');
+      return o.apply(this, arguments);
+    };
+  }, w);
+}
+for (const w of ['buildCtx', 'report']) {
+  // 直す-A：名前で 選ぶと renderSlips が 直に 走り、新しい 期の 札の 下に 前の 期の 明細・手当の 足す が 出た
+  test(`計算が 転んだ（${w}）後に 名前で 選んでも 前の 期の 明細を 出さず 手当も 送らない`, async ({
+    page,
+  }) => {
+    await hiraku(page);
+    await korobu(page, w);
+    await page.click('#nextM');
+    await page.waitForTimeout(1500);
+    await page.click('.tab[data-tab="slip"]');
+    await page.waitForTimeout(600);
+    const v = await page
+      .locator('#hitoSel option')
+      .evaluateAll((os) => os.map((o) => o.value).filter(Boolean)[0] || '');
+    await page.selectOption('#hitoSel', v);
+    await page.waitForTimeout(600);
+    expect(
+      (await page.locator('#slips').innerText()).trim(),
+      '★名前で 選ぶと 前の 期の 明細が 出た★'
+    ).toBe('');
+    expect(await page.locator('[data-meisai-adj]').count(), '★手当を 足す 口が 出た★').toBe(0);
+    expect(await errJi(page)).toContain('画面の計算で問題が出ました');
+  });
+
+  // 直す-B：日の 帯（#hibar）が 残り、押すと renderDays が 直に 走って 車の 時間・売上を 送れた
+  test(`計算が 転んだ（${w}）後に 日の 帯から 描かせても 車の 時間・売上を 送らない`, async ({
+    page,
+  }) => {
+    await hiraku(page);
+    await page.locator('#periodBar [data-pidx="1"]').click();
+    await page.waitForTimeout(1500);
+    await korobu(page, w);
+    await page.locator('#periodBar [data-pidx="0"]').click();
+    await page.waitForTimeout(1500);
+    expect(await page.locator('#hibar button').count(), '★転んだ 後も 日の 帯が 残る★').toBe(0);
+    // 帯が 残って いても 直に 描かせる 道を 押す（前の 形）
+    await page.evaluate(() => {
+      const b = document.getElementById('hiZen');
+      if (b) b.click();
+    });
+    await page.waitForTimeout(600);
+    const u = page.locator('[data-uri-sid]');
+    if (await u.count())
+      await u.first().evaluate((i) => {
+        i.value = '7000';
+        i.dispatchEvent(new Event('change'));
+      });
+    const h = page.locator('[data-sid]');
+    if (await h.count())
+      await h.first().evaluate((i) => {
+        i.value = '3';
+        i.dispatchEvent(new Event('change'));
+      });
+    await page.waitForTimeout(600);
+    expect(await page.locator('#days .day').count(), '★転んだ 後に 日の 欄が 描かれた★').toBe(0);
+    expect(await page.evaluate(() => window.__calls), '★転んだ 画面から 送った★').toEqual([]);
+  });
+}
+
+// 見立て：計算が 転んだ 間は 別の 成功の「字を 消す」でも 訳が 消えない（showErr の 出し直しを 守る 試験が 0本だった）
+test('計算が 転んだ 間は 別の 成功で 字を 消しても 計算の 訳が 残る', async ({ page }) => {
+  await hiraku(page);
+  await korobu(page, 'buildCtx');
+  await page.click('#nextM');
+  await page.waitForTimeout(1500);
+  expect(await errJi(page)).toContain('画面の計算で問題が出ました');
+  // 計算と 関係 無い 保存（車の 名前）を 成功させる＝その 返事で 字を 消す 道を 通す
+  await page.click('.tab[data-tab="set"]');
+  await page.waitForTimeout(600);
+  const na = page.locator('[data-car][data-f="label"]').first();
+  expect(await na.count(), '★車の 名前の 欄が 無い＝この 形を 測っていない★').toBe(1);
+  await na.evaluate((i) => {
+    i.value = i.value + '号';
+    i.dispatchEvent(new Event('change'));
+  });
+  await page.waitForTimeout(600);
+  expect(
+    await page.evaluate(
+      () => window.__calls.filter((x) => x.p.indexOf('dk_device_labels') === 0).length
+    ),
+    '★車の 名前を 送って いない＝字を 消す 道を 通って いない★'
+  ).toBe(1);
+  expect(await errJi(page), '★別の 成功で 計算の 訳が 消えた★').toContain(
+    '画面の計算で問題が出ました'
+  );
+});
