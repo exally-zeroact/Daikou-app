@@ -290,7 +290,9 @@
   // ============================================================
   // ★出す★ itas … [{ el: 板のdiv, muki: 'tate'|'yoko' }, …]
   // ============================================================
-  function dasu(itas, namae, A4) {
+  // ★作るだけ（開かない）★ 2026-10-21（本人の 明細＝作った 後に 押した 手で 共有の 画面を 出す 為）
+  //   返す 物＝{ blob, mai, size }。dasu は これを 呼んで 開く（事務所の 動きは 変えない）
+  function tsukuru(itas, A4) {
     itas = [].concat(itas || []);
     if (!itas.length) return Promise.reject(new Error('出す 紙が ありません'));
     return yomu()
@@ -362,25 +364,40 @@
       })
       .then(function (bytes) {
         const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        // ★blob を 新しいタブで 開く★（iOS の 不具合よけ・給与アプリと 同じ）
-        const w = global.open(url, '_blank');
-        if (!w) {
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = (namae || '紙') + '.pdf';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }
-        setTimeout(function () {
-          URL.revokeObjectURL(url);
-        }, 60000);
-        return { mai: itas.length, size: blob.size };
+        return { blob: blob, mai: itas.length, size: blob.size };
       });
   }
 
-  const api = { PT: PT, BASE: BASE, FONT_URL: FONT_URL, yomu: yomu, hakaru: hakaru, dasu: dasu };
+  function dasu(itas, namae, A4) {
+    return tsukuru(itas, A4).then(function (dekita) {
+      const blob = dekita.blob;
+      const url = URL.createObjectURL(blob);
+      // ★blob を 新しいタブで 開く★（iOS の 不具合よけ・給与アプリと 同じ）
+      const w = global.open(url, '_blank');
+      if (!w) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = (namae || '紙') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 60000);
+      return { mai: itas.length, size: blob.size };
+    });
+  }
+
+  const api = {
+    PT: PT,
+    BASE: BASE,
+    FONT_URL: FONT_URL,
+    yomu: yomu,
+    hakaru: hakaru,
+    tsukuru: tsukuru,
+    dasu: dasu,
+  };
   if (typeof global !== 'undefined') global.KamiEgaku = api;
   /* eslint-disable no-undef */
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
