@@ -54,7 +54,7 @@ async function nise(page, hajimete, mazeru) {
       body: JSON.stringify(b.p_pw == null ? { ok: false, reason: 'pw_4keta' } : { ok: true }),
     });
   });
-  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) => {
+  await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) => {
     const b = JSON.parse(r.request().postData() || '{}');
     return r.fulfill({
       status: 200,
@@ -340,7 +340,7 @@ test('本人の 関数が 古い（変えた 記録を 返さない）時は 明
 //   司さん 10-19「3回 間違えたら」「新しく URL や QR コードを 作成し直す」・10-20「続けて 3回」
 // ============================================================
 async function verifyNoKotae(page, kotae) {
-  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
+  await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(kotae) })
   );
 }
@@ -424,7 +424,7 @@ test('もう 決めた 人が c= 付きの リンクを 開いたら 最初か�
       body: JSON.stringify({ ok: false, reason: 'already_set' }),
     });
   });
-  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
+  await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/json',

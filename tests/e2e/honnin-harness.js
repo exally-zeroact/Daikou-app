@@ -21,10 +21,35 @@ const SET = {
   roles: { 甲: { rate: 0.3, floor: 1000 } },
 };
 
+// ★本人の 関数（dk_kyuryo_get）の 偽の 返り★（札の 試験も 使う・2026-10-21）
+function getKotae(set) {
+  return {
+    ok: true,
+    emp: EMP,
+    settings: [Object.assign({}, SET, set || {})],
+    labels: [
+      { company_id: 'c1', device_id: 'd1', label: '1466', sort_order: 1, show_in_slip: true },
+      { company_id: 'c1', device_id: 'd2', label: '4987', sort_order: 2, show_in_slip: true },
+      { company_id: 'c1', device_id: 'd3', label: '1173', sort_order: 3, show_in_slip: true },
+    ],
+    shifts: [],
+    edits: [],
+    workHours: [],
+    adjustments: [],
+    rireki: [],
+    yakuRireki: [],
+    uriageRireki: [],
+    shimeRireki: [],
+    uriageNaoshi: true,
+    tebikiJippi: true,
+    manualDays: [],
+  };
+}
+
 // set: 締めの 形を 変える／nidome: 2回目 以降の 取りの 返事を 変える（止めた 文の 道）
 async function hiraku(page, set, nidome) {
   let kai = 0;
-  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
+  await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -36,28 +61,7 @@ async function hiraku(page, set, nidome) {
     return r.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
-        ok: true,
-        emp: EMP,
-        settings: [Object.assign({}, SET, set || {})],
-        labels: [
-          { company_id: 'c1', device_id: 'd1', label: '1466', sort_order: 1, show_in_slip: true },
-          { company_id: 'c1', device_id: 'd2', label: '4987', sort_order: 2, show_in_slip: true },
-          { company_id: 'c1', device_id: 'd3', label: '1173', sort_order: 3, show_in_slip: true },
-        ],
-        shifts: [],
-        edits: [],
-        workHours: [],
-        adjustments: [],
-        rireki: [],
-        yakuRireki: [],
-        uriageRireki: [],
-        shimeRireki: [],
-        uriageNaoshi: true,
-        tebikiJippi: true,
-        manualDays: [],
-        ...(kai > 1 && nidome ? nidome : {}),
-      }),
+      body: JSON.stringify({ ...getKotae(set), ...(kai > 1 && nidome ? nidome : {}) }),
     });
   });
   await page.route('**/rest/v1/dk_**', (r) =>
@@ -133,4 +137,4 @@ async function hakaru(page) {
   });
 }
 
-module.exports = { EMP, SET, hiraku, hakaru, jitaiKotei };
+module.exports = { EMP, SET, getKotae, hiraku, hakaru, jitaiKotei };

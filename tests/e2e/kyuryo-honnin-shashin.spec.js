@@ -107,7 +107,7 @@ async function nise(page, hajimete) {
       body: JSON.stringify(b.p_pw == null ? { ok: false, reason: 'pw_4keta' } : { ok: true }),
     });
   });
-  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
+  await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/json',

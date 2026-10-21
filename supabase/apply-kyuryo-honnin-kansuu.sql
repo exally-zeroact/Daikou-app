@@ -130,22 +130,38 @@ begin
   if r.tomatta_at is not null then
     return json_build_object('ok', false, 'reason', 'tomatta');
   end if;
-  -- ★空（null）は 必ず 違う★ 2026-10-19（前は crypt(null) が null で、比べが 真に ならず 素通りした＝パスワード 無しで 開いた）
-  if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then
-    update daikome.dk_kyuryo_pub
-       set pw_miss = least(pw_miss + 1, 3),
-           tomatta_at = case when pw_miss + 1 >= 3 then now() else tomatta_at end,
-           updated_at = now()
-     where token = p_token
-    returning pw_miss into v_miss;
-    if v_miss >= 3 then
-      return json_build_object('ok', false, 'reason', 'tomatta');
+  -- ★★札（24時間 パスワード 無しで 見る）★★ 2026-10-21 司さん「パスワードなしで入れる時間を設けて」（24時間・会社の 倉庫が 札を 出す）
+  --   p_pw が 'fuda:' で 始まる 時は 札で 照らす（パスワードは 数字 4桁＝ぶつからない）。
+  --   札は dk_kyuryo_fuda が 出す 48桁の 乱数（192ビット＝当てられない）＝間違いを 数えない（古い 札で 本人を 止めない）。
+  --   置き場は device_tokens（'札の sha256 の hex|期限の epoch 秒'）＝作り直しで '{}' に なり 札も 消える。
+  --   材料の 中身は 下の 1か所の まま（別の 関数に 切り出さない＝外に 開く 口を 増やさない・対立役 S1）。
+  if p_pw like 'fuda:%' then
+    if not exists (
+      select 1 from unnest(coalesce(r.device_tokens, '{}')) d
+      where split_part(d, '|', 1) = encode(digest(substr(p_pw, 6), 'sha256'), 'hex')
+        and split_part(d, '|', 2) ~ '^[0-9]{1,12}$'
+        and split_part(d, '|', 2)::bigint > extract(epoch from now())
+    ) then
+      return json_build_object('ok', false, 'reason', 'fuda_kire');
     end if;
-    return json_build_object('ok', false, 'reason', 'bad_pw', 'nokori', 3 - v_miss);
-  end if;
-  -- 合った＝続けての 数を 0 に（止めた 時刻には 触らない）
-  if r.pw_miss <> 0 then
-    update daikome.dk_kyuryo_pub set pw_miss = 0 where token = p_token;
+  else
+    -- ★空（null）は 必ず 違う★ 2026-10-19（前は crypt(null) が null で、比べが 真に ならず 素通りした＝パスワード 無しで 開いた）
+    if p_pw is null or r.pw_hash is distinct from crypt(p_pw, r.pw_hash) then
+      update daikome.dk_kyuryo_pub
+         set pw_miss = least(pw_miss + 1, 3),
+             tomatta_at = case when pw_miss + 1 >= 3 then now() else tomatta_at end,
+             updated_at = now()
+       where token = p_token
+      returning pw_miss into v_miss;
+      if v_miss >= 3 then
+        return json_build_object('ok', false, 'reason', 'tomatta');
+      end if;
+      return json_build_object('ok', false, 'reason', 'bad_pw', 'nokori', 3 - v_miss);
+    end if;
+    -- 合った＝続けての 数を 0 に（止めた 時刻には 触らない）
+    if r.pw_miss <> 0 then
+      update daikome.dk_kyuryo_pub set pw_miss = 0 where token = p_token;
+    end if;
   end if;
   if p_from is null or p_to is null or p_to < p_from or (p_to - p_from) > 400 then
     return json_build_object('ok', false, 'reason', 'bad_range');
@@ -368,3 +384,39 @@ $fn$;
 grant execute on function public.dk_kyuryo_pw_set(text, text, text) to anon, authenticated;
 grant execute on function public.dk_kyuryo_verify(text, text) to anon, authenticated;
 grant execute on function public.dk_kyuryo_get(text, text, date, date) to anon, authenticated;
+
+-- ④ パスワードが 合ったら 24時間 効く 札を 出す（2026-10-21 司さん「パスワードなしで入れる時間を設けて」）
+--   照らしは dk_kyuryo_verify の 1か所（数え方・3回で 止める を 2か所に 書かない）。
+--   札は 本人に 1回だけ 返し、倉庫には sha256 だけ 置く。使っても 延ばさない（最後に パスワードを 入れた 時から 24時間）。
+--   期限内の 札は 新しい 4本まで 残す（5台目で 一番 古い 札が 消える）。
+create or replace function public.dk_kyuryo_fuda(p_token text, p_pw text)
+returns json
+language plpgsql
+security definer
+set search_path = daikome, public, extensions
+as $fn$
+declare
+  v json;
+  v_fuda text;
+  v_kigen bigint;
+begin
+  v := public.dk_kyuryo_verify(p_token, p_pw);
+  if (v ->> 'ok') is distinct from 'true' then
+    return v;
+  end if;
+  v_fuda := encode(gen_random_bytes(24), 'hex');
+  v_kigen := extract(epoch from now() + interval '24 hours')::bigint;
+  update daikome.dk_kyuryo_pub
+     set device_tokens = array(
+           select d from unnest(coalesce(device_tokens, '{}')) d
+           where split_part(d, '|', 2) ~ '^[0-9]{1,12}$'
+             and split_part(d, '|', 2)::bigint > extract(epoch from now())
+           order by split_part(d, '|', 2)::bigint desc
+           limit 4
+         ) || (encode(digest(v_fuda, 'sha256'), 'hex') || '|' || v_kigen),
+         updated_at = now()
+   where token = p_token;
+  return json_build_object('ok', true, 'name', v ->> 'name', 'fuda', v_fuda, 'kigen', v_kigen * 1000);
+end;
+$fn$;
+grant execute on function public.dk_kyuryo_fuda(text, text) to anon, authenticated;
