@@ -44,6 +44,8 @@ export const WEBKIT_KUMI = [
   'stationary-real-pipeline.spec.js',
   'gap-fill.spec.js',
   'sensor-edge-cases.spec.js',
+  // 運転手の 履歴の 直しは その日の 営業だけ（iPhone の 中身で 押せる 行・2026-10-22）
+  'rireki-naoseru-sono-hi.spec.js',
   // 許可・端末
   'license-gate-flow.spec.js',
   'platform-ios.spec.js',

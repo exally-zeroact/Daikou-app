@@ -80,21 +80,25 @@ afterEach(() => {
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
+// ★送信済みの 勤務の 額を 変えて 印を 外す★（job-sync の「送っている 間の 印の 外し」を 守る 網）
+//   2026-10-22 司さん「運転手の修正はその日の営業だけ」＝終わった 業務は TripEdit.apply では 直せなく なった。
+//   でも「続ける」（resume の _unsealSynced）からも 同じ 形（送信済みの 勤務の 中身が 変わり 印が 外れる）が 来る
+//   ＝網は 残す。TripEdit を 借りずに、直した 後の 帳面の 形を 直に 作る（対立役 直5）。
 function naosu(tripStart, discount, base) {
-  store[RIDE_KEY] = store[RIDE_KEY] || JSON.stringify([]);
-  const rides = JSON.parse(store[RIDE_KEY]);
-  if (!rides.some((r) => r.trip_key === tripStart)) {
-    rides.push({ trip_key: tripStart, fare: base, meter_fare: base, extras: [], discounts: [] });
-    store[RIDE_KEY] = JSON.stringify(rides);
-  }
-  const r = TripEdit.apply({
-    store: globalThis.localStorage,
-    rideKey: RIDE_KEY,
-    tripKey: tripStart,
-    edit: { discounts: [{ name: '値引き', amount: discount }], now: Date.now() },
-    business: null,
+  void RIDE_KEY;
+  void TripEdit;
+  const hist = JSON.parse(store.daikou_business_history || '[]');
+  const s = hist.find((x) => (x.trips || []).some((t) => t.start_time === tripStart));
+  expect(s, '★直す 勤務が 履歴に 無い（仕込みの 誤り）★').toBeTruthy();
+  s.trips.forEach((t) => {
+    if (t.start_time === tripStart) t.fare_yen = base - discount;
   });
-  expect(r.ok).toBe(true);
+  s.fare_total_yen = s.trips.reduce((a, t) => a + t.fare_yen, 0);
+  store.daikou_business_history = JSON.stringify(hist);
+  const synced = JSON.parse(store.dk_synced_shifts || '[]').filter(
+    (k) => String(k) !== String(s.start_time)
+  );
+  store.dk_synced_shifts = JSON.stringify(synced);
 }
 
 // 走っている 送りの 受け取りを 返し、次の 送りが 出るまで 待つ

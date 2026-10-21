@@ -144,21 +144,93 @@
     return _arr(syncedList).filter((k) => String(k) !== key);
   }
 
+  // ★★代行の 突き合わせは「近い 時刻」★★ 2026-10-22（対立役 止1・机の Chrome で 測った）
+  //   画面の 履歴の 鍵（ride.trip_key＝current_trip.start_time・index.html）と 業務の trips の start_time
+  //   （daikou_last_start）は 別々の Date.now()。間に GPS・メーター・住所引きが 挟まり 1〜2ms ずれる
+  //   （開き直して 最初の 代行は 6回中 6回）。前は === で 見て、ずれた 代行は「この 画面だけ」直り
+  //   事務所へ 1円も 届かなかった。★鍵より 前 3秒 以内で 一番 近い 代行★を 同じ 代行と 見る。
+  //   ★片側だけ★ 2026-10-22（対立役 直1・手元で 再現）：業務の 代行の 時刻（daikou_last_start）は 行の 鍵
+  //   （current_trip.start_time）より 先に 書く＝代行は 鍵と 同じか 前にしか ならない。両側に すると、代行の 無い 行
+  //   （確定→走行に 戻る→キャンセル で 残る）を 直した 時に 3秒 後に 始まった 隣の 代行の 額を 書き換えた。
+  const TRIP_MADO_MS = 3000;
+  //   ★ぴったり 同じ 時刻を 先に 探し、無い 時だけ 近さで 探す★（今まで 当たっていた 物は 今まで 通り）
+  function tripIndexOf(trips, tripKey, chikaku) {
+    const k = _num(tripKey);
+    if (!k) return -1;
+    const list = _arr(trips);
+    const ex = list.findIndex((t) => _num(t && t.start_time) === k);
+    if (ex >= 0 || chikaku === false) return ex;
+    let best = -1;
+    let bestD = TRIP_MADO_MS + 1;
+    list.forEach((t, i) => {
+      const st = _num(t && t.start_time);
+      const d = k - st; // ★鍵より 前の 代行だけ★
+      if (st && d >= 0 && d <= TRIP_MADO_MS && d < bestD) {
+        best = i;
+        bestD = d;
+      }
+    });
+    return best;
+  }
+
   // その代行がどの業務のものか（trip_key = 代行の開始時刻 で突き合わせる）
   function findShiftOf(tripKey, currentState, bizHistory) {
     const k = _num(tripKey);
     if (!k) return null;
-    const inTrips = (s) => _arr(s && s.trips).some((t) => _num(t && t.start_time) === k);
-    if (currentState && currentState.start_time && inTrips(currentState)) {
-      return { where: 'current', shift: currentState, shiftStart: currentState.start_time };
-    }
+    // ぴったり（今の 業務→履歴）を 先に、無ければ 近さ（今の 業務→履歴）
     const list = _arr(bizHistory);
-    for (let i = 0; i < list.length; i++) {
-      if (inTrips(list[i])) {
-        return { where: 'history', shift: list[i], index: i, shiftStart: list[i].start_time };
+    for (const chikaku of [false, true]) {
+      const inTrips = (s) => tripIndexOf(s && s.trips, k, chikaku) >= 0;
+      if (currentState && currentState.start_time && inTrips(currentState)) {
+        return { where: 'current', shift: currentState, shiftStart: currentState.start_time };
+      }
+      for (let i = 0; i < list.length; i++) {
+        if (inTrips(list[i])) {
+          return { where: 'history', shift: list[i], index: i, shiftStart: list[i].start_time };
+        }
       }
     }
     return null; // 昔の履歴で trip が残っていない（画面だけ直す）
+  }
+
+  // ─────────────────────────────────────────
+  // ★★運転手が 直せるのは「その日の 営業」だけ★★ 2026-10-22 司さん
+  //   「やっぱり運転手の修正はその日の営業だけにしろ キャンセルや履歴での金額の編集や後から請求書など全て」
+  //   「その日の営業」＝「業務終了を押すまで」／「再開してもその日の分しか修正さすな」／切れ目＝「正午」
+  //   ＝直せるのは ①今の 業務の 中の 代行 ②業務中（active・ended で ない）③代行の 営業日が 今の 営業日
+  //   （営業日＝日本時間で 時刻−12時間 の 日付＝正午より 前の 代行は 前の 日の 分）。終わった 分は 事務所が 直す。
+  //   ★判じは ここ 1か所★（履歴の 押せる 印・開く 時・保存の 時・apply が 同じ 物を 呼ぶ）
+  // ─────────────────────────────────────────
+  const SHOGO_MS = 12 * 60 * 60 * 1000;
+  function eigyoubi(ms) {
+    const n = _num(ms);
+    if (!n) return '';
+    const d = new Date(n + 9 * 60 * 60 * 1000 - SHOGO_MS);
+    const p = (x) => String(x).padStart(2, '0');
+    return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate());
+  }
+  // o = { tripKey, state（Business の 控え）, history（daikou_business_history）, now, readOnly }
+  //   返り＝{ ok, reason }（reason＝yomidake／eigyou_owari／betsu_no_gyoumu／mae_no_hi）
+  function naoseru(o) {
+    const x = o || {};
+    if (x.readOnly) return { ok: false, reason: 'yomidake' };
+    const st = x.state;
+    if (!st || st.active !== true || st.ended === true)
+      return { ok: false, reason: 'eigyou_owari' };
+    const found = findShiftOf(x.tripKey, st, x.history);
+    if (!found || found.where !== 'current') return { ok: false, reason: 'betsu_no_gyoumu' };
+    const ima = eigyoubi(x.now === undefined ? Date.now() : x.now);
+    if (!ima || eigyoubi(x.tripKey) !== ima) return { ok: false, reason: 'mae_no_hi' };
+    return { ok: true, reason: null };
+  }
+  // 運転手に 出す 字（reason ごと）
+  function naosenaiBun(reason) {
+    if (reason === 'yomidake') return 'この 画面は 見るだけです（別の 画面で 業務中）。';
+    if (reason === 'mae_no_hi')
+      return '前の 日の 分は 直せません。事務所に 直して もらってください。';
+    if (reason === 'betsu_no_gyoumu')
+      return '今の 業務の 代行では ないので 直せません。事務所に 直して もらってください。';
+    return '業務終了の 後は 直せません。事務所に 直して もらってください。';
   }
 
   // ─────────────────────────────────────────
@@ -172,6 +244,35 @@
     const tripKey = _num(o.tripKey);
     if (!rideKey || !tripKey) return { ok: false, reason: 'bad_key' };
 
+    // ★その日の 営業 だけ★（何も 書く 前に 見る）2026-10-22
+    //   読むのは Business の 控え（倉庫の 字は 保存が 転ぶと 業務終了の 前の 古い 状態の まま＝対立役 直3）
+    const biz0 =
+      o.business !== undefined ? o.business : typeof Business !== 'undefined' ? Business : null;
+    let histNow = [];
+    try {
+      const raw = store.getItem(K_BIZ_HISTORY);
+      histNow = raw ? JSON.parse(raw) : [];
+    } catch (_) {
+      histNow = [];
+    }
+    let st0 = null;
+    try {
+      st0 =
+        biz0 && typeof biz0.getState === 'function'
+          ? biz0.getState()
+          : JSON.parse(store.getItem(o.stateKey || 'daikou_business_state') || 'null');
+    } catch (_) {
+      st0 = null;
+    }
+    const nao = naoseru({
+      tripKey: tripKey,
+      state: st0,
+      history: histNow,
+      now: o.edit && o.edit.now,
+      readOnly: !!o.readOnly,
+    });
+    if (!nao.ok) return { ok: false, reason: nao.reason };
+
     // ★Business は自分の控えを持っている (2026-08-05・実機で踏んだ)★
     //   倉庫(localStorage)だけ直しても、Business が次に保存した瞬間に
     //   ★控えで上書きされて直しが消える★。業務中は1秒ごとに保存しているので必ず消える。
@@ -181,10 +282,13 @@
     const biz =
       o.business !== undefined ? o.business : typeof Business !== 'undefined' ? Business : null;
     let reloaded = false;
+    // ★控えを 倉庫に 書けない 時は 直さない★ 2026-10-22（対立役 直3：書けずに 直すと 古い 倉庫を 読み直し
+    //   業務終了した 控えが 業務中に 戻る）
     try {
-      if (biz && typeof biz.save === 'function') biz.save();
+      if (biz && typeof biz.save === 'function' && biz.save() === false)
+        return { ok: false, reason: 'hozon_dekinai' };
     } catch (_) {
-      /* 保存できなくても直しは続ける */
+      return { ok: false, reason: 'hozon_dekinai' };
     }
 
     const readJson = (k, d) => {
@@ -211,7 +315,7 @@
 
     if (found) {
       const trips = _arr(found.shift.trips).slice();
-      const ti = trips.findIndex((t) => _num(t && t.start_time) === tripKey);
+      const ti = tripIndexOf(trips, tripKey);
       if (ti >= 0) {
         trips[ti] = applyToTrip(trips[ti], newRide);
         const fixed = recountShift(Object.assign({}, found.shift, { trips: trips }));
@@ -242,7 +346,7 @@
             );
             if (hi >= 0) {
               const hTrips = _arr(bizHist[hi].trips).slice();
-              const hti = hTrips.findIndex((t) => _num(t && t.start_time) === tripKey);
+              const hti = tripIndexOf(hTrips, tripKey);
               if (hti >= 0) {
                 hTrips[hti] = applyToTrip(hTrips[hti], newRide);
                 bizHist[hi] = recountShift(Object.assign({}, bizHist[hi], { trips: hTrips }));
@@ -290,6 +394,10 @@
     recountShift: recountShift,
     unmarkSynced: unmarkSynced,
     findShiftOf: findShiftOf,
+    tripIndexOf: tripIndexOf,
+    eigyoubi: eigyoubi,
+    naoseru: naoseru,
+    naosenaiBun: naosenaiBun,
     // 実行
     apply: apply,
     // 定数

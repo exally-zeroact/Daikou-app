@@ -13,6 +13,7 @@
 //     ・直したら★事務所にも届く★（送信済みの印を外す）
 //     ・画面の履歴と、事務所へ上げる中身が★ずれない★
 // ============================================================
+/* global vi */ // vitest の globals（vitest.config.js globals: true）
 const path = require('path');
 const TE = require(path.resolve(__dirname, '..', '..', 'js', 'trip-edit.js'));
 
@@ -241,7 +242,29 @@ describe('★その代行がどの業務のものか分かること★', () => {
   });
 
   it('どこにも無い（古すぎて消えた）', () => {
-    expect(TE.findShiftOf(999, cur, hist)).toBe(null);
+    // 本物の 鍵は ミリ秒＝どの 代行とも 5秒より 離れた 時刻（小さな 数だと 近さの 窓に 入る）
+    expect(TE.findShiftOf(999999999, cur, hist)).toBe(null);
+  });
+
+  // ★鍵が 2つの Date.now() で 1〜2ms ずれても 同じ 代行と 見る★ 2026-10-22（対立役 止1・机の Chrome で 測った）
+  //   わざと壊す：近さの 探しを 外す（=== だけ）⇒ 赤（null が 返る）
+  it('★1〜2ms ずれた 鍵でも 同じ 代行★（ぴったりが 先・無い 時だけ 近さ）', () => {
+    const T0 = 1790000000000;
+    const c = { start_time: T0 - 9000, trips: [{ start_time: T0 }, { start_time: T0 + 600000 }] };
+    expect(TE.findShiftOf(T0 + 2, c, []).where).toBe('current');
+    expect(TE.tripIndexOf(c.trips, T0 + 2)).toBe(0);
+    expect(TE.tripIndexOf(c.trips, T0 + 600001)).toBe(1);
+    expect(TE.tripIndexOf(c.trips, T0 + 6000), '3秒より 離れた 代行は 別').toBe(-1);
+  });
+
+  // ★鍵より 後に 始まった 隣の 代行は 拾わない（窓は 片側）★ 2026-10-22（対立役 直1・手元で 再現）
+  //   代行の 無い 行（確定→走行に 戻る→キャンセル で 残る）を 直すと、両側の 窓だと 3秒 後に 始まった
+  //   隣の 代行の 額を 書き換えた。わざと壊す：d = Math.abs(st - k) に 戻す ⇒ 赤
+  it('★鍵より 後に 始まった 隣の 代行は 別（代行の 無い 行で 隣を 書き換えない）★', () => {
+    const T0 = 1790000000000;
+    const c = { start_time: T0 - 9000, trips: [{ start_time: T0 + 2000 }] };
+    expect(TE.tripIndexOf(c.trips, T0)).toBe(-1);
+    expect(TE.findShiftOf(T0, c, [])).toBe(null);
   });
 
   it('壊れた入力でも落ちない', () => {
@@ -254,6 +277,14 @@ describe('★その代行がどの業務のものか分かること★', () => {
 // ★通し: 本物の倉庫（localStorage の形）を使って直す★
 // ============================================================
 describe('★3つの帳面が全部そろうこと★', () => {
+  // ★今＝代行の 1分後（同じ 営業日）に 時計を 止める★ 2026-10-22（判じは「今」と 同じ 営業日かを 見る）
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1785835513046 + 60000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   function fakeStore(init) {
     const m = Object.assign({}, init);
     return {
@@ -387,7 +418,10 @@ describe('★3つの帳面が全部そろうこと★', () => {
       expect(st._json('daikou_business_state').trips[0].fare_yen).toBe(2100);
     });
 
-    it('Business が壊れていても直しは通る', () => {
+    // ★2026-10-22＝控えを 倉庫に 書けない 時は 直さない（前は 通した）★（対立役 直3：書けずに 直すと
+    //   古い 倉庫を 読み直し、業務終了した 控えが 業務中に 戻る）
+    //   わざと壊す：apply の hozon_dekinai の 止めを 外す ⇒ 赤（書いてしまう）
+    it('Business の 保存が 壊れていたら 直さない・何も 書かない', () => {
       const st = setup();
       const broken = {
         save() {
@@ -404,8 +438,28 @@ describe('★3つの帳面が全部そろうこと★', () => {
         tripKey: TRIP,
         edit: { discounts: [{ name: 'x', amount: 100 }] },
       });
-      expect(r.ok).toBe(true);
-      expect(st._json(RIDE_KEY)[0].fare).toBe(2100);
+      expect(r.ok).toBe(false);
+      expect(r.reason).toBe('hozon_dekinai');
+      expect(st._json(RIDE_KEY)[0].fare).toBe(2200);
+    });
+
+    // わざと壊す：save() === false の 止めを 外す ⇒ 赤（business.js の save は 書けない 時 false を 返す）
+    it('Business の 保存が false（端末の 空きが 無い）なら 直さない・何も 書かない', () => {
+      const st = setup();
+      const r = TE.apply({
+        store: st,
+        business: {
+          save: () => false,
+          load() {},
+          getState: () => JSON.parse(st.getItem('daikou_business_state')),
+        },
+        rideKey: RIDE_KEY,
+        tripKey: TRIP,
+        edit: { discounts: [{ name: 'x', amount: 100 }] },
+      });
+      expect(r.ok).toBe(false);
+      expect(r.reason).toBe('hozon_dekinai');
+      expect(st._json(RIDE_KEY)[0].fare).toBe(2200);
     });
   });
 
@@ -447,7 +501,9 @@ describe('★3つの帳面が全部そろうこと★', () => {
     expect(t.fare_yen, '★金額が勝手に動いた★').toBe(2200);
   });
 
-  it('★終わった業務（送信済み）でも直せる★', () => {
+  // ★2026-10-22 司さん「運転手の修正はその日の営業だけ」＝終わった 業務は 直せない（前は 直せた）★
+  //   わざと壊す：apply の naoseru を 外す ⇒ 赤（書いてしまう）
+  it('★終わった業務（送信済み）は 直せない・何も 書かない★', () => {
     const st = setup({
       daikou_business_state: JSON.stringify({ start_time: null, active: false, trips: [] }),
       daikou_business_history: JSON.stringify([
@@ -466,14 +522,15 @@ describe('★3つの帳面が全部そろうこと★', () => {
       tripKey: TRIP,
       edit: { extras: [{ name: '高速', amount: 500 }] },
     });
-    expect(r.ok).toBe(true);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('eigyou_owari');
     const h = st._json('daikou_business_history')[0];
-    expect(h.trips[0].fare_yen).toBe(2700);
-    expect(h.fare_total_yen).toBe(2700);
-    expect(st._json('dk_synced_shifts')).toEqual([]);
+    expect(h.trips[0].fare_yen, '★終わった 業務を 書き換えた★').toBe(2200);
+    expect(st._json(RIDE_KEY)[0].fare, '★画面の 履歴を 書き換えた★').toBe(2200);
+    expect(st._json('dk_synced_shifts'), '★印を 外した★').toEqual([1785830000000]);
   });
 
-  it('★業務が残っていない古い履歴でも、画面だけは直せる★（落ちない）', () => {
+  it('★業務が残っていない古い履歴は 直せない★（画面だけ 直す 道も 無くした・落ちない）', () => {
     const st = setup({
       daikou_business_state: JSON.stringify({ start_time: null, trips: [] }),
       daikou_business_history: JSON.stringify([]),
@@ -484,9 +541,8 @@ describe('★3つの帳面が全部そろうこと★', () => {
       tripKey: TRIP,
       edit: { extras: [{ name: '高速', amount: 500 }] },
     });
-    expect(r.ok).toBe(true);
-    expect(r.linkedToShift).toBe(false);
-    expect(st._json(RIDE_KEY)[0].fare).toBe(2700);
+    expect(r.ok).toBe(false);
+    expect(st._json(RIDE_KEY)[0].fare).toBe(2200);
   });
 
   it('★他の代行を巻き込まない★', () => {
@@ -512,7 +568,8 @@ describe('★3つの帳面が全部そろうこと★', () => {
     const before = st._raw[RIDE_KEY];
     const r = TE.apply({ store: st, rideKey: RIDE_KEY, tripKey: 1, edit: { extras: [] } });
     expect(r.ok).toBe(false);
-    expect(r.reason).toBe('ride_not_found');
+    // 判じ（今の 業務の 代行か）が 書く 前に 止める
+    expect(r.reason).toBe('betsu_no_gyoumu');
     expect(st._raw[RIDE_KEY], '★見つからないのに書き換えた★').toBe(before);
     expect(st._json('dk_synced_shifts'), '★印を勝手に外した★').toEqual([1785830000000]);
   });
@@ -553,8 +610,17 @@ describe('★直した印が残ること（あとで見て分かる）★', () =
 // ★わざと壊して 赤に なる事を 見た★
 //   js/trip-edit.js の 「履歴にも 同じ勤務が 居たら そっちも 直す」塊を 消す → ★赤★
 // ============================================================
+// ★2026-10-22＝業務終了の 後は 直せない（司さん）。この 組は「業務中なのに 履歴にも 同じ 勤務が 居る」
+//   （再開の _removeHistory が 転んだ 時の 保険）で 両方 揃うかと、limbo（業務終了を 押した 後）で 止まるかを 見る。
 describe('★[業務終了]の後に 直した分が 事務所へ 届くか★', () => {
   const T = 1790000000000;
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(T + 60000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   const tsukuru = () => {
     const store = Object.create(null);
     const ls = {
@@ -575,8 +641,11 @@ describe('★[業務終了]の後に 直した分が 事務所へ 届くか★',
       payment_type: 'cash',
     };
     const shift = { start_time: T - 1000, trips: [trip], trip_count: 1, fare_total_yen: 5000 };
-    // ★limbo＝state にも 履歴にも 同じ勤務が 居る★
-    ls.setItem('daikou_business_state', JSON.stringify(shift));
+    // ★業務中なのに 履歴にも 同じ勤務が 居る（再開の 保険の 道）★
+    ls.setItem(
+      'daikou_business_state',
+      JSON.stringify(Object.assign({ active: true, ended: false }, shift))
+    );
     ls.setItem('daikou_business_history', JSON.stringify([JSON.parse(JSON.stringify(shift))]));
     ls.setItem(
       'daikou_history_x',
@@ -651,5 +720,78 @@ describe('★[業務終了]の後に 直した分が 事務所へ 届くか★',
       JSON.parse(ls.getItem('daikou_business_history')).length,
       '★居ないのに 作ってしまっている★'
     ).toBe(0);
+  });
+  // わざと壊す：naoseru の ended の 判じを 外す ⇒ 赤（limbo で 書いてしまう）
+  it('★limbo（業務終了を 押した 後・start_time が 残る）は 直せない★', () => {
+    const ls = tsukuru();
+    const st = JSON.parse(ls.getItem('daikou_business_state'));
+    ls.setItem(
+      'daikou_business_state',
+      JSON.stringify(Object.assign(st, { active: false, ended: true }))
+    );
+    const r = TE.apply({
+      store: ls,
+      rideKey: 'daikou_history_x',
+      tripKey: T,
+      edit: { discounts: [{ label: '値引き', amount: 1000 }] },
+    });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('eigyou_owari');
+    expect(rireki(ls).fare_yen).toBe(5000);
+    expect(JSON.parse(ls.getItem('dk_synced_shifts'))).toEqual([String(T - 1000)]);
+  });
+});
+
+// ============================================================
+// ★★運転手が 直せるのは「その日の 営業」だけ（判じの 表）★★ 2026-10-22 司さん
+//   「業務終了を押すまで」「再開してもその日の分しか修正さすな」「正午」
+//   わざと壊す：判じの 1つを 外す ⇒ 下の どれかが 赤
+// ============================================================
+describe('★直せるか（naoseru）★', () => {
+  // 2026-10-21 20:00 JST に 業務開始・21:00 の 代行
+  const KAISHI = Date.parse('2026-10-21T20:00:00+09:00');
+  const DAIKOU = Date.parse('2026-10-21T21:00:00+09:00');
+  const st = (o) =>
+    Object.assign(
+      { active: true, ended: false, start_time: KAISHI, trips: [{ start_time: DAIKOU }] },
+      o || {}
+    );
+  const at = (iso) => Date.parse(iso);
+  const nao = (o) => TE.naoseru(Object.assign({ tripKey: DAIKOU, state: st(), history: [] }, o));
+  it('業務中・同じ 夜（日付を またいだ 夜中 2時も・11時59分も）は 直せる', () => {
+    expect(nao({ now: at('2026-10-21T23:00:00+09:00') }).ok).toBe(true);
+    expect(nao({ now: at('2026-10-22T02:00:00+09:00') }).ok).toBe(true);
+    expect(nao({ now: at('2026-10-22T11:59:00+09:00') }).ok).toBe(true);
+  });
+  it('正午を 越えたら 前の 日の 分（再開して 業務中でも）', () => {
+    const r = nao({ now: at('2026-10-22T12:00:00+09:00') });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('mae_no_hi');
+  });
+  it('業務終了を 押した 後（limbo・ended）・業務が 無い 時は 直せない', () => {
+    const now = at('2026-10-21T23:00:00+09:00');
+    expect(nao({ now, state: st({ active: false, ended: true }) }).reason).toBe('eigyou_owari');
+    expect(nao({ now, state: st({ active: false }) }).reason).toBe('eigyou_owari');
+    expect(nao({ now, state: st({ ended: true }) }).reason).toBe('eigyou_owari');
+    expect(nao({ now, state: null }).reason).toBe('eigyou_owari');
+  });
+  it('今の 業務に 無い 代行（前の 業務・履歴だけ）は 直せない', () => {
+    const r = nao({
+      now: at('2026-10-21T23:00:00+09:00'),
+      state: st({ trips: [] }),
+      history: [{ start_time: KAISHI, trips: [{ start_time: DAIKOU }] }],
+    });
+    expect(r.reason).toBe('betsu_no_gyoumu');
+  });
+  it('見るだけの 画面（別の タブで 業務中）は 直せない', () => {
+    expect(nao({ now: at('2026-10-21T23:00:00+09:00'), readOnly: true }).reason).toBe('yomidake');
+  });
+  it('営業日は 日本時間の 正午で 切る', () => {
+    expect(TE.eigyoubi(at('2026-10-22T11:59:59+09:00'))).toBe('2026-10-21');
+    expect(TE.eigyoubi(at('2026-10-22T12:00:00+09:00'))).toBe('2026-10-22');
+  });
+  it('運転手に 出す 字', () => {
+    expect(TE.naosenaiBun('mae_no_hi')).toMatch(/前の 日/);
+    expect(TE.naosenaiBun('eigyou_owari')).toMatch(/業務終了/);
   });
 });

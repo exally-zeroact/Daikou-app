@@ -18,6 +18,13 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const HTML = read('index.html');
 const SW = read('sw.js');
+// ★_te_save の 本体＝「window._te_save = function」から 次の「})();」まで★ 2026-10-22
+//   前は 頭から 900字で 切っていた＝止めを 足すと 中身は 正しいのに 赤（決まった 字数で 切るな）
+const TE_SAVE = (() => {
+  const i = HTML.indexOf('window._te_save = function');
+  const j = HTML.indexOf('})();', i);
+  return i >= 0 && j > i ? HTML.slice(i, j) : '';
+})();
 
 describe('★道具が読み込まれていること★', () => {
   it('js/trip-edit.js がある', () => {
@@ -57,7 +64,22 @@ describe('★履歴の行が押せること★', () => {
   });
 
   it('★鍵の無い古い履歴は押せなくしている★（押せると「直したのに変わらない」が起きる）', () => {
-    expect(HTML).toMatch(/if \(ride\.trip_key\) \{[\s\S]{0,200}tappable/);
+    // 2026-10-22＝鍵が 在り かつ その日の 営業（_te_naoseru）の 時だけ 押せる
+    expect(HTML).toMatch(
+      /if \(\s*ride\.trip_key &&\s*typeof window\._te_naoseru === 'function' &&\s*window\._te_naoseru\(ride\.trip_key\)\.ok\s*\) \{\s*item\.className \+= ' tappable';/
+    );
+  });
+
+  // ★2026-10-22 司さん「運転手の修正はその日の営業だけ」＝開く 時・保存の 時も 同じ 判じ★
+  it('★開く 時と 保存の 時も その日の 営業かを 見る（判じは trip-edit.js の 1か所）★', () => {
+    // _te_open の 本体＝頭から 次の「window._te_close」まで（字数で 切らない）
+    const i = HTML.indexOf('window._te_open = function');
+    const j = HTML.indexOf('window._te_close', i);
+    expect(i > 0 && j > i, '★_te_open が 見つからない（空回り）★').toBe(true);
+    expect(HTML.slice(i, j)).toContain('window._te_naoseru(tripKey)');
+    expect(TE_SAVE).toContain('window._te_naoseru(_cur.tripKey)');
+    expect(HTML).toContain('TripEdit.naoseru({');
+    expect(HTML, '但し書き').toContain('直せるのは 業務中の その日の 代行だけです');
   });
 
   it('押したら開く所につながっている', () => {
@@ -99,11 +121,12 @@ describe('★保存が3つの帳面に届くこと★', () => {
   });
 
   it('直したら履歴を描き直す', () => {
-    expect(HTML).toMatch(/_te_save[\s\S]{0,900}_hist_render\(\)/);
+    expect(TE_SAVE.length, '★_te_save が 見つからない（空回り）★').toBeGreaterThan(200);
+    expect(TE_SAVE).toContain('_hist_render()');
   });
 
   it('直したら待機画面の集計も合わせる', () => {
-    expect(HTML).toMatch(/_te_save[\s\S]{0,900}updateBusinessDashboard\(\)/);
+    expect(TE_SAVE).toContain('updateBusinessDashboard()');
   });
 });
 

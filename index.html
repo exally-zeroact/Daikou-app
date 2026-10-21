@@ -1184,6 +1184,16 @@
       }
       /* ★押せることを見せる (2026-08-05・履歴から直す)★
          司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな」 */
+      #overlayHistory .hist-naoseru-note {
+        margin: 8px 16px 0;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #f2f2f7;
+        color: #3a3a3c;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
       #overlayHistory .ride-item.tappable {
         cursor: pointer;
         position: relative;
@@ -13356,7 +13366,13 @@
               // ★押したら直せる (2026-08-05・司さん指示)★
               //   trip_key が無い古い履歴は突き合わせられないので押せなくする
               //   （押せてしまうと「直したのに反映されない」が起きる）。
-              if (ride.trip_key) {
+              // ★2026-10-22 司さん「運転手の修正はその日の営業だけ」＝業務中・その日の 代行だけ 押せる★
+              //   判じは js/trip-edit.js の naoseru 1か所（開く 時・保存の 時も 同じ 物）
+              if (
+                ride.trip_key &&
+                typeof window._te_naoseru === 'function' &&
+                window._te_naoseru(ride.trip_key).ok
+              ) {
                 item.className += ' tappable';
                 item.dataset.tripKey = String(ride.trip_key);
                 item.dataset.rideKey = PREFIX_FOR_EDIT + bucket.dateStr;
@@ -13490,8 +13506,33 @@
           return list.find((r) => r && Number(r.trip_key) === Number(tripKey)) || null;
         }
 
+        // ★直せるか（その日の 営業だけ・2026-10-22）★ 控えは Business から 読む（倉庫の 字は 古い 事が 在る）
+        window._te_naoseru = function (tripKey) {
+          if (typeof TripEdit === 'undefined' || typeof TripEdit.naoseru !== 'function')
+            return { ok: false, reason: 'eigyou_owari' };
+          let st = null;
+          try {
+            st = typeof Business !== 'undefined' && Business.getState ? Business.getState() : null;
+          } catch (_) {
+            st = null;
+          }
+          return TripEdit.naoseru({
+            tripKey: tripKey,
+            state: st,
+            history: _readJson('daikou_business_history', []),
+            now: Date.now(),
+            readOnly: !!window._tabReadOnly,
+          });
+        };
+        function _te_naosenai(reason) {
+          if (typeof window._showToast === 'function')
+            window._showToast(TripEdit.naosenaiBun(reason));
+        }
+
         window._te_open = function (rideKey, tripKey) {
           if (typeof TripEdit === 'undefined') return;
+          const nao = window._te_naoseru(tripKey);
+          if (!nao.ok) return _te_naosenai(nao.reason);
           const ride = _findRide(rideKey, tripKey);
           if (!ride) {
             if (typeof window._showToast === 'function')
@@ -13739,17 +13780,40 @@
         // ─── 直す（保存）───
         window._te_save = function () {
           if (!_cur || typeof TripEdit === 'undefined') return;
-          const r = TripEdit.apply({
-            rideKey: _cur.rideKey,
-            tripKey: _cur.tripKey,
-            edit: {
-              extras: _cur.extras,
-              discounts: _cur.discounts,
-              customer: _cur.customer,
-              customerNote: _cur.customerNote || null, // 誰が乗ったか
-              now: Date.now(),
-            },
-          });
+          // ★開いて いる 間に 業務終了・正午を 越えた 時は 保存しない（2026-10-22）★
+          const nao = window._te_naoseru(_cur.tripKey);
+          if (!nao.ok) {
+            window._te_close();
+            return _te_naosenai(nao.reason);
+          }
+          let r = null;
+          try {
+            r = TripEdit.apply({
+              rideKey: _cur.rideKey,
+              tripKey: _cur.tripKey,
+              edit: {
+                extras: _cur.extras,
+                discounts: _cur.discounts,
+                customer: _cur.customer,
+                customerNote: _cur.customerNote || null, // 誰が乗ったか
+                now: Date.now(),
+              },
+              readOnly: !!window._tabReadOnly,
+            });
+          } catch (_) {
+            r = null; // 書けない（空きが 無い 等）＝知らせて 抜ける
+          }
+          if (
+            r &&
+            !r.ok &&
+            r.reason &&
+            r.reason !== 'hozon_dekinai' &&
+            r.reason !== 'ride_not_found' &&
+            r.reason !== 'bad_key'
+          ) {
+            window._te_close();
+            return _te_naosenai(r.reason);
+          }
           if (!r || !r.ok) {
             if (typeof window._showToast === 'function') window._showToast('直せませんでした');
             return;
@@ -15169,6 +15233,11 @@
       <div class="appbar">
         <div class="appbar-back" onclick="window.hideAllOverlays()">＜</div>
         <div class="appbar-title">本日の走行履歴</div>
+      </div>
+      <!-- ★直せる 代行の 但し書き（2026-10-22 司さん「運転手の修正はその日の営業だけ」）★ -->
+      <div class="hist-naoseru-note" id="_hist_naoseruNote">
+        直せるのは 業務中の その日の 代行だけです（業務終了の 後・前の 日の 分は 事務所で
+        直します）。
       </div>
       <div class="wrap" id="_hist_wrap">
         <div class="empty" id="_hist_emptyMsg">
