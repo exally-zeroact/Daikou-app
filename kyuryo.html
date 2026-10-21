@@ -2487,6 +2487,36 @@
           // ★入口の 箱（パスワード）★
           var box = document.getElementById('slips');
           if (!box) return;
+          // ★★もう 決めた 人を「はじめて」に しない★★ 2026-10-21 司さん「パスワードを決めてからホーム画面に保存…
+          //   またパスワードを決めるがでる…決めるところからはじまるのはイライラする」
+          //   ホーム画面は 配った リンク（c= 付き）の まま 開く＝c= だけで 見ると 毎回「はじめて」。
+          //   ★開く 前に 倉庫に 訊く★：パスワードを 空（null）で 送ると、決めた 人には 形を 見る 前に already_set、
+          //   まだの 人には pw_4keta を 返す（どちらも 倉庫に 何も 書かない＝apply-kyuryo-honnin-kansuu.sql の 43〜54行）。
+          if (HONNIN.init && !HONNIN.sagutta) {
+            HONNIN.sagutta = true;
+            box.innerHTML = '<div class="card"><div class="msg">読み込み中…</div></div>';
+            // ★返って 来ない 時は 5秒で 打ち切って 今までの「はじめて」の 画面★（電波が 弱い 時に 欄が 出ないまま に しない・対立役）
+            var kaetta = false;
+            var uchikiri = setTimeout(function () {
+              if (kaetta) return;
+              kaetta = true;
+              honninStart();
+            }, 5000);
+            honninRpc('dk_kyuryo_pw_set', {
+              p_token: HONNIN.token,
+              p_init: HONNIN.init,
+              p_pw: null, // ★鍵ごと 省かない★（省くと 引数 2つの 関数を 探して 落ちる）
+            }).then(function (r) {
+              if (kaetta) return; // 打ち切った 後に 来た 答えでは 描き直さない
+              kaetta = true;
+              clearTimeout(uchikiri);
+              if (r && r.reason === 'no_token') return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+              if (r && r.reason === 'already_set') HONNIN.init = '';
+              // それ以外（pw_4keta・bad_init・つながらない・ok）は 今までの「はじめて」の 画面
+              honninStart();
+            });
+            return;
+          }
           var hajimete = !!HONNIN.init;
           box.innerHTML =
             '<div class="card"><div class="title" style="font-weight:800;margin-bottom:6px">' +

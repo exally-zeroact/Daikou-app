@@ -44,9 +44,16 @@ const SET = {
 //   ★事務所の 読み込み（/rest/v1/dk_◯◯）は 数える★＝呼んだら 赤
 async function nise(page, hajimete, mazeru) {
   const kazoe = { jimusho: 0 };
-  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
-  );
+  // ★本物の 関数と 同じ 答え★（2026-10-21）：パスワードが 空（null）＝開いた 時の 探り は、
+  //   まだ 決めていない 人に pw_4keta を 返す（何も 書かない）。決める 時だけ ok
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) => {
+    const b = JSON.parse(r.request().postData() || '{}');
+    return r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(b.p_pw == null ? { ok: false, reason: 'pw_4keta' } : { ok: true }),
+    });
+  });
   await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) => {
     const b = JSON.parse(r.request().postData() || '{}');
     return r.fulfill({
@@ -397,6 +404,83 @@ test('もう 決めた 人が 初回の リンクを 開き直したら 2回目�
   await expect(page.locator('#hnGo')).toHaveText('見る');
   await expect(page.locator('#hnErr')).toContainText('もう パスワードを 決めてあります');
   await expect(page.locator('#hnPw2')).toHaveCount(0);
+});
+// ★★もう 決めた 人が ホーム画面（c= 付きの リンク）から 開いたら、最初から「入れる」画面★★ 2026-10-21 司さん
+//   わざと壊す：honninStart の 探り（p_pw:null の pw_set）を 外す ⇒ 赤（「はじめての 方」が 出る）
+test('もう 決めた 人が c= 付きの リンクを 開いたら 最初から 入れる 画面（決める 画面を 出さない）', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  let saguri = 0;
+  let kaita = 0;
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) => {
+    const b = JSON.parse(r.request().postData() || '{}');
+    // ★鍵ごと 省かず null で 送る★（省くと 引数 2つの 関数を 探して 落ちる）
+    if ('p_pw' in b && b.p_pw === null) saguri++;
+    else kaita++;
+    return r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: false, reason: 'already_set' }),
+    });
+  });
+  await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"ok":false,"reason":"bad_pw"}',
+    })
+  );
+  await page.goto('/kyuryo.html?t=TOK&c=INIT12345');
+  await expect(page.locator('#hnGo')).toHaveText('見る');
+  await expect(page.locator('#slips')).not.toContainText('はじめての 方');
+  await expect(page.locator('#hnPw2')).toHaveCount(0);
+  await expect(page.locator('#hnErr')).toBeHidden();
+  expect(saguri, '開いた 時に 1回だけ 訊く').toBe(1);
+  expect(kaita, '決める 方の 呼び出しは 0').toBe(0);
+});
+// 作り直された リンクを ホーム画面から 開いたら、決める 画面を 出さずに 新しい リンクを もらう 訳
+test('作り直された c= 付きの リンクは 開いた 時に 新しい リンクを もらう 訳', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"ok":false,"reason":"no_token"}',
+    })
+  );
+  await page.goto('/kyuryo.html?t=TOK&c=INIT12345');
+  await expect(page.locator('#slips')).toContainText('この リンクは 作り直されました');
+  await expect(page.locator('#hnGo')).toHaveCount(0);
+});
+// 電波が 弱くて 探りが 返らない 時は 5秒で 打ち切って 今までの「はじめて」の 画面（欄が 出ないまま に しない）
+//   わざと壊す：打ち切りの 時計を 外す ⇒ 赤（読み込み中の まま）
+test('開いた 時の 探りが 返らない 時は 5秒で はじめての 画面', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', () => {
+    /* 返さない（固まった 通信） */
+  });
+  await page.goto('/kyuryo.html?t=TOK&c=INIT12345');
+  await expect(page.locator('#slips')).toContainText('読み込み中');
+  await expect(page.locator('#hnGo')).toHaveText('パスワードを 決める', { timeout: 8000 });
+});
+// 打ち切った 後に 遅れて 答えが 来ても 描き直さない（打っている 途中の 欄が 消えない）
+//   わざと壊す：答えの 側の「if (kaetta) return;」を 外す ⇒ 赤（遅れた no_token で 作り直しの 訳に 替わる）
+test('打ち切った 後に 遅れて 来た 探りの 答えでは 描き直さない', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', async (r) => {
+    await new Promise((res) => setTimeout(res, 6500));
+    return r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{"ok":false,"reason":"no_token"}',
+    });
+  });
+  await page.goto('/kyuryo.html?t=TOK&c=INIT12345');
+  await expect(page.locator('#hnGo')).toHaveText('パスワードを 決める', { timeout: 8000 });
+  await page.waitForTimeout(3000); // 遅れた 答え（6.5秒）が 届いた 後まで 待つ
+  await expect(page.locator('#hnGo')).toHaveText('パスワードを 決める');
+  await expect(page.locator('#slips')).not.toContainText('この リンクは 作り直されました');
 });
 // 全角の 数字は 半角に 直して 送る（決める・入れる 両方で 同じ）
 test('全角の 数字で 決めても 半角で 送る', async ({ page }) => {

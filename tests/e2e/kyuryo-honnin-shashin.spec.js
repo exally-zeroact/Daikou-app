@@ -98,9 +98,15 @@ const WORK = [
 ];
 
 async function nise(page, hajimete) {
-  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
-  );
+  // 本物の 関数と 同じ 答え（2026-10-21）：空（null）の 探りは まだの 人に pw_4keta
+  await page.route('**/rest/v1/rpc/dk_kyuryo_pw_set', (r) => {
+    const b = JSON.parse(r.request().postData() || '{}');
+    return r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(b.p_pw == null ? { ok: false, reason: 'pw_4keta' } : { ok: true }),
+    });
+  });
   await page.route('**/rest/v1/rpc/dk_kyuryo_verify', (r) =>
     r.fulfill({
       status: 200,
