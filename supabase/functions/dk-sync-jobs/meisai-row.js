@@ -300,6 +300,44 @@ function planMeisaiWrite(rows, existing) {
   return { inserts, updates };
 }
 
+// ★★事務所が 直した 額を 送り直しで 戻さない（dk_trips の 側）★★ 2026-10-22 司さん「触ってよし」
+//   ★穴★ 送りが 届くと 受け口は dk_trips を 消して 端末の 額で 入れ直す（dk_shifts.fare_total_yen も 端末の 値）。
+//     事務所が 請求書の 一覧で 額を 直すと dk-fix-fare が meisai.amount を dk_trips.fare_yen に 写すが、
+//     運転手が 業務終了の 後に「続ける」で 再開して 終えると、何も 直していないのに 端末の 古い 額に 戻った
+//     （明細は planMeisaiWrite が dk_meter_yen で 守るので 事務所の 額の まま＝売上と 請求書が 食い違う）。
+//   ★決まり★ 明細の 行が 生きていて、印（extra.dk_meter_yen＝前に 送った メーターの 額）が 今の 端末の 額と
+//     同じ（＝運転手は 額を 直していない）で、明細の 額が 違う（＝事務所が 直した）乗車だけ、明細の 額を 使う。
+//     メーターの 額が 変わった（運転手が 営業中に 直した）乗車は 端末の 額＝最後に 直した 方。
+//     請求書払いの 乗車だけ（明細を 作る 範囲＝buildMeisaiRows と 同じ・現金に 写さない）。
+//   返り＝{ bySeq: { seq: 使う 額 }, sa: 端末の 額との 差の 合計（業務の 合計に 足す） }
+//   ★戻しの 無い 勤務は 空＝今と 1円も 変わらない★（業務の 合計を 数え直さない＝端末の 値の まま）
+function planJimushoModoshi(opts) {
+  const o = opts || {};
+  const head = String(o.deviceId || '') + ':' + String(o.shiftStartMs || 0) + ':';
+  const byRef = new Map();
+  (Array.isArray(o.meisai) ? o.meisai : []).forEach((m) => {
+    const r = m && m.extra && m.extra.dk_ref;
+    if (r) byRef.set(String(r), m);
+  });
+  const bySeq = {};
+  let sa = 0;
+  (Array.isArray(o.trips) ? o.trips : []).forEach((t) => {
+    if (!t || t.payment_type !== 'invoice' || !t.customer_name) return;
+    const m = byRef.get(head + String(t.seq));
+    if (!m || m.deleted_at) return;
+    const fare = Math.round(Number(t.fare_yen));
+    if (!Number.isFinite(fare)) return;
+    const meter = m.extra ? m.extra.dk_meter_yen : undefined;
+    if (meter === undefined || meter === null || !_same(meter, fare)) return; // 運転手が 直した
+    const amt = Number(m.amount);
+    if (m.amount === null || m.amount === undefined || !Number.isFinite(amt)) return;
+    if (_same(amt, fare)) return;
+    bySeq[t.seq] = Math.round(amt);
+    sa += Math.round(amt) - fare;
+  });
+  return { bySeq, sa };
+}
+
 export {
   MEISAI_COLUMNS,
   placeText,
@@ -309,5 +347,6 @@ export {
   refOf,
   buildMeisaiRows,
   planMeisaiWrite,
+  planJimushoModoshi,
   UPDATABLE,
 };
