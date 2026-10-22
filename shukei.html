@@ -1279,7 +1279,7 @@
         //       ＝「本当に0」と「取れなかった」が見分けられない。
         //   新: 空は返す（落ちないため）が ★失敗は必ず数える★。
         //       数えた結果は画面の上に出し、数字は「—」にする。
-        var LOAD = DKSession.newLoadState();
+        var LOAD = DKSession.newLoadState(); // ★読みごとに 作り直す★（load の 中で 差し替える・2026-10-22）
         // ★★請求書アプリの 明細を 全部 読む★★ 2026-10-06（1000行 ずつ・その 年の 分だけ）
         //   ★持ち主が 2社 以上 持つ 時は 読まない★＝明細に Daikome の 会社の 列が 無く、どの 会社の 物か 決められない
         function seikyuShirase() {
@@ -1327,12 +1327,13 @@
           el.textContent = t;
           el.style.display = t ? '' : 'none';
         }
-        function meisaiZenbu() {
+        function meisaiZenbu(st) {
           if (KAISHA_KAZU > 1) return Promise.resolve([]);
           var out = [];
           var KAI = 1000;
           function tsugi(from) {
-            return soft(
+            return DKSession.softList(
+              SESS,
               'meisai?select=date,amount,deleted_at&deleted_at=is.null&date=gte.' +
                 YEAR +
                 '-01-01&date=lte.' +
@@ -1340,7 +1341,8 @@
                 '-12-31&order=date.asc,id.asc&limit=' +
                 KAI +
                 '&offset=' +
-                from
+                from,
+              st
             ).then(function (r) {
               var a = Array.isArray(r) ? r : [];
               out = out.concat(a);
@@ -1360,9 +1362,6 @@
             'company_id=eq.' +
             encodeURIComponent(COMPANY.company_id)
           );
-        }
-        function soft(path) {
-          return DKSession.softList(SESS, kaishaDake(path), LOAD);
         }
         var SET_YOMI = { tried: 0, failed: 0 };
         function afterLoad(retry) {
@@ -1415,6 +1414,13 @@
           var no = ++LOAD_NO;
           var jy = { tried: 0, failed: 0 };
           var ty = { tried: 0, failed: 0 };
+          // ★★売上・給料の もとの 記録（勤務・人・乗った人・明細・電子決済・手当 等）も 読みごとの 箱で 数え、読めない 年は 止める★★ 2026-10-22
+          //   前：読めないと [] を 返して 帯を 出す だけ＝売上 0円・現金が 多い 額の 表と 紙が そのまま 出た（司さん「計算できなければ 止めて 警告」）。
+          //   箱も 1つを 使い回し、0 に 戻さなかった＝一度 読めないと「もう一度読む」で 読めても 数が 残った
+          var ky = DKSession.newLoadState();
+          function soft(path) {
+            return DKSession.softList(SESS, kaishaDake(path), ky);
+          }
           showErr('');
           showMsg('読み込み中…');
           // ★読み込み中は 古い 年の 紙を 消す★（10-05 対立役：年を 変えた 直後に 押すと
@@ -1462,7 +1468,7 @@
             //   ＝請求書アプリに 手で 入れた 明細（本番 1221行）は 1円も 入っていなかった。
             //   明細の 日付は ★業務の 日★（dk-sync-jobs の businessDate）＝売上と 同じ 日に 載る。
             //   ★消した 明細（deleted_at）は 数えない★／★1000行 ずつ 全部 読む★（倉庫は 1回 1000行まで）
-            meisaiZenbu(),
+            meisaiZenbu(ky),
             soft('dk_month_extras?select=*&limit=200'),
             // ★★日ごとの 電子決済★★ 2026-09-06
             soft('dk_day_extras?select=*&limit=500'),
@@ -1526,6 +1532,8 @@
             if (no !== LOAD_NO) return; // ★古い 読みの 返事は 捨てる★
             JIPPI_YOMI = jy;
             TEIRE_YOMI = ty;
+            KYOTSU_YOMI = { tried: ky.tried, failed: ky.failed }; // 履歴・設定を 足す 前の 共通の 読みの 数
+            LOAD = ky; // ★帯は 今の 読みの 数だけ★
             RAW.shifts = res[0] || [];
             RAW.kinds = KINDS_YOMI.failed > 0 || !Array.isArray(res[16]) ? null : res[16];
             LOAD.tried += RIREKI_YOMI.tried;
@@ -1585,7 +1593,7 @@
 
         function recalc() {
           // 実費・手で 入れた 日 が 読めない 年は 売上・給料・紙を 出さない（引かない 額で 出さない）
-          SHIME_JIPPI = JIPPI_YOMI.failed > 0 || TEIRE_YOMI.failed > 0;
+          SHIME_JIPPI = JIPPI_YOMI.failed > 0 || TEIRE_YOMI.failed > 0 || KYOTSU_YOMI.failed > 0;
           if (SHIME_JIPPI) {
             SHIME_DAME = jippiDameBun();
             SHIME_URIAGE = true;
@@ -2201,9 +2209,17 @@
         //       表 7か所と 紙 3種類（月次・月の 売上表・年の 売上表）に 出た（対立役）
         var JIPPI_YOMI = { tried: 0, failed: 0 };
         var TEIRE_YOMI = { tried: 0, failed: 0 };
+        var KYOTSU_YOMI = { tried: 0, failed: 0 };
+        function yomenaiNa() {
+          return JIPPI_YOMI.failed > 0
+            ? '実費'
+            : TEIRE_YOMI.failed > 0
+              ? '手で 入れた 日'
+              : '勤務・売上・給料の もと';
+        }
         var SHIME_JIPPI = false;
         function jippiDameBun() {
-          return (JIPPI_YOMI.failed > 0 ? '実費' : '手で 入れた 日') + 'の 記録が 読めません';
+          return yomenaiNa() + 'の 記録が 読めません';
         }
         // ★止めた 年・読み込み中は 細かい 表（内訳・売上・距離・電子決済）と 月の 選びも 空に する★ 2026-10-22
         //   前：止めの 枝は 3枚の 表だけ 消し、「細かい 表で 見る」を 開くと 前の 年の 額（売上 ¥93,000・1月 62,000 等）が 残った（対立役 直す-1）
@@ -2234,7 +2250,7 @@
         }
         function jippiKamiBun() {
           return (
-            (JIPPI_YOMI.failed > 0 ? '実費' : '手で 入れた 日') +
+            yomenaiNa() +
             'の 記録が 読めないので 紙は 出せません（上の「もう一度読む」を 押してください）'
           );
         }
