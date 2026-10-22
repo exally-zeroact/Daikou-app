@@ -1471,7 +1471,15 @@
             meisaiZenbu(ky),
             soft('dk_month_extras?select=*&limit=200'),
             // ★★日ごとの 電子決済★★ 2026-09-06
-            soft('dk_day_extras?select=*&limit=500'),
+            // ★この 年の 分だけを 日付の 順に 全部 読む★ 2026-10-23（前は 日付で 絞らず limit=500＝1日 1行 なので
+            //   1年半ほどで 500 を 越え、越えると この 年の 日の 額が 黙って 抜けた）
+            soft(
+              'dk_day_extras?select=*&pay_date=gte.' +
+                KARA +
+                '&pay_date=lte.' +
+                MADE +
+                '&order=pay_date.asc&limit=5000'
+            ),
             // 手で 入れた 日も 読めたかを 別に 数える（その 車の 売上・実費が 抜けた 額で 出さない）
             DKSession.softList(
               SESS,
