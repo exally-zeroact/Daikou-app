@@ -414,3 +414,31 @@ test('★表を 描いた 後に 転んでも 数字と 紙の 絵を 残さな�
   expect(await kami(page), '★失敗の 訳と 紙の 絵が 並んだ★').toBe(0);
   expect(await gyou(page), '★失敗の 訳と 表の 数字が 並んだ★').toBe(0);
 });
+
+// ★★開いた 最初の 読みが 失敗した 時★★ 2026-10-22（対立役 P9）
+//   ★前★ 記録の 一覧（RIREKI）が 始めの 空の 箱 [] の まま 残り「読めた」と 見なされ、
+//         読んでいない 設定・記録の まま「何日から」の 記録と 設定の 列を 書けた
+//   ★今★ 一度も 読めていない 間は 設定も 記録も 書かず、訳を 出す
+for (const hi of ['2026-01-10', '']) {
+  test(`★最初の 読みが 失敗したら 設定を 変えても 送らない（何日から＝${hi || '空'}）★`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.__shiftsFail = true;
+    });
+    await akeru(page, []);
+    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+    await page.evaluate((hi) => {
+      const d = document.getElementById('dHi');
+      d.value = hi;
+      d.dispatchEvent(new Event('change'));
+      const i = document.getElementById('dToll');
+      i.checked = !i.checked;
+      i.dispatchEvent(new Event('change'));
+    }, hi);
+    await page.waitForTimeout(800);
+    const okutta = await page.evaluate(() => window.__okutta);
+    expect(okutta, '★読めていない 設定・記録の まま 書いた★').toEqual([]);
+    await expect(page.locator('#err')).toContainText('保存しません');
+  });
+}

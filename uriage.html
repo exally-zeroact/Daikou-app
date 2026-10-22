@@ -637,7 +637,8 @@
         // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18（docs/nannichi-kara-uriage.md）
         //   RIREKI＝dk_uriage_rireki の 行（null＝読めなかった）／KUMI＝UriageAgg.rirekiKumu の 返り値
         //   RIREKI_DAME＝読めない・形が 違う＝★数字も 紙も 出さない★（列の 値で 黙って 出さない）
-        var RIREKI = [];
+        // ★始めは null＝まだ 読めていない★（[] だと 最初の 読みが 失敗しても 書けた（1件 送った）・対立役 P9）2026-10-22
+        var RIREKI = null;
         var KUMI = null;
         var RIREKI_DAME = false;
         var RIREKI_DAME_BUN =
