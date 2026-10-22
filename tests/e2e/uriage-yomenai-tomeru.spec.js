@@ -442,3 +442,33 @@ for (const hi of ['2026-01-10', '']) {
     await expect(page.locator('#err')).toContainText('保存しません');
   });
 }
+
+// ★★読めた 月から 次の 月の 読みが 失敗した 後★★ 2026-10-22（対立役 P9 の 続き）
+//   ★前★ 前の 月の 設定・記録が 残るので 書けた。書けた 後に「読み込みに失敗しました」の 訳が 消え、
+//         表は 空の まま「保存しました」だけ 出た
+//   ★今★ その 月の 読みが 通るまで（読み込み中・失敗の 後）設定も 記録も 書かず、失敗の 訳を 残す
+for (const hi of ['2026-02-10', '']) {
+  test(`★次の 月の 読みが 失敗した 後は 設定を 変えても 送らず 訳を 残す（何日から＝${hi || '空'}）★`, async ({
+    page,
+  }) => {
+    await akeru(page, []);
+    await page.evaluate(() => {
+      window.__shiftsFail = true;
+    });
+    await page.locator('#nextM').click();
+    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+    await page.evaluate((hi) => {
+      const d = document.getElementById('dHi');
+      d.value = hi;
+      d.dispatchEvent(new Event('change'));
+      const i = document.getElementById('dToll');
+      i.checked = !i.checked;
+      i.dispatchEvent(new Event('change'));
+    }, hi);
+    await page.waitForTimeout(800);
+    const okutta = await page.evaluate(() => window.__okutta);
+    expect(okutta, '★読みが 失敗した 月に 書いた★').toEqual([]);
+    await expect(page.locator('#err'), '★失敗の 訳が 消えた★').toBeVisible();
+    await expect(page.locator('#err')).toContainText('保存しません');
+  });
+}
