@@ -2791,172 +2791,181 @@
             p_pw: HONNIN.pw || (HONNIN.fuda ? 'fuda:' + HONNIN.fuda : null),
             p_from: h.from,
             p_to: h.to,
-          }).then(function (r) {
-            // ★札が 切れた（24時間・作り直し・他の 端末で 5本 越え）＝札を 消して 入れる 画面へ★
-            if (r && r.reason === 'fuda_kire' && !HONNIN.pw) {
-              hnFudaKesu();
-              HONNIN.fuda = null;
-              honninStart();
-              return honninErr(
-                '24時間 たったか、ほかの 端末で 何度も 入ったので、もう一度 パスワードを 入れてください。'
-              );
-            }
-            if (!r || r.ok !== true) {
-              // ★途中で 止まった・作り直された★ 2026-10-20（覚えた パスワードで 取り直す 間に 事務所が 作り直した 等）
-              if (r && r.reason === 'tomatta') return honninTomeru(HONNIN_TOMATTA_BUN);
-              if (r && (r.reason === 'no_token' || r.reason === 'bad_pw'))
-                return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
-              // 辞めた 後の 月（働いた 日が 無い 月）は 倉庫が 返さない（会社の 売上を 見続けない・10-16）
-              var taishoku = r && r.reason === 'taishoku';
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">' +
-                  (taishoku
-                    ? 'この 月は 働いた 日も 手当・控除も 無いので 出せません（辞めた 後の 月は、働いたか 手当・控除が 在る 月だけ 見られます）。'
-                    : '出せませんでした。もう一度 開いてください。') +
-                  '</div>' +
-                  // 辞めた 人が 働いた 月へ 戻れる ように 月の 送りを 出す（無いと 最後の 明細に 行けなかった・対立役 K3）
-                  (taishoku
-                    ? '<div style="margin-top:10px;display:flex;gap:8px">' +
-                      '<button class="btn ghost" type="button" id="hnTaiMae">◀ 前の月</button>' +
-                      '<button class="btn ghost" type="button" id="hnTaiTsugi">次の月 ▶</button></div>'
-                    : '') +
-                  '</div>';
-              if (taishoku) {
-                var tm = document.getElementById('hnTaiMae');
-                var tt = document.getElementById('hnTaiTsugi');
-                if (tm)
-                  tm.onclick = function () {
-                    honninTsuki(-1);
-                  };
-                if (tt)
-                  tt.onclick = function () {
-                    honninTsuki(1);
-                  };
+          })
+            .then(function (r) {
+              // ★札が 切れた（24時間・作り直し・他の 端末で 5本 越え）＝札を 消して 入れる 画面へ★
+              if (r && r.reason === 'fuda_kire' && !HONNIN.pw) {
+                hnFudaKesu();
+                HONNIN.fuda = null;
+                honninStart();
+                return honninErr(
+                  '24時間 たったか、ほかの 端末で 何度も 入ったので、もう一度 パスワードを 入れてください。'
+                );
               }
-              return;
-            }
-            SET = (r.settings || [])[0] || null;
-            RAW.employees = r.emp ? [r.emp] : []; // ★自分 1人だけ★
-            RAW.labels = r.labels || [];
-            RAW.payrollSettings = SET;
-            // ★会社の「売上から 何を 引くか」★（前は null＝既定で 計算し 事務所と ずれ得た・10-02 夜）
-            RAW.salesSettings = r.salesSettings || null;
-            RAW.shifts = r.shifts || [];
-            RAW.edits = r.edits || [];
-            RAW.workHours = r.workHours || [];
-            RAW.manualDays = r.manualDays || [];
-            // ★その日 その車に 乗った 人の 役（名前・時間は 無し）★ 2026-10-06＝回数・距離の 1台の 額を 分ける 為
-            //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
-            if (Array.isArray(r.crew)) RAW.crew = r.crew;
-            // ★自分の 変えた 記録（何日から）★ 2026-10-18＝返って こない（古い 倉庫の 関数）時は null＝計算が 止める
-            RAW.rireki = Array.isArray(r.rireki) ? r.rireki : null;
-            RAW.yakuRireki = Array.isArray(r.yakuRireki) ? r.yakuRireki : null; // ★役割の 決まりの 記録★
-            // ★自分の 手当・控除★ 2026-10-06（倉庫の 関数が 本人の 分だけ 返す）
-            // ★返って こない（古い 倉庫の 関数）時は 止める★ 2026-10-07（前は 空＝控除 0 の 明細が 出た・対立役）
-            if (!Array.isArray(r.adjustments)) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">手当・控除を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
-              return;
-            }
-            RAW.adjustments = r.adjustments;
-            // ★売上から 引く 物の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-18
-            //   本人が 開き直しても 直らない＝会社に 知らせる 字（対立役 直5）
-            if (!Array.isArray(r.uriageRireki)) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
-              return;
-            }
-            RAW.uriageRireki = r.uriageRireki;
-            // ★締めの 形の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-19（列の 形で 区切らない）
-            if (!Array.isArray(r.shimeRireki)) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">締めの 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
-              return;
-            }
-            RAW.shimeRireki = r.shimeRireki;
-            // ★売上の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-14
-            //   返さないと 本人だけ メーターの 額で 計算し、事務所と 給料が 黙って ずれる（対立役）
-            if (r.uriageNaoshi !== true) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">売上の 直しを 読めなかったので 出せません。会社に 知らせてください。</div></div>';
-              return;
-            }
-            // ★手入力の 日の 足した 実費を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-20（司さん「揃えろ」）
-            //   返さないと 本人だけ 足した 実費を 引かず、事務所と 給料が 黙って ずれる（対立役）
-            if (r.tebikiJippi !== true) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">手入力の 日の 実費を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
-              return;
-            }
-            HN_YOMI = HN_Y + '-' + HN_M;
-            var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
-            // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
-            if (!st.periodKata || st.periodKata.dame) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">' +
-                  esc(shimeDameBun(st.periodKata)) +
-                  '</div></div>';
-              return;
-            }
-            HN_SAKI = kyouNoTsuki(st.periodKata);
-            // ★最初に 開いた 時は 今日の 期の 月へ★（違えば 1回だけ 取り直す）
-            if (!HN_KIMETA) {
-              HN_KIMETA = true;
-              if (HN_SAKI.year !== HN_Y || HN_SAKI.month !== HN_M) {
-                HN_Y = HN_SAKI.year;
-                HN_M = HN_SAKI.month;
-                honninTsuki(0);
+              if (!r || r.ok !== true) {
+                // ★途中で 止まった・作り直された★ 2026-10-20（覚えた パスワードで 取り直す 間に 事務所が 作り直した 等）
+                if (r && r.reason === 'tomatta') return honninTomeru(HONNIN_TOMATTA_BUN);
+                if (r && (r.reason === 'no_token' || r.reason === 'bad_pw'))
+                  return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+                // 辞めた 後の 月（働いた 日が 無い 月）は 倉庫が 返さない（会社の 売上を 見続けない・10-16）
+                var taishoku = r && r.reason === 'taishoku';
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">' +
+                    (taishoku
+                      ? 'この 月は 働いた 日も 手当・控除も 無いので 出せません（辞めた 後の 月は、働いたか 手当・控除が 在る 月だけ 見られます）。'
+                      : '出せませんでした。もう一度 開いてください。') +
+                    '</div>' +
+                    // 辞めた 人が 働いた 月へ 戻れる ように 月の 送りを 出す（無いと 最後の 明細に 行けなかった・対立役 K3）
+                    (taishoku
+                      ? '<div style="margin-top:10px;display:flex;gap:8px">' +
+                        '<button class="btn ghost" type="button" id="hnTaiMae">◀ 前の月</button>' +
+                        '<button class="btn ghost" type="button" id="hnTaiTsugi">次の月 ▶</button></div>'
+                      : '') +
+                    '</div>';
+                if (taishoku) {
+                  var tm = document.getElementById('hnTaiMae');
+                  var tt = document.getElementById('hnTaiTsugi');
+                  if (tm)
+                    tm.onclick = function () {
+                      honninTsuki(-1);
+                    };
+                  if (tt)
+                    tt.onclick = function () {
+                      honninTsuki(1);
+                    };
+                }
                 return;
               }
-            }
-            PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, { kata: st.periodKata });
-            if (kikanKowareta(PERIODS)) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">' +
-                  esc(
-                    PERIODS.some(function (p) {
-                      return p && p.aki;
-                    })
-                      ? '締めの 変え方で この 月の 給料が 無くなっています。会社に 知らせてください。'
-                      : '締めの 変えた 記録から 期を 区切れないので 出せません。会社に 知らせてください。'
-                  ) +
-                  '</div></div>';
-              return;
-            }
-            // ★期が 取った 幅の 外へ 出る（締めの 形が 変わる 月・始まった 日の 月の 分）＝1回だけ 広げて 取り直す★ 2026-10-19
-            //   取らないと 幅の 外の 日の 勤務が 0 の まま 明細に 出る（対立役 主張4）
-            //   ★記録の 在る 会社だけ★（記録0の 会社の 本人の 幅は 今の まま＝別件・1押し＝1件・対立役 2回目 直1）
-            if (PERIODS.length && !haba && st.periodKata.kind === 'rireki') {
-              var hS = PERIODS[0].start;
-              var hE = PERIODS[PERIODS.length - 1].end;
-              if (hS < h.from || hE > h.to) {
-                honninTsuki(0, { from: hS < h.from ? hS : h.from, to: hE > h.to ? hE : h.to });
+              SET = (r.settings || [])[0] || null;
+              RAW.employees = r.emp ? [r.emp] : []; // ★自分 1人だけ★
+              RAW.labels = r.labels || [];
+              RAW.payrollSettings = SET;
+              // ★会社の「売上から 何を 引くか」★（前は null＝既定で 計算し 事務所と ずれ得た・10-02 夜）
+              RAW.salesSettings = r.salesSettings || null;
+              RAW.shifts = r.shifts || [];
+              RAW.edits = r.edits || [];
+              RAW.workHours = r.workHours || [];
+              RAW.manualDays = r.manualDays || [];
+              // ★その日 その車に 乗った 人の 役（名前・時間は 無し）★ 2026-10-06＝回数・距離の 1台の 額を 分ける 為
+              //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
+              if (Array.isArray(r.crew)) RAW.crew = r.crew;
+              // ★自分の 変えた 記録（何日から）★ 2026-10-18＝返って こない（古い 倉庫の 関数）時は null＝計算が 止める
+              RAW.rireki = Array.isArray(r.rireki) ? r.rireki : null;
+              RAW.yakuRireki = Array.isArray(r.yakuRireki) ? r.yakuRireki : null; // ★役割の 決まりの 記録★
+              // ★自分の 手当・控除★ 2026-10-06（倉庫の 関数が 本人の 分だけ 返す）
+              // ★返って こない（古い 倉庫の 関数）時は 止める★ 2026-10-07（前は 空＝控除 0 の 明細が 出た・対立役）
+              if (!Array.isArray(r.adjustments)) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">手当・控除を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
                 return;
               }
-            }
-            if (!PERIODS.length) {
-              if (box)
-                box.innerHTML =
-                  '<div class="card"><div class="msg">この 月に 締める 給料は ありません。</div></div>';
-              return;
-            }
-            // ★月3回は 今まで 通り 最初の 期★（今の 会社の 見え方を 変えない）・他は 今日を 含む 期
-            //   締めの 形が 月の 中で 変わる 月は その月の 形で 見る（何日から 2026-10-19）
-            var hnTk = PayrollPeriod.tsukiNoKata(st.periodKata, HN_Y, HN_M);
-            PIDX = hnTk && hnTk.kind === 'thirds' ? 0 : kyouNoKi(PERIODS);
-            PERIOD = PERIODS[PIDX];
-            recalc();
-            TAB = 'slip';
-            honninKami();
-          });
+              RAW.adjustments = r.adjustments;
+              // ★売上から 引く 物の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-18
+              //   本人が 開き直しても 直らない＝会社に 知らせる 字（対立役 直5）
+              if (!Array.isArray(r.uriageRireki)) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+                return;
+              }
+              RAW.uriageRireki = r.uriageRireki;
+              // ★締めの 形の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-19（列の 形で 区切らない）
+              if (!Array.isArray(r.shimeRireki)) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">締めの 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+                return;
+              }
+              RAW.shimeRireki = r.shimeRireki;
+              // ★売上の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-14
+              //   返さないと 本人だけ メーターの 額で 計算し、事務所と 給料が 黙って ずれる（対立役）
+              if (r.uriageNaoshi !== true) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">売上の 直しを 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+                return;
+              }
+              // ★手入力の 日の 足した 実費を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-20（司さん「揃えろ」）
+              //   返さないと 本人だけ 足した 実費を 引かず、事務所と 給料が 黙って ずれる（対立役）
+              if (r.tebikiJippi !== true) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">手入力の 日の 実費を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+                return;
+              }
+              HN_YOMI = HN_Y + '-' + HN_M;
+              var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+              // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
+              if (!st.periodKata || st.periodKata.dame) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">' +
+                    esc(shimeDameBun(st.periodKata)) +
+                    '</div></div>';
+                return;
+              }
+              HN_SAKI = kyouNoTsuki(st.periodKata);
+              // ★最初に 開いた 時は 今日の 期の 月へ★（違えば 1回だけ 取り直す）
+              if (!HN_KIMETA) {
+                HN_KIMETA = true;
+                if (HN_SAKI.year !== HN_Y || HN_SAKI.month !== HN_M) {
+                  HN_Y = HN_SAKI.year;
+                  HN_M = HN_SAKI.month;
+                  honninTsuki(0);
+                  return;
+                }
+              }
+              PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, { kata: st.periodKata });
+              if (kikanKowareta(PERIODS)) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">' +
+                    esc(
+                      PERIODS.some(function (p) {
+                        return p && p.aki;
+                      })
+                        ? '締めの 変え方で この 月の 給料が 無くなっています。会社に 知らせてください。'
+                        : '締めの 変えた 記録から 期を 区切れないので 出せません。会社に 知らせてください。'
+                    ) +
+                    '</div></div>';
+                return;
+              }
+              // ★期が 取った 幅の 外へ 出る（締めの 形が 変わる 月・始まった 日の 月の 分）＝1回だけ 広げて 取り直す★ 2026-10-19
+              //   取らないと 幅の 外の 日の 勤務が 0 の まま 明細に 出る（対立役 主張4）
+              //   ★記録の 在る 会社だけ★（記録0の 会社の 本人の 幅は 今の まま＝別件・1押し＝1件・対立役 2回目 直1）
+              if (PERIODS.length && !haba && st.periodKata.kind === 'rireki') {
+                var hS = PERIODS[0].start;
+                var hE = PERIODS[PERIODS.length - 1].end;
+                if (hS < h.from || hE > h.to) {
+                  honninTsuki(0, { from: hS < h.from ? hS : h.from, to: hE > h.to ? hE : h.to });
+                  return;
+                }
+              }
+              if (!PERIODS.length) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">この 月に 締める 給料は ありません。</div></div>';
+                return;
+              }
+              // ★月3回は 今まで 通り 最初の 期★（今の 会社の 見え方を 変えない）・他は 今日を 含む 期
+              //   締めの 形が 月の 中で 変わる 月は その月の 形で 見る（何日から 2026-10-19）
+              var hnTk = PayrollPeriod.tsukiNoKata(st.periodKata, HN_Y, HN_M);
+              PIDX = hnTk && hnTk.kind === 'thirds' ? 0 : kyouNoKi(PERIODS);
+              PERIOD = PERIODS[PIDX];
+              if (!hnKeisan()) return;
+              TAB = 'slip';
+              honninKami();
+            })
+            .catch(function (e) {
+              // ★読み終わりの 中で 計算 以外（期の 区切り・設定の 読み 等）が 転んでも 黙って「読み込み中…」で 止めない★ 2026-10-22（対立役 K2）
+              if (window.console) console.warn('[本人の 読み終わり]', e);
+              HN_KEISAN_NG = true;
+              REP = null;
+              hnPdfSuteru();
+              honninTomeru(HN_KEISAN_NG_BUN);
+            });
         }
 
         // ★締めで 止めた 時も 給料の 設定を 開いて いれば 描く★ 2026-10-19（壊れた 記録を 消せる 様に・対立役 直5）
@@ -3055,8 +3064,27 @@
           PIDX = i;
           PERIOD = PERIODS[i];
           hnPdfSuteru(); // ★前の 期間の PDF を 渡さない★
-          recalc();
+          if (!hnKeisan()) return;
           honninKami();
+        }
+        // ★★本人の 画面の 計算が 転んだ 時は 前の 期の 額を 出さない・PDF も 作らない★★ 2026-10-22
+        //   前：受け皿が 無く、転ぶと 前の 期の 紙と 札が 残り、PDF の ボタンは 生きて いて 別の 期の 名前の PDF を 渡した（対立役）
+        var HN_KEISAN_NG = false;
+        var HN_KEISAN_NG_BUN =
+          'この 期間の 明細を 計算できませんでした。画面を 開き直してください（直らない 時は 会社に 知らせてください）。';
+        function hnKeisan() {
+          try {
+            recalc();
+            HN_KEISAN_NG = false;
+            return true;
+          } catch (e) {
+            if (window.console) console.warn('[本人の 計算]', e);
+            HN_KEISAN_NG = true;
+            REP = null;
+            hnPdfSuteru();
+            honninTomeru(HN_KEISAN_NG_BUN);
+            return false;
+          }
         }
 
         // ★★本人の 明細を 自分で PDF に する（保存・印刷）★★ 2026-10-21 司さん
@@ -3108,6 +3136,7 @@
           hnPdfErr('');
           if (hnPdfAru()) return hnPdfWatasu(HN_PDF);
           if (HN_PDF_CHU === HN_NO) return;
+          if (HN_KEISAN_NG || !REP) return hnPdfErr(HN_KEISAN_NG_BUN);
           if (kyuDameBun(CTX)) return hnPdfErr(kyuDameBun(CTX));
           var emp = REP && REP.employees ? REP.employees[0] : null;
           if (!emp) return hnPdfErr('この月の 記録は ありません。');
@@ -3209,6 +3238,8 @@
         function honninKami() {
           var box = document.getElementById('slips');
           if (!box) return;
+          // 計算が 転んだ 間は 描かない（画面の 幅を 変えた 時の 描き直しでも 前の 期の 額を 出さない）
+          if (HN_KEISAN_NG) return honninTomeru(HN_KEISAN_NG_BUN);
           // 売上の 直しが 読めない 業務が 在れば 本人の 明細も 出さない（事務所と 同じ 門）2026-10-14
           if (kyuDameBun(CTX)) {
             box.innerHTML =
