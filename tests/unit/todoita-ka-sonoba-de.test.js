@@ -111,13 +111,29 @@ describe('★届いていない事に その場で 気づく★', () => {
 
   it('★★③ 本番の ビルド（実測 約4分）を 待てる長さが 在る★★', () => {
     const s = y();
-    const kai = (s.match(/for i in ([0-9 ]+); do/) || [])[1];
-    expect(kai, '★待つ 回数が 読めません★').toBeTruthy();
-    const n = kai.trim().split(/\s+/).length;
-    expect(n, '★待ちが 短すぎます（本番の ビルドは 約4分・並ぶ事も ある）★').toBeGreaterThanOrEqual(
-      6
-    );
-    const tm = Number(yaml.load(s).jobs.check['timeout-minutes']); // 突き合わせの job の 打ち切り（10-17 ochita を 足したので 最初の 字では 読まない）
-    expect(tm, '★待つ 時間より 打ち切りが 短いです（★必ず 途中で 切れます★）★').toBeGreaterThan(n);
+    // ★突き合わせの job の run の 本文だけを 見る★（注釈に 書いた 字に 当てない・対立役 見立て-1）
+    const job = yaml.load(s).jobs.check;
+    const run = (job.steps || []).map((st) => st.run || '').join(String.fromCharCode(10));
+    // 待つ 回数＝for の 並び か $(seq 1 N)（2026-10-22 に seq へ 変えた）
+    const m1 = run.match(/for i in ([0-9 ]+); do/);
+    const m2 = run.match(/for i in \$\(seq 1 ([0-9]+)\); do/);
+    expect(m1 || m2, '★待つ 回数が 読めません★').toBeTruthy();
+    const n = m2 ? Number(m2[1]) : m1[1].trim().split(/\s+/).length;
+    // ★15回 以上★ 2026-10-22（10-21 に 配信が 本番 14.3分・テスト線 16.1分 遅れ、8回では 偽の 赤に なった）
+    expect(n, '★待ちが 短すぎます（10-21 に 配信が 16.1分 遅れた）★').toBeGreaterThanOrEqual(15);
+    // 最後の 回の 後は 待たない（回数と 揃う）・待ちは 60秒（行の 終わりまで 一致＝sleep 600 に 当てない）
+    const ma = run.match(/\[ "\$i" -lt ([0-9]+) \] && sleep ([0-9]+)\s*$/m);
+    expect(ma, '★「最後は 待たない」の 行が 読めません★').toBeTruthy();
+    expect(Number(ma[1]), '★回数と「最後は 待たない」の 数が 揃っていません★').toBe(n);
+    const neru = Number(ma[2]);
+    // ★一番 悪い 時（サイトが 応答しない＝curl が 毎回 打ち切りまで 待つ）より 打ち切りが 長い★（対立役 直す-1）
+    const mt = run.match(/curl [^\n]*--max-time ([0-9]+)/);
+    expect(mt, '★curl の 待ちの 上限が 読めません★').toBeTruthy();
+    const warui = n * Number(mt[1]) + (n - 1) * neru + 120; // 前後の 支度 2分
+    const tm = Number(job['timeout-minutes']);
+    expect(
+      tm * 60,
+      `★一番 悪い 時（${warui}秒）より 打ち切り（${tm}分）が 短い＝取り消し（灰色）で 黙って 終わる★`
+    ).toBeGreaterThan(warui);
   });
 });
