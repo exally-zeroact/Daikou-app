@@ -400,6 +400,16 @@
         cursor: default;
       }
 
+      /* 売上が 無いのに 経費（2026-10-23 司さん「売上なしで経費いれた時に売り上げがありませんって警告しろや」） */
+      .keihi-keikoku {
+        font-size: 12px;
+        font-weight: 700;
+        color: #a1281e;
+        line-height: 1.6;
+        margin: -2px 0 8px;
+        overflow-wrap: anywhere;
+      }
+
       .keikoku {
         display: block;
         font-size: 12px;
@@ -1185,6 +1195,7 @@
           $('shaList').innerHTML = html;
           $('newCarBox').style.display = '';
           bindYen();
+          keihiKeikokuZenbu();
         }
 
         // ★★判じの 材料（給料の 計算と 同じ PayrollDaily.buildCtx）★★ 2026-10-23（対立役 A-4）
@@ -1311,6 +1322,8 @@
           } else if (sh) {
             var hoka = hokaOf(sh);
             var fuku = sh.ids.length > 1 || sh.dame;
+            // 上の 欄＝その 車の その日（売上なしの 警告の 区切り）。別の 回にも 額が 在る 時は 合計を 出すだけ＝警告は 回ごとの 欄
+            naka += '<div class="ran-ue"' + (hoka.length ? ' data-matome="1"' : '') + '>';
             naka += ranHtml(
               sh.shift_id,
               'data-sid',
@@ -1330,13 +1343,17 @@
                 : '',
               dev
             );
+            naka += '</div>';
             // ★★時数（車の 時間）★★ 経費の 下（司さん「経費の下に時数、乗った人」）
             //   2回 以上 走った 日・売上が 読めない 日は 回ごとに 売上・時数（業務ごとの 鍵＝1つの 欄に 足すと 時間が 二重に なる・対立役 A-2）
             if (fuku) naka += kaiHtml(sh, hoka.length > 0);
             else naka += jisuuMeterHtml(sh.runs[0], '時数（車の 時間）');
           } else {
             var t = TEBIKI[dev] || {};
-            naka += ranHtml(dev, 'data-dev', t, t.sales_yen, false, '', dev);
+            naka +=
+              '<div class="ran-ue">' +
+              ranHtml(dev, 'data-dev', t, t.sales_yen, false, '', dev) +
+              '</div>';
             naka += jisuuTebikiHtml(dev, t);
           }
           naka +=
@@ -1405,7 +1422,9 @@
               (naoshi && !dameKai ? esc(String(e.uriage_yen)) : '') +
               '" placeholder="' +
               JippiHozon.seisuu(s.fare_total_yen) +
-              '" data-yomitori="1"><span class="en">円</span></div>' +
+              '" data-yomitori="1"' +
+              (dameKai ? ' data-uri-dame="1"' : '') +
+              '><span class="en">円</span></div>' +
               (dameKai
                 ? '<span class="hint" style="color:#b42318;font-weight:700">この 回の 売上の 直しが 読めません（負の 数 など）。打ち直してください（空＝メーターの 額）。</span>'
                 : '<span class="hint">空＝メーターの 額（' +
@@ -1604,6 +1623,7 @@
               if (sh && g) g.value = JippiHozon.seisuu(sh.fare_total_yen);
             }
           );
+          keihiKeikokuZenbu(); // 見出しの 印を 描き直した ので 売上なしの 印も
           if (YOMENAI) tomeruRan(yomenaiJi());
         }
 
@@ -1857,8 +1877,104 @@
               );
             })
             .join('');
+          // 売上が 無いのに 経費（出す・消すは keihiKeikokuNuru＝欄の 今の 字で 決める）
+          h += '<div class="keihi-keikoku" style="display:none">' + esc(KEIHI_JI) + '</div>';
           return h;
         }
+
+        // ★★売上が 無いのに 経費が 在る＝警告★★ 2026-10-23
+        //   司さん「売上ないのに経費があるわけなかろが。売上なしで経費いれた時に売り上げがありませんって警告しろや」
+        //   ★警告だけ★（保存は 止めない）。経費＝実費（dk_expense_kinds の 欄）の 合計。電子決済・請求書は 経費に 数えない
+        //   ★欄の 今の 字で 決める★＝打った 時（保存の 返事を 待たずに）出す・消す
+        //   区切り：上の 欄（.ran-ue）＝その 車の その日／回ごとの 欄（.kai）＝その 回
+        //   売上が 読めない（負の 数・打ち方の 間違い）時は 出さない（0 と 決めつけない）
+        var KEIHI_JI = '売上がありません。売上を入れてから経費を入れてください。';
+        function uriOfInp(i) {
+          if (!i) return null;
+          // メーターの 売上の 欄（空＝メーターの 額＝薄い 字）
+          if (i.hasAttribute('data-uri-sid')) {
+            var v = UriageAgg.yomuUriage(i.value);
+            if (v === undefined) return null;
+            // 直しが 読めない 回（空でも メーターの 額とは 限らない）
+            if (v === null && i.hasAttribute('data-uri-dame')) return null;
+            return v === null ? JippiHozon.seisuu(i.getAttribute('placeholder')) : v;
+          }
+          // 手入力の 売上（空＝0）／2回 以上 走った 車の 合計（打てない 欄）
+          var t = String(i.value == null ? '' : i.value).trim();
+          if (t === '') return 0;
+          var n = Number(t);
+          return isFinite(n) && n >= 0 ? n : null;
+        }
+        function keihiOf(box) {
+          var ids = {};
+          (RAW.kinds || []).forEach(function (k) {
+            ids[k.kind_id] = true;
+          });
+          var g = 0;
+          Array.prototype.forEach.call(box.querySelectorAll('input[data-f]'), function (i) {
+            if (ids[i.getAttribute('data-f')]) g += JippiHozon.seisuu(i.value);
+          });
+          return g;
+        }
+        function keihiKeikokuNuru(el) {
+          if (!el) return;
+          var aru = false;
+          Array.prototype.forEach.call(el.querySelectorAll('.ran-ue, .kai'), function (box) {
+            var ji = box.querySelector('.keihi-keikoku');
+            if (!ji) return;
+            var u = null;
+            if (box.classList.contains('kai')) {
+              u = uriOfInp(box.querySelector('input[data-uri-sid]'));
+            } else if (box.getAttribute('data-matome') !== '1') {
+              var kai = el.querySelectorAll('.kai input[data-uri-sid]');
+              if (kai.length) {
+                // 2回 以上 走った 車＝回ごとの 売上の 欄の 合計（打った 時に 変わる）
+                u = 0;
+                Array.prototype.forEach.call(kai, function (i) {
+                  var x = uriOfInp(i);
+                  u = u === null || x === null ? null : u + x;
+                });
+              } else {
+                u = uriOfInp(
+                  box.querySelector(
+                    'input[data-uri-sid], input[data-f="sales_yen"], input[data-goukei]'
+                  )
+                );
+              }
+            }
+            var on = u === 0 && keihiOf(box) > 0;
+            ji.style.display = on ? '' : 'none';
+            if (on) aru = true;
+          });
+          var sr = el.querySelector('.sha-shirushi');
+          if (!sr) return;
+          var m = sr.querySelector('.shirushi[data-keihi]');
+          if (aru && !m) {
+            m = document.createElement('span');
+            m.className = 'shirushi';
+            m.setAttribute('data-keihi', '1');
+            m.textContent = '売上なし';
+            sr.insertBefore(m, sr.firstChild);
+          } else if (!aru && m) {
+            m.parentNode.removeChild(m);
+          }
+        }
+        function keihiKeikokuZenbu() {
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList .sha[data-car]'),
+            keihiKeikokuNuru
+          );
+        }
+        // 打つ たびに（1か所で 聞く＝描き直しても 結び直さない）
+        (function () {
+          var kiku = function (ev) {
+            var t = ev.target;
+            if (!t || t.tagName !== 'INPUT' || !t.closest) return;
+            keihiKeikokuNuru(t.closest('#shaList .sha[data-car]'));
+          };
+          $('shaList').addEventListener('input', kiku);
+          $('shaList').addEventListener('change', kiku);
+        })();
 
         function bindYen() {
           Array.prototype.forEach.call(
@@ -1975,6 +2091,7 @@
                 hozonDekita(kagi + ':uriage');
                 EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
                 inp.value = v === null ? '' : String(v);
+                inp.removeAttribute('data-uri-dame'); // 書けた＝もう 読めない 直しでは ない
                 shirushiNuru(); // 売上が 変わる＝入れ漏れの 印・合計
               })
               .catch(function (r) {
