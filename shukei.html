@@ -701,6 +701,8 @@
       </div>
 
       <div class="err noprint" id="err" style="display: none"></div>
+      <!-- ★明細に 載らない 手当・控除の 帯★ 2026-10-23 件G（名簿に いない 人の 分＝給料の 合計に 入れない・黙って 消さない） -->
+      <div class="err noprint" id="meisaiGaiObi" style="display: none"></div>
       <div class="msg noprint" id="msg" style="display: none"></div>
 
       <!-- ★★細かい 表は 畳む★★ 2026-10-05（司さん「何をくどくど訳わからんこと見せとんど」）
@@ -748,7 +750,9 @@
             ><br />
             <b>給料</b
             >は払う回ごとに分けて出しています。<b>未収</b>＝請求書＋電子決済（まだ現金になっていない分）。<br />
-            <b>会社に残る分</b>＝売上 − 給料 − 積立金。日ごとに出した分を足した物と一致します。
+            <b>給料</b
+            >は明細の差引支給（人ごとに1円未満を丸めた額）を払う回ごとに足した額です。<br />
+            <b>会社に残る分</b>＝売上 − 給料 − 積立金。
           </div>
         </div>
 
@@ -2263,8 +2267,17 @@
         }
         var URI_RIREKI_KAMI =
           '売上から 引く 物の 変えた 記録を 読めないので 紙は 出せません（もう一度 開いてください）';
+        // ★明細に 載らない 手当・控除の 帯★ 2026-10-23 件G（字は 給料タブと 同じ 1か所＝PayrollDaily.meisaiGaiJi）
+        function meisaiGaiObi(kensu) {
+          var b = $('meisaiGaiObi');
+          if (!b) return;
+          var ji = kensu > 0 ? PayrollDaily.meisaiGaiJi(kensu) : '';
+          b.textContent = ji;
+          b.style.display = ji ? '' : 'none';
+        }
         function render() {
           $('yearLabel').textContent = YEAR + '年';
+          meisaiGaiObi(0);
           if (SHIME_DAME) {
             showErr(
               SHIME_JIPPI
@@ -2416,6 +2429,7 @@
           //     ⇒ 引く 給料が 0 なので「引いていない」ように 見えていた。
           //   ⇒ ★式は 合っている／材料が 無い★ 事を 画面に 書く。
           kyuryoNote(t.payTotal);
+          meisaiGaiObi(t.meisaiGai);
 
           Array.prototype.forEach.call(document.querySelectorAll('[data-m]'), function (tr) {
             tr.style.cursor = 'pointer';

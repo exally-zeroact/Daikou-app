@@ -15,7 +15,7 @@
 //   │ 積立金   │ Σ(積立 + つかさ積立)                                              │
 //   │ 未収     │ 請求書 + 電子決済（まだ現金になっていない分）                       │
 //   │ 現金     │ 売上合計 − 未収                                                   │
-//   │ ZERO合計 │ 売上合計 − バイト合計 − 積立金 （日ごとのZEROの合計と一致する）    │
+//   │ ZERO合計 │ 売上合計 − バイト合計 − 積立金 （バイトは 明細の 差引支給の 合計）    │
 //   └─────────┴──────────────────────────────────────────┘
 //
 //   ▼★売上合計は「給料の母数」とは別物★（間違えやすいので注意）
@@ -27,6 +27,9 @@
 //     メーターは今「現金 / 請求書」しか区別していない。電子決済 は手入力で足す。
 //
 //   ▼絶対に守ること: throw しない・NaN を出さない・お金を丸めない（表示側で丸める）
+//     ★給料だけは 例外★ 2026-10-23 件G：払う 額＝明細の 差引支給（人ごとに 丸めた 額）を 足す
+//     （js/payroll-daily.js haraiGoukei）。日ごとの ZERO を 足した 物（ownerShareDaily）とは
+//     丸めの 端数と 名簿外の 手当・控除の 分 ずれる（ownerShareDaily は 答え合わせ用に 残す）
 // ============================================================
 (function (global) {
   'use strict';
@@ -72,6 +75,7 @@
       cash: 0,
       ownerShare: 0,
       ownerShareDaily: 0,
+      meisaiGai: 0, // 明細に 載らない 手当・控除の 件数（名簿に いない 人）2026-10-23 件G
       exTax: 0,
       tax: 0,
       shiftCount: 0,
@@ -172,12 +176,14 @@
       periods.forEach(function (p) {
         // ★★給料は その月に 締めた 期の 全部の 日★★（司さん 10-07「イ」＝月を またぐ 期も 期の 全部）
         //   足し順は 今まで 通り（期の 中の 日 → 期の 小計 → 月）＝月3回の 数は ビットで 変わらない
+        // ★★給料は 明細の 差引支給（人ごとに 丸めた 額）を 払う回ごとに 足す★★ 2026-10-23 件G
+        //   前は 全員・全日を 丸めずに 足した＝明細を 全員分 足した 額と 数円 ずれた。
+        //   決まりは js/payroll-daily.js の haraiGoukei 1つ（給料タブ・給料表の 紙も 同じ 物を 呼ぶ）
+        //   名簿に いない 人の 手当・控除は 明細に 載らない＝合計に 入れず 数だけ 返す（帯を 出す）
         const ds = arr(p.dates);
-        let pay = 0;
-        ds.forEach(function (date) {
-          const day = Daily.computeDay(date, ctx);
-          pay += n(day.staffTotal);
-        });
+        const rep = Daily.report(ds, ctx);
+        const pay = Daily.haraiGoukei ? Daily.haraiGoukei(rep) : 0;
+        out.meisaiGai += arr(rep.meisaiGai).length;
         out.periods.push({
           index: p.index,
           name: p.name,
@@ -206,7 +212,7 @@
       out.unpaid = out.invoice + out.denshi;
       out.cash = out.salesTotal - out.unpaid;
 
-      // ── 会社に残る分 ──
+      // ── 会社に残る分 ──（給料は 丸めた 額＝明細の 差引支給の 合計）
       out.ownerShare = out.salesTotal - out.payTotal - out.reserve;
 
       // ── 税（実物の売上表と同じ 内税10%）──
@@ -234,6 +240,7 @@
         'cash',
         'ownerShare',
         'ownerShareDaily',
+        'meisaiGai',
         'exTax',
         'tax',
         'shiftCount',

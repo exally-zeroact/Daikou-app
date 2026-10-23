@@ -1794,6 +1794,8 @@
       </div>
 
       <div class="err noprint" id="err" style="display: none"></div>
+      <!-- ★明細に 載らない 手当・控除の 帯★ 2026-10-23 件G（名簿に いない 人の 分＝合計に 入れない・黙って 消さない） -->
+      <div class="err noprint" id="meisaiGaiObi" style="display: none"></div>
       <div class="msg noprint" id="msg" style="display: none"></div>
 
       <!-- 明細 -->
@@ -4288,7 +4290,8 @@
           r.kikanRep.forEach(function (rep, pi) {
             (rep.employees || []).forEach(function (e) {
               var o = hiro(e.employee_id, e.name);
-              o.kikan[pi] = (o.kikan[pi] || 0) + (e.totalPay || 0);
+              // ★払う回の 額＝明細の 差引支給（人ごとに 丸めた 額）★ 2026-10-23 件G（js/payroll-daily.js haraiGaku）
+              o.kikan[pi] = (o.kikan[pi] || 0) + PayrollDaily.haraiGaku(e.totalPay || 0);
               o.kikanJikan[pi] = (o.kikanJikan[pi] || 0) + (e.totalHours || 0);
             });
           });
@@ -4438,13 +4441,14 @@
                   return kamiCtx(w.y, mm).then(function (r) {
                     if (r.kire) kire = true;
                     var box = {};
+                    // ★人は employee_id で まとめる★ 2026-10-23 件G（前は 名前＝同じ 名前の 2人が 1列に 足された）
                     kamiHito(r).forEach(function (p) {
                       var v = p.kikan.reduce(function (a, b) {
                         return a + (b || 0);
                       }, 0);
                       if (!v) return;
-                      box[p.name] = (box[p.name] || 0) + v;
-                      na[p.name] = true;
+                      box[p.id] = (box[p.id] || 0) + v;
+                      na[p.id] = p.name;
                     });
                     if (Object.keys(box).length) tsuki[mm] = box;
                   });
@@ -4455,7 +4459,7 @@
               .then(function () {
                 kamiBtn(false);
                 var hito = Object.keys(na).map(function (x) {
-                  return { name: x };
+                  return { id: x, name: na[x] };
                 });
                 var zen = 0;
                 Object.keys(tsuki).forEach(function (mm) {
@@ -5205,6 +5209,7 @@
             showErr(KEISAN_NG_JI);
             return;
           }
+          meisaiGaiObi();
           if (TAB === 'slip') renderSlips();
           if (TAB === 'hours') renderDays();
           if (TAB === 'emp') renderEmp();
@@ -5212,6 +5217,18 @@
             renderSet();
             renderCars(); // ★車の名前と並びも同じ画面に出す★
           }
+        }
+
+        // ★明細に 載らない 手当・控除の 帯★ 2026-10-23 件G（本人の 画面には 出さない）
+        function meisaiGaiObi() {
+          var b = $('meisaiGaiObi');
+          if (!b) return;
+          var ji =
+            !HONNIN && TAB === 'slip' && REP
+              ? PayrollDaily.meisaiGaiJi((REP.meisaiGai || []).length)
+              : '';
+          b.textContent = ji;
+          b.style.display = ji ? '' : 'none';
         }
 
         // ── 期の選び方（司さんは月3回払い）────────────────
@@ -5447,6 +5464,17 @@
           );
         }
 
+        // ★★日の 欄を 足すと 差引支給と 1円 ずれる 人だけ 注記★★ 2026-10-23 件G（払う 額は 変えない）
+        //   日の 欄は 日ごとに 丸めて 出し、差引支給は 丸める 前の 額を 足してから 丸める
+        function hiZureGyou(e) {
+          if (!PayrollDaily.hiNoZure(e)) return '';
+          return (
+            '<div class="hi-zure" style="font-size:13px;color:#5a6b82;margin:-4px 0 6px;">' +
+            esc(PayrollDaily.HI_ZURE_JI) +
+            '</div>'
+          );
+        }
+
         // uw … 内わけ（手当・控除の 行）の 置き方：既定＝見出しの 下／'nashi'＝載せない／'dake'＝内わけだけの 紙
         function _buildPaperSheet(
           e,
@@ -5606,7 +5634,8 @@
             //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
             '<div style="flex:1 1 0;min-width:0;"></div>' +
             '</div>' +
-            (uw === 'nashi' ? '' : adjGyou(e));
+            (uw === 'nashi' ? '' : adjGyou(e)) +
+            (uw === 'dake' ? '' : hiZureGyou(e));
 
           // ── 表 ──
           var TD =
@@ -6373,15 +6402,18 @@
             box.innerHTML = html;
             return;
           }
+          // ★★給料と 会社に残る分は 明細の 差引支給（人ごとに 丸めた 額）から★★ 2026-10-23 件G
+          //   みんなの給料＝明細の 差引支給を 全員分 足した 額（REP.harai）＝月次集計の 回の 額と 同じ
+          //   会社に残る分＝売上 − みんなの給料 − 積立（REP.nokori・決まりは js/payroll-daily.js の 1か所）
           html +=
             '<div class="card noprint"><b>会社に残る分</b>　¥' +
-            yen(REP.ownerShareTotal) +
+            yen(REP.nokori) +
             '<div class="note">売上合計 ¥' +
             yen(REP.poolSalesTotal) +
             '　／　積立 ¥' +
             yen(REP.reserveTotal) +
             '　／　みんなの給料 ¥' +
-            yen(REP.staffTotalAll) +
+            yen(REP.harai) +
             '　／　時数合計 ' +
             hrs(REP.poolHoursTotal) +
             ' 時間</div></div>';

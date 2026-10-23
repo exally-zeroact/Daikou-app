@@ -213,17 +213,13 @@ function ctxOf(shime) {
 }
 
 describe('★月次集計の 給料＝締めた 分★', () => {
-  it('★月3回は 今までの 作り（期の 中の その月の 日 → 期の 小計 → 月）と ビットで 同じ（===）★', () => {
+  // ★★2026-10-23 件G★★ 給料は 明細の 差引支給（期ごとに 人の 額を 丸める）を 足す＝前の「日を 丸めずに 足す」とは 変わった
+  it('★月3回は 期の 中の その月の 日の 明細の 差引支給（人ごとに 丸めた 額）を 足した 物と 同じ（===）★', () => {
     const ctx = ctxOf(null);
     for (let m = 1; m <= 12; m++) {
       const mae = P.periodsOf(2026, m, { endMode: 'thirds' }).reduce((s, p) => {
-        let pay = 0;
-        p.dates
-          .filter((d) => d.slice(0, 7) === '2026-' + String(m).padStart(2, '0'))
-          .forEach((d) => {
-            pay += Number(D.computeDay(d, ctx).staffTotal) || 0;
-          });
-        return s + pay;
+        const ds = p.dates.filter((d) => d.slice(0, 7) === '2026-' + String(m).padStart(2, '0'));
+        return s + D.report(ds, ctx).employees.reduce((a, e) => a + Math.round(e.totalPay), 0);
       }, 0);
       expect(G.month(2026, m, ctx, []).payTotal === mae, m + '月').toBe(true);
     }
@@ -238,7 +234,9 @@ describe('★月次集計の 給料＝締めた 分★', () => {
     expect(zen).toBeGreaterThan(0);
     expect(a.periods.map((p) => p.rangeLabel)).toEqual(['12/21 〜 1/20']);
     expect(b.periods.map((p) => p.rangeLabel)).toEqual(['1/21 〜 2/20']);
-    expect(a.payTotal + b.payTotal).toBeCloseTo(zen, 6);
+    // 丸めは 払う回ごと（件G）＝区切りが 違えば 人数×0.5円×回数 まで 違い得る（1日 落ちれば 何千円 違う）
+    const haba = 0.5 * (FIXM.employees || []).length * (1 + 1 + 3);
+    expect(Math.abs(a.payTotal + b.payTotal - zen)).toBeLessThanOrEqual(haba);
     // ★②の 行の 和 ＝ 合計★
     expect(a.periods.reduce((s, p) => s + p.pay, 0)).toBe(a.payTotal);
   });

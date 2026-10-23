@@ -28,6 +28,17 @@ const W = FIX.expected;
 const ctx = D.buildCtx(FIX);
 const m = G.month(2026, 1, ctx, FIX.payments);
 
+// ★★給料は 明細の 差引支給（人ごとに 丸めた 額）を 払う回ごとに 足す★★ 2026-10-23 件G
+//   実物の『月別』の バ列は 丸める 前の 額を 足した 物＝1回あたり 人数×0.5円 まで ずれ得る。
+//   ⇒ 実物とは「その 幅の 中」で 合わせ、明細の 和とは 1円も 違わない事を 縛る
+const NIN = (FIX.employees || []).length;
+const HABA = (kai) => 0.5 * NIN * kai + 1e-6;
+const meisaiNoWa = (p) =>
+  D.report(
+    P.periodsOf(2026, 1, { kata: ctx.settings.periodKata }).find((x) => x.index === p.index).dates,
+    ctx
+  ).employees.reduce((a, e) => a + Math.round(e.totalPay), 0);
+
 describe('★1月の月次集計が実物の『月別』と一致★', () => {
   it(`売上合計 ${W.売上合計.toLocaleString()}（つかさ車も入れた全部・実費を引いた後）`, () => {
     expect(m.salesTotal).toBeCloseTo(W.売上合計, 4);
@@ -52,12 +63,14 @@ describe('★1月の月次集計が実物の『月別』と一致★', () => {
   });
 
   it(`★ZERO合計 ${Math.round(W.ZERO合計).toLocaleString()}（売上合計 − 給料 − 積立金）★`, () => {
-    expect(m.ownerShare).toBeCloseTo(W.ZERO合計, 4);
+    // 給料は 丸めた 額（件G）＝実物とは 丸めの 幅の 中
+    expect(m.ownerShare).toBeCloseTo(m.salesTotal - m.payTotal - m.reserve, 6);
+    expect(Math.abs(m.ownerShare - W.ZERO合計)).toBeLessThanOrEqual(HABA(3));
   });
 
-  it('★日ごとのZEROを足した物とも一致する（2通りで出しても同じ）★', () => {
+  it('★日ごとのZEROを足した物は 実物と 一致（会社に残る分とは 丸めの 幅の 中）★', () => {
     expect(m.ownerShareDaily).toBeCloseTo(W.ZERO合計, 4);
-    expect(m.ownerShareDaily).toBeCloseTo(m.ownerShare, 4);
+    expect(Math.abs(m.ownerShareDaily - m.ownerShare)).toBeLessThanOrEqual(HABA(3));
   });
 });
 
@@ -68,22 +81,26 @@ describe('★給料は月3回払い（実物の バ1〜10 / バ11〜20 / バ21�
   });
 
   it(`バ1〜10 = ${W.バ1_10.toLocaleString()}`, () => {
-    expect(m.periods[0].pay).toBeCloseTo(W.バ1_10, 4);
+    expect(m.periods[0].pay).toBe(meisaiNoWa(m.periods[0]));
+    expect(Math.abs(m.periods[0].pay - W.バ1_10)).toBeLessThanOrEqual(HABA(1));
     expect(m.periods[0].rangeLabel).toBe('1/1 〜 1/10');
   });
 
   it(`バ11〜20 = ${Math.round(W.バ11_20).toLocaleString()}`, () => {
-    expect(m.periods[1].pay).toBeCloseTo(W.バ11_20, 4);
+    expect(m.periods[1].pay).toBe(meisaiNoWa(m.periods[1]));
+    expect(Math.abs(m.periods[1].pay - W.バ11_20)).toBeLessThanOrEqual(HABA(1));
     expect(m.periods[1].rangeLabel).toBe('1/11 〜 1/20');
   });
 
   it(`★バ21〜31 = ${Math.round(W.バ21_末).toLocaleString()}（給料1の8人合計と同じ）★`, () => {
-    expect(m.periods[2].pay).toBeCloseTo(W.バ21_末, 4);
+    expect(m.periods[2].pay).toBe(meisaiNoWa(m.periods[2]));
+    expect(Math.abs(m.periods[2].pay - W.バ21_末)).toBeLessThanOrEqual(HABA(1));
     expect(m.periods[2].rangeLabel).toBe('1/21 〜 1/31');
   });
 
   it(`バイト合計 = ${Math.round(W.バイト合計).toLocaleString()}`, () => {
-    expect(m.payTotal).toBeCloseTo(W.バイト合計, 4);
+    expect(m.payTotal).toBe(m.periods.reduce((a, p) => a + meisaiNoWa(p), 0));
+    expect(Math.abs(m.payTotal - W.バイト合計)).toBeLessThanOrEqual(HABA(3));
   });
 
   it('★3期を足すと月の給料合計になる（取りこぼしも二重計上も無い）★', () => {
@@ -131,13 +148,13 @@ describe('1年ぶん', () => {
 
   it('年間合計＝1月ぶん', () => {
     expect(yr.total.salesTotal).toBeCloseTo(W.売上合計, 4);
-    expect(yr.total.payTotal).toBeCloseTo(W.バイト合計, 4);
-    expect(yr.total.ownerShare).toBeCloseTo(W.ZERO合計, 4);
+    expect(yr.total.payTotal).toBe(m.payTotal);
+    expect(yr.total.ownerShare).toBeCloseTo(m.ownerShare, 6);
   });
 
   it('期ごとの年間合計も出る', () => {
     expect(yr.total.periods.length).toBe(3);
-    expect(yr.total.periods[2].pay).toBeCloseTo(W.バ21_末, 4);
+    expect(yr.total.periods[2].pay).toBe(m.periods[2].pay);
   });
 });
 

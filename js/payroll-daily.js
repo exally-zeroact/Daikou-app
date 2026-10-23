@@ -989,6 +989,9 @@
       reserveTotal: 0,
       staffTotalAll: 0,
       ownerShareTotal: 0,
+      meisaiGai: [], // 名簿に いない 人の 手当・控除（明細に 載らない）2026-10-23 件G
+      harai: 0, // 払う 額の 合計＝明細の 差引支給（人ごとに 丸めた 額）を 全員 足した 額
+      nokori: 0, // 会社に 残る分＝売上 − harai − 積立（丸めた 給料で）
     };
     try {
       if (!ctx) return out;
@@ -1078,7 +1081,17 @@
         // ★その 日の 手当・控除を その 人の 行へ★（働いていない 日の 分も 載せる）
         arr(day.adj).forEach(function (a) {
           const row = byEmp[a.employee_id];
-          if (!row) return;
+          if (!row) {
+            // ★名簿に いない 人の 手当・控除★ 2026-10-23 件G＝明細に 載らない ので 給料の 合計にも 入れない
+            //   黙って 消さない：数を 返して 画面に 帯を 出す（harai・meisaiGai）
+            out.meisaiGai.push({
+              date: date,
+              employee_id: a.employee_id,
+              kind: a.kind,
+              yen: a.yen,
+            });
+            return;
+          }
           row.adj.push({ date: date, kind: a.kind, label: a.label, yen: a.yen, adj_id: a.adj_id });
           if (a.kind === 'koujo') {
             row.koujo += a.yen;
@@ -1104,10 +1117,52 @@
         .map(function (e) {
           return byEmp[e.employee_id];
         });
+      out.harai = haraiGoukei(out);
+      out.nokori = nokoriGaku(out);
     } catch (_) {
       /* ignore */
     }
     return out;
+  }
+
+  // ─── ★★給料の 合計の 決まりは ここ 1つ★★ 2026-10-23 件G ─────────────
+  //   払うのは 明細の 差引支給＝人ごとの totalPay を Math.round した 額（丸め方は 変えない）。
+  //   給料の 合計は どこでも「払う回ごとに 人ごとの 差引支給を 丸めてから 足す」。
+  //   ★前★ 月次集計は 全員・全日を 丸めずに 足して 最後に 1回 丸めた＝明細を 全員分 足した 額と ずれた。
+  //   月次集計（js/getsuji-agg.js）・給料タブ・給料表の 紙・月次の 紙は 全部 ここを 呼ぶ。
+  function haraiGaku(totalPay) {
+    return Math.round(n(totalPay));
+  }
+  // 1回の 払い（report の 戻り）の 給料の 合計＝明細の 差引支給を 全員分 足した 額
+  function haraiGoukei(rep) {
+    return arr(rep && rep.employees).reduce(function (a, e) {
+      return a + haraiGaku(e && e.totalPay);
+    }, 0);
+  }
+  // 会社に 残る分＝売上 − 丸めた 給料 − 積立
+  //   日ごとの ownerShare は「売上 − 積立 − その日の 給料（丸める 前・名簿外の 手当・控除 込み）」
+  //   ＝ownerShare と staffTotal を 足し戻すと「売上 − 積立」（自分の 車の 分も 月次集計と 同じ 入り方）
+  function nokoriGaku(rep) {
+    if (!rep) return 0;
+    return n(rep.ownerShareTotal) + n(rep.staffTotalAll) - haraiGoukei(rep);
+  }
+  // 明細の 日の 欄（日ごとに 丸めた 額）を 足すと 差引支給と 1円 ずれる 人か（注記を 出す 為・額は 変えない）
+  function hiNoZure(e) {
+    if (!e) return false;
+    let s = 0;
+    arr(e.cells).forEach(function (c) {
+      if (c && c.pay !== null && c.pay !== undefined) s += Math.round(n(c.pay));
+    });
+    s += Math.round(n(e.teate)) - Math.round(n(e.koujo));
+    return s !== haraiGaku(e.totalPay);
+  }
+  const HI_ZURE_JI =
+    '日ごとの額は1円未満を丸めて出しています（合計は丸める前の額から出しています）';
+  // 明細に 載らない 手当・控除の 帯の 字（月次集計・給料タブ で 同じ 字）
+  function meisaiGaiJi(kensu) {
+    return kensu > 0
+      ? '明細に載らない手当・控除が' + kensu + '件あります（合計に入れていません）'
+      : '';
   }
 
   // 手で入れた1日分を「勤務っぽい形」に直す（売上表がそのまま使えるように）
@@ -1162,6 +1217,12 @@
     dayInput: dayInput,
     computeDay: computeDay,
     report: report,
+    haraiGaku: haraiGaku,
+    haraiGoukei: haraiGoukei,
+    nokoriGaku: nokoriGaku,
+    hiNoZure: hiNoZure,
+    HI_ZURE_JI: HI_ZURE_JI,
+    meisaiGaiJi: meisaiGaiJi,
   };
 
   if (global) global.PayrollDaily = api;

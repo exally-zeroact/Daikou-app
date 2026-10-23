@@ -32,6 +32,33 @@
     const x = Number(v);
     return isFinite(x) ? x : 0;
   }
+  // ★★給料の 合計は 払う回ごとに 人ごとの 額を 丸めてから 足す★★ 2026-10-23 件G
+  //   （明細の 差引支給と 同じ。決まりは js/payroll-daily.js の haraiGaku）
+  function maru(v) {
+    return Math.round(n(v));
+  }
+  function kikanKei(p) {
+    return ((p && p.kikan) || []).reduce(function (x, y) {
+      return x + maru(y);
+    }, 0);
+  }
+  // 日の 欄（日ごとに 丸めて 出す）を 足すと 合計と ずれる 人か（払う回の 額が 来た 時だけ 比べる）
+  function hiZure(p) {
+    if (!p || !Array.isArray(p.kikan) || !p.kikan.length) return false;
+    const hi = (p.hi || []).reduce(function (x, y) {
+      return x + maru(y);
+    }, 0);
+    return hi !== kikanKei(p);
+  }
+  const HI_ZURE_JI =
+    '日ごとの額は1円未満を丸めて出しています（合計は丸める前の額から出しています）';
+  function hiZureChu(zure) {
+    return zure
+      ? '<div class="hi-zure" style="font-size:10px;color:#5a6b82;margin:2px 0 4px;">' +
+          esc(HI_ZURE_JI) +
+          '</div>'
+      : '';
+  }
   function km(v) {
     return v === null || v === undefined
       ? '<span class="z">—</span>'
@@ -442,12 +469,11 @@
     // ★名前の 配列が 来たら 空でも それ★（毎日 払いは 期の 列を 出さない＝空・対立役 10-07 F）
     const ki = Array.isArray(d.namae) ? d.namae : K.kikan(k.year, k.month, k.settings);
     const hito = (d.hito || []).map(function (p) {
-      const a = (p.kikan || []).slice(0, ki.length);
+      // ★払う回ごとの 額は 明細の 差引支給と 同じ 丸め（人ごと・回ごとに Math.round）★ 2026-10-23 件G
+      const a = (p.kikan || []).slice(0, ki.length).map(maru);
       while (a.length < ki.length) a.push(0);
       // ★合計は 期の 列からでなく 全部の 額から★（列を 出さなくても 合計は 消えない）
-      const kei = (p.kikan || []).reduce(function (x, y) {
-        return x + n(y);
-      }, 0);
+      const kei = kikanKei(p);
       return { name: p.name, kikan: a, kei: kei, jikan: n(p.jikan) };
     });
     const zen = hito.reduce(function (s, p) {
@@ -515,8 +541,14 @@
 
   // ── ⑦給料表・年ごと（A4縦）────────────────────────
   function kyuryoNen(k, d) {
+    // ★人は employee_id で まとめる★ 2026-10-23 件G（同じ 名前の 2人を 1列に 足さない）
+    //   tsuki[月] の 鍵は p.id（無い 時は 名前＝前の 呼び方）
     const na = (d.hito || []).map(function (p) {
-      return p.name;
+      return p.id !== undefined && p.id !== null ? p.id : p.name;
+    });
+    const naMei = {};
+    (d.hito || []).forEach(function (p, i) {
+      naMei[na[i]] = p.name;
     });
     const rows = [];
     for (let i = 1; i <= 12; i++) {
@@ -548,7 +580,7 @@
         ['<th>月</th>']
           .concat(
             na.map(function (x) {
-              return '<th>' + esc(x) + '</th>';
+              return '<th>' + esc(naMei[x]) + '</th>';
             })
           )
           .concat(['<th>合計</th>']),
@@ -780,7 +812,10 @@
     // ★金額の 紙 ＋ 時間の 紙★＝1組で 2枚
     const zenMai = taba.length * 2;
     taba.forEach(function (t, mi) {
+      // ★給料 合計は 払う回ごとの 額（明細の 差引支給）を 足す★ 2026-10-23 件G
+      //   日の 欄は 日ごとに 丸めて 出す＝足すと ±1円 ずれ得る ⇒ ずれる 人が 居れば 注記を 出す
       const sm = t.reduce(function (s, p) {
+        if (Array.isArray(p.kikan) && p.kikan.length) return s + kikanKei(p);
         return (
           s +
           (p.hi || []).reduce(function (x, y) {
@@ -788,6 +823,7 @@
           }, 0)
         );
       }, 0);
+      const zure = t.some(hiZure);
       const jk = t.reduce(function (s, p) {
         return (
           s +
@@ -820,6 +856,7 @@
           K.box('人数', String(t.length)) +
           K.box('日数', String(hibiOf(k).length), true) +
           '</div>' +
+          (dai === '金額' ? hiZureChu(zure) : '') +
           han
             .map(function (h) {
               return (
@@ -887,12 +924,11 @@
     // ★期間の 名前は 画面が 出した 物を 優先★
     // ★名前の 配列が 来たら 空でも それ★（毎日 払いは 払う回の 表を 出さない）
     const ki = Array.isArray(d.namae) ? d.namae : K.kikan(k.year, k.month, k.settings);
-    const kk = (p.kikan || []).slice(0, ki.length);
+    // ★払う回ごとの 額は 明細の 差引支給と 同じ 丸め★ 2026-10-23 件G
+    const kk = (p.kikan || []).slice(0, ki.length).map(maru);
     while (kk.length < ki.length) kk.push(0);
-    // ★合計は 全部の 額から★
-    const zen = (p.kikan || []).reduce(function (s, v) {
-      return s + n(v);
-    }, 0);
+    // ★合計は 全部の 額から★（丸めた 回の 額を 足す）
+    const zen = kikanKei(p);
     const han = hanbun(k);
     // ★個別は 左の 列が「金額／時間」の 2語だけ★＝名前の 長さでは 決まらない
     const naKo = naHabaOf(['金額', '時間'], 11);
@@ -922,6 +958,7 @@
         '<tr class="sum"><td>合計</td><td>' + en(zen) + '</td><td>' + km(p.jikan) + '</td></tr>'
       ) +
       '</div>' +
+      hiZureChu(hiZure(p)) +
       han
         .map(function (x) {
           return (
