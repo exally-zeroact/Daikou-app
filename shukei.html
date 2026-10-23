@@ -638,9 +638,29 @@
         background: #fff;
       }
 
+      /* ★★紙の 種類の 札は 1行の 分かれ札★★ 2026-10-23（司さん iPhone の 写真に 赤丸＝4つが 2段に 折れていた）
+         ★前★ flex-wrap: wrap＋字 14px＝390px では「売上表（年）」が 下の 段へ 落ちた（webkit 測り：上の 位置 264/306）
+         ★今★ 折り返さない・字を 12px に 詰め、札の 幅は 字に 合わせる（webkit 測り：390px で 札 4つ 約 300px／箱 328px・375px でも 入る）。
+         それでも 入らない 狭い 画面（320px 等）は 札の 中で 折らず 横に 巻ける。
+         ★見張り★ tests/e2e/shukei-kirikae-1gyou.spec.js */
       .kami-seg {
         flex: 1 1 100%;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        gap: 2px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+
+      .kami-seg::-webkit-scrollbar {
+        display: none;
+      }
+
+      .kami-seg .segb {
+        flex: 1 0 auto;
+        padding: 7px 6px;
+        font-size: 12px;
+        letter-spacing: -0.2px;
       }
 
       .kami-mado {

@@ -66,6 +66,8 @@ export const WEBKIT_KUMI = [
   'kami-maki-zurenai.spec.js',
   // 下の 帯の 巻き直しが 欄から 欄への 巻きを 止めない（2026-10-23）
   'shita-obi-makinaoshi.spec.js',
+  // 月次集計の 紙の 種類の 札が iPhone の 幅で 1行・内わけの 字の 濃さ（2026-10-23）
+  'shukei-kirikae-1gyou.spec.js',
 ];
 
 export default defineConfig({

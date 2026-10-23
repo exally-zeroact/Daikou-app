@@ -102,6 +102,10 @@
     '.dk-kami th:first-child,.dk-kami td:first-child{text-align:left;width:1%;white-space:nowrap;padding:4px 18px 4px 11px;min-width:78px}',
     '.dk-kami tr.sum td{font-weight:800;background:#f4f9ff}',
     '.dk-kami .z{color:#b9c6d8}',
+    // ★内わけ（説明の 字）は 読める 濃さ★ 2026-10-23（司さん「内わけの字が薄い」）
+    //   前は 0 と 同じ .z（#b9c6d8＝白に 1.7:1）。#5a6b82＝白に 5.4:1・合計の 行（#f4f9ff）に 5.1:1（WCAG AA 4.5 以上）
+    //   ★0 や「—」は 今まで通り 薄い★（.z）。紙（PDF）は 画面の 色を そのまま 描く（kami-egaku）＝同じ 濃さ
+    '.dk-kami .uw{color:#5a6b82}',
     '.dk-kami .futatsu,.dk-kami .nibun{display:flex;gap:12px;align-items:flex-start}',
     '.dk-kami .futatsu>div,.dk-kami .nibun>div{flex:1;min-width:0}',
     '.dk-kami .futatsu h2{margin-top:0}',

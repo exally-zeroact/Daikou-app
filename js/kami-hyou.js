@@ -84,24 +84,24 @@
         [
           '<tr><td>売上</td><td>' +
             en(d.uriage) +
-            '</td><td class="z">メーターの合計 − 実費</td></tr>',
+            '</td><td class="uw">メーターの合計 − 実費</td></tr>',
           '<tr><td>経費（実費）</td><td>' +
             en(d.keihi) +
-            '</td><td class="z">' +
+            '</td><td class="uw">' +
             (hiku.length ? esc(hiku.join('・')) : '引く物なし') +
             '</td></tr>',
           '<tr><td>請求書</td><td>' +
             en(d.seikyu) +
-            '</td><td class="z">まだ 現金に なっていない</td></tr>',
+            '</td><td class="uw">まだ 現金に なっていない</td></tr>',
           '<tr><td>電子決済</td><td>' +
             en(d.denshi) +
-            '</td><td class="z">' +
+            '</td><td class="uw">' +
             (k.denshi ? 'まだ 現金に なっていない' : '使っていません') +
             '</td></tr>',
         ],
         '<tr class="sum"><td>現金</td><td>' +
           en(d.genkin) +
-          '</td><td class="z">売上 − 請求書 − 電子決済</td></tr>'
+          '</td><td class="uw">売上 − 請求書 − 電子決済</td></tr>'
       );
 
     // ★毎日 払い（期の 名前が 空）は 1行★（31行 並べない・対立役 10-07 ⑦）
