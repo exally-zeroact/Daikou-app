@@ -33,7 +33,8 @@ test('★①② 入れ漏れの 日を 帯に 出し、押すと 入力の そ�
   await expect(obi).toHaveCount(1);
   await expect(obi.locator('.nnhi')).toHaveText(['8/1']);
   await expect(obi.locator('.nnhi').first()).toHaveAttribute('href', 'nyuryoku.html?hi=2026-08-01');
-  await expect(page.locator('.tab')).toHaveText(['明細', '従業員', '給料の設定']);
+  // 2026-10-23 明細の 右に テンプレ（司さん「明細と時数を入れるの間にテンプレのボタン」）
+  await expect(page.locator('.tab')).toHaveText(['明細', 'テンプレ', '従業員', '給料の設定']);
 
   // 1号車・2号車 とも 自分の 車＝印に しない…は 1台だけ なので、2号車を 自分の 車に して 1号車に 人を 乗せる
   const F2 = K.zairyou((G) => {

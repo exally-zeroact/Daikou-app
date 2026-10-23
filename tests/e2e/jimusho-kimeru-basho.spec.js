@@ -100,7 +100,9 @@ test('★★① 給料の 画面に「従業員」「給料の設定」の タ�
   // eslint-disable-next-line no-console
   console.log('★給料の タブ★ ' + JSON.stringify(r));
   // 2026-10-23「時数を入れる」は 入力の 画面へ 移した＝明細（確認）・従業員・給料の設定 の 3つ
-  expect(r.tab.length, '★タブの 数が 違います★').toBe(3);
+  // 2026-10-23 夜 明細の 右に「テンプレ」（払い方の 見本）を 足した＝4つ
+  expect(r.tab.length, '★タブの 数が 違います★').toBe(4);
+  expect(r.tab.join(','), '★テンプレの タブが 無い★').toContain('テンプレ');
   expect(r.tab.join(','), '★時数を入れる が 残っている★').not.toContain('時数を入れる');
   expect(r.tab.join(','), '★従業員の タブが 無い★').toContain('従業員');
   expect(r.tab.join(','), '★給料の設定の タブが 無い★').toContain('給料の設定');

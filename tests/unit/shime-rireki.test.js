@@ -375,7 +375,8 @@ describe('締めの 何日から', () => {
     // 給料・紙・月次の buildCtx は RAW ごと か shimeRireki を 名指し
     const bc = ky.split('PayrollDaily.buildCtx(').slice(1);
     const kyuNoBc = bc.filter((t) => /shifts:|Object\.assign\(\{\}, RAW/.test(t.slice(0, 600)));
-    expect(kyuNoBc.length).toBe(2);
+    // 明細（recalc）・紙・テンプレの 見本（tplZairyo 2026-10-23）
+    expect(kyuNoBc.length).toBe(3);
     kyuNoBc.forEach((t) =>
       expect(/shimeRireki: RAW\.shimeRireki|Object\.assign\(\{\}, RAW/.test(t.slice(0, 900))).toBe(
         true

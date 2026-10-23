@@ -182,6 +182,108 @@
         color: #fff;
       }
 
+      /* ★★明細の テンプレ（払い方の 形）の 一覧★★ 2026-10-23
+         司さん「選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」＝daikou-seikyu.html の .tpl-grid と 同じ 作り
+         （2列・A4縦の 見本は 実際の 紙を 縮めた 物・名前と 説明・選んでいる 物に ✓） */
+      .tpl-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-top: 4px;
+      }
+
+      .tpl-card {
+        position: relative;
+        border: 1.5px solid #cfe0ff;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #fff;
+        padding: 0;
+        text-align: left;
+        cursor: pointer;
+        font: inherit;
+        transition:
+          border-color 0.12s,
+          box-shadow 0.12s;
+      }
+
+      .tpl-card.on {
+        border-color: #007aff;
+        box-shadow: 0 0 0 1.5px #007aff inset;
+      }
+
+      .tpl-thumb {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1 / 1.414;
+        background: #fff;
+        border-bottom: 1px solid #e3eaf2;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .tpl-thumb-msg {
+        font-size: 11px;
+        color: #555;
+        text-align: center;
+        padding: 0 8px;
+        line-height: 1.5;
+      }
+
+      .tpl-meta {
+        padding: 9px 11px 11px;
+      }
+
+      .tpl-name {
+        font-weight: 700;
+        font-size: 13px;
+        color: #333;
+      }
+
+      .tpl-desc {
+        font-size: 11px;
+        color: #555;
+        margin-top: 2px;
+        line-height: 1.35;
+      }
+
+      .tpl-pdf {
+        margin-top: 8px;
+        width: 100%;
+        padding: 6px 8px;
+        border-radius: 999px;
+        border: 1px solid #cfe0ff;
+        background: #fff;
+        color: var(--blue);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .tpl-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #0b57d0;
+        color: #fff;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        box-shadow: 0 1px 4px rgb(0 122 255 / 45%);
+        z-index: 1;
+      }
+
+      .tpl-card.on .tpl-badge {
+        display: flex;
+      }
+
       /* ★★日付を 左右の ボタンで 挟む★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
          ★前は flex-wrap: wrap★ だったので、日付の 字が 長い（実測 328px）と
          ★折り返して 日付が 上・ボタンが 下★の 2段に なっていました。
@@ -1376,6 +1478,9 @@
         <!-- ★★「時数を入れる」は 入力の 画面へ 移した★★ 2026-10-23（司さん「給料の時数を入れるを入力の各車ごとに
              経費の下に時数、乗った人…して給料タブは確認と従業員の設定だけにして」）＝ここは 明細（確認）・従業員・給料の設定 -->
         <button class="tab on" data-tab="slip">明細</button>
+        <!-- ★★テンプレ★★ 2026-10-23（司さん「明細と時数を入れるの間にテンプレのボタンを作成して 全パターンをPDFで見て選べるように」）
+             払い方（締めの 形）ごとの 明細の 紙を 実際の 紙で 見て 選ぶ。本人の 画面（?t=）には 出ない -->
+        <button class="tab" data-tab="tpl" data-kimeru="1">テンプレ</button>
         <!-- ★★「従業員」「給料の設定」も ここに 出す★★ 2026-10-06（司さん「どこで設定するか分からんやろが」）
              会社設定の チップからも 同じ 画面が 開く。本人の 画面（?t=）には 出ない。 -->
         <button class="tab" data-tab="emp" data-kimeru="1">従業員</button>
@@ -1781,6 +1886,18 @@
                ＝渡していない 人の 鍵まで 作らない（鍵は 渡す 相手 1人にだけ） -->
           <div class="err" id="haifuErr" style="display: none"></div>
           <div id="haifuList"></div>
+        </div>
+      </div>
+
+      <div id="paneTpl" style="display: none">
+        <div class="card">
+          <h2>明細の テンプレ（払い方）</h2>
+          <div class="note" style="margin: 0 0 10px">
+            払い方ごとの 明細の 紙です（前の 月と 今の 月の 本当の 記録で、その 払い方に 区切って
+            作っています）。押すと「給料の 設定」に その 払い方が 入ります。<b>「何日から」</b>を
+            決めて <b>「保存する」</b> を 押すと 変わります。
+          </div>
+          <div class="tpl-grid" id="tplGrid"></div>
         </div>
       </div>
     </div>
@@ -4736,6 +4853,7 @@
           $('paneSlip').style.display = TAB === 'slip' ? '' : 'none';
           $('paneEmp').style.display = TAB === 'emp' ? '' : 'none';
           $('paneSet').style.display = TAB === 'set' ? '' : 'none';
+          if ($('paneTpl')) $('paneTpl').style.display = TAB === 'tpl' ? '' : 'none';
           // 期の 計算が 転んだ 時は 明細を 描かない（前の 期の 額を 新しい 期の 札の 下に 出さない・対立役 3回目）
           if (KEISAN_NG && TAB === 'slip') {
             if ($('slips')) $('slips').innerHTML = '';
@@ -4745,6 +4863,7 @@
           meisaiGaiObi();
           if (TAB === 'slip') renderSlips();
           if (TAB === 'emp') renderEmp();
+          if (TAB === 'tpl') renderTpl();
           if (TAB === 'set') {
             renderSet();
             renderCars(); // ★車の名前と並びも同じ画面に出す★
@@ -5875,6 +5994,393 @@
           );
           return true;
         }
+        // ★★明細の テンプレ（払い方の 形）★★ 2026-10-23
+        //   司さん「全パターンをPDFで見て選べるようにして 選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」
+        //   見本は 作り物で なく 今の 月の 本当の 記録（代行請求書と 同じ）で、その 払い方の 区切りの 紙を 組む。
+        //   選ぶと「給料の 設定」の 払い方の 欄に 入れて 開く＝書く 道は 給料の 設定の 保存 1つ（何日から も 同じ 所）
+        var TPL_KATA = [
+          {
+            k: 'thirds',
+            na: '10日ごと（月3回）',
+            desc: '1〜10日／11〜20日／21日〜末日',
+            mode: 'thirds',
+          },
+          { k: 'matsu', na: '月1回・末日締め', desc: '1日〜末日', mode: 'matsu' },
+          {
+            k: 't20s',
+            na: '月1回・20日締め',
+            desc: '21日〜次の 月の 20日（締めた 日の 月の 分）',
+            mode: 'tsuki1',
+            hi: 20,
+            nz: 'shime',
+          },
+          {
+            k: 't20h',
+            na: '月1回・20日締め',
+            desc: '21日〜次の 月の 20日（始まった 日の 月の 分）',
+            mode: 'tsuki1',
+            hi: 20,
+            nz: 'hajime',
+          },
+          { k: 't30', na: '月1回・30日締め', desc: '前の 月の 31日〜30日', mode: 'tsuki1', hi: 30 },
+          { k: 'tsuki2', na: '月2回・15日と末日', desc: '1〜15日／16日〜末日', mode: 'tsuki2' },
+          {
+            k: 'n1025s',
+            na: '月2回・10日と25日',
+            desc: '11〜25日／26日〜次の 月の 10日（締めた 日の 月の 分）',
+            mode: 'narabe',
+            narabe: '10,25',
+            nz: 'shime',
+          },
+          {
+            k: 'n1025h',
+            na: '月2回・10日と25日',
+            desc: '11〜25日／26日〜次の 月の 10日（始まった 日の 月の 分）',
+            mode: 'narabe',
+            narabe: '10,25',
+            nz: 'hajime',
+          },
+          {
+            k: 'n51525',
+            na: '月3回・5日・15日・25日',
+            desc: '6〜15日／16〜25日／26日〜次の 月の 5日',
+            mode: 'narabe',
+            narabe: '5,15,25',
+            nz: 'shime',
+          },
+          {
+            k: 'shuus',
+            na: '週1回・日曜締め',
+            desc: '月曜〜日曜（締めた 日の 月の 分）',
+            mode: 'shuu',
+            youbi: 0,
+            nz: 'shime',
+          },
+          {
+            k: 'shuuh',
+            na: '週1回・日曜締め',
+            desc: '月曜〜日曜（始まった 日の 月の 分）',
+            mode: 'shuu',
+            youbi: 0,
+            nz: 'hajime',
+          },
+          { k: 'hi', na: '毎日（日払い）', desc: '1日ごと', mode: 'hi' },
+        ];
+        // 欄の 値 → 締めの 形（shimeKataYomu と 同じ 作り方）
+        function tplKata(t) {
+          if (t.mode === 'thirds') return { kind: 'tsuki', hi: [10, 20, 0] };
+          if (t.mode === 'tsuki2') return { kind: 'tsuki', hi: [15, 0] };
+          if (t.mode === 'matsu') return { kind: 'tsuki', hi: [0] };
+          if (t.mode === 'tsuki1')
+            return nijuhachiShime({ kind: 'tsuki', hi: [t.hi], nazuke: t.nz });
+          if (t.mode === 'narabe')
+            return nijuhachiShime({
+              kind: 'tsuki',
+              hi: t.narabe.split(',').map(Number),
+              nazuke: t.nz,
+            });
+          if (t.mode === 'shuu') return { kind: 'shuu', youbi: t.youbi, nazuke: t.nz };
+          return { kind: 'hi' };
+        }
+        function tplOnaji(a, b) {
+          if (!a || !b || a.kind !== b.kind) return false;
+          if (a.kind === 'tsuki') return a.hi.join(',') === b.hi.join(',') && a.nazuke === b.nazuke;
+          if (a.kind === 'shuu') return a.youbi === b.youbi && a.nazuke === b.nazuke;
+          return true;
+        }
+        // ★見本の 材料★ 前の 月の 頭（の 7日 前）〜 次の 月の 末 を 1回 読む（明細と 同じ 表・同じ 絞り方）
+        //   明細の 材料（CTX）は 今 開いて いる 区切りの 範囲 だけ＝それで 月1回 等を 組むと 時間と 額が 足りない（対立役 止2）
+        function tplYmd(d) {
+          return (
+            d.getFullYear() +
+            '-' +
+            ('0' + (d.getMonth() + 1)).slice(-2) +
+            '-' +
+            ('0' + d.getDate()).slice(-2)
+          );
+        }
+        // ★読む 範囲＝12通りの 見本の 候補（前の 月・今の 月の 区切り）の 一番 早い 始まり 〜 一番 遅い 終わり★
+        //   決め打ち（前の 月の 頭の 7日前）だと 20日締め（締めた 日の 月の 分）の 前の 月の 区切り（2つ 前の 月の 21日〜）を 覆わず
+        //   見本の 頭の 3〜4日が 抜けた（対立役 止A）
+        function tplHani(ym) {
+          var kara = null;
+          var made = null;
+          TPL_KATA.forEach(function (t) {
+            var r = PayrollPeriod.seiki(tplKata(t));
+            if (!r.ok) return;
+            [-1, 0].forEach(function (z) {
+              var t2 = PayrollPeriod.shift(ym, z);
+              (PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []).forEach(
+                function (p) {
+                  if (!kara || p.start < kara) kara = p.start;
+                  if (!made || p.end > made) made = p.end;
+                }
+              );
+            });
+          });
+          return { kara: kara, made: made };
+        }
+        var TPL_ZAIRYO = null; // { key, pr }
+        function tplZairyo() {
+          var hani = tplHani(YM);
+          var kara = hani.kara;
+          var made = hani.made;
+          var key = kara + '|' + made + '|' + LP_NO;
+          if (TPL_ZAIRYO && TPL_ZAIRYO.key === key) return TPL_ZAIRYO.pr;
+          var st = DKSession.newLoadState();
+          var yomu = function (path) {
+            return DKSession.softList(SESS, kaishaDake(path), st);
+          };
+          var toD = new Date(+made.slice(0, 4), +made.slice(5, 7) - 1, +made.slice(8, 10) + 1);
+          var pr = Promise.all([
+            yomu(
+              'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded' +
+                '&started_at=gte.' +
+                encodeURIComponent(kara + 'T00:00:00+09:00') +
+                '&started_at=lt.' +
+                encodeURIComponent(tplYmd(toD) + 'T00:00:00+09:00') +
+                '&order=started_at.asc&limit=5000'
+            ),
+            yomu('dk_shift_edits?select=*&limit=5000'),
+            yomu(
+              'dk_work_hours?select=*&work_date=gte.' +
+                kara +
+                '&work_date=lte.' +
+                made +
+                '&limit=5000'
+            ),
+            yomu(
+              'dk_manual_days?select=*&work_date=gte.' +
+                kara +
+                '&work_date=lte.' +
+                made +
+                '&limit=5000'
+            ),
+            yomu(
+              'dk_pay_adjustments?select=*&work_date=gte.' +
+                kara +
+                '&work_date=lte.' +
+                made +
+                '&order=work_date.asc,adj_id.asc&limit=5000'
+            ),
+          ]).then(function (res) {
+            // ★1つでも 読めなければ 見本を 出さない★（足りない 材料で 額を 出さない）
+            if (DKSession.loadFailed(st)) return { dame: true };
+            var ctx = PayrollDaily.buildCtx(
+              Object.assign({}, RAW, {
+                shifts: res[0] || [],
+                edits: res[1] || [],
+                workHours: res[2] || [],
+                manualDays: res[3] || [],
+                adjustments: res[4] || [],
+                yakuRireki: yakuRirekiNoIma(),
+              })
+            );
+            return { ctx: ctx };
+          });
+          TPL_ZAIRYO = { key: key, pr: pr };
+          return pr;
+        }
+        // 見本の 紙（前の 月・今の 月の 区切りで 働いた 日が 一番 多い 区切り・その 区切りで 時間が 一番 多い 人）
+        function tplMihon(t, ctx) {
+          var CTX = ctx; // 見本の 材料（明細の CTX とは 別）
+          var r = PayrollPeriod.seiki(tplKata(t));
+          if (!r.ok || !CTX || !YM) return null;
+          // 前の 月と 今の 月の 区切りから 選ぶ（始まった 日の 月の 分 は 今の 月の 分が まだ 始まって いない 事が ある）
+          var ps = [];
+          [-1, 0].forEach(function (z) {
+            var t2 = PayrollPeriod.shift(YM, z);
+            ps = ps.concat(PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []);
+          });
+          var hd = (CTX && CTX.hoursByDate) || {};
+          var p = null;
+          var best = -1;
+          ps.forEach(function (q) {
+            var n = (q.dates || []).filter(function (d) {
+              return hd[d] && Object.keys(hd[d]).length;
+            }).length;
+            if (n > best) {
+              best = n;
+              p = q;
+            }
+          });
+          if (!p || best <= 0) return null;
+          var rp = PayrollDaily.report(p.dates, CTX);
+          var es = (rp && rp.employees) || [];
+          if (!es.length) return null;
+          var e = es.slice().sort(function (a, b) {
+            return (b.totalHours || 0) - (a.totalHours || 0);
+          })[0];
+          var mae = PERIOD;
+          var sheets;
+          try {
+            PERIOD = p; // 紙の 見出し（何月分・期間）は その 区切り
+            sheets = _empSheets(e, slipCars(rp.cars, e.employee_id));
+          } finally {
+            PERIOD = mae;
+          }
+          // ★見本の 印★（本物の 明細と 取り違えない＝画面にも PDF にも 載る・対立役 止C）
+          //   紙の 下の 余白（18px）に 13px（PDF で 9pt 以上）の 赤い 字（上の 余白だと「給料明細」に くっついた）
+          sheets.forEach(function (x) {
+            var m = document.createElement('div');
+            m.className = 'tpl-mihon-ji';
+            m.style.cssText =
+              'position:absolute;left:0;right:0;bottom:2px;text-align:center;font-size:13px;line-height:15px;' +
+              'font-weight:700;color:#c0392b;white-space:nowrap;';
+            m.textContent = '見本（払い方を 選ぶ ための 紙です・本物の 明細では ありません）';
+            x.el.style.position = x.el.style.position || 'relative';
+            x.el.insertBefore(m, x.el.firstChild);
+          });
+          return { sheets: sheets, p: p, e: e };
+        }
+        function renderTpl() {
+          var g = $('tplGrid');
+          if (!g) return;
+          // 今の 払い方（読んだ 形＝もう 整えて ある・もう一度 seiki に 通さない）
+          var ima = shimeNoHiKata(kyouJst()) || shimeRetsuKata();
+          var imaK = ima ? { ok: true, kata: ima } : null;
+          g.innerHTML = TPL_KATA.map(function (t, i) {
+            var r = PayrollPeriod.seiki(tplKata(t));
+            var on = imaK && imaK.ok && r.ok && tplOnaji(imaK.kata, r.kata);
+            return (
+              '<div class="tpl-card' +
+              (on ? ' on' : '') +
+              '" role="button" tabindex="0" data-tpl="' +
+              i +
+              '"><div class="tpl-badge">✓</div><div class="tpl-thumb" data-tpl-thumb="' +
+              i +
+              '"><span class="tpl-thumb-msg">見本を 作っています…</span></div><div class="tpl-meta"><div class="tpl-name">' +
+              esc(t.na) +
+              '</div><div class="tpl-desc">' +
+              esc(t.desc) +
+              (on ? '（今の 払い方）' : '') +
+              '</div><button class="tpl-pdf" type="button" data-tpl-pdf="' +
+              i +
+              '">PDFで 見る</button></div></div>'
+            );
+          }).join('');
+          var mihon = {};
+          var thumbs = g.querySelectorAll('[data-tpl-thumb]');
+          var dasuMsg = function (ji) {
+            Array.prototype.forEach.call(thumbs, function (box) {
+              box.innerHTML = '<span class="tpl-thumb-msg">' + ji + '</span>';
+            });
+          };
+          // ★明細が 止まる 時は 見本も 出さない★（明細と 同じ 門・対立役 止2 の ついで）
+          var tome =
+            KEISAN_NG || !CTX
+              ? '明細を 計算 できて いない ので<br />見本は 出しません'
+              : LP_YOMICHU
+                ? '読み込み中です'
+                : DKSession.loadFailed(LOAD) || kyuDameBun(CTX)
+                  ? '明細が 止まって いる ので<br />見本は 出しません'
+                  : '';
+          var hyouji = Number(g.getAttribute('data-gen') || 0) + 1;
+          g.setAttribute('data-gen', String(hyouji));
+          var oku = function (ctx) {
+            // ★見本の 材料にも 明細と 同じ 止め★（今の 区切りの 外に 読めない 売上の 直し 等が 在る 時・対立役 止B）
+            var tomeZ = kyuDameBunHoka(ctx);
+            if (tomeZ)
+              return dasuMsg('見本の 期間に 計算 できない 所が ある ので<br />見本は 出しません');
+            Array.prototype.forEach.call(thumbs, function (box) {
+              var i = Number(box.getAttribute('data-tpl-thumb'));
+              var m = null;
+              try {
+                m = tplMihon(TPL_KATA[i], ctx);
+              } catch (_) {
+                m = null;
+              }
+              mihon[i] = m;
+              if (!m || !m.sheets.length) {
+                box.innerHTML =
+                  '<span class="tpl-thumb-msg">この 月に 時数が 入ると<br />ここに 実際の 紙が 出ます</span>';
+                return;
+              }
+              // ★札には 写しを 縮めて 置く★（元の 紙は PDF へ そのまま 渡す＝縮めた 紙を PDF に 描かない・札から 紙を 抜かない・対立役 止1）
+              var el = m.sheets[0].el.cloneNode(true);
+              var wh = kamiWH(el);
+              var bw = box.clientWidth || 150;
+              var bh = box.clientHeight || bw * 1.414;
+              var sc = Math.min(bw / wh.w, bh / wh.h);
+              el.style.position = 'absolute';
+              el.style.left = Math.round((bw - wh.w * sc) / 2) + 'px';
+              el.style.top = Math.round((bh - wh.h * sc) / 2) + 'px';
+              el.style.width = wh.w + 'px';
+              el.style.transformOrigin = 'top left';
+              el.style.transform = 'scale(' + sc + ')';
+              el.style.boxShadow = '0 0 0 1px #e3eaf2';
+              box.innerHTML = '';
+              box.appendChild(el);
+            });
+          };
+          if (tome) dasuMsg(tome);
+          else
+            tplZairyo()
+              .then(function (z) {
+                // 読み終える 前に 描き直した・別の タブへ 行った ⇒ 置かない
+                if (TAB !== 'tpl' || g.getAttribute('data-gen') !== String(hyouji)) return;
+                if (!z || z.dame) return dasuMsg('記録を 読めなかった ので<br />見本は 出しません');
+                oku(z.ctx);
+              })
+              .catch(function () {
+                if (g.getAttribute('data-gen') === String(hyouji))
+                  dasuMsg('記録を 読めなかった ので<br />見本は 出しません');
+              });
+          Array.prototype.forEach.call(g.querySelectorAll('[data-tpl]'), function (c) {
+            c.onclick = function () {
+              tplErabu(TPL_KATA[Number(c.getAttribute('data-tpl'))]);
+            };
+          });
+          Array.prototype.forEach.call(g.querySelectorAll('[data-tpl-pdf]'), function (b) {
+            b.onclick = function (ev) {
+              ev.stopPropagation(); // ★PDF を 見るだけ＝選ばない★
+              var i = Number(b.getAttribute('data-tpl-pdf'));
+              var m = mihon[i];
+              if (!m || !m.sheets.length)
+                return showErr('この 月に 時数が 無いので 見本の 紙を 作れません。');
+              showMsg('PDFを作っています…（見本）');
+              loadPdfLibs()
+                .then(function (E) {
+                  return _withTimeout(
+                    E.dasu(m.sheets, '給料明細_見本_' + TPL_KATA[i].na, KAMI_KATA),
+                    PDF_TIMEOUT_MS,
+                    'PDF'
+                  );
+                })
+                .then(function () {
+                  showMsg('');
+                })
+                .catch(function () {
+                  showMsg('');
+                  showErr('見本の PDF を 作れませんでした。もう一度 押してください。');
+                });
+            };
+          });
+        }
+        // ★選ぶ＝給料の 設定の 払い方の 欄に 入れて 開く★（保存は 給料の 設定の 保存＝何日からも そこで 決める）
+        function tplErabu(t) {
+          TAB = 'set';
+          Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+            x.className = 'tab' + (x.getAttribute('data-tab') === 'set' ? ' on' : '');
+          });
+          render();
+          if ($('pMode')) $('pMode').value = t.mode;
+          if ($('pShimeHi')) $('pShimeHi').value = t.hi ? String(t.hi) : '';
+          if ($('pNarabe')) $('pNarabe').value = t.narabe || '';
+          if ($('pYoubi') && t.youbi !== undefined) $('pYoubi').value = String(t.youbi);
+          if ($('pNazuke')) $('pNazuke').value = t.nz || '';
+          // ★欄を 触った 印★（手で 選んだ 時と 同じ＝保存で 何日からの 記録を 書く・何日からを 変えても 欄を 戻さない・対立役 止1）
+          SHIME_SAWATTA = true;
+          kikanDashiwake();
+          showMsg(
+            'テンプレの「' +
+              t.na +
+              '」を 入れました。「何日から」を 決めて「保存する」を 押すと 変わります。'
+          );
+          if ($('pMode') && $('pMode').scrollIntoView)
+            $('pMode').scrollIntoView({ block: 'center' });
+        }
+
         function printAll(dake) {
           if (yomikomichuTomeru()) return;
           var kiAll = PERIOD;
@@ -5957,6 +6463,26 @@
             return _empSheets(e, slipCars(REP.cars, e.employee_id)).map(function (x) {
               return x.el;
             });
+          },
+          // テンプレの 見本を 読む 範囲（見張りが 12通りの 区切りを 全部 覆うかを 数える）
+          tplHani: function (y, m) {
+            return { hani: tplHani({ year: y, month: m }), n: TPL_KATA.length };
+          },
+          tplKiri: function (y, m) {
+            var out = [];
+            TPL_KATA.forEach(function (t) {
+              var r = PayrollPeriod.seiki(tplKata(t));
+              if (!r.ok) return;
+              [-1, 0].forEach(function (z) {
+                var t2 = PayrollPeriod.shift({ year: y, month: m }, z);
+                (PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []).forEach(
+                  function (p) {
+                    out.push({ k: t.k, start: p.start, end: p.end });
+                  }
+                );
+              });
+            });
+            return out;
           },
           maisu: function (ei) {
             var e = REP.employees[ei];

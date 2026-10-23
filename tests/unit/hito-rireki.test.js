@@ -140,8 +140,8 @@ describe('呼び口', () => {
         expect(ok, f + ' の buildCtx(' + a.slice(0, 40) + ') が 記録を 渡していない').toBe(true);
       }
     }
-    // 製品の 呼び口は 4か所＋画面の その 日の 人（hiNoHito）1か所
-    expect(n).toBe(5);
+    // 製品の 呼び口は 4か所＋画面の その 日の 人（hiNoHito）1か所＋テンプレの 見本（tplZairyo・RAW ごと）1か所 2026-10-23
+    expect(n).toBe(6);
   });
 });
 

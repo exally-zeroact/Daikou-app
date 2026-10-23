@@ -70,7 +70,13 @@ describe('★手当・控除の 読みの 順★', () => {
 
   it('給料タブ（給料表・明細）と 月次集計の 3か所の 読みは 全部 1000行 より 多く 頼み・順に adj_id', () => {
     const ji = yomiNoJi();
-    expect(ji.map((x) => x.f)).toEqual(['kyuryo.html', 'kyuryo.html', 'shukei.html']);
+    // kyuryo.html は 給料表・明細・テンプレの 見本（tplZairyo 2026-10-23）
+    expect(ji.map((x) => x.f)).toEqual([
+      'kyuryo.html',
+      'kyuryo.html',
+      'kyuryo.html',
+      'shukei.html',
+    ]);
     ji.forEach((x) => {
       const l = /&limit=(\d+)/.exec(x.ji);
       expect(Number(l[1]), x.f + ' が 1000行で 切れる').toBeGreaterThan(1000);
