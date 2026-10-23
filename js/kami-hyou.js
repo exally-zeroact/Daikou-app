@@ -42,23 +42,7 @@
       return x + maru(y);
     }, 0);
   }
-  // 日の 欄（日ごとに 丸めて 出す）を 足すと 合計と ずれる 人か（払う回の 額が 来た 時だけ 比べる）
-  function hiZure(p) {
-    if (!p || !Array.isArray(p.kikan) || !p.kikan.length) return false;
-    const hi = (p.hi || []).reduce(function (x, y) {
-      return x + maru(y);
-    }, 0);
-    return hi !== kikanKei(p);
-  }
-  const HI_ZURE_JI =
-    '日ごとの額は1円未満を丸めて出しています（合計は丸める前の額から出しています）';
-  function hiZureChu(zure) {
-    return zure
-      ? '<div class="hi-zure" style="font-size:10px;color:#5a6b82;margin:2px 0 4px;">' +
-          esc(HI_ZURE_JI) +
-          '</div>'
-      : '';
-  }
+  // ★日の 欄の 和と 合計の 1円の ずれの 注記は 紙に 出さない★ 2026-10-23（司さん「たまに赤丸の説明書きがいらない」）
   function km(v) {
     return v === null || v === undefined
       ? '<span class="z">—</span>'
@@ -823,7 +807,6 @@
           }, 0)
         );
       }, 0);
-      const zure = t.some(hiZure);
       const jk = t.reduce(function (s, p) {
         return (
           s +
@@ -856,7 +839,6 @@
           K.box('人数', String(t.length)) +
           K.box('日数', String(hibiOf(k).length), true) +
           '</div>' +
-          (dai === '金額' ? hiZureChu(zure) : '') +
           han
             .map(function (h) {
               return (
@@ -958,7 +940,6 @@
         '<tr class="sum"><td>合計</td><td>' + en(zen) + '</td><td>' + km(p.jikan) + '</td></tr>'
       ) +
       '</div>' +
-      hiZureChu(hiZure(p)) +
       han
         .map(function (x) {
           return (

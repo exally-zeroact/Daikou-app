@@ -274,9 +274,11 @@ describe('★明細の 日の 欄の 注記（±1円）★', () => {
   });
   it('明細の 紙（kyuryo.html）と 給料表の 日ごと・個別の 紙に 出る', () => {
     expect(KYU).toMatch(/hiZureGyou\(e\)/);
-    expect(H.kyuryoHi(KAISHA, { hito: HITO })[0].el._html).toContain(PD.HI_ZURE_JI);
+    expect(H.kyuryoHi(KAISHA, { hito: HITO })[0].el._html).not.toContain(PD.HI_ZURE_JI);
     const p = HITO.find((x) => x.id === 'e2');
-    expect(H.kyuryoKojin(KAISHA, { namae: NAMAE, hito: p })[0].el._html).toContain(PD.HI_ZURE_JI);
+    expect(H.kyuryoKojin(KAISHA, { namae: NAMAE, hito: p })[0].el._html).not.toContain(
+      PD.HI_ZURE_JI
+    );
   });
   it('月次集計の 説明は 事実と 合う（「日ごとに出した分を足した物と一致」を 言わない）', () => {
     expect(SHU).not.toContain('日ごとに出した分を足した物と一致します');
