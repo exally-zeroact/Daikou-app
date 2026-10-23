@@ -539,6 +539,18 @@
         width: 44px;
       }
 
+      /* ★★日ごとの 表だけ 左の 列を 字に 合わせる★★ 2026-10-23（司さん iPhone の 写真）
+         44px では 見出し「10月の 日」が 2段（電子決済は「2026年 10月の 日」が 3段）に 折れ、
+         電子決済の 日の 升目「10/27(火)」が 列から はみ出した（webkit 390px で 測った）。
+         ⇒ 日ごとの 時だけ 見出しに .hi を 付けて 62px・折らない（月・年の 表は 今まで通り 44px）
+         ★見張り★ tests/e2e/shukei-hi-midashi.spec.js */
+      #uriHead > tr > th.hi,
+      #kyoriHead > tr > th.hi,
+      #dkHead > tr > th.hi {
+        width: 62px;
+        white-space: nowrap;
+      }
+
       table.kami > tbody > tr.sum > td {
         font-weight: 800;
         background: #f7fbff;
@@ -2017,7 +2029,9 @@
             // ★★合計は 右端では なく「月」の 隣★★ 2026-09-05（甲）
             //   ★20台で 表が 1,612px＝箱の 5倍★＝右端の 合計は 見えない
             //   ⇒ ★左に 貼り付けた 2列（月・合計）は いつでも 見える★
-            '<tr><th class="kotei1">' +
+            '<tr><th class="kotei1' +
+            (URI_MODE === 'month' || URI_MODE === 'year' ? '' : ' hi') +
+            '">' +
             esc(midashi1) +
             '</th>' +
             (URI_WAKE === 'kuruma' ? '<th class="kotei2">合計</th>' : '') +
@@ -2165,7 +2179,7 @@
             //   まだ 押していない（0）時は ★今の 月★を 出す。
             var tsuki = ONE || new Date(Date.now() + 9 * 3600 * 1000).getUTCMonth() + 1;
             var mm2 = (tsuki < 10 ? '0' : '') + tsuki;
-            head.innerHTML = midashi.replace('%1', tsuki + '月の 日');
+            head.innerHTML = midashi.replace('<th>%1', '<th class="hi">' + tsuki + '月の 日');
             var hibi = {};
             all.forEach(function (x) {
               var h = kyoriHi(x);
@@ -2677,7 +2691,8 @@
             var tsuki = ONE || jstNow().getMonth() + 1;
             var nissuu = new Date(YEAR, tsuki, 0).getDate();
             $('dkHead').innerHTML =
-              '<tr><th>' + YEAR + '年 ' + tsuki + '月の 日</th><th>電子決済</th></tr>';
+              // ★年は 上の 年の 札に 出ている★＝見出しは 他の 日ごとの 表と 同じ「◯月の 日」（2026-10-23）
+              '<tr><th class="hi">' + tsuki + '月の 日</th><th>電子決済</th></tr>';
             for (var d = 1; d <= nissuu; d++) {
               var hi = YEAR + '-' + ('0' + tsuki).slice(-2) + '-' + ('0' + d).slice(-2);
               var w = new Date(hi + 'T00:00:00');

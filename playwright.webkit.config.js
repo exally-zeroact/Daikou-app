@@ -68,6 +68,8 @@ export const WEBKIT_KUMI = [
   'shita-obi-makinaoshi.spec.js',
   // 月次集計の 紙の 種類の 札が iPhone の 幅で 1行・内わけの 字の 濃さ（2026-10-23）
   'shukei-kirikae-1gyou.spec.js',
+  // 月次集計の 日ごとの 表の 左の 見出しが 折れない・日の 升目が はみ出さない（2026-10-23）
+  'shukei-hi-midashi.spec.js',
 ];
 
 export default defineConfig({
