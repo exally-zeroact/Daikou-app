@@ -22,6 +22,7 @@
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-11 実測 ＝ 下に 書く）★★
 // ============================================================
 const { test, expect } = require('@playwright/test');
+const { zenbuAkeru } = require('./nyuryoku-akeru.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -110,6 +111,8 @@ async function hiraku(page, edits, kyoriNai) {
   await page.fill('#hiSel', HI);
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1500);
+  // ★車は 既定で 畳む★ 2026-10-23＝客と 同じく 名前を 押して 開いてから 打つ（tests/e2e/nyuryoku-akeru.js）
+  await zenbuAkeru(page);
   // ★作り物が 効いているか 確かめる★（効いていないのに 緑に しない）
   const dame = await page.evaluate(() => !!window.__dameSession);
   expect(dame, '★作り物（DKSession）が 効いていません★＝この 試験は 何も 見ていません').toBe(false);

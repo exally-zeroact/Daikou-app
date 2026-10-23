@@ -9,7 +9,7 @@
 //       同じ 入力を した 時と 同じ 額（KIJUN＝be349791a の 給料の 画面で 測った 額）
 //     ②2回 走った 車で 時間が 二重に ならない（回ごとの 欄・回ごとの 鍵）
 //     ③手で 入れた 車で 時数を 入れた 後に 電子決済を 打っても 時数が 0 に 戻らない
-//     ④車の 見出しに 入れ漏れの 印
+//     ④畳んだ 見出しに 入れ漏れの 印
 //   守り：同じ 人を 別の 車に 押すと（会社・日・人）の 鍵で 黙って 車が 移る＝保存中は 札を 止める
 //
 //   わざと 壊した 記録は 下の 各 試験の 頭に 書く
@@ -151,7 +151,7 @@ test('★③ 手で 入れた 車：時数を 入れた 後に 電子決済を �
 });
 
 // わざと壊す（2026-10-23 実測）：shirushiHtml の noriNashi の 印を 出さない ⇒ ★赤★
-test('★④ 車の 見出しに 入れ漏れの 印（乗った人なし・売上 未入力）・自分の 車には 出さない★', async ({
+test('★④ 畳んだ 見出しに 入れ漏れの 印（乗った人なし・売上 未入力）・自分の 車には 出さない★', async ({
   page,
 }) => {
   const F = K.zairyou((G) => {
@@ -167,6 +167,9 @@ test('★④ 車の 見出しに 入れ漏れの 印（乗った人なし・売�
   await K.nyuryokuWoHiraku(page, F, HI);
   const c1 = K.kuruma(page, K.CAR1);
   const c2 = K.kuruma(page, K.CAR2);
+  // 畳んだ まま
+  await expect(c1).not.toHaveClass(/\baku\b/);
+  await expect(c1.locator('.sha-naka')).toBeHidden();
   await expect(c1.locator('.sha-atama .shirushi')).toContainText(['乗った人なし']);
   await expect(c2.locator('.sha-atama .shirushi')).toContainText(['乗った人なし']);
   // 1号車に 太郎を 乗せると 印が 消える
@@ -262,13 +265,30 @@ test('★⑦ どの 車にも 付いていない 人・記録の 無い 車の �
   await expect(nai.locator('.sha-atama .shirushi')).toContainText(['この日の 記録なし']);
 });
 
+// わざと壊す（2026-10-23 実測）：hozonDekinai の akeru を 消す ⇒ 畳んだ まま ★赤★
+test('★⑧ 保存が 失敗したら その 車を 開く（畳んだ 所で 失敗させない）★', async ({ page }) => {
+  const F = K.zairyou();
+  await K.nyuryokuWoHiraku(page, F, HI, {
+    osoi: { dk_shift_edits: 800 },
+    dame: ['dk_shift_edits'],
+  });
+  const c1 = await K.akeru(page, K.CAR1);
+  await K.utsu(c1.locator('input[data-hours-sid="' + K.S1 + '"]'), '8');
+  // 返事が 来る 前に 畳む
+  await c1.locator('.sha-atama').click();
+  await expect(c1).not.toHaveClass(/\baku\b/);
+  await page.waitForTimeout(1300);
+  await expect(c1).toHaveClass(/\baku\b/);
+  await expect(page.locator('#err')).toContainText('時数を 保存できませんでした');
+});
+
 test('★⑨ 新しい 車を 足す・手入力を 消す（給料の 画面から 移した 口）★', async ({ page }) => {
   const F = K.zairyou();
   await K.nyuryokuWoHiraku(page, F, '2026-08-03');
   page.once('dialog', (d) => d.accept('3号車'));
   await page.click('#btnNewCar');
   await K.machi(page);
-  const shin = page.locator('#shaList .sha[data-car]', { hasText: '3号車' });
+  const shin = page.locator('#shaList .sha.aku', { hasText: '3号車' });
   await expect(shin).toHaveCount(1);
   const lab = await page.evaluate(() =>
     window.__calls.filter((c) => /^dk_device_labels/.test(c.p)).map((c) => c.b.label)

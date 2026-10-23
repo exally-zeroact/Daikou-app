@@ -261,12 +261,22 @@
         margin-bottom: 8px;
       }
 
-      /* ★★車の 見出し＝名前＋入れ漏れの 印★★ 2026-10-23（時数・乗った人を 入力へ 移した） */
+      /* ★★車の かたまりは 畳む★★ 2026-10-23（司さん「デフォはドロップダウン式にして車の名前だけにして選択しやすくして
+         押したら全項目が出て入力してまたドロップダウンのボタン押したら隠れるようにして」）
+         見出し（車の 名前＋▼）を 押すと 開く・もう一度で 畳む。畳んだ 見出しに 入れ漏れ・打てない 印を 小さく 出す */
       .sha-atama {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-bottom: 8px;
+        width: 100%;
+        min-height: 44px;
+        background: none;
+        border: none;
+        padding: 2px 0;
+        font-family: inherit;
+        color: var(--ink);
+        text-align: left;
+        cursor: pointer;
       }
 
       .sha-atama .sha-na {
@@ -299,6 +309,26 @@
         color: var(--muted);
         background: #eef3fa;
         border-color: var(--line);
+      }
+
+      .sha-ya {
+        flex: 0 0 auto;
+        font-size: 13px;
+        color: var(--blue-d);
+        transition: transform 0.15s;
+      }
+
+      .sha.aku .sha-ya {
+        transform: rotate(180deg);
+      }
+
+      .sha-naka {
+        display: none;
+        padding-top: 8px;
+      }
+
+      .sha.aku .sha-naka {
+        display: block;
       }
 
       /* ★乗った人★（給料の 画面の「時数を入れる」から 移した・人ごとの 時数は 自由） */
@@ -501,7 +531,8 @@
           <b>時数</b> … 車が 働いた 時間（h）。メーターの 車は 空なら 記録から 自動で 入ります。<br />
           <b>乗った人</b> … 名前の 札を 押すと 乗せます（1台 2人まで）。その人の 時数は 車と
           同じ。早上がり など その人だけ 違う 時は 人の 横の 欄に 入れます。✕ で 外せます。<br />
-          車の 名前の 横の 赤い 印は 入れ漏れです。<br />
+          車の 名前を 押すと 開きます。もう一度 押すと 畳みます。名前の 横の 赤い 印は
+          入れ漏れです。<br />
           打つと すぐ 保存されます。<b>メーターが 読んだ 距離は 変わりません</b>。
         </div>
         <!-- ★★走った 日へ 飛ぶ★★ 2026-09-08（司さん「高速代とかどこに入れるんど」）
@@ -633,10 +664,13 @@
           delete ERR_KAGI[kagi];
           errNuru();
         }
-        function hozonDekinai(kagi, msg, r) {
+        function hozonDekinai(kagi, msg, r, dev) {
           // 出した 字（401/403 の 会社名つき）を そのまま しまう（会社名の 無い 字に 置き換わった・対立役 6回目 直す-1）
           delete ERR_KAGI[kagi]; // しまい直すと 最後に なる（残った 字は 最後の 字で 出す）
           ERR_KAGI[kagi] = saveErrJi(msg, r);
+          // ★失敗した 車は 開く★ 2026-10-23（B-2：畳んだ 所で 失敗させない）
+          var d = dev !== undefined ? dev : kagiNoKuruma(kagi);
+          if (d !== null && d !== undefined) akeru(d, true);
           errNuru();
         }
         var YOMENAI_JI =
@@ -666,6 +700,8 @@
         var CTX = null; // 判じの 材料（PayrollDaily.buildCtx・給料の 計算と 同じ）
         // ★乗った人の 保存中は 札と ✕ を 止める★（同じ 人を 別の 車に 押すと 鍵（会社・日・人）で 黙って 車が 移る・給料の 画面と 同じ 守り）
         var NORI_HOZON = 0;
+        // ★開いた 車★（その 画面の 間だけ 覚える・日を 変えても 車ごとに）
+        var AKETA = {};
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -1315,14 +1351,21 @@
               (TEBIKI[dev] ? '' : ' style="display:none"') +
               '>この日の 手入力を 消す</button>';
           }
+          var aku = !!AKETA[dev];
           return (
-            '<div class="sha" data-car="' +
+            '<div class="sha' +
+            (aku ? ' aku' : '') +
+            '" data-car="' +
             esc(dev) +
-            '"><div class="sha-atama"><span class="sha-na">' +
+            '"><button type="button" class="sha-atama" data-akeru="' +
+            esc(dev) +
+            '" aria-expanded="' +
+            aku +
+            '"><span class="sha-na">' +
             esc(na) +
             '</span><span class="sha-shirushi">' +
             shirushiHtml(dev) +
-            '</span></div><div class="sha-naka">' +
+            '</span><span class="sha-ya" aria-hidden="true">▼</span></button><div class="sha-naka">' +
             naka +
             '</div></div>'
           );
@@ -1562,6 +1605,39 @@
             }
           );
           if (YOMENAI) tomeruRan(yomenaiJi());
+        }
+
+        // ★開く・畳む★（覚えるのは その 画面の 間だけ）
+        function akeru(dev, aku) {
+          if (dev === undefined || dev === null) return;
+          AKETA[dev] = aku;
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList .sha[data-car]'),
+            function (el) {
+              if (el.getAttribute('data-car') !== dev) return;
+              el.className = 'sha' + (aku ? ' aku' : '');
+              var b = el.querySelector('.sha-atama');
+              if (b) b.setAttribute('aria-expanded', String(aku));
+            }
+          );
+        }
+        // ★保存の 失敗の 鍵から 車を 引く★（B-2：隠れた 所で 失敗させない＝その 車を 開く）
+        function kagiNoKuruma(kagi) {
+          var p = String(kagi || '').split(':');
+          if (p[0] === 's') {
+            var hit = RAW.shifts.filter(function (x) {
+              return x && x.shift_id === p[1];
+            })[0];
+            return hit ? hit.device_id : null;
+          }
+          if (p[0] === 'd') return p[2] || null;
+          if (p[0] === 'w') {
+            var w = WH.filter(function (x) {
+              return x.employee_id === p[2];
+            })[0];
+            return w ? w.device_id || '' : null;
+          }
+          return null;
         }
 
         // ★★最後に 走った 日へ 飛ぶ★★ 2026-09-08（司さん「どこに入れるんど」）
@@ -1829,6 +1905,15 @@
               };
             }
           );
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-akeru]'),
+            function (b) {
+              b.onclick = function () {
+                var dev = b.getAttribute('data-akeru');
+                akeru(dev, !AKETA[dev]);
+              };
+            }
+          );
           if (YOMENAI) tomeruRan(yomenaiJi());
         }
         // 乗った人の 欄（描き直す 度に 結ぶ）
@@ -1875,6 +1960,7 @@
             delete ERR_KAGI[kagi + ':katachi'];
             ERR_KAGI[kagi + ':katachi'] =
               '売上は 0以上の 整数で 入れてください（空に すると メーターの 額に 戻ります）。';
+            akeru(kagiNoKuruma(kagi), true);
             errNuru();
             return;
           }
@@ -1987,6 +2073,7 @@
             delete ERR_KAGI[kagi + ':hkatachi'];
             ERR_KAGI[kagi + ':hkatachi'] =
               '時数は 0 より 大きい 数で 入れてください（空に すると メーターの 記録から 自動）。';
+            akeru(kagiNoKuruma(kagi), true);
             errNuru();
             return;
           }
@@ -2026,7 +2113,7 @@
           if (yomenaiNara()) return;
           var kagi = 'w:' + date + ':' + empId;
           if (NORI_NG) {
-            hozonDekinai(kagi, NORI_NG);
+            hozonDekinai(kagi, NORI_NG, null, dev);
             return;
           }
           var t = String(value == null ? '' : value).trim();
@@ -2034,6 +2121,7 @@
             delete ERR_KAGI[kagi + ':katachi'];
             ERR_KAGI[kagi + ':katachi'] =
               '時数は 0 より 大きい 数で 入れてください（空に すると 車と 同じ 時間）。';
+            akeru(dev, true);
             errNuru();
             return;
           }
@@ -2060,7 +2148,12 @@
                 if (!aru) WH.push(body);
               })
               .catch(function (r) {
-                hozonDekinai(kagi, '乗った人を 保存できませんでした。通信を確認してください。', r);
+                hozonDekinai(
+                  kagi,
+                  '乗った人を 保存できませんでした。通信を確認してください。',
+                  r,
+                  dev
+                );
               });
           }).then(owari, owari);
         }
@@ -2069,7 +2162,7 @@
           if (yomenaiNara()) return;
           var kagi = 'w:' + date + ':' + empId;
           if (NORI_NG) {
-            hozonDekinai(kagi, NORI_NG);
+            hozonDekinai(kagi, NORI_NG, null, dev);
             return;
           }
           noriTomeru(1);
@@ -2088,7 +2181,7 @@
                 });
               })
               .catch(function (r) {
-                hozonDekinai(kagi, '外せませんでした。通信を確認してください。', r);
+                hozonDekinai(kagi, '外せませんでした。通信を確認してください。', r, dev);
               });
           }).then(owari, owari);
         }
@@ -2190,6 +2283,7 @@
                 hozonDekita(kagi);
                 RAW.labels.push({ company_id: COMPANY.company_id, device_id: dev, label: name });
                 NAMAE[dev] = name;
+                AKETA[dev] = true;
                 kakiNaosu(dev);
               })
               .catch(function (r) {

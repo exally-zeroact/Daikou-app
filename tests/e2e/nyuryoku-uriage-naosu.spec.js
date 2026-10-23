@@ -9,6 +9,7 @@
 //     欄を 足す 前の nyuryoku.html に 戻す ⇒ 赤（欄が 無い・送らない）
 // ============================================================
 const { test, expect } = require('@playwright/test');
+const { zenbuAkeru } = require('./nyuryoku-akeru.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -59,6 +60,8 @@ async function hiraku(page) {
   await page.fill('#hiSel', '2026-09-02');
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1200);
+  // ★車は 既定で 畳む★ 2026-10-23＝客と 同じく 名前を 押して 開いてから 打つ（tests/e2e/nyuryoku-akeru.js）
+  await zenbuAkeru(page);
 }
 async function utsu(page, v) {
   await page.evaluate((x) => {

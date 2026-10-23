@@ -14,6 +14,7 @@
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-08 実測 ＝ 下に 書く）★★
 // ============================================================
 const { test, expect } = require('@playwright/test');
+const { zenbuAkeru } = require('./nyuryoku-akeru.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -109,6 +110,8 @@ test('★★② 単位「円」は 欄の 中★★', async ({ page }) => {
   await page.fill('#hiSel', '2026-09-20');
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1200);
+  // ★車は 既定で 畳む★ 2026-10-23＝名前を 押して 開いてから 測る・打つ（tests/e2e/nyuryoku-akeru.js）
+  await zenbuAkeru(page);
   const r = await page.evaluate(() => {
     const lab = [...document.querySelectorAll('.flabel')].map((x) => x.textContent.trim());
     const en = document.querySelector('.fen .en');
@@ -195,6 +198,8 @@ test('★★③-2 打つと dk_manual_days へ 行く（売上は 0 の まま�
   await page.fill('#hiSel', '2026-09-03');
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1500);
+  // ★車は 既定で 畳む★ 2026-10-23＝名前を 押して 開いてから 測る・打つ（tests/e2e/nyuryoku-akeru.js）
+  await zenbuAkeru(page);
   // ★★2026-09-11 1つ目の 欄は 売上に なりました★★
   //   ⇒ ★高速代を 名指し★する（並びに 寄りかからない）
   const kou = page.locator('#shaList [data-dev][data-f="toll"]').first();

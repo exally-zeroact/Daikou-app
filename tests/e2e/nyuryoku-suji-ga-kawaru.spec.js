@@ -40,6 +40,7 @@
 //     ⇒ ★DEFAULT_DEDUCT を 変えて やり直した★（緑のままで 済ませていない）
 // ============================================================
 const { test, expect } = require('@playwright/test');
+const { zenbuAkeru } = require('./nyuryoku-akeru.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -158,6 +159,8 @@ async function utsu(page, souko, tsukau) {
   await page.fill('#hiSel', HI);
   await page.dispatchEvent('#hiSel', 'change');
   await page.waitForTimeout(1200);
+  // ★車は 既定で 畳む★ 2026-10-23＝客と 同じく 名前を 押して 開いてから 打つ（tests/e2e/nyuryoku-akeru.js）
+  await zenbuAkeru(page);
   await tsukau(page);
   await page.waitForTimeout(600);
   return page.evaluate(() => window.__okutta || []);
