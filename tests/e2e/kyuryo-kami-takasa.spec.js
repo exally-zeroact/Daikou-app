@@ -30,14 +30,15 @@ function kuruma(f, dai) {
 
 const BAAI = [
   {
-    na: '車 12台 ＋ 手当 1件',
-    dai: 12,
+    // 2026-10-23 行を 詰めた（司さん「もったいない」）＝横の 紙は 13台まで 1枚＝分ける 形を 作るには 16台
+    na: '車 16台 ＋ 手当 1件',
+    dai: 16,
     adj: [['teate', 'ガソリン代', 500]],
   },
   {
     // ★対立役 10-07 の 形★（内わけが 折り返して 見積もりより 高く なった）
-    na: '車 9台 ＋ 1回・1km の 行 ＋ 手当・控除 6件',
-    dai: 9,
+    na: '車 14台 ＋ 1回・1km の 行 ＋ 手当・控除 6件',
+    dai: 14,
     adj: [
       ['teate', 'ガソリン代', 500],
       ['teate', '携帯電話代', 3000],
@@ -232,10 +233,10 @@ test('★字体が 入った 後も 事務所の 画面の 紙 ＝ PDF の 束�
     const out = [];
     for (let ei = 0; ei < P.ninzu(); ei++) {
       const mado = document.querySelector('#slips .kami-mado[data-ei="' + ei + '"]');
-      const gamen = Array.from(mado.querySelectorAll('.hn-kami-waku')).map(
-        (w) => w.firstElementChild.scrollHeight
-      );
-      out.push({ pdf: P.sheets(ei).length, gamen: gamen });
+      const waku = Array.from(mado.querySelectorAll('.hn-kami-waku'));
+      const gamen = waku.map((w) => w.firstElementChild.scrollHeight);
+      const taka = waku.map((w) => +w.firstElementChild.getAttribute('data-sheet-h') || 794);
+      out.push({ pdf: P.sheets(ei).length, gamen: gamen, taka: taka });
     }
     return { ari: ari, out: out };
   });
@@ -244,8 +245,9 @@ test('★字体が 入った 後も 事務所の 画面の 紙 ＝ PDF の 束�
   expect(r.ari, '★字体が 入っていない＝この 見張りは 何も 見ていない★').toBe(true);
   r.out.forEach((x, ei) => {
     expect(x.gamen.length, '★' + ei + '人目 画面の 枚数 ≠ PDF★').toBe(x.pdf);
-    x.gamen.forEach((h) =>
-      expect(h, '★' + ei + '人目 画面の 紙 ' + h + 'px★').toBeLessThanOrEqual(794)
+    // 2026-10-23 横 1列に 入らない 期間は 縦の 紙（高さ 1123）＝その 紙の 高さで 測る
+    x.gamen.forEach((h, i) =>
+      expect(h, '★' + ei + '人目 画面の 紙 ' + h + 'px★').toBeLessThanOrEqual(x.taka[i])
     );
   });
   expect(err).toEqual([]);

@@ -3310,7 +3310,6 @@
             //   司さん「給料明細の表が見切れとんは直したんやないんか…事務所の直した時に一緒にやってない」
             //   前は 0.62倍 より 縮めず 横に 送らせて いた（08-25）＝スマホでは 右が 切れて 見えた。
             //   細かい 字は 指で 広げて 見る（viewport は 拡大を 止めていない）。
-            var sc = Math.min(1, (haba - 2) / 1123);
             _hnHaba = haba;
             for (var i = 0; i < tabaH.length; i++) {
               var el = tabaH[i];
@@ -3318,21 +3317,18 @@
               el.style.left = 'auto';
               el.style.top = 'auto';
               el.style.transformOrigin = 'top left';
-              el.style.transform = 'scale(' + sc + ')';
               var waku = document.createElement('div');
               waku.className = 'hn-kami-waku';
-              waku.style.height = Math.ceil(794 * sc) + 'px';
-              el.style.width = '1123px'; // ★縮めても 中身の 組み方は 変えない★
+              el.style.width = kamiWH(el).w + 'px'; // ★縮めても 中身の 組み方は 変えない★（縦の 紙は 794）
               waku.appendChild(el);
+              kamiNobasu(waku, haba);
               mado.appendChild(waku);
             }
             // ★紙を 入れた 後で 幅を 測り直す★（PC は 紙で 縦の 巻き棒が 出て 幅が 縮む＝resize は 起きない・対立役 止2）
             var haba2 = mado.clientWidth;
             if (haba2 && haba2 < haba) {
-              var sc2 = Math.min(1, (haba2 - 2) / 1123);
               Array.prototype.forEach.call(mado.querySelectorAll('.hn-kami-waku'), function (w) {
-                w.firstElementChild.style.transform = 'scale(' + sc2 + ')';
-                w.style.height = Math.ceil(794 * sc2) + 'px';
+                kamiNobasu(w, haba2);
               });
               _hnHaba = haba2;
             }
@@ -5352,6 +5348,44 @@
         var SHEET_W = 1123; // 板の幅(px)＝842pt ÷ 0.75
         var SHEET_H = 794; // 板の高さ(px)＝595pt ÷ 0.75
         var PX2PT = PAPER_W / SHEET_W; // 0.75
+        // ★★横 1列に 入らない 期間は 紙を 縦に 使い 日付を 左の 縦・項目を 上の 横に した 表 1枚★★ 2026-10-23
+        //   司さん「なんで明細を全部10日で区切っとんど 月1回やったら1枚やろが 週一でも7日区切りとか」
+        //         「紙を縦に使うのは項目と日付を入れ替えて日付を左端の縦にして項目を上の横にして作成しろ」
+        //   前は 横の 紙に 入る 日（約 11日）ごとに 次の 紙へ 送った＝月1回（31日）が 3枚・月2回（16日）が 2枚。
+        //   今は A4縦（板 794×1123）に 1日 1行（31日 でも 1枚）。車が 多くても 無くても 同じ 形（車は 上の 横の 列）。
+        //   ★横 1列に 入る 期間（月3回の 10〜11日・週の 7日・毎日）は 今までの 紙と 1文字も 変えない★
+        var TATE_MAI = 31; // 縦の 紙 1枚に 載せる 一番 多い 日。越える 期間（日数で 切る 昔の 形の 62日 等）だけ 紙を 分ける
+        var TATE_ROW_H = 26; // 縦の 紙の 1日の 行の 一番 低い 高さ（板 26px・字 13px が 入る）
+        var TATE_HEAD_H = 46; // 縦の 紙の 項目の 行の 高さ（車の 番号の 2行目が 入る）
+        // ★組んだ 紙が その 紙の 高さに 入るか★（縦の 紙は 高さ 1123・横は 794）
+        // ★縦の 紙の 日付★ 2026-10-23（司さん「日付をもう少しコンパクトに」）
+        //   1行目と 月が 変わる 日だけ「10/1(木)」・ほかは「2(金)」（何月かは 上の 行で 分かる）
+        function hiTate(c, cells) {
+          var i = cells.indexOf(c);
+          var m = String(c.date).slice(5, 7);
+          if (i <= 0 || String(cells[i - 1].date).slice(5, 7) !== m) return mdw(c.date);
+          return mdw(c.date).replace(/^\d+\//, '');
+        }
+        // ★画面に 並べる 時の 紙の 大きさ★（縦の 紙は 794×1123・横は 1123×794＝紙ごとに 違う）
+        function kamiWH(el) {
+          var t = el && el.getAttribute && el.getAttribute('data-muki') === 'tate';
+          return { w: t ? SHEET_H : SHEET_W, h: t ? SHEET_W : SHEET_H };
+        }
+        // 1枚ずつ 画面の 幅に 合わせて 縮める（枠の 高さも その 紙の 高さ から）
+        function kamiNobasu(waku, haba) {
+          var el = waku.firstElementChild;
+          var wh = kamiWH(el);
+          var sc = Math.min(1, (haba - 2) / wh.w);
+          el.style.transform = 'scale(' + sc + ')';
+          waku.style.height = Math.ceil(wh.h * sc) + 'px';
+          return sc;
+        }
+        function _hamideru(el) {
+          var lim = +el.getAttribute('data-sheet-h') || SHEET_H;
+          // 縦の 紙で 車の 列が 横に 入らない 時も「入らない」（車の 列を 次の 紙へ 分ける）
+          if (el.getAttribute('data-haba-dame') === '1') return true;
+          return _takasa(el) > lim;
+        }
 
         // ★明細の字の作り方は ここ1本★（★画面も 紙も 同じ物を使う★）
         //   前は 画面と紙で 別々に書いていた＝★片方だけ直すと 画面と紙で 数が食い違う★。
@@ -5430,7 +5464,8 @@
         // ★紙1枚を組む★（板 1123×794px・戻り値は 画面外に置いた要素）
         // ★★手当・控除の 内わけ（紙の 見出しの 下 1行）★★ 2026-10-06（司さん「ア」）
         //   無い 人は 何も 出さない＝今までの 紙と 1文字も 変わらない
-        function adjGyou(e) {
+        // migiOk＝手当・控除を 合計の 右の 空きに 出した（見出しの 下には「うち 日給…」だけ）
+        function adjGyou(e, migiOk) {
           // ★ほかの 払い方の 内わけ★ 2026-10-06（日給・1回/1km・指定日）＝使った 人だけ 1行
           var hoka = [];
           if (e && e.nikkyuHi) hoka.push('日給 ' + e.nikkyuHi + '日');
@@ -5442,7 +5477,7 @@
               hoka.join('・') +
               '</div>'
             : '';
-          if (!e || !(e.teate || e.koujo)) return hokaGyou;
+          if (!e || !(e.teate || e.koujo) || migiOk) return hokaGyou;
           var uchi = function (kind) {
             return (e.adj || [])
               .filter(function (a) {
@@ -5463,6 +5498,62 @@
             yen(e.totalPay) +
             '</b></div>' +
             hokaGyou
+          );
+        }
+
+        // ★★手当・控除の 内わけを 合計の 塊の 右の 空きへ★★ 2026-10-23
+        //   司さん「手当や控除がある時は合計金額の右に空いてるスペースにどのぐらいの数入れれるか出して」
+        //   1行に 1つ（働いた分／＋手当／−控除／＝差引支給）を 上から 6行・入りきらない 時は 右の 列へ。
+        //   空きの 幅と 一番 長い 行の 幅から 入る 数を 出し、越える 時は 今まで 通り 見出しの 下の 行に 出す
+        var MIGI_GYOU = 6;
+        var MIGI_PX = 13;
+        function adjMigi(e, areaW) {
+          var nashi = { ok: false, cap: 0, html: '', n: 0 };
+          if (!e || !(e.teate || e.koujo)) return nashi;
+          var gyou = ['働いた 分 ¥' + yen(e.kasegi)];
+          (e.adj || []).forEach(function (a) {
+            var na = a.label || (a.kind === 'koujo' ? '控除' : '手当');
+            gyou.push((a.kind === 'koujo' ? '− ' : '＋ ') + na + ' ¥' + yen(a.yen));
+          });
+          var owari = '＝ 差引 支給 ¥' + yen(e.totalPay);
+          var haba = _textW(owari, MIGI_PX, 700);
+          gyou.forEach(function (g) {
+            haba = Math.max(haba, _textW(g, MIGI_PX, 400));
+          });
+          haba = Math.ceil(haba) + 2;
+          var GAP = 12;
+          var retsu = Math.floor((areaW + GAP) / (haba + GAP));
+          if (!(retsu > 0)) retsu = 0;
+          var cap = retsu * MIGI_GYOU;
+          var n = gyou.length + 1;
+          if (n > cap) return { ok: false, cap: cap, html: '', n: n };
+          var html =
+            '<div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(' +
+            MIGI_GYOU +
+            ',auto);column-gap:' +
+            GAP +
+            'px;justify-content:start;font-size:' +
+            MIGI_PX +
+            'px;line-height:1.2;color:#14243d;white-space:nowrap;">' +
+            gyou
+              .map(function (g) {
+                return '<div>' + esc(g) + '</div>';
+              })
+              .join('') +
+            '<div style="font-weight:700;">' +
+            esc(owari) +
+            '</div></div>';
+          return { ok: true, cap: cap, html: html, n: n };
+        }
+        // 合計の 塊の 幅（見出しの 字の 大きさと 同じ 数で 測る）
+        function goukeiHaba(e, tate) {
+          return (
+            (tate ? 14 : 20) * 2 +
+            2 +
+            _textW('合計', 15, 700) +
+            (tate ? 10 : 14) * 2 +
+            _textW('¥' + yen(e.totalPay), tate ? 28 : 34, 800) +
+            _textW(hrs(e.totalHours) + ' 時間', tate ? 17 : 20, 800)
           );
         }
 
@@ -5502,7 +5593,14 @@
               },
             });
           });
-          rows.push({ lbl: '時間（全台）', get: F.pool });
+          // ★項目は 2行★ 2026-10-23（司さん「時間（全台）を売上のように2行にしてコンパクトに」）＝列・行の 幅を 取らない
+          rows.push({
+            lbl: '時間（全台）',
+            ji: '時間',
+            sub: '（全台）',
+            subNobasu: '（全台）',
+            get: F.pool,
+          });
 
           // ★この紙に載せる日★（1枚に入らない時は 何枚かに分ける・下の _maisu を見て）
           var allCells = e.cells;
@@ -5515,7 +5613,9 @@
           //   板の 12px = 紙の 9pt。★本文15px=11.25pt／2行目13px=9.75pt★＝どちらも 9pt以上。
           var fontPx = 15;
           var subPx = 13;
-          var rowH = 50; // 板50px = 紙37.5pt（★引き伸ばさない★）
+          // ★行を 詰めた★ 2026-10-23（司さん「全部の幅と数字の大きさを大きくしてるからもったいなくないか」）
+          //   50 → 38（紙 28.5pt）。字は 15px（9pt 以上）の まま・車の 番号の 2行目も 入る
+          var rowH = 38; // 板38px
 
           // ★左の項目列 … 幅は「中身が入るだけ」／詰めるのは 余白★
           //   前は「表幅の15%」で決めていた（指示役が取り消し）。
@@ -5539,7 +5639,8 @@
           var hakaru = function (fontPx) {
             var li = 0;
             rows.forEach(function (r) {
-              li = Math.max(li, _textW(r.lbl, fontPx, 700));
+              li = Math.max(li, _textW(r.ji || r.lbl, fontPx, 700));
+              if (r.subNobasu) li = Math.max(li, _textW(r.subNobasu, subPx, 400));
             });
             li = Math.max(li, _textW('日付', fontPx, 700));
             // ★字が欠けない★＝測った幅を 切り捨てず 上に丸める（＋枠線1px）
@@ -5568,8 +5669,120 @@
           while (!hakaru(fontPx) && fontPx > FONT_MIN) {
             fontPx = Math.max(FONT_MIN, fontPx - 0.5);
           }
+          // ★横 1列に 入らない ⇒ 紙を 縦に 使い 日付を 左の 縦・項目を 上の 横に★ 2026-10-23
+          // ★毎日（日払い）の 1日も 同じ 縦の 形★ 2026-10-23（司さん「日払いも上行に項目で左端に日付にして」）
+          var tate = days === 1 || !hakaru(fontPx);
+          var habaDame = false;
+          var tateDateW = 0;
+          var tateColW = [];
+          if (tate) {
+            tableW = SHEET_H - PAD * 2;
+            CELL_PAD = 4; // 数字は 中央揃え＝左右の 余白は 少しで 足りる（車の 列を 多く 入れる）
+            var hakaruTate = function (f) {
+              var dw = _textW('日付', f, 700);
+              cells.forEach(function (c) {
+                dw = Math.max(dw, _textW(hiTate(c, cells), f, 700));
+              });
+              tateDateW = Math.ceil(dw) + CELL_PAD * 2 + 2;
+              tateColW = rows.map(function (r) {
+                var w = _textW(r.ji || r.lbl, f, 700);
+                if (r.subNobasu) w = Math.max(w, _textW(r.subNobasu, subPx, 400));
+                cells.forEach(function (c) {
+                  w = Math.max(w, _textW(r.get(c), f, 400));
+                });
+                return Math.ceil(w) + CELL_PAD * 2 + 2;
+              });
+              var goukei = tateDateW;
+              tateColW.forEach(function (w) {
+                goukei += w;
+              });
+              return goukei <= tableW;
+            };
+            fontPx = 15;
+            while (!hakaruTate(fontPx) && fontPx > FONT_MIN) {
+              fontPx = Math.max(FONT_MIN, fontPx - 0.5);
+            }
+            habaDame = !hakaruTate(fontPx);
+            // ★日付の 列にも ゆとり★ 2026-10-23（司さん「余白あるんやけんもう少しゆったり幅を持たせろ」）＝余りから 最大 20px
+            var tsukau0 = tateDateW;
+            tateColW.forEach(function (w) {
+              tsukau0 += w;
+            });
+            tateDateW += Math.max(0, Math.min(20, tableW - tsukau0));
+            // 項目の 列は 同じ 幅（一番 広い 列が 入る なら 全部 その 幅で 紙の 幅いっぱい）
+            var hiroi = Math.max.apply(null, tateColW.length ? tateColW : [0]);
+            var hitoshi = tateColW.length ? Math.floor((tableW - tateDateW) / tateColW.length) : 0;
+            if (hitoshi >= hiroi)
+              tateColW = tateColW.map(function () {
+                return hitoshi;
+              });
+            // 余りは 項目の 列に 均して 配る（表は 紙の 幅いっぱい＝合計の 塊の 中心と 揃う）
+            var tsukatta = tateDateW;
+            tateColW.forEach(function (w) {
+              tsukatta += w;
+            });
+            var amari = tableW - tsukatta;
+            if (amari > 0 && tateColW.length) {
+              var tasu = Math.floor(amari / tateColW.length);
+              tateColW = tateColW.map(function (w) {
+                return w + tasu;
+              });
+              tateColW[tateColW.length - 1] += amari - tasu * tateColW.length;
+            }
+            labelW = tateDateW;
+            minColW = Math.min.apply(null, tateColW.length ? tateColW : [0]);
+          }
           // 2行目（車の 番号）も 同じ だけ 小さく（下限 13px）
           subPx = Math.max(FONT_MIN, subPx - (15 - fontPx));
+
+          // ★★行の 高さと 項目の 列の 幅は 中身の 数で 自動で 決める★★ 2026-10-23
+          //   司さん「見せる売上の数ごとに幅を自動調整されるようにしとけよ」
+          //   紙の 高さ − 見出し − 内わけの 行 を 行の 数で 割る（少ない 時は ゆったり・多い 時は 詰める）
+          // ★見出しの 左に 要る 幅★（期間の 字・名前・給料明細 の 一番 長い 物）
+          //   真ん中の 合計に 届く 時（縦の 紙で 名前が 長い・合計が 7桁 等）は 左を その 幅に し 合計は 右へ ずらす＝重ねない
+          //   届かない 時は 今まで 通り 左右 同じ 幅（合計は 真ん中＝司さん 08-25 の 決め）
+          var gHaba = goukeiHaba(e, tate);
+          var hidariIru =
+            Math.ceil(
+              Math.max(
+                _textW('給料明細', 20, 800) +
+                  (maiN > 1 ? _textW('　（' + maiNo + '/' + maiN + '枚目）', 13, 400) : 0),
+                _textW(PERIOD.label + '　' + PERIOD.rangeLabel, 15, 400),
+                _textW(e.name + '　殿', 24, 800)
+              )
+            ) + 4;
+          var hanbun = (tableW - gHaba - 32) / 2;
+          var hidariW = hidariIru > hanbun ? hidariIru : 0; // 0＝左右 同じ 幅
+          // 右の 空き＝表の 幅 − 合計の 塊 − 間 2つ − 左
+          var migiW = hidariW ? tableW - gHaba - 32 - hidariW : hanbun;
+          var migi =
+            uw === 'nashi' || uw === 'dake'
+              ? { ok: false, cap: 0, html: '', n: 0 }
+              : adjMigi(e, migiW);
+          var ueGyou = uw === 'nashi' ? '' : adjGyou(e, migi.ok);
+          // 見出しの 下の 行の 高さ＝字の 幅から 折り返す 行の 数を 出す（手当・控除が 多いと 2〜3行に なる）
+          var ueH = 0;
+          (ueGyou.match(/<div[^>]*>[\s\S]*?<\/div>/g) || []).forEach(function (d) {
+            var ji = d.replace(/<[^>]+>/g, '');
+            ueH += Math.ceil(_textW(ji, 15, 400) / (tableW * 0.85)) * 19 + 12; // 折り返しは 語の 切れ目で 起きる＝ゆとりを 見る
+          });
+          var aki = (tate ? SHEET_W : SHEET_H) - PAD * 2 - 96 - ueH - 8;
+          if (tate) {
+            // 縦の 紙：日の 行（30〜40px）
+            var hiTakasa = Math.floor((aki - TATE_HEAD_H) / days);
+            rowH = Math.max(TATE_ROW_H, Math.min(40, hiTakasa));
+          } else {
+            // 横の 紙：項目の 行（38〜50px）
+            var gyouTakasa = Math.floor(aki / (rows.length + 1));
+            rowH = Math.max(38, Math.min(50, gyouTakasa));
+            // ★項目の 列にも ゆとり★（司さん「日付の列に余白あるんやけんもう少しゆったり幅を持たせろ」）
+            //   日の 列の 要る 幅を 引いた 余りから 最大 40px（字が 欠けた 時の 上限は 越えない）
+            if (!labelKake)
+              labelW = Math.min(
+                LABEL_MAX,
+                labelW + Math.max(0, Math.min(40, tableW - labelW - minColW * days))
+              );
+          }
 
           var dayW = Math.floor((tableW - labelW) / days);
           var headH = 96; // 見出し（給料明細／名前／期間／合計）の高さ(px)
@@ -5578,9 +5791,9 @@
           el.style.cssText =
             'position:fixed;left:-10000px;top:0;background:#ffffff;box-sizing:border-box;' +
             'width:' +
-            SHEET_W +
+            (tate ? SHEET_H : SHEET_W) +
             'px;height:' +
-            SHEET_H +
+            (tate ? SHEET_W : SHEET_H) +
             'px;padding:' +
             PAD +
             'px;' +
@@ -5597,27 +5810,50 @@
             '<div style="display:flex;align-items:center;gap:16px;height:' +
             headH +
             'px;">' +
-            '<div style="flex:1 1 0;display:flex;align-items:baseline;gap:16px;">' +
-            '<div><div style="font-size:20px;font-weight:800;color:#14243d;">給料明細</div>' +
-            '<div style="font-size:15px;margin-top:4px;">' +
+            // ★名前と 何月分の 場所は どの 形でも 同じ★ 2026-10-23（司さん「全パターン名前の場所と何月分とかの項目の場所を固定しろ」）
+            //   左に 上から 給料明細／何月分 期間／名前 殿（合計の 塊は 真ん中の まま）
+            (hidariW
+              ? '<div style="flex:0 0 ' +
+                hidariW +
+                'px;min-width:0;display:flex;flex-direction:column;gap:2px;">'
+              : '<div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px;">') +
+            '<div><div style="font-size:20px;font-weight:800;color:#14243d;white-space:nowrap;">給料明細' +
+            // ★2枚以上に分かれた時だけ 何枚めかを出す★（2026-10-23 期間の 字の 後ろから 給料明細の 横へ＝期間の 行を 短く）
+            (maiN > 1
+              ? '<span style="font-size:13px;font-weight:400;color:#5a6b82;">　（' +
+                maiNo +
+                '/' +
+                maiN +
+                '枚目）</span>'
+              : '') +
+            '</div>' +
+            '<div style="font-size:15px;margin-top:4px;white-space:nowrap;">' +
             esc(PERIOD.label) +
             '　' +
             esc(PERIOD.rangeLabel) +
-            // ★2枚以上に分かれた時だけ 何枚めかを出す★
-            //   （1枚で収まる時は 出さない＝今までの紙と 1文字も変わらない）
-            (maiN > 1 ? '　（' + maiNo + '/' + maiN + '枚目）' : '') +
             '</div></div>' +
             '<div style="font-size:24px;font-weight:800;color:#14243d;white-space:nowrap;">' +
             esc(e.name) +
             '　殿</div>' +
             '</div>' +
             '<div style="flex:0 0 auto;border:1px solid #dbe7f7;background:#f7fbff;' +
-            'border-radius:10px;padding:10px 20px;white-space:nowrap;">' +
+            'border-radius:10px;padding:' +
+            (tate ? '8px 14px' : '10px 20px') +
+            ';white-space:nowrap;">' +
             '<span style="font-size:15px;color:#5a6b82;font-weight:700;">合計</span>' +
-            '<span style="font-size:34px;font-weight:800;color:#14243d;margin-left:14px;">¥' +
+            // 縦の 紙は 幅が 狭い＝合計の 字を 少し 小さく（7桁でも 期間・名前と 重ならない）
+            '<span style="font-size:' +
+            (tate ? 28 : 34) +
+            'px;font-weight:800;color:#14243d;margin-left:' +
+            (tate ? 10 : 14) +
+            'px;">¥' +
             yen(e.totalPay) +
             '</span>' +
-            '<span style="font-size:20px;font-weight:800;color:#14243d;margin-left:14px;">' +
+            '<span style="font-size:' +
+            (tate ? 17 : 20) +
+            'px;font-weight:800;color:#14243d;margin-left:' +
+            (tate ? 10 : 14) +
+            'px;">' +
             hrs(e.totalHours) +
             ' 時間</span>' +
             '</div>' +
@@ -5625,9 +5861,11 @@
             //   ・左（給料明細／期間／名前）と 右 を ★同じ幅の詰め物★で挟む＝真ん中に来る
             //   ・★この詰め物を外すと 右端に貼り付く★（8/26 に一度 外して 突き返された）
             //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
-            '<div style="flex:1 1 0;min-width:0;"></div>' +
+            '<div style="flex:1 1 0;min-width:0;align-self:center;">' +
+            (migi.ok ? migi.html : '') +
             '</div>' +
-            (uw === 'nashi' ? '' : adjGyou(e));
+            '</div>' +
+            (uw === 'nashi' ? '' : adjGyou(e, migi.ok));
 
           // ── 表 ──
           var TD =
@@ -5679,7 +5917,7 @@
               '<tr><th style="' +
               TH +
               '"><div style="white-space:nowrap;">' +
-              esc(r.lbl) +
+              esc(r.ji || r.lbl) +
               '</div>' +
               (r.sub
                 ? '<div style="font-size:' +
@@ -5699,7 +5937,7 @@
               t +=
                 '<td style="' +
                 TD +
-                'text-align:right;white-space:nowrap;' +
+                'text-align:center;white-space:nowrap;' +
                 (aka ? 'color:' + SLIP_RED + ';font-weight:700;' : '') +
                 '">' +
                 r.get(c) +
@@ -5709,6 +5947,75 @@
           });
           t += '</tbody></table>';
 
+          if (tate) {
+            // ★縦の 表★：上の 横＝項目（金額・時間・売上n・時間（全台））／左の 縦＝日付（1日 1行）
+            var TDT =
+              'border:1px solid #999999;padding:0 ' +
+              CELL_PAD +
+              'px;height:' +
+              rowH +
+              'px;font-size:' +
+              fontPx +
+              'px;line-height:1.15;';
+            var KOU = 'background:#f7fbff;text-align:center;font-weight:700;color:#333333;';
+            t =
+              '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+              '<colgroup><col style="width:' +
+              tateDateW +
+              'px">' +
+              tateColW
+                .map(function (w) {
+                  return '<col style="width:' + w + 'px">';
+                })
+                .join('') +
+              '</colgroup><tbody>';
+            t += '<tr><th style="' + TDT + 'height:' + TATE_HEAD_H + 'px;' + KOU + '">日付</th>';
+            rows.forEach(function (r, i) {
+              t +=
+                '<th style="' +
+                TDT +
+                'height:' +
+                TATE_HEAD_H +
+                'px;' +
+                KOU +
+                'overflow:hidden;"><div style="white-space:nowrap;">' +
+                esc(r.ji || r.lbl) +
+                '</div>' +
+                (r.sub
+                  ? '<div style="font-size:' +
+                    subPx +
+                    'px;font-weight:400;color:#5a6b82;line-height:1.15;white-space:normal;max-height:' +
+                    Math.round(subPx * 1.15 * 2) +
+                    'px;overflow:hidden;word-break:break-all;">' +
+                    esc(_fit2(r.sub, subPx, tateColW[i] - CELL_PAD * 2 - 2, 2)) +
+                    '</div>'
+                  : '') +
+                '</th>';
+            });
+            t += '</tr>';
+            cells.forEach(function (c) {
+              t +=
+                '<tr><th style="' +
+                TDT +
+                KOU +
+                'white-space:nowrap;">' +
+                hiTate(c, cells) +
+                '</th>';
+              rows.forEach(function (r) {
+                var aka = r.aka && r.aka(c);
+                t +=
+                  '<td style="' +
+                  TDT +
+                  'text-align:center;white-space:nowrap;' +
+                  (aka ? 'color:' + SLIP_RED + ';font-weight:700;' : '') +
+                  '">' +
+                  r.get(c) +
+                  '</td>';
+              });
+              t += '</tr>';
+            });
+            t += '</tbody></table>';
+          }
           el.innerHTML = head + (uw === 'dake' ? '' : t);
           // ★測れるように 印を付ける★（見張りが 数で確かめる為）
           el.setAttribute('data-paper', '1');
@@ -5719,6 +6026,11 @@
           el.setAttribute('data-min-col-w', String(minColW));
           el.setAttribute('data-usable-w', String(tableW - labelW));
           el.setAttribute('data-days', String(days));
+          el.setAttribute('data-muki', tate ? 'tate' : 'yoko');
+          el.setAttribute('data-sheet-h', String(tate ? SHEET_W : SHEET_H));
+          el.setAttribute('data-haba-dame', habaDame ? '1' : '0');
+          el.setAttribute('data-migi', migi.ok ? '1' : '0');
+          el.setAttribute('data-migi-cap', String(migi.cap));
           el.setAttribute('data-label-ink', String(Math.ceil(labelInk)));
           el.setAttribute('data-label-kake', labelKake ? '1' : '0');
           el.setAttribute('data-font-px', String(fontPx));
@@ -5747,6 +6059,8 @@
             +probe.getAttribute('data-usable-w') / +probe.getAttribute('data-min-col-w')
           );
           var per = hairu > 1 ? hairu : 1;
+          // ★縦の 紙（1日 1行）は 1枚に 31日まで★ 2026-10-23（司さん「月1回やったら1枚やろが」）
+          if (probe.getAttribute('data-muki') === 'tate') per = Math.min(e.cells.length, TATE_MAI);
           var mai = Math.ceil(e.cells.length / per);
           var n = mai > 1 ? mai : 1;
           // ★★縦（車の 行）の 分け方★★ 2026-10-07
@@ -5759,7 +6073,7 @@
           var to0 = Math.min(e.cells.length, per);
           while (
             carPer > 1 &&
-            _takasa(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer)) > SHEET_H
+            _hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer))
           ) {
             carPer--;
           }
@@ -5767,16 +6081,14 @@
           //   （対立役：手当・控除が 長いと 黙って 切れた。止めずに 内わけを 別の 紙に 送る＝金額は 1つも 消さない）
           //   ★人ごとに 必ず 1回 測る★（車が 0台・1台の 人は 上の ループが 回らない）
           var betsu = false;
-          if (
-            _takasa(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer)) > SHEET_H
-          ) {
+          if (_hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer))) {
             betsu = true;
             carPer = nCars > 0 ? nCars : 1;
             while (
               carPer > 1 &&
-              _takasa(
+              _hamideru(
                 _buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer, 'nashi')
-              ) > SHEET_H
+              )
             ) {
               carPer--;
             }
@@ -5786,8 +6098,7 @@
           //   ＝明細の PDF を 止めて 知らせる（司さんの 決め「計算できなければ 止めて 警告」の 向き）
           var hamidasu =
             betsu &&
-            _takasa(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, 0, 'dake')) >
-              SHEET_H;
+            _hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, 0, 'dake'));
           return {
             per: per,
             n: n,
@@ -5876,6 +6187,10 @@
               ),
               muki: 'yoko',
             });
+          // ★紙の 向きは 組んだ 紙が 決める★ 2026-10-23（横 1列に 入らない 期間は 縦）
+          out.forEach(function (x) {
+            x.muki = x.el.getAttribute('data-muki') === 'tate' ? 'tate' : 'yoko';
+          });
           return out;
         }
 
@@ -6487,7 +6802,6 @@
               var haba = mado.clientWidth || 360;
               // ★紙 1枚が 画面に 全部 入る 大きさ★（見切れさせない・司さん 10-05「見切れてめちゃくちゃ」）
               //   細かい 字は ★押すと 開く PDF★で 見る（代行請求書の 請求書ページと 同じ）
-              var sc = Math.min(1, (haba - 2) / 1123);
               var empId = String(window.__paper.emp(ei).employee_id);
               for (var i = 0; i < taba.length; i++) {
                 var el = taba[i];
@@ -6495,11 +6809,9 @@
                 el.style.left = 'auto';
                 el.style.top = 'auto';
                 el.style.transformOrigin = 'top left';
-                el.style.transform = 'scale(' + sc + ')';
-                el.style.width = '1123px';
+                el.style.width = kamiWH(el).w + 'px'; // 縦の 紙は 794
                 var waku = document.createElement('div');
                 waku.className = 'hn-kami-waku kami-oseru';
-                waku.style.height = Math.ceil(794 * sc) + 'px';
                 waku.title = '押すと PDF で 開きます';
                 waku.setAttribute('role', 'button');
                 waku.onclick = (function (id) {
@@ -6508,9 +6820,11 @@
                   };
                 })(empId);
                 waku.appendChild(el);
+                kamiNobasu(waku, haba);
                 mado.appendChild(waku);
               }
-              mado.setAttribute('data-sc', String(sc));
+              // 縮めた 時の 幅（縮め直しは この 幅より 狭く なった 時だけ）
+              mado.setAttribute('data-sc', String(haba));
               if (_kamiRO) _kamiRO.observe(mado);
             }
           );
@@ -6532,14 +6846,12 @@
         //   窓の 大きさを 変えると たいてい 描き直して 戻るが、境目の 高さでは 描き直しても また 同じ 隙間に なる
         function kamiChijimeru(mado) {
           var haba2 = mado.clientWidth;
-          var sc1 = Number(mado.getAttribute('data-sc')) || 0;
-          if (!haba2 || !sc1) return;
-          var sc2 = Math.min(1, (haba2 - 2) / 1123);
-          if (sc2 >= sc1) return;
-          mado.setAttribute('data-sc', String(sc2));
+          var haba1 = Number(mado.getAttribute('data-sc')) || 0;
+          if (!haba2 || !haba1) return;
+          if (haba2 >= haba1) return;
+          mado.setAttribute('data-sc', String(haba2));
           Array.prototype.forEach.call(mado.querySelectorAll('.hn-kami-waku'), function (w) {
-            w.firstElementChild.style.transform = 'scale(' + sc2 + ')';
-            w.style.height = Math.ceil(794 * sc2) + 'px';
+            kamiNobasu(w, haba2);
           });
         }
         var _kamiRO =

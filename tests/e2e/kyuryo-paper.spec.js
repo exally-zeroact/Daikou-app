@@ -124,9 +124,19 @@ async function hakaru(page, ei) {
       }).length;
 
       const kin = trs.find((tr) => tr.querySelector('th').textContent.trim().startsWith('金額'));
-      [...kin.querySelectorAll('td')].forEach((td) => {
-        out.tashita += parseInt(td.textContent.replace(/[^0-9]/g, ''), 10) || 0;
-      });
+      if (kin) {
+        [...kin.querySelectorAll('td')].forEach((td) => {
+          out.tashita += parseInt(td.textContent.replace(/[^0-9]/g, ''), 10) || 0;
+        });
+      } else {
+        // ★縦の 紙★ 2026-10-23（日付が 左の 縦・項目が 上の 横）＝「金額」の 列を 足す
+        const ue = [...trs[0].children];
+        const k = ue.findIndex((c) => c.textContent.trim().startsWith('金額'));
+        trs.slice(1).forEach((tr) => {
+          out.tashita +=
+            parseInt((tr.children[k] || {}).textContent.replace(/[^0-9]/g, ''), 10) || 0;
+        });
+      }
 
       if (i === 0) {
         // ★箱の字は 1つずつ読む★（つなげて読むと ¥18,500 と 18.5時間 が「1850018」になる）

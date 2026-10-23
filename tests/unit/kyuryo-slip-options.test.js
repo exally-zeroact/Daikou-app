@@ -162,9 +162,14 @@ describe('★①1人ごとにPDF★', () => {
     // 板は A4横の比（1123 x 794px＝1px 0.75pt）
     expect(HTML, '★板がA4横の比でない★').toMatch(/SHEET_W = 1123/);
     expect(HTML, '★板がA4横の比でない★').toMatch(/SHEET_H = 794/);
-    // ★高さで つじつまを合わせない★＝行の高さは 決め打ち
+    // ★高さで つじつまを合わせない★
     expect(block, '★行の高さを 余りで割っている（間延びする）★').not.toContain('usableH / rowN');
-    expect(block, '★行の高さが 決め打ちでない★').toMatch(/var rowH = 50;/);
+    // ★2026-10-23 司さん「見せる売上の数ごとに幅を自動調整」★＝行の 高さは 車の 数で 決めるが
+    //   上限（横 50px・縦 40px）で 止める＝少ない 時も 引き伸ばさない
+    expect(block, '★横の 紙の 行の 高さに 上限が 無い（間延びする）★').toMatch(
+      /Math\.min\(50, gyouTakasa\)/
+    );
+    expect(block, '★縦の 紙の 行の 高さに 上限が 無い★').toMatch(/Math\.min\(40, hiTakasa\)/);
     expect(block, '★字の大きさを 行の高さから作っている★').not.toMatch(/rowH \* 0\.\d/);
   });
 
@@ -175,7 +180,7 @@ describe('★①1人ごとにPDF★', () => {
     const block = HTML.slice(i, HTML.indexOf('function _maisu'));
     expect(block, '★まだ 表幅の割合で 列を決めている★').not.toContain('tableW * 0.15');
     // ★字を実際に測って 幅を出す★（割合で決めない）
-    expect(block, '★項目の字を 測っていない★').toContain('_textW(r.lbl, fontPx, 700)');
+    expect(block, '★項目の字を 測っていない★').toContain('_textW(r.ji || r.lbl, fontPx, 700)');
     expect(block, '★測った幅を 切り捨てている（字が欠ける）★').toContain('Math.ceil(labelInk)');
     expect(block, '★内側の余白を 詰めていない★').toMatch(/LABEL_PAD = \d/);
     // ★一番長い車名に 列を広げさせない★＝車名は 小さい2行目・はみ出しは省略
