@@ -603,6 +603,11 @@
         function tsukiYometa() {
           return KAMI_TSUKI === ymKey(MONTH) && !YOMICHU && !EDITS_DAME && !MD_DAME;
         }
+        // ★書けた 後に 訳を 消すのは 今の 月が 読めて いる 時だけ★ 2026-10-23（送っている 途中に 月を 替えて
+        //   その 月の 読みが 失敗すると、後から 着いた 書きの 返事が「読み込みに失敗しました」を 消し、表は 空の まま 訳が 無かった）
+        function kakiOkErrKesu() {
+          if (tsukiYometa()) showErr('');
+        }
         var MD_DAME_JI =
           '手で 入れた 日の 記録が 読めません。売上と 紙は 止めています。上の「もう一度読む」を 押してください。';
         // ★★今の 日本時間（年・月・日の 欄が 日本時間に なる Date）★★ 2026-10-08（司さん「対応させろや」）
@@ -1347,7 +1352,7 @@
                 );
               else if (x.zero) showErr(msg + '（書けた 行が ありません。開き直してください）');
               else saveErr(msg, x.r);
-            } else showErr('');
+            } else kakiOkErrKesu();
             return rirekiYomu(LOAD).then(function (rows) {
               RIREKI = rows;
               recalc();
@@ -1528,7 +1533,7 @@
                 saveErr('設定を保存できませんでした。', r);
                 modosu();
               } else {
-                showErr('');
+                kakiOkErrKesu();
                 renderSettings();
               }
               setTimeout(function () {
@@ -1813,7 +1818,7 @@
           })
             .then(function (r) {
               if (!r.ok) saveErr('車の名前を保存できませんでした。', r);
-              else showErr('');
+              else kakiOkErrKesu();
             })
             .catch(function () {
               showErr('車の名前を保存できませんでした。');
@@ -1847,7 +1852,7 @@
           var cur = (window.__editsById || {})[shiftId] || {};
           JippiHozon.saveJippi(SESS, shiftId, COMPANY.company_id, cur, field, value)
             .then(function (body) {
-              showErr('');
+              kakiOkErrKesu();
               window.__editsById[shiftId] = body;
               recalc(); // 売上（差引後）と合計に即反映
               render();

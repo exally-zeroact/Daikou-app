@@ -57,6 +57,9 @@ function tsukuru(yomenai) {
           b = null;
         }
         window.__okutta.push({ p: String(p), m: m, b: b });
+        // 書きの 返事を 遅らせる（送っている 途中に 月を 替える 形を 作る）
+        if (window.__kakiOsoku)
+          return new Promise((r) => setTimeout(() => r(kotae([b])), window.__kakiOsoku));
         return Promise.resolve(kotae([b]));
       }
       // 業務の 読みを 落とす（読みが 失敗した 後の 形を 作る）
@@ -472,3 +475,82 @@ for (const hi of ['2026-02-10', '']) {
     await expect(page.locator('#err')).toContainText('保存しません');
   });
 }
+
+// ★★送っている 途中に 月を 替え、その 月の 読みが 失敗した 時★★ 2026-10-23（対立役 P10 の 任意）
+//   ★前★ 書きの 返事が 後から 着くと「保存しました」と 一緒に 失敗の 訳を 消した＝表は 空の まま 訳が 無い
+//   ★今★ 書けた 時に 訳を 消すのは その 月が 読めて いる 時だけ（読めて いない 月の 訳は 残す）
+//   ★★わざと壊して 赤（2026-10-23 手元 chromium 実測）★★ 直す 前＝設定・記録・実費の 3本 赤／
+//     書けた 後の 4か所（記録・設定・車の 名前・実費）を 1つずつ showErr('') に 戻す＝各 1本 赤（4/4）
+const TOCHU = [
+  ['設定（何日から 空）', ''],
+  ['何日からの 記録', '2026-01-10'],
+];
+for (const [na, hi] of TOCHU) {
+  test(`★${na}を 送っている 途中に 月を 替えて 読みが 失敗したら 訳を 残す★`, async ({ page }) => {
+    await akeru(page, []);
+    await page.evaluate((hi) => {
+      window.__kakiOsoku = 1500;
+      const d = document.getElementById('dHi');
+      d.value = hi;
+      d.dispatchEvent(new Event('change'));
+      const i = document.getElementById('dToll');
+      i.checked = !i.checked;
+      i.dispatchEvent(new Event('change'));
+      window.__shiftsFail = true;
+    }, hi);
+    await page.locator('#nextM').click();
+    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+    // 書きの 返事が 着いた 後
+    await page.waitForTimeout(2200);
+    expect(
+      (await page.evaluate(() => window.__okutta)).length,
+      '★送っていない（形が 作れて いない）★'
+    ).toBeGreaterThan(0);
+    await expect(page.locator('#err'), '★書けた 後に 失敗の 訳が 消えた★').toBeVisible();
+    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+  });
+}
+
+test('★実費を 送っている 途中に 月を 替えて 読みが 失敗したら 訳を 残す★', async ({ page }) => {
+  await hiraku(page, []);
+  await page.evaluate(() => {
+    window.__kakiOsoku = 1500;
+  });
+  await utsuMuri(page, 'bridge', '500'); // 600ms 待つ＝書きの 返事（1500ms）より 前
+  await page.evaluate(() => {
+    window.__shiftsFail = true;
+  });
+  await page.locator('#nextM').click();
+  await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+  await page.waitForTimeout(2200);
+  expect((await okutta(page)).length, '★送っていない（形が 作れて いない）★').toBeGreaterThan(0);
+  await expect(page.locator('#err'), '★書けた 後に 失敗の 訳が 消えた★').toBeVisible();
+  await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+});
+
+test('★車の 名前を 送っている 途中に 月を 替えて 読みが 失敗したら 訳を 残す★', async ({
+  page,
+}) => {
+  await akeru(page, []);
+  await page.locator('summary', { hasText: '一覧で 見る' }).click();
+  await page.locator('#segCar').click();
+  await expect(page.locator('input.carname').first()).toBeVisible();
+  await page.evaluate(() => {
+    window.__kakiOsoku = 1500;
+    const i = document.querySelector('input.carname');
+    i.value = '見張り号';
+    i.dispatchEvent(new Event('change'));
+    window.__shiftsFail = true;
+  });
+  await page.locator('#nextM').click();
+  await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+  await page.waitForTimeout(2200);
+  expect(
+    (await page.evaluate(() => window.__okutta)).filter(
+      (x) => x.p.indexOf('dk_device_labels') === 0
+    ).length,
+    '★車の 名前を 送っていない（形が 作れて いない）★'
+  ).toBe(1);
+  await expect(page.locator('#err'), '★書けた 後に 失敗の 訳が 消えた★').toBeVisible();
+  await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
+});
