@@ -5466,17 +5466,8 @@
           );
         }
 
-        // ★★日の 欄を 足すと 差引支給と 1円 ずれる 人だけ 注記★★ 2026-10-23 件G（払う 額は 変えない）
-        //   日の 欄は 日ごとに 丸めて 出し、差引支給は 丸める 前の 額を 足してから 丸める
-        function hiZureGyou(e) {
-          if (!PayrollDaily.hiNoZure(e)) return '';
-          return (
-            '<div class="hi-zure" style="font-size:13px;color:#5a6b82;margin:-4px 0 6px;">' +
-            esc(PayrollDaily.HI_ZURE_JI) +
-            '</div>'
-          );
-        }
-
+        // ★日の 欄と 差引支給の 1円の ずれの 注記は 明細の 紙に 出さない★ 2026-10-23
+        //   司さん「たまに赤丸の説明書きがいらない」（件G の 丸めの 注記・払う 額は 変えない）
         // uw … 内わけ（手当・控除の 行）の 置き方：既定＝見出しの 下／'nashi'＝載せない／'dake'＝内わけだけの 紙
         function _buildPaperSheet(
           e,
@@ -5636,8 +5627,7 @@
             //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
             '<div style="flex:1 1 0;min-width:0;"></div>' +
             '</div>' +
-            (uw === 'nashi' ? '' : adjGyou(e)) +
-            (uw === 'dake' ? '' : hiZureGyou(e));
+            (uw === 'nashi' ? '' : adjGyou(e));
 
           // ── 表 ──
           var TD =

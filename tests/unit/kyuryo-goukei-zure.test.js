@@ -272,8 +272,8 @@ describe('★明細の 日の 欄の 注記（±1円）★', () => {
     const e = reps[0].employees.find((x) => x.employee_id === 'e1');
     expect(PD.hiNoZure(e)).toBe(false);
   });
-  it('明細の 紙（kyuryo.html）と 給料表の 日ごと・個別の 紙に 出る', () => {
-    expect(KYU).toMatch(/hiZureGyou\(e\)/);
+  it('明細の 紙（kyuryo.html）と 給料表の 日ごと・個別の 紙に 出さない（司さん 2026-10-23「説明書きがいらない」）', () => {
+    expect(KYU).not.toMatch(/hiZureGyou\(e\)/);
     expect(H.kyuryoHi(KAISHA, { hito: HITO })[0].el._html).not.toContain(PD.HI_ZURE_JI);
     const p = HITO.find((x) => x.id === 'e2');
     expect(H.kyuryoKojin(KAISHA, { namae: NAMAE, hito: p })[0].el._html).not.toContain(
