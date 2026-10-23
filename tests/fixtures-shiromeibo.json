@@ -70,6 +70,10 @@
       "sha256": "5121bb9c92c6718fcc33761abb1b242712d844586e85b05588718c7d6566b7a5",
       "kind": "公"
     },
+    "tests/fixtures/kyuryo-mae-b21023ab5/daiko-payroll.js": {
+      "sha256": "e1deac5e2fbc0bd82caab755af475ca272a8b4bea808555cb4550cb8d4b9e0ca",
+      "kind": "公"
+    },
     "tests/fixtures/kyuryo-real.json": {
       "sha256": "90f18844c655f2455e7bafb4da973212d4bf344414be9faf3f08c684e812c938",
       "kind": "合成"

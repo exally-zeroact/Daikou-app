@@ -987,6 +987,9 @@
       poolSalesTotal: 0,
       poolHoursTotal: 0,
       reserveTotal: 0,
+      // ★自分の 車の 積立・全部の 車の 売上★ 2026-10-23 件G（給料タブの 積立・売上を 月次集計と 同じ 数に）
+      reserveOwnerTotal: 0,
+      uriageZen: 0, // 全部の 車の 売上（経費 後）＝会社に 残る分 ＋ 給料 ＋ 積立（自分の 車も）
       staffTotalAll: 0,
       ownerShareTotal: 0,
       meisaiGai: [], // 名簿に いない 人の 手当・控除（明細に 載らない）2026-10-23 件G
@@ -1034,6 +1037,9 @@
         out.poolSalesTotal += n(day.poolSales);
         out.poolHoursTotal += n(day.poolHours);
         out.reserveTotal += n(day.reservePool);
+        out.reserveOwnerTotal += n(day.reserveOwner);
+        out.uriageZen +=
+          n(day.ownerShare) + n(day.staffTotal) + n(day.reservePool) + n(day.reserveOwner);
         out.staffTotalAll += n(day.staffTotal);
         out.ownerShareTotal += n(day.ownerShare);
 

@@ -13,6 +13,7 @@
 //     各人の給料 = MAX( 売上1h × 役割の係数 × その人の時数 , 役割の最低保証 × その人の時数 )
 //        2種 = 係数0.35 / 保証1150円   1種 = 係数0.30 / 保証1000円
 //     自分の取り分 = (売上合計 − 積立 − 全員の給料) + 自分の売上 − 自分の積立 − 自分の経費
+//       自分の積立 = (自分の売上 − 自分の経費) × 5%（2026-10-23 件G・経費を 引いた 後）
 //
 //   ▼「他のユーザーは違う形」への備え（司さん指示）
 //     ・係数も最低保証も★全部設定★。役割は好きなだけ足せる。
@@ -215,8 +216,16 @@
       const staff = arr(input && input.staff);
 
       const pool = buildPool(input, st);
-      const reservePool = pool.sales * st.reservePoolRate;
-      const reserveOwner = (n(owner.sales) - 0) * st.reserveOwnerRate;
+      // ★★積立（自分の 車の 分は 経費を 引いた 後）★★ 2026-10-23 件G（司さんの 答え）
+      //   自分の 車の 積立は「自分の 車の 売上 − 自分の 車の 経費」×自分の 車の 率（どの 設定でも・みんなの 車と 同じ 決まり）
+      //   all_total は 母数に 自分の 車も 入る＝reservePool は 自分の 車 以外の 車の 分だけ（2回 数えない）
+      //   ★給料は 変えない★（司さん 10-23「給料は変えない」）：時給の 元から 引く 積立は 前の 通り
+      //     母数の 売上 × みんなの 率（reserveForRate）。変わるのは 積立と 会社に 残る分 だけ
+      const allTotal = st.poolMode === 'all_total';
+      const ownerNet = n(owner.sales) - n(owner.expense);
+      const reserveForRate = pool.sales * st.reservePoolRate;
+      const reservePool = allTotal ? (pool.sales - ownerNet) * st.reservePoolRate : reserveForRate;
+      const reserveOwner = ownerNet * st.reserveOwnerRate;
 
       // 車ごとの単価（per_car のときだけ使う）
       const perCarHourly = {};
@@ -228,7 +237,8 @@
         });
       }
 
-      const hourly = hourlyOf(pool.sales, pool.hours, reservePool, st);
+      // ★単価は 前の 通り★（引く 積立は 母数の 売上 × みんなの 率・all_total でも 同じ＝給料を 変えない）
+      const hourly = hourlyOf(pool.sales, pool.hours, reserveForRate, st);
 
       // ★人ごとに歩合・最低保証を変えられる (2026-08-05・司さん指示 A案)★
       //   司さん「人によって変えれるの仕組みにしてないやないか」
@@ -367,8 +377,10 @@
       }, 0);
 
       // 自分の取り分
-      const ownerShare =
-        pool.sales - reservePool - staffTotal + n(owner.sales) - reserveOwner - n(owner.expense);
+      //   all_total は 母数に 自分の 車の 売上（経費 後）が もう 入っている＝足し戻さない
+      const ownerShare = allTotal
+        ? pool.sales - reservePool - reserveOwner - staffTotal
+        : pool.sales - reservePool - staffTotal + ownerNet - reserveOwner;
 
       return {
         poolSales: pool.sales,

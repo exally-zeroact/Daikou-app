@@ -6816,9 +6816,10 @@
             '<div class="card noprint"><b>会社に残る分</b>　¥' +
             yen(REP.nokori) +
             '<div class="note">売上合計 ¥' +
-            yen(REP.poolSalesTotal) +
+            // ★売上・積立は 自分の 車も 入れた 全部★ 2026-10-23 件G（月次集計と 同じ 数・売上 − 給料 − 積立 ＝ 会社に残る分）
+            yen(REP.uriageZen) +
             '　／　積立 ¥' +
-            yen(REP.reserveTotal) +
+            yen(REP.reserveTotal + REP.reserveOwnerTotal) +
             '　／　みんなの給料 ¥' +
             yen(REP.harai) +
             '　／　時数合計 ' +

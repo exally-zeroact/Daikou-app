@@ -33,6 +33,10 @@ const m = G.month(2026, 1, ctx, FIX.payments);
 //   ⇒ 実物とは「その 幅の 中」で 合わせ、明細の 和とは 1円も 違わない事を 縛る
 const NIN = (FIX.employees || []).length;
 const HABA = (kai) => 0.5 * NIN * kai + 1e-6;
+// ★★自分の 車の 積立は 経費を 引いた 後★★ 2026-10-23 件G（司さんの 答え ②・既定の 設定も）
+//   実物の『月別』は 自分の 車の 積立を 経費 前の 売上に 掛けている（1/3 1,520・1/30 1,440 の 経費 ⇒ 2,960 × 5% ＝ 148）
+//   ⇒ 積立は 実物より 148 少なく、会社に 残る分は 148 多い（給料は 1円も 変えない）
+const JIBUN_KEIHI_TSUMI = 2960 * 0.05;
 const meisaiNoWa = (p) =>
   D.report(
     P.periodsOf(2026, 1, { kata: ctx.settings.periodKata }).find((x) => x.index === p.index).dates,
@@ -48,8 +52,8 @@ describe('★1月の月次集計が実物の『月別』と一致★', () => {
     expect(m.expense).toBeCloseTo(W.経費, 4);
   });
 
-  it(`積立金 ${W.積立金.toLocaleString()}（積立 + つかさ積立）`, () => {
-    expect(m.reserve).toBeCloseTo(W.積立金, 4);
+  it(`積立金 ${W.積立金.toLocaleString()} − 148（積立 + つかさ積立・自分の 車は 経費 後）`, () => {
+    expect(m.reserve).toBeCloseTo(W.積立金 - JIBUN_KEIHI_TSUMI, 4);
   });
 
   it(`未収 ${W.未収.toLocaleString()}（請求書 ${W.請求書.toLocaleString()} + 電子決済 ${W.電子決済.toLocaleString()}）`, () => {
@@ -65,11 +69,11 @@ describe('★1月の月次集計が実物の『月別』と一致★', () => {
   it(`★ZERO合計 ${Math.round(W.ZERO合計).toLocaleString()}（売上合計 − 給料 − 積立金）★`, () => {
     // 給料は 丸めた 額（件G）＝実物とは 丸めの 幅の 中
     expect(m.ownerShare).toBeCloseTo(m.salesTotal - m.payTotal - m.reserve, 6);
-    expect(Math.abs(m.ownerShare - W.ZERO合計)).toBeLessThanOrEqual(HABA(3));
+    expect(Math.abs(m.ownerShare - (W.ZERO合計 + JIBUN_KEIHI_TSUMI))).toBeLessThanOrEqual(HABA(3));
   });
 
-  it('★日ごとのZEROを足した物は 実物と 一致（会社に残る分とは 丸めの 幅の 中）★', () => {
-    expect(m.ownerShareDaily).toBeCloseTo(W.ZERO合計, 4);
+  it('★日ごとのZEROを足した物は 実物 ＋ 148 と 一致（会社に残る分とは 丸めの 幅の 中）★', () => {
+    expect(m.ownerShareDaily).toBeCloseTo(W.ZERO合計 + JIBUN_KEIHI_TSUMI, 4);
     expect(Math.abs(m.ownerShareDaily - m.ownerShare)).toBeLessThanOrEqual(HABA(3));
   });
 });
