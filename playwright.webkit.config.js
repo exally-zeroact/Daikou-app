@@ -64,6 +64,8 @@ export const WEBKIT_KUMI = [
   'kyuryo-meisai-miseru.spec.js',
   // 幅の 変わらない resize（iPhone の 帯の 伸び縮み・板の 開け閉め）で 紙を 作り直さず 巻いた 位置が 飛ばない（2026-10-23）
   'kami-maki-zurenai.spec.js',
+  // 下の 帯の 巻き直しが 欄から 欄への 巻きを 止めない（2026-10-23）
+  'shita-obi-makinaoshi.spec.js',
 ];
 
 export default defineConfig({
