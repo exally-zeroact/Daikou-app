@@ -1501,7 +1501,8 @@
                 KARA +
                 '&work_date=lte.' +
                 MADE +
-                '&limit=5000'
+                // 読みの 順は 鍵の 順（js/dk-session.js KAGI_JUN）2026-10-23 件G
+                '&order=work_date.asc,adj_id.asc&limit=5000'
             ),
             // ★人の 変えた 記録（何日から）★ 2026-10-18＝res[12]・読めたかを 別に 数える
             ((RIREKI_YOMI = { tried: 0, failed: 0 }),

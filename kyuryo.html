@@ -4208,7 +4208,8 @@
                 start +
                 '&work_date=lte.' +
                 end +
-                '&limit=5000'
+                // 読みの 順は 鍵の 順（js/dk-session.js KAGI_JUN）2026-10-23 件G
+                '&order=work_date.asc,adj_id.asc&limit=5000'
             ),
           ]).then(function (res) {
             if (KST.failed > 0)
@@ -5096,7 +5097,8 @@
                 PERIOD.start +
                 '&work_date=lte.' +
                 PERIOD.end +
-                '&order=work_date.asc,created_at.asc&limit=5000'
+                // 読みの 順は 鍵の 順（js/dk-session.js KAGI_JUN・同じ 日・同じ 時刻でも 一意）2026-10-23 件G
+                '&order=work_date.asc,adj_id.asc&limit=5000'
             ),
           ]).then(function (res) {
             // ★古い 返事は 捨てる★ 2026-10-07（月を 素早く 送ると 前の 月の 返事が 後から 上書きした・対立役 Q）

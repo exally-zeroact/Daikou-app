@@ -410,6 +410,8 @@
     dk_yaku_rireki: 'from_date.asc,rireki_id.asc',
     dk_uriage_rireki: 'from_date.asc,rireki_id.asc',
     dk_shime_rireki: 'from_date.asc,rireki_id.asc',
+    // ★手当・控除★ 2026-10-23 件G＝同じ 日の 行は adj_id で 継ぎ目を 決める（1000行を 越えても 抜け・ダブり 無し）
+    dk_pay_adjustments: 'work_date.asc,adj_id.asc',
   };
   function tanomiKazu(p) {
     const m = /[?&]limit=(\d+)/.exec(String(p));
