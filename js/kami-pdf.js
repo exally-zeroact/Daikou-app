@@ -139,12 +139,19 @@
   //   ★PDF に する 紙（{el, muki}）を ★画面の 幅に ぴったり★ 縮めて 並べる★＝PDF と 同じ 見た目。
   //   押すと osu()（＝PDF を 作って 開く）。代行請求書の 請求書ページと 同じ 見せ方。
   //   ★PDF に する 時は 紙を 作り直す★こと（ここで 縮めた 板を dasu に 渡すと 測り直しが ずれる）。
+  //   ★★幅は 空に する 前に 測る・高さを 保って 入れ替える★★ 2026-10-23（司さん iPhone の 写真「帯が 途中に 浮く」「上に 空白」）
+  //     前は 空に した 後に clientWidth を 読んでいた＝★紙の 無い 短い ページ★で 形が 決まり、巻いた 位置が
+  //     その 底へ 詰められた（webkit 390×664 で 下まで 巻いて 作り直す ⇒ 月次集計 394→0・売上表 161→0）。
+  //     ⇒ 幅を 先に 測り、作り直す 間は 箱の 高さを 今の まま 保つ（紙を 入れ終えたら 外す）。
+  //     描いた 時の 幅は data-haba に 残す＝各 画面の resize は ★幅が 本当に 変わった 時だけ★ 作り直す（kakuHaba）
   function mise(mado, itas, osu) {
     if (!mado) return 0;
     if (MIHARI) MIHARI.unobserve(mado);
+    const haba = mado.clientWidth || 360;
+    const tamotsu = mado.offsetHeight;
+    if (tamotsu) mado.style.minHeight = tamotsu + 'px';
     mado.innerHTML = '';
     itas = [].concat(itas || []);
-    const haba = mado.clientWidth || 360;
     itas.forEach(function (x) {
       const s = A4[x.muki === 'yoko' ? 'yoko' : 'tate'];
       const sc = Math.min(1, (haba - 2) / s.bw);
@@ -177,11 +184,29 @@
     });
     // 紙を 全部 入れた 後で 測り直す（入れて 出た 巻き棒の 分）＋ 後で ページが 伸びても 見張る
     chijimeru(mado);
+    mado.style.minHeight = '';
+    mado.setAttribute('data-haba', String(mado.clientWidth));
     if (MIHARI) MIHARI.observe(mado);
     return itas.length;
   }
 
-  const api = { A4: A4, PX2PT: PX2PT, MACHI_MS: MACHI_MS, yomu: yomu, dasu: dasu, mise: mise };
+  // ★幅が 描いた 時から 変わったか★ 2026-10-23（iPhone は 帯の 伸び縮み・板の 開け閉めでも 幅の 同じ resize が 来る）
+  //   前は 各 画面が「前の 幅＝0」から 数えたので、最初の resize で 幅が 同じでも 紙を 全部 作り直した
+  function habaKawatta(mado) {
+    if (!mado) return false;
+    const w = mado.clientWidth;
+    return !!w && String(w) !== mado.getAttribute('data-haba');
+  }
+
+  const api = {
+    A4: A4,
+    PX2PT: PX2PT,
+    MACHI_MS: MACHI_MS,
+    yomu: yomu,
+    dasu: dasu,
+    mise: mise,
+    habaKawatta: habaKawatta,
+  };
   if (typeof global !== 'undefined') global.KamiPdf = api;
   /* eslint-disable no-undef */
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {

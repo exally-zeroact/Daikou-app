@@ -1256,11 +1256,10 @@
           };
         }
         // ★幅が 変わったら 縮め方を 決め直す★（10-05 対立役：横向き→縦向きで 紙の 右が 切れた）
-        var _kamiHaba = 0;
+        // ★描いた 時の 幅と 比べる★ 2026-10-23（前は「前の 幅＝0」から 数え、iPhone の 幅の 同じ resize で 紙を 作り直して
+        //   巻いた 位置が 上へ 飛んだ・tests/e2e/kami-maki-zurenai.spec.js）
         window.addEventListener('resize', function () {
-          var w = $('kamiMado') ? $('kamiMado').clientWidth : 0;
-          if (!w || w === _kamiHaba || !YR) return;
-          _kamiHaba = w;
+          if (!YR || !KamiPdf.habaKawatta($('kamiMado'))) return;
           clearTimeout(window.__kamiT);
           window.__kamiT = setTimeout(kamiMiseru, 150);
         });

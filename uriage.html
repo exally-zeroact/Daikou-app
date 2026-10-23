@@ -845,11 +845,9 @@
           };
         });
         // ★幅が 変わったら 縮め方を 決め直す★（月次集計と 同じ：横→縦で 紙の 右が 切れない）
-        var _kamiHaba = 0;
+        // ★描いた 時の 幅と 比べる★ 2026-10-23（幅の 同じ resize で 作り直して 巻いた 位置が 飛んだ・kami-maki-zurenai）
         window.addEventListener('resize', function () {
-          var w = $('kamiMado') ? $('kamiMado').clientWidth : 0;
-          if (!w || w === _kamiHaba) return;
-          _kamiHaba = w;
+          if (!KamiPdf.habaKawatta($('kamiMado'))) return;
           clearTimeout(window.__kamiT);
           window.__kamiT = setTimeout(kamiMiseru, 150);
         });

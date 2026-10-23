@@ -3278,6 +3278,9 @@
               '<div class="hn-pdf"><button class="hn-pdf-b" id="hnPdf">' +
               esc(hnPdfJi()) +
               '</button><div class="msg hn-pdf-err" id="hnPdfErr" hidden></div></div>';
+          // ★箱の 高さを 保って 入れ替える★ 2026-10-23（事務所の renderSlips と 同じ：空の 箱で 幅を 測ると 巻いた 位置が 詰まる）
+          var hnTamotsu = box.offsetHeight;
+          if (hnTamotsu) box.style.minHeight = hnTamotsu + 'px';
           box.innerHTML = atama + '<div id="hnKami"></div>';
           hnPdfBotan();
           var pdfB = document.getElementById('hnPdf');
@@ -3332,6 +3335,7 @@
               _hnHaba = haba2;
             }
           }
+          box.style.minHeight = '';
           var mae = document.getElementById('hnMae');
           if (mae)
             mae.onclick = function () {
@@ -6381,18 +6385,24 @@
             '　／　時数合計 ' +
             hrs(REP.poolHoursTotal) +
             ' 時間</div></div>';
+          // ★箱の 高さを 保って 入れ替える★ 2026-10-23（入れ替えた 直後は 紙の 箱が 空＝ページが 短く なり、
+          //   幅を 測る 所で 巻いた 位置が その 底へ 詰められた。webkit 390×664 で 1147→469・kami-maki-zurenai）
+          var tamotsu = box.offsetHeight;
+          if (tamotsu) box.style.minHeight = tamotsu + 'px';
           box.innerHTML = html;
           kamiMadoNuru();
+          box.style.minHeight = '';
         }
 
         // ★幅が 変わったら 紙を 描き直す★（10-05 対立役：PC で 開いて 窓を 縮めると 紙の 右が 切れた）
-        var _slipHaba = 0;
+        // ★描いた 時の 幅（kamiMadoNuru が 残す data-haba）と 比べる★ 2026-10-23
+        //   前は「前の 幅＝0」から 数え、iPhone の 幅の 同じ resize（帯の 伸び縮み・板の 開け閉め）で 全員の 紙を
+        //   作り直して 巻いた 位置が 飛んだ（tests/e2e/kami-maki-zurenai.spec.js）
         window.addEventListener('resize', function () {
           if (HONNIN || TAB !== 'slip' || !REP) return;
           var b = $('slips');
           var w = b ? b.clientWidth : 0;
-          if (!w || w === _slipHaba) return;
-          _slipHaba = w;
+          if (!w || String(w) === b.getAttribute('data-haba')) return;
           clearTimeout(window.__slipT);
           window.__slipT = setTimeout(renderSlips, 150);
         });
@@ -6428,6 +6438,12 @@
         function kamiMadoNuru() {
           if (!window.__paper) return;
           if (_kamiRO) _kamiRO.disconnect(); // ★前に 描いた 箱は 見張らない★
+          // ★組み直す 間は 箱の 高さを 保つ★ 2026-10-23（字体が 入った 時の 組み直しでも 巻いた 位置を 詰めない）
+          //   renderSlips から 来た 時は もう 保って いる（入れ替える 前の 高さ）＝ここでは 測らない
+          var slipsBox = $('slips');
+          var jibunDeTamotsu = !!slipsBox && !slipsBox.style.minHeight;
+          if (jibunDeTamotsu && slipsBox.offsetHeight)
+            slipsBox.style.minHeight = slipsBox.offsetHeight + 'px';
           Array.prototype.forEach.call(
             document.querySelectorAll('#slips .kami-mado'),
             function (mado) {
@@ -6481,6 +6497,10 @@
             document.querySelectorAll('#slips .kami-mado'),
             kamiChijimeru
           );
+          if (slipsBox) {
+            if (jibunDeTamotsu) slipsBox.style.minHeight = '';
+            slipsBox.setAttribute('data-haba', String(slipsBox.clientWidth));
+          }
         }
         // ★紙を 入れた 後に ページが 伸びても（下の 帯・知らせ が 後から 出る）縮め直す★（対立役：1000×1340〜1400 で 15px 切れた）
         //   縮める 向きだけ（広げると 巻き棒が 消えて また 出る＝描き直しが 回り続ける）。
