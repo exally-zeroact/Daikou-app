@@ -15,7 +15,8 @@ jobs:
     #   本番③は 22.3分。workers を 増やすと 試験どうしの 当たりが 新しく 出得る＝今は 上限を 上げる（前と 同じ 形）
     # ★38分の 段でも 足りなく なる★ 2026-10-22（テスト線 420c9c2 で 678本＝35.6分・残り 2.4分。retries の 再走りで 越える・対立役）
     #   段 50分・job 60分 に 上げる（公開の repo＝Actions の 時間で お金は 増えない）
-    timeout-minutes: 60
+    # ★50分にも 近づいた★ 2026-10-23（本番 1823b2b で 45.8分・残り 4分・指示役の 知らせ）＝段 65分・job 75分
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +33,7 @@ jobs:
 
       - name: Run Playwright tests
         # ★段にも 時間の 上限★ 2026-10-20（固まった 時は job の cancelled で なく 段の 失敗で 出す＝手で 止めた 時と 区別する・webkit と 同じ 形）
-        timeout-minutes: 50
+        timeout-minutes: 65
         # ★10本 落ちたら そこで 止める★ 2026-10-20（倉庫が 引けない 等で 一斉に 落ちた 時に 上限を 使い切らず、まとめの 行も 出る・対立役）
         run: npx playwright test --retries=2 --max-failures=10
         env:
@@ -53,7 +54,13 @@ jobs:
   #   ★retries は 0★ 初めて 測る 中身なので、揺れも 1回で 赤に する（2 だと 3回目に 通れば 緑に 化ける・対立役）
   webkit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # ★20分では apt の 取り込みが 遅い 日に 足りない★ 2026-10-23（テスト線 91d58ec・285f497・本番 1823b2b の 3回とも
+    #   「Install Playwright webkit」の apt 中に job の 20分で cancelled＝試験は 0本 走った）＝job 40分・取り込みの 段に 25分
+    timeout-minutes: 40
+    # ★apt を 使わない★ 2026-10-23（25分の 段でも apt の 取り込み 107件が 終わらなかった＝テスト線 5f1776a）
+    #   iPhone 向けの 道具と 依存が 入った 公式の 箱で 走らせる。箱の 版は package-lock の @playwright/test と 揃える（下の 段で 見る）
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
     steps:
       - uses: actions/checkout@v4
 
@@ -65,8 +72,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright webkit
-        run: npx playwright install --with-deps webkit
+      - name: Playwright の 版が 箱と 同じか
+        # 違うと 箱の 中の 道具が 見つからず 赤に なる＝先に 訳の 出る 形で 止める
+        run: node -e "const v=require('@playwright/test/package.json').version; if(v!=='1.60.0'){console.error('箱は 1.60.0・入ったのは '+v+'＝e2e.yml の image を 揃える');process.exit(1)}"
 
       - name: Run Playwright tests (webkit)
         # ★段にも 時間の 上限★ 組は 約4分。worker が 止まらないと job の 20分まで 使われ「cancelled」に なり、手で 止めた 時と 区別が つかない＝ここで 段の 失敗として 出す（対立役 10-17）
