@@ -152,6 +152,12 @@
     });
     if (field === 'trip_count') {
       body.trip_count = v;
+    } else if (field === 'hours') {
+      // ★★車の 時間（時数）★★ 2026-10-23（司さん「入力の各車ごとに経費の下に時数」）
+      //   ★小数（0.25 刻み 等）★＝整数に 丸めない。空・0・読めない ⇒ 0（乗った人が 居ても 給料は 出ない＝入れ漏れの 印が 出る）
+      //   ★時間は この 写しで 書く★（別の 写しで 書くと 次の 保存が cur.hours＝古い 値で 上書きする・対立役 A-3）
+      const h = parseFloat(String(value).replace(/,/g, ''));
+      body.hours = isFinite(h) && h > 0 ? h : 0;
     } else if (field === 'actual_total_km' || field === 'total_distance_km') {
       const km = parseFloat(String(value).replace(/,/g, ''));
       body[field.replace('_km', '_m')] = isFinite(km) && km > 0 ? Math.round(km * 1000) : null;
@@ -176,6 +182,24 @@
     ).then(function (r) {
       if (!r.ok) throw r;
       return body;
+    });
+  }
+
+  // ★★手で 入れた 1日ぶんを 消す★★ 2026-10-23（給料の 画面の「この車を消す」を 入力の 画面へ 移した）
+  //   その 日の その 車の 1行だけ（メーターの 記録は 消さない）
+  function delTebiki(sess, companyId, hi, deviceId) {
+    return global.DKSession.rest(
+      sess,
+      'dk_manual_days?company_id=eq.' +
+        encodeURIComponent(companyId) +
+        '&work_date=eq.' +
+        encodeURIComponent(hi) +
+        '&device_id=eq.' +
+        encodeURIComponent(deviceId),
+      { method: 'DELETE' }
+    ).then(function (r) {
+      if (!r.ok) throw r;
+      return true;
     });
   }
 
@@ -251,6 +275,7 @@
     saveJippi: saveJippi,
     saveUriage: saveUriage,
     saveTebiki: saveTebiki,
+    delTebiki: delTebiki,
     saveDenshi: saveDenshi,
   };
 })(window);

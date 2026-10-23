@@ -115,7 +115,8 @@ test('★★② 会社が 足した 名前が 欄に 出る★★', async ({ pag
     //   ⇒ ★実費だけ★を 数える（売上・電子決済は 別の 試験が 見る）
     na: [...document.querySelectorAll('#shaList .flabel')]
       .map((x) => x.textContent.trim())
-      .filter((x) => x !== '売上' && x !== '電子決済' && x !== '請求書'),
+      // 10-23 時数・乗った人（と 2回 走った 日の 回ごとの 売上）も 実費では ない
+      .filter((x) => !/^(売上|時数|乗った人)/.test(x) && x !== '電子決済' && x !== '請求書'),
     ran: [...document.querySelectorAll('#shaList [data-sid]')].filter(
       (x) => ['sales_yen', 'denshi_yen', 'seikyu_yen'].indexOf(x.getAttribute('data-f')) < 0
     ).length,

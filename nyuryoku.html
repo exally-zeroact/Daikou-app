@@ -261,6 +261,149 @@
         margin-bottom: 8px;
       }
 
+      /* ★★車の 見出し＝名前＋入れ漏れの 印★★ 2026-10-23（時数・乗った人を 入力へ 移した） */
+      .sha-atama {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .sha-atama .sha-na {
+        margin-bottom: 0;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .sha-shirushi {
+        flex: 1 1 auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .shirushi {
+        font-size: 11px;
+        font-weight: 700;
+        color: #a1281e;
+        background: #fdecea;
+        border: 1px solid #f5c2bd;
+        border-radius: 999px;
+        padding: 1px 7px;
+        white-space: nowrap;
+      }
+
+      .shirushi.usui {
+        color: var(--muted);
+        background: #eef3fa;
+        border-color: var(--line);
+      }
+
+      /* ★乗った人★（給料の 画面の「時数を入れる」から 移した・人ごとの 時数は 自由） */
+      .crewrow {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+
+      .crewrow .nm {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 14px;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .nm-ji {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .crewrow .fen {
+        flex: 0 0 96px;
+      }
+
+      .xbtn {
+        flex: 0 0 auto;
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        color: #a1281e;
+        font-size: 16px;
+        font-family: inherit;
+        cursor: pointer;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .chip {
+        border: 1px solid var(--blue);
+        background: #fff;
+        color: var(--blue-d);
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+      }
+
+      .chip:disabled,
+      .xbtn:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      .keikoku {
+        display: block;
+        font-size: 12px;
+        font-weight: 700;
+        color: #a1281e;
+        line-height: 1.6;
+      }
+
+      .kai {
+        border-top: 1px dashed var(--line);
+        padding-top: 8px;
+        margin-top: 4px;
+      }
+
+      .kai-ttl {
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--blue-d);
+        margin-bottom: 6px;
+      }
+
+      .carkesu {
+        background: none;
+        border: 1px solid #f5c2bd;
+        color: #a1281e;
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        margin-top: 4px;
+      }
+
       .hint {
         font-size: 11px;
         color: var(--muted);
@@ -339,15 +482,26 @@
         <div id="shaList"></div>
         <div class="msg" id="msg" style="display: none"></div>
         <div class="err" id="err" style="display: none"></div>
+        <!-- ★★新しい 車を 足す★★ 2026-10-23（給料の 画面の「＋ 新しい車…」を 移した）
+             会社の 車は 全部 上に 並ぶ＝ここは まだ 名前の 無い 車（アプリ無しで 走った 車）だけ -->
+        <div id="newCarBox" style="display: none; margin-top: 4px">
+          <button class="navb" id="btnNewCar" type="button" style="width: 100%">
+            ＋ 新しい車を 足す
+          </button>
+        </div>
         <div class="note">
-          <b>売上</b> … メーターから 読めた 車は その 数字を 出します（ここでは
-          変えられません）。<br />
+          <b>売上</b> … メーターから 読めた 車は その 数字を 出します（違う 時は 打ち直せます。 2回
+          以上 走った 日は 回ごとの 欄で）。<br />
           読めていない 車は <b>0</b> で 出ます。そこは 打ち直せます。<br />
           <b>電子決済</b> … 現金でも 請求書でもない 分（スマホ決済・交通系など）。<br />
           <b>請求書</b> … 請求書で もらう 分。打った 日は 請求書アプリの 額より こちらを
           使います（下がるのは 月次集計の 現金だけ）。<br />
           <b>実費</b> … 名前は <b>会社設定 → 実費</b> で 変えられます（足す・消す・並び替え）。<br />
           <b>回数・実車距離・総走行距離</b> … 読めていない 車だけ 打てます（距離は km）。<br />
+          <b>時数</b> … 車が 働いた 時間（h）。メーターの 車は 空なら 記録から 自動で 入ります。<br />
+          <b>乗った人</b> … 名前の 札を 押すと 乗せます（1台 2人まで）。その人の 時数は 車と
+          同じ。早上がり など その人だけ 違う 時は 人の 横の 欄に 入れます。✕ で 外せます。<br />
+          車の 名前の 横の 赤い 印は 入れ漏れです。<br />
           打つと すぐ 保存されます。<b>メーターが 読んだ 距離は 変わりません</b>。
         </div>
         <!-- ★★走った 日へ 飛ぶ★★ 2026-09-08（司さん「高速代とかどこに入れるんど」）
@@ -368,6 +522,11 @@
     <script src="js/car-name.js"></script>
     <script src="js/jippi-hozon.js"></script>
     <script src="js/uriage-agg.js"></script>
+    <!-- ★入れ漏れの 判じは 給料の 計算と 同じ 材料で 数える★ 2026-10-23（js/jisuu-hozon.js の 1か所） -->
+    <script src="js/daiko-payroll.js"></script>
+    <script src="js/payroll-period.js"></script>
+    <script src="js/payroll-daily.js"></script>
+    <script src="js/jisuu-hozon.js"></script>
     <script>
       (function () {
         'use strict';
@@ -494,6 +653,19 @@
         // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
         //   端末ID → dk_manual_days の 1行
         var TEBIKI = {};
+        // ★★時数・乗った人★★ 2026-10-23（司さん「給料の時数を入れるを入力の各車ごとに経費の下に時数、乗った人」）
+        //   ★給料の 画面と 同じ 表・同じ 鍵★（js/jisuu-hozon.js）＝車の 時間 dk_shift_edits.hours／dk_manual_days.hours・乗った人 dk_work_hours
+        var EMPS = []; // 従業員（名簿）
+        var WH = []; // この 日の 乗った人（dk_work_hours）
+        var WH_HI = ''; // WH が どの 日の 表か
+        var SET_ROW = null; // 給料の 設定（自分の 車を 知る 為だけ）
+        // 乗った人の 欄を 出せない 訳（名簿・乗った人の 記録が 読めない）＝黙って 空に しない
+        var NORI_NG = '';
+        // 入れ漏れの 印を 出せない 訳（判じの 材料が 1つでも 読めない＝自分の 車に 嘘の 印を 出さない）
+        var HANTEI_NG = '';
+        var CTX = null; // 判じの 材料（PayrollDaily.buildCtx・給料の 計算と 同じ）
+        // ★乗った人の 保存中は 札と ✕ を 止める★（同じ 人を 別の 車に 押すと 鍵（会社・日・人）で 黙って 車が 移る・給料の 画面と 同じ 守り）
+        var NORI_HOZON = 0;
 
         var $ = function (id) {
           return document.getElementById(id);
@@ -602,6 +774,21 @@
         }
 
         HI = hiKey(new Date());
+        // ★給料の 画面の 入れ漏れの 帯から その 日へ 来る★（?hi=YYYY-MM-DD）2026-10-23
+        (function () {
+          try {
+            var q = new URLSearchParams(location.search).get('hi');
+            if (
+              q &&
+              /^\d{4}-\d{2}-\d{2}$/.test(q) &&
+              +q.slice(0, 4) >= 2000 &&
+              +q.slice(0, 4) <= 2100
+            )
+              HI = q;
+          } catch (_) {
+            /* 読めなければ 今日 */
+          }
+        })();
 
         // ---------- 起動 ----------
         DKSession.ensure().then(function (s) {
@@ -687,7 +874,8 @@
             //   前は 取っておらず ★走った 車の 売上が いつも 0円★ と 出ていた）
             //   ★使わない 印（excluded）も 取って 外す★ 2026-10-07（司さん「前からある2つもやれ」）
             //   ＝給料・売上表・月次集計も 同じ日に 揃えた（前は どの 画面も 印を 読まず 数えていた）
-            'dk_shifts?select=shift_id,device_id,started_at,fare_total_yen,excluded&company_id=eq.' +
+            //   ★車の 時間の 材料（ended_at・elapsed_sec）も 取る★ 2026-10-23（入れ漏れの 判じを 給料の 計算と 同じ 材料で）
+            'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,excluded&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
             '&started_at=gte.' +
             encodeURIComponent(r.from) +
@@ -704,6 +892,11 @@
           var stK = DKSession.newLoadState();
           var stX = DKSession.newLoadState();
           var stM = DKSession.newLoadState();
+          // 時数・乗った人の 読み（どれが 読めないかで 乗った人の 欄・入れ漏れの 印を 止める）2026-10-23
+          var stEmp = DKSession.newLoadState();
+          var stW = DKSession.newLoadState();
+          var stP = DKSession.newLoadState();
+          var co = encodeURIComponent(COMPANY.company_id);
           Promise.all([
             DKSession.rest(SESS, q).then(function (x) {
               if (!x.ok) throw new Error('shifts');
@@ -735,6 +928,26 @@
               .catch(function () {
                 return false;
               }),
+            // ★★従業員・乗った人・自分の 車★★ 2026-10-23（給料の 画面の「時数を入れる」から 移した）
+            //   名簿は 名前と 並び・勤め始め だけ（お金の 列は 読まない）
+            soft(
+              'dk_employees?select=employee_id,name,active,sort_order,created_at&company_id=eq.' +
+                co +
+                '&order=sort_order.asc&limit=500',
+              stEmp
+            ),
+            soft(
+              'dk_work_hours?select=*&company_id=eq.' +
+                co +
+                '&work_date=eq.' +
+                encodeURIComponent(HI) +
+                '&limit=500',
+              stW
+            ),
+            soft(
+              'dk_payroll_settings?select=owner_device_id&company_id=eq.' + co + '&limit=1',
+              stP
+            ),
           ])
             .then(function (res) {
               if (no !== LOADNO) return; // ★古い 読みの 返事は 捨てる★
@@ -742,7 +955,7 @@
               if (stE.failed) nai.push('実費');
               if (stM.failed) nai.push('手で 入れた 日');
               YOMENAI = nai.join('・');
-              [stE, stK, stX, stM].forEach(function (st) {
+              [stE, stK, stX, stM, stEmp, stW, stP].forEach(function (st) {
                 LOAD.tried += st.tried;
                 LOAD.failed += st.failed;
               });
@@ -788,6 +1001,29 @@
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
                 if (x && x.device_id) TEBIKI[x.device_id] = x;
               });
+              EMPS = Array.isArray(res[8]) ? res[8] : [];
+              WH_HI = HI;
+              WH = (Array.isArray(res[9]) ? res[9] : []).filter(function (w) {
+                return w && w.employee_id && String(w.work_date).slice(0, 10) === HI;
+              });
+              SET_ROW = (Array.isArray(res[10]) && res[10][0]) || {};
+              // ★名簿・乗った人が 読めない 日は 乗った人の 欄を 出さず 訳を 出す★（黙って 空に すると 居ない 様に 見え、
+              //   札を 押すと 別の 車の 人を 黙って 移した）
+              var nn = [];
+              if (stEmp.failed) nn.push('従業員の 名簿');
+              if (stW.failed) nn.push('乗った人');
+              NORI_NG = nn.length
+                ? nn.join('・') +
+                  'の 記録が 読めないので、乗った人は ここに 出せません。上の「もう一度 読む」を 押してください。'
+                : '';
+              // ★入れ漏れの 印は 材料が 全部 読めた 時だけ★（自分の 車が 分からない まま 印を 出さない・対立役 A-4）
+              var hn = nn.slice();
+              if (stP.failed) hn.push('給料の 設定（自分の 車）');
+              if (stE.failed) hn.push('実費・時間の 直し');
+              if (stM.failed) hn.push('手で 入れた 日');
+              HANTEI_NG = hn.length
+                ? hn.join('・') + 'が 読めないので、入れ漏れの 印は 出していません。'
+                : '';
               render();
               DKSession.showUnknownBar(LOAD, load);
             })
@@ -803,7 +1039,10 @@
         // 欄を 全部 押せなく して、訳を 車の 上（見える 所）に 出す
         function tomeruRan(ji) {
           Array.prototype.forEach.call(
-            document.querySelectorAll('#shaList input, #shaList select, #shaList textarea'),
+            // 乗った人の 札・✕・手入力を 消す も 止める（車の 見出し＝開く・畳む は 止めない）2026-10-23
+            document.querySelectorAll(
+              '#shaList input, #shaList select, #shaList textarea, #shaList .sha-naka button'
+            ),
             function (i) {
               i.disabled = true;
             }
@@ -819,14 +1058,9 @@
           // ★#err（保存の 失敗）には 書かない・消さない★（読み込みで 保存の 失敗を 黙って 消した・対立役 止A）
         }
 
+        // 走った 車ごとの まとめ（device_id → { shift_id（最後の 業務）, ids, runs, fare_total_yen, meter_yen, dame }）
+        var DETA = {};
         function render() {
-          var ids = [];
-          RAW.shifts.forEach(function (s) {
-            if (s && s.device_id && ids.indexOf(s.device_id) < 0) ids.push(s.device_id);
-          });
-          // ★車の 名前は 1か所（js/car-name.js）で 決める★＝UUIDは 画面に 出さない
-          NAMAE = CarName.nameMap(ids, RAW.labels);
-
           if (!RAW.shifts.length) {
             // ★★走っていない 日でも 打てるように した★★ 2026-09-08
             //   ★司さん★「日付選んどんやけん入力するとこ出しとけや」
@@ -836,71 +1070,46 @@
               'この日は 走った 記録が ありません。' +
                 '下に 会社の 車を 出しています。手で 入れた 分として 保存します（売上は 増えません）。'
             );
-            tebikiWoDasu();
             hashittaHiWoSagasu();
-            return;
+          } else {
+            showMsg('');
+            $('hashittaHi').style.display = 'none';
           }
-          showMsg('');
-          $('hashittaHi').style.display = 'none';
           // ★★会社の 車を 全部 並べる★★ 2026-09-11（司さん「車毎に 出す」）
-          //   ★走った 車★ … 売上は メーターの 数字（出すだけ）／鍵は shift_id
+          //   ★走った 車★ … 売上は メーターの 数字（直せる）／鍵は shift_id
           //   ★走っていない 車★ … 売上は 0 で 打ち直せる／鍵は device_id
-          var html = '';
-          var detaAru = {};
           // ★同じ 車が 1日に 何回 走っても 売上は その日の 合計★（前は 最後の 1回だけ 出た）
           //   ★実費・電子決済の 入れ先は その日 最後の 業務★（前の 版と 同じ所＝前に 打った 額が 消えて見えない）
           //   ★ほかの 回にも 額が 入っている 時★は 合計を 出して ★ここでは 打たせない★
-          //     （1つの 回に 打つと 他の 回の 分と 二重に 引かれる＝対立役 10-05）
-          RAW.shifts.forEach(function (sh) {
-            if (!sh || !sh.device_id) return;
-            var x = detaAru[sh.device_id];
-            if (!x) {
-              x = detaAru[sh.device_id] = {
-                device_id: sh.device_id,
-                fare_total_yen: 0,
-                meter_yen: 0,
-                ids: [],
-              };
-            }
-            // 売上＝事務所が 直した 額 か メーター（UriageAgg.uriageOf の 1か所）2026-10-14
-            var u = UriageAgg.uriageOf(sh, EDITS[sh.shift_id]);
-            if (u === null) x.dame = true;
-            else x.fare_total_yen += u;
-            x.meter_yen += Number(sh.fare_total_yen) || 0; // メーターの 額（欄の 薄い 字）
-            x.ids.push(sh.shift_id);
-            x.shift_id = sh.shift_id;
-          });
-          function edGaku(e) {
-            if (!e) return 0;
-            var g = (Number(e.toll_yen) || 0) + (Number(e.bridge_yen) || 0);
-            g += (Number(e.other_yen) || 0) + (Number(e.denshi_yen) || 0);
-            g += Number(e.seikyu_yen) || 0; // ★請求書も（他の 回に 打った 分を 二重に しない）★
-            var x = e.expenses || {};
-            for (var k in x) g += Number(x[k]) || 0;
-            return g;
-          }
-          function edAwase(ids) {
-            var o = {
-              toll_yen: 0,
-              bridge_yen: 0,
-              other_yen: 0,
-              denshi_yen: 0,
-              seikyu_yen: 0,
-              expenses: {},
-            };
-            ids.forEach(function (id) {
-              var e = EDITS[id];
-              if (!e) return;
-              ['toll_yen', 'bridge_yen', 'other_yen', 'denshi_yen', 'seikyu_yen'].forEach(
-                function (k) {
-                  o[k] += Number(e[k]) || 0;
-                }
-              );
-              var x = e.expenses || {};
-              for (var k in x) o.expenses[k] = (o.expenses[k] || 0) + (Number(x[k]) || 0);
+          //     （1つの 回に 打つと 他の 回の 分と 二重に 引かれる＝対立役 10-05）＝回ごとの 欄で 直す
+          DETA = {};
+          // 回の 順は 始まった 時刻の 順（1回目・2回目 の 字と 合わせる）
+          RAW.shifts
+            .slice()
+            .sort(function (a, b) {
+              return Date.parse(a.started_at) - Date.parse(b.started_at);
+            })
+            .forEach(function (sh) {
+              if (!sh || !sh.device_id) return;
+              var x = DETA[sh.device_id];
+              if (!x) {
+                x = DETA[sh.device_id] = {
+                  device_id: sh.device_id,
+                  fare_total_yen: 0,
+                  meter_yen: 0,
+                  ids: [],
+                  runs: [],
+                };
+              }
+              // 売上＝事務所が 直した 額 か メーター（UriageAgg.uriageOf の 1か所）2026-10-14
+              var u = UriageAgg.uriageOf(sh, EDITS[sh.shift_id]);
+              if (u === null) x.dame = true;
+              else x.fare_total_yen += u;
+              x.meter_yen += Number(sh.fare_total_yen) || 0; // メーターの 額（欄の 薄い 字）
+              x.ids.push(sh.shift_id);
+              x.runs.push(sh);
+              x.shift_id = sh.shift_id;
             });
-            return o;
-          }
           // ★会社の 車を 全部（札の 順）★
           var zenbu = [];
           (RAW.labels || []).forEach(function (l) {
@@ -910,42 +1119,449 @@
           RAW.shifts.forEach(function (sh) {
             if (sh && sh.device_id && zenbu.indexOf(sh.device_id) < 0) zenbu.push(sh.device_id);
           });
+          // ★★乗った人だけ 残っている 車も 出す★★ 2026-10-23（対立役 A-5：給料に 入るのに 見えない 人を 作らない）
+          //   車が 空（どの 車にも 付いていない 人）は 一番 下に 1枚
+          var kara = false;
+          WH.forEach(function (w) {
+            if (!w.device_id) kara = true;
+            else if (zenbu.indexOf(w.device_id) < 0) zenbu.push(w.device_id);
+          });
           // 会社設定の「並び」の 順に 並べる（js/car-name.js の 1か所）2026-10-14
           //   司さん「入力のとこの並びもめちゃくちゃやろがぼけ」＝前は 札を 読んだ 順の まま だった
           zenbu = CarName.sortIds(zenbu, RAW.labels);
           NAMAE = CarName.nameMap(zenbu, RAW.labels);
-          zenbu.forEach(function (dev) {
-            var sh = detaAru[dev];
-            if (sh) {
-              var hoka = sh.ids.filter(function (id) {
-                return id !== sh.shift_id && edGaku(EDITS[id]) > 0;
-              });
-              html += shaHitotsu(
-                NAMAE[dev] || '車',
-                sh.shift_id,
-                'data-sid',
-                hoka.length ? edAwase(sh.ids) : EDITS[sh.shift_id] || {},
-                sh.fare_total_yen,
-                // 1回だけ 走った 日は 売上を 直せる（2回 以上は 1回ずつ 直す 給料の 画面へ）
-                sh.dame
-                  ? { dame: true }
-                  : sh.ids.length === 1
-                    ? { meter: sh.meter_yen }
-                    : { kaisu: sh.ids.length },
-                hoka.length
-                  ? 'この 車は この日 ' +
-                      sh.ids.length +
-                      '回 走り、別の 回にも 額が 入っています（合計を 出しています）。' +
-                      '直す 時は 売上表で 1回ずつ 直してください。'
-                  : ''
+          if (!zenbu.length && !kara) {
+            $('shaList').innerHTML = '';
+            $('newCarBox').style.display = ''; // 車が 0台でも 新しい 車は 足せる
+            // 車が 0台なのに「下に 会社の 車を 出しています」と 出さない（対立役 直4）
+            if (!RAW.shifts.length)
+              showMsg(
+                'この日は 走った 記録が ありません。会社の 車が 読めない か 登録が ない ので、打つ 欄を 出せません。'
               );
-            } else {
-              var t = TEBIKI[dev] || {};
-              html += shaHitotsu(NAMAE[dev] || '車', dev, 'data-dev', t, t.sales_yen, false);
-            }
+            return;
+          }
+          CTX = ctxWoTsukuru();
+          var html = hanteiNgHtml();
+          zenbu.forEach(function (dev) {
+            html += shaHitotsu(dev);
           });
+          if (kara) html += shaHitotsu('');
           $('shaList').innerHTML = html;
+          $('newCarBox').style.display = '';
           bindYen();
+        }
+
+        // ★★判じの 材料（給料の 計算と 同じ PayrollDaily.buildCtx）★★ 2026-10-23（対立役 A-4）
+        //   車の 時間＝elapsed_sec・ended_at・手で 直した 時間／自分の 車＝ownerDeviceId／名簿＝empById
+        //   組めない（部品が 無い・転んだ）時は null＝印を 出さない（嘘の 印より 出さない 方へ）
+        function ctxWoTsukuru() {
+          try {
+            if (!window.PayrollDaily || !window.JisuuHozon) return null;
+            return PayrollDaily.buildCtx({
+              payrollSettings: SET_ROW || {},
+              labels: RAW.labels,
+              shifts: RAW.shifts,
+              edits: Object.keys(EDITS).map(function (k) {
+                return EDITS[k];
+              }),
+              manualDays: Object.keys(TEBIKI).map(function (k) {
+                return TEBIKI[k];
+              }),
+              employees: EMPS,
+              workHours: WH,
+            });
+          } catch (e) {
+            if (window.console) console.warn('[入れ漏れの 判じ]', e);
+            return null;
+          }
+        }
+        function hanteiNgHtml() {
+          var ji =
+            HANTEI_NG || (CTX ? '' : '入れ漏れの 印を 出せません（判じの 部品が 読めません）。');
+          return ji
+            ? '<div class="hint" id="hanteiNg" style="margin-bottom:8px">' + esc(ji) + '</div>'
+            : '';
+        }
+        function kurumaNoJikan(dev) {
+          var c = CTX && CTX.byDate && CTX.byDate[HI] && CTX.byDate[HI][dev];
+          return c ? Number(c.hours) || 0 : 0;
+        }
+        function noriOf(dev) {
+          return WH.filter(function (w) {
+            return (w.device_id || '') === dev;
+          });
+        }
+        function hrs(h) {
+          return String(Math.round((Number(h) || 0) * 100) / 100);
+        }
+
+        // ★★畳んだ 見出しの 印★★ 2026-10-23（B-1：入れ漏れ・読めない・打てない）
+        function shirushiHtml(dev) {
+          var m = [];
+          var sh = DETA[dev];
+          var crew = noriOf(dev);
+          var aka = function (ji) {
+            m.push('<span class="shirushi">' + esc(ji) + '</span>');
+          };
+          var usui = function (ji) {
+            m.push('<span class="shirushi usui">' + esc(ji) + '</span>');
+          };
+          if (YOMENAI) usui(YOMENAI === '読み込み中' ? '読み込み中' : '打てません');
+          if (sh && sh.dame) aka('売上が 読めない');
+          if (sh && hokaOf(sh).length) usui('合計を 表示中');
+          if (!HANTEI_NG && CTX) {
+            var r = JisuuHozon.noriNashi(CTX, HI);
+            if (r.cars.indexOf(dev) >= 0) aka(crew.length ? '時間0で 給料なし' : '乗った人なし');
+            if (
+              crew.some(function (w) {
+                return r.hito.indexOf(w.employee_id) >= 0;
+              })
+            )
+              aka(dev ? 'この日の 記録なし' : '車が 決まっていない');
+            if (dev && !sh) {
+              var t = TEBIKI[dev] || {};
+              if ((crew.length || Number(t.hours) > 0) && !(JippiHozon.seisuu(t.sales_yen) > 0))
+                aka('売上 未入力');
+            }
+          }
+          return m.join('');
+        }
+        // 他の 回にも 額が 入っている（最後の 回 以外）
+        function hokaOf(sh) {
+          return sh.ids.filter(function (id) {
+            return id !== sh.shift_id && edGaku(EDITS[id]) > 0;
+          });
+        }
+        function edGaku(e) {
+          if (!e) return 0;
+          var g = (Number(e.toll_yen) || 0) + (Number(e.bridge_yen) || 0);
+          g += (Number(e.other_yen) || 0) + (Number(e.denshi_yen) || 0);
+          g += Number(e.seikyu_yen) || 0; // ★請求書も（他の 回に 打った 分を 二重に しない）★
+          var x = e.expenses || {};
+          for (var k in x) g += Number(x[k]) || 0;
+          return g;
+        }
+        function edAwase(ids) {
+          var o = {
+            toll_yen: 0,
+            bridge_yen: 0,
+            other_yen: 0,
+            denshi_yen: 0,
+            seikyu_yen: 0,
+            expenses: {},
+          };
+          ids.forEach(function (id) {
+            var e = EDITS[id];
+            if (!e) return;
+            ['toll_yen', 'bridge_yen', 'other_yen', 'denshi_yen', 'seikyu_yen'].forEach(
+              function (k) {
+                o[k] += Number(e[k]) || 0;
+              }
+            );
+            var x = e.expenses || {};
+            for (var k in x) o.expenses[k] = (o.expenses[k] || 0) + (Number(x[k]) || 0);
+          });
+          return o;
+        }
+
+        // ★★1台ぶん（畳んだ 見出し＋中身）★★
+        function shaHitotsu(dev) {
+          var sh = DETA[dev] || null;
+          var na = dev ? NAMAE[dev] || '車' : '車が 決まっていない 人';
+          var naka = '';
+          if (!dev) {
+            naka +=
+              '<span class="keikoku">どの車に 乗ったか 決まっていません。✕ で 外して、乗った車の「＋ 乗った人」から 足し直してください。</span>';
+          } else if (sh) {
+            var hoka = hokaOf(sh);
+            var fuku = sh.ids.length > 1 || sh.dame;
+            naka += ranHtml(
+              sh.shift_id,
+              'data-sid',
+              hoka.length ? edAwase(sh.ids) : EDITS[sh.shift_id] || {},
+              sh.fare_total_yen,
+              // 1回だけ 走った 日は 売上を ここで 直せる（2回 以上・読めない 時は 下の 回ごとの 欄）
+              sh.dame
+                ? { dame: true }
+                : sh.ids.length === 1
+                  ? { meter: sh.meter_yen }
+                  : { kaisu: sh.ids.length },
+              hoka.length
+                ? 'この 車は この日 ' +
+                    sh.ids.length +
+                    '回 走り、別の 回にも 額が 入っています（上は 合計です）。' +
+                    '直す 時は 下の 回ごとの 欄で 直してください。'
+                : '',
+              dev
+            );
+            // ★★時数（車の 時間）★★ 経費の 下（司さん「経費の下に時数、乗った人」）
+            //   2回 以上 走った 日・売上が 読めない 日は 回ごとに 売上・時数（業務ごとの 鍵＝1つの 欄に 足すと 時間が 二重に なる・対立役 A-2）
+            if (fuku) naka += kaiHtml(sh, hoka.length > 0);
+            else naka += jisuuMeterHtml(sh.runs[0], '時数（車の 時間）');
+          } else {
+            var t = TEBIKI[dev] || {};
+            naka += ranHtml(dev, 'data-dev', t, t.sales_yen, false, '', dev);
+            naka += jisuuTebikiHtml(dev, t);
+          }
+          naka +=
+            '<div class="frow nori" data-nori-dev="' + esc(dev) + '">' + noriNaka(dev) + '</div>';
+          // 手で 入れた 1日ぶんを 消す（給料の 画面の「この車を消す」を 移した）
+          //   手入力の 行が 無い 時は 隠す（打って 行が できたら shirushiNuru が 出す）
+          if (dev && !sh) {
+            naka +=
+              '<button class="carkesu" type="button" data-man-del="' +
+              esc(dev) +
+              '"' +
+              (TEBIKI[dev] ? '' : ' style="display:none"') +
+              '>この日の 手入力を 消す</button>';
+          }
+          return (
+            '<div class="sha" data-car="' +
+            esc(dev) +
+            '"><div class="sha-atama"><span class="sha-na">' +
+            esc(na) +
+            '</span><span class="sha-shirushi">' +
+            shirushiHtml(dev) +
+            '</span></div><div class="sha-naka">' +
+            naka +
+            '</div></div>'
+          );
+        }
+
+        function hhmm(iso) {
+          var t = Date.parse(iso);
+          if (!isFinite(t)) return '';
+          var d = new Date(t + JST_MS);
+          return (
+            String(d.getUTCHours()).padStart(2, '0') +
+            ':' +
+            String(d.getUTCMinutes()).padStart(2, '0')
+          );
+        }
+        // 回ごとの 欄（売上・［額が 割れている 時は 実費］・時数）
+        function kaiHtml(sh, jippiMo) {
+          var h = '';
+          sh.runs.forEach(function (s, i) {
+            var e = EDITS[s.shift_id] || {};
+            var naoshi = e.uriage_yen !== null && e.uriage_yen !== undefined;
+            var dameKai = UriageAgg.uriageOf(s, e) === null;
+            var kai = sh.runs.length > 1 ? i + 1 + '回目' : 'この 業務';
+            var ji = hhmm(s.started_at);
+            h +=
+              '<div class="kai" data-kai-sid="' +
+              esc(s.shift_id) +
+              '"><div class="kai-ttl">' +
+              kai +
+              (ji ? '（' + ji + '〜）' : '') +
+              '</div>' +
+              '<div class="frow"><span class="flabel">売上（' +
+              kai +
+              '）</span><div class="fen"><input class="finput fnum" inputmode="numeric" data-uri-sid="' +
+              esc(s.shift_id) +
+              '" value="' +
+              (naoshi && !dameKai ? esc(String(e.uriage_yen)) : '') +
+              '" placeholder="' +
+              JippiHozon.seisuu(s.fare_total_yen) +
+              '" data-yomitori="1"><span class="en">円</span></div>' +
+              (dameKai
+                ? '<span class="hint" style="color:#b42318;font-weight:700">この 回の 売上の 直しが 読めません（負の 数 など）。打ち直してください（空＝メーターの 額）。</span>'
+                : '<span class="hint">空＝メーターの 額（' +
+                  JippiHozon.seisuu(s.fare_total_yen) +
+                  '円）。</span>') +
+              '</div>';
+            if (jippiMo) h += jippiHtml(s.shift_id, 'data-sid', e, '');
+            h += jisuuMeterHtml(s, '時数（' + kai + '）');
+            h += '</div>';
+          });
+          return h;
+        }
+        // メーターの 車の 時数（業務ごと・dk_shift_edits.hours）。空＝メーターの 記録から 自動
+        //   印は data-hours-sid（data-sid は 実費の 保存に 結ばれている・給料の 画面では 時間だった＝ぶつけない）
+        function jisuuMeterHtml(s, label) {
+          var e = EDITS[s.shift_id] || {};
+          var auto = PayrollDaily.carHoursOf(s, null);
+          var ima =
+            e.hours === null || e.hours === undefined || !(Number(e.hours) > 0)
+              ? ''
+              : String(e.hours);
+          return (
+            '<div class="frow"><span class="flabel">' +
+            esc(label) +
+            '</span><div class="fen"><input class="finput fnum" inputmode="decimal" data-hours-sid="' +
+            esc(s.shift_id) +
+            '" value="' +
+            esc(ima) +
+            '" placeholder="' +
+            (auto ? hrs(auto) : '') +
+            '"><span class="en">h</span></div><span class="hint">' +
+            (auto
+              ? '空＝メーターの 記録から（' + hrs(auto) + 'h）。違う 時は 打ち直せます。'
+              : 'メーターの 時間が 読めません。働いた 時間を 入れてください。') +
+            '</span></div>'
+          );
+        }
+        // 手で 入れた 車の 時数（dk_manual_days.hours）＝★JippiHozon.saveTebiki と 同じ 写し・同じ 鍵で 書く★（対立役 A-3）
+        function jisuuTebikiHtml(dev, t) {
+          return (
+            '<div class="frow"><span class="flabel">時数（車の 時間）</span><div class="fen"><input class="finput fnum" inputmode="decimal" data-dev="' +
+            esc(dev) +
+            '" data-f="hours" value="' +
+            (Number(t && t.hours) > 0 ? esc(String(t.hours)) : '') +
+            '"><span class="en">h</span></div></div>'
+          );
+        }
+
+        // ★★乗った人★★（給料の 画面の「時数を入れる」から 移した・車ごとに 1回）
+        function noriNaka(dev) {
+          var h = '<span class="flabel">乗った人</span>';
+          if (NORI_NG) return h + '<span class="keikoku">' + esc(NORI_NG) + '</span>';
+          var crew = noriOf(dev);
+          var carHours = kurumaNoJikan(dev);
+          var tome = NORI_HOZON > 0 || !!YOMENAI ? ' disabled' : '';
+          crew.forEach(function (w) {
+            var emp = EMPS.filter(function (x) {
+              return x.employee_id === w.employee_id;
+            })[0];
+            var jibun = Number(w.hours) > 0;
+            // 空の 時は 計算と 同じ 数を 字で 出す（入っていない 事が 分かるように。
+            //   車の 時間が 0 なら 計算は この人の 行を 作らない＝給料が 出ない）
+            var mei = !dev
+              ? ''
+              : jibun
+                ? ''
+                : carHours > 0
+                  ? '<span class="nm-ji">車と 同じ ' + hrs(carHours) + 'h</span>'
+                  : '<span class="keikoku">車の 時間が 0 なので、時間を 入れないと 給料は 出ません</span>';
+            h +=
+              '<div class="crewrow"><div class="nm">' +
+              esc(emp ? emp.name : '名簿に 居ない 人') +
+              mei +
+              '</div><div class="fen"><input class="finput fnum" inputmode="decimal" aria-label="時間" data-wh-emp="' +
+              esc(w.employee_id) +
+              '" data-wh-dev="' +
+              esc(dev) +
+              '" value="' +
+              (jibun ? esc(String(w.hours)) : '') +
+              // ★空の 人の 欄にも 車の 時数を 出す★ 2026-10-19（司さん「車の時数入れてから乗った人選んだら
+              //   自動で反映されるようにしとけよ、各々修正できるのは今の仕様でええけど」）＝placeholder（触っても 保存されない）
+              '" placeholder="' +
+              (!jibun && carHours > 0 ? hrs(carHours) : '') +
+              '"><span class="en">h</span></div><button class="xbtn" type="button" aria-label="外す" data-del-emp="' +
+              esc(w.employee_id) +
+              '" data-del-dev="' +
+              esc(dev) +
+              '"' +
+              tome +
+              '>✕</button></div>';
+          });
+          if (!dev) return h;
+          // 足す（その日 まだ 乗っていない 人を 札で 並べる）。1台に 2人（運転手と 随伴）まで＝2人で 札を 消す（✕ で 戻る）
+          if (crew.length >= 2) return h;
+          var taken = {};
+          WH.forEach(function (w) {
+            taken[w.employee_id] = true;
+          });
+          var actives = EMPS.filter(function (e) {
+            return e && e.employee_id && e.active !== false;
+          });
+          if (!actives.length) {
+            return (
+              h + '<span class="hint">従業員が まだ いません（給料 → 従業員 で 足せます）。</span>'
+            );
+          }
+          // ★勤め始める 前の 日には 出さない★ 2026-10-19（明細と 同じ PayrollDaily.hajimatteIru）＝畳んだ 所に 出す
+          var mada = [];
+          var rest = actives.filter(function (a) {
+            if (taken[a.employee_id]) return false;
+            if (!CTX || PayrollDaily.hajimatteIru(CTX, a.employee_id, HI)) return true;
+            mada.push(a);
+            return false;
+          });
+          if (!rest.length && !mada.length) return h;
+          var fuda = function (a, hajime) {
+            return (
+              '<button class="chip" type="button" data-chip-emp="' +
+              esc(a.employee_id) +
+              '" data-chip-dev="' +
+              esc(dev) +
+              '"' +
+              tome +
+              '>' +
+              esc(a.name) +
+              (hajime ? '（' + esc(hajime) + '〜）' : '') +
+              '</button>'
+            );
+          };
+          h +=
+            '<div class="chips">＋ 乗った人' +
+            rest
+              .map(function (a) {
+                return fuda(a, '');
+              })
+              .join('');
+          if (mada.length) {
+            h +=
+              '<details class="mada"><summary>勤め始める 前の 人（' +
+              mada.length +
+              '）</summary>' +
+              mada
+                .map(function (a) {
+                  var hj = PayrollDaily.hajimeOf(CTX, a.employee_id) || '';
+                  return fuda(
+                    a,
+                    hj.slice(0, 4) === HI.slice(0, 4)
+                      ? hj.slice(5).replace('-', '/')
+                      : hj.replace(/-/g, '/')
+                  );
+                })
+                .join('') +
+              '</details>';
+          }
+          return h + '</div>';
+        }
+
+        // ★★保存の 後に 印と 乗った人の 欄を 描き直す★★（打って いる 欄は 壊さない＝打った 字を 消さない）
+        function shirushiNuru() {
+          CTX = ctxWoTsukuru();
+          // 走った 車の 売上の 合計・読めない 印を 今の 直しで 数え直す（回ごとに 直した 後）
+          Object.keys(DETA).forEach(function (dev) {
+            var x = DETA[dev];
+            x.dame = false;
+            x.fare_total_yen = 0;
+            x.runs.forEach(function (s) {
+              var u = UriageAgg.uriageOf(s, EDITS[s.shift_id]);
+              if (u === null) x.dame = true;
+              else x.fare_total_yen += u;
+            });
+          });
+          var a = document.activeElement;
+          var hn = $('hanteiNg');
+          var hnJi =
+            HANTEI_NG || (CTX ? '' : '入れ漏れの 印を 出せません（判じの 部品が 読めません）。');
+          if (hn) {
+            hn.textContent = hnJi;
+            hn.style.display = hnJi ? '' : 'none';
+          }
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList .sha[data-car]'),
+            function (el) {
+              var dev = el.getAttribute('data-car');
+              var sr = el.querySelector('.sha-shirushi');
+              if (sr) sr.innerHTML = shirushiHtml(dev);
+              var nori = el.querySelector('.nori[data-nori-dev]');
+              if (nori && !(a && a.tagName === 'INPUT' && nori.contains(a))) {
+                nori.innerHTML = noriNaka(dev);
+                bindNori(nori);
+              }
+              var kesu = el.querySelector('[data-man-del]');
+              if (kesu) kesu.style.display = TEBIKI[dev] ? '' : 'none';
+              // 走った 車の 売上の 合計（回ごとに 直した 後）
+              var sh = DETA[dev];
+              var g = el.querySelector('input[data-goukei]');
+              if (sh && g) g.value = JippiHozon.seisuu(sh.fare_total_yen);
+            }
+          );
+          if (YOMENAI) tomeruRan(yomenaiJi());
         }
 
         // ★★最後に 走った 日へ 飛ぶ★★ 2026-09-08（司さん「どこに入れるんど」）
@@ -993,8 +1609,9 @@
         //   hashitta … 走った 車か（true なら 売上は 出すだけ）
         //   tomeru … 打たせない 訳（空なら 打てる）＝実費・電子決済を 出すだけに する
         // hashitta … 走った 車なら { meter: メーターの額 }（1回だけ＝売上を 直せる）か { kaisu: 回数 }（2回 以上）
-        function shaHitotsu(na, key, keyAttr, e, uriage, hashitta, tomeru) {
-          var h = '<div class="sha"><div class="sha-na">' + esc(na) + '</div>';
+        //   ★見出し（車の 名前）と 畳む 箱は shaHitotsu＝ここは 欄だけ★（2026-10-23）
+        function ranHtml(key, keyAttr, e, uriage, hashitta, tomeru, dev) {
+          var h = '';
           var dis = tomeru ? ' disabled' : '';
           if (tomeru) h += '<div class="hint fuku">' + esc(tomeru) + '</div>';
           // ★★売上★★
@@ -1003,7 +1620,7 @@
           if (hashitta && hashitta.dame) {
             h +=
               '<div class="frow"><span class="flabel">売上</span>' +
-              '<span class="hint" style="color:#b42318;font-weight:700">売上の 直しが 読めません（負の 数 など）。給料の「時数を入れる」で 直してください。</span></div>';
+              '<span class="hint" style="color:#b42318;font-weight:700">売上の 直しが 読めません（負の 数 など）。下の 回ごとの 売上の 欄で 打ち直してください（空＝メーターの 額）。</span></div>';
           } else if (hashitta && hashitta.meter !== undefined && !tomeru) {
             // 2026-10-14 司さん「金額の修正もできんやないか」＝メーターの 売上も 直せる（給料の 画面と 同じ 列 uriage_yen）
             //   空＝メーターの 額（薄い 字）。印は data-uri-sid（data-sid は 実費の 保存に 結ばれている）
@@ -1029,12 +1646,14 @@
               '<div class="frow"><span class="flabel">売上</span>' +
               '<div class="fen"><input class="finput fnum" type="number" value="' +
               JippiHozon.seisuu(uriage) +
-              '" disabled data-yomitori="1"><span class="en">円</span></div>' +
+              '" disabled data-yomitori="1" data-goukei="' +
+              esc(dev) +
+              '"><span class="en">円</span></div>' +
               '<span class="hint">' +
               (hashitta.kaisu > 1
-                ? 'メーターから 読めています。この日は ' +
+                ? 'メーターから 読めています（' +
                   hashitta.kaisu +
-                  '回 走りました。売上を 直すのは 給料の「時数を入れる」で 1回ずつ。'
+                  '回 走った 合計）。売上を 直す 時は 下の 回ごとの 欄で 1回ずつ。'
                 : 'メーターから 読めています。') +
               '</span></div>';
           } else {
@@ -1106,6 +1725,13 @@
                   '</span></div></div>';
               });
           }
+          h += jippiHtml(key, keyAttr, e, dis);
+          return h;
+        }
+
+        // ★★電子決済・請求書・実費★★（車の 欄と 回ごとの 欄の 両方で 使う）
+        function jippiHtml(key, keyAttr, e, dis) {
+          var h = '';
           // ★★電子決済★★（どちらの 車でも 打てる）
           h +=
             '<div class="frow"><span class="flabel">電子決済</span>' +
@@ -1155,32 +1781,7 @@
               );
             })
             .join('');
-          return h + '</div>';
-        }
-        function tebikiWoDasu() {
-          var ids = [];
-          (RAW.labels || []).forEach(function (l) {
-            if (l && l.device_id && ids.indexOf(l.device_id) < 0) ids.push(l.device_id);
-          });
-          if (!ids.length) {
-            $('shaList').innerHTML = '';
-            // 車が 0台なのに「下に 会社の 車を 出しています」と 出さない（対立役 直4）
-            showMsg(
-              'この日は 走った 記録が ありません。会社の 車が 読めない か 登録が ない ので、打つ 欄を 出せません。'
-            );
-            return;
-          }
-          // 会社設定の「並び」の 順（走った 車が 1台も 無い 日も 同じ・対立役 10-14）
-          ids = CarName.sortIds(ids, RAW.labels);
-          NAMAE = CarName.nameMap(ids, RAW.labels);
-          // ★走っていない 日★＝全部 「読み取れていない 車」
-          var html = '';
-          ids.forEach(function (dev) {
-            var e = TEBIKI[dev] || {};
-            html += shaHitotsu(NAMAE[dev] || '車', dev, 'data-dev', e, e.sales_yen, false);
-          });
-          $('shaList').innerHTML = html;
-          bindYen();
+          return h;
         }
 
         function bindYen() {
@@ -1210,7 +1811,43 @@
               };
             }
           );
+          // ★★時数・乗った人・畳む★★ 2026-10-23
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-hours-sid]'),
+            function (i) {
+              i.onchange = function () {
+                saveHours(i, i.getAttribute('data-hours-sid'), i.value);
+              };
+            }
+          );
+          Array.prototype.forEach.call(document.querySelectorAll('#shaList .nori'), bindNori);
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-man-del]'),
+            function (b) {
+              b.onclick = function () {
+                kesuTebiki(b.getAttribute('data-man-del'));
+              };
+            }
+          );
           if (YOMENAI) tomeruRan(yomenaiJi());
+        }
+        // 乗った人の 欄（描き直す 度に 結ぶ）
+        function bindNori(box) {
+          Array.prototype.forEach.call(box.querySelectorAll('[data-wh-emp]'), function (i) {
+            i.onchange = function () {
+              saveNori(HI, i.getAttribute('data-wh-emp'), i.getAttribute('data-wh-dev'), i.value);
+            };
+          });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-chip-emp]'), function (b) {
+            b.onclick = function () {
+              saveNori(HI, b.getAttribute('data-chip-emp'), b.getAttribute('data-chip-dev'), '');
+            };
+          });
+          Array.prototype.forEach.call(box.querySelectorAll('[data-del-emp]'), function (b) {
+            b.onclick = function () {
+              kesuNori(HI, b.getAttribute('data-del-emp'), b.getAttribute('data-del-dev'));
+            };
+          });
         }
         // 保存の 口でも 断る（押せない 欄に 字が 入っても 送らない）
         function yomenaiNara() {
@@ -1252,6 +1889,7 @@
                 hozonDekita(kagi + ':uriage');
                 EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
                 inp.value = v === null ? '' : String(v);
+                shirushiNuru(); // 売上が 変わる＝入れ漏れの 印・合計
               })
               .catch(function (r) {
                 inp.disabled = !!YOMENAI;
@@ -1295,6 +1933,7 @@
                 // TEBIKI は 日の 表＝別の 日の 表に なって いたら 入れない（入れると 前の 日の 額を 今の 日へ 送った・対立役）
                 if (TEBIKI_HI !== hi0) return;
                 TEBIKI[deviceId] = body;
+                shirushiNuru(); // 売上・時数が 変わる＝入れ漏れの 印・乗った人の 薄い 字
               })
               .catch(function (r) {
                 hozonDekinai(
@@ -1336,6 +1975,228 @@
               });
           });
         }
+
+        // ★★メーターの 車の 時数（業務ごと）★★ 2026-10-23（給料の 画面の「時数を入れる」から 移した）
+        //   送るのは 時間の 列だけ（js/jisuu-hozon.js）。鍵は 実費・売上の 直しと 同じ 業務（同じ 行を 順に 送る）
+        function saveHours(inp, shiftId, value) {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var kagi = 's:' + shiftId;
+          var t = String(value == null ? '' : value).trim();
+          if (t !== '' && JisuuHozon.yomuJikan(t) === null && parseFloat(t) !== 0) {
+            delete ERR_KAGI[kagi + ':hkatachi'];
+            ERR_KAGI[kagi + ':hkatachi'] =
+              '時数は 0 より 大きい 数で 入れてください（空に すると メーターの 記録から 自動）。';
+            errNuru();
+            return;
+          }
+          return junban(kagi, function () {
+            return JisuuHozon.saveCarHours(SESS, shiftId, COMPANY.company_id, t)
+              .then(function (body) {
+                hozonDekita(kagi + ':hkatachi');
+                hozonDekita(kagi + ':hours');
+                EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
+                shirushiNuru();
+              })
+              .catch(function (r) {
+                hozonDekinai(
+                  kagi + ':hours',
+                  '時数を 保存できませんでした。通信を確認してください。',
+                  r
+                );
+              });
+          });
+        }
+
+        // ★★乗った人の 保存中は 札と ✕ を 止める★★（同じ 人を 別の 車に 押すと 鍵（会社・日・人）で 黙って 車が 移る）
+        //   数で 持つ（2つ 送って 先に 済んだ 方が 全部を 戻さない）。0 に 戻った 時に 描き直して 戻す
+        function noriTomeru(n) {
+          NORI_HOZON += n;
+          if (NORI_HOZON < 0) NORI_HOZON = 0;
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-chip-emp], #shaList [data-del-emp]'),
+            function (b) {
+              b.disabled = NORI_HOZON > 0 || !!YOMENAI;
+            }
+          );
+        }
+        // ★★乗った人（足す・その人の 時数）★★ dk_work_hours（会社×日×人）
+        function saveNori(date, empId, dev, value) {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var kagi = 'w:' + date + ':' + empId;
+          if (NORI_NG) {
+            hozonDekinai(kagi, NORI_NG);
+            return;
+          }
+          var t = String(value == null ? '' : value).trim();
+          if (t !== '' && JisuuHozon.yomuJikan(t) === null && parseFloat(t) !== 0) {
+            delete ERR_KAGI[kagi + ':katachi'];
+            ERR_KAGI[kagi + ':katachi'] =
+              '時数は 0 より 大きい 数で 入れてください（空に すると 車と 同じ 時間）。';
+            errNuru();
+            return;
+          }
+          noriTomeru(1);
+          var owari = function () {
+            noriTomeru(-1);
+            if (NORI_HOZON === 0) shirushiNuru();
+          };
+          return junban(kagi, function () {
+            return JisuuHozon.saveWorkHour(SESS, COMPANY.company_id, date, empId, dev, t)
+              .then(function (body) {
+                hozonDekita(kagi + ':katachi');
+                hozonDekita(kagi);
+                // WH は 読んだ 日の 表＝別の 日の 表に なって いたら 入れない
+                if (WH_HI !== date) return;
+                var aru = false;
+                WH = WH.map(function (w) {
+                  if (w.employee_id === empId) {
+                    aru = true;
+                    return Object.assign({}, w, body);
+                  }
+                  return w;
+                });
+                if (!aru) WH.push(body);
+              })
+              .catch(function (r) {
+                hozonDekinai(kagi, '乗った人を 保存できませんでした。通信を確認してください。', r);
+              });
+          }).then(owari, owari);
+        }
+        function kesuNori(date, empId, dev) {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var kagi = 'w:' + date + ':' + empId;
+          if (NORI_NG) {
+            hozonDekinai(kagi, NORI_NG);
+            return;
+          }
+          noriTomeru(1);
+          var owari = function () {
+            noriTomeru(-1);
+            if (NORI_HOZON === 0) shirushiNuru();
+          };
+          return junban(kagi, function () {
+            return JisuuHozon.delWorkHour(SESS, COMPANY.company_id, date, empId)
+              .then(function () {
+                hozonDekita(kagi + ':katachi');
+                hozonDekita(kagi);
+                if (WH_HI !== date) return;
+                WH = WH.filter(function (w) {
+                  return w.employee_id !== empId;
+                });
+              })
+              .catch(function (r) {
+                hozonDekinai(kagi, '外せませんでした。通信を確認してください。', r);
+              });
+          }).then(owari, owari);
+        }
+
+        // ★★手で 入れた 1日ぶんを 消す★★（給料の 画面の「この車を消す」を 移した・売上ごと 消える＝1回 確かめる）
+        function kesuTebiki(dev) {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var n = noriOf(dev).length;
+          var msg =
+            (NAMAE[dev] || '車') +
+            ' の この日の 手入力（売上・時数・実費）を 消します。' +
+            (n
+              ? '乗った人 ' +
+                n +
+                '人は 残ります（時間を 入れていない 人は 給料が 出なくなります）。'
+              : '') +
+            'よろしいですか？';
+          if (!window.confirm(msg)) return;
+          var hi0 = HI;
+          var kagi = 'd:' + hi0 + ':' + dev;
+          return junban(kagi, function () {
+            if (TEBIKI_HI !== hi0) {
+              hozonDekinai(
+                kagi + ':kesu',
+                '日を 変えた ので 消しませんでした。その 日を 開いて もう一度 押してください。'
+              );
+              return;
+            }
+            return JippiHozon.delTebiki(SESS, COMPANY.company_id, hi0, dev)
+              .then(function () {
+                hozonDekita(kagi + ':kesu');
+                if (TEBIKI_HI !== hi0) return;
+                delete TEBIKI[dev];
+                kakiNaosu(dev);
+              })
+              .catch(function (r) {
+                hozonDekinai(kagi + ':kesu', '消せませんでした。通信を確認してください。', r);
+              });
+          });
+        }
+        // 1台だけ 描き直す（他の 車の 打って いる 欄を 壊さない）
+        function kakiNaosu(dev) {
+          var el = null;
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList .sha[data-car]'),
+            function (x) {
+              if (x.getAttribute('data-car') === dev) el = x;
+            }
+          );
+          CTX = ctxWoTsukuru();
+          var html = shaHitotsu(dev);
+          if (el) el.outerHTML = html;
+          else $('shaList').insertAdjacentHTML('beforeend', html);
+          bindYen();
+          shirushiNuru();
+        }
+
+        // ★★新しい 車を 足す★★ 2026-10-23（給料の 画面の「＋ 新しい車…」を 移した）
+        //   名前を 書けてから 一覧に 足す（その 日の 行は 打った 時に できる＝空の 行を 作らない）
+        $('btnNewCar').onclick = function () {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var name = String(window.prompt('車の名前を入れてください（例: 2号車）') || '').trim();
+          if (!name) return;
+          // 同じ 名前の 車が 在る 時は 作らない（2台に 割れる）
+          var aru = (RAW.labels || []).some(function (l) {
+            return l && String(l.label || '').trim() === name;
+          });
+          if (aru) {
+            hozonDekinai(
+              'n:katachi',
+              '「' + name + '」の車は もう あります。上の 一覧から 選んでください。'
+            );
+            return;
+          }
+          // 印は 名前から 作らない（名前を 変えた 車と 重ならない）
+          var dev = 'manual-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+          var kagi = 'n:' + dev;
+          var b = $('btnNewCar');
+          b.disabled = true;
+          var modosu = function () {
+            b.disabled = false;
+          };
+          return junban(kagi, function () {
+            return DKSession.rest(SESS, 'dk_device_labels?on_conflict=company_id,device_id', {
+              method: 'POST',
+              headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify({
+                company_id: COMPANY.company_id,
+                device_id: dev,
+                label: name,
+                updated_at: new Date().toISOString(),
+              }),
+            })
+              .then(function (r) {
+                if (!r || !r.ok) throw r;
+                hozonDekita('n:katachi');
+                hozonDekita(kagi);
+                RAW.labels.push({ company_id: COMPANY.company_id, device_id: dev, label: name });
+                NAMAE[dev] = name;
+                kakiNaosu(dev);
+              })
+              .catch(function (r) {
+                hozonDekinai(kagi, '車を 足せませんでした。通信を確認してください。', r);
+              });
+          }).then(modosu, modosu);
+        };
 
         // ★★日ごとの 電子決済の 保存は この 画面では 使いません★★ 2026-09-11
         //   ★js/jippi-hozon.js の saveDenshi は 残しています★

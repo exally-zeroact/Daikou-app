@@ -69,7 +69,8 @@ test('★名前を 選ぶと その人の 明細だけ・PDF も その人だけ
 // ★10-03 対立役が 見つけた（前からの 穴）★ チェックを 付けて 月を 変えると チェックは 消えるのに
 //   「選んだ 1人を 印刷」が 残り、押すと ★全員ぶん★ 出た。時数の 画面にも 名前の 欄が 出て 何も 絞らなかった。
 //   ★わざと壊して 赤（10-03 実測）★ renderSlips の setTimeout(nurikae) を 外す ⇒ 赤（ボタンが 残る）
-test('★月を 変えたら「選んだ人を 印刷」は 消える／時数の 画面に 名前の 欄は 出ない★', async ({
+// 2026-10-23「時数を入れる」の 画面は 入力へ 移した＝給料の タブは 明細・従業員・給料の設定（名前の 欄は 明細だけ）
+test('★月を 変えたら「選んだ人を 印刷」は 消える／明細の 外の タブに 名前の 欄は 出ない★', async ({
   page,
 }) => {
   const err = [];
@@ -88,13 +89,14 @@ test('★月を 変えたら「選んだ人を 印刷」は 消える／時数�
   ).toBeHidden();
   await page.locator('#prevM').click();
   await page.waitForTimeout(1500);
-  // 時数の 画面
-  await page.getByText('時数を入れる').first().click();
+  // 「時数を入れる」の タブは もう 無い（入力の 画面へ 移した）
+  await expect(page.locator('.tab', { hasText: '時数を入れる' })).toHaveCount(0);
+  // 従業員の 画面
+  await page.locator('.tab[data-tab="emp"]').click();
   await page.waitForTimeout(800);
-  await expect(page.locator('#monthCard')).toBeVisible();
   await expect(
     page.locator('#hitoSel'),
-    '★時数の 画面に 絞らない 名前の 欄が 出ている★'
+    '★明細の 外の 画面に 絞らない 名前の 欄が 出ている★'
   ).toBeHidden();
   expect(err).toEqual([]);
 });

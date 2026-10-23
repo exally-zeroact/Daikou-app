@@ -7,8 +7,7 @@
 //
 //   ★物差し★ 足した 実費 200,000 の 手入力の 日で 時数を 打つ ⇒ その 日の 字が
 //            「同じ 行を 初めから 読んだ 時」と 同じ（足した 実費が 引かれた まま）
-//   わざと壊す：saveManual を 送った 中身で 置き換える 形に 戻す ⇒ 赤
-//              buildCtx の expenses を 外す ⇒ 赤（足した 実費が 引かれない＝初めから 読んだ 時と 同じ でも 額が 違う）
+//   わざと壊す：buildCtx の expenses を 外す ⇒ 赤（足した 実費が 引かれない＝初めから 読んだ 時と 同じ でも 額が 違う）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
@@ -56,29 +55,13 @@ async function hiNoJi(page) {
   });
 }
 
-test('手入力の 日で 時数を 打っても 足した 実費は 引かれた まま（初めから 読んだ 時と 同じ）', async ({
-  page,
-}) => {
+// 2026-10-23 時数を 打つ 所は 入力の 画面へ 移した（打った 後も 足した 実費が 残る＝nyuryoku-jisuu ⑩）。
+//   ここは 給料の 計算が 手入力の 日の 足した 実費を 引く 事だけ 見る
+test('手入力の 日の 足した 実費は 給料の 計算で 引かれる', async ({ page }) => {
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
-  await openKyuryo(page, tebiki(8));
-  await page.evaluate(() => {
-    const b = document.querySelector('.tab[data-tab="hours"]');
-    if (b && b.onclick) b.onclick();
-  });
-  const ran = page.locator(
-    '[data-man-f="hours"][data-man-date="' + HI + '"][data-man-dev="' + DEV + '"]'
-  );
-  await expect(ran, '★手入力の 日の 欄が 無い（材料が 違う）★').toHaveCount(1);
-  await ran.fill('6');
-  await ran.dispatchEvent('change');
-  await page.waitForTimeout(1200);
-  const uchita = await hiNoJi(page);
-
-  const page2 = await page.context().newPage();
-  page2.on('pageerror', (e) => err.push(e.message));
-  await openKyuryo(page2, tebiki(6));
-  const hajime = await hiNoJi(page2);
+  await openKyuryo(page, tebiki(6));
+  const hajime = await hiNoJi(page);
 
   const page3 = await page.context().newPage();
   await openKyuryo(page3, (f) => {
@@ -90,17 +73,7 @@ test('手入力の 日で 時数を 打っても 足した 実費は 引かれ�
   });
   const hikanai = await hiNoJi(page3);
   // eslint-disable-next-line no-console
-  console.log(
-    '★' +
-      HI +
-      ' ' +
-      DEV +
-      '★ 同じ=' +
-      (uchita === hajime) +
-      ' 足した実費で変わる=' +
-      (hajime !== hikanai)
-  );
+  console.log('★' + HI + ' ' + DEV + '★ 足した実費で変わる=' + (hajime !== hikanai));
   expect(hajime, '★足した 実費で 給料が 変わらない（試験が 空振り）★').not.toBe(hikanai);
-  expect(uchita, '★打った 後に 足した 実費が 消えた★').toBe(hajime);
   expect(err).toEqual([]);
 });

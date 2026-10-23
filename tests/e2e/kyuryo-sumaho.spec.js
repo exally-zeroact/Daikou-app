@@ -59,7 +59,8 @@ for (const [na, d] of [
     const de = [];
     const warui = [];
     const hamideru = [];
-    for (const tab of ['slip', 'hours', 'emp', 'set']) {
+    // 2026-10-23「時数を入れる」は 入力の 画面へ 移した（タブは 3つ）
+    for (const tab of ['slip', 'emp', 'set']) {
       await page.locator('.tab[data-tab="' + tab + '"]').click();
       await page.waitForTimeout(600);
       const r = await page.evaluate(() => {

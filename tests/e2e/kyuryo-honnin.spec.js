@@ -149,15 +149,7 @@ test('★③ 事務所の 物を 出さない／事務所の 読み込みを 呼
   await page.fill('#hnPw', 'abcd1234');
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
-  for (const id of [
-    'tabs',
-    'btnPrint',
-    'jimushoLinks',
-    'monthCard',
-    'paneHours',
-    'paneEmp',
-    'paneSet',
-  ])
+  for (const id of ['tabs', 'btnPrint', 'jimushoLinks', 'monthCard', 'paneEmp', 'paneSet'])
     await expect(page.locator('#' + id), '★本人に 見えています: #' + id + '★').toBeHidden();
   expect(kazoe.jimusho, '★事務所の 読み込みを 呼んでいます★').toBe(0);
 });
