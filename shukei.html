@@ -1062,12 +1062,17 @@
         //   ⇒ 月次集計の 紙の「車ごと」が ★ずっと 空だった★。
         //   ★車の 名前は ctx.labels★（byDate には 入っていない）
         //   ★見張り★ tests/unit/kami-shukei.test.js
+        // ★★端末ごとに 1行・名前は 売上表と 同じ★★ 2026-10-23 件G
+        //   前は 名前で まとめた＝同じ 名前の 2台が 1行に 足され、名前の 無い 車は 端末の ID（UUID）が 紙に 出た。
+        //   名前は CarName.nameMap（売上表 renderUri と 同じ 材料＝uriKuruma と RAW.labels・無ければ「車1」等）
+        //   ★見張り★ tests/unit/shukei-kami-kuruma-goto.test.js
         function kamiCarsOf(tsuki) {
           // ★画面が 車ごとに 出している 数を そのまま★（UriageAgg を 通った 物）
           try {
             var by = (CTX && CTX.byDate) || {};
-            var na = (CTX && CTX.labels) || {};
             var pre = YEAR + '-' + ('0' + tsuki).slice(-2);
+            var labels = (RAW && RAW.labels) || [];
+            var namae = window.CarName && CTX ? CarName.nameMap(uriKuruma(), labels) : {};
             var matome = {};
             Object.keys(by).forEach(function (hi) {
               if (hi.indexOf(pre) !== 0) return;
@@ -1075,15 +1080,16 @@
               Object.keys(cars).forEach(function (dev) {
                 var c = cars[dev];
                 if (!c) return;
-                var nm = na[dev] || dev;
-                if (!matome[nm]) matome[nm] = { name: nm, uriage: 0, jippi: 0 };
+                if (!matome[dev]) matome[dev] = { name: namae[dev] || '車', uriage: 0, jippi: 0 };
                 // ★売上＝メーターの 合計 − 実費★（GetsujiAgg と 同じ 引き方）
-                matome[nm].uriage += (Number(c.sales) || 0) - (Number(c.expense) || 0);
-                matome[nm].jippi += Number(c.expense) || 0;
+                matome[dev].uriage += (Number(c.sales) || 0) - (Number(c.expense) || 0);
+                matome[dev].jippi += Number(c.expense) || 0;
               });
             });
-            return Object.keys(matome).map(function (k2) {
-              return matome[k2];
+            var ids = Object.keys(matome);
+            if (window.CarName && CarName.sortIds) ids = CarName.sortIds(ids, labels);
+            return ids.map(function (dev) {
+              return matome[dev];
             });
           } catch (_) {
             return [];
