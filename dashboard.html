@@ -644,6 +644,32 @@
             <div id="homeCityMsg" class="desc" style="margin: 8px 0 0"></div>
           </div>
 
+          <!-- ★★会社の 締め日★★ 2026-10-24（司さん「会社の締め日も決めれるようにしとかないかんな」
+               「締め日は給料やなくて会社の締めのことな。給料は給料のとこで設定できるやろが」）
+               置き場＝dk_sales_settings.kaisha_shime_hi（null＝末日・1〜28）・月 → 期間の 決まりは js/payroll-period.js の KaishaKikan -->
+          <div class="card" id="kaishaShimeCard">
+            <h2 style="margin: 0 0 8px">会社の締め日</h2>
+            <div class="desc" style="margin: 0 0 10px">
+              月次集計・売上表の「◯月」を この日で 締めます（20日締め＝10月は 9/21〜10/20）。 給料の
+              締めは 給料の 画面で 決めます。
+            </div>
+            <div class="row">
+              <select
+                id="kaishaShime"
+                aria-label="会社の締め日"
+                style="
+                  flex: 1;
+                  padding: 10px;
+                  border: 1px solid #cfe0ff;
+                  border-radius: 10px;
+                  font-size: 15px;
+                "
+              ></select>
+              <button class="btn" id="saveKaishaShime" type="button">保存</button>
+            </div>
+            <div id="kaishaShimeMsg" class="desc" style="margin: 8px 0 0"></div>
+          </div>
+
           <!-- 台数 -->
           <div class="card">
             <div class="seat-head">
@@ -741,6 +767,9 @@
          端末IDの先頭8文字(7e1919ef…)を出していたのを、名前 or 「車1・車2」にする。 -->
     <script src="js/car-name.js"></script>
     <script src="js/dk-session.js"></script>
+    <!-- ★会社の 締め日の 読み方（列が 無い・値が おかしい＝読めない）は 1か所＝KaishaKikan（この 1本の 後ろ）★ 2026-10-24
+         ★新しい js を 作らない★＝事務所の 中継の 名簿（別 repo）に 無い 物は 404 -->
+    <script src="js/payroll-period.js"></script>
     <script>
       (function () {
         'use strict';
@@ -1353,6 +1382,7 @@
           show('statusOff', COMPANY.status === 'off');
           // ★地元の市★（空なら空欄。書かなければ 今治市あつかい）
           if ($('homeCity')) $('homeCity').value = COMPANY.home_city || '';
+          kaishaShimeYomu(); // ★会社の 締め日★ 2026-10-24
           // ★会社URL(ドライバーに配る物)は必ず「メーターの住所」を使う★
           //   事務所は別の住所(daikome-jimusho)からも開ける。そこで location.origin を使うと
           //   ドライバーが「メーターの無い住所」へ飛ばされて有効化できなくなる。
@@ -1707,8 +1737,107 @@
             });
         }
 
+        // ============================================================
+        // ★★会社の 締め日（読む・保存）★★ 2026-10-24（司さん「会社の締め日も決めれるようにしとかないかんな」）
+        //   置き場＝dk_sales_settings.kaisha_shime_hi（持ち主の 更新の 決まり owner_upd が 在る 表・叩き役 K-1）
+        //   ★読めない 時は 選ばせない・保存させない★（末日で 上書き しない）
+        //   ★保存は 返った 行を 数える★（return=representation・0行＝書けていない＝失敗と 出す）
+        //   見張り：tests/e2e/jimusho-kaisha-shime.spec.js
+        // ============================================================
+        var KAISHA_SHIME_YOMETA = false;
+        function kaishaShimeJi(v) {
+          return v === null || v === '' || v === undefined ? '末日' : v + '日';
+        }
+        function kaishaShimeSel(v) {
+          var sel = $('kaishaShime');
+          if (!sel) return;
+          var h = '<option value="">末日（既定）</option>';
+          for (var d = 1; d <= 28; d++) h += '<option value="' + d + '">' + d + '日</option>';
+          sel.innerHTML = h;
+          sel.value = v === null || v === undefined ? '' : String(v);
+        }
+        function kaishaShimeKaku(ok, msg) {
+          KAISHA_SHIME_YOMETA = ok;
+          if ($('kaishaShime')) $('kaishaShime').disabled = !ok;
+          if ($('saveKaishaShime')) $('saveKaishaShime').disabled = !ok;
+          if ($('kaishaShimeMsg')) $('kaishaShimeMsg').textContent = msg || '';
+        }
+        function kaishaShimeYomu() {
+          if (!$('kaishaShime') || !COMPANY) return;
+          kaishaShimeSel(null);
+          kaishaShimeKaku(false, '読み込み中…');
+          var co = COMPANY.company_id;
+          return api(
+            '/dk_sales_settings?select=company_id,kaisha_shime_hi&company_id=eq.' +
+              encodeURIComponent(co)
+          )
+            .then(function (r) {
+              if (!r.ok) throw new Error('yomenai');
+              return r.json();
+            })
+            .then(function (rows) {
+              if (!COMPANY || COMPANY.company_id !== co) return; // 会社を 替えた 後の 返事は 捨てる
+              if (!Array.isArray(rows)) throw new Error('yomenai');
+              var row = rows[0] || null;
+              var y = KaishaKikan.yomu(row);
+              if (y.dame) throw new Error('yomenai');
+              kaishaShimeSel(y.hi);
+              kaishaShimeKaku(true, '');
+            })
+            .catch(function () {
+              if (!COMPANY || COMPANY.company_id !== co) return;
+              kaishaShimeKaku(
+                false,
+                '会社の 締め日を 読めませんでした（保存できません）。もう一度 開いてください。'
+              );
+            });
+        }
+        function saveKaishaShime() {
+          if (!KAISHA_SHIME_YOMETA || !COMPANY) return;
+          var v0 = $('kaishaShime').value;
+          var v = v0 === '' ? null : Number(v0);
+          if (!KaishaKikan.hiOk(v)) return;
+          var co = COMPANY.company_id;
+          var msg = $('kaishaShimeMsg');
+          msg.textContent = '保存中…';
+          return api('/dk_sales_settings?on_conflict=company_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+            body: JSON.stringify({
+              company_id: co,
+              kaisha_shime_hi: v,
+              updated_at: new Date().toISOString(),
+            }),
+          })
+            .then(function (r) {
+              if (!r.ok) throw new Error('st' + r.status);
+              return r.json();
+            })
+            .then(function (rows) {
+              // ★返った 行を 数える★（0行＝書けていない）
+              var kazu = (Array.isArray(rows) ? rows : []).filter(function (x) {
+                return (
+                  x &&
+                  x.company_id === co &&
+                  (x.kaisha_shime_hi === undefined ? null : x.kaisha_shime_hi) === v
+                );
+              }).length;
+              if (kazu !== 1) {
+                msg.textContent =
+                  '保存できませんでした（書けた 行が ' + kazu + '行）。' + (COMPANY.name || '');
+                return;
+              }
+              msg.textContent = '保存しました（' + kaishaShimeJi(v) + '締め）';
+            })
+            .catch(function () {
+              msg.textContent =
+                '保存できませんでした。ネットに繋がる所で、もう一度お試しください。';
+            });
+        }
+
         function bindStaticButtons() {
           if ($('saveHomeCity')) $('saveHomeCity').addEventListener('click', saveHomeCity);
+          if ($('saveKaishaShime')) $('saveKaishaShime').addEventListener('click', saveKaishaShime);
           $('a2hsClose').addEventListener('click', function () {
             try {
               localStorage.setItem('dk_a2hs_closed', '1');
