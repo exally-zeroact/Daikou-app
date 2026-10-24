@@ -95,18 +95,22 @@ describe('★1か月の 日数は 28〜31日（月を またぐ 形・2020〜203
     for (let b = a + 1; b <= 30; b++) kata.push([a, b]);
   }
   ['shime', 'hajime'].forEach((nz) => {
-    it(nz, () => {
-      const zure = [];
-      kata.forEach((hi) => {
-        const y0 = P.seiki({ kind: 'tsuki', hi: hi, nazuke: nz });
-        for (let yy = 2020; yy <= 2030; yy++)
-          for (let m = 1; m <= 12; m++) {
-            const n = P.periodsOf(yy, m, { kata: y0.kata }).reduce((s2, p) => s2 + p.days, 0);
-            if (n < 28 || n > 31) zure.push([hi.join(','), yy, m, n]);
-          }
-      });
-      expect(zure.slice(0, 5)).toEqual([]);
-    });
+    it(
+      nz,
+      () => {
+        const zure = [];
+        kata.forEach((hi) => {
+          const y0 = P.seiki({ kind: 'tsuki', hi: hi, nazuke: nz });
+          for (let yy = 2020; yy <= 2030; yy++)
+            for (let m = 1; m <= 12; m++) {
+              const n = P.periodsOf(yy, m, { kata: y0.kata }).reduce((s2, p) => s2 + p.days, 0);
+              if (n < 28 || n > 31) zure.push([hi.join(','), yy, m, n]);
+            }
+        });
+        expect(zure.slice(0, 5)).toEqual([]);
+      },
+      20000
+    ); // ★20秒★ 465通り×132か月（1本で 1.2〜1.6秒・押す前の 門で 全部と 一緒だと 3.3〜6.2秒＝5秒で 切れた 2026-10-24）
   });
 });
 
