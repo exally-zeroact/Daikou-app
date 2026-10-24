@@ -187,6 +187,39 @@ function buildMeisaiRows(opts) {
 // ============================================================
 const UPDATABLE = ['company', 'date', 'destination', 'amount', 'distance'];
 
+// ★★あいまいな 地名で 町名を 上書きしない★★ 2026-10-24（司さん「やれ」＝「西条市 付近」を 今治市郷桜井 に 直した）
+//   前の 版の 端末は 町の 形の 隙間で「○○市 付近」を 作った（今の 版は 作らない）。端末の 手元の 履歴には その 字が
+//   残り、送り直しの たびに 倉庫と 明細へ 戻って くる。印（extra）は 請求書アプリの 保存で 作り直されて 消えるので 使わない。
+//   決まり＝送られて きた 字が「付近」を 含む か 空・今ある 字が 町名入り（付近を 含まない・空で ない）⇒ 今ある 字を 残す
+function aimaiNaChimei(s) {
+  const t = String(s == null ? '' : s).trim();
+  return !t || t.indexOf('付近') >= 0;
+}
+function chimeiWoMamoru(ima, kita) {
+  return aimaiNaChimei(kita) && !aimaiNaChimei(ima);
+}
+// 代行（dk_trips）の 入れ直し＝前の 行（seq で 合わせる）の 町名入りの 地名を 残す
+function planJushoMamori(oldTrips, newTrips) {
+  const bySeq = new Map();
+  (Array.isArray(oldTrips) ? oldTrips : []).forEach((o) => {
+    if (o && o.seq != null) bySeq.set(String(o.seq), o);
+  });
+  return (Array.isArray(newTrips) ? newTrips : []).map((t) => {
+    const o = bySeq.get(String(t.seq));
+    if (!o) return t;
+    const n = Object.assign({}, t);
+    if (chimeiWoMamoru(o.start_address, t.start_address)) n.start_address = o.start_address;
+    if (chimeiWoMamoru(o.end_address, t.end_address)) n.end_address = o.end_address;
+    const ow = Array.isArray(o.waypoints) ? o.waypoints : [];
+    if (Array.isArray(t.waypoints))
+      n.waypoints = t.waypoints.map((w, i) => {
+        const a = ow[i] && ow[i].address;
+        return w && chimeiWoMamoru(a, w.address) ? Object.assign({}, w, { address: a }) : w;
+      });
+    return n;
+  });
+}
+
 // 同じ中身か。★数はDBから文字で返る★ので、文字くらべだと 5.30 と 5.3 が
 // 「違う」と見えて、送るたびに毎回書き込んでしまう（無駄な更新が一生続く）。
 // 数として読めるものは数でくらべる。
@@ -274,6 +307,8 @@ function planMeisaiWrite(rows, existing) {
     const kanekoWoNaosu = !inGaAru || !_same(meterMae, meterIma);
     UPDATABLE.forEach((c) => {
       if (c === 'amount' && !kanekoWoNaosu) return; // ★事務所の 直しを 守る★
+      // ★町名入りの 行き先を「付近」で 上書きしない★（2026-10-24・上の planJushoMamori と 同じ 決まり）
+      if (c === 'destination' && chimeiWoMamoru(cur[c], r[c])) return;
       const a = cur[c] === undefined ? null : cur[c];
       const b = r[c] === undefined ? null : r[c];
       if (!_same(a, b)) patch[c] = b;
@@ -414,5 +449,7 @@ export {
   planMeisaiWrite,
   planMeisaiHazushi,
   planJimushoModoshi,
+  planJushoMamori,
+  chimeiWoMamoru,
   UPDATABLE,
 };

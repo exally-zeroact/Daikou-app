@@ -27,6 +27,7 @@ import {
   planMeisaiHazushi,
   planMeisaiWrite,
   planJimushoModoshi,
+  planJushoMamori,
 } from './meisai-row.js';
 
 const MAX_SHIFTS = 50; // 1リクエストの勤務上限
@@ -250,10 +251,19 @@ Deno.serve(async (req: Request) => {
           waypoints: Array.isArray(t.waypoints) ? t.waypoints.slice(0, MAX_WAYPOINTS) : [],
         }));
 
+      // ★前の 行の 町名入りの 地名を 残す★ 2026-10-24（古い 版の 端末が 送り直す「○○市 付近」で 直した 地名を 戻さない）
+      //   読めない 時は この 勤務を 受け取らない（次の 送り直しで また 来る）＝黙って 戻さない
+      const { data: maeTrips, error: mErr } = await sb
+        .from('dk_trips')
+        .select('seq,start_address,end_address,waypoints')
+        .eq('shift_id', shiftRow.shift_id);
+      if (mErr) continue;
+      const tripsM = planJushoMamori(maeTrips || [], trips);
+
       // 同じ勤務の古い代行を消してから入れる = 件数が減る訂正にも追随できる
       await sb.from('dk_trips').delete().eq('shift_id', shiftRow.shift_id);
-      if (trips.length) {
-        const { error: tErr } = await sb.from('dk_trips').insert(trips);
+      if (tripsM.length) {
+        const { error: tErr } = await sb.from('dk_trips').insert(tripsM);
         if (tErr) continue; // 代行が入らなかった勤務は「受け取った」と言わない=次回再送
       }
 
@@ -274,7 +284,7 @@ Deno.serve(async (req: Request) => {
           s,
           // ★明細には 端末から 届いた 元の 額を 渡す★ 2026-10-22（事務所の 額を 渡すと 印 dk_meter_yen が
           //   事務所の 額に 進み、次の 送り直しで「運転手が 直した」と 読まれて 端末の 額に 戻る）
-          trips.map((t) => {
+          tripsM.map((t) => {
             const k = tripsKiroku.find((x) => x.seq === t.seq);
             return k ? { ...t, fare_yen: k.fare_yen } : t;
           }),
