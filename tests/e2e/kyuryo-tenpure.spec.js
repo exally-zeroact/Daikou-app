@@ -5,14 +5,14 @@
 //                    選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」
 //   ★2026-10-24 直し★ 司さん「月1回のテンプレは給料設定があるんやから1個でええやろ。月2回、3回、週一も一緒や。
 //     同じものを並べてどうするんのど」「変えたい時は給料設定から変更して下さい」
-//     ⇒ 12通り → 払い方の 種類ごとに 1つ（5枚）・札を 押しても 設定は 変えない（見るだけ）
-//     ⇒ 前の ③⑤⑥（押すと 給料の 設定の 欄に 入る・保存で 記録を 書く・何日からで 戻らない）は 道ごと 外した
-//        ③ は「押しても 設定を 変えない」に 書き換えた（数と 上の 字は kyuryo-settei-setsumei ④⑤）
+//     ⇒ 12通り → 払い方の 種類ごとに 1つ（5枚）
 //   ★2026-10-24 夜★ 司さん「テンプレに実名を勝手に使うな」⇒ 見本の 紙の 名前は 作り物・手当／控除の 名目も「手当」「控除」（⑭）
+//   ★2026-10-24 夜★ 司さん「テンプレから選択して変えれないのはなぜか」⇒ 札を 押すと 給料の 設定の 欄に 入れる（③⑤⑥ を 戻した）
 //   ★物差し★
 //     ① 「明細」の 右に「テンプレ」の タブ・押すと 5枚の 札（2列）・今の 払い方に ✓（この 見本は 月3回）
 //     ② 札の 見本は 本物の 紙（data-paper）・縦の 紙の 形（月1回）は 縦（data-muki=tate）
-//     ③ 札を 押しても 給料の 設定は 変わらない（タブも 移らない・倉庫へ 送らない）
+//     ③ 札を 押すと 給料の 設定の 欄に 入る（タブが 移る・倉庫へは 送らない）／⑤ 保存で その 形を 書く／⑥ 何日からで 戻らない
+//     ⑭ 見本の 紙と PDF に 働く 人の 名前が 無い（「見本 太郎」だけ）
 //     ④「PDFで 見る」は 見本の 紙を PDF の 道具へ 渡す
 //   ★★わざと壊して 赤（2026-10-23 手元 chromium 実測）★★ タブの ボタンを 消す ⇒ 4本 赤／見本を 組まない ⇒ ②④ 赤／
 //     押しても 払い方の 欄に 入れない ⇒ ③ 赤／PDF の ボタンで 札の 選びを 止めない ⇒ ④ 赤／
@@ -73,8 +73,8 @@ test('② 見本は 本物の 紙・月1回は 縦の 紙・10日ごとは 横�
   expect(by('毎日').muki).toBe('tate');
 });
 
-// わざと壊す：札に 前の tplErabu（欄に 入れて 給料の 設定を 開く）を 戻す ⇒ 赤
-test('③ 札を 押しても 給料の 設定は 変わらない（見るだけ）', async ({ page }) => {
+// わざと壊す：札の 押し（tplErabu）を 外す ⇒ 赤
+test('③ 札を 押すと 給料の 設定に 払い方が 入る（倉庫へは 書かない）', async ({ page }) => {
   await tplWoHiraku(page);
   await page.evaluate(() => {
     window.__okutta = 0;
@@ -85,16 +85,15 @@ test('③ 札を 押しても 給料の 設定は 変わらない（見るだけ
       return o.apply(this, arguments);
     };
   });
-  const mae = await page.evaluate(() => document.getElementById('pMode').value);
   await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"] .tpl-name').click();
-  await page.waitForTimeout(300);
+  await expect(page.locator('#paneSet')).toBeVisible();
   const r = await page.evaluate(() => ({
     tab: document.querySelector('.tab.on').getAttribute('data-tab'),
     mode: document.getElementById('pMode').value,
     okutta: window.__okutta,
   }));
-  expect(r.tab, '★押しただけで タブが 移った★').toBe('tpl');
-  expect(r.mode, '★押しただけで 給料の 設定の 欄が 変わった★').toBe(mae);
+  expect(r.tab, '★押しても 給料の 設定へ 移らない★').toBe('set');
+  expect(r.mode, '★押しても 払い方が 入らない★').toBe('matsu');
   expect(r.okutta, '★押しただけで 倉庫へ 書いた★').toBe(0);
 });
 
@@ -362,6 +361,48 @@ test('⑬ 見本の 材料に 計算 できない 所が ある 時は 見本を
   expect(r.ji).toContain('計算 できない');
 });
 
+// わざと壊す：tplErabu で SHIME_SAWATTA を 立てない ⇒ ⑤⑥ 赤
+test('⑤ 札を 押して「保存する」で 締めの 記録（dk_shime_rireki）に その 形を 書く', async ({
+  page,
+}) => {
+  await tplWoHiraku(page);
+  await page.evaluate(() => {
+    window.__kaki = [];
+    const S = window.DKSession;
+    const o = S.rest;
+    S.rest = function (s, p, opt) {
+      if (opt && opt.method && opt.method !== 'GET')
+        window.__kaki.push({ p: String(p), m: opt.method, b: String(opt.body || '') });
+      return o.apply(this, arguments);
+    };
+  });
+  await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"] .tpl-name').click();
+  await page.click('#btnSaveSet');
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () => window.__kaki.filter((k) => k.p.indexOf('dk_shime_rireki') === 0).length
+        ),
+      { timeout: 8000 }
+    )
+    .toBeGreaterThan(0);
+  const k = await page.evaluate(() =>
+    window.__kaki.filter((x) => x.p.indexOf('dk_shime_rireki') === 0)
+  );
+  expect(k[0].b, '★選んだ 形（月1回・末日）が 書かれて いない★').toContain('"hi":[0]');
+  expect(await page.locator('#pMode').inputValue(), '★保存の 後に 欄が 戻った★').toBe('matsu');
+});
+
+test('⑥ 札を 押した 後に「何日から」を 変えても 払い方の 欄は 戻らない', async ({ page }) => {
+  await tplWoHiraku(page);
+  await page.locator('#tplGrid .tpl-card[data-shurui="shuu"] .tpl-name').click();
+  await page.fill('#pHi', '2026-11-01');
+  await page.dispatchEvent('#pHi', 'change');
+  await page.waitForTimeout(300);
+  expect(await page.locator('#pMode').inputValue(), '★何日からで 欄が 戻った★').toBe('shuu');
+});
+
 // ★★見本に 本当の 名前を 載せない★★ 2026-10-24（司さん「テンプレに実名を勝手に使うな」）
 //   わざと壊す：tplMihon で 名前を 替えない ⇒ 赤
 test('⑭ 見本の 紙と PDF に 働く 人の 名前が 載らない（作り物の 名前だけ）', async ({ page }) => {
@@ -396,4 +437,20 @@ test('⑭ 見本の 紙と PDF に 働く 人の 名前が 載らない（作り
   await expect.poll(() => page.evaluate(() => window.__dasu.length), { timeout: 15000 }).toBe(1);
   const pdf = await page.evaluate(() => window.__dasu[0]);
   for (const n of moto) expect(pdf.indexOf(n), '★PDF に 名前「' + n + '」が 載った★').toBe(-1);
+});
+
+// ★★5枚の 札が それぞれ 正しい 払い方を 入れる★★（月3回は「月3回」で 入る＝締め日を 並べる に しない・対立役 S1）
+//   わざと壊す：tplErabu の 月3回の 枝を 抜く ⇒ 赤
+test('⑮ 5枚の 札を 押すと それぞれの 払い方が 入る（月3回は 月3回）', async ({ page }) => {
+  await tplWoHiraku(page);
+  const mae = { tsuki1: 'matsu', tsuki2: 'tsuki2', tsuki3: 'thirds', shuu: 'shuu', hi: 'hi' };
+  for (const [shurui, mode] of Object.entries(mae)) {
+    await page.click('.tab[data-tab="tpl"]');
+    await page.locator('#tplGrid .tpl-card[data-shurui="' + shurui + '"] .tpl-name').click();
+    await expect(page.locator('#paneSet')).toBeVisible();
+    expect(
+      await page.locator('#pMode').inputValue(),
+      '★' + shurui + ' の 札で 払い方が 違う★'
+    ).toBe(mode);
+  }
 });

@@ -133,7 +133,7 @@ test('⑤ テンプレの 上に 今の 設定の 締め日・設定が 違え�
   await page.click('.tab[data-tab="tpl"]');
   const ue = page.locator('#tplIma');
   await expect(ue).toContainText('今の 給料の 設定は 月3回（10日・20日・末日締め） です');
-  await expect(ue).toContainText('変えたい 時は');
+  await expect(ue).toContainText('下の テンプレを 押すと'); // 10-24 夜：選べる 形に 戻した
   await expect(ue.locator('[data-tpl-settei]')).toHaveCount(1);
   // 給料の 設定へ 移る
   await ue.locator('[data-tpl-settei]').click();
