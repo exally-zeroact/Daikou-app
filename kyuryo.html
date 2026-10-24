@@ -8356,6 +8356,8 @@
               '空（最初から）＝ ' +
               String(l[0].from_date).slice(0, 10) +
               ' より 前の 日だけ 変わります。';
+          // ★記録が 無い 時の 空＝今までの 全部の 月が 変わる★ 2026-10-24（前は 何も 出さず 黙って 全部の 月を 書き換えた・対立役 B／司さん「おけ」）
+          else chui = '空（最初から）＝ 今までの 全部の 月の 払い方が 変わります。';
           if ($('pHiChui')) $('pHiChui').textContent = chui;
           var box = $('pRireki');
           if (!box) return;
@@ -9650,6 +9652,21 @@
           };
         })();
 
+        // 空（最初から）で 払い方を 変える 保存の 1回目に 止めた 形（同じ 形で もう 一度 押すと 保存）
+        var KARA_KAKUNIN = null;
+        // 欄の 形が 今の 最初からの 形（列）と 同じか（同じなら 過去の 月は 変わらない）
+        function karaOnaji(rawKata) {
+          // ★今の 最初からの 形は 計算と 同じ yomu で 引く★（設定の 行が 無い 会社＝計算は 月3回・shimeRetsuKata は null を 返して
+          //   何も 変えて いないのに 止めた＝対立役 2回目 止A）。読めない（yomenai）は yomu が dame で 返す＝止める 側
+          if (SET && SET.yomenai) return false;
+          var y = PayrollPeriod.yomu(SET);
+          if (!y || !y.ok) return false;
+          var ima = y.kata;
+          var a = PayrollPeriod.seiki(rawKata || { kind: 'tsuki', hi: [10, 20, 0] });
+          // ★列の 月3回は yomu が {kind: thirds} で 返す＝seiki に 通すと 読めない（tplImaKata と 同じ 扱い・対立役 止1）
+          var b = ima.kind === 'thirds' ? { ok: true, kata: ima } : PayrollPeriod.seiki(ima);
+          return !!(a.ok && b.ok && tplOnaji(a.kata, b.kata));
+        }
         $('btnSaveSet').onclick = function () {
           if (!COMPANY) return;
           // ★設定を 読めなかった（通信）時は 保存しない★ 2026-10-07（既定の 値で 本物の 行を 上書きしない・対立役 ②）
@@ -9679,6 +9696,29 @@
             var chk = PayrollPeriod.seiki(sk.kata);
             if (!chk.ok) return showErr('払い方を 保存できません：' + chk.riyuu);
           }
+          // ★★「何日から」が 空で 払い方が 変わる 時は 1回 止めて 知らせる★★ 2026-10-24（司さん「おけ」）
+          //   空＝最初から＝過去の 月の 区切りも 変わる（記録が 無い 会社は 全部の 月）。前は 何も 言わずに 書き換えた（対立役 B）
+          //   もう 一度「保存する」を 押せば 保存（同じ 払い方の まま の 時だけ・払い方を 変えたら また 止める）
+          if (!shHi && !karaOnaji(sk.kata)) {
+            var kagi = JSON.stringify(sk.kata || 'thirds');
+            if (KARA_KAKUNIN !== kagi) {
+              KARA_KAKUNIN = kagi;
+              var mae =
+                Array.isArray(RAW.shimeRireki) && RAW.shimeRireki.length
+                  ? RAW.shimeRireki
+                      .map(function (x) {
+                        return String(x.from_date).slice(0, 10);
+                      })
+                      .sort()[0] + ' より 前の 日'
+                  : '今までの 全部の 月';
+              return showErr(
+                '「何日から」が 空です＝' +
+                  mae +
+                  'の 払い方が 変わります（給料の 区切りも 変わります）。よければ もう一度「保存する」を 押してください。今日から 変える 時は「何日から」に 日付を 入れてください。'
+              );
+            }
+          }
+          KARA_KAKUNIN = null;
           var body = {
             company_id: COMPANY.company_id,
             pool_mode: $('poolMode').value,

@@ -160,6 +160,15 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
   expect(msg, '★確かめの 字が 選んだ 形で ない★').toContain(
     '月1回（20日締め）：前の月の21日〜20日の1回で明細を出します（締めた日の月の分）'
   );
+  // ★「何日から」が 空で 払い方が 変わる＝1回目は 止めて 知らせる・もう 一度で 保存★（2026-10-24 司さん「おけ」）
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.__okutta.length), '★空で 1回目に 保存した★').toBe(0);
+  expect(await page.locator('#err').textContent()).toContain('「何日から」が 空です');
+  // 記録が 無い 会社＝今までの 全部の 月が 変わる と 言う（前は 黙って 書き換えた）
+  expect(await page.locator('#err').textContent()).toContain(
+    '今までの 全部の 月の 払い方が 変わります'
+  );
   await page.click('#btnSaveSet');
   await page.waitForTimeout(400);
   const b = await page.evaluate(() => window.__okutta);
@@ -171,6 +180,11 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
 
   // ★月3回に 戻すと period_shime は null を はっきり 送る★
   await page.selectOption('#pMode', 'thirds');
+  await page.click('#btnSaveSet'); // 1回目＝空で 払い方が 変わる 知らせ
+  await page.waitForTimeout(400);
+  expect(await page.evaluate(() => window.__okutta.length), '★月3回へ 戻す 1回目に 保存した★').toBe(
+    1
+  );
   await page.click('#btnSaveSet');
   await page.waitForTimeout(400);
   const c = await page.evaluate(() => window.__okutta[1]);

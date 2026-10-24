@@ -81,7 +81,8 @@ async function openKyuryo(page, naosu, opts) {
     ';(function(){var F=' +
     JSON.stringify(naosu ? naosu(nakami) : nakami) +
     ';' +
-    'var co={company_id:F.settings[0].company_id,name:"見張り用"};' +
+    // 設定の 行が 無い 会社も 開ける（2026-10-24）
+    'var co={company_id:(F.settings[0]||{company_id:"00000000-0000-4000-8000-000000000001"}).company_id,name:"見張り用"};' +
     'function rows(p){' +
     ' if(p.indexOf("dk_employees")===0)return F.emps||[];' +
     ' if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +

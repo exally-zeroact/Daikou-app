@@ -155,6 +155,16 @@ test('③ 何日からを 空（最初から）で 保存 ⇒ 列を 直し 記�
   expect(await page.inputValue('#pShimeHi')).toBe('20');
   await expect(page.locator('#pHiChui')).toContainText('2026-10-01 より 前の 日だけ');
   await page.selectOption('#pMode', 'matsu');
+  // ★空で 払い方が 変わる＝1回目は 止めて「○日より 前の 日の 払い方が 変わります」・もう 一度で 保存★（2026-10-24）
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(500);
+  expect(
+    (await page.evaluate(() => window.__okutta)).filter(
+      (x) => x.p.indexOf('dk_payroll_settings') === 0
+    ).length,
+    '★空で 1回目に 保存した★'
+  ).toBe(0);
+  await expect(page.locator('#err')).toContainText('2026-10-01 より 前の 日の 払い方が 変わります');
   await page.click('#btnSaveSet');
   await page.waitForTimeout(800);
   const o = await page.evaluate(() => window.__okutta);
@@ -162,6 +172,110 @@ test('③ 何日からを 空（最初から）で 保存 ⇒ 列を 直し 記�
   expect(set.length).toBe(1);
   expect(set[0].b.period_shime).toEqual({ kind: 'tsuki', hi: [0] });
   expect(o.filter((x) => x.p.indexOf('dk_shime_rireki') === 0).length).toBe(0);
+});
+
+// ★空（最初から）でも 払い方が 今と 同じ なら 止めない（過去の 月は 変わらない）★ 2026-10-24
+//   わざと壊す：karaOnaji を 常に false ⇒ 赤（変わらないのに 2回 押させた）
+test('③b 何日からが 空でも 払い方が 今と 同じ なら 1回で 保存', async ({ page }) => {
+  await openKyuryo(page, settei(MATSU), { ura: '?henshu=1#set' });
+  await kakuWoHikaeru(page);
+  await page.waitForSelector('#pMode', { state: 'visible' });
+  await page.fill('#pHi', '');
+  await page.dispatchEvent('#pHi', 'change');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(800);
+  const o = await page.evaluate(() => window.__okutta);
+  expect(
+    o.filter((x) => x.p.indexOf('dk_payroll_settings') === 0).length,
+    '★同じ 形 なのに 止めた★'
+  ).toBe(1);
+});
+
+// ★月3回の 列（今の 本番の 既定）でも 空で 変えなければ 1回で 保存★（対立役 止1：列の thirds を seiki に 通して 必ず 止めた）
+//   わざと壊す：karaOnaji の thirds の 扱いを 外す ⇒ 赤
+test('③c 月3回の 列・記録 無し・何日から 空で 何も 変えずに 保存 ⇒ 1回で 保存', async ({
+  page,
+}) => {
+  await openKyuryo(
+    page,
+    (f) => {
+      const g = hiOkikae(f);
+      g.settings[0].period_shime = null;
+      g.settings[0].period_end_mode = 'thirds';
+      g.shimeRireki = [];
+      return g;
+    },
+    { ura: '?henshu=1#set' }
+  );
+  await kakuWoHikaeru(page);
+  await page.waitForSelector('#pMode', { state: 'visible' });
+  await page.fill('#pHi', '');
+  await page.dispatchEvent('#pHi', 'change');
+  expect(await page.inputValue('#pMode')).toBe('thirds');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(800);
+  const o = await page.evaluate(() => window.__okutta);
+  expect(
+    o.filter((x) => x.p.indexOf('dk_payroll_settings') === 0).length,
+    '★変えて いないのに 止めた★'
+  ).toBe(1);
+});
+
+// ★設定の 行が 無い 会社（計算は 月3回）でも 空で 変えなければ 1回で 保存★（対立役 2回目 止A）
+//   わざと壊す：karaOnaji の 今の 形を shimeRetsuKata（行が 無いと null）に 戻す ⇒ 赤
+test('③e 設定の 行が 無い 会社・何日から 空で 月3回の まま 保存 ⇒ 1回で 保存', async ({ page }) => {
+  await openKyuryo(
+    page,
+    (f) => {
+      const g = hiOkikae(f);
+      g.settings = [];
+      g.shimeRireki = [];
+      return g;
+    },
+    { ura: '?henshu=1#set' }
+  );
+  await kakuWoHikaeru(page);
+  await page.waitForSelector('#pMode', { state: 'visible' });
+  await page.fill('#pHi', '');
+  await page.dispatchEvent('#pHi', 'change');
+  expect(await page.inputValue('#pMode')).toBe('thirds');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(800);
+  const o = await page.evaluate(() => window.__okutta);
+  expect(
+    o.filter((x) => x.p.indexOf('dk_payroll_settings') === 0).length,
+    '★変えて いないのに 止めた★'
+  ).toBe(1);
+});
+
+// ★1回 知らせた 後に 払い方を 変えたら また 止める★（対立役 任1）
+//   わざと壊す：KARA_KAKUNIN の 比べを「一度 確かめれば 通す」に ⇒ 赤
+test('③d 空で 知らせた 後に 払い方を 変えて 押す ⇒ また 止める・同じ 形で もう 一度 ⇒ 保存', async ({
+  page,
+}) => {
+  await openKyuryo(page, settei(MATSU), { ura: '?henshu=1#set' });
+  await kakuWoHikaeru(page);
+  await page.waitForSelector('#pMode', { state: 'visible' });
+  await page.fill('#pHi', '');
+  await page.dispatchEvent('#pHi', 'change');
+  const kazu = () =>
+    page.evaluate(
+      () => window.__okutta.filter((x) => x.p.indexOf('dk_payroll_settings') === 0).length
+    );
+  await page.selectOption('#pMode', 'matsu');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(400);
+  expect(await kazu()).toBe(0);
+  await page.selectOption('#pMode', 'tsuki2');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(400);
+  expect(await kazu(), '★形を 変えたのに 確かめずに 保存した★').toBe(0);
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(800);
+  const o = await page.evaluate(() => window.__okutta);
+  const set = o.filter((x) => x.p.indexOf('dk_payroll_settings') === 0);
+  expect(set.length).toBe(1);
+  expect(set[0].b.period_shime).toEqual({ kind: 'tsuki', hi: [15, 0] });
 });
 
 // わざと壊す：shKaku から SHIME_SAWATTA を 外す ⇒ 赤（触って いないのに 記録を 書いた）
