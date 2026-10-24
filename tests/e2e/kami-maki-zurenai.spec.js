@@ -122,6 +122,8 @@ for (const pg of ['shukei', 'uriage']) {
     const ato = await page.evaluate(() => ({
       kawatta: document.querySelector('#kamiMado .kami-mise-waku') !== window.__mae,
       y: window.scrollY,
+      // 描き直した 後に 巻ける 一番 下（紙が 細く なると ページが 縮む＝本番は テスト線の 帯が 無い 分 さらに 短い）
+      soko: document.documentElement.scrollHeight - window.innerHeight,
       migi: (function () {
         const w = document.querySelector('#kamiMado .kami-mise-waku');
         return Math.round(
@@ -132,7 +134,12 @@ for (const pg of ['shukei', 'uriage']) {
     expect(mae.el).toBe(true);
     expect(ato.kawatta, '★幅が 変わったのに 紙を 作り直さない★').toBe(true);
     expect(ato.migi, '★幅を 変えたら 紙の 右が 切れた★').toBeLessThanOrEqual(1);
-    expect(ato.y, '★幅を 変えて 描き直したら 一番 上へ 飛んだ★').toBeGreaterThan(50);
+    // ★上へ 飛ばない＝元の 位置か、縮んだ ページの 一番 下に 居る★ 2026-10-24
+    //   （前は「50 より 大きい」＝本番は 帯が 無く 縮んだ 底が 47 で 赤・飛んだ 訳では ない）
+    expect(ato.soko, '★描き直した 後も 巻ける 高さが 在る★').toBeGreaterThan(20);
+    expect(ato.y, '★幅を 変えて 描き直したら 一番 上へ 飛んだ★').toBeGreaterThanOrEqual(
+      Math.min(mae.y, ato.soko) - 2
+    );
     expect(err, '★画面が 落ちた★').toEqual([]);
   });
 }
