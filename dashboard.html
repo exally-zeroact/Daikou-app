@@ -1660,22 +1660,47 @@
 
         // ---------- ボタン ----------
         // ★地元の市を保存する (2026-08-09・司さん B を選択)★
+        // ★2026-10-24 窓への PATCH を やめて 関数 dk_set_home_city を 呼ぶ★
+        //   前は 窓（dk_companies）へ PATCH・return=minimal・r.ok だけで「保存しました」と 出していた。
+        //   dk_companies には 持ち主の update の policy が 無い（止めた 会社が 自分で 戻せない様に わざと）ので
+        //   運営で ない 持ち主は 0行・204＝★出るのに 何も 変わらなかった★（運営の 口座では 書けて 緑に 見えた）。
+        //   関数は home_city だけを 書き、書けた 行の 数を 返す。★1 の 時だけ「保存しました」★
+        //   書けたら 倉庫から 読み直して 欄と COMPANY を 合わせる。
         function saveHomeCity() {
           var v = ($('homeCity').value || '').trim();
           var msg = $('homeCityMsg');
+          var dame = function () {
+            msg.textContent = '保存できませんでした（' + (COMPANY.name || '') + '）。';
+          };
           msg.textContent = '保存中…';
-          return api('/dk_companies?company_id=eq.' + encodeURIComponent(COMPANY.company_id), {
-            method: 'PATCH',
-            headers: { Prefer: 'return=minimal' },
-            body: JSON.stringify({ home_city: v || null }),
+          return api('/rpc/dk_set_home_city', {
+            method: 'POST',
+            body: JSON.stringify({ p_company: COMPANY.company_id, p_city: v || null }),
           })
             .then(function (r) {
-              if (!r.ok) {
-                msg.textContent = '保存できませんでした（' + (COMPANY.name || '') + '）。';
-                return;
-              }
-              COMPANY.home_city = v || null;
-              msg.textContent = v ? '保存しました（' + v + '）' : '保存しました（空＝今治市）';
+              if (!r.ok) return dame();
+              return r.json().then(function (n) {
+                if (Number(n) !== 1) return dame();
+                return api(
+                  '/dk_companies?select=home_city&company_id=eq.' +
+                    encodeURIComponent(COMPANY.company_id)
+                )
+                  .then(function (r2) {
+                    return r2.ok ? r2.json() : null;
+                  })
+                  .catch(function () {
+                    return null;
+                  })
+                  .then(function (rows) {
+                    // 読み直せた 時は 倉庫の 値・読めなかった 時は 書いた 値
+                    var hc = rows && rows.length === 1 ? rows[0].home_city || null : v || null;
+                    COMPANY.home_city = hc;
+                    $('homeCity').value = hc || '';
+                    msg.textContent = hc
+                      ? '保存しました（' + hc + '）'
+                      : '保存しました（空＝今治市）';
+                  });
+              });
             })
             .catch(function () {
               msg.textContent = 'ネットに繋がる所で、もう一度お試しください。';

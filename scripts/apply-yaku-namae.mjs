@@ -79,11 +79,13 @@ export function kiridasu(sql, k) {
       .replace(/^update\s+(?:only\s+)?/i, '')
       .replace(/["\s]/g, '')
       .toLowerCase();
-    if (
-      t !== 'daikome.dk_payroll_settings' &&
-      t !== 'daikome.dk_employees' &&
-      t !== 'daikome.dk_yaku_rireki' // 役割の 決まりの 記録（何日から 10-18）
-    )
+    // 書き換えて よい 表は k.kakeru（無ければ この 関数の 3つ）。地元の市の 関数（10-24）は dk_companies だけ
+    const yoi = k.kakeru || [
+      'daikome.dk_payroll_settings',
+      'daikome.dk_employees',
+      'daikome.dk_yaku_rireki', // 役割の 決まりの 記録（何日から 10-18）
+    ];
+    if (!yoi.includes(t))
       throw new Error(k.na + ' が ' + t + ' を 書き換える');
   }
   return block;
