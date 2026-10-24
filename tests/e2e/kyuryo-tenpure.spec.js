@@ -24,8 +24,8 @@
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
 
-async function tplWoHiraku(page) {
-  await openKyuryo(page);
+async function tplWoHiraku(page, naosu) {
+  await openKyuryo(page, naosu);
   await page.waitForTimeout(800);
   const tabs = await page.evaluate(() =>
     [...document.querySelectorAll('#tabs .tab')].map((b) => b.textContent.trim())
@@ -405,8 +405,38 @@ test('⑥ 札を 押した 後に「何日から」を 変えても 払い方の
 
 // ★★見本に 本当の 名前を 載せない★★ 2026-10-24（司さん「テンプレに実名を勝手に使うな」）
 //   わざと壊す：tplMihon で 名前を 替えない ⇒ 赤
-test('⑭ 見本の 紙と PDF に 働く 人の 名前が 載らない（作り物の 名前だけ）', async ({ page }) => {
-  await tplWoHiraku(page);
+// ★名目も 見る★（対立役 本番前 任意1：見張りの 記録に 手当が 0件＝名目の 置き換えを 外しても 緑だった）
+//   働く 人 全員の 時数が 在る 日に 名前入りの 名目の 手当・控除を 足す（作り物の 名目）
+const MEIMOKU = ['見張り立替', '見張り前借'];
+const meimokuIri = (f) => {
+  const hi = {};
+  for (const w of f.workHours || []) if (!hi[w.employee_id]) hi[w.employee_id] = w;
+  f.adjustments = Object.values(hi).flatMap((w, i) => [
+    {
+      company_id: w.company_id,
+      employee_id: w.employee_id,
+      work_date: w.work_date,
+      kind: 'teate',
+      label: MEIMOKU[0],
+      yen: 1000,
+      adj_id: 'a' + i,
+    },
+    {
+      company_id: w.company_id,
+      employee_id: w.employee_id,
+      work_date: w.work_date,
+      kind: 'koujo',
+      label: MEIMOKU[1],
+      yen: 500,
+      adj_id: 'b' + i,
+    },
+  ]);
+  return f;
+};
+test('⑭ 見本の 紙と PDF に 働く 人の 名前・手当／控除の 名目が 載らない（作り物の 名前だけ）', async ({
+  page,
+}) => {
+  await tplWoHiraku(page, meimokuIri);
   await expect
     .poll(() => page.evaluate(() => document.querySelectorAll('#tplGrid [data-paper]').length), {
       timeout: 15000,
@@ -417,7 +447,7 @@ test('⑭ 見本の 紙と PDF に 働く 人の 名前が 載らない（作り
     return { ji: ji };
   });
   // 見張りの 記録（tests/fixtures/kyuryo-real.json）の 働く 人の 名前
-  const moto = ['テスト太郎', 'テスト次郎', 'テスト三郎', 'テスト四郎'];
+  const moto = ['テスト太郎', 'テスト次郎', 'テスト三郎', 'テスト四郎'].concat(MEIMOKU);
   for (const t of r.ji) {
     for (const n of moto)
       expect(t.indexOf(n), '★見本に 働く 人の 名前「' + n + '」が 載った★').toBe(-1);
