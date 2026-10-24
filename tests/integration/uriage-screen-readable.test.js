@@ -72,8 +72,13 @@ describe('★今できていた事を落としていない★', () => {
     expect(HTML).toContain('JippiHozon.saveJippi(');
   });
 
-  it('売上から引く物の設定が残っている', () => {
-    for (const id of ['dToll', 'dBridge', 'dOther']) expect(HTML).toContain('id="' + id + '"');
+  // 2026-10-24 件J：入れた 実費は 全部 引く＝「引く／引かない」の チェック・何日から・記録は 消した。
+  //   残すのは 引く 物の 名前の 欄（dHiku）だけ。選ぶ 欄・書く 口が 戻って いない 事も 見る
+  it('売上から引く物の名前が残っている・選ぶ所は無い', () => {
+    expect(HTML).toContain('id="dHiku"');
+    for (const id of ['dToll', 'dBridge', 'dOther', 'dHi', 'dRireki'])
+      expect(HTML).not.toContain('id="' + id + '"');
+    expect(HTML).not.toMatch(/dk_sales_settings\?on_conflict|dk_uriage_rireki\?/);
   });
 
   it('月の行き来が残っている', () => {

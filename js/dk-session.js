@@ -408,7 +408,6 @@
     // ★変えた 記録（何日から）★ 2026-10-18＝from_date は 重なる ので 行の id で 継ぎ目を 決める（抜け・ダブり 無し）
     dk_hito_rireki: 'from_date.asc,rireki_id.asc',
     dk_yaku_rireki: 'from_date.asc,rireki_id.asc',
-    dk_uriage_rireki: 'from_date.asc,rireki_id.asc',
     dk_shime_rireki: 'from_date.asc,rireki_id.asc',
     // ★手当・控除★ 2026-10-23 件G＝同じ 日の 行は adj_id で 継ぎ目を 決める（1000行を 越えても 抜け・ダブり 無し）
     dk_pay_adjustments: 'work_date.asc,adj_id.asc',

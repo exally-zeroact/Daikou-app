@@ -15,7 +15,8 @@
 //     ①★今までの 行（expenses が 無い）は 1円も 変わらない★
 //     ②足した 物は ★引かれる★
 //     ③★古い 名前が expenses に 紛れても 二重に 引かない★
-//     ④「引く/引かない」の チェックは ★古い 3つにだけ★ 効く（前と 同じ）
+//     ④★設定（前の「引く/引かない」）を 渡しても 見ない＝全部 引く★ 2026-10-24 件J
+//       （司さん「実費は足したもの全て引く形やないと経費の意味ないやないか」）
 //
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-06 実測）★★
 //     ①expenses を 足さない（soto を 消す）………… ★赤★（②が 落ちる）
@@ -28,13 +29,10 @@ const U = require('../../js/uriage-agg.js');
 const ZENBU = { deduct_toll: true, deduct_bridge: true, deduct_other: true };
 
 describe('★実費を 自由に 足せる（お金は 変わらない）★', () => {
-  it('★①今までの 行（expenses が 無い）は 1円も 変わらない★', () => {
-    // ★直す前の 式を そのまま 書き写した物★と 突き合わせる
+  it('★①今までの 行（expenses が 無い）は 古い 3つを 全部 足した 額★', () => {
+    // ★直す前の「全部 引く」設定（ZENBU）の 式を 書き写した物★と 突き合わせる（10-24 からは どの 設定でも この 額）
     const n = (v) => (isFinite(Number(v)) ? Number(v) : 0);
-    const mae = (e, st) =>
-      (st.deduct_toll ? n(e.toll_yen) : 0) +
-      (st.deduct_bridge ? n(e.bridge_yen) : 0) +
-      (st.deduct_other ? n(e.other_yen) : 0);
+    const mae = (e) => n(e.toll_yen) + n(e.bridge_yen) + n(e.other_yen);
     const tesuto = [
       {},
       { toll_yen: 1200 },
@@ -51,7 +49,7 @@ describe('★実費を 自由に 足せる（お金は 変わらない）★', (
     const chigau = [];
     tesuto.forEach((e) => {
       st2.forEach((st) => {
-        const a = mae(e, st);
+        const a = mae(e);
         const b = U.deductOf(e, st);
         if (a !== b) chigau.push({ e, st, mae: a, ima: b });
       });
@@ -71,10 +69,10 @@ describe('★実費を 自由に 足せる（お金は 変わらない）★', (
     expect(U.deductOf({ other_yen: 50, expenses: { other: 9999 } }, ZENBU)).toBe(50);
   });
 
-  it('★④チェックは 古い 3つにだけ 効く（足した 物は いつも 引く）★', () => {
+  it('★④前の 設定（引かない）を 渡しても 全部 引く★', () => {
     const kiru = { deduct_toll: false, deduct_bridge: false, deduct_other: false };
-    // ★足した 物には「引く/引かない」の チェックが 在りません（足した＝引く 物）★
-    expect(U.deductOf({ toll_yen: 1200, expenses: { k1: 500 } }, kiru)).toBe(500);
+    // ★10-24 件J：引く／引かないの 選びは 無い（入れた＝引く 物）★
+    expect(U.deductOf({ toll_yen: 1200, other_yen: 30, expenses: { k1: 500 } }, kiru)).toBe(1730);
   });
 
   it('★⑤壊れた 中身でも 落ちない★', () => {

@@ -1956,14 +1956,11 @@
           employees: [],
           workHours: [],
           manualDays: [], // 手で入れた1日分（スマホが無くても給料を出せる）
-          salesSettings: null,
           payrollSettings: null,
           // ★人ごとの 歩合・保証・役割の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
           rireki: [],
           // ★役割の 決まりの 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
           yakuRireki: [],
-          // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
-          uriageRireki: [],
           // ★締めの 形の 変えた 記録（何日から）★ 2026-10-19＝null は 読めなかった（区切りが 止める）
           shimeRireki: [],
         };
@@ -2548,8 +2545,8 @@
               RAW.employees = r.emp ? [r.emp] : []; // ★自分 1人だけ★
               RAW.labels = r.labels || [];
               RAW.payrollSettings = SET;
-              // ★会社の「売上から 何を 引くか」★（前は null＝既定で 計算し 事務所と ずれ得た・10-02 夜）
-              RAW.salesSettings = r.salesSettings || null;
+              // ★会社の「売上から 何を 引くか」（r.salesSettings）と その 記録（r.uriageRireki）は 使わない★ 2026-10-24 件J
+              //   ＝入れた 実費は 全部 引く（事務所と 同じ）。倉庫の 関数は 変えない（返って きても 見ない）
               RAW.shifts = r.shifts || [];
               RAW.edits = r.edits || [];
               RAW.workHours = r.workHours || [];
@@ -2569,15 +2566,6 @@
                 return;
               }
               RAW.adjustments = r.adjustments;
-              // ★売上から 引く 物の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-18
-              //   本人が 開き直しても 直らない＝会社に 知らせる 字（対立役 直5）
-              if (!Array.isArray(r.uriageRireki)) {
-                if (box)
-                  box.innerHTML =
-                    '<div class="card"><div class="msg">売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
-                return;
-              }
-              RAW.uriageRireki = r.uriageRireki;
               // ★締めの 形の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-19（列の 形で 区切らない）
               if (!Array.isArray(r.shimeRireki)) {
                 if (box)
@@ -3915,9 +3903,7 @@
               employees: RAW.employees,
               rireki: RAW.rireki, // ★何日から★ 2026-10-18
               yakuRireki: yakuRirekiNoIma(),
-              uriageRireki: RAW.uriageRireki,
               shimeRireki: RAW.shimeRireki, // ★締めの 何日から★ 2026-10-19
-              salesSettings: RAW.salesSettings,
               payrollSettings: SET,
             });
             // 売上の 直しが 読めない 業務が 在れば 紙を 出さない 2026-10-14
@@ -4572,7 +4558,6 @@
         }
         var RIREKI_YOMI = { tried: 0, failed: 0 };
         var YAKU_RIREKI_YOMI = { tried: 0, failed: 0 };
-        var URIAGE_RIREKI_YOMI = { tried: 0, failed: 0 };
         var SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }; // ★締めの 記録★ 2026-10-19
         function loadMasters() {
           LOAD.tried = 0;
@@ -4583,7 +4568,9 @@
             // ★給料の 設定は 読めたかを 別に 数える★ 2026-10-07（対立役 D：読めない 時に 月3回で 明細が 出た）
             ((SET_YOMI = { tried: 0, failed: 0 }),
             DKSession.softList(SESS, kaishaDake('dk_payroll_settings?select=*&limit=1'), SET_YOMI)),
-            soft('dk_sales_settings?select=*&limit=1'),
+            // res[3]＝空き：売上から 何を 引くかの 設定（dk_sales_settings）は 2026-10-24 件J で 読まなくした
+            //   （入れた 実費は 全部 引く）。番号を 詰めると 下の res[4]〜 が ずれる ので 空きの まま
+            null,
             // ★変えた 記録（何日から）は 読めたかを 別に 数える★ 2026-10-18（読めない 時に 列の 値で 出さない）
             ((RIREKI_YOMI = { tried: 0, failed: 0 }),
             DKSession.softList(
@@ -4598,13 +4585,8 @@
               kaishaDake('dk_yaku_rireki?select=*&order=from_date.asc&limit=100000'),
               YAKU_RIREKI_YOMI
             )),
-            // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18＝res[6]
-            ((URIAGE_RIREKI_YOMI = { tried: 0, failed: 0 }),
-            DKSession.softList(
-              SESS,
-              kaishaDake('dk_uriage_rireki?select=*&order=from_date.asc&limit=100000'),
-              URIAGE_RIREKI_YOMI
-            )),
+            // res[6]＝空き：売上から 引く 物の 変えた 記録（dk_uriage_rireki）は 2026-10-24 件J で 読まなくした
+            null,
             // ★締めの 形の 変えた 記録（何日から）★ 2026-10-19＝res[7]
             ((SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }),
             DKSession.softList(
@@ -4617,9 +4599,6 @@
             LOAD.tried += SHIME_RIREKI_YOMI.tried;
             LOAD.failed += SHIME_RIREKI_YOMI.failed;
             RAW.shimeRireki = SHIME_RIREKI_YOMI.failed > 0 ? null : res[7] || [];
-            LOAD.tried += URIAGE_RIREKI_YOMI.tried;
-            LOAD.failed += URIAGE_RIREKI_YOMI.failed;
-            RAW.uriageRireki = URIAGE_RIREKI_YOMI.failed > 0 ? null : res[6] || [];
             LOAD.tried += RIREKI_YOMI.tried;
             LOAD.failed += RIREKI_YOMI.failed;
             RAW.rireki = RIREKI_YOMI.failed > 0 ? null : res[4] || [];
@@ -4635,7 +4614,6 @@
             yakuMotoKesu(); // 役割の 名前の 直しの 控えを 読み込んだ 名前から 始め直す
             LOAD_KIHON = { tried: LOAD.tried, failed: LOAD.failed };
             RAW.payrollSettings = SET;
-            RAW.salesSettings = (res[3] && res[3][0]) || null;
             // ★★配る 一覧を 最初から 出す★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
             //   ★前は「配る」を 押すまで 何も 出なかった★（全員ぶんを 一度に 作る 作りだった）
             //   ⇒ ★今は 従業員 全員を 出して、その人の〔配る〕を 押す★

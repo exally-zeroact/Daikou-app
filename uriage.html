@@ -406,43 +406,13 @@
         font-size: 13px;
       }
 
-      .chk {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        cursor: pointer;
+      .hiku-na {
         font-weight: 700;
       }
 
-      .chk input {
-        width: 17px;
-        height: 17px;
-        accent-color: var(--blue);
-      }
-
-      /* ★売上から 引く 物の「何日から」★ 2026-10-18 */
-      .hiki-hi input[type='date'] {
-        font-size: 14px;
-        padding: 2px 4px;
-      }
-
-      .hiki-chui {
-        width: 100%;
+      .hiku-chui {
         font-size: 12px;
         color: var(--muted);
-      }
-
-      .hiki-rireki {
-        width: 100%;
-        font-size: 13px;
-      }
-
-      .hiki-rireki .r {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
-        margin-top: 6px;
       }
 
       /* ★★紙の 表★★ 2026-09-05（司さん「紙にして スクロールせんでええようにしろ」）
@@ -487,24 +457,11 @@
         </div>
         <div class="setrow" style="margin-top: 10px">
           <span class="setlabel">売上から引くもの</span>
-          <!-- ★名前は 会社設定の「実費」の 名前★ 2026-10-20（司さん「会社で設定したものがここや月次などに反映されるんやろが」）
-               消した 物は 出さない・会社が 足した 物は いつも 引く（押せない チェック）＝hikiNaNuru -->
-          <label class="chk" id="dTollL"
-            ><input type="checkbox" id="dToll" /> <span id="dTollNa">高速代</span></label
-          >
-          <label class="chk" id="dBridgeL"
-            ><input type="checkbox" id="dBridge" /> <span id="dBridgeNa">橋代</span></label
-          >
-          <label class="chk" id="dOtherL"
-            ><input type="checkbox" id="dOther" /> <span id="dOtherNa">その他</span></label
-          >
-          <span id="dSoto"></span>
-          <!-- ★何日から★ 2026-10-18（docs/nannichi-kara-uriage.md）既定は 今日・空＝最初から -->
-          <label class="hiki-hi">何日から <input type="date" id="dHi" /></label>
-          <button class="navb" id="dRireki" type="button">記録</button>
-          <span class="saved" id="setSaved"></span>
-          <div class="hiki-chui" id="dChui"></div>
-          <div class="hiki-rireki" id="dRirekiWaku" style="display: none"></div>
+          <!-- ★★入れた 実費は 全部 引く★★ 2026-10-24 件J（司さん「実費は足したもの全て引く形やないと経費の意味ないやないか」）
+               前の「引く／引かない」の チェック・「何日から」・記録は 消した（選ぶ 形を やめた）。
+               名前は 会社設定の「実費」の 名前（消した 物は 出さない・その 月に 額が 在れば 出す＝hikiNaNuru） -->
+          <span class="hiku-na" id="dHiku"></span>
+          <span class="hiku-chui">入れた 実費は 全部 引きます</span>
         </div>
 
         <!-- ★★売上表は PDF と 同じ 紙を そのまま 見せる★★ 2026-10-05
@@ -627,7 +584,6 @@
         var DAYS = []; // ★日ごと (2026-08-09 司さん「1日おきと車おきで見れないかん」)★
         var MODE = 'car'; // 'car' = 車ごと / 'day' = 日ごと
         var OPEN = {}; // 開いている行（車ごとは端末ID・日ごとは日付）
-        var SETTINGS = null; // 売上から何を引くか（会社ごと）
         var RAW = { shifts: [], edits: [], labels: [] };
 
         var $ = function (id) {
@@ -639,23 +595,8 @@
           });
         }
         var URIAGE_DAME = 0; // 売上の 直しが 読めない 業務の 数（他の 字で 消さない）2026-10-14
-        // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18（docs/nannichi-kara-uriage.md）
-        //   RIREKI＝dk_uriage_rireki の 行（null＝読めなかった）／KUMI＝UriageAgg.rirekiKumu の 返り値
-        //   RIREKI_DAME＝読めない・形が 違う＝★数字も 紙も 出さない★（列の 値で 黙って 出さない）
-        // ★始めは null＝まだ 読めていない★（[] だと 最初の 読みが 失敗しても 書けた（1件 送った）・対立役 P9）2026-10-22
-        var RIREKI = null;
-        var KUMI = null;
-        var RIREKI_DAME = false;
-        var RIREKI_DAME_BUN =
-          '売上から 引く 物の 変えた 記録を 読めませんでした。売上と 紙は 止めています。もう一度 開いてください。';
-        var HIKI_HI = null; // 選んだ「何日から」（null＝まだ 選んでいない＝今日・''＝最初から）
-        var SS_YOMI = { tried: 0, failed: 0 };
         var ED_YOMI = { tried: 0, failed: 0 }; // 実費（dk_shift_edits）の 読めたか
-        var SS_DAME = false; // 設定（dk_sales_settings）を 読めなかった＝列も 記録も 書かせない
-        var KAKI_CHU = false; // 書いている 間は チェックを 押させない
-        var RIREKI_HIRAKU = false;
         function showErr(m) {
-          if (!m && RIREKI_DAME) m = RIREKI_DAME_BUN;
           // 実費・手で 入れた 日が 読めない 月は 他の 保存の 成功で 訳を 消さない（対立役 D-5）
           if (!m && EDITS_DAME) m = EDITS_DAME_JI;
           if (!m && MD_DAME) m = MD_DAME_JI;
@@ -744,8 +685,6 @@
         }
         function kamiTsukuru(shu) {
           if (KAMI_TSUKI !== ymKey(MONTH)) return null;
-          // 売上から 引く 物の 記録が 読めない＝紙を 作らない 2026-10-18
-          if (RIREKI_DAME) return null;
           // 売上の 直しが 読めない 業務が 在れば 紙を 作らない（その 業務の 売上が 抜けた 額で 出さない）2026-10-14
           if (URIAGE_DAME) return null;
           // 実費（売上の 直し・引く 物）が 読めない 月は 紙を 作らない 2026-10-21（対立役 U-1：引く 前の 額で 13,220円 多い 紙が 出た）
@@ -822,17 +761,14 @@
           if (!r) {
             $('kamiMado').innerHTML = '';
             return kamiMsg(
-              RIREKI_DAME
-                ? (SS_DAME ? '売上から 引く 物の 設定' : '売上から 引く 物の 変えた 記録') +
-                    'を 読めないので 紙は 出せません（開き直してください）'
-                : URIAGE_DAME
-                  ? '売上の 直しが 読めない 業務が 在るので 紙は 出せません（下の 帯の「入力」で その 日の 車を 開いて 直してください）'
-                  : EDITS_DAME || MD_DAME
-                    ? (EDITS_DAME ? '実費' : '手で 入れた 日') +
-                      'の 記録が 読めないので 紙は 出せません（上の「もう一度読む」を 押してください）'
-                    : YOMICHU || !LOAD_NO
-                      ? '読み込み中…'
-                      : '読み込みに 失敗したので 紙は 出せません（上の「もう一度読む」を 押してください）'
+              URIAGE_DAME
+                ? '売上の 直しが 読めない 業務が 在るので 紙は 出せません（下の 帯の「入力」で その 日の 車を 開いて 直してください）'
+                : EDITS_DAME || MD_DAME
+                  ? (EDITS_DAME ? '実費' : '手で 入れた 日') +
+                    'の 記録が 読めないので 紙は 出せません（上の「もう一度読む」を 押してください）'
+                  : YOMICHU || !LOAD_NO
+                    ? '読み込み中…'
+                    : '読み込みに 失敗したので 紙は 出せません（上の「もう一度読む」を 押してください）'
             );
           }
           KamiPdf.mise($('kamiMado'), r.mai, function () {
@@ -935,7 +871,6 @@
           // 読みごとに 数え直す（前は 1回 作った 箱の まま＝読めた 後も「読めなかった 物が あります」が 残った・対立役 D-4）
           var ld = (LOAD = DKSession.newLoadState());
           var edYomi = { tried: 0, failed: 0 };
-          var ssYomi = { tried: 0, failed: 0 };
           var mdYomi = { tried: 0, failed: 0 };
           // 読み終える まで 前の 月の 表・紙を 出さない（対立役 D-3：新しい 月の 名前の 下に 前の 月の 表が 残った）
           KAMI_TSUKI = '';
@@ -1008,14 +943,14 @@
             // 実費は 読めたかを 別に 数える（読めない 時は 欄を 押せなく する）
             DKSession.softList(SESS, kaishaDake('dk_shift_edits?select=*&limit=2000'), edYomi),
             soft('dk_device_labels?select=*&limit=500'),
-            // ★設定は 読めたかを 別に 数える★ 2026-10-18（読めない 時に 既定の 値で 列を 上書き しない・対立役 止3）
-            DKSession.softList(SESS, kaishaDake('dk_sales_settings?select=*&limit=1'), ssYomi),
+            // res[3]＝空き：売上から 何を 引くかの 設定（dk_sales_settings）は 2026-10-24 件J で 読まなくした
+            //   （入れた 実費は 全部 引く）。番号を 詰めると 下の res[4]〜 が ずれる ので 空きの まま
+            null,
             // ★★実費の 名前（会社が 決めた 一覧）★★ 2026-09-06（司さん「自由に 足せる ように」）
             soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
             // 手で 入れた 日も 読めたかを 別に 数える（読めない 月は 紙・表を 止める・対立役 D-2：その 車の 売上が 抜けた 額で 出た）
             DKSession.softList(SESS, kaishaDake('dk_manual_days?select=*&limit=2000'), mdYomi),
-            // ★売上から 引く 物の 変えた 記録（何日から）★ 2026-10-18＝res[6]・読めたかを 別に 数える
-            rirekiYomu(ld),
+            // ★売上から 引く 物の 変えた 記録（dk_uriage_rireki）も 2026-10-24 件J で 読まなくした（res[6] は 無い）
           ])
             .then(function (res) {
               if (no !== LOAD_NO) return; // ★古い 読みの 返事は 捨てる★
@@ -1023,7 +958,6 @@
               RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
               RAW.edits = Array.isArray(res[1]) ? res[1] : [];
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
-              var st = Array.isArray(res[3]) && res[3].length ? res[3][0] : null;
               // ★★実費の 名前★★ 2026-09-06（司さん「自由に 足せる ように」）
               //   ★使う 印が 付いている 物だけ★／★取れなければ 今まで通りの 3つ★
               RAW.kindsZenbu = Array.isArray(res[4]) && res[4].length ? res[4] : null;
@@ -1057,22 +991,18 @@
               var conv = PayrollDaily.manualAsShifts(manual);
               RAW.shifts = RAW.shifts.concat(conv.shifts);
               RAW.edits = RAW.edits.concat(conv.edits);
-              SETTINGS = UriageAgg.normSettings(st);
-              ld.tried += ssYomi.tried + edYomi.tried + mdYomi.tried;
-              ld.failed += ssYomi.failed + edYomi.failed + mdYomi.failed;
-              SS_YOMI = ssYomi;
+              ld.tried += edYomi.tried + mdYomi.tried;
+              ld.failed += edYomi.failed + mdYomi.failed;
               ED_YOMI = edYomi;
               EDITS_DAME = edYomi.failed > 0;
               MD_DAME = mdYomi.failed > 0;
-              SS_DAME = ssYomi.failed > 0;
-              RIREKI = res[6];
               KAMI_TSUKI = tsuki;
               window.__editsById = {};
               RAW.edits.forEach(function (e) {
                 if (e && e.shift_id) window.__editsById[e.shift_id] = e;
               });
               recalc();
-              renderSettings();
+              hikiNaNuru();
               render();
               afterLoad(load); // ★取れなかった物があれば 画面の上に出す★
             })
@@ -1082,7 +1012,6 @@
               // この 月の 読みは 通って いない（計算が 後半で 転んでも 0円の 紙・表を 出さない・対立役 4回目 直す-1）
               KAMI_TSUKI = '';
               // 前の 月の 止めの 訳を 出さない（「開き直して」で なく 読み込みの 失敗を 出す・対立役 4回目 P3）
-              RIREKI_DAME = false;
               URIAGE_DAME = 0;
               // 描いた 後に 転んだ 時も 数字と 紙の 絵を 失敗の 訳と 並べて 残さない（対立役 5回目 P7）
               if ($('list')) $('list').innerHTML = '';
@@ -1103,56 +1032,15 @@
             });
         }
 
-        // ★売上から 引く 物の 変えた 記録を 読む★ 2026-10-18（読めない＝null・LOAD にも 数える）
-        function rirekiYomu(ld) {
-          var y = { tried: 0, failed: 0 };
-          return DKSession.softList(
-            SESS,
-            'dk_uriage_rireki?select=*&order=from_date.asc&limit=100000' +
-              (COMPANY ? '&company_id=eq.' + encodeURIComponent(COMPANY.company_id) : ''),
-            y
-          ).then(function (rows) {
-            ld.tried += y.tried;
-            ld.failed += y.failed;
-            return y.failed > 0 ? null : rows || [];
-          });
-        }
-        function kyouJst() {
-          return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-        }
-        function hikiHi() {
-          return HIKI_HI === null ? kyouJst() : HIKI_HI;
-        }
         // 手元のデータから集計し直す（通信し直さない）
         function recalc() {
           var edits = Object.keys(window.__editsById || {}).map(function (k) {
             return window.__editsById[k];
           });
-          // ★記録が 読めない・形が 違う＝数字を 作らない★（列の 値で 黙って 出さない）
-          RIREKI_DAME = false;
-          KUMI = null;
-          try {
-            if (!Array.isArray(RIREKI)) throw new Error('uriageRireki');
-            KUMI = UriageAgg.rirekiKumu(RIREKI);
-          } catch (_) {
-            RIREKI_DAME = true;
-          }
-          // ★設定（列）が 読めない 時も 数字と 紙を 出さない★（既定の 値で 出さない・対立役 2回目 直1）
-          RIREKI_DAME_BUN = SS_DAME
-            ? '売上から 引く 物の 設定を 読めませんでした。売上と 紙は 止めています。もう一度 開いてください。'
-            : '売上から 引く 物の 変えた 記録を 読めませんでした。売上と 紙は 止めています。もう一度 開いてください。';
-          if (SS_DAME) RIREKI_DAME = true;
-          if (RIREKI_DAME) {
-            ROWS = [];
-            DAYS = [];
-            URIAGE_DAME = 0;
-            showErr('');
-            return;
-          }
           // ★車ごと／日ごと の両方を作る（数字は同じ物から作る＝食い違わない）★
-          //   KUMI＝その 日の 引き方（業務ごと）2026-10-18
-          ROWS = UriageAgg.byDevice(RAW.shifts, edits, RAW.labels, SETTINGS, KUMI);
-          DAYS = UriageAgg.byDay(RAW.shifts, edits, RAW.labels, SETTINGS, KUMI);
+          //   引く 額＝入れた 実費 全部（UriageAgg.deductOf）2026-10-24 件J
+          ROWS = UriageAgg.byDevice(RAW.shifts, edits, RAW.labels);
+          DAYS = UriageAgg.byDay(RAW.shifts, edits, RAW.labels);
           // 売上の 直しが 読めない 業務が 在れば 知らせる（合計に その 業務は 入っていない）2026-10-14
           var dame = UriageAgg.total(ROWS).uriage_dame;
           URIAGE_DAME = dame;
@@ -1164,21 +1052,8 @@
             );
         }
 
-        // ---------- 売上から引くものの設定 ----------
-        //   ★チェックは 選んだ 日に 効く 引き方★（空＝最初から＝列の 値）2026-10-18
-        var HIKI_KEY = { dToll: 'toll', dBridge: 'bridge', dOther: 'other' };
-        var HIKI_NA = { toll: '高速代', bridge: '橋代', other: 'その他' }; // 実費の 一覧が 読めない 時だけ
-        // ★実費の 名前は 会社設定の 一覧（dk_expense_kinds）から★ 2026-10-20（司さん「経費に設定しとんのに」）
-        //   RAW.kindsZenbu＝絞らずに 読んだ 一覧（読めない・空なら null＝今までの 3つ）
-        function kindOf(k) {
-          var l = RAW.kindsZenbu || [];
-          for (var i = 0; i < l.length; i++) if (l[i] && l[i].kind_id === k) return l[i];
-          return null;
-        }
-        function hikiNa(k) {
-          var x = kindOf(k);
-          return (x && x.label) || HIKI_NA[k] || k;
-        }
+        // ---------- 売上から引くもの（名前を 並べる だけ）----------
+        //   ★入れた 実費は 全部 引く★ 2026-10-24 件J（選ぶ チェック・何日から・記録は 消した）
         // その 月に 入っている 額（消した 物でも 額が 在れば 隠さない＝隠れたまま 引かれる 事を 作らない・対立役 指3）
         function tsukiGaku(k) {
           var by = window.__editsById || {};
@@ -1193,11 +1068,6 @@
         function mieruNo(o) {
           return JippiHozon.mieruKinds(RAW.kindsZenbu, tsukiGaku, o);
         }
-        function hikiMieru(k) {
-          return mieruNo({ mieta: MIETA }).some(function (x) {
-            return x.kind_id === k;
-          });
-        }
         // 1回の 業務で 打てる 実費＝[{kind_id, label}]（「使う」を 外した 物は 出さない＝入力の 画面と 同じ）
         function uteruKinds() {
           var l = mieruNo({ nyuryoku: true, mieta: MIETA });
@@ -1207,14 +1077,12 @@
           return l;
         }
         function hikiNaNuru() {
-          [
-            ['dToll', 'toll'],
-            ['dBridge', 'bridge'],
-            ['dOther', 'other'],
-          ].forEach(function (a) {
-            $(a[0] + 'Na').textContent = hikiNa(a[1]);
-            $(a[0] + 'L').style.display = hikiMieru(a[1]) ? '' : 'none';
-          });
+          $('dHiku').textContent =
+            mieruNo({ mieta: MIETA })
+              .map(function (x) {
+                return x.label || '';
+              })
+              .join('・') || 'なし';
           if ($('jippiNa'))
             $('jippiNa').textContent =
               uteruKinds()
@@ -1222,329 +1090,6 @@
                   return x.label;
                 })
                 .join('・') || '会社設定で 決めた 物';
-          // 会社が 足した 物は いつも 引く（js/uriage-agg.js deductOf の soto）＝押せない チェックで 並べる
-          $('dSoto').innerHTML = mieruNo({ mieta: MIETA })
-            .filter(function (x) {
-              return ['toll', 'bridge', 'other'].indexOf(x.kind_id) < 0;
-            })
-            .map(function (x) {
-              return (
-                '<label class="chk" title="会社が 足した 実費は いつも 引きます"><input type="checkbox" checked disabled data-soto="' +
-                esc(x.kind_id) +
-                '" /> ' +
-                esc(x.label || '') +
-                '</label>'
-              );
-            })
-            .join('');
-        }
-        // 書かせない 訳（読めていない 物が 在る）。無ければ ''
-        function kakasenai() {
-          // ★この 月の 読みが 通るまで 書かない★（前の 月の 設定・記録で 書いて 失敗の 訳を 消した・対立役 P9 の 続き）2026-10-22
-          if (YOMICHU) return '読み込み中です。読み終えてから もう一度 押してください。';
-          if (KAMI_TSUKI !== ymKey(MONTH))
-            return 'この 月の 読み込みに 失敗したので 保存しません。上の「もう一度読む」を 押してください。';
-          if (SS_DAME)
-            return '売上から 引く 物の 設定を 読めていないので 保存しません。開き直してください。';
-          if (RIREKI_DAME || !Array.isArray(RIREKI))
-            return '記録を 読めていないので 保存しません。開き直してください。';
-          return '';
-        }
-        // 選んだ 日が 見ている 月に 効くか・次の 記録まで（対立役 直3：チェックと 表が ずれて 見える）
-        function hiNoTsukiChui(hi) {
-          var r = monthRange(MONTH);
-          var sue = new Date(new Date(r.to).getTime() + 9 * 3600 * 1000 - 86400000)
-            .toISOString()
-            .slice(0, 10);
-          if (hi > sue) return '見ている 月より 後の 日です。この 月の 数字は 変わりません。';
-          var tsugi = (RIREKI || [])
-            .map(function (x) {
-              return String(x.from_date).slice(0, 10);
-            })
-            .filter(function (d) {
-              return d > hi;
-            })
-            .sort()[0];
-          return tsugi ? '（' + tsugi + ' の 記録まで）' : '';
-        }
-        function renderSettings() {
-          var hi = hikiHi();
-          $('dHi').value = hi;
-          var s =
-            hi && KUMI
-              ? UriageAgg.settingsOnDay(SETTINGS, KUMI, hi)
-              : SETTINGS || UriageAgg.normSettings(null);
-          hikiNaNuru();
-          $('dToll').checked = !!s.deduct_toll;
-          $('dBridge').checked = !!s.deduct_bridge;
-          $('dOther').checked = !!s.deduct_other;
-          var kazu = Array.isArray(RIREKI) ? RIREKI.length : 0;
-          $('dRireki').textContent = '記録 ' + kazu;
-          var chui = '';
-          if (RIREKI_DAME) chui = RIREKI_DAME_BUN;
-          else if (hi)
-            chui =
-              hi + ' から 次の 記録の 日まで、チェックの 通りに 引きます。' + hiNoTsukiChui(hi);
-          else if (kazu) {
-            var l = RIREKI.map(function (x) {
-              return String(x.from_date).slice(0, 10);
-            }).sort();
-            chui = '空（最初から）＝' + l[0] + ' より 前の 日だけに 効きます。';
-          } else chui = '空（最初から）＝全部の 日に 効きます。';
-          $('dChui').textContent = chui;
-          ['dToll', 'dBridge', 'dOther'].forEach(function (id) {
-            $(id).disabled = KAKI_CHU;
-          });
-          renderRireki();
-        }
-        $('dHi').onchange = function () {
-          HIKI_HI = $('dHi').value || '';
-          renderSettings();
-        };
-        $('dRireki').onclick = function () {
-          RIREKI_HIRAKU = !RIREKI_HIRAKU;
-          renderRireki();
-        };
-        ['dToll', 'dBridge', 'dOther'].forEach(function (id) {
-          $(id).onchange = function () {
-            var hi = hikiHi();
-            // ★日付が 在る＝その 日からの 記録を その場で 書く★（列は 変えない）
-            var dame = kakasenai();
-            if (dame) {
-              renderSettings();
-              return showErr(dame);
-            }
-            if (hi) return saveRireki(HIKI_KEY[id], $(id).checked, hi);
-            // 空＝最初から＝今まで 通り 列を 直す（★変えた 鍵だけ 送る★・書けなければ 元へ 戻す）
-            var mae = SETTINGS;
-            var kagi = 'deduct_' + HIKI_KEY[id];
-            SETTINGS = Object.assign({}, UriageAgg.normSettings(mae));
-            SETTINGS[kagi] = $(id).checked;
-            recalc();
-            render();
-            saveSettings(kagi, mae);
-          };
-        });
-        // ★書いて 返った 行が 1件か★（0行の 黙りを 防ぐ）
-        function rirekiKaku(path, method, body) {
-          return DKSession.rest(SESS, path, {
-            method: method,
-            headers: { Prefer: 'return=representation' },
-            body: body === undefined ? undefined : JSON.stringify(body),
-          }).then(function (r) {
-            if (!r.ok) return { ok: false, r: r };
-            return r.json().then(function (rows) {
-              return {
-                ok: Array.isArray(rows) && rows.length === 1,
-                r: r,
-                zero: !(rows && rows.length),
-              };
-            });
-          });
-        }
-        function rirekiOwari(msg, flashMsg) {
-          return function (x) {
-            KAKI_CHU = false;
-            if (!x.ok) {
-              if (x.r && x.r.status === 409)
-                showErr(
-                  '同じ 物に 同じ 日の 記録が もう 在ります。そちらを 直すか 消してください。'
-                );
-              else if (x.zero) showErr(msg + '（書けた 行が ありません。開き直してください）');
-              else saveErr(msg, x.r);
-            } else kakiOkErrKesu();
-            return rirekiYomu(LOAD).then(function (rows) {
-              RIREKI = rows;
-              recalc();
-              renderSettings();
-              render();
-              if (x.ok && flashMsg) {
-                $('setSaved').textContent = flashMsg;
-                setTimeout(function () {
-                  $('setSaved').textContent = '';
-                }, 2500);
-              }
-            });
-          };
-        }
-        // 届かなかった＝読み直して 元の 形に 戻す
-        function rirekiShippai(msg) {
-          return function () {
-            rirekiOwari(msg)({ ok: false, r: null }).then(function () {
-              showErr(msg);
-            });
-          };
-        }
-        // 選んだ 日から 引く／引かない（同じ 物・同じ 日の 記録が 在れば 直す・無ければ 足す）
-        function saveRireki(key, v, hi) {
-          if (!COMPANY) return;
-          var dame = kakasenai();
-          if (dame) {
-            renderSettings();
-            return showErr(dame);
-          }
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(hi)) {
-            renderSettings();
-            return showErr('日付を 入れてください。');
-          }
-          // ★同じ 物・同じ 日の 記録が 在れば 直す・無ければ 足す を 倉庫で 決める★（on_conflict・対立役 直1）
-          //   手元の 一覧で 決めると 古い 一覧・2つの タブ・二度押しで 2件目が 断られる
-          KAKI_CHU = true;
-          renderSettings();
-          return DKSession.rest(SESS, 'dk_uriage_rireki?on_conflict=company_id,key,from_date', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-            body: JSON.stringify({
-              company_id: COMPANY.company_id,
-              key: key,
-              from_date: hi,
-              value: !!v,
-            }),
-          })
-            .then(function (r) {
-              if (!r.ok) return { ok: false, r: r };
-              return r.json().then(function (rows) {
-                return {
-                  ok: Array.isArray(rows) && rows.length === 1,
-                  r: r,
-                  zero: !(rows && rows.length),
-                };
-              });
-            })
-            .then(rirekiOwari('保存できませんでした。', hi + ' から 保存しました'))
-            .catch(rirekiShippai('保存できませんでした。'));
-        }
-        function renderRireki() {
-          var w = $('dRirekiWaku');
-          w.style.display = RIREKI_HIRAKU ? 'block' : 'none';
-          if (!RIREKI_HIRAKU) return;
-          var s = SETTINGS || UriageAgg.normSettings(null);
-          var h =
-            '<b>売上から 引く 物の 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 引き方＝' +
-            ['toll', 'bridge', 'other']
-              .filter(hikiMieru)
-              .map(function (k) {
-                return esc(hikiNa(k)) + (s['deduct_' + k] ? ' 引く' : ' 引かない');
-              })
-              .join('・') +
-            '）';
-          if (!Array.isArray(RIREKI)) {
-            w.innerHTML =
-              h + '<div class="note">記録を 読めませんでした。開き直してください。</div>';
-            return;
-          }
-          var l = RIREKI.slice().sort(function (a, b) {
-            var x = String(a.from_date) + a.key;
-            var y = String(b.from_date) + b.key;
-            return x < y ? -1 : x > y ? 1 : 0;
-          });
-          if (!l.length) h += '<div class="note">まだ 記録は ありません。</div>';
-          l.forEach(function (x) {
-            var id = esc(x.rireki_id);
-            h +=
-              '<div class="r"><input type="date" data-uk-hi="' +
-              id +
-              '" value="' +
-              esc(String(x.from_date).slice(0, 10)) +
-              '"> から ' +
-              esc(hikiNa(x.key)) +
-              ' <select data-uk-v="' +
-              id +
-              '"><option value="1"' +
-              (x.value === true ? ' selected' : '') +
-              '>引く</option><option value="0"' +
-              (x.value === false ? ' selected' : '') +
-              '>引かない</option></select> <button class="navb" type="button" data-uk-del="' +
-              id +
-              '">消す</button></div>';
-          });
-          w.innerHTML = h;
-          var q = function (sel, fn) {
-            Array.prototype.forEach.call(w.querySelectorAll(sel), fn);
-          };
-          var dameNara = function () {
-            var d = kakasenai();
-            if (d) {
-              showErr(d);
-              renderRireki();
-            }
-            return d;
-          };
-          q('[data-uk-hi]', function (i) {
-            i.onchange = function () {
-              if (dameNara()) return;
-              if (!/^\d{4}-\d{2}-\d{2}$/.test(i.value)) return showErr('日付を 入れてください。');
-              rirekiKaku(
-                'dk_uriage_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-uk-hi')),
-                'PATCH',
-                { from_date: i.value }
-              )
-                .then(rirekiOwari('日付を 直せませんでした。', '日付を 直しました'))
-                .catch(rirekiShippai('日付を 直せませんでした。'));
-            };
-          });
-          q('[data-uk-v]', function (i) {
-            i.onchange = function () {
-              if (dameNara()) return;
-              rirekiKaku(
-                'dk_uriage_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-uk-v')),
-                'PATCH',
-                { value: i.value === '1' }
-              )
-                .then(rirekiOwari('直せませんでした。', '直しました'))
-                .catch(rirekiShippai('直せませんでした。'));
-            };
-          });
-          q('[data-uk-del]', function (b) {
-            b.onclick = function () {
-              if (dameNara()) return;
-              rirekiKaku(
-                'dk_uriage_rireki?rireki_id=eq.' +
-                  encodeURIComponent(b.getAttribute('data-uk-del')),
-                'DELETE'
-              )
-                .then(rirekiOwari('消せませんでした。', '消しました'))
-                .catch(rirekiShippai('消せませんでした。'));
-            };
-          });
-        }
-        //   kagi＝変えた 鍵（deduct_toll 等）だけ 送る／mae＝書けなかった 時に 戻す 値 2026-10-18（対立役 止3・直2）
-        function saveSettings(kagi, mae) {
-          if (!COMPANY) return;
-          var body = { company_id: COMPANY.company_id, updated_at: new Date().toISOString() };
-          body[kagi] = SETTINGS[kagi];
-          var modosu = function () {
-            SETTINGS = mae;
-            recalc();
-            renderSettings();
-            render();
-          };
-          KAKI_CHU = true;
-          renderSettings();
-          DKSession.rest(SESS, 'dk_sales_settings?on_conflict=company_id', {
-            method: 'POST',
-            headers: { Prefer: 'resolution=merge-duplicates' },
-            body: JSON.stringify(body),
-          })
-            .then(function (r) {
-              KAKI_CHU = false;
-              $('setSaved').textContent = r.ok ? '保存しました' : '';
-              if (!r.ok) {
-                saveErr('設定を保存できませんでした。', r);
-                modosu();
-              } else {
-                kakiOkErrKesu();
-                renderSettings();
-              }
-              setTimeout(function () {
-                $('setSaved').textContent = '';
-              }, 1600);
-            })
-            .catch(function () {
-              KAKI_CHU = false;
-              showErr('設定を保存できませんでした。');
-              modosu();
-            });
         }
 
         // ---------- 描画 ----------
@@ -1691,13 +1236,6 @@
             kamiMsg('紙を 出せません：' + (e && e.message ? e.message : e));
           }
           var rows = MODE === 'day' ? DAYS : ROWS;
-          // ★記録が 読めない＝数字を 出さない★（0 と 見せない）2026-10-18
-          if (RIREKI_DAME) {
-            list.innerHTML = '';
-            showMsg('');
-            showErr('');
-            return;
-          }
           // ★実費が 読めない 月も 数字を 出さない★ 2026-10-21（対立役 U-1：表の 合計が 引く 前の ¥40,000 で 出た）
           if (EDITS_DAME || MD_DAME) {
             list.innerHTML = '';

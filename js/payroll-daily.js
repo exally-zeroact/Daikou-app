@@ -182,12 +182,12 @@
   }
 
   // ─── 生データを引きやすい形にする ──────────────────────
-  //   raw = { shifts, edits, labels, employees, workHours, salesSettings, payrollSettings }
+  //   raw = { shifts, edits, labels, employees, workHours, payrollSettings }
+  //   ★raw.salesSettings・raw.uriageRireki は 読まない★ 2026-10-24 件J（入れた 実費は 全部 引く＝選ぶ 形を やめた）
   function buildCtx(raw) {
     const Uriage = _need('UriageAgg', './uriage-agg.js');
     const ctx = {
       settings: normSettings(raw && raw.payrollSettings, raw ? raw.shimeRireki : undefined),
-      salesSettings: raw ? raw.salesSettings : null,
       byDate: {}, // 日付 → { 車ID → {sales, expense, hours, label} }
       hoursByDate: {}, // 日付 → { 従業員ID → {device_id, hours} }
       employees: [],
@@ -204,22 +204,6 @@
       // 役割の 決まりが 無くて 計算できない 人の 日 2026-10-17（yakuDameWoKazoeru）
       //   ★歩合0・保証0に 倒さない★。画面は これが 1件でも 在れば 明細・紙を 止めて 知らせる
       yakuDame: [],
-    };
-    // ★★売上から 引く 物の「何日から」★★ 2026-10-18（docs/nannichi-kara-uriage.md）
-    //   raw.uriageRireki＝dk_uriage_rireki の 行。undefined＝記録 無し（今と 同じ）。null・形が 違う＝止める
-    //   ★業務を 回す 前に 読む★（実費は 業務ごとに その 日の 引き方で 引く）
-    let uriageKumi = null;
-    let uriageRirekiDame = false;
-    try {
-      uriageKumi = Uriage ? Uriage.rirekiKumu(raw ? raw.uriageRireki : undefined) : null;
-    } catch (_) {
-      uriageRirekiDame = true;
-    }
-    ctx.uriageKumi = uriageKumi;
-    const hikiKata = function (date) {
-      return uriageKumi
-        ? Uriage.settingsOnDay(ctx.salesSettings, uriageKumi, date)
-        : ctx.salesSettings;
     };
     try {
       const r = raw && typeof raw === 'object' ? raw : {};
@@ -280,7 +264,7 @@
         const u = Uriage ? Uriage.uriageOf(s, e) : null;
         if (u === null) ctx.uriageDame.push(s.shift_id);
         else c.sales += u;
-        c.expense += Uriage ? Uriage.deductOf(e, hikiKata(date)) : 0; // ★売上表と同じ引き方★（その 日の）
+        c.expense += Uriage ? Uriage.deductOf(e) : 0; // ★売上表と同じ引き方★（入れた 実費 全部）
         c.hours += carHoursOf(s, e); // 同じ車で1日2回働いたら足す
 
         c.fromMeter = true; // ★メーターの記録がある印★（下で手入力を無視する判断に使う）
@@ -310,16 +294,13 @@
           device_id: dev,
           sales: n(m.sales_yen),
           expense: Uriage
-            ? Uriage.deductOf(
-                // ★会社が 足した 実費（expenses）も 引く★ 2026-10-20（司さん「揃えろ」＝メーターの 日と 同じ 引き方）
-                {
-                  toll_yen: m.toll_yen,
-                  bridge_yen: m.bridge_yen,
-                  other_yen: m.other_yen,
-                  expenses: m.expenses,
-                },
-                hikiKata(date)
-              )
+            ? // ★会社が 足した 実費（expenses）も 引く★ 2026-10-20（司さん「揃えろ」＝メーターの 日と 同じ 引き方）
+              Uriage.deductOf({
+                toll_yen: m.toll_yen,
+                bridge_yen: m.bridge_yen,
+                other_yen: m.other_yen,
+                expenses: m.expenses,
+              })
             : 0,
           hours: n(m.hours),
           trips: n(m.trip_count),
@@ -412,8 +393,6 @@
     } catch (_) {
       yakuRirekiDame = true;
     }
-    if (uriageRirekiDame)
-      ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: '', wake: 'uriageRireki' });
     if (yakuRirekiDame)
       ctx.yakuDame.push({ employee_id: '', name: '', date: '', role: '', wake: 'yakuRireki' });
     // ★決まり（列）に 無い 役割の 記録が 残っている＝止める★（対立役 10-18 2回目 止1）
@@ -622,12 +601,6 @@
       })
     )
       return '役割の 決まりの 変えた 記録を 読めませんでした。給料の 明細・紙は 止めています。もう一度 開いてください。';
-    if (
-      l.some(function (x) {
-        return x && x.wake === 'uriageRireki';
-      })
-    )
-      return '売上から 引く 物の 変えた 記録を 読めませんでした。給料の 明細・紙は 止めています。もう一度 開いてください。';
     const nokori = l
       .filter(function (x) {
         return x && x.wake === 'yakuNokori';

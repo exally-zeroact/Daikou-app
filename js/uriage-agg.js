@@ -46,30 +46,15 @@
     return s.length > 8 ? s.slice(0, 8) + '…' : s;
   }
 
-  // ★売上から何を引くかの設定（会社ごと）★
-  //   司さん指示(2026-08-01)「売上は橋代と高速代引いた分」「ユーザー毎に引くものを選べるように」
-  //   既定 = 高速代と橋代を引く（その他は引かない）
-  const DEFAULT_DEDUCT = { deduct_toll: true, deduct_bridge: true, deduct_other: false };
-
-  function normSettings(s) {
-    try {
-      if (!s || typeof s !== 'object') return Object.assign({}, DEFAULT_DEDUCT);
-      return {
-        deduct_toll: s.deduct_toll === undefined ? DEFAULT_DEDUCT.deduct_toll : !!s.deduct_toll,
-        deduct_bridge:
-          s.deduct_bridge === undefined ? DEFAULT_DEDUCT.deduct_bridge : !!s.deduct_bridge,
-        deduct_other: s.deduct_other === undefined ? DEFAULT_DEDUCT.deduct_other : !!s.deduct_other,
-      };
-    } catch (_) {
-      return Object.assign({}, DEFAULT_DEDUCT);
-    }
-  }
-
   // ★売上から引く額（1件ぶん）★
   //   売上表も給料も★必ずこれを通す★。別々に書くと片方だけ直して金額が食い違う。
+  // ★★入れた 実費は 全部 引く★★ 2026-10-24（件J・司さん「実費は足したもの全て引く形やないと経費の意味ないやないか」）
+  //   前（08-01〜）は 高速代・橋代・その他 の 3つを 会社の 設定（dk_sales_settings の deduct_*）と
+  //   「何日から」の 記録（dk_uriage_rireki）で 引く／引かないを 選べた ⇒ ★選ぶ 形は やめた★（設定は もう 読まない）
+  //   本番 10-24 実測：設定 1社（その他を 引かない）・その他の 実費は 0円・記録 0行＝今の 数は 1円も 動かない
   // ★★会社が 足した 実費も 引く★★ 2026-09-06（司さん
   //   「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ」）
-  //   ★古い 3つ（toll/bridge/other）は 今まで通り 列から・チェックで 引くか 決める★
+  //   ★古い 3つ（toll/bridge/other）は 列から 数える（10-24 からは いつも 引く）★
   //   ★足した 物は edit.expenses（名前つき）から 全部 引く★
   //     ＝足した 物に「引く/引かない」の チェックは 在りません（足した＝引く 物）。
   //   ★★1円も 変わらない事★★
@@ -104,9 +89,8 @@
     return Number.isSafeInteger(x) ? x : undefined;
   }
 
-  function deductOf(edit, settings) {
+  function deductOf(edit) {
     try {
-      const st = normSettings(settings);
       const e = edit || {};
       let soto = 0;
       const x = e.expenses;
@@ -117,66 +101,19 @@
           soto += n(x[k]);
         });
       }
-      return (
-        (st.deduct_toll ? n(e.toll_yen) : 0) +
-        (st.deduct_bridge ? n(e.bridge_yen) : 0) +
-        (st.deduct_other ? n(e.other_yen) : 0) +
-        soto
-      );
+      return n(e.toll_yen) + n(e.bridge_yen) + n(e.other_yen) + soto;
     } catch (_) {
       return 0;
     }
-  }
-
-  // ─── 売上から 引く 物の「何日から」──────────────────────── 2026-10-18（docs/nannichi-kara-uriage.md）
-  //   rows＝dk_uriage_rireki の 行 {key:'toll'|'bridge'|'other', from_date, value:true|false}
-  //   ★形が 違えば throw★（呼ぶ 側が 止めて 知らせる＝黙って 列の 値に 倒さない）。undefined＝記録 無し
-  const RIREKI_KEYS = { toll: 'deduct_toll', bridge: 'deduct_bridge', other: 'deduct_other' };
-  function rirekiKumu(rows) {
-    if (rows === undefined) return null;
-    if (!Array.isArray(rows)) throw new Error('uriageRireki');
-    const out = {};
-    rows.forEach(function (x) {
-      if (!x || typeof x !== 'object' || !Object.prototype.hasOwnProperty.call(RIREKI_KEYS, x.key))
-        throw new Error('uriageRireki');
-      const d = String(x.from_date || '').slice(0, 10);
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || typeof x.value !== 'boolean')
-        throw new Error('uriageRireki');
-      (out[x.key] || (out[x.key] = [])).push({ d: d, v: x.value });
-    });
-    Object.keys(out).forEach(function (k) {
-      out[k].sort(function (a, b) {
-        return a.d < b.d ? -1 : a.d > b.d ? 1 : 0;
-      });
-    });
-    return Object.keys(out).length ? out : null;
-  }
-  // ★その 日の 引き方★＝列（normSettings）に、各 鍵の from_date ≤ 日 で 一番 新しい 記録を 重ねる
-  //   kumi が 無い（記録 0）＝normSettings(列) そのもの（今と 1円も 違わない）
-  function settingsOnDay(settings, kumi, date) {
-    const st = normSettings(settings);
-    if (!kumi) return st;
-    const d = String(date || '').slice(0, 10);
-    Object.keys(RIREKI_KEYS).forEach(function (k) {
-      let v;
-      arr(kumi[k]).forEach(function (x) {
-        if (x.d <= d) v = x.v;
-      });
-      if (v !== undefined) st[RIREKI_KEYS[k]] = v;
-    });
-    return st;
   }
 
   // 車ごとにまとめる
   //   shifts   … dk_shifts の行
   //   edits    … dk_shift_edits の行（手入力: 高速代・橋代・その他）
   //   labels   … dk_device_labels の行（車の呼び名）
-  //   settings … 売上から何を引くか（会社ごと）
-  //   kumi     … 売上から 引く 物の 記録（rirekiKumu の 返り値・無ければ null）2026-10-18
-  //   ★引く 額は 業務ごとに その 日の 引き方で 出して 足す★（足し算は 線形＝記録が 無ければ 今と 同じ 額）
-  function byDevice(shifts, edits, labels, settings, kumi) {
+  //   ★引く 額＝入れた 実費 全部（deductOf）★ 2026-10-24 件J（設定・記録は もう 受け取らない）
+  function byDevice(shifts, edits, labels) {
     try {
-      const st = normSettings(settings);
       // 手入力を勤務IDで引けるようにする
       const editById = {};
       arr(edits).forEach(function (e) {
@@ -237,8 +174,7 @@
             other_yen: 0,
             expenses: {}, // ★会社が 足した 実費（名前つき）の 合計★ 2026-10-05
             expense_yen: 0,
-            deduct_yen: 0, // 売上から引く分（設定で選ばれた項目だけ）
-            deduct_hi: 0, // 記録が 在る 時の 業務ごとの 引く 額の 合計（下で deduct_yen に する）
+            deduct_yen: 0, // 売上から引く分（入れた 実費 全部＝expense_yen と 同じ 数）
             net_fare_yen: 0, // ★これが「売上」★（実費を引いた分）
             shifts: [],
           };
@@ -270,8 +206,6 @@
             r.expenses[k] = n(r.expenses[k]) + n(ex[k]);
           });
         }
-        // ★記録が 在る 時だけ★ 業務の 日（dayOf＝給料と 同じ 日本時間）の 引き方で 引く 額を 足す
-        if (kumi) r.deduct_hi += deductOf(e, settingsOnDay(settings, kumi, dayOf(s.started_at)));
         r.shifts.push(s);
       });
 
@@ -284,20 +218,13 @@
           soto += n(r.expenses[k]);
         });
         r.expense_yen = r.toll_yen + r.bridge_yen + r.other_yen + soto; // 手入力した実費ぜんぶ
-        // ★売上から引く分＝会社が「引く」と選んだ項目だけ★（給料と同じ関数を通す）
-        //   記録が 無い 会社は 今と 同じ（車の 合計に 1回）。在れば 業務ごとに その 日の 引き方で 足した 額
-        r.deduct_yen = kumi
-          ? r.deduct_hi
-          : deductOf(
-              {
-                toll_yen: r.toll_yen,
-                bridge_yen: r.bridge_yen,
-                other_yen: r.other_yen,
-                expenses: r.expenses,
-              },
-              st
-            );
-        delete r.deduct_hi;
+        // ★売上から引く分＝入れた 実費 全部★（給料と同じ関数を通す）2026-10-24 件J
+        r.deduct_yen = deductOf({
+          toll_yen: r.toll_yen,
+          bridge_yen: r.bridge_yen,
+          other_yen: r.other_yen,
+          expenses: r.expenses,
+        });
         r.net_fare_yen = r.fare_total_yen - r.deduct_yen; // ★これが売上★
         return r;
       });
@@ -336,7 +263,7 @@
 
   //   返す形: [{ date, …車ごとと同じ合計…, cars:[車ごとの行], shifts:[その日の勤務] }]
   //   ★数字は1円も変えない★ 日ごとの合計 ＝ 車ごとの合計（試験で毎回突き合わせる）
-  function byDay(shifts, edits, labels, settings, kumi) {
+  function byDay(shifts, edits, labels) {
     try {
       // 日ごとに勤務を仕分けてから、★車ごとと同じ関数(byDevice)に通す★
       //   別々に足すと、引く物の設定や「印を付けた勤務」の扱いがズレる。
@@ -352,7 +279,7 @@
       return Object.keys(bucket)
         .sort()
         .map(function (d) {
-          const cars = byDevice(bucket[d], edits, labels, settings, kumi);
+          const cars = byDevice(bucket[d], edits, labels);
           const t = total(cars);
           t.date = d;
           // ★車の並びは js/car-name.js が1箇所で決める★（売上・給料・請求書と揃える）
@@ -416,13 +343,9 @@
     byDevice: byDevice,
     byDay: byDay, // ★日ごと（2026-08-09 司さん「1日おきと車おきで見れないかん」）★
     total: total,
-    normSettings: normSettings,
     deductOf: deductOf,
-    rirekiKumu: rirekiKumu, // 売上から 引く 物の 記録（何日から）2026-10-18
-    settingsOnDay: settingsOnDay,
     uriageOf: uriageOf,
     yomuUriage: yomuUriage,
-    DEFAULT_DEDUCT: DEFAULT_DEDUCT,
   };
 
   if (global) global.UriageAgg = api;

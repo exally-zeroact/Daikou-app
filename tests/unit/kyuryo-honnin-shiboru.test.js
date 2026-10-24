@@ -260,11 +260,22 @@ describe('② ★絞っても 本人の 給料は 1円も 変わらない★', (
   it('★事務所の 画面で 出る 本人の 額と 日ごとに 同じ★（会社の 設定が 既定と 違っても）', () => {
     expect(ato).toEqual(jimusho);
   });
-  it('★前の 本人画面（設定を 読まない）は 事務所と ずれていた★＝この 試験が ずれを 見分けられる', () => {
-    expect(
-      maeNoHonnin,
-      '★既定と 違う 設定でも ずれない＝試験の 材料が 実費に 当たっていない★'
-    ).not.toEqual(jimusho);
+  // ★2026-10-24 件J：入れた 実費は 全部 引く＝売上設定は 計算が 読まない★
+  //   前は「設定を 読まない 本人画面は 事務所と ずれる」を 見ていた ⇒ 今は 設定が 何でも 同じ 額で ある事を 見る
+  //   （倉庫の 関数 dk_kyuryo_get は 変えない＝salesSettings は 返って くるが 画面は 使わない）
+  it('★設定を 渡さない 本人画面も 事務所と 同じ★（売上設定は もう 計算に 効かない）', () => {
+    expect(maeNoHonnin).toEqual(jimusho);
+    // 空回り 防ぎ：材料に 実費が 入っている（引かれた 分だけ 時給が 下がる）
+    const hikanai = honninNoKyuryo(
+      Object.assign({}, FULL, {
+        edits: FULL.edits.map((e) =>
+          Object.assign({}, e, { toll_yen: 0, bridge_yen: 0, other_yen: 0, expenses: {} })
+        ),
+      }),
+      EMP,
+      null
+    );
+    expect(hikanai, '★材料が 実費に 当たっていない★').not.toEqual(jimusho);
   });
   it('★計算が 読む 列は 全部 返している★', () => {
     for (const k of ['shift_id', 'toll_yen', 'bridge_yen', 'other_yen', 'expenses', 'hours'])

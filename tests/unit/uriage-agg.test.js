@@ -107,51 +107,38 @@ describe('車ごとにまとめる', () => {
 });
 
 describe('★売上は実費を引いた分（司さん指示 2026-08-01）★', () => {
-  it('既定は 高速代と橋代を引く（その他は引かない）', () => {
+  // ★★入れた 実費は 全部 引く★★ 2026-10-24 件J（司さん「実費は足したもの全て引く形やないと経費の意味ないやないか」）
+  //   前（08-01〜）の「会社ごとに 引く 物を 選べる」形は やめた＝設定を 渡しても 見ない
+  it('★入れた 実費（高速・橋・その他）は 全部 引く★', () => {
     const rows = Agg.byDevice(
       [shift({ shift_id: 's1', fare_total_yen: 50000 })],
       [{ shift_id: 's1', toll_yen: 3000, bridge_yen: 1000, other_yen: 500 }],
       []
     );
     expect(rows[0].fare_total_yen).toBe(50000); // 総額はそのまま持つ
-    expect(rows[0].deduct_yen).toBe(4000); // 高速+橋
-    expect(rows[0].net_fare_yen).toBe(46000); // ★これが売上★
+    expect(rows[0].deduct_yen).toBe(4500); // 高速+橋+その他
+    expect(rows[0].deduct_yen).toBe(rows[0].expense_yen); // 経費＝引いた 分
+    expect(rows[0].net_fare_yen).toBe(45500); // ★これが売上★
   });
 
-  it('★会社ごとに引くものを選べる★（その他も引く設定）', () => {
-    const rows = Agg.byDevice(
-      [shift({ shift_id: 's1', fare_total_yen: 50000 })],
-      [{ shift_id: 's1', toll_yen: 3000, bridge_yen: 1000, other_yen: 500 }],
-      [],
-      { deduct_toll: true, deduct_bridge: true, deduct_other: true }
-    );
-    expect(rows[0].deduct_yen).toBe(4500);
-    expect(rows[0].net_fare_yen).toBe(45500);
+  it('★前の 設定（引かない）を 渡しても 全部 引く★', () => {
+    for (const st of [
+      { deduct_toll: false, deduct_bridge: false, deduct_other: false },
+      { deduct_toll: true, deduct_bridge: false, deduct_other: false },
+      { deduct_toll: true, deduct_bridge: true, deduct_other: false },
+    ]) {
+      const rows = Agg.byDevice(
+        [shift({ shift_id: 's1', fare_total_yen: 50000 })],
+        [{ shift_id: 's1', toll_yen: 3000, bridge_yen: 1000, other_yen: 500 }],
+        [],
+        st
+      );
+      expect(rows[0].deduct_yen).toBe(4500);
+      expect(rows[0].net_fare_yen).toBe(45500);
+    }
   });
 
-  it('何も引かない設定にもできる', () => {
-    const rows = Agg.byDevice(
-      [shift({ shift_id: 's1', fare_total_yen: 50000 })],
-      [{ shift_id: 's1', toll_yen: 3000, bridge_yen: 1000, other_yen: 500 }],
-      [],
-      { deduct_toll: false, deduct_bridge: false, deduct_other: false }
-    );
-    expect(rows[0].deduct_yen).toBe(0);
-    expect(rows[0].net_fare_yen).toBe(50000);
-  });
-
-  it('高速だけ引く設定', () => {
-    const rows = Agg.byDevice(
-      [shift({ shift_id: 's1', fare_total_yen: 50000 })],
-      [{ shift_id: 's1', toll_yen: 3000, bridge_yen: 1000, other_yen: 500 }],
-      [],
-      { deduct_toll: true, deduct_bridge: false, deduct_other: false }
-    );
-    expect(rows[0].deduct_yen).toBe(3000);
-    expect(rows[0].net_fare_yen).toBe(47000);
-  });
-
-  it('設定が壊れていても落ちない（既定に倒す）', () => {
+  it('設定が壊れていても落ちない', () => {
     expect(() =>
       Agg.byDevice([shift({ shift_id: 's1' })], [{ shift_id: 's1', toll_yen: 100 }], [], 'x')
     ).not.toThrow();
@@ -161,7 +148,7 @@ describe('★売上は実費を引いた分（司さん指示 2026-08-01）★',
       [],
       null
     );
-    expect(rows[0].net_fare_yen).toBe(900); // 既定=高速を引く
+    expect(rows[0].net_fare_yen).toBe(900); // 高速を引く
   });
 
   it('合計にも差引後が出る', () => {

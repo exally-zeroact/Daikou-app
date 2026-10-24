@@ -231,7 +231,7 @@ for (const na of [
   'dk_device_labels',
   'dk_employees',
   'dk_work_hours',
-  'dk_sales_settings',
+  // dk_sales_settings は 2026-10-24 件J で 読まなくした（入れた 実費は 全部 引く）
   'meisai',
   'dk_month_extras',
   'dk_day_extras',

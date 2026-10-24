@@ -172,12 +172,14 @@ describe('★1/7 経費のある日も実物と一致★', () => {
     expect(r.ownerShare).toBeCloseTo(12383.5, 9);
   });
 
-  it('★引く実費は売上表の設定と同じ物を使う（画面同士が食い違わない）★', () => {
+  // ★2026-10-24 件J：入れた 実費は 全部 引く（司さん「実費は足したもの全て引く形やないと経費の意味ないやないか」）★
+  it('★前の 売上設定（高速を 引かない）を 渡しても 実費は 全部 引く★', () => {
     const off = D.computeDay(
       '2026-01-07',
       D.buildCtx(Object.assign({}, CTX_0107, { salesSettings: { deduct_toll: false } }))
     );
-    expect(off.poolSales).toBe(50200); // 経費を引かない = 23,900 + 26,300
+    expect(off.poolSales).toBe(r.poolSales);
+    expect(off.poolSales).toBeLessThan(50200); // 経費を引かない額（23,900 + 26,300）では ない
   });
 });
 

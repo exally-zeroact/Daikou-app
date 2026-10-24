@@ -220,17 +220,18 @@ test('本人の 関数が 古い（売上の 直しの 印が 無い）時は �
   await expect(page.locator('#slips')).toContainText('売上の 直しを 読めなかった');
 });
 
-// ★売上から 引く 物の 記録を 返さない（古い 倉庫の 関数）★ 2026-10-18（対立役 2回目 直2）
-//   わざと壊して 赤：kyuryo.html の Array.isArray(r.uriageRireki) の 止めを 外す ⇒ 赤（明細が 出た）
-test('本人の 関数が 売上から 引く 物の 記録を 返さない 時は 明細を 出さない', async ({ page }) => {
+// ★売上から 引く 物の 記録・設定は もう 使わない★ 2026-10-24 件J（入れた 実費は 全部 引く）
+//   前（10-18）は 記録を 返さない（古い 倉庫の 関数）時に 止めた。倉庫の 関数は 変えない（返って きても 見ない）
+//   ＝返って こなくても 明細を 出す
+test('本人の 関数が 売上から 引く 物の 記録・設定を 返さなくても 明細を 出す', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 900 });
-  await nise(page, false, { uriageRireki: undefined });
+  await nise(page, false, { uriageRireki: undefined, salesSettings: undefined });
   await page.fill('#hnPw', 'abcd1234');
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
-  await expect(page.locator('#slips')).toContainText(
-    '売上から 引く 物の 記録を 読めなかったので 出せません。会社に 知らせてください。'
-  );
+  await expect(page.locator('#slips')).toContainText('給料明細');
+  await expect(page.locator('#slips')).toContainText(EMP.name);
+  await expect(page.locator('#slips')).not.toContainText('売上から 引く 物の 記録を 読めなかった');
 });
 
 // ★締めの 形の 記録を 返さない（古い 倉庫の 関数）★ 2026-10-19（列の 形で 黙って 区切らない）

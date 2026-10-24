@@ -142,7 +142,8 @@ test('★手当・控除 90件（長い 名前）⇒ 明細の PDF を 作らず
 
 // ★★期間に 関係ない 物（売上の 設定・車の 名前）が 読めない ⇒ 給料表の PDF も 作らない★★ 2026-10-07（対立役 A）
 //   ★わざと壊して 赤（2026-10-07 実測）★ kamiCtx の LOAD_KIHON の 門を 外す ⇒ ★赤★（「出しました」）
-for (const hyou of ['dk_sales_settings', 'dk_device_labels']) {
+//   2026-10-24 件J：売上の 設定（dk_sales_settings）は もう 読まない（入れた 実費は 全部 引く）＝車の 名前だけ 見る
+for (const hyou of ['dk_device_labels']) {
   test('★' + hyou + ' が 読めない ⇒ 給料表の PDF を 作らない★', async ({ page }) => {
     const err = [];
     page.on('pageerror', (e) => err.push(e.message));

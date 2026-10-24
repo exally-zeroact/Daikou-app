@@ -63,29 +63,28 @@ const labels = [
   { device_id: 'car-a', label: '1号車', sort_order: 1 },
   { device_id: 'car-b', label: '2号車', sort_order: 2 },
 ];
-const settings = { deduct_toll: true, deduct_bridge: true, deduct_other: false };
 
 describe('★日ごとにまとめる★', () => {
   it('日付ごとに1行になる（新しい順ではなく 日付順）', () => {
-    const rows = UriageAgg.byDay(shifts, edits, labels, settings);
+    const rows = UriageAgg.byDay(shifts, edits, labels);
     expect(rows.map((r) => r.date)).toEqual(['2026-08-01', '2026-08-02']);
   });
 
   it('★同じ日は 車をまたいで足す★', () => {
-    const rows = UriageAgg.byDay(shifts, edits, labels, settings);
+    const rows = UriageAgg.byDay(shifts, edits, labels);
     const d1 = rows.find((r) => r.date === '2026-08-01');
     expect(d1.trip_count, '件数が足せていない').toBe(5); // 3 + 2
     expect(d1.fare_total_yen).toBe(20000); // 12000 + 8000
-    // 高速1000 + 橋500 を引く（その他300は引かない設定）
-    expect(d1.deduct_yen).toBe(1500);
-    expect(d1.net_fare_yen, '★これが売上★').toBe(18500);
+    // 高速1000 + 橋500 + その他300 を 全部 引く（2026-10-24 件J：入れた 実費は 全部 引く）
+    expect(d1.deduct_yen).toBe(1800);
+    expect(d1.net_fare_yen, '★これが売上★').toBe(18200);
   });
 
   it('★その日に出ていた車が分かる（開いた時に出す）★', () => {
-    const rows = UriageAgg.byDay(shifts, edits, labels, settings);
+    const rows = UriageAgg.byDay(shifts, edits, labels);
     const d1 = rows.find((r) => r.date === '2026-08-01');
     expect(d1.cars.map((c) => c.label)).toEqual(['1号車', '2号車']);
-    expect(d1.cars.find((c) => c.label === '1号車').net_fare_yen).toBe(10500);
+    expect(d1.cars.find((c) => c.label === '1号車').net_fare_yen).toBe(10200);
     expect(d1.cars.find((c) => c.label === '2号車').net_fare_yen).toBe(8000);
   });
 
@@ -94,7 +93,7 @@ describe('★日ごとにまとめる★', () => {
       { device_id: 'car-a', label: '1号車', sort_order: 2 },
       { device_id: 'car-b', label: '2号車', sort_order: 1 },
     ];
-    const rows = UriageAgg.byDay(shifts, edits, rev, settings);
+    const rows = UriageAgg.byDay(shifts, edits, rev);
     const d1 = rows.find((r) => r.date === '2026-08-01');
     expect(
       d1.cars.map((c) => c.label),
@@ -103,7 +102,7 @@ describe('★日ごとにまとめる★', () => {
   });
 
   it('開いた時に高速代を直せるよう、その日の勤務も持っている', () => {
-    const rows = UriageAgg.byDay(shifts, edits, labels, settings);
+    const rows = UriageAgg.byDay(shifts, edits, labels);
     const d1 = rows.find((r) => r.date === '2026-08-01');
     expect(d1.shifts.map((s) => s.shift_id).sort()).toEqual(['s1', 's2']);
   });
@@ -122,7 +121,7 @@ describe('★日本時間で日を切る（夜の仕事）★', () => {
         actual_total_m: 800,
       },
     ];
-    const rows = UriageAgg.byDay(late, [], labels, settings);
+    const rows = UriageAgg.byDay(late, [], labels);
     expect(rows[0].date, '★UTCで切っている＝日本の日付とズレる★').toBe('2026-08-02');
   });
 
@@ -138,22 +137,22 @@ describe('★日本時間で日を切る（夜の仕事）★', () => {
         actual_total_m: 90,
       },
     ];
-    expect(UriageAgg.byDay(morning, [], labels, settings)[0].date).toBe('2026-08-05');
+    expect(UriageAgg.byDay(morning, [], labels)[0].date).toBe('2026-08-05');
   });
 });
 
 describe('★どちらから見ても同じ数字★', () => {
   it('★日ごとの合計 ＝ 車ごとの合計★（1円でも違えばどちらかが嘘）', () => {
-    const byDev = UriageAgg.total(UriageAgg.byDevice(shifts, edits, labels, settings));
-    const byDay = UriageAgg.total(UriageAgg.byDay(shifts, edits, labels, settings));
+    const byDev = UriageAgg.total(UriageAgg.byDevice(shifts, edits, labels));
+    const byDay = UriageAgg.total(UriageAgg.byDay(shifts, edits, labels));
     for (const k of ['trip_count', 'fare_total_yen', 'deduct_yen', 'net_fare_yen']) {
       expect(byDay[k], '★' + k + ' が食い違う★').toBe(byDev[k]);
     }
   });
 
   it('総走行・実車も揃う', () => {
-    const a = UriageAgg.total(UriageAgg.byDevice(shifts, edits, labels, settings));
-    const b = UriageAgg.total(UriageAgg.byDay(shifts, edits, labels, settings));
+    const a = UriageAgg.total(UriageAgg.byDevice(shifts, edits, labels));
+    const b = UriageAgg.total(UriageAgg.byDay(shifts, edits, labels));
     expect(b.total_distance_m).toBe(a.total_distance_m);
     expect(b.actual_total_m).toBe(a.actual_total_m);
   });
@@ -173,9 +172,7 @@ describe('★印を付けた勤務は 日ごとでも出さない★（車ごと
         excluded: true,
       },
     ]);
-    const d1 = UriageAgg.byDay(withEx, edits, labels, settings).find(
-      (r) => r.date === '2026-08-01'
-    );
+    const d1 = UriageAgg.byDay(withEx, edits, labels).find((r) => r.date === '2026-08-01');
     expect(d1.trip_count, '★印を付けた勤務まで数えている★').toBe(5);
   });
 });

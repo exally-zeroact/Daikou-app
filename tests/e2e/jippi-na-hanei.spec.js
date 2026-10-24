@@ -6,24 +6,25 @@
 //   ★前★ 売上表の「売上から引くもの」は 字で「高速代・橋代・その他」固定（uriage.html）。
 //         月次集計の 紙は 実費の 一覧を 読まず null を 渡して いた＝古い 3つの 名前で 刷った（shukei.html）。
 //   ★今★ どちらも 会社設定の 一覧（dk_expense_kinds）の 名前。消した 物は 出さない。
-//         会社が 足した 物は いつも 引く（js/uriage-agg.js deductOf）＝押せない チェックで 並べる。
+//         会社が 足した 物は いつも 引く（js/uriage-agg.js deductOf）。
+//   ★2026-10-24 件J★ 入れた 実費は 全部 引く＝「引く／引かない」の チェックは 消した。
+//         売上表の「売上から引くもの」は 名前を 並べる 字（#dHiku）だけ。⑤（記録の 一覧）は 記録ごと 外した。
 //         ★お金は 1円も 変えない★（引く 額・引く 物は 前と 同じ）
 //
 //   材料＝本番の ZERO代行 と 同じ 形（2026-10-20 SELECT で 見た）：
 //     toll「高速代」消した／bridge「経費」生きている／other「その他」消した（使う 外し）
 //
 //   ★物差し★
-//     ① 売上表：出る 名前は「経費」だけ・チェックは 引く 設定の まま
-//     ② 売上表：会社が 足した 物は 押せない チェック（いつも 引く）
+//     ① 売上表：出る 名前は「経費」だけ・押せる 欄は 無い
+//     ② 売上表：会社が 足した 物も 名前が 並ぶ（いつも 引く）
 //     ③ 売上表：一覧が 読めない（空）⇒ 今までの 3つ
 //     ④ 売上表：紙の 数字は 一覧が 有っても 無くても 同じ（お金を 変えない）
-//     ⑤ 売上表：記録の 一覧の 字も「経費」
 //     ⑥ 月次集計の 紙：引いた 実費の 名前が「経費」・数字は 一覧が 無い 時と 同じ
 //     ⑦ 売上表「日ごと ▾（実費を 入れる）」の 欄も「経費」だけ・打つと bridge_yen に 入る
 //     ⑧ 消した 物でも その 月に 額が 在れば 隠さない（隠れたまま 引かれる 事を 作らない）
 //     ⑨ 月次集計の 画面の 内わけ：「経費（高速・橋など）」で なく 会社の 名前
 //     ⑩ 月次集計の 紙：全部 消した 会社は 古い 3つの 名前を 刷らない
-//     ⑪ 一覧に 古い 3つの 行が 無く 額が 在る ⇒ チェック・日ごとの 欄・道順の 字が 揃って 出る
+//     ⑪ 一覧に 古い 3つの 行が 無く 額が 在る ⇒ 引く 物の 名前・日ごとの 欄・道順の 字が 揃って 出る
 //     ⑫ 全部 消した 会社に 額が 在る ⇒ 月次の 紙は その 名前を 刷る（引いた 額と 名前を 揃える）
 //     ⑬ 消した 物の 欄に 0 を 打っても その 場では 欄が 消えない（打ち直せる）
 //     ⑭「使う」を 外した 物（消していない）は 日ごとの 欄に 出さない（入力の 画面と 同じ）
@@ -99,7 +100,6 @@ function tsukuru(o) {
     dk_device_labels: LABELS,
     dk_sales_settings: SETTINGS,
     dk_expense_kinds: x.kinds || [],
-    dk_uriage_rireki: x.rireki || [],
   };
   if (x.edits) hyou.dk_shift_edits = x.edits;
   return (
@@ -134,13 +134,11 @@ async function uriage(page, o) {
   await expect(kami.first(), '★紙が 出ない★').toBeVisible({ timeout: 15000 });
   return page.evaluate(() => {
     const mieru = (el) => !!el && el.offsetParent !== null;
-    const row = document.querySelector('#dToll').closest('.setrow');
+    const row = document.getElementById('dHiku');
     return {
-      na: [...row.querySelectorAll('label.chk')].filter(mieru).map((l) => l.textContent.trim()),
-      kesu: [...row.querySelectorAll('label.chk')].filter(mieru).map((l) => {
-        const i = l.querySelector('input');
-        return { c: i.checked, d: i.disabled };
-      }),
+      na: mieru(row) ? row.textContent.split('・').map((t) => t.trim()) : [],
+      // 引く／引かないを 選ぶ 欄は 無い（2026-10-24 件J）
+      oseru: document.querySelectorAll('.setrow input').length,
       kami: (document.querySelector('#kamiMado .kami-mise-waku').textContent || '').replace(
         /\s+/g,
         ' '
@@ -149,20 +147,18 @@ async function uriage(page, o) {
   });
 }
 
-test('① 売上表：出る 名前は 会社設定の「経費」だけ・チェックは 引く 設定の まま', async ({
-  page,
-}) => {
+test('① 売上表：出る 名前は 会社設定の「経費」だけ・押せる 欄は 無い', async ({ page }) => {
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
   const r = await uriage(page, { kinds: ZERO_KINDS });
   // eslint-disable-next-line no-console
-  console.log('★①★ ' + JSON.stringify({ na: r.na, kesu: r.kesu }));
+  console.log('★①★ ' + JSON.stringify({ na: r.na, oseru: r.oseru }));
   expect(r.na, '★会社設定の 名前で ない★').toEqual(['経費']);
-  expect(r.kesu).toEqual([{ c: true, d: false }]);
+  expect(r.oseru, '★引く／引かないを 選ぶ 欄が 在る★').toBe(0);
   expect(err).toEqual([]);
 });
 
-test('② 売上表：会社が 足した 物は 押せない チェック（いつも 引く）', async ({ page }) => {
+test('② 売上表：会社が 足した 物も 名前が 並ぶ（いつも 引く）', async ({ page }) => {
   const r = await uriage(page, {
     kinds: ZERO_KINDS.concat([
       { kind_id: 'p1', label: '駐車場代', sort_order: 40, active: true, deleted_at: null },
@@ -176,9 +172,9 @@ test('② 売上表：会社が 足した 物は 押せない チェック（い
     ]),
   });
   // eslint-disable-next-line no-console
-  console.log('★②★ ' + JSON.stringify({ na: r.na, kesu: r.kesu }));
+  console.log('★②★ ' + JSON.stringify({ na: r.na }));
   expect(r.na).toEqual(['経費', '駐車場代']);
-  expect(r.kesu[1], '★足した 物が 押せる／引かない に 見える★').toEqual({ c: true, d: true });
+  expect(r.oseru).toBe(0);
 });
 
 test('③ 売上表：一覧が 読めない（空）⇒ 今までの 3つ', async ({ page }) => {
@@ -199,19 +195,6 @@ test('④ 売上表：紙の 数字は 一覧が 有っても 無くても 同�
   expect(ari.kami).toContain('61,260');
   expect(ari.kami).toContain('3,740');
   expect(kazu(ari.kami), '★一覧で 数字が 変わった★').toBe(kazu(nashi.kami));
-});
-
-test('⑤ 売上表：記録の 一覧の 字も 会社設定の 名前', async ({ page }) => {
-  await uriage(page, {
-    kinds: ZERO_KINDS,
-    rireki: [{ rireki_id: 'u1', key: 'bridge', from_date: '2026-01-06', value: false }],
-  });
-  await page.click('#dRireki');
-  const t = ((await page.locator('#dRirekiWaku').textContent()) || '').replace(/\s+/g, ' ');
-  // eslint-disable-next-line no-console
-  console.log('★⑤★ ' + t.slice(0, 240));
-  expect(t).toContain('経費');
-  expect(t, '★古い 名前が 出た★').not.toMatch(/高速代|橋代|その他/);
 });
 
 async function getsujiKami(page, o) {
@@ -347,14 +330,13 @@ async function hiraku2(page) {
   }));
 }
 
-test('⑪ 一覧に 古い 3つの 行が 無く 額が 在る ⇒ チェック・欄・道順が 揃って 出る', async ({
-  page,
-}) => {
+test('⑪ 一覧に 古い 3つの 行が 無く 額が 在る ⇒ 名前・欄・道順が 揃って 出る', async ({ page }) => {
   const r = await uriage(page, { kinds: SOTO_DAKE, edits: GAKU_ARI });
   const d = await hiraku2(page);
   // eslint-disable-next-line no-console
   console.log('★⑪★ ' + JSON.stringify({ na: r.na, d }));
-  expect(r.na).toEqual(['高速代', '橋代', '駐車場代']);
+  // 並びは 欄・道順と 同じ 1か所（JippiHozon.mieruKinds）2026-10-24 件J
+  expect(r.na).toEqual(['駐車場代', '高速代', '橋代']);
   expect(d.f, '★額が 在るのに 直す 欄が 無い★').toEqual(['kabc', 'toll', 'bridge']);
   expect(d.note).toBe('駐車場代・高速代・橋代');
 });
@@ -379,9 +361,10 @@ test('⑬ 消した 物の 欄に 0 を 打っても その 場では 欄が 消
   await page.waitForTimeout(600);
   const r = await page.evaluate(() => ({
     f: [...document.querySelectorAll('.dedit input.yen')].map((i) => i.getAttribute('data-f')),
-    na: [...document.querySelectorAll('.setrow label.chk')]
-      .filter((l) => l.offsetParent !== null)
-      .map((l) => l.textContent.trim()),
+    na: document
+      .getElementById('dHiku')
+      .textContent.split('・')
+      .map((t) => t.trim()),
   }));
   // eslint-disable-next-line no-console
   console.log('★⑬★ ' + JSON.stringify(r));
@@ -401,8 +384,9 @@ test('⑭「使う」を 外した 物（消していない）は 日ごとの �
   expect(d.f, '★使わない 物の 欄が 出た★').toEqual(['bridge']);
 });
 
-// ★⑮ 月次集計の 画面の 内わけは 紙と 同じ「引く 物」だけ★（対立役 3回目 指1＝引かない その他を 並べない）
-test('⑮ 月次集計の 画面：引かない 物（その他）は 経費の 名前に 並べない', async ({ page }) => {
+// ★⑮ 月次集計の 画面の 内わけは 紙と 同じ「引く 物」★（対立役 3回目 指1）
+//   2026-10-24 件J：入れた 実費は 全部 引く＝前の 設定で 引かなかった その他も 並ぶ
+test('⑮ 月次集計の 画面：その他も 引く 物＝経費の 名前に 並ぶ', async ({ page }) => {
   await getsujiKami(page, {
     kinds: [
       { kind_id: 'toll', label: '高速代', sort_order: 10, active: true, deleted_at: null },
@@ -413,7 +397,7 @@ test('⑮ 月次集計の 画面：引かない 物（その他）は 経費の 
   const t = ((await page.locator('#kpis').textContent()) || '').replace(/\s+/g, ' ');
   // eslint-disable-next-line no-console
   console.log('★⑮★ ' + t.slice(0, 300));
-  expect(t, '★引かない その他を 経費に 並べた★').toContain('経費（高速代・橋代）');
+  expect(t, '★引いた その他が 経費の 名前に 無い★').toContain('経費（高速代・橋代・その他）');
 });
 
 test('⑯ 月次集計の 画面：会社が 付けた 名前の「（平日）」は 削らない', async ({ page }) => {
@@ -435,9 +419,10 @@ test('⑰ 売上表：月を 替えると 前の 月だけに 額が 在った �
   await page.click('#nextM');
   await page.waitForTimeout(1500);
   const na = await page.evaluate(() =>
-    [...document.querySelectorAll('.setrow label.chk')]
-      .filter((l) => l.offsetParent !== null)
-      .map((l) => l.textContent.trim())
+    document
+      .getElementById('dHiku')
+      .textContent.split('・')
+      .map((t) => t.trim())
   );
   // eslint-disable-next-line no-console
   console.log(

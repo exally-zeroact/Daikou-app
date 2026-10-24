@@ -247,24 +247,6 @@ test('★もう一度 読んで 読めたら 紙・表が 戻り 黄色い 帯�
   await expect(page.locator('#err')).toBeHidden();
 });
 
-// D-5：読めない 月に 設定の チェックを 押すと その 保存の 成功で 訳が 消えた（表は 空の まま 黙った）
-test('★実費が 読めない 月に 設定を 変えても 止めた 訳は 消えない★', async ({ page }) => {
-  await akeru(page, ['dk_shift_edits']);
-  await page.evaluate(() => {
-    const i = document.getElementById('dHi');
-    i.value = '';
-    i.dispatchEvent(new Event('change'));
-  });
-  await page.waitForTimeout(200);
-  await page.evaluate(() => {
-    const i = document.getElementById('dToll');
-    i.checked = !i.checked;
-    i.dispatchEvent(new Event('change'));
-  });
-  await page.waitForTimeout(800);
-  await expect(page.locator('#err'), '★止めた 訳が 消えた★').toContainText('読めません');
-});
-
 // ★★読みが 失敗した 後・何日からの 保存の 後★★ 2026-10-21（対立役 3回目 止め-1・止め-2・直す-1）
 // 止め-2：読み始めに 止めの 印を 下ろした ので、次の 月の 業務の 読みが 失敗した 後に 車ごと／日ごとを 押すと
 //   前の 月の 記録で 表（引く 前の ¥40,000）と 押せる 欄が 出て、橋代を 打つと 高速代・電子決済を 0 で 送った
@@ -289,24 +271,6 @@ test('★次の 月の 読みが 失敗した 後に 表を 切り替えても �
   // 出口：紙の 所は「読み込み中…」の まま に しない・もう一度読む が 出る（対立役 3回目 直す-1）
   await expect(page.locator('#kamiMsg')).toContainText('読み込みに 失敗した');
   await expect(page.locator('#dkUnknownBarBtn')).toBeVisible();
-});
-
-// 止め-1：「何日から」の 保存の 後の 読み直しに 箱を 渡して おらず、書けたのに 画面が 転び「保存できませんでした」・チェックが 押せない まま
-test('★何日からの 保存の 後も 画面が 転ばず「保存しました」・続けて 押せる★', async ({ page }) => {
-  const err = [];
-  page.on('pageerror', (e) => err.push(String(e)));
-  await akeru(page, []);
-  await page.fill('#dHi', '2026-01-06');
-  await page.dispatchEvent('#dHi', 'change');
-  await page.click('#dOther');
-  await page.waitForTimeout(600);
-  expect(err, '★何日からの 保存の 後に 画面が 転んだ★').toEqual([]);
-  await expect(page.locator('#err')).toBeHidden();
-  await expect(page.locator('#setSaved')).toContainText('保存しました');
-  await expect(page.locator('#dOther'), '★保存の 後に チェックが 押せない★').toBeEnabled();
-  await page.click('#dOther');
-  await page.waitForTimeout(600);
-  expect(err).toEqual([]);
 });
 
 // 止め-2 の 兄弟（N2〜N4）：読み込み中に 日ごと／車ごとを 押すと 新しい 月の 名前の 下に 前の 月の 額が 出た
@@ -378,27 +342,6 @@ test('★読みの 後半で 計算が 転んだ 月は 表を 切り替えて�
   ).not.toContainText('まだ記録がありません');
 });
 
-// P3：失敗の 後に 前の 月の「記録が 読めない（開き直して）」の 訳が 出た（対立役 4回目）＝試験で 縛って いなかった（5回目 直す-A）
-test('★前の 月で 記録が 読めず 次の 月の 読みが 失敗したら 訳は「読み込みに失敗」★', async ({
-  page,
-}) => {
-  await akeru(page, ['dk_uriage_rireki']);
-  await expect(page.locator('#err')).toContainText('売上から 引く 物の 変えた 記録');
-  await page.evaluate(() => {
-    window.__shiftsFail = true;
-  });
-  await page.locator('#nextM').click();
-  await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
-  await page.locator('summary', { hasText: '一覧で 見る' }).click();
-  await page.locator('#segDay').click();
-  await page.locator('#segCar').click();
-  await page.waitForTimeout(300);
-  await expect(page.locator('#err'), '★前の 月の「開き直して」の 訳に 替わった★').toContainText(
-    '読み込みに失敗しました'
-  );
-  await expect(page.locator('#kamiMsg')).toContainText('読み込みに 失敗した');
-});
-
 // P7：表を 描いた 後に 転ぶと、数字と 紙の 絵が「読み込みに失敗」と 並んで 残った
 test('★表を 描いた 後に 転んでも 数字と 紙の 絵を 残さない★', async ({ page }) => {
   await akeru(page, []);
@@ -418,99 +361,10 @@ test('★表を 描いた 後に 転んでも 数字と 紙の 絵を 残さな�
   expect(await gyou(page), '★失敗の 訳と 表の 数字が 並んだ★').toBe(0);
 });
 
-// ★★開いた 最初の 読みが 失敗した 時★★ 2026-10-22（対立役 P9）
-//   ★前★ 記録の 一覧（RIREKI）が 始めの 空の 箱 [] の まま 残り「読めた」と 見なされ、
-//         読んでいない 設定・記録の まま「何日から」の 記録と 設定の 列を 書けた
-//   ★今★ 一度も 読めていない 間は 設定も 記録も 書かず、訳を 出す
-for (const hi of ['2026-01-10', '']) {
-  test(`★最初の 読みが 失敗したら 設定を 変えても 送らない（何日から＝${hi || '空'}）★`, async ({
-    page,
-  }) => {
-    await page.addInitScript(() => {
-      window.__shiftsFail = true;
-    });
-    await akeru(page, []);
-    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
-    await page.evaluate((hi) => {
-      const d = document.getElementById('dHi');
-      d.value = hi;
-      d.dispatchEvent(new Event('change'));
-      const i = document.getElementById('dToll');
-      i.checked = !i.checked;
-      i.dispatchEvent(new Event('change'));
-    }, hi);
-    await page.waitForTimeout(800);
-    const okutta = await page.evaluate(() => window.__okutta);
-    expect(okutta, '★読めていない 設定・記録の まま 書いた★').toEqual([]);
-    await expect(page.locator('#err')).toContainText('保存しません');
-  });
-}
-
-// ★★読めた 月から 次の 月の 読みが 失敗した 後★★ 2026-10-22（対立役 P9 の 続き）
-//   ★前★ 前の 月の 設定・記録が 残るので 書けた。書けた 後に「読み込みに失敗しました」の 訳が 消え、
-//         表は 空の まま「保存しました」だけ 出た
-//   ★今★ その 月の 読みが 通るまで（読み込み中・失敗の 後）設定も 記録も 書かず、失敗の 訳を 残す
-for (const hi of ['2026-02-10', '']) {
-  test(`★次の 月の 読みが 失敗した 後は 設定を 変えても 送らず 訳を 残す（何日から＝${hi || '空'}）★`, async ({
-    page,
-  }) => {
-    await akeru(page, []);
-    await page.evaluate(() => {
-      window.__shiftsFail = true;
-    });
-    await page.locator('#nextM').click();
-    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
-    await page.evaluate((hi) => {
-      const d = document.getElementById('dHi');
-      d.value = hi;
-      d.dispatchEvent(new Event('change'));
-      const i = document.getElementById('dToll');
-      i.checked = !i.checked;
-      i.dispatchEvent(new Event('change'));
-    }, hi);
-    await page.waitForTimeout(800);
-    const okutta = await page.evaluate(() => window.__okutta);
-    expect(okutta, '★読みが 失敗した 月に 書いた★').toEqual([]);
-    await expect(page.locator('#err'), '★失敗の 訳が 消えた★').toBeVisible();
-    await expect(page.locator('#err')).toContainText('保存しません');
-  });
-}
-
-// ★★送っている 途中に 月を 替え、その 月の 読みが 失敗した 時★★ 2026-10-23（対立役 P10 の 任意）
-//   ★前★ 書きの 返事が 後から 着くと「保存しました」と 一緒に 失敗の 訳を 消した＝表は 空の まま 訳が 無い
-//   ★今★ 書けた 時に 訳を 消すのは その 月が 読めて いる 時だけ（読めて いない 月の 訳は 残す）
-//   ★★わざと壊して 赤（2026-10-23 手元 chromium 実測）★★ 直す 前＝設定・記録・実費の 3本 赤／
-//     書けた 後の 4か所（記録・設定・車の 名前・実費）を 1つずつ showErr('') に 戻す＝各 1本 赤（4/4）
-const TOCHU = [
-  ['設定（何日から 空）', ''],
-  ['何日からの 記録', '2026-01-10'],
-];
-for (const [na, hi] of TOCHU) {
-  test(`★${na}を 送っている 途中に 月を 替えて 読みが 失敗したら 訳を 残す★`, async ({ page }) => {
-    await akeru(page, []);
-    await page.evaluate((hi) => {
-      window.__kakiOsoku = 1500;
-      const d = document.getElementById('dHi');
-      d.value = hi;
-      d.dispatchEvent(new Event('change'));
-      const i = document.getElementById('dToll');
-      i.checked = !i.checked;
-      i.dispatchEvent(new Event('change'));
-      window.__shiftsFail = true;
-    }, hi);
-    await page.locator('#nextM').click();
-    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
-    // 書きの 返事が 着いた 後
-    await page.waitForTimeout(2200);
-    expect(
-      (await page.evaluate(() => window.__okutta)).length,
-      '★送っていない（形が 作れて いない）★'
-    ).toBeGreaterThan(0);
-    await expect(page.locator('#err'), '★書けた 後に 失敗の 訳が 消えた★').toBeVisible();
-    await expect(page.locator('#err')).toContainText('読み込みに失敗しました');
-  });
-}
-
+// ★2026-10-24 件J★ 設定（引く／引かない）・何日からの 記録を 書く 口は 消した（入れた 実費は 全部 引く）。
+//   その 口の 見張り（D-5・止め-1・P3・P9 ×4・送っている 途中 ×2）は 外した。
+//   守っていた「読めていない 月に 書かない・書けた 後に 失敗の 訳を 消さない」は 残る 書く 口（実費）で
+//   この 下の 試験と「次の 月の 読みが 失敗した 後に 表を 切り替えても…」が 縛る
 test('★実費を 送っている 途中に 月を 替えて 読みが 失敗したら 訳を 残す★', async ({ page }) => {
   await hiraku(page, []);
   await page.evaluate(() => {

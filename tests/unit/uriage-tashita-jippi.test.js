@@ -54,14 +54,15 @@ describe('★売上表と 給料・月次集計の 売上が 車ごとに 一致
     });
   }
 
-  it('★足した 実費（1,050円）が 売上から 引かれている★（何も 引かない 設定でも）', () => {
+  // 2026-10-24 件J：前の 設定（何も 引かない）を 渡しても 入れた 実費は 全部 引く（高速 1,000＋橋 500＋足した 1,050）
+  it('★足した 実費（1,050円）も 古い 3つも 売上から 引かれている★（何も 引かない 設定でも）', () => {
     const r = Agg.byDevice(SH, ED, [], {
       deduct_toll: false,
       deduct_bridge: false,
       deduct_other: false,
     }).find((x) => x.device_id === 'A');
-    expect(r.deduct_yen).toBe(1050);
-    expect(r.net_fare_yen).toBe(42000 - 1050);
+    expect(r.deduct_yen).toBe(1000 + 500 + 1050);
+    expect(r.net_fare_yen).toBe(42000 - 2550);
     expect(r.expense_yen, '★実費の 全部に 足した 物が 入っていない★').toBe(1000 + 500 + 1050);
   });
 

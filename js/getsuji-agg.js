@@ -128,14 +128,8 @@
       // 役割の 決まりが 無くて 計算できない 人が 居れば 止める 2026-10-17（歩合0・保証0の 額で 出さない）
       if (ctx.yakuDame && ctx.yakuDame.length) {
         out.dame = true;
-        // ★売上から 引く 物の 記録が 読めない＝売上 そのものが 狂う 止め★ 2026-10-18（字を 分ける 印）
-        const uriRireki = ctx.yakuDame.some(function (x) {
-          return x && x.wake === 'uriageRireki';
-        });
-        if (uriRireki) {
-          out.uriageRireki = true;
-          out.uriage = true;
-        } else out.yaku = true; // 払い方の 設定とは 別の 止め（画面の 字を 分ける 印・字で 分けない）
+        // 売上から 引く 物の 記録（何日から）の 止めは 2026-10-24 件J で 無くした（もう 読まない）
+        out.yaku = true; // 払い方の 設定とは 別の 止め（画面の 字を 分ける 印・字で 分けない）
         out.riyuu = ctx.yakuDameRiyuu || '役割の 決まりが 無くて 給料を 計算できない 人が 居ます';
         return out;
       }
@@ -262,7 +256,6 @@
           out.total.aki = mm.aki === true;
           if (mm.uriage) out.total.uriage = true;
           if (mm.yaku) out.total.yaku = true;
-          if (mm.uriageRireki) out.total.uriageRireki = true;
         }
       });
       const byIdx = {};
