@@ -41,6 +41,34 @@ export function kagiNoNa(f) {
 // ★ファイルごとの当てた後の確かめ★（2026-10-17 対立役 N7）棚の数だけでは、窓の列や守りが入ったか分からない。
 //   q を読んで ok(rows) が true の時だけ OK。
 export const ATO_NO_KAKUNIN = {
+  // ★会社の 締め日★ 2026-10-24（叩き役 K-1・K-2）
+  'supabase/apply-kaisha-shime-hi.sql': [
+    {
+      w: 'daikome.dk_sales_settings に kaisha_shime_hi（smallint）が 在る',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='daikome' and table_name='dk_sales_settings' and column_name='kaisha_shime_hi' and data_type='smallint'",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: '窓 public.dk_sales_settings に kaisha_shime_hi が 在る',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_sales_settings' and column_name='kaisha_shime_hi'",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: '窓 public.dk_sales_settings が security_invoker=true',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_sales_settings' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: '1〜28（null＝末日）の 決まり（check）',
+      q: "select count(*)::int as n from pg_constraint where conname='dk_sales_settings_kaisha_shime_hi_ck' and contype='c'",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: 'daikome.dk_sales_settings の 持ち主の policy が 3本（sel/ins/upd）',
+      q: "select count(*)::int as n from pg_policies where schemaname='daikome' and tablename='dk_sales_settings' and policyname in ('dk_sales_settings_owner_sel','dk_sales_settings_owner_ins','dk_sales_settings_owner_upd')",
+      ok: (rows) => rows?.[0]?.n === 3,
+    },
+  ],
   'supabase/apply-shime-rireki.sql': [
     {
       w: '窓 public.dk_shime_rireki が security_invoker=true',

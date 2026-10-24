@@ -144,7 +144,8 @@ SELECT company_id,
     deduct_bridge,
     deduct_other,
     other_label,
-    updated_at
+    updated_at,
+    kaisha_shime_hi
    FROM daikome.dk_sales_settings;
 alter view public.dk_sales_settings set (security_invoker = true);
 
