@@ -6107,6 +6107,8 @@
           TPL_ZAIRYO = { key: key, pr: pr };
           return pr;
         }
+        // 見本の 紙に 載せる 名前（作り物・本当の 人の 名前は 出さない）
+        var TPL_MIHON_NA = '見本 太郎';
         // 見本の 紙（前の 月・今の 月の 区切りで 働いた 日が 一番 多い 区切り・その 区切りで 時間が 一番 多い 人）
         function tplMihon(t, ctx) {
           var CTX = ctx; // 見本の 材料（明細の CTX とは 別）
@@ -6134,9 +6136,17 @@
           var rp = PayrollDaily.report(p.dates, CTX);
           var es = (rp && rp.employees) || [];
           if (!es.length) return null;
-          var e = es.slice().sort(function (a, b) {
+          var e0 = es.slice().sort(function (a, b) {
             return (b.totalHours || 0) - (a.totalHours || 0);
           })[0];
+          // ★見本に 本当の 名前を 載せない★ 2026-10-24（司さん「テンプレに実名を勝手に使うな」）
+          //   手当・控除の 名目も 自由な 字（人の 名前・いきさつが 入り得る）＝「手当」「控除」に 替える（額は そのまま・対立役 S2）
+          var e = Object.assign({}, e0, {
+            name: TPL_MIHON_NA,
+            adj: (e0.adj || []).map(function (a) {
+              return Object.assign({}, a, { label: a.kind === 'koujo' ? '控除' : '手当' });
+            }),
+          });
           var mae = PERIOD;
           var sheets;
           try {

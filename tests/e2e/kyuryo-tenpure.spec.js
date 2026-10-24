@@ -8,6 +8,7 @@
 //     ⇒ 12通り → 払い方の 種類ごとに 1つ（5枚）・札を 押しても 設定は 変えない（見るだけ）
 //     ⇒ 前の ③⑤⑥（押すと 給料の 設定の 欄に 入る・保存で 記録を 書く・何日からで 戻らない）は 道ごと 外した
 //        ③ は「押しても 設定を 変えない」に 書き換えた（数と 上の 字は kyuryo-settei-setsumei ④⑤）
+//   ★2026-10-24 夜★ 司さん「テンプレに実名を勝手に使うな」⇒ 見本の 紙の 名前は 作り物・手当／控除の 名目も「手当」「控除」（⑭）
 //   ★物差し★
 //     ① 「明細」の 右に「テンプレ」の タブ・押すと 5枚の 札（2列）・今の 払い方に ✓（この 見本は 月3回）
 //     ② 札の 見本は 本物の 紙（data-paper）・縦の 紙の 形（月1回）は 縦（data-muki=tate）
@@ -292,7 +293,9 @@ test('⑪ 見本の 紙と PDF には「見本」の 字が 載る', async ({ pa
     window.KamiEgaku = {
       yomu: () => Promise.resolve(),
       dasu: (mai) => {
-        window.__dasu.push(mai.map((m) => m.el.textContent.indexOf('見本') >= 0));
+        window.__dasu.push(
+          mai.map((m) => m.el.textContent.indexOf('本物の 明細では ありません') >= 0)
+        );
         return Promise.resolve();
       },
     };
@@ -357,4 +360,40 @@ test('⑬ 見本の 材料に 計算 できない 所が ある 時は 見本を
   }));
   expect(r.paper, '★見本の 材料が 計算 できないのに 見本を 出した★').toBe(0);
   expect(r.ji).toContain('計算 できない');
+});
+
+// ★★見本に 本当の 名前を 載せない★★ 2026-10-24（司さん「テンプレに実名を勝手に使うな」）
+//   わざと壊す：tplMihon で 名前を 替えない ⇒ 赤
+test('⑭ 見本の 紙と PDF に 働く 人の 名前が 載らない（作り物の 名前だけ）', async ({ page }) => {
+  await tplWoHiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => document.querySelectorAll('#tplGrid [data-paper]').length), {
+      timeout: 15000,
+    })
+    .toBe(5);
+  const r = await page.evaluate(() => {
+    const ji = [...document.querySelectorAll('#tplGrid [data-paper]')].map((p) => p.textContent);
+    return { ji: ji };
+  });
+  // 見張りの 記録（tests/fixtures/kyuryo-real.json）の 働く 人の 名前
+  const moto = ['テスト太郎', 'テスト次郎', 'テスト三郎', 'テスト四郎'];
+  for (const t of r.ji) {
+    for (const n of moto)
+      expect(t.indexOf(n), '★見本に 働く 人の 名前「' + n + '」が 載った★').toBe(-1);
+    expect(t, '★作り物の 名前が 無い★').toContain('見本 太郎');
+  }
+  await page.evaluate(() => {
+    window.__dasu = [];
+    window.KamiEgaku = {
+      yomu: () => Promise.resolve(),
+      dasu: (mai) => {
+        window.__dasu.push(mai.map((m) => m.el.textContent).join('\n'));
+        return Promise.resolve();
+      },
+    };
+  });
+  await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"] .tpl-pdf').click();
+  await expect.poll(() => page.evaluate(() => window.__dasu.length), { timeout: 15000 }).toBe(1);
+  const pdf = await page.evaluate(() => window.__dasu[0]);
+  for (const n of moto) expect(pdf.indexOf(n), '★PDF に 名前「' + n + '」が 載った★').toBe(-1);
 });
