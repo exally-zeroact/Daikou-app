@@ -155,8 +155,11 @@ test('★④ 設定：何月分を 選ばないと 保存しない・選ぶと p
 
   await page.selectOption('#pNazuke', 'shime');
   await page.waitForTimeout(200);
-  const msg = await page.evaluate(() => document.getElementById('pMsg').textContent);
-  expect(msg, '★区切りの 字が 本当の 区切りで ない★').toContain('10月分 … 9/21 〜 10/20');
+  // 2026-10-24 区切りの 一覧は やめた（司さん「締め日の下の区切りの説明書きいらん」）＝保存の 下の 確かめの 字で 見る
+  const msg = await page.evaluate(() => document.getElementById('pSetsumei').textContent);
+  expect(msg, '★確かめの 字が 選んだ 形で ない★').toContain(
+    '月1回（20日締め）：前の月の21日〜20日の1回で明細を出します（締めた日の月の分）'
+  );
   await page.click('#btnSaveSet');
   await page.waitForTimeout(400);
   const b = await page.evaluate(() => window.__okutta);

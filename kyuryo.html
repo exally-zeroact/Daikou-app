@@ -1813,11 +1813,10 @@
             <button class="btn" id="btnSaveSet">保存する</button>
             <span class="saved" id="setSaved"></span>
           </div>
-          <div class="note">
-            既定は<b>月3回</b>（1〜10日 / 11〜20日 / 21日〜末日）です。実物の「月別」シートの
-            <b>バ1〜10 / バ11〜20 / バ21〜31</b> がこの3回で、バ21〜31 は給料明細（21日〜末日）の
-            人数ぶんの合計と一致します。
-          </div>
+          <!-- ★★選んで いる 払い方の 確かめの 字★★ 2026-10-24（司さん「この説明書は選択したものに関して
+               リアルタイムで確認のための説明書として変わるようにしろ」）＝中身は kikanDashiwake が 欄から 書く
+               （前は「既定は月3回…」で 固定＝月2回に 変えても 変わらなかった） -->
+          <div class="note" id="pSetsumei"></div>
         </div>
 
         <!-- ★★保存は どこからでも 押せる★★ 2026-09-04（司さん「ごちゃごちゃして 何がどこにあるか 分からん」）
@@ -8097,56 +8096,85 @@
                   })));
           }
           show('pNazukeRow', kosu);
-          if (!ms) return;
+          // ★★保存の 下の 説明（#pSetsumei）は 選んで いる 払い方の 確かめの 字★★ 2026-10-24
+          //   司さん「締め日の下の区切りの説明書きいらん。月2回に変えても保存するボタンの下の説明書が変わらない。
+          //   この説明書は選択したものに関してリアルタイムで確認のための説明書として変わるようにしろ」
+          //   ⇒ #pMsg（払い方の 下）は 区切りの 一覧を やめ、保存 できない 訳（空く 月・記録が 読めない）だけ
+          //   ⇒ #pSetsumei は 欄の 形から 1文（月3回の 時だけ 実物の「月別」シートの 一文も）＋切り替わりの 短い 期
+          var se = $('pSetsumei');
+          var setsu = function (ji, tsuika) {
+            if (!se) return;
+            se.textContent = ji;
+            if (tsuika) {
+              var b = document.createElement('div');
+              b.style.marginTop = '4px';
+              b.textContent = tsuika;
+              se.appendChild(b);
+            }
+          };
+          if (ms) ms.textContent = '';
+          // ★設定を 読めない 時は 欄の 形（月3回 等）を 言い切らない★（テンプレの 上の 字と 揃える・対立役）
+          if (SET && SET.yomenai) {
+            setsu('給料の 設定を 読めませんでした（開き直してください）。');
+            return;
+          }
           if (y.dame) {
-            ms.textContent = y.dame;
+            setsu(y.dame);
             return;
           }
           var r = y.kata ? PayrollPeriod.seiki(y.kata) : { ok: true, kata: { kind: 'thirds' } };
           if (!r.ok) {
-            ms.textContent = r.riyuu;
+            setsu(r.riyuu);
             return;
           }
+          var hs = haraiSetsumei(r.kata);
+          var bun = hs ? hs.bun : '';
+          if (r.kata.kind === 'thirds')
+            bun +=
+              '実物の「月別」シートの バ1〜10 / バ11〜20 / バ21〜31 が この3回で、バ21〜31 は' +
+              '給料明細（21日〜末日）の 人数ぶんの 合計と 一致します。';
           // ★記録と 合わせた 区切り★（何日から 2026-10-19＝選んだ 日から この 形に した 時の 本当の 区切り・切り替わりの 短い 期も 出る）
           var zen = shimeMitoshi(y.kata);
           if (zen && zen.dame) {
-            ms.textContent = zen.riyuu || '締めの 記録が 読めません';
+            setsu(bun);
+            if (ms) ms.textContent = zen.riyuu || '締めの 記録が 読めません';
             return;
           }
+          // ★切り替わりの 月★＝記録 込みの 区切りが 今までの 区切りとも 欄の 形だけの 区切りとも 違う 月だけ 出す
+          //   （短い 期を 黙らない・shime-rireki ⑦／今までと 同じ 月は 出さない・対立役）
           var ima = jstNow();
           var ym = { year: ima.getFullYear(), month: ima.getMonth() + 1 };
-          // 選んだ 日の 月と 次の 月（過去の 日でも 切り替わりの 月が 見える・対立役 小3）
           var hh = shimeHi();
           if (hh) ym = { year: Number(hh.slice(0, 4)), month: Number(hh.slice(5, 7)) };
-          //   ★前の 月も 出す★（空く 月は 変えた 日の 月か その 前の 月・対立役 直3 2026-10-19）
-          var gyou = [-1, 0, 1].map(function (z) {
-            var t2 = PayrollPeriod.shift(ym, z);
-            var kk = zen || r.kata;
-            var ps = PayrollPeriod.periodsOf(t2.year, t2.month, { kata: kk });
-            var tk = PayrollPeriod.tsukiNoKata(kk, t2.year, t2.month);
-            var naka =
-              ps.length === 1 && ps[0].aki
-                ? '給料が 無くなります'
-                : tk && tk.kind === 'hi'
-                  ? '1日ずつ（' + ps.length + '回）'
-                  : ps.length
-                    ? ps
-                        .map(function (p) {
-                          return p.rangeLabel;
-                        })
-                        .join(' ／ ')
-                    : 'この 月に 締める 給料は ありません';
-            return t2.month + '月分 … ' + naka;
-          });
+          var kawari = [];
+          var retsu = shimeRetsuKata();
+          var imamade = retsu ? PayrollPeriod.rirekiKata(retsu, RAW.shimeRireki) : null;
+          if (imamade && imamade.dame) imamade = null;
+          if (zen)
+            [-1, 0, 1].forEach(function (z) {
+              var t2 = PayrollPeriod.shift(ym, z);
+              var kiri = function (kk) {
+                var ps = PayrollPeriod.periodsOf(t2.year, t2.month, { kata: kk });
+                if (ps.length === 1 && ps[0].aki) return '給料が 無くなります';
+                if (ps.length > 6) return ps.length + '回'; // 毎日 等（並べると 長すぎる）
+                return ps
+                  .map(function (p) {
+                    return p.rangeLabel;
+                  })
+                  .join(' ／ ');
+              };
+              var a = kiri(zen);
+              if (a !== kiri(r.kata) && (!imamade || a !== kiri(imamade)))
+                kawari.push(t2.month + '月分は ' + (a || '締める 給料 なし'));
+            });
+          setsu(bun, kawari.length ? '切り替わりで ' + kawari.join('、') + ' に なります。' : '');
           // ★この 変え方で 空く 月＝保存 できない★（保存の 時は 倉庫から 読み直して もう一度 確かめる）
           var akiMae = shimeAkiNo(shimeRetsuKata(), RAW.shimeRireki) || [];
           var akiF = (zen ? PayrollPeriod.akiTsuki(zen) : []).filter(function (x) {
             return akiMae.indexOf(x) < 0;
           });
-          ms.textContent =
-            (akiF.length ? shimeAkiBun(akiF) + 'この ままでは 保存できません。　' : '') +
-            '区切り … ' +
-            gyou.join('　｜　');
+          if (ms && akiF.length)
+            ms.textContent = shimeAkiBun(akiF) + 'この ままでは 保存できません。';
         }
         (function wireKikan() {
           ['pMode', 'pShimeHi', 'pNarabe', 'pYoubi', 'pNazuke'].forEach(function (id) {
@@ -8242,6 +8270,73 @@
                 : '・締めた 日の 月の 分'
               : '')
           );
+        }
+        // ★★払い方の 名前と 区切りの 言葉（ここ 1か所）★★ 2026-10-24（司さん「保存するボタンの下の説明書が変わらない。
+        //   選択したものに関してリアルタイムで確認のための説明書として変わるようにしろ」「テンプレの上に今の給料設定は何日締めです」）
+        //   kata は seiki を 通した 形（thirds／tsuki／shuu／hi）。返り＝{ na: 名前, bun: 確かめの 一文 }・読めない 形は null
+        function haraiNa(kata) {
+          if (!kata) return null;
+          if (kata.kind === 'thirds') return '月3回（10日・20日・末日締め）';
+          if (kata.kind === 'hi') return '毎日';
+          if (kata.kind === 'shuu') return '週1回（' + YOUBI_NA[kata.youbi] + '曜締め）';
+          if (kata.kind !== 'tsuki' || !Array.isArray(kata.hi) || !kata.hi.length) return null;
+          return (
+            '月' +
+            kata.hi.length +
+            '回（' +
+            kata.hi
+              .map(function (h) {
+                return h === 0 ? '末日' : h + '日';
+              })
+              .join('・') +
+            '締め）'
+          );
+        }
+        function haraiSetsumei(kata) {
+          var na = haraiNa(kata);
+          if (!na) return null;
+          if (kata.kind === 'thirds')
+            return {
+              na: na,
+              bun: na + '：1日〜10日／11日〜20日／21日〜末日の3回で明細を出します。',
+            };
+          if (kata.kind === 'hi') return { na: na, bun: na + '：1日ごとに明細を出します。' };
+          var nz = kata.nazuke === 'hajime' ? '始まった日の月の分' : '締めた日の月の分';
+          if (kata.kind === 'shuu')
+            return {
+              na: na,
+              bun:
+                na +
+                '：' +
+                YOUBI_NA[(kata.youbi + 1) % 7] +
+                '曜〜' +
+                YOUBI_NA[kata.youbi] +
+                '曜の1週ごとに明細を出します（' +
+                nz +
+                '）。',
+            };
+          var hi = kata.hi;
+          var n = hi.length;
+          var matsu = hi[n - 1] === 0; // 最後が 末日＝月を またがない
+          var ku = [];
+          for (var i = 0; i < n; i++) {
+            var owari = hi[i] === 0 ? '末日' : hi[i] + '日';
+            var hajime =
+              i > 0 ? hi[i - 1] + 1 + '日' : matsu ? '1日' : '前の月の' + (hi[n - 1] + 1) + '日';
+            ku.push(hajime + '〜' + owari);
+          }
+          return {
+            na: na,
+            bun:
+              na +
+              '：' +
+              ku.join('／') +
+              'の' +
+              n +
+              '回で明細を出します' +
+              (matsu ? '' : '（' + nz + '）') +
+              '。',
+          };
         }
         function renderShimeRireki() {
           var l = Array.isArray(RAW.shimeRireki)

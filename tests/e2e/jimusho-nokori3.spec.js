@@ -79,7 +79,8 @@ test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形
         narabe: mie('pNarabeRow'),
         youbi: mie('pYoubiRow'),
         nazuke: mie('pNazukeRow'),
-        msg: (document.getElementById('pMsg') || {}).textContent || '',
+        // 2026-10-24 区切りの 一覧（#pMsg）は やめた（司さん「締め日の下の区切りの説明書きいらん」）＝保存の 下の 確かめの 字を 見る
+        msg: (document.getElementById('pSetsumei') || {}).textContent || '',
       };
     });
 
@@ -95,7 +96,7 @@ test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形
     false,
     false,
   ]);
-  expect(a.msg, '★今の 区切りが 書いてありません★').toMatch(/\d+\/1 〜 \d+\/10/);
+  expect(a.msg, '★今の 区切りが 書いてありません★').toContain('1日〜10日／11日〜20日／21日〜末日');
 
   // ★月1回（何日かで 締める）★＝「何日に 締める」＋（月を またぐので）「何月分」
   await page.selectOption('#pMode', 'tsuki1');
@@ -116,14 +117,14 @@ test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形
   // eslint-disable-next-line no-console
   console.log('★週★ ' + JSON.stringify(c));
   expect([c.hi, c.youbi, c.nazuke]).toEqual([false, true, true]);
-  expect(c.msg, '★区切りが 書いてありません★').toMatch(/\d+\/\d+ 〜 \d+\/\d+/);
+  expect(c.msg, '★区切りが 書いてありません★').toContain('月曜〜日曜の1週ごと');
 
   // ★毎日★＝欄は 何も 要らない
   await page.selectOption('#pMode', 'hi');
   await page.waitForTimeout(200);
   const d = await yomu();
   expect([d.hi, d.narabe, d.youbi, d.nazuke]).toEqual([false, false, false, false]);
-  expect(d.msg).toContain('1日ずつ');
+  expect(d.msg).toContain('1日ごと');
 });
 
 test('★★② 明細に出す の 2か所が 名前で 分かる★★', async () => {

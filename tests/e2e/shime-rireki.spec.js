@@ -236,13 +236,17 @@ test('⑥ 壊れた 記録 ⇒ 止める・記録の 一覧から 消せる', as
 });
 
 // わざと壊す：kikanDashiwake で shimeMitoshi を 使わず 欄の 形だけ ⇒ 赤（切り替わりが 字に 出ない）
-test('⑦ 区切りの 字に 切り替わりの 短い 期が 出る', async ({ page }) => {
+test('⑦ 確かめの 字に 切り替わりの 短い 期が 出る', async ({ page }) => {
   await openKyuryo(page, settei([]), { ura: '?henshu=1#set' });
   await page.waitForSelector('#pMode', { state: 'visible' });
   await page.fill('#pHi', '2026-10-01');
   await page.dispatchEvent('#pHi', 'change');
   await page.selectOption('#pMode', 'matsu');
-  await expect(page.locator('#pMsg')).toContainText('10月分 … 9/21 〜 9/30 ／ 10/1 〜 10/31');
+  // 2026-10-24 区切りの 一覧（#pMsg）は やめた＝保存の 下の 確かめの 字に 切り替わりの 月だけ 出す
+  await expect(page.locator('#pSetsumei')).toContainText('10月分は 9/21 〜 9/30 ／ 10/1 〜 10/31');
+  await expect(page.locator('#pSetsumei')).toContainText(
+    '月1回（末日締め）：1日〜末日の1回で明細を出します'
+  );
 });
 
 // わざと壊す：shimeKataIreru の「触った 欄は 戻さない」を 外す ⇒ 赤（選んだ 払い方が 黙って 捨てられた）

@@ -66,9 +66,9 @@ test('① 20日締め(始) を 9/10 から 1日締め(締) ⇒ 9月分が 無く
   await page.fill('#pShimeHi', '1');
   await page.dispatchEvent('#pShimeHi', 'input');
   await page.selectOption('#pNazuke', 'shime');
-  // 見込みの 字にも 出る（前の 月も 並ぶ）
+  // 見込みの 字にも 出る（2026-10-24 区切りの 一覧は やめた＝保存 できない 訳と 切り替わりの 字で 見る）
   await expect(page.locator('#pMsg')).toContainText('2026年9月分の 給料が 無くなります');
-  await expect(page.locator('#pMsg')).toContainText('9月分 … 給料が 無くなります');
+  await expect(page.locator('#pSetsumei')).toContainText('9月分は 給料が 無くなります');
   await page.click('#btnSaveSet');
   await expect(page.locator('#err')).toContainText(
     'この 変え方だと 2026年9月分の 給料が 無くなります（給料は 毎月 払う 決まり）。変える 日を'
