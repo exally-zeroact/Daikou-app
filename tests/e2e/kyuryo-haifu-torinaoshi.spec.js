@@ -1,6 +1,7 @@
 // ============================================================
 // ★★別の 端末で 作り直された 後も 古い リンクを 配らない★★ 2026-10-20（docs/pw-4keta.md・対立役 本番前 直2・N1・N3・N4）
 //   作り直すと token が 替わる＝事務所の 別の 画面の 控え（HAIFU）は 古い まま
+//   2026-10-24 給料の 設定の 配る 一覧を 外した＝明細の「QRを 見せる」「送る」で 見る（前の ⑤ は ② に 入った）
 //   わざと壊す：visibilitychange の 取り直しを 外す ⇒ ① 赤 ／ 見せる 前の 取り直しを 外す ⇒ ② 赤 ／
 //              取れなかった 時の 訳を 外す ⇒ ③ 赤 ／ 戻った 時の 取り直しで 赤字を 出す ⇒ ④ 赤
 // ============================================================
@@ -76,27 +77,35 @@ async function haifuWoHiraku(page, context) {
   page.on('pageerror', (e) => {
     throw e;
   });
-  // ★★2026-09-06 給料は「見るだけ」に なりました★★（司さん）
-  //   「設定画面の 中に チップで 車、料金、従業員マスタ つくったら 各ページ 見やすくなるやろ」
-  //   ⇒ ★「従業員」「給料の設定」は ?henshu=1 の 時だけ 出ます★
-  //     （会社設定 →「車」「従業員」チップから 来る 道）
+  // ★★2026-10-24 給料の 設定の 配る 一覧は 外した（司さん「配るは明細からできるからのけろ」）★★
+  //   ⇒ 明細の「QRを 見せる」で 1人（太郎）を 配って 控え（HAIFU）に 入れる。控えの リンクは 明細の「送る」で 写した 中身で 見る
   await page.goto('/kyuryo.html?henshu=1');
   await page.waitForTimeout(1800);
-  await page.locator('.tab[data-tab="set"]').click();
-  await page.waitForTimeout(600);
-  await page.waitForSelector('#haifuList');
-  for (let i = 0; i < 5 && (await page.locator('[data-hhito]').count()) > 0; i++) {
-    await page.locator('[data-hhito]').first().click();
-    await page.waitForTimeout(400);
-  }
+  await page.locator('.tab[data-tab="slip"]').click();
+  await page.waitForTimeout(500);
+  await page
+    .locator('[data-meisai-qr="' + TARO + '"]')
+    .first()
+    .click();
+  await page.waitForSelector('#haifuMiseQr');
+  await page.locator('#haifuMise').click({ position: { x: 5, y: 5 } });
+  await page.waitForTimeout(200);
 }
-const urlsOf = (page) =>
-  page
-    .locator('[data-url-mihari]')
-    .evaluateAll((l) => l.map((e) => e.getAttribute('data-url-mihari')));
+const TARO = 'ec8d275b-38c0-4d9f-b471-eeb10226a6a9';
+// 控えの リンク＝明細の「送る」（控えに 居れば 取り直さずに 写す）で 写した 中身
+const okuruNaka = async (page) => {
+  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await page
+    .locator('[data-meisai-okuru="' + TARO + '"]')
+    .first()
+    .click();
+  await page.waitForTimeout(300);
+  return page.evaluate(() => navigator.clipboard.readText());
+};
+const madoUrl = (page) => page.locator('#haifuMiseQr').getAttribute('data-url-mihari');
 const ATARASHII = 'cccc1111dddd2222eeee3333ffff4444';
 
-test('① 画面に 戻ると 配る 一覧を 取り直す（別の 端末の 作り直しを 拾う）', async ({
+test('① 画面に 戻ると 配る 控えを 取り直す（別の 端末の 作り直しを 拾う）', async ({
   page,
   context,
 }) => {
@@ -104,60 +113,34 @@ test('① 画面に 戻ると 配る 一覧を 取り直す（別の 端末の �
   await page.evaluate((t) => (window.__hitoriAtarashii = t), ATARASHII);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await page.waitForTimeout(800);
-  const urls = await urlsOf(page);
-  expect(urls.length).toBeGreaterThan(0);
-  expect(
-    urls.every((u) => u.includes(ATARASHII)),
-    JSON.stringify(urls)
-  ).toBe(true);
+  const naka = await okuruNaka(page);
+  expect(naka, '★送る 中身が 古い リンク★').toContain(ATARASHII);
 });
-test('② 大きく 見せる 前に 取り直す', async ({ page, context }) => {
+// わざと壊す：meisaiQr で 控えに 居れば そのまま 見せる（取り直さない）⇒ 赤
+test('② 明細の「QRを 見せる」は 見せる 前に 取り直す', async ({ page, context }) => {
   await haifuWoHiraku(page, context);
   await page.evaluate((t) => (window.__hitoriAtarashii = t), ATARASHII);
-  await page.locator('[data-hmise]').first().click();
+  await page
+    .locator('[data-meisai-qr="' + TARO + '"]')
+    .first()
+    .click();
   await page.waitForTimeout(800);
-  const urls = await urlsOf(page);
-  expect(
-    urls.some((u) => u.includes(ATARASHII)),
-    JSON.stringify(urls)
-  ).toBe(true);
+  expect(await madoUrl(page)).toContain(ATARASHII);
   await expect(page.locator('#haifuMiseFurui')).toHaveCount(0);
 });
 test('③ 取り直しが 落ちたら 見せる 窓に その 事を 出す', async ({ page, context }) => {
   await haifuWoHiraku(page, context);
   await page.evaluate(() => (window.__hitoriOchiru = true));
-  await page.locator('[data-hmise]').first().click();
+  await page
+    .locator('[data-meisai-qr="' + TARO + '"]')
+    .first()
+    .click();
   await expect(page.locator('#haifuMiseFurui')).toContainText('新しいか 確かめられませんでした');
 });
 test('④ 画面に 戻った 時の 取り直しが 落ちても 赤字を 出さない', async ({ page, context }) => {
   await haifuWoHiraku(page, context);
-  // 開いた 時の 赤字（一覧に 居ない 3人目の not_yours）は 消してから 見る
-  await page.evaluate(() => {
-    const e = document.getElementById('haifuErr');
-    if (e) {
-      e.textContent = '';
-      e.style.display = 'none';
-    }
-  });
   await page.evaluate(() => (window.__hitoriOchiru = true));
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await page.waitForTimeout(800);
-  await expect(page.locator('#haifuErr')).toBeHidden();
   await expect(page.locator('#err')).not.toContainText('配れませんでした');
-});
-// わざと壊す：meisaiQr で 控えに 居れば そのまま 見せる（取り直さない）⇒ ⑤ 赤
-test('⑤ 明細の「QRを 見せる」も 見せる 前に 取り直す', async ({ page, context }) => {
-  await haifuWoHiraku(page, context);
-  await page.evaluate((t) => (window.__hitoriAtarashii = t), ATARASHII);
-  await page.locator('.tab[data-tab="slip"]').click();
-  await page.waitForTimeout(800);
-  const b = page.locator('[data-meisai-qr]').first();
-  expect(await b.count(), '★明細の QR の ボタンが 無い（試験が 空回り）★').toBe(1);
-  await b.click();
-  await page.waitForTimeout(800);
-  const urls = await urlsOf(page);
-  expect(
-    urls.some((u) => u.includes(ATARASHII)),
-    JSON.stringify(urls)
-  ).toBe(true);
 });

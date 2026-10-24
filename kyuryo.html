@@ -1829,63 +1829,8 @@
           <span class="saved" id="setSaved2"></span>
         </div>
 
-        <!-- ★★従業員へ 配る（QR・URL）★★ 2026-09-03（司さん）
-             「Rakunallyみたいに 従業員ごとに QRコードや URLを 配って
-               個人が 勝手に 確認できるようにも しろやぼけ」
-             ★作り方は Rakunally から 借りた★（pay_meisai_pub ＋ 初回コード＋本人のパスワード）
-             ★秘密（初回コード）は 窓に 出していない★ので、★配る時だけ 倉庫の 関数が 返す★。 -->
-        <div class="card">
-          <div class="title" style="font-weight: 800; margin-bottom: 4px">
-            従業員へ 配る（自分の 給料明細を 自分で 見る）
-          </div>
-          <!-- ★★説明書★★ 2026-09-04（司さん「説明書 書いて 見せろ」）
-               ★渡し方は 3手で 終わる★事を 先に 書く（読まなくても 出来るように） -->
-          <div class="note" style="margin: 0 0 10px">
-            今いる人が 一覧に 出ます。<b>その人の「配る」</b>を押すと、その人ぶんの QR が
-            用意できます。<br />
-            渡すのは <b>その人の「大きく 見せる」</b>（読ませるだけ）か
-            <b>「送る」</b>（LINE・メール等）です。
-          </div>
-          <details id="haifuSetsumei" style="margin: 0 0 10px">
-            <summary style="cursor: pointer; font-weight: 700">使い方（3手で 終わります）</summary>
-            <div class="note" style="margin: 8px 0 0; line-height: 1.9">
-              <b>① その人の「配る」</b> を 押す<br />
-              　… <b>その人ぶんだけ</b> 用意します（他の人の 鍵は 作りません）。<br />
-              　　もう 配ってある人は <b>そのまま</b>（作り直しには なりません）。<br />
-              <b>② その人の「大きく 見せる」</b> を 押す<br />
-              　… 画面いっぱいの QR が 出ます。<b>本人に 読ませるだけ</b>。<br />
-              　　<b>紙も 送信も 要りません。</b><br />
-              　　明細の <b>「QRを 見せる」</b> からも 同じ物が 出ます。<br />
-              <b>③ 本人が 自分の パスワードを 決める</b><br />
-              　… 初回だけ。次からは その パスワードだけで 見られます。
-              <div style="margin: 10px 0 0">
-                <b>その場に 居ない人には</b><br />
-                　… <b>送る</b> を 押すと <b>LINE・メール・メッセージ</b> が 選べます。<br />
-                　　（選べない 端末では <b>コピー</b>に なります。貼って ください）<br />
-                　　<b>リンクが 鍵です。本人にだけ 渡してください。</b><br />
-                <b>紙は 要りません</b><br />
-                　… その場で 読ませるか、リンクを 送るかの <b>どちらか</b>です。
-              </div>
-              <div style="margin: 10px 0 0">
-                <b>忘れた／漏れた ときは</b><br />
-                　… その人の <b>作り直す</b> を 押してください。<br />
-                　　<b>前の リンクは その場で 使えなくなります。</b><br />
-                <b>やめた人は</b><br />
-                　… <b>「従業員」から 外す</b>と、その人は 見られなく なります。
-              </div>
-            </div>
-          </details>
-          <!-- ★★「全員分の QRを 印刷」を やめました★★ 2026-09-04（司さん「これいらんやろが」）
-               ★渡し方は 2つだけ★
-                 ・その場に 居る人 … その人の「大きく 見せる」＝読ませるだけ
-                 ・居ない人 ……… その人の「送る」＝LINE・メール等で 送る
-               ★紙は 1度も 要りません★（司さん「なんで 印刷せないかんのど」） -->
-          <!-- ★★「配る」は 人ごとです★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
-               ★全員に 効く ボタンは 置きません★
-               ＝渡していない 人の 鍵まで 作らない（鍵は 渡す 相手 1人にだけ） -->
-          <div class="err" id="haifuErr" style="display: none"></div>
-          <div id="haifuList"></div>
-        </div>
+        <!-- ★★「従業員へ 配る」の 箱は 外した★★ 2026-10-24（司さん「配るは明細からできるからのけろ」）
+             配るのは 明細の「QRを 見せる」「送る」（止まった 人・作り直しは 見せる 窓の 中）と 退職者ページの「配る」 -->
       </div>
 
       <div id="paneTpl" style="display: none">
@@ -3145,23 +3090,63 @@
             'position:fixed;inset:0;z-index:9999;background:#fff;' +
               'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer'
           );
+          d.setAttribute('data-eid', String(eid));
+          // ★★止まった 人・作り直しも この 窓で★★ 2026-10-24（給料の 設定の 配る 一覧を 外した＝司さん「配るは明細からできるからのけろ」）
+          //   前は「3回 続けて 間違えて 止まっています」と「作り直す」が 一覧に しか 無かった＝明細から 見せると 使えない QR が 出た
+          //   ★止まって いる 時は QR を 出さない★（古い リンクは 開いても 止まって いる）
+          var saiBtn = function (ji, ghost) {
+            return (
+              '<button class="btn' +
+              (ghost ? ' ghost' : '') +
+              '" type="button" data-mado-sai="' +
+              esc(String(eid)) +
+              '" style="cursor:pointer">' +
+              ji +
+              '</button>'
+            );
+          };
           d.innerHTML =
             '<div style="font-weight:800;font-size:20px">' +
             esc(x.name || '') +
             '　殿</div>' +
-            '<div id="haifuMiseQr" style="width:' +
-            haba +
-            'px;height:' +
-            haba +
-            'px">' +
-            qrSvg(haifuUrl(x), 8) +
-            '</div>' +
-            '<div class="note" style="text-align:center;max-width:22em">' +
-            (x.pw_ari
-              ? 'スマホの カメラで この QR を 読んでください。'
-              : 'スマホの カメラで この QR を 読んで、自分の パスワードを 決めてください。') +
-            '</div>' +
-            '<div class="note">（どこかを 押すと 閉じます）</div>';
+            (x.tomatta
+              ? '<div class="rolewarn" id="haifuMiseTomatta" style="max-width:22em;text-align:center">' +
+                '3回 続けて 間違えて 止まっています。この リンク（QR）は もう 使えません。' +
+                '「作り直す」で 新しい リンク（QR）に してください。</div>' +
+                saiBtn('作り直す')
+              : '<div id="haifuMiseQr" data-url-mihari="' +
+                esc(haifuUrl(x)) +
+                '" style="width:' +
+                haba +
+                'px;height:' +
+                haba +
+                'px">' +
+                qrSvg(haifuUrl(x), 8) +
+                '</div>' +
+                '<div class="note" style="text-align:center;max-width:22em">' +
+                (x.pw_ari
+                  ? 'スマホの カメラで この QR を 読んでください。'
+                  : 'スマホの カメラで この QR を 読んで、自分の パスワードを 決めてください。') +
+                '</div>' +
+                '<div class="note" style="text-align:center;max-width:24em">' +
+                'リンクが 鍵です。本人にだけ 渡してください。<br />忘れた・漏れた 時は 作り直す' +
+                '（前の リンクは 使えなく なります）</div>' +
+                saiBtn('リンクを 作り直す', true)) +
+            '<div class="note">（ほかの 所を 押すと 閉じます）</div>';
+          var sb = d.querySelector('[data-mado-sai]');
+          if (sb)
+            sb.onclick = function (ev) {
+              ev.stopPropagation(); // ★押しても 窓を 閉じない★
+              // 止まって いない 時は 生きて いる リンクを 殺す＝1度 確かめる（止まって いる 時は もう 使えない ので 聞かない）
+              if (
+                !x.tomatta &&
+                !window.confirm(
+                  '作り直すと 前の リンク（QR）は 使えなく なります。作り直しますか？'
+                )
+              )
+                return;
+              haifuSaihakkou(eid, sb);
+            };
           // ★中の QR を 箱いっぱいに 広げる★（svg は そのままだと 元の 大きさ）
           var sv = d.querySelector('#haifuMiseQr svg');
           if (sv) {
@@ -3192,6 +3177,12 @@
         //   ・使えない台 ………… ★コピーに 落ちる★
         function haifuOkuru(x, botan) {
           if (!x) return;
+          // ★止まった 人の リンクは 送らない★ 2026-10-24（対立役 S3：送っても 開くと 止まって いる＝同じ 死んだ リンクが 何度も 届く）
+          //   ⇒ 見せる 窓で「止まっています」と「作り直す」を 出す
+          if (x.tomatta) {
+            haifuMiseru(x.employee_id);
+            return;
+          }
           var url = haifuUrl(x);
           // ★誰の 分か 分かる 文にする★（渡し間違いを 防ぐ）
           var bun =
@@ -3272,21 +3263,12 @@
 
         // 配るの 訳を 画面の 上（#err）に 出した 時の 字（消す 時は、この 字が まだ 出ている 時だけ 消す）
         var HAIFU_TOP = '';
+        // ★2026-10-24 給料の 設定の 配る 一覧（と その 赤字の 箱）を 外した＝訳は いつも 画面の 上（#err）に 出す★
         function haifuErr(t) {
-          var e = $('haifuErr');
-          // ★見えるかは 箱の 親で 書き換える 前に 取る★（箱を none に した 後は いつも 見えない に なる・対立役 10-17）
-          var kakure = !e || !e.parentElement || e.parentElement.offsetParent === null;
-          if (e) {
-            e.style.display = t ? '' : 'none';
-            e.textContent = t || '';
-          }
           // ★配る 一覧が 見えていない 画面（退職者ページ 等）でも 訳を 出す★ 2026-10-17（対立役 N1）
-          //   前は 設定の 枠の 中の 箱だけに 書き、従業員の 画面では 枠が 隠れていて 何も 見えなかった
           if (t) {
-            if (kakure) {
-              showErr(t);
-              HAIFU_TOP = t;
-            }
+            showErr(t);
+            HAIFU_TOP = t;
             return;
           }
           // ★消す 時は 自分が 出した 字だけ 消す★（押し直して 通っても 赤字が 残った・対立役 直す1。
@@ -3318,48 +3300,16 @@
             if (x && x.employee_id) haifuHitori(x.employee_id, true);
           });
         });
+        // ★★配る 札を 描き直す★★ 2026-10-24（給料の 設定の 配る 一覧は 外した＝司さん「配るは明細からできるからのけろ」）
+        //   今 描く 所は 退職者ページの 開いた 配る 箱と、明細の 見せる 窓（作り直しの 後）だけ
         function renderHaifu() {
-          var box = $('haifuList');
-          if (!box) return;
-          // 辞めた 人も 出す（後ろに 並べ、名前に 印）2026-10-17 司さん
-          var hitobito = (RAW.employees || [])
-            .filter(function (e) {
-              return e && e.employee_id;
-            })
-            .sort(function (p, q) {
-              return (p.active === false ? 1 : 0) - (q.active === false ? 1 : 0);
-            });
-          if (!hitobito.length) {
-            box.innerHTML =
-              '<div class="note">まだ 誰も 居ません（「従業員」で 登録してください）。</div>';
-            return;
-          }
-
-          box.innerHTML = hitobito
-            .map(function (e) {
-              var x = haifuHito(e.employee_id);
-              // ★まだ 配っていない人★
-              if (!x) {
-                return (
-                  '<div class="card" style="margin:10px 0 0">' +
-                  '<div style="font-weight:800">' +
-                  esc(e.name || '') +
-                  '　殿' +
-                  (e.active === false
-                    ? '<span class="note" style="margin-left:6px">（退職）</span>'
-                    : '') +
-                  '</div>' +
-                  '<div class="note" style="margin:2px 0 8px">まだ 配っていません</div>' +
-                  '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:2px">' +
-                  '<button class="btn chi" type="button" data-hhito="' +
-                  esc(e.employee_id) +
-                  '">配る</button>' +
-                  '</div></div>'
-                );
-              }
-              return haifuFuda(x);
-            })
-            .join('');
+          Array.prototype.forEach.call(
+            document.querySelectorAll('[data-yame-box]'),
+            function (box) {
+              if (box.style.display === 'none') return;
+              yameHaifuNuru(box, box.getAttribute('data-yame-box'));
+            }
+          );
         }
 
         // ★配ってある人の 札★（前と 同じ 中身）
@@ -3680,77 +3630,93 @@
           });
         }
 
-        (function () {
-          var box = document.getElementById('haifuList');
-          if (!box) return;
-          box.onclick = function (ev) {
-            var t = ev.target;
-            if (!t) return;
-            var mi = t.getAttribute && t.getAttribute('data-hmise');
-            if (mi) {
-              // ★見せる 前に その人を 取り直す★ 2026-10-20（別の 端末で 作り直すと token が 替わる＝古い QR を 見せない・対立役 本番前 直2）
-              //   取り直しが 落ちても 前の 控えで 見せる（前と 同じ）
-              haifuMiseruAtarashiku(mi);
-              return;
-            }
-            var hh = t.getAttribute && t.getAttribute('data-hhito');
-            if (hh) {
-              haifuHitori(hh);
-              return;
-            }
-            var ok = t.getAttribute && t.getAttribute('data-hokuru');
-            if (ok) {
-              // ★中身は haifuOkuru 1か所★（明細からも 同じ 物を 使う）
-              haifuOkuru(haifuHito(ok), t);
-              return;
-            }
-            var sai = t.getAttribute && t.getAttribute('data-hsai');
-            if (sai) {
-              t.disabled = true;
-              haifuErr('');
-              DKSession.rest(SESS, 'rpc/dk_kyuryo_saihakkou', {
-                method: 'POST',
-                body: JSON.stringify({ p_employee_id: sai }),
-              })
-                .then(function (r) {
-                  return r.json();
-                })
-                .then(function (j) {
-                  t.disabled = false;
-                  if (!j || j.ok !== true) {
-                    // 倉庫の 内側の 名前を そのまま 出さない（10-17 対立役 K2。辞めた 人も 作り直せる 様に なったので taishoku は 来ない）
-                    haifuErr(
-                      j && j.reason === 'not_yours'
-                        ? 'この 会社の 人では ないので 作り直せません。開き直してください。'
-                        : '作り直せませんでした（' + ((j && j.reason) || '理由不明') + '）。'
-                    );
-                    return;
-                  }
-                  // 走って いる 取り直しの 古い 返りは 捨てる（対立役 本番前 N5）
-                  HAIFU_BAN[sai] = (HAIFU_BAN[sai] || 0) + 1;
-                  // ★作り直すと token も 替わる★ 2026-10-20＝返りの token・初回コードで すぐ 控えを 差し替える
-                  //   （1人ぶんの 取り直しが 落ちても、古い 死んだ リンクを 黙って 送らない・対立役 小）
-                  for (var hi = 0; hi < HAIFU.length; hi++) {
-                    if (String(HAIFU[hi].employee_id) === String(sai)) {
-                      HAIFU[hi] = Object.assign({}, HAIFU[hi], {
-                        token: j.token,
-                        init_code: j.init_code,
-                        pw_ari: false,
-                        tomatta: false,
-                      });
-                    }
-                  }
-                  renderHaifu();
-                  // ★作り直した後の 札を 出し直す★（その人だけ）
-                  haifuHitori(sai);
-                })
-                .catch(function () {
-                  t.disabled = false;
-                  haifuErr('作り直せませんでした（通信）。');
-                });
-            }
-          };
-        })();
+        // ★配る 札の 押し口★（2026-10-24 までは 給料の 設定の 配る 一覧の onclick＝一覧を 外したので 名前を 付けて 退職者の 札から 呼ぶ）
+        function haifuOshi(ev) {
+          var t = ev.target;
+          if (!t) return;
+          var mi = t.getAttribute && t.getAttribute('data-hmise');
+          if (mi) {
+            // ★見せる 前に その人を 取り直す★ 2026-10-20（別の 端末で 作り直すと token が 替わる＝古い QR を 見せない・対立役 本番前 直2）
+            //   取り直しが 落ちても 前の 控えで 見せる（前と 同じ）
+            haifuMiseruAtarashiku(mi);
+            return;
+          }
+          var hh = t.getAttribute && t.getAttribute('data-hhito');
+          if (hh) {
+            haifuHitori(hh);
+            return;
+          }
+          var ok = t.getAttribute && t.getAttribute('data-hokuru');
+          if (ok) {
+            // ★中身は haifuOkuru 1か所★（明細からも 同じ 物を 使う）
+            haifuOkuru(haifuHito(ok), t);
+            return;
+          }
+          var sai = t.getAttribute && t.getAttribute('data-hsai');
+          if (sai) haifuSaihakkou(sai, t);
+        }
+        // ★★作り直す（新しい リンク・QR）★★ 2026-10-24 押し口の 中から 切り出した（明細の 見せる 窓と 退職者の 札の 2か所から 呼ぶ）
+        //   中身は 前と 同じ＝返りの token・初回コードで すぐ 控えを 差し替える／走って いる 取り直しの 古い 返りは 捨てる
+        //   ★同じ 人の 作り直しを 2本 走らせない★（二度押しで 後から 着いた 古い 返りが 新しい token を 上書き しない・対立役 N5）
+        var HAIFU_SAI = {};
+        function haifuSaihakkou(sai, t) {
+          if (HAIFU_SAI[sai]) return Promise.resolve(false);
+          HAIFU_SAI[sai] = true;
+          if (t) t.disabled = true;
+          haifuErr('');
+          return DKSession.rest(SESS, 'rpc/dk_kyuryo_saihakkou', {
+            method: 'POST',
+            body: JSON.stringify({ p_employee_id: sai }),
+          })
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (j) {
+              HAIFU_SAI[sai] = false;
+              if (t) t.disabled = false;
+              if (!j || j.ok !== true) {
+                // 倉庫の 内側の 名前を そのまま 出さない（10-17 対立役 K2。辞めた 人も 作り直せる 様に なったので taishoku は 来ない）
+                haifuErr(
+                  j && j.reason === 'not_yours'
+                    ? 'この 会社の 人では ないので 作り直せません。開き直してください。'
+                    : '作り直せませんでした（' + ((j && j.reason) || '理由不明') + '）。'
+                );
+                return false;
+              }
+              // 走って いる 取り直しの 古い 返りは 捨てる（対立役 本番前 N5）
+              HAIFU_BAN[sai] = (HAIFU_BAN[sai] || 0) + 1;
+              // ★作り直すと token も 替わる★ 2026-10-20＝返りの token・初回コードで すぐ 控えを 差し替える
+              //   （1人ぶんの 取り直しが 落ちても、古い 死んだ リンクを 黙って 送らない・対立役 小）
+              for (var hi = 0; hi < HAIFU.length; hi++) {
+                if (String(HAIFU[hi].employee_id) === String(sai)) {
+                  HAIFU[hi] = Object.assign({}, HAIFU[hi], {
+                    token: j.token,
+                    init_code: j.init_code,
+                    pw_ari: false,
+                    tomatta: false,
+                  });
+                }
+              }
+              renderHaifu();
+              haifuMadoNaoshi(sai);
+              // ★作り直した後の 札を 出し直す★（その人だけ）
+              return Promise.resolve(haifuHitori(sai)).then(function () {
+                haifuMadoNaoshi(sai);
+                return true;
+              });
+            })
+            .catch(function () {
+              HAIFU_SAI[sai] = false;
+              if (t) t.disabled = false;
+              haifuErr('作り直せませんでした（通信）。');
+              return false;
+            });
+        }
+        // 見せる 窓が その 人の 物で 開いて いれば 新しい token で 描き直す（閉じて いれば 開かない・対立役 N5）
+        function haifuMadoNaoshi(eid) {
+          var md = document.getElementById('haifuMise');
+          if (md && md.getAttribute('data-eid') === String(eid)) haifuMiseru(eid);
+        }
 
         $('btnLogout').onclick = function () {
           DKSession.logout();
@@ -7211,8 +7177,7 @@
               });
               return;
             }
-            var ichiran = document.getElementById('haifuList');
-            if (ichiran && typeof ichiran.onclick === 'function') ichiran.onclick(ev);
+            haifuOshi(ev);
           };
         }
         // ★役割・歩合・最低保証・何日から の 欄★ 2026-10-20（今いる人の 行と 退職者ページで 同じ 物を 使う）

@@ -60,3 +60,47 @@ test('② 保存の 下の 説明は 選んだ 払い方に その場で 変わ�
   await page.selectOption('#pMode', 'hi');
   await expect(s).toContainText('毎日：1日ごとに明細を出します');
 });
+
+test('③ 給料の 設定に 配るの 箱が 無く、明細の「QRを 見せる」から 配れる', async ({ page }) => {
+  await openKyuryo(page, null, { ura: '?henshu=1' });
+  await page.evaluate(() => {
+    const S = window.DKSession;
+    const o = S.rest;
+    window.__haifu = 0;
+    S.rest = function (s, p, opt) {
+      if (String(p).indexOf('rpc/dk_kyuryo_haifu_hitori') === 0) {
+        window.__haifu++;
+        const eid = JSON.parse(opt.body).p_employee_id;
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              hito: {
+                employee_id: eid,
+                name: '見張り',
+                token: 'abcd1111abcd2222abcd3333abcd4444',
+                init_code: null,
+                pw_ari: true,
+              },
+            }),
+        });
+      }
+      return o.apply(this, arguments);
+    };
+  });
+  await page.click('.tab[data-tab="set"]');
+  await page.waitForTimeout(300);
+  const ji = await page.locator('#paneSet').innerText();
+  expect(ji, '★給料の 設定に 配るの 箱が 残っている★').not.toContain('従業員へ 配る');
+  expect(await page.locator('#paneSet #haifuList').count()).toBe(0);
+  await page.click('.tab[data-tab="slip"]');
+  await page.waitForTimeout(300);
+  const b = page.locator('[data-meisai-qr]').first();
+  expect(await b.count(), '★明細に「QRを 見せる」が 無い★').toBe(1);
+  await b.click();
+  await expect(page.locator('#haifuMise svg')).toHaveCount(1);
+  expect(await page.evaluate(() => window.__haifu)).toBeGreaterThan(0);
+  const url = await page.locator('#haifuMiseQr').getAttribute('data-url-mihari');
+  expect(url, '★窓の QR の 先が 読めない★').toContain('?t=abcd1111abcd2222abcd3333abcd4444');
+});

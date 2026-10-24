@@ -90,20 +90,21 @@ async function hiraku(page, share) {
   //   「設定画面の 中に チップで 車、料金、従業員マスタ つくったら 各ページ 見やすくなるやろ」
   //   ⇒ ★「従業員」「給料の設定」は ?henshu=1 の 時だけ 出ます★
   //     （会社設定 →「車」「従業員」チップから 来る 道）
+  // ★2026-10-24 給料の 設定の 配る 一覧は 外した（司さん「配るは明細からできるからのけろ」）＝明細の「送る」で 見る★
+  //   まだ 配って いない 人でも 明細の「送る」は その場で 配ってから 送る（meisaiOkuru）
   await page.goto('/kyuryo.html?henshu=1');
   await page.waitForTimeout(1800);
-  await page.locator('.tab[data-tab="set"]').click();
+  await page.locator('.tab[data-tab="slip"]').click();
   await page.waitForTimeout(400);
-  await page.locator('[data-hhito]').first().click();
-  await page.waitForTimeout(700);
 }
+const OKURU = '[data-meisai-okuru="' + FIX.emps[0].employee_id + '"]';
 
 test('★共有シートが 使える台＝押すと 共有シートが 出る★', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
   await hiraku(page, true);
-  const b = page.locator('[data-hokuru]').first();
+  const b = page.locator(OKURU).first();
   expect(await b.textContent(), '★字が「送る」に なっていません★').toContain('送る');
   await b.click();
   await page.waitForTimeout(700);
@@ -124,7 +125,7 @@ test('★共有シートが 無い台＝コピーに 落ちる★', async ({ pag
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
   await hiraku(page, false);
-  const b = page.locator('[data-hokuru]').first();
+  const b = page.locator(OKURU).first();
   await b.click();
   await page.waitForTimeout(500);
   console.log('★押した 後の 字★ ' + (await b.textContent()).trim());

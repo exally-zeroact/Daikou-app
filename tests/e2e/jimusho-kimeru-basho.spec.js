@@ -534,15 +534,6 @@ test('★★⑪ 退職で 従業員から 消えて 退職者に 移り、復職
   }));
   expect(ato.nin, '★退職しても 従業員に 残っている★').toBe(mae.nin - 1);
   expect(ato.okutta[0]).toMatchObject({ active: false, retired_on: '2026-09-30' });
-  // 配る 一覧には 残り、その 場で（退職）の 印が 付く 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
-  //   （10-16 は「消える」だった。わざと壊す：一覧の 描き直しを 外す・印を 外す ⇒ 赤）
-  const haifu = await page.evaluate((na) => {
-    const fuda = [...document.querySelectorAll('#haifuList .card')].find((c) =>
-      c.textContent.includes(na)
-    );
-    return fuda ? fuda.textContent.includes('（退職）') : null;
-  }, na);
-  expect(haifu, '★退職した 人が 配る 一覧に 居ない／（退職）の 印が 付いていない★').toBe(true);
   // 退職者：1行目に 辞めた日、2行目に 名前と 復職
   await page.locator('[data-kiri="yame"]').click();
   const yame = await page.evaluate(() =>
@@ -550,10 +541,14 @@ test('★★⑪ 退職で 従業員から 消えて 退職者に 移り、復職
       hi: (tr.querySelector('.yame-hi') || {}).textContent || '',
       na: (tr.querySelector('.yame-na span') || {}).textContent || '',
       fuku: !!tr.querySelector('[data-fukushoku]'),
+      haifu: !!tr.querySelector('[data-yame-haifu]'),
     }))
   );
   const r = yame.find((x) => x.na === na);
   expect(r, '★退職者に 出ていない★').toBeTruthy();
+  // 辞めた 人にも 配れる 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
+  //   （2026-10-24 給料の 設定の 配る 一覧は 外した＝退職者の 行の「配る」で 見る）
+  expect(r.haifu, '★退職者の 行に「配る」が 無い★').toBe(true);
   expect(r.hi).toBe('2026/09/30');
   expect(r.fuku).toBe(true);
   await page.locator('#empBody [data-fukushoku]').first().click();

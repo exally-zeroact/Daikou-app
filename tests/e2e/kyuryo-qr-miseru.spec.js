@@ -116,9 +116,11 @@ test('★明細の「QRを 見せる」で その人の QR が 出る★', async
   });
 });
 
-// ★★説明書が 出る★★ 2026-09-04（司さん「説明書 書いて 見せろ」）
-//   ★★わざと壊して 赤に なる事を 見た★★ … 説明書の 箱を 消す ⇒ ★赤★
-test('★説明書（使い方）が 在る★', async ({ page }) => {
+// ★★見せる 窓に 鍵と 作り直しの 説明★★ 2026-10-24
+//   前は 給料の 設定の「従業員へ 配る」の 箱に 説明書（使い方）が 在った。箱は 外した（司さん「配るは明細からできるからのけろ」）
+//   ⇒ 渡す 窓（明細の「QRを 見せる」）に「リンクが 鍵・本人にだけ・忘れた／漏れた 時は 作り直す」を 出す
+//   ★わざと壊して 赤★ 窓から 説明の 行を 消す ⇒ 赤
+test('★見せる 窓に 鍵と 作り直しの 説明が 在る★', async ({ page }) => {
   await page.route('**/js/dk-session.js*', (r) =>
     r.fulfill({
       status: 200,
@@ -127,25 +129,22 @@ test('★説明書（使い方）が 在る★', async ({ page }) => {
     })
   );
   await page.setViewportSize({ width: 390, height: 900 });
-  // ★★2026-09-06 給料は「見るだけ」に なりました★★（司さん）
-  //   「設定画面の 中に チップで 車、料金、従業員マスタ つくったら 各ページ 見やすくなるやろ」
-  //   ⇒ ★「従業員」「給料の設定」は ?henshu=1 の 時だけ 出ます★
-  //     （会社設定 →「車」「従業員」チップから 来る 道）
   await page.goto('/kyuryo.html?henshu=1');
   await page.waitForTimeout(1800);
   await page.locator('.tab[data-tab="set"]').click();
+  await page.waitForTimeout(300);
+  expect(
+    await page.locator('#paneSet').innerText(),
+    '★給料の 設定に 配るの 箱が 残っている★'
+  ).not.toContain('従業員へ 配る');
+  await page.locator('.tab[data-tab="slip"]').click();
   await page.waitForTimeout(400);
-  await page.locator('#haifuSetsumei summary').scrollIntoViewIfNeeded();
-  await page.locator('#haifuSetsumei summary').click();
-  await page.waitForTimeout(400);
-  const ji = await page.locator('#haifuSetsumei').innerText();
-  console.log('★説明書の 字数★ ' + ji.replace(/s+/g, '').length);
-  ['配る', '大きく 見せる', 'QRを 見せる', '送る', '作り直す', 'リンクが 鍵'].forEach((k) => {
-    expect(ji, '★説明書に「' + k + '」が ありません★').toContain(k);
+  await page.locator('[data-meisai-qr="ec8d275b-38c0-4d9f-b471-eeb10226a6a9"]').first().click();
+  await page.waitForTimeout(800);
+  const ji = await page.locator('#haifuMise').innerText();
+  ['リンクが 鍵', '本人にだけ', '作り直す'].forEach((k) => {
+    expect(ji, '★窓に「' + k + '」が ありません★').toContain(k);
   });
-  await page
-    .locator('#haifuSetsumei')
-    .screenshot({ path: 'C:/Users/zeroa/dk-tokei-2026-09-02/tokei/shot-setsumei.png' });
 });
 
 // ★★居ない人を 押しても 黙らない★★ 2026-09-04
@@ -202,55 +201,11 @@ for (const d of [
     //   「設定画面の 中に チップで 車、料金、従業員マスタ つくったら 各ページ 見やすくなるやろ」
     //   ⇒ ★「従業員」「給料の設定」は ?henshu=1 の 時だけ 出ます★
     //     （会社設定 →「車」「従業員」チップから 来る 道）
+    // ★2026-10-24 給料の 設定の 配る 一覧は 外した＝明細の「QRを 見せる」から 出す（一覧の ボタンの すきまの 見張りは 一覧ごと 外した）★
     await page.goto('/kyuryo.html?henshu=1');
     await page.waitForTimeout(1600);
-    await page.locator('.tab[data-tab="set"]').click();
-    await page.waitForTimeout(400);
-    // ★配るのは 人ごと★（2026-09-04 司さん）
-    const machi = await page.locator('[data-hhito]').count();
-    for (let i = 0; i < machi; i++) {
-      await page.locator('[data-hhito]').first().click();
-      await page.waitForTimeout(400);
-    }
-    await page.waitForTimeout(900);
-    // ★札の 中の QR（小さい方）★
-    // ★★ボタンが 引っ付いていないか（縦も 横も）★★ 2026-09-04（司さん）
-    //   「前から 色んな アプリで いよるけど なんで ボタンが 引っ付くんど」
-    //   ★裸で 並べると 折り返した時に 縦の 隙間が 0 に なる★
-    //   ⇒ ★描かれた 場所で 数える★（CSS の 字では 見ない）
-    const suki = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#haifuList button')].map((x) => {
-        const r = x.getBoundingClientRect();
-        return { l: r.left, r: r.right, t: r.top, b: r.bottom, ji: x.textContent.trim() };
-      });
-      let yoko = 999,
-        tate = 999;
-      for (let i = 0; i < b.length; i++) {
-        for (let j = 0; j < b.length; j++) {
-          if (i === j) continue;
-          // ★同じ 段（縦が 重なる）で 隣★
-          if (b[j].t < b[i].b - 1 && b[j].b > b[i].t + 1 && b[j].l >= b[i].r) {
-            yoko = Math.min(yoko, Math.round(b[j].l - b[i].r));
-          }
-          // ★上下の 段（横が 重なる）★
-          if (b[j].l < b[i].r - 1 && b[j].r > b[i].l + 1 && b[j].t >= b[i].b) {
-            tate = Math.min(tate, Math.round(b[j].t - b[i].b));
-          }
-        }
-      }
-      return { kazu: b.length, yoko: yoko, tate: tate, ji: b.map((x) => x.ji) };
-    });
-    console.log('★ボタンの すきま★ ' + JSON.stringify(suki));
-    expect(suki.kazu, '★ボタンを 数えられていません★').toBeGreaterThan(3);
-    expect(suki.yoko, '★横が 引っ付いています★').toBeGreaterThanOrEqual(6);
-    expect(suki.tate, '★縦が 引っ付いています★').toBeGreaterThanOrEqual(6);
-    expect(suki.ji.join(','), '★「送る」に なっていません★').toContain('送る');
-
-    // ★一覧には もう QR を 出しません★（2026-09-04 司さん）
-    //   ⇒ 比べる 相手は ★前の 大きさ（152px）★を そのまま 数に して 置く
     const chiisai = 152;
-    expect(await page.locator('#haifuList svg').count(), '★一覧に QR が 並んでいます★').toBe(0);
-    await page.locator('[data-hmise]').first().click();
+    await page.locator('[data-meisai-qr="ec8d275b-38c0-4d9f-b471-eeb10226a6a9"]').first().click();
     await page.waitForTimeout(500);
     const r = await page.evaluate(() => {
       const o = document.getElementById('haifuMise');
