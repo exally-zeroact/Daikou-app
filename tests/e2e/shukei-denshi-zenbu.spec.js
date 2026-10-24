@@ -163,7 +163,8 @@ test('★電子決済が 前の 年までに 600行 在っても この 年の �
   const yonda = await page.evaluate(() => window.__yonda);
   expect(yonda.length, '★電子決済を 読んでいない★').toBeGreaterThan(0);
   for (const p of yonda) {
-    expect(p).toContain('pay_date=gte.2025-12-01');
+    // 2026-10-24 会社の 締め日：読み始めは 前の 年の 11月（会社 5日締め × 給料 25日締め の 前の 年の 11/26 に 届く・叩き役 K-4）
+    expect(p).toContain('pay_date=gte.2025-11-01');
     expect(p).toContain('pay_date=lte.2027-01-31');
     expect(p).toContain('order=pay_date.asc');
     expect(p).toContain('company_id=eq.' + CO);

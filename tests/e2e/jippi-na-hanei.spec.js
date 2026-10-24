@@ -88,7 +88,16 @@ const ZERO_KINDS = [
     deleted_at: '2026-09-18T15:05:24Z',
   },
 ];
-const SETTINGS = [{ company_id: CO, deduct_toll: true, deduct_bridge: true, deduct_other: false }];
+// kaisha_shime_hi＝会社の 締め日（倉庫の 列・null＝末日）2026-10-24＝列が 無い 行は 月次集計が 止める（読めない 締め日を 末日に 倒さない）
+const SETTINGS = [
+  {
+    company_id: CO,
+    deduct_toll: true,
+    deduct_bridge: true,
+    deduct_other: false,
+    kaisha_shime_hi: null,
+  },
+];
 
 function tsukuru(o) {
   const x = o || {};

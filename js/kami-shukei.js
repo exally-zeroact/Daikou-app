@@ -27,8 +27,12 @@
   //   ＝引く 物の 一覧は ★全部 hiku:true★（計算の UriageAgg.deductOf と 同じ＝紙の 名前と 引いた 額が 食い違わない）
   //   前は 古い 3つ（高速・橋・その他）を 売上設定（deduct_*）と「何日から」の 記録で 引く／引かないに 分けていた
   //   5番目の 引数（前の 売上設定）は もう 見ない（呼ぶ 側の 並びを 変えない 為に 残す）
-  function kaisha(name, year, month, payrollSettings, _uriageSettei, kinds, denshiAri) {
+  //   kikan … 会社の 締めの 期間（KaishaKikan.kikan の 返り）2026-10-24 件K（司さん「会社の締め日」・叩き役 K-6／K-9）
+  //     締め日が 末日で ない 会社は 紙の 日の 並び（hibi）と 題の 期間の 字（kikanJi）を 付ける
+  //     省く・末日 ⇒ 暦の 月（今まで 通り＝紙は 1文字も 変わらない）
+  function kaisha(name, year, month, payrollSettings, _uriageSettei, kinds, denshiAri, kikan) {
     const ks = [];
+    const kaishaNo = !!(kikan && kikan.hi !== null && kikan.hi !== undefined && kikan.dates);
     (kinds || []).forEach(function (k) {
       if (!k || k.deleted_at) return;
       ks.push({ label: k.label, hiku: true });
@@ -39,7 +43,7 @@
         ks.push({ label: label, hiku: true });
       });
     }
-    return {
+    const k = {
       name: name || '',
       year: n(year),
       month: n(month),
@@ -47,6 +51,12 @@
       kinds: ks,
       denshi: !!denshiAri,
     };
+    // ★会社の 期間★：紙の 日の 並びと 題の 期間の 字（叩き役 K-9）
+    if (kaishaNo) {
+      k.hibi = kikan.dates.slice();
+      k.kikanJi = kikan.rangeLabel || '';
+    }
+    return k;
   }
 
   // ★月次集計（GetsujiAgg.month の 出した 物を そのまま）★

@@ -53,8 +53,9 @@
       ? '<span class="z">—</span>'
       : String(Math.round(n(v)));
   }
+  // ★会社の 締めの 期間の 字★ 2026-10-24（20日締めの 10月 ⇒「2026年 10月（9/21 〜 10/20）」・末日の 会社は 今まで 通り）
   function ym(k) {
-    return k.year + '年 ' + k.month + '月';
+    return k.year + '年 ' + k.month + '月' + (k.kikanJi ? '（' + k.kikanJi + '）' : '');
   }
 
   // ── ①月次集計（A4縦）──────────────────────────────
@@ -620,7 +621,8 @@
   //   hi … { 日: { key: 値 } }／koumoku … [{ name, key, fmt }]
   //   ★合計の 行は 出さない★（違う 項目を 縦に 足しても 意味が 無い）＝項目ごとの「計」の 列で 見る
   function hiGotoYoko(k, hi, koumoku) {
-    const last = K.matsubi(k.year, k.month);
+    // ★日の 数は 紙の 日の 並び★（会社の 締めの 期間＝k.hibi・無ければ 暦の 月の 末日）2026-10-24
+    const last = hibiOf(k).length;
     const naHaba = naHabaOf(
       koumoku.map(function (x) {
         return x.name;

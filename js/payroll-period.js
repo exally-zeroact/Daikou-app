@@ -642,3 +642,164 @@
   }
   /* eslint-enable no-undef */
 })(typeof window !== 'undefined' ? window : globalThis);
+
+// ============================================================
+// ★KaishaKikan（js/payroll-period.js の 後ろ）★
+//   ★置き場の 訳★ 新しい js を 作ると 事務所の 中継の 名簿（office-host/vercel.json と 別 repo の
+//   daikome-jimusho-host）にも 足さないと 事務所の 画面で 404＝月次集計が 開かない
+//   （tests/e2e/jimusho-haishin-todoku.spec.js が 実配信で 赤に した・2026-10-24）。
+//   ⇒ 名簿に 既に 在り 月次集計・売上表が 読む この 1本に 置く（給料の 期とは 別の 物＝名前も 別）
+// ★★会社の 締め日（月 → 会社の 期間 の 割り当て）＝ここ 1か所★★ 2026-10-24（司さん）
+//
+//   司さん「会社の締め日も決めれるようにしとかないかんな」
+//         「締め日は給料やなくて会社の締めのことな。給料は給料のとこで設定できるやろが」
+//
+//   ▼決まり
+//     締め日 hi … null＝末日（今まで 通りの 暦の 月）／1〜28＝その 日で 締める
+//     期間の 名前＝★締めた 月★：20日締めの 10月＝9/21〜10/20（前の 月の 21日〜その 月の 20日）
+//     末日の 会社は 暦の 月と 1日も 違わない（月次・紙・売上表の 数は 1円も 変わらない）
+//     29〜31日締めは 置かない（2月が 割れる）＝1〜28日・末日 だけ
+//
+//   ▼置き場
+//     dk_sales_settings.kaisha_shime_hi（smallint・null＝末日・1〜28）
+//     （dk_companies には 持ち主の 更新の 口が 無い＝止めた 会社が 自分で 戻せる 口を 開けない・叩き役 K-1）
+//
+//   ▼読めない 時は 末日に 倒さない（叩き役 K-8）
+//     行は 在るのに 列が 無い（読み足し忘れ・倉庫に 列が まだ 無い）・値が 1〜28 以外 ⇒ dame（月次と 紙を 止めて 訳を 出す）
+//     行が 無い（その 会社は まだ 売上の 設定を 1度も 保存していない）＝末日（新しい 会社の 既定）
+//
+//   ▼throw しない（yomu 以外の 関数は 壊れた 値を 末日として 扱わず、呼ぶ 側が yomu の dame で 止める）
+// ============================================================
+(function (global) {
+  'use strict';
+
+  function pad(x) {
+    return x < 10 ? '0' + x : String(x);
+  }
+  function daysInMonth(y, m) {
+    return new Date(y, m, 0).getDate();
+  }
+  function ymd(y, m, d) {
+    return y + '-' + pad(m) + '-' + pad(d);
+  }
+  function seisu(v) {
+    return typeof v === 'number' && isFinite(v) && Math.floor(v) === v;
+  }
+  function hiOk(hi) {
+    return hi === null || (seisu(hi) && hi >= 1 && hi <= 28);
+  }
+  function dame(riyuu) {
+    return { dame: true, riyuu: riyuu };
+  }
+
+  // ★設定の 行から 締め日を 読む（ここ 1か所）★
+  //   row … dk_sales_settings の 1行（select=* で 読んだ 物）／null・undefined＝行が 無い
+  //   返り … {ok:true, hi:null|1..28} ／ {dame:true, riyuu}
+  function yomu(row) {
+    try {
+      if (row === null || row === undefined) return { ok: true, hi: null };
+      if (typeof row !== 'object') return dame('会社の 締め日が 読めません');
+      if (!Object.prototype.hasOwnProperty.call(row, 'kaisha_shime_hi'))
+        return dame('会社の 締め日（kaisha_shime_hi）を 読めませんでした');
+      const v = row.kaisha_shime_hi;
+      if (v === null) return { ok: true, hi: null };
+      const x = typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v;
+      if (!seisu(x) || x < 1 || x > 28) return dame('会社の 締め日が おかしい: ' + String(v));
+      return { ok: true, hi: x };
+    } catch (_) {
+      return dame('会社の 締め日が 読めません');
+    }
+  }
+
+  // ★その 名前の 月の 期間★（y年 m月＝締めた 月）
+  //   返り {year, month, hi, start, end, dates:[…], label:'10月', rangeLabel:'9/21 〜 10/20'}
+  function kikan(y, m, hi) {
+    const t = new Date(y, m - 1, 1);
+    const yy = t.getFullYear();
+    const mm = t.getMonth() + 1;
+    const dates = [];
+    let start;
+    let end;
+    if (hi === null || hi === undefined || !hiOk(hi)) {
+      const last = daysInMonth(yy, mm);
+      for (let d = 1; d <= last; d++) dates.push(ymd(yy, mm, d));
+      start = { y: yy, m: mm, d: 1 };
+      end = { y: yy, m: mm, d: last };
+    } else {
+      const p = new Date(yy, mm - 2, 1);
+      const py = p.getFullYear();
+      const pm = p.getMonth() + 1;
+      const plast = daysInMonth(py, pm);
+      for (let d = hi + 1; d <= plast; d++) dates.push(ymd(py, pm, d));
+      for (let d = 1; d <= hi; d++) dates.push(ymd(yy, mm, d));
+      start = hi + 1 <= plast ? { y: py, m: pm, d: hi + 1 } : { y: yy, m: mm, d: 1 };
+      end = { y: yy, m: mm, d: hi };
+    }
+    return {
+      year: yy,
+      month: mm,
+      hi: hiOk(hi) ? hi : null,
+      start: ymd(start.y, start.m, start.d),
+      end: ymd(end.y, end.m, end.d),
+      dates: dates,
+      label: mm + '月',
+      rangeLabel: start.m + '/' + start.d + ' 〜 ' + end.m + '/' + end.d, // 全角の 〜（給料の 期の 字と 同じ）
+    };
+  }
+
+  // ★その 日は どの 月の 期間か★（'YYYY-MM-DD' → {year, month}）／読めない 日は null
+  function tsukiOf(date, hi) {
+    const s = String(date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    let y = +s.slice(0, 4);
+    let m = +s.slice(5, 7);
+    const d = +s.slice(8, 10);
+    if (hiOk(hi) && hi !== null && d > hi) {
+      m += 1;
+      if (m > 12) {
+        m = 1;
+        y += 1;
+      }
+    }
+    return { year: y, month: m };
+  }
+  // ★その 日が y年の m月の 期間に 入るか★（m を 省く ⇒ y年の どこかの 月）
+  function naka(date, hi, y, m) {
+    const t = tsukiOf(date, hi);
+    if (!t || t.year !== y) return false;
+    return m === undefined || m === null || t.month === m;
+  }
+  // ★その 年の 期間の 頭と 尻★（1月の 期間の 頭〜12月の 期間の 尻）
+  function nen(y, hi) {
+    const a = kikan(y, 1, hi);
+    const b = kikan(y, 12, hi);
+    return { start: a.start, end: b.end };
+  }
+  // ★今日（日本時間の 'YYYY-MM-DD'）は どの 月の 期間か★（20日締めで 10/24 ⇒ 11月）
+  function kyou(hi, now) {
+    const t = new Date((now === undefined ? Date.now() : now) + 9 * 3600 * 1000);
+    return tsukiOf(t.toISOString().slice(0, 10), hi);
+  }
+  // ★画面に 出す 字★（末日 ⇒「末日」）
+  function hiNoJi(hi) {
+    return hi === null || hi === undefined ? '末日' : hi + '日';
+  }
+
+  const api = {
+    yomu: yomu,
+    kikan: kikan,
+    tsukiOf: tsukiOf,
+    naka: naka,
+    nen: nen,
+    kyou: kyou,
+    hiNoJi: hiNoJi,
+    hiOk: hiOk,
+  };
+  if (global) global.KaishaKikan = api;
+  /* eslint-disable no-undef */
+  // node では require('./payroll-period.js').KaishaKikan で 取る
+  if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports.KaishaKikan = api;
+  }
+  /* eslint-enable no-undef */
+})(typeof window !== 'undefined' ? window : globalThis);

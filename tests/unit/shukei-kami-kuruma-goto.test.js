@@ -50,16 +50,25 @@ const RAW = {
   ],
 };
 
+// ★その 月の 日は 会社の 締めの 期間で 決める★ 2026-10-24（kHi・tsukiNoHi も 切り出す・末日の 会社＝暦の 月）
+const KaishaKikan = require('../../js/payroll-period.js').KaishaKikan;
 const kamiCarsOf = new Function(
   'CTX',
   'RAW',
   'YEAR',
   'CarName',
   'window',
-  [kiridasu('uriHibi'), kiridasu('uriKuruma'), kiridasu('kamiCarsOf'), 'return kamiCarsOf;'].join(
-    '\n'
-  )
-)(CTX, RAW, 2026, CarName, { CarName });
+  'KaishaKikan',
+  'KAISHA',
+  [
+    kiridasu('kHi'),
+    kiridasu('tsukiNoHi'),
+    kiridasu('uriHibi'),
+    kiridasu('uriKuruma'),
+    kiridasu('kamiCarsOf'),
+    'return kamiCarsOf;',
+  ].join('\n')
+)(CTX, RAW, 2026, CarName, { CarName }, KaishaKikan, { ok: true, hi: null });
 
 describe('★月次の 紙の 車ごと★', () => {
   const rows = kamiCarsOf(9);

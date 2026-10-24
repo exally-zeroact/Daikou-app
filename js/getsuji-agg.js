@@ -83,19 +83,103 @@
     };
   }
 
+  // ★★会社の 期間の 給料の 回★★ 2026-10-24（司さん「会社の締め日」・叩き役 K-3／K-7）
+  //   決め：給料の 回は「名前の 日」（何月分を 締めた 日で 呼ぶ 会社＝締めた 日・始まった 日で 呼ぶ 会社＝始まった 日）を
+  //   含む 会社の 期間に 入れる。月3回・毎日・週・月の 締め日の 並び・記録（何日から）の どれでも 同じ 決まり。
+  //   ★末日の 会社は 今までの 道（何月分の 鍵）を そのまま 通す★＝1円も 変わらない（この 道を 末日で 通しても
+  //   同じ 期に なる事は tests/unit/kaisha-shime-getsuji.test.js が 縛る）
+  //   返り {ps, kind, kagi} ／ {dame, riyuu, aki}
+  function namaeNoHi(Period, kata, p) {
+    const k = kata && kata.kind === 'rireki' ? Period.kataNoHi(kata, p.start) : kata;
+    return k && k.nazuke === 'hajime' ? p.start : p.end;
+  }
+  function kaishaKyuryo(Period, y, m, kata, K) {
+    const ps = [];
+    const seen = {};
+    let aki = false;
+    // 名前の 日が この 期間に 入る 回は「何月分」で 前後 2か月の どこかに 居る（記録の 道で 後ろへ 寄せられた 回も 拾う）
+    for (let d = -2; d <= 2; d++) {
+      const t = Period.shift({ year: y, month: m }, d);
+      const l = Period.periodsOf(t.year, t.month, { kata: kata });
+      for (let i = 0; i < l.length; i++) {
+        const p = l[i];
+        if (!p) continue;
+        if (p.dame) {
+          if (p.aki) {
+            aki = true;
+            continue;
+          }
+          return { dame: true, riyuu: '締めの 変えた 記録から 期を 区切れません' };
+        }
+        const kagi = p.start + '|' + p.end;
+        if (seen[kagi]) continue;
+        seen[kagi] = 1;
+        const nd = namaeNoHi(Period, kata, p);
+        if (nd >= K.start && nd <= K.end) ps.push(p);
+      }
+    }
+    ps.sort(function (a, b) {
+      return a.start < b.start ? -1 : a.start > b.start ? 1 : 0;
+    });
+    // ★締めの 変え方で この 期間に 給料の 回が 1つも 無い★＝止める（0円で 黙って 進まない・今の 月の 止めと 同じ）
+    if (!ps.length && kata.kind === 'rireki' && aki) return { dame: true, aki: true };
+    // 形が 1つ（記録で 混ざらない・切られて いない）の 時だけ 形の 鍵を 返す（年の 期ごとの 合計を 出すか 決める）
+    let kagi0 = null;
+    let kind0 = null;
+    let hitotsu = true;
+    ps.forEach(function (p) {
+      const k = kata.kind === 'rireki' ? Period.kataNoHi(kata, p.start) : kata;
+      const kg = JSON.stringify(k);
+      if (p.kiri) hitotsu = false;
+      if (kagi0 === null) {
+        kagi0 = kg;
+        kind0 = k && k.kind;
+      } else if (kagi0 !== kg) hitotsu = false;
+    });
+    if (kagi0 === null) {
+      kagi0 = kata.kind === 'rireki' ? '' : JSON.stringify(kata);
+      kind0 = kata.kind;
+    }
+    return {
+      ps: ps,
+      kind: hitotsu ? kind0 : 'rireki',
+      kagi: hitotsu ? kagi0 : '',
+    };
+  }
+
   // ★1ヶ月ぶん★
   //   ctx      … PayrollDaily.buildCtx(...) の戻り
   //   payments … [{pay_date, invoice_yen, denshi_yen}]（手入力ぶん）
-  function month(year, month_, ctx, payments) {
+  //   kaisha   … 会社の 締め日 2026-10-24：KaishaKikan.yomu の 返り {hi:null|1..28}（dame なら 止める）
+  //              ＋ kara/made（読んだ 日の 幅 'YYYY-MM-DD'・入りきらない 回が 在れば 止める・叩き役 K-4）
+  //              省く ⇒ 末日（今まで 通り）
+  function month(year, month_, ctx, payments, kaisha) {
     const out = emptyMonth(year, month_);
     try {
       const Period = _need('PayrollPeriod', './payroll-period.js');
       const Daily = _need('PayrollDaily', './payroll-daily.js');
-      if (!Period || !Daily || !ctx) return out;
+      // ★会社の 締め日の 決まり★（js/payroll-period.js の 後ろの KaishaKikan）2026-10-24
+      const KK = (global && global.KaishaKikan) || (Period && Period.KaishaKikan) || null;
+      if (!Period || !Daily || !ctx || !KK) return out;
 
       const y = out.year;
       const m = out.month;
-      const dates = Period.monthDates(y, m);
+      // ★★会社の 締め日が 読めない ⇒ 末日に 倒さず 止める★★（叩き役 K-8）
+      const kk = kaisha || { hi: null };
+      if (kk.dame) {
+        out.dame = true;
+        out.kaishaShime = true; // 画面の 字を 分ける 印（字で 分けない）
+        out.riyuu = kk.riyuu || '会社の 締め日が 読めません';
+        return out;
+      }
+      const hi = kk.hi === undefined ? null : kk.hi;
+      const ippan = hi !== null || kk.ippan === true; // 会社の 期間の 道（末日でも 試験で 通せる）
+      const K = KK.kikan(y, m, hi);
+      out.kaishaHi = hi;
+      out.kikanStart = K.start;
+      out.kikanEnd = K.end;
+      out.rangeLabel = K.rangeLabel;
+      const dates = K.dates;
       const inMonth = {};
       dates.forEach(function (d) {
         inMonth[d] = true;
@@ -144,11 +228,37 @@
         out.kiroku = kata.kiroku === true; // 締めの 変えた 記録を 読めなかった（画面の 字を 分ける 印）
         return out;
       }
-      // ★締めの 形の 何日から★ 2026-10-19＝その月の 形（記録で 形が 混ざる 月は 'rireki'）
-      const tsukiKata = Period.tsukiNoKata(kata, y, m);
-      out.kind = tsukiKata ? tsukiKata.kind : 'rireki';
-      out.kataKagi = tsukiKata ? JSON.stringify(tsukiKata) : '';
-      const periods = Period.periodsOf(y, m, { kata: kata });
+      let periods;
+      if (ippan) {
+        // ★会社の 期間に「名前の 日」が 入る 給料の 回★（叩き役 K-3・K-7）
+        const r = kaishaKyuryo(Period, y, m, kata, K);
+        if (r.dame) {
+          out.dame = true;
+          if (r.aki) {
+            out.aki = true;
+            out.riyuu =
+              y +
+              '年' +
+              m +
+              '月（' +
+              K.rangeLabel +
+              '）の 給料の 回が 締めの 変え方で 無くなっています（給料は 毎月 払う 決まり）';
+          } else out.riyuu = r.riyuu;
+          return out;
+        }
+        out.kind = r.kind;
+        out.kataKagi = r.kagi;
+        periods = r.ps.map(function (p, i) {
+          const naka = p.year === y && p.month === m;
+          return Object.assign({}, p, { index: i, name: naka ? p.name : p.rangeLabel });
+        });
+      } else {
+        // ★締めの 形の 何日から★ 2026-10-19＝その月の 形（記録で 形が 混ざる 月は 'rireki'）
+        const tsukiKata = Period.tsukiNoKata(kata, y, m);
+        out.kind = tsukiKata ? tsukiKata.kind : 'rireki';
+        out.kataKagi = tsukiKata ? JSON.stringify(tsukiKata) : '';
+        periods = Period.periodsOf(y, m, { kata: kata });
+      }
       // ★区切れない（記録の 道で 転んだ）＝止める★（0円で 黙って 進まない・対立役 止3）
       if (
         periods.some(function (p) {
@@ -166,6 +276,30 @@
             '月分の 給料が 締めの 変え方で 無くなっています（給料は 毎月 払う 決まり）';
         } else out.riyuu = '締めの 変えた 記録から 期を 区切れません';
         return out;
+      }
+      // ★★読んだ 日の 幅に 入りきらない 期間・給料の 回が 在れば 止める★★（叩き役 K-4：抜けた 日の 給料で 出さない）
+      if (kk.kara || kk.made) {
+        const soto = function (a, b) {
+          return (kk.kara && a < kk.kara) || (kk.made && b > kk.made);
+        };
+        const p0 = soto(K.start, K.end)
+          ? { rangeLabel: K.rangeLabel }
+          : periods.filter(function (p) {
+              return soto(p.start, p.end);
+            })[0];
+        if (p0) {
+          out.dame = true;
+          out.haba = true;
+          out.riyuu =
+            '読んだ 日（' +
+            kk.kara +
+            '〜' +
+            kk.made +
+            '）に 入りきらない 給料の 回（' +
+            p0.rangeLabel +
+            '）が あります';
+          return out;
+        }
       }
       periods.forEach(function (p) {
         // ★★給料は その月に 締めた 期の 全部の 日★★（司さん 10-07「イ」＝月を またぐ 期も 期の 全部）
@@ -219,10 +353,15 @@
   }
 
   // ★1年ぶん（1月〜12月＋合計）★
-  function year(y, ctx, payments) {
+  //   kaisha … month と 同じ（会社の 締め日）。省く ⇒ 末日（今まで 通り）
+  function year(y, ctx, payments, kaisha) {
     const out = { year: n(y), months: [], total: emptyMonth(n(y), 0) };
     try {
-      for (let m = 1; m <= 12; m++) out.months.push(month(y, m, ctx, payments));
+      for (let m = 1; m <= 12; m++) out.months.push(month(y, m, ctx, payments, kaisha));
+      const ippan =
+        !!kaisha &&
+        !kaisha.dame &&
+        ((kaisha.hi !== null && kaisha.hi !== undefined) || kaisha.ippan === true);
       const keys = [
         'salesTotal',
         'expense',
@@ -255,6 +394,8 @@
           out.total.kiroku = mm.kiroku === true;
           out.total.aki = mm.aki === true;
           if (mm.uriage) out.total.uriage = true;
+          if (mm.kaishaShime) out.total.kaishaShime = true;
+          if (mm.haba) out.total.haba = true;
           if (mm.yaku) out.total.yaku = true;
         }
       });
@@ -265,8 +406,39 @@
         if (!mm.dame) kagi[mm.kataKagi || ''] = 1;
       });
       const hitotsu = Object.keys(kagi).length <= 1 && !kagi[''];
+      // ★会社の 期間の 道★ 2026-10-24（叩き役 K-7）：月ごとの 回の 数が 揃う 時だけ n番目を 同じ 列に 足す
+      //   （28日締めの 会社と 末日締めの 給料＝2月の 期間に 2回・3月に 0回＝n番目が 同じ 回で ない）
+      //   列の 名前は 全部の 月で 同じ 名前の 時だけ その 名前・違えば「n回目」
+      if (ippan) {
+        const kazu = {};
+        const namae = {};
+        out.months.forEach(function (mm) {
+          if (mm.dame) return;
+          kazu[arr(mm.periods).length] = 1;
+          arr(mm.periods).forEach(function (p) {
+            if (!namae[p.index]) namae[p.index] = {};
+            namae[p.index][p.name] = 1;
+          });
+        });
+        const soroi = Object.keys(kazu).length === 1;
+        out.months.forEach(function (mm) {
+          if (!hitotsu || !soroi || mm.dame) return;
+          if (mm.kind !== 'thirds' && mm.kind !== 'tsuki') return;
+          arr(mm.periods).forEach(function (p) {
+            if (!byIdx[p.index]) {
+              const na = Object.keys(namae[p.index] || {});
+              byIdx[p.index] = {
+                index: p.index,
+                name: na.length === 1 ? na[0] : p.index + 1 + '回目',
+                pay: 0,
+              };
+            }
+            byIdx[p.index].pay += n(p.pay);
+          });
+        });
+      }
       out.months.forEach(function (mm) {
-        if (!hitotsu) return;
+        if (!hitotsu || ippan) return;
         if (mm.kind !== 'thirds' && mm.kind !== 'tsuki') return;
         arr(mm.periods).forEach(function (p) {
           if (!byIdx[p.index])

@@ -310,7 +310,13 @@ test('★実費を 引いた 後の 売上か★', async ({ page }) => {
   const F2 = JSON.parse(JSON.stringify(FIX));
   // ★1本目の 勤務に 高速代を 付ける★
   F2.edits = [{ shift_id: F2.shifts[0].shift_id, toll_yen: JIPPI }];
-  F2.salesSettings = { deduct_toll: true, deduct_bridge: true, deduct_other: false };
+  // kaisha_shime_hi＝会社の 締め日（null＝末日）2026-10-24＝列が 無い 行は 月次集計が 止める
+  F2.salesSettings = {
+    deduct_toll: true,
+    deduct_bridge: true,
+    deduct_other: false,
+    kaisha_shime_hi: null,
+  };
   const moto2 = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const co = { company_id: F2.settings[0].company_id, name: '見張り用' };
   const body =
