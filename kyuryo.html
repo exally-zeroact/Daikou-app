@@ -200,7 +200,6 @@
         background: #fff;
         padding: 0;
         text-align: left;
-        cursor: pointer;
         font: inherit;
         transition:
           border-color 0.12s,
@@ -1836,10 +1835,13 @@
       <div id="paneTpl" style="display: none">
         <div class="card">
           <h2>明細の テンプレ（払い方）</h2>
+          <!-- ★★今の 給料の 設定を 読んで 出す★★ 2026-10-24（司さん「今の給料設定は何日締めです。変えたい時は給料設定から
+               変更して下さい。みたいに載せろ」）＝中身は renderTpl。テンプレは 見るだけ（押しても 設定は 変わらない） -->
+          <div class="note" id="tplIma" style="margin: 0 0 8px; font-size: 14px"></div>
           <div class="note" style="margin: 0 0 10px">
-            払い方ごとの 明細の 紙です（前の 月と 今の 月の 本当の 記録で、その 払い方に 区切って
-            作っています）。押すと「給料の 設定」に その 払い方が 入ります。<b>「何日から」</b>を
-            決めて <b>「保存する」</b> を 押すと 変わります。
+            払い方の 種類ごとの 明細の 紙です（前の 月と 今の 月の 本当の 記録で、その 払い方に
+            区切って 作っています）。今の 設定と 同じ 種類は 今の 締め日で、他は よく ある 締め日で
+            作っています。
           </div>
           <div class="tpl-grid" id="tplGrid"></div>
         </div>
@@ -5940,90 +5942,71 @@
         // ★★明細の テンプレ（払い方の 形）★★ 2026-10-23
         //   司さん「全パターンをPDFで見て選べるようにして 選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」
         //   見本は 作り物で なく 今の 月の 本当の 記録（代行請求書と 同じ）で、その 払い方の 区切りの 紙を 組む。
-        //   選ぶと「給料の 設定」の 払い方の 欄に 入れて 開く＝書く 道は 給料の 設定の 保存 1つ（何日から も 同じ 所）
-        var TPL_KATA = [
-          {
-            k: 'thirds',
-            na: '10日ごと（月3回）',
-            desc: '1〜10日／11〜20日／21日〜末日',
-            mode: 'thirds',
-          },
-          { k: 'matsu', na: '月1回・末日締め', desc: '1日〜末日', mode: 'matsu' },
-          {
-            k: 't20s',
-            na: '月1回・20日締め',
-            desc: '21日〜次の 月の 20日（締めた 日の 月の 分）',
-            mode: 'tsuki1',
-            hi: 20,
-            nz: 'shime',
-          },
-          {
-            k: 't20h',
-            na: '月1回・20日締め',
-            desc: '21日〜次の 月の 20日（始まった 日の 月の 分）',
-            mode: 'tsuki1',
-            hi: 20,
-            nz: 'hajime',
-          },
-          { k: 't30', na: '月1回・30日締め', desc: '前の 月の 31日〜30日', mode: 'tsuki1', hi: 30 },
-          { k: 'tsuki2', na: '月2回・15日と末日', desc: '1〜15日／16日〜末日', mode: 'tsuki2' },
-          {
-            k: 'n1025s',
-            na: '月2回・10日と25日',
-            desc: '11〜25日／26日〜次の 月の 10日（締めた 日の 月の 分）',
-            mode: 'narabe',
-            narabe: '10,25',
-            nz: 'shime',
-          },
-          {
-            k: 'n1025h',
-            na: '月2回・10日と25日',
-            desc: '11〜25日／26日〜次の 月の 10日（始まった 日の 月の 分）',
-            mode: 'narabe',
-            narabe: '10,25',
-            nz: 'hajime',
-          },
-          {
-            k: 'n51525',
-            na: '月3回・5日・15日・25日',
-            desc: '6〜15日／16〜25日／26日〜次の 月の 5日',
-            mode: 'narabe',
-            narabe: '5,15,25',
-            nz: 'shime',
-          },
-          {
-            k: 'shuus',
-            na: '週1回・日曜締め',
-            desc: '月曜〜日曜（締めた 日の 月の 分）',
-            mode: 'shuu',
-            youbi: 0,
-            nz: 'shime',
-          },
-          {
-            k: 'shuuh',
-            na: '週1回・日曜締め',
-            desc: '月曜〜日曜（始まった 日の 月の 分）',
-            mode: 'shuu',
-            youbi: 0,
-            nz: 'hajime',
-          },
-          { k: 'hi', na: '毎日（日払い）', desc: '1日ごと', mode: 'hi' },
+        // ★★払い方の 種類ごとに 1つ・見るだけ★★ 2026-10-24（司さん「月1回のテンプレは給料設定があるんやから1個でええやろ。
+        //   月2回、3回、週一も一緒や。同じものを並べてどうするんのど」「今の給料設定は何日締めです。変えたい時は給料設定から変更して下さい」）
+        //   前は 12通り（締め日違い・何月分違いの 同じ 払い方が 並んだ）＋押すと 給料の 設定の 欄に 入れた
+        //   ⇒ 種類（月1回・月2回・月3回・週1回・毎日）ごとに 1枚。今の 設定と 同じ 種類は 今の 設定の 締め日で、他は 既定の 締め日で 組む
+        //   ⇒ 押しても 設定は 変えない（変える 道は 給料の 設定の 保存 1つ）
+        var TPL_KITEI = [
+          { shurui: 'tsuki1', raw: { kind: 'tsuki', hi: [0] } },
+          { shurui: 'tsuki2', raw: { kind: 'tsuki', hi: [15, 0] } },
+          { shurui: 'tsuki3', raw: { kind: 'tsuki', hi: [10, 20, 0] } },
+          { shurui: 'shuu', raw: { kind: 'shuu', youbi: 0, nazuke: 'shime' } },
+          { shurui: 'hi', raw: { kind: 'hi' } },
         ];
-        // 欄の 値 → 締めの 形（shimeKataYomu と 同じ 作り方）
+        // 形（seiki を 通した 物）→ 種類
+        function tplShurui(k) {
+          if (!k) return '';
+          if (k.kind === 'thirds') return 'tsuki3';
+          if (k.kind === 'tsuki') return 'tsuki' + k.hi.length;
+          return k.kind;
+        }
+        // ★今の 給料の 設定の 形（今日に 効く 形）★ 読めない 時は dame（既定を 黙って 出さない）
+        function tplImaKata() {
+          if (!SET_YONDA) return { dame: '給料の 設定を 読み込み中です' };
+          var y = PayrollPeriod.yomu(SET);
+          if (!y || !y.ok) return { dame: '給料の 設定を 読めませんでした（開き直してください）' };
+          // ★記録が 読めない・壊れて いる 時に 列の 形へ 黙って 落ちない★（対立役 S1：shimeNoHiKata は null で 返す＝|| で 列の 形が 出た）
+          var rk = PayrollPeriod.rirekiKata(y.kata, RAW.shimeRireki);
+          if (!rk || rk.dame)
+            return {
+              dame: '給料の 設定（締めを 変えた 記録）を 読めませんでした（開き直してください）',
+            };
+          var k = PayrollPeriod.kataNoHi(rk, kyouJst());
+          var t = k.kind === 'thirds' ? { ok: true, kata: k } : PayrollPeriod.seiki(k);
+          if (!t.ok || !haraiNa(t.kata))
+            return { dame: '給料の 設定を 読めませんでした（開き直してください）' };
+          return { kata: t.kata };
+        }
+        // 見本の 並び（種類ごとに 1つ）。今の 形が 既定に 無い 種類（月4回 等）なら その 種類を 足す
+        function tplNarabi() {
+          var ima = tplImaKata().kata || null;
+          var imaS = tplShurui(ima);
+          var imaRaw = ima && ima.kind === 'thirds' ? { kind: 'tsuki', hi: [10, 20, 0] } : ima;
+          var l = TPL_KITEI.map(function (t) {
+            return t.shurui === imaS ? { shurui: t.shurui, raw: imaRaw } : t;
+          });
+          if (
+            ima &&
+            !TPL_KITEI.some(function (t) {
+              return t.shurui === imaS;
+            })
+          )
+            l.push({ shurui: imaS, raw: imaRaw });
+          return l.map(function (t) {
+            var r = PayrollPeriod.seiki(t.raw);
+            var hs = r.ok ? haraiSetsumei(r.kata) : null;
+            return {
+              shurui: t.shurui,
+              raw: t.raw,
+              na: hs ? hs.na : '',
+              desc: hs ? hs.bun.slice(hs.bun.indexOf('：') + 1) : '',
+            };
+          });
+        }
+        // 見本の 形（raw）
         function tplKata(t) {
-          if (t.mode === 'thirds') return { kind: 'tsuki', hi: [10, 20, 0] };
-          if (t.mode === 'tsuki2') return { kind: 'tsuki', hi: [15, 0] };
-          if (t.mode === 'matsu') return { kind: 'tsuki', hi: [0] };
-          if (t.mode === 'tsuki1')
-            return nijuhachiShime({ kind: 'tsuki', hi: [t.hi], nazuke: t.nz });
-          if (t.mode === 'narabe')
-            return nijuhachiShime({
-              kind: 'tsuki',
-              hi: t.narabe.split(',').map(Number),
-              nazuke: t.nz,
-            });
-          if (t.mode === 'shuu') return { kind: 'shuu', youbi: t.youbi, nazuke: t.nz };
-          return { kind: 'hi' };
+          return t.raw;
         }
         function tplOnaji(a, b) {
           if (!a || !b || a.kind !== b.kind) return false;
@@ -6042,13 +6025,13 @@
             ('0' + d.getDate()).slice(-2)
           );
         }
-        // ★読む 範囲＝12通りの 見本の 候補（前の 月・今の 月の 区切り）の 一番 早い 始まり 〜 一番 遅い 終わり★
+        // ★読む 範囲＝見本の 候補（種類ごとの 1枚・2026-10-24 までは 12通り）（前の 月・今の 月の 区切り）の 一番 早い 始まり 〜 一番 遅い 終わり★
         //   決め打ち（前の 月の 頭の 7日前）だと 20日締め（締めた 日の 月の 分）の 前の 月の 区切り（2つ 前の 月の 21日〜）を 覆わず
         //   見本の 頭の 3〜4日が 抜けた（対立役 止A）
         function tplHani(ym) {
           var kara = null;
           var made = null;
-          TPL_KATA.forEach(function (t) {
+          tplNarabi().forEach(function (t) {
             var r = PayrollPeriod.seiki(tplKata(t));
             if (!r.ok) return;
             [-1, 0].forEach(function (z) {
@@ -6179,29 +6162,49 @@
         function renderTpl() {
           var g = $('tplGrid');
           if (!g) return;
-          // 今の 払い方（読んだ 形＝もう 整えて ある・もう一度 seiki に 通さない）
-          var ima = shimeNoHiKata(kyouJst()) || shimeRetsuKata();
-          var imaK = ima ? { ok: true, kata: ima } : null;
-          g.innerHTML = TPL_KATA.map(function (t, i) {
-            var r = PayrollPeriod.seiki(tplKata(t));
-            var on = imaK && imaK.ok && r.ok && tplOnaji(imaK.kata, r.kata);
-            return (
-              '<div class="tpl-card' +
-              (on ? ' on' : '') +
-              '" role="button" tabindex="0" data-tpl="' +
-              i +
-              '"><div class="tpl-badge">✓</div><div class="tpl-thumb" data-tpl-thumb="' +
-              i +
-              '"><span class="tpl-thumb-msg">見本を 作っています…</span></div><div class="tpl-meta"><div class="tpl-name">' +
-              esc(t.na) +
-              '</div><div class="tpl-desc">' +
-              esc(t.desc) +
-              (on ? '（今の 払い方）' : '') +
-              '</div><button class="tpl-pdf" type="button" data-tpl-pdf="' +
-              i +
-              '">PDFで 見る</button></div></div>'
-            );
-          }).join('');
+          // ★★上の 字＝今の 給料の 設定★★ 2026-10-24（司さん「給料設定を読み込んで今の給料設定は何日締めです。
+          //   変えたい時は給料設定から変更して下さい。みたいに載せろ」）。読めない 時は 既定を 黙って 出さない
+          var imaY = tplImaKata();
+          var ue = $('tplIma');
+          if (ue) {
+            var imaNa = imaY.kata ? haraiNa(imaY.kata) : '';
+            ue.innerHTML =
+              (imaY.kata
+                ? '今の 給料の 設定は <b>' + esc(imaNa) + '</b> です。'
+                : '<span class="rolewarn">' + esc(imaY.dame) + '</span>') +
+              '変えたい 時は <button type="button" class="linkbtn" data-tpl-settei="1" style="padding: 0 2px">給料の 設定</button> から 変更してください。';
+            var sb = ue.querySelector('[data-tpl-settei]');
+            if (sb)
+              sb.onclick = function () {
+                tplSetteiHe();
+              };
+          }
+          var ima = imaY.kata || null;
+          var narabi = (TPL_NARABI = tplNarabi());
+          g.innerHTML = narabi
+            .map(function (t, i) {
+              var r = PayrollPeriod.seiki(tplKata(t));
+              var on = !!ima && r.ok && tplOnaji(ima, r.kata);
+              return (
+                '<div class="tpl-card' +
+                (on ? ' on' : '') +
+                '" data-shurui="' +
+                esc(t.shurui) +
+                '" data-tpl="' +
+                i +
+                '"><div class="tpl-badge">✓</div><div class="tpl-thumb" data-tpl-thumb="' +
+                i +
+                '"><span class="tpl-thumb-msg">見本を 作っています…</span></div><div class="tpl-meta"><div class="tpl-name">' +
+                esc(t.na) +
+                '</div><div class="tpl-desc">' +
+                esc(t.desc) +
+                (on ? '（今の 払い方）' : '') +
+                '</div><button class="tpl-pdf" type="button" data-tpl-pdf="' +
+                i +
+                '">PDFで 見る</button></div></div>'
+              );
+            })
+            .join('');
           var mihon = {};
           var thumbs = g.querySelectorAll('[data-tpl-thumb]');
           var dasuMsg = function (ji) {
@@ -6229,7 +6232,7 @@
               var i = Number(box.getAttribute('data-tpl-thumb'));
               var m = null;
               try {
-                m = tplMihon(TPL_KATA[i], ctx);
+                m = tplMihon(narabi[i], ctx);
               } catch (_) {
                 m = null;
               }
@@ -6269,14 +6272,8 @@
                 if (g.getAttribute('data-gen') === String(hyouji))
                   dasuMsg('記録を 読めなかった ので<br />見本は 出しません');
               });
-          Array.prototype.forEach.call(g.querySelectorAll('[data-tpl]'), function (c) {
-            c.onclick = function () {
-              tplErabu(TPL_KATA[Number(c.getAttribute('data-tpl'))]);
-            };
-          });
           Array.prototype.forEach.call(g.querySelectorAll('[data-tpl-pdf]'), function (b) {
             b.onclick = function (ev) {
-              ev.stopPropagation(); // ★PDF を 見るだけ＝選ばない★
               var i = Number(b.getAttribute('data-tpl-pdf'));
               var m = mihon[i];
               if (!m || !m.sheets.length)
@@ -6285,7 +6282,7 @@
               loadPdfLibs()
                 .then(function (E) {
                   return _withTimeout(
-                    E.dasu(m.sheets, '給料明細_見本_' + TPL_KATA[i].na, KAMI_KATA),
+                    E.dasu(m.sheets, '給料明細_見本_' + narabi[i].na, KAMI_KATA),
                     PDF_TIMEOUT_MS,
                     'PDF'
                   );
@@ -6300,26 +6297,15 @@
             };
           });
         }
-        // ★選ぶ＝給料の 設定の 払い方の 欄に 入れて 開く★（保存は 給料の 設定の 保存＝何日からも そこで 決める）
-        function tplErabu(t) {
+        // ★給料の 設定へ 移る★（テンプレは 見るだけ＝設定を 変える 道は 給料の 設定の 保存 1つ・2026-10-24）
+        //   前の tplErabu（札を 押すと 欄に 入れて 触った 印を 立てた）は 外した（司さん「変えたい時は給料設定から」）
+        var TPL_NARABI = [];
+        function tplSetteiHe() {
           TAB = 'set';
           Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
             x.className = 'tab' + (x.getAttribute('data-tab') === 'set' ? ' on' : '');
           });
           render();
-          if ($('pMode')) $('pMode').value = t.mode;
-          if ($('pShimeHi')) $('pShimeHi').value = t.hi ? String(t.hi) : '';
-          if ($('pNarabe')) $('pNarabe').value = t.narabe || '';
-          if ($('pYoubi') && t.youbi !== undefined) $('pYoubi').value = String(t.youbi);
-          if ($('pNazuke')) $('pNazuke').value = t.nz || '';
-          // ★欄を 触った 印★（手で 選んだ 時と 同じ＝保存で 何日からの 記録を 書く・何日からを 変えても 欄を 戻さない・対立役 止1）
-          SHIME_SAWATTA = true;
-          kikanDashiwake();
-          showMsg(
-            'テンプレの「' +
-              t.na +
-              '」を 入れました。「何日から」を 決めて「保存する」を 押すと 変わります。'
-          );
           if ($('pMode') && $('pMode').scrollIntoView)
             $('pMode').scrollIntoView({ block: 'center' });
         }
@@ -6409,18 +6395,18 @@
           },
           // テンプレの 見本を 読む 範囲（見張りが 12通りの 区切りを 全部 覆うかを 数える）
           tplHani: function (y, m) {
-            return { hani: tplHani({ year: y, month: m }), n: TPL_KATA.length };
+            return { hani: tplHani({ year: y, month: m }), n: tplNarabi().length };
           },
           tplKiri: function (y, m) {
             var out = [];
-            TPL_KATA.forEach(function (t) {
+            tplNarabi().forEach(function (t) {
               var r = PayrollPeriod.seiki(tplKata(t));
               if (!r.ok) return;
               [-1, 0].forEach(function (z) {
                 var t2 = PayrollPeriod.shift({ year: y, month: m }, z);
                 (PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []).forEach(
                   function (p) {
-                    out.push({ k: t.k, start: p.start, end: p.end });
+                    out.push({ k: t.shurui, start: p.start, end: p.end });
                   }
                 );
               });

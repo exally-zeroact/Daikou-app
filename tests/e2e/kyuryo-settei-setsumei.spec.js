@@ -20,6 +20,14 @@
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
 
+function settei(shime) {
+  return (f) => {
+    f.settings[0].period_shime = shime;
+    f.settings[0].period_end_mode = shime ? 'shime' : 'thirds';
+    return f;
+  };
+}
+
 test('① 払い方の 下に 区切りの 一覧の 字が 無い', async ({ page }) => {
   await openKyuryo(page, null, { ura: '?henshu=1#set' });
   await page.waitForSelector('#pMode', { state: 'visible' });
@@ -103,4 +111,87 @@ test('③ 給料の 設定に 配るの 箱が 無く、明細の「QRを 見せ
   expect(await page.evaluate(() => window.__haifu)).toBeGreaterThan(0);
   const url = await page.locator('#haifuMiseQr').getAttribute('data-url-mihari');
   expect(url, '★窓の QR の 先が 読めない★').toContain('?t=abcd1111abcd2222abcd3333abcd4444');
+});
+
+test('④ テンプレの 見本は 払い方の 種類ごとに 1つ', async ({ page }) => {
+  await openKyuryo(page);
+  await page.click('.tab[data-tab="tpl"]');
+  await page.waitForTimeout(500);
+  const r = await page.evaluate(() =>
+    [...document.querySelectorAll('#tplGrid .tpl-card')].map(
+      (c) => c.getAttribute('data-shurui') || ''
+    )
+  );
+  expect(r.length, '★見本の 札が 無い★').toBeGreaterThan(0);
+  expect(r.filter((x) => !x).length, '★種類の 印が 無い 札が 在る★').toBe(0);
+  expect(r.length - new Set(r).size, '★同じ 払い方が 重なっている★ ' + r.join(',')).toBe(0);
+  expect(r.sort()).toEqual(['hi', 'shuu', 'tsuki1', 'tsuki2', 'tsuki3']);
+});
+
+test('⑤ テンプレの 上に 今の 設定の 締め日・設定が 違えば 字も 違う', async ({ page }) => {
+  await openKyuryo(page);
+  await page.click('.tab[data-tab="tpl"]');
+  const ue = page.locator('#tplIma');
+  await expect(ue).toContainText('今の 給料の 設定は 月3回（10日・20日・末日締め） です');
+  await expect(ue).toContainText('変えたい 時は');
+  await expect(ue.locator('[data-tpl-settei]')).toHaveCount(1);
+  // 給料の 設定へ 移る
+  await ue.locator('[data-tpl-settei]').click();
+  await expect(page.locator('#paneSet')).toBeVisible();
+});
+
+test('⑤b 設定が 20日締めなら テンプレの 上も 20日締め・月1回の 見本も 20日締め', async ({
+  page,
+}) => {
+  await openKyuryo(page, settei({ kind: 'tsuki', hi: [20], nazuke: 'shime' }));
+  await page.click('.tab[data-tab="tpl"]');
+  await expect(page.locator('#tplIma')).toContainText('今の 給料の 設定は 月1回（20日締め） です');
+  const na = await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"] .tpl-name').textContent();
+  expect(na).toContain('20日締め');
+  // 今の 払い方に ✓
+  await expect(page.locator('#tplGrid .tpl-card.on')).toHaveAttribute('data-shurui', 'tsuki1');
+});
+
+test('⑤c 給料の 設定を 読めない 時は 既定を 黙って 出さず 読めないと 出す', async ({ page }) => {
+  await openKyuryo(
+    page,
+    (f) => {
+      f.__yomenai = ['dk_payroll_settings'];
+      return f;
+    },
+    { matanai: true }
+  );
+  await page.waitForTimeout(2000);
+  await page.click('.tab[data-tab="tpl"]');
+  await expect(page.locator('#tplIma')).toContainText('給料の 設定を 読めませんでした');
+  await expect(page.locator('#tplIma')).not.toContainText('月3回');
+});
+
+// ★対立役 S1★ 締めを 変えた 記録が 読めない 時に 列の 形（月3回）へ 黙って 落ちない
+test('⑤d 締めを 変えた 記録を 読めない 時も 読めないと 出す', async ({ page }) => {
+  await openKyuryo(
+    page,
+    (f) => {
+      f.__yomenai = ['dk_shime_rireki'];
+      return f;
+    },
+    { matanai: true }
+  );
+  await page.waitForTimeout(2000);
+  await page.click('.tab[data-tab="tpl"]');
+  await expect(page.locator('#tplIma')).toContainText('読めませんでした');
+  await expect(page.locator('#tplIma')).not.toContainText('月3回');
+  expect(await page.locator('#tplGrid .tpl-card.on').count(), '★読めないのに ✓ を 付けた★').toBe(0);
+});
+
+// ★対立役 S2★ 締め日を 並べた 月4回 等＝既定の 5種類に 無い 形は その 札を 1枚 足す（✓ も 付く）
+test('⑤e 月4回（5・15・25・末日）の 会社は 月4回の 札が 1枚 足されて ✓', async ({ page }) => {
+  await openKyuryo(page, settei({ kind: 'tsuki', hi: [5, 15, 25, 0] }));
+  await page.click('.tab[data-tab="tpl"]');
+  await expect(page.locator('#tplIma')).toContainText('月4回（5日・15日・25日・末日締め）');
+  const r = await page.evaluate(() =>
+    [...document.querySelectorAll('#tplGrid .tpl-card')].map((c) => c.getAttribute('data-shurui'))
+  );
+  expect(r.sort()).toEqual(['hi', 'shuu', 'tsuki1', 'tsuki2', 'tsuki3', 'tsuki4']);
+  await expect(page.locator('#tplGrid .tpl-card.on')).toHaveAttribute('data-shurui', 'tsuki4');
 });

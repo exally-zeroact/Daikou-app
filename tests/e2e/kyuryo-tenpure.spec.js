@@ -3,11 +3,16 @@
 //
 //   ★司さんの言葉★「明細と時数を入れるの間にテンプレのボタンを作成して 全パターンをPDFで見て選べるようにして
 //                    選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」
+//   ★2026-10-24 直し★ 司さん「月1回のテンプレは給料設定があるんやから1個でええやろ。月2回、3回、週一も一緒や。
+//     同じものを並べてどうするんのど」「変えたい時は給料設定から変更して下さい」
+//     ⇒ 12通り → 払い方の 種類ごとに 1つ（5枚）・札を 押しても 設定は 変えない（見るだけ）
+//     ⇒ 前の ③⑤⑥（押すと 給料の 設定の 欄に 入る・保存で 記録を 書く・何日からで 戻らない）は 道ごと 外した
+//        ③ は「押しても 設定を 変えない」に 書き換えた（数と 上の 字は kyuryo-settei-setsumei ④⑤）
 //   ★物差し★
-//     ① 「明細」の 右に「テンプレ」の タブ・押すと 12通りの 札（2列）・今の 払い方に ✓（この 見本は 月3回）
+//     ① 「明細」の 右に「テンプレ」の タブ・押すと 5枚の 札（2列）・今の 払い方に ✓（この 見本は 月3回）
 //     ② 札の 見本は 本物の 紙（data-paper）・縦の 紙の 形（月1回）は 縦（data-muki=tate）
-//     ③ 札を 押すと「給料の 設定」が 開き 払い方の 欄に その 形が 入る（保存は まだ しない＝倉庫へ 送らない）
-//     ④「PDFで 見る」は 見本の 紙を PDF の 道具へ 渡す（札は 選ばない）
+//     ③ 札を 押しても 給料の 設定は 変わらない（タブも 移らない・倉庫へ 送らない）
+//     ④「PDFで 見る」は 見本の 紙を PDF の 道具へ 渡す
 //   ★★わざと壊して 赤（2026-10-23 手元 chromium 実測）★★ タブの ボタンを 消す ⇒ 4本 赤／見本を 組まない ⇒ ②④ 赤／
 //     押しても 払い方の 欄に 入れない ⇒ ③ 赤／PDF の ボタンで 札の 選びを 止めない ⇒ ④ 赤／
 //     欄を 触った 印（SHIME_SAWATTA）を 立てない ⇒ ⑤⑥ 赤（対立役 止1）／見本を 明細の CTX（今の 区切り だけ）で 組む ⇒ ⑦ 赤（対立役 止2）／
@@ -30,7 +35,7 @@ async function tplWoHiraku(page) {
   await page.waitForTimeout(500);
 }
 
-test('① テンプレの タブ・12通りの 札・今の 払い方に ✓', async ({ page }) => {
+test('① テンプレの タブ・種類ごとの 5枚の 札・今の 払い方に ✓', async ({ page }) => {
   await tplWoHiraku(page);
   const r = await page.evaluate(() => {
     const cards = [...document.querySelectorAll('#tplGrid .tpl-card')];
@@ -43,9 +48,9 @@ test('① テンプレの タブ・12通りの 札・今の 払い方に ✓', a
         .length,
     };
   });
-  expect(r.n, '★札の 数★').toBe(12);
+  expect(r.n, '★札の 数★').toBe(5);
   expect(r.retsu, '★2列で ない★').toBe(2);
-  expect(r.on, '★今の 払い方（月3回）に ✓ が 無い★').toEqual(['10日ごと（月3回）']);
+  expect(r.on, '★今の 払い方（月3回）に ✓ が 無い★').toEqual(['月3回（10日・20日・末日締め）']);
 });
 
 test('② 見本は 本物の 紙・月1回は 縦の 紙・10日ごとは 横の 紙', async ({ page }) => {
@@ -61,35 +66,34 @@ test('② 見本は 本物の 紙・月1回は 縦の 紙・10日ごとは 横�
     })
   );
   const by = (na) => r.find((x) => x.na === na);
-  expect(r.filter((x) => x.paper).length, '★本物の 紙が 出て いない 札が 在る★').toBe(12);
-  expect(by('10日ごと（月3回）').muki).toBe('yoko');
-  expect(by('月1回・末日締め').muki, '★月1回の 見本が 縦の 紙で ない★').toBe('tate');
-  expect(by('毎日（日払い）').muki).toBe('tate');
+  expect(r.filter((x) => x.paper).length, '★本物の 紙が 出て いない 札が 在る★').toBe(5);
+  expect(by('月3回（10日・20日・末日締め）').muki).toBe('yoko');
+  expect(by('月1回（末日締め）').muki, '★月1回の 見本が 縦の 紙で ない★').toBe('tate');
+  expect(by('毎日').muki).toBe('tate');
 });
 
-test('③ 札を 押すと 給料の 設定に 払い方が 入る（保存は しない）', async ({ page }) => {
+// わざと壊す：札に 前の tplErabu（欄に 入れて 給料の 設定を 開く）を 戻す ⇒ 赤
+test('③ 札を 押しても 給料の 設定は 変わらない（見るだけ）', async ({ page }) => {
   await tplWoHiraku(page);
   await page.evaluate(() => {
     window.__okutta = 0;
-    const f = window.fetch;
-    window.fetch = function (u, o) {
-      if (o && o.method && o.method !== 'GET') window.__okutta++;
-      return f.apply(this, arguments);
+    const S = window.DKSession;
+    const o = S.rest;
+    S.rest = function (s, p, opt) {
+      if (opt && opt.method && opt.method !== 'GET') window.__okutta++;
+      return o.apply(this, arguments);
     };
   });
-  await page.locator('#tplGrid .tpl-card', { hasText: '月1回・20日締め' }).first().click();
-  await expect(page.locator('#paneSet')).toBeVisible();
+  const mae = await page.evaluate(() => document.getElementById('pMode').value);
+  await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"] .tpl-name').click();
+  await page.waitForTimeout(300);
   const r = await page.evaluate(() => ({
     tab: document.querySelector('.tab.on').getAttribute('data-tab'),
     mode: document.getElementById('pMode').value,
-    hi: document.getElementById('pShimeHi').value,
-    nz: document.getElementById('pNazuke').value,
     okutta: window.__okutta,
   }));
-  expect(r.tab).toBe('set');
-  expect(r.mode, '★払い方が 入って いない★').toBe('tsuki1');
-  expect(r.hi).toBe('20');
-  expect(r.nz).toBe('shime');
+  expect(r.tab, '★押しただけで タブが 移った★').toBe('tpl');
+  expect(r.mode, '★押しただけで 給料の 設定の 欄が 変わった★').toBe(mae);
   expect(r.okutta, '★押しただけで 倉庫へ 書いた★').toBe(0);
 });
 
@@ -105,10 +109,7 @@ test('④ PDFで 見る は 見本の 紙を PDF の 道具へ 渡す（札は �
       },
     };
   });
-  await page
-    .locator('#tplGrid .tpl-card', { hasText: '月1回・末日締め' })
-    .locator('.tpl-pdf')
-    .click();
+  await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"]').locator('.tpl-pdf').click();
   await expect.poll(() => page.evaluate(() => window.__dasu.length), { timeout: 15000 }).toBe(1);
   const r = await page.evaluate(() => ({
     d: window.__dasu[0],
@@ -117,50 +118,6 @@ test('④ PDFで 見る は 見本の 紙を PDF の 道具へ 渡す（札は �
   expect(r.d.title).toContain('見本');
   expect(r.d.muki[0], '★月1回の PDF が 縦で ない★').toBe('tate');
   expect(r.tab, '★PDF を 押しただけで 選んで しまった★').toBe('tpl');
-});
-
-// ★★対立役 止1：札で 選んだ 払い方が 保存まで 届かなかった（欄を 触った 印が 立たず 保存が 欄を 無い 物と 見た）★★
-test('⑤ 札を 押して「保存する」で 締めの 記録（dk_shime_rireki）に その 形を 書く', async ({
-  page,
-}) => {
-  await tplWoHiraku(page);
-  await page.evaluate(() => {
-    window.__kaki = [];
-    const S = window.DKSession;
-    const o = S.rest;
-    S.rest = function (s, p, opt) {
-      if (opt && opt.method && opt.method !== 'GET')
-        window.__kaki.push({ p: String(p), m: opt.method, b: String(opt.body || '') });
-      return o.apply(this, arguments);
-    };
-  });
-  await page.locator('#tplGrid .tpl-card', { hasText: '月1回・末日締め' }).click();
-  await page.click('#btnSaveSet');
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () => window.__kaki.filter((k) => k.p.indexOf('dk_shime_rireki') === 0).length
-        ),
-      {
-        timeout: 8000,
-      }
-    )
-    .toBeGreaterThan(0);
-  const k = await page.evaluate(() =>
-    window.__kaki.filter((x) => x.p.indexOf('dk_shime_rireki') === 0)
-  );
-  expect(k[0].b, '★選んだ 形（月1回・末日）が 書かれて いない★').toContain('"hi":[0]');
-  expect(await page.locator('#pMode').inputValue(), '★保存の 後に 欄が 戻った★').toBe('matsu');
-});
-
-test('⑥ 札を 押した 後に「何日から」を 変えても 払い方の 欄は 戻らない', async ({ page }) => {
-  await tplWoHiraku(page);
-  await page.locator('#tplGrid .tpl-card', { hasText: '週1回・日曜締め' }).first().click();
-  await page.fill('#pHi', '2026-11-01');
-  await page.dispatchEvent('#pHi', 'change');
-  await page.waitForTimeout(300);
-  expect(await page.locator('#pMode').inputValue(), '★何日からで 欄が 戻った★').toBe('shuu');
 });
 
 // ★★対立役 止2：見本は 今 開いて いる 区切り（10日）の 材料だけで 他の 区切りを 組んで いた＝額・時間が 足りない★★
@@ -215,7 +172,7 @@ test('⑦ 見本は 今の 区切りの 外の 日も 読んで 組む（月1回
   await page.waitForFunction(
     () => {
       const c = [...document.querySelectorAll('#tplGrid .tpl-card')].find((x) =>
-        x.textContent.includes('月1回・末日締め')
+        x.textContent.includes('月1回（末日締め）')
       );
       return c && c.querySelector('[data-paper]');
     },
@@ -224,7 +181,7 @@ test('⑦ 見本は 今の 区切りの 外の 日も 読んで 組む（月1回
   );
   const r = await page.evaluate(() => {
     const c = [...document.querySelectorAll('#tplGrid .tpl-card')].find((x) =>
-      x.textContent.includes('月1回・末日締め')
+      x.textContent.includes('月1回（末日締め）')
     );
     const p = c.querySelector('[data-paper]');
     const tr = [...p.querySelectorAll('tbody tr')].find((x) =>
@@ -238,7 +195,7 @@ test('⑦ 見本は 今の 区切りの 外の 日も 読んで 組む（月1回
 });
 
 // ★★対立役 止A：読む 範囲が 20日締め（締めた 日の 月の 分）の 前の 区切りを 覆わず 見本の 頭が 抜けた★★
-test('⑧ 見本を 読む 範囲は 12通りの どの 区切りも 覆う（2025〜2027 の 毎月）', async ({ page }) => {
+test('⑧ 見本を 読む 範囲は 見本の どの 区切りも 覆う（2025〜2027 の 毎月）', async ({ page }) => {
   await openKyuryo(page);
   const r = await page.evaluate(() => {
     const P = window.__paper;
@@ -345,12 +302,9 @@ test('⑪ 見本の 紙と PDF には「見本」の 字が 載る', async ({ pa
       (p) => p.textContent.indexOf('本物の 明細では ありません') >= 0
     )
   );
-  expect(gamen.length).toBe(12);
+  expect(gamen.length).toBe(5);
   expect(gamen.every(Boolean), '★見本の 紙に「見本」が 無い★').toBe(true);
-  await page
-    .locator('#tplGrid .tpl-card', { hasText: '月2回・15日と末日' })
-    .locator('.tpl-pdf')
-    .click();
+  await page.locator('#tplGrid .tpl-card[data-shurui="tsuki2"]').locator('.tpl-pdf').click();
   await expect.poll(() => page.evaluate(() => window.__dasu.length), { timeout: 15000 }).toBe(1);
   const pdf = await page.evaluate(() => window.__dasu[0]);
   expect(pdf.every(Boolean), '★見本の PDF に「見本」が 無い★').toBe(true);
@@ -371,7 +325,7 @@ test('⑫ PDFで 見る は 縮めて いない 紙を 渡し、押した 後も
       },
     };
   });
-  const card = page.locator('#tplGrid .tpl-card', { hasText: '月2回・15日と末日' });
+  const card = page.locator('#tplGrid .tpl-card[data-shurui="tsuki2"]');
   await card.locator('.tpl-pdf').click();
   await expect.poll(() => page.evaluate(() => window.__dasu.length), { timeout: 15000 }).toBe(1);
   const d = await page.evaluate(() => window.__dasu[0]);
