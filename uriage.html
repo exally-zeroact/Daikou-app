@@ -524,6 +524,7 @@
     <script src="js/jippi-hozon.js"></script>
     <script src="js/uriage-agg.js"></script>
     <script src="js/daiko-payroll.js"></script>
+    <!-- ★会社の 締め日（KaishaKikan）も この 1本★ 2026-10-24 -->
     <script src="js/payroll-period.js"></script>
     <script src="js/payroll-daily.js"></script>
     <!-- ★紙（A4のPDF）★ 2026-09-25 … vendor は 押した時だけ 読む（js/kami-pdf.js の中）
@@ -558,12 +559,25 @@
         //   読み始めに 止めの 印を 下ろした ので、読みが 失敗した 後や 読み込み中に 車ごと／日ごとを 押すと 前の 月の 記録で
         //   表（引く 前の 額）と 押せる 欄が 出て、橋代を 打つと 高速代・電子決済を 0 で 送った）
         function tsukiYometa() {
-          return KAMI_TSUKI === ymKey(MONTH) && !YOMICHU && !EDITS_DAME && !MD_DAME;
+          return (
+            KAMI_TSUKI === ymKey(MONTH) &&
+            !YOMICHU &&
+            !EDITS_DAME &&
+            !MD_DAME &&
+            !(KAISHA && KAISHA.dame) // 会社の 締め日が 読めない 月は 書かない 2026-10-24
+          );
         }
         // ★書けた 後に 訳を 消すのは 今の 月が 読めて いる 時だけ★ 2026-10-23（送っている 途中に 月を 替えて
         //   その 月の 読みが 失敗すると、後から 着いた 書きの 返事が「読み込みに失敗しました」を 消し、表は 空の まま 訳が 無かった）
         function kakiOkErrKesu() {
           if (tsukiYometa()) showErr('');
+        }
+        // ★会社の 締め日が 読めない 時の 字★ 2026-10-24（末日に 倒さず 売上・紙・保存を 止める）
+        function kaishaDameJi() {
+          return (
+            ((KAISHA && KAISHA.riyuu) || '会社の 締め日が 読めません') +
+            '。末日には 倒さず 止めています。売上と 紙は 止めています。もう一度 開いてください。'
+          );
         }
         var MD_DAME_JI =
           '手で 入れた 日の 記録が 読めません。売上と 紙は 止めています。上の「もう一度読む」を 押してください。';
@@ -580,6 +594,21 @@
           );
         }
         var MONTH = jstNow();
+        // ★★会社の 締め日★★ 2026-10-24（司さん「会社の締め日」＝月次集計と 同じ 期間・決まりは KaishaKikan 1か所）
+        //   MONTH の 年・月＝期間の 名前（20日締めの 10月＝9/21〜10/20）。末日の 会社は 暦の 月（今まで 通り）
+        //   KAISHA＝KaishaKikan.yomu の 返り（読めない＝dame＝数字・紙・保存を 止める・末日に 倒さない）
+        var KAISHA = { ok: true, hi: null };
+        var TSUKI_ERANDA = false; // 月を 自分で 選んだ（今日の 月へ 動かさない）
+        function kHi() {
+          return KAISHA && !KAISHA.dame ? KAISHA.hi : null;
+        }
+        function kikanOf(d) {
+          return KaishaKikan.kikan(d.getFullYear(), d.getMonth() + 1, kHi());
+        }
+        // その 日（'YYYY-MM-DD'）が 見ている 月の 期間に 入るか
+        function tsukiNaka(hi) {
+          return KaishaKikan.naka(hi, kHi(), MONTH.getFullYear(), MONTH.getMonth() + 1);
+        }
         var ROWS = []; // 車ごと
         var DAYS = []; // ★日ごと (2026-08-09 司さん「1日おきと車おきで見れないかん」)★
         var MODE = 'car'; // 'car' = 車ごと / 'day' = 日ごと
@@ -600,6 +629,7 @@
           // 実費・手で 入れた 日が 読めない 月は 他の 保存の 成功で 訳を 消さない（対立役 D-5）
           if (!m && EDITS_DAME) m = EDITS_DAME_JI;
           if (!m && MD_DAME) m = MD_DAME_JI;
+          if (!m && KAISHA && KAISHA.dame) m = kaishaDameJi();
           if (!m && URIAGE_DAME)
             m =
               '売上の 直しが 読めない 業務が ' +
@@ -630,10 +660,23 @@
         }
 
         function ymLabel(d) {
-          return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+          return (
+            d.getFullYear() +
+            '年' +
+            (d.getMonth() + 1) +
+            '月' +
+            // 会社の 締め日が 末日で ない ⇒ 期間の 日付も 字で（2026-10-24）
+            (kHi() === null ? '' : '（' + kikanOf(d).rangeLabel + '）')
+          );
         }
         function ymKey(d) {
           return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+        }
+        // ★読む 幅＝前の 月の 頭〜次の 月の 頭★ 2026-10-24（会社の 締めの 期間＝前の 月の (締め日+1)日〜 が 入る・
+        //   締め日は この 読みの 返事で 分かる＝広く 読んで 期間の 日だけ 数える）
+        function yomuHaba(d) {
+          var a = monthRange(new Date(d.getFullYear(), d.getMonth() - 1, 1));
+          return { from: a.from, to: monthRange(d).to };
         }
         // ★月の 日本時間の 頭〜次の 月の 頭★ 2026-10-08（前は 端末の 時計＝日本の 外の 端末で 給料と 割れた）
         function monthRange(d) {
@@ -669,7 +712,7 @@
         var KAMI_SHU = 'uri';
         var KAMI_TSUKI = ''; // ★読み終わった 月★（月を 替えた 直後に 前の 月の 紙を 出さない）
         function kamiK() {
-          return {
+          var k = {
             name: (COMPANY && COMPANY.name) || '',
             year: MONTH.getFullYear(),
             month: MONTH.getMonth() + 1,
@@ -679,9 +722,17 @@
             }),
             denshi: false,
           };
+          // ★会社の 期間★（紙の 日の 並び・題の 期間の 字）＝末日の 会社は 付けない（今まで 通り）
+          if (kHi() !== null) {
+            var kk = kikanOf(MONTH);
+            k.hibi = kk.dates.slice();
+            k.kikanJi = kk.rangeLabel;
+          }
+          return k;
         }
+        // ★紙の 日の 箱＝期間の 何番目の 日★（末日の 会社は 暦の 日と 同じ 番号）
         function hiNo(d) {
-          return Number(String((d && d.date) || '').slice(8, 10));
+          return kikanOf(MONTH).dates.indexOf(String((d && d.date) || '').slice(0, 10)) + 1;
         }
         function kamiTsukuru(shu) {
           if (KAMI_TSUKI !== ymKey(MONTH)) return null;
@@ -689,6 +740,8 @@
           if (URIAGE_DAME) return null;
           // 実費（売上の 直し・引く 物）が 読めない 月は 紙を 作らない 2026-10-21（対立役 U-1：引く 前の 額で 13,220円 多い 紙が 出た）
           if (EDITS_DAME || MD_DAME) return null;
+          // 会社の 締め日が 読めない 月は 紙を 作らない 2026-10-24
+          if (KAISHA && KAISHA.dame) return null;
           var k = kamiK();
           var mm = k.year + '-' + ('0' + k.month).slice(-2);
           var na = k.name || 'ダイコメ';
@@ -761,14 +814,16 @@
           if (!r) {
             $('kamiMado').innerHTML = '';
             return kamiMsg(
-              URIAGE_DAME
-                ? '売上の 直しが 読めない 業務が 在るので 紙は 出せません（下の 帯の「入力」で その 日の 車を 開いて 直してください）'
-                : EDITS_DAME || MD_DAME
-                  ? (EDITS_DAME ? '実費' : '手で 入れた 日') +
-                    'の 記録が 読めないので 紙は 出せません（上の「もう一度読む」を 押してください）'
-                  : YOMICHU || !LOAD_NO
-                    ? '読み込み中…'
-                    : '読み込みに 失敗したので 紙は 出せません（上の「もう一度読む」を 押してください）'
+              KAISHA && KAISHA.dame
+                ? '会社の 締め日が 読めないので 紙は 出せません（開き直してください）'
+                : URIAGE_DAME
+                  ? '売上の 直しが 読めない 業務が 在るので 紙は 出せません（下の 帯の「入力」で その 日の 車を 開いて 直してください）'
+                  : EDITS_DAME || MD_DAME
+                    ? (EDITS_DAME ? '実費' : '手で 入れた 日') +
+                      'の 記録が 読めないので 紙は 出せません（上の「もう一度読む」を 押してください）'
+                    : YOMICHU || !LOAD_NO
+                      ? '読み込み中…'
+                      : '読み込みに 失敗したので 紙は 出せません（上の「もう一度読む」を 押してください）'
             );
           }
           KamiPdf.mise($('kamiMado'), r.mai, function () {
@@ -794,11 +849,13 @@
         });
 
         $('prevM').onclick = function () {
+          TSUKI_ERANDA = true;
           MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() - 1, 1);
           render();
           load();
         };
         $('nextM').onclick = function () {
+          TSUKI_ERANDA = true;
           MONTH = new Date(MONTH.getFullYear(), MONTH.getMonth() + 1, 1);
           render();
           load();
@@ -872,6 +929,7 @@
           var ld = (LOAD = DKSession.newLoadState());
           var edYomi = { tried: 0, failed: 0 };
           var mdYomi = { tried: 0, failed: 0 };
+          var ksYomi = { tried: 0, failed: 0 }; // 会社の 締め日の 読み
           // 読み終える まで 前の 月の 表・紙を 出さない（対立役 D-3：新しい 月の 名前の 下に 前の 月の 表が 残った）
           KAMI_TSUKI = '';
           YOMICHU = true;
@@ -885,7 +943,7 @@
           }
           showErr('');
           showMsg('読み込み中…');
-          var r = monthRange(MONTH);
+          var r = yomuHaba(MONTH);
           var q =
             // ★使わない 印（excluded）も 取る★ 2026-10-07（司さん「前からある2つもやれ」＝どの 画面でも 印の 業務は 数えない）
             'dk_shifts?select=shift_id,device_id,started_at,total_distance_m,actual_total_m,fare_total_yen,trip_count,excluded' +
@@ -943,9 +1001,10 @@
             // 実費は 読めたかを 別に 数える（読めない 時は 欄を 押せなく する）
             DKSession.softList(SESS, kaishaDake('dk_shift_edits?select=*&limit=2000'), edYomi),
             soft('dk_device_labels?select=*&limit=500'),
-            // res[3]＝空き：売上から 何を 引くかの 設定（dk_sales_settings）は 2026-10-24 件J で 読まなくした
-            //   （入れた 実費は 全部 引く）。番号を 詰めると 下の res[4]〜 が ずれる ので 空きの まま
-            null,
+            // res[3]＝dk_sales_settings：★会社の 締め日（kaisha_shime_hi）だけ★ 読む 2026-10-24 件K
+            //   引く 物の 列（deduct_*）は 件J（2026-10-24）で 見ない＝入れた 実費は 全部 引く
+            //   読めたかは 別に 数える（読めない 締め日を 末日に 倒さない）
+            DKSession.softList(SESS, kaishaDake('dk_sales_settings?select=*&limit=1'), ksYomi),
             // ★★実費の 名前（会社が 決めた 一覧）★★ 2026-09-06（司さん「自由に 足せる ように」）
             soft('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
             // 手で 入れた 日も 読めたかを 別に 数える（読めない 月は 紙・表を 止める・対立役 D-2：その 車の 売上が 抜けた 額で 出た）
@@ -955,7 +1014,26 @@
             .then(function (res) {
               if (no !== LOAD_NO) return; // ★古い 読みの 返事は 捨てる★
               YOMICHU = false;
-              RAW.shifts = Array.isArray(res[0]) ? res[0] : [];
+              var st0 = Array.isArray(res[3]) && res[3].length ? res[3][0] : null;
+              // ★会社の 締め日★（読めなかった＝通信も 列が 無いも 止める・末日に 倒さない）
+              KAISHA =
+                ksYomi.failed > 0
+                  ? { dame: true, riyuu: '会社の 締め日を 読めませんでした（通信）' }
+                  : KaishaKikan.yomu(st0);
+              // ★最初に 開いた 時は 今日の 月★（20日締めで 10/24 ⇒ 11月）
+              if (!TSUKI_ERANDA && !KAISHA.dame) {
+                TSUKI_ERANDA = true;
+                var kyouT = KaishaKikan.kyou(KAISHA.hi);
+                if (kyouT.year !== MONTH.getFullYear() || kyouT.month !== MONTH.getMonth() + 1) {
+                  MONTH = new Date(kyouT.year, kyouT.month - 1, 1);
+                  render();
+                  return load();
+                }
+              }
+              // ★その 月の 期間の 日の 業務だけ★（広く 読んだ 分を 落とす）
+              RAW.shifts = (Array.isArray(res[0]) ? res[0] : []).filter(function (sh) {
+                return sh && tsukiNaka(PayrollDaily.dateOf(sh.started_at) || '');
+              });
               RAW.edits = Array.isArray(res[1]) ? res[1] : [];
               RAW.labels = Array.isArray(res[2]) ? res[2] : [];
               // ★★実費の 名前★★ 2026-09-06（司さん「自由に 足せる ように」）
@@ -975,7 +1053,7 @@
               //   メーターの記録がある車は出さない＝二重計上しない。
               var manual = (Array.isArray(res[5]) ? res[5] : []).filter(function (m) {
                 if (!m || !m.work_date) return false;
-                var inMonth = String(m.work_date).slice(0, 7) === ymKey(MONTH);
+                var inMonth = tsukiNaka(String(m.work_date).slice(0, 10)); // ★会社の 期間★
                 if (!inMonth) return false;
                 return !RAW.shifts.some(function (sh) {
                   return (
@@ -991,8 +1069,8 @@
               var conv = PayrollDaily.manualAsShifts(manual);
               RAW.shifts = RAW.shifts.concat(conv.shifts);
               RAW.edits = RAW.edits.concat(conv.edits);
-              ld.tried += edYomi.tried + mdYomi.tried;
-              ld.failed += edYomi.failed + mdYomi.failed;
+              ld.tried += edYomi.tried + mdYomi.tried + ksYomi.tried;
+              ld.failed += edYomi.failed + mdYomi.failed + ksYomi.failed;
               ED_YOMI = edYomi;
               EDITS_DAME = edYomi.failed > 0;
               MD_DAME = mdYomi.failed > 0;
@@ -1039,6 +1117,14 @@
           });
           // ★車ごと／日ごと の両方を作る（数字は同じ物から作る＝食い違わない）★
           //   引く 額＝入れた 実費 全部（UriageAgg.deductOf）2026-10-24 件J
+          // ★会社の 締め日が 読めない＝数字を 作らない★ 2026-10-24（末日に 倒さない）
+          if (KAISHA && KAISHA.dame) {
+            ROWS = [];
+            DAYS = [];
+            URIAGE_DAME = 0;
+            showErr('');
+            return;
+          }
           ROWS = UriageAgg.byDevice(RAW.shifts, edits, RAW.labels);
           DAYS = UriageAgg.byDay(RAW.shifts, edits, RAW.labels);
           // 売上の 直しが 読めない 業務が 在れば 知らせる（合計に その 業務は 入っていない）2026-10-14

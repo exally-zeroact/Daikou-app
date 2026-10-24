@@ -65,7 +65,14 @@ function tsukuru(o) {
     dk_device_labels: LABELS,
     // ★前の 形の 設定・記録を わざと 置く★（その他を 引かない・1/6 から 高速代を 引かない）＝読まれたら 数が 変わる
     dk_sales_settings: [
-      { company_id: CO, deduct_toll: true, deduct_bridge: true, deduct_other: false },
+      // kaisha_shime_hi＝会社の 締め日（件K 2026-10-24・null＝末日）＝売上表は この 列だけ 読む（deduct_* は 見ない）
+      {
+        company_id: CO,
+        deduct_toll: true,
+        deduct_bridge: true,
+        deduct_other: false,
+        kaisha_shime_hi: null,
+      },
     ],
     dk_uriage_rireki: [{ rireki_id: 'u1', key: 'toll', from_date: '2026-01-06', value: false }],
   };
@@ -132,7 +139,8 @@ test('① 売上表：前の 設定・記録が 在っても 入れた 実費は
     chk: document.querySelectorAll('.setrow input').length,
     na: document.getElementById('dHiku').textContent,
     yonda: window.__yonda.filter(
-      (p) => p.indexOf('dk_sales_settings') === 0 || p.indexOf('dk_uriage_rireki') === 0
+      // dk_sales_settings は 件K（会社の 締め日）で 読む＝もう 使わないのは 記録の 表だけ（引く 額は 上の 数で 縛る）
+      (p) => p.indexOf('dk_uriage_rireki') === 0
     ),
   }));
   expect(r.eran, '★選ぶ 欄が 残っている★').toEqual([]);
@@ -143,13 +151,45 @@ test('① 売上表：前の 設定・記録が 在っても 入れた 実費は
   expect(err).toEqual([]);
 });
 
-test('② 売上表：設定・記録の 表が 読めなくても 止めない', async ({ page }) => {
+test('② 売上表：記録の 表が 読めなくても 止めない（設定の 表が 読めない 時は 会社の 締め日で 止める＝引く 物の 訳では ない）', async ({
+  page,
+}) => {
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
-  await hiraku(page, { yomenai: ['dk_sales_settings', 'dk_uriage_rireki'] });
+  await hiraku(page, { yomenai: ['dk_uriage_rireki'] });
   const ji = await kamiJi(page);
   expect(ji).toContain(yen(60000));
   expect(await page.textContent('#err')).not.toContain('売上から 引く 物');
+  expect(err).toEqual([]);
+});
+
+// 件K（2026-10-24）：dk_sales_settings は 会社の 締め日（kaisha_shime_hi）の 為に 読む。読めない 時は 末日に 倒さず 止める
+//   （止める 訳は 締め日＝「売上から 引く 物」の 字は 出さない・引く 額は 件J の まま 全部）
+test('②b 売上表：設定の 表が 読めない ⇒ 会社の 締め日で 止める（引く 物の 訳は 出さない）', async ({
+  page,
+}) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  await page.clock.setFixedTime(new Date('2026-01-20T12:00:00+09:00'));
+  await page.route('**/js/dk-session.js*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript; charset=utf-8',
+      body: tsukuru({ yomenai: ['dk_sales_settings'] }),
+    })
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/uriage.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(
+    () => /出せません/.test(document.getElementById('kamiMsg').textContent),
+    null,
+    {
+      timeout: 15000,
+    }
+  );
+  const e = await page.textContent('#err');
+  expect(e).toContain('締め日');
+  expect(e).not.toContain('売上から 引く 物');
   expect(err).toEqual([]);
 });
 
