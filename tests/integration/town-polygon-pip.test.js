@@ -202,11 +202,13 @@ describe('notifyMMSnap public API: snap 座標 cache', () => {
 // ─── 6. data file 存在 verify ─────────────────────────
 describe('data file 存在 verify', () => {
   it('data/town-polygons-ehime.js が存在・本物 bundle 構造', () => {
-    expect(ehimeBundle.v).toBe(1);
+    // 2026-10-24 v 2＝共有の 境の 線（arcs）＋町は 線の 番号（r）
+    expect(ehimeBundle.v).toBe(2);
+    expect(Array.isArray(ehimeBundle.arcs)).toBe(true);
     expect(ehimeBundle.prefecture).toBe('ehime');
     // prefCode は・PREF_NAMES key (= string・"38") or・int・両許容
     expect(String(ehimeBundle.prefCode)).toBe('38');
-    expect(ehimeBundle.license).toBe('CC BY 4.0');
+    expect(ehimeBundle.licenseUrl).toBe('https://www.e-stat.go.jp/terms-of-use');
     expect(ehimeBundle.source).toMatch(/国勢調査.*境界/);
     expect(ehimeBundle.items.length).toBeGreaterThan(100);
   });
@@ -214,8 +216,9 @@ describe('data file 存在 verify', () => {
   it('愛媛 別宮町一丁目 (今治市) polygon が・含まれる', () => {
     const betsumiya1 = ehimeBundle.items.find((it) => it.n === '別宮町一丁目' && it.c === '今治市');
     expect(betsumiya1).toBeDefined();
-    expect(betsumiya1.rings.length).toBeGreaterThan(0);
-    expect(betsumiya1.rings[0].length).toBeGreaterThanOrEqual(3);
+    const rings = Business.__addressFormatter.townRings(ehimeBundle, betsumiya1);
+    expect(rings.length).toBeGreaterThan(0);
+    expect(rings[0].length).toBeGreaterThanOrEqual(3);
     expect(Array.isArray(betsumiya1.bbox)).toBe(true);
     expect(betsumiya1.bbox.length).toBe(4);
   });

@@ -33,7 +33,9 @@
 
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
+const EHIME_TOWN_JS = path.join(__dirname, '..', '..', 'data', 'town-polygons-ehime.js');
 const METER_JS_PATH = path.join(__dirname, '..', '..', 'js', 'meter.js');
 const BUSINESS_JS_PATH = path.join(__dirname, '..', '..', 'js', 'business.js');
 
@@ -116,18 +118,23 @@ describe('住所拾い 実機 bug: 今治 user で・修正前 null → 修正�
 
 // ─── B. 各 trigger (= start / waypoint / end) で住所取得 verify ──
 
-describe('住所拾い 3 trigger 全経路・修正後 動作 verify', () => {
-  let Meter, Business;
+describe('住所拾い 3 trigger 全経路・町の 境の 形で 町名まで（2026-10-24「付近」は 出さない）', () => {
+  // ★司さん 10-24「そんな曖昧にすんなや どの都道府県でもきっちりやれ」★
+  //   地名は 町の 境の 形（本物の data/town-polygons-ehime.js）で 引く＝「今治市 付近」で なく「今治市高部」
+  //   荒い 点（coarse）しか 無い 時は「付近」に せず null＝やり直しで 埋める
+  let Business;
+  const loadEhime = () => {
+    const sb = {};
+    new Function('window', fs.readFileSync(EHIME_TOWN_JS, 'utf8'))(sb);
+    return sb.TOWN_POLYGONS_EHIME;
+  };
   beforeEach(() => {
     mockGPS();
-    Meter = loadMeter();
-    globalThis.Meter = Meter;
+    globalThis.Meter = loadMeter();
     Business = loadBusiness();
     globalThis.window = {
-      ADDRESSES_COARSE_JP: {
-        precision: 100000,
-        items: COARSE_ITEMS_REAL_SCALE,
-      },
+      ADDRESSES_COARSE_JP: { precision: 100000, items: COARSE_ITEMS_REAL_SCALE },
+      TOWN_POLYGONS_EHIME: loadEhime(),
     };
   });
   afterEach(() => {
@@ -136,42 +143,46 @@ describe('住所拾い 3 trigger 全経路・修正後 動作 verify', () => {
     delete globalThis.Meter;
   });
 
-  it('★ start trigger: onTripStart(今治 lat/lng) → start_address に「愛媛県今治市 付近」', () => {
+  it('★ start trigger: onTripStart(今治 lat/lng) → start_address が「今治市高部」', () => {
     Business.onTripStart(IMABARI_USER.lat, IMABARI_USER.lng, IMABARI_USER.accuracy);
-    const trip = Business.getCurrentTrip();
-    expect(trip).not.toBeNull();
-    expect(trip.start_address).toBe('今治市 付近');
+    expect(Business.getCurrentTrip().start_address).toBe('今治市高部');
   });
 
-  it('★ waypoint trigger: onWaypoint(今治 lat/lng) → waypoints[0].address に「愛媛県今治市 付近」', () => {
+  it('★ waypoint trigger: onWaypoint → waypoints[0].address が「今治市高部」', () => {
     Business.onTripStart(IMABARI_USER.lat, IMABARI_USER.lng, IMABARI_USER.accuracy);
     Business.onWaypoint(IMABARI_USER.lat, IMABARI_USER.lng + 0.001, IMABARI_USER.accuracy);
     const trip = Business.getCurrentTrip();
     expect(trip.waypoints).toHaveLength(1);
-    expect(trip.waypoints[0].address).toBe('今治市 付近');
+    expect(trip.waypoints[0].address).toBe('今治市高部');
   });
 
-  it('★ end trigger: setEndAddress(今治 lat/lng) → end_address に「愛媛県今治市 付近」', () => {
+  it('★ end trigger: setEndAddress → end_address が「今治市波止浜」', () => {
     Business.onTripStart(IMABARI_USER.lat, IMABARI_USER.lng, IMABARI_USER.accuracy);
-    Business.setEndAddress(
-      IMABARI_USER.lat + 0.001,
-      IMABARI_USER.lng + 0.002,
-      IMABARI_USER.accuracy
-    );
-    const trip = Business.getCurrentTrip();
-    expect(trip.end_address).toBe('今治市 付近');
+    Business.setEndAddress(IMABARI_USER.lat + 0.01, IMABARI_USER.lng + 0.01, IMABARI_USER.accuracy);
+    expect(Business.getCurrentTrip().end_address).toBe('今治市波止浜');
   });
 
-  it('3 trigger 全実行後: trip = { start, waypoints[1], end } 全て住所あり (= routeCard 表示条件満足)', () => {
+  it('★ どの 地名にも「付近」が 付かない', () => {
     Business.onTripStart(IMABARI_USER.lat, IMABARI_USER.lng, 6);
     Business.onWaypoint(IMABARI_USER.lat + 0.005, IMABARI_USER.lng + 0.005, 6);
     Business.setEndAddress(IMABARI_USER.lat + 0.01, IMABARI_USER.lng + 0.01, 6);
-    const trip = Business.getCurrentTrip();
-    expect(trip.start_address).toBeTruthy();
-    expect(trip.waypoints[0].address).toBeTruthy();
-    expect(trip.end_address).toBeTruthy();
-    // routeCard 表示条件: start_address && end_address のいずれかが・truthy ならば描画
-    expect(trip.start_address || trip.end_address).toBeTruthy();
+    const t = Business.getCurrentTrip();
+    for (const a of [t.start_address, t.waypoints[0].address, t.end_address]) {
+      expect(a).toBeTruthy();
+      expect(a).not.toMatch(/付近/);
+    }
+  });
+
+  it('★ 荒い 点しか 無い（町の 形が まだ 届いて いない）＝「付近」に せず null・やり直しに 積む', () => {
+    delete globalThis.window.TOWN_POLYGONS_EHIME;
+    Business.onTripStart(IMABARI_USER.lat, IMABARI_USER.lng, 6);
+    expect(Business.getCurrentTrip().start_address).toBeNull();
+    const p = Business.__addressFormatter.addrPending();
+    expect(p.length).toBe(1);
+    // 町の 形が 届いたら やり直しで 埋まる
+    globalThis.window.TOWN_POLYGONS_EHIME = loadEhime();
+    Business.__addressFormatter.addrTick();
+    expect(Business.getCurrentTrip().start_address).toBe('今治市高部');
   });
 });
 

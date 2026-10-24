@@ -14,9 +14,7 @@
 //   3. _cutChomeSuffix: 大字止まり (= 丁目なし) は・無変換
 //   4. _cutChomeSuffix: null / undefined / non-string は・無変換
 //   5. _cutChomeSuffix: 中間の・「○丁目」(= 末尾でない) は・カットしない
-//   6. _findNearestMunicipality: 本物 coarse 形式 (= int×1e5 + items) で・最近傍 hit
-//   7. _findNearestMunicipality: range 外 → null
-//   8. _findNearestMunicipality: ADDRESSES_COARSE_JP 未 load → null
+//   6-8. 町の 形が 無い 時の 細かい 点＝市の 名前は その 点の 物（2026-10-24・代表点の 市名は 外した）
 //   9. ★ pipeline auxKinds に・'addresses-fine' 追加 verify (= 配線確認・grep ベース)
 //
 // 絶対ルール準拠:
@@ -31,15 +29,13 @@ const path = require('path');
 
 let Business;
 let cutChomeSuffix;
-let findNearestMunicipality;
 
 beforeAll(() => {
   // ─── business.js を Node に・require ───
   delete require.cache[require.resolve(path.join('..', '..', 'js', 'business.js'))];
   Business = require(path.join('..', '..', 'js', 'business.js'));
   cutChomeSuffix = Business.__addressFormatter.cutChomeSuffix;
-  findNearestMunicipality = Business.__addressFormatter.findNearestMunicipality;
-  if (typeof cutChomeSuffix !== 'function' || typeof findNearestMunicipality !== 'function') {
+  if (typeof cutChomeSuffix !== 'function') {
     throw new Error('business.js __addressFormatter helper export 失敗');
   }
 });
@@ -104,67 +100,49 @@ describe('_cutChomeSuffix: 末尾 ○丁目 カット', () => {
   });
 });
 
-// ─── 6-8. _findNearestMunicipality の・各分岐 ─────
-describe('_findNearestMunicipality: 本物 coarse 形式で・最近傍 市町村 hit', () => {
-  it('作り物の点 (34.0939, 132.9622) → 今治市 hit', () => {
-    // 本物 ADDRESSES_COARSE_JP 形式 (= int×1e5 + items・n=市町村名 / c=JIS5桁)
-    global.window = {
-      ADDRESSES_COARSE_JP: {
-        v: 1,
-        precision: 100000,
-        items: [
-          { lat: 3409442, lng: 13294775, n: '今治市', c: '38202' },
-          { lat: 3384889, lng: 13276706, n: '松山市', c: '38201' },
-          { lat: 3306667, lng: 13256667, n: '宇和島市', c: '38203' },
-        ],
-      },
-    };
-    expect(findNearestMunicipality(34.0939, 132.9622)).toBe('今治市');
-  });
-
-  it('松山市中心 (= 松山市 hit)', () => {
+// ─── 6-8. 町の 形が まだ 無い 時＝細かい 点（その 点が 持つ 市の 名前）★2026-10-24★ ─────
+//   前は 市の 名前を「一番 近い 市の 代表点」で 付けた＝今治市郷桜井 が「西条市郷桜井」に なった
+//   今は 細かい 点 {n, c} の c を 使う。代表点の 市は 使わない・500m より 遠い 点は 使わない
+describe('町の 形が 無い 時の 細かい 点：市の 名前は その 点の 物（代表点で 付けない）', () => {
+  const chimei = (lat, lng) => {
+    const r = Business.__addressFormatter.chimeiAt(lat, lng);
+    return r ? r.s : null;
+  };
+  it('郷桜井三丁目の 点の 近く＝「今治市郷桜井」（西条市の 代表点が 近くても）', () => {
     global.window = {
       ADDRESSES_COARSE_JP: {
         items: [
-          { lat: 3409442, lng: 13294775, n: '今治市', c: '38202' },
-          { lat: 3384889, lng: 13276706, n: '松山市', c: '38201' },
+          { lat: 3413215, lng: 13304801, n: '今治市', c: '38202' },
+          { lat: 3394621, lng: 13311180, n: '西条市', c: '38206' },
         ],
       },
-    };
-    expect(findNearestMunicipality(33.8489, 132.7671)).toBe('松山市');
-  });
-
-  it('range 外 (= 50km 超) → null (= 25km プレフィルタで・hit せず)', () => {
-    global.window = {
-      ADDRESSES_COARSE_JP: {
-        items: [{ lat: 3500000, lng: 13900000, n: '東京都', c: '13101' }], // 東京・遠い
+      ADDRESSES_FINE_EHIME: {
+        items: [{ lat: 3401685, lng: 13303519, n: '郷桜井三丁目', c: '今治市' }],
       },
     };
-    // 作り物の点 から・~600km 離れた・東京は・hit しない
-    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
+    expect(chimei(34.0165, 133.0349)).toBe('今治市郷桜井');
   });
-
-  it('ADDRESSES_COARSE_JP 未 load → null', () => {
-    global.window = {}; // ADDRESSES_COARSE_JP 無し
-    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
-  });
-
-  it('items 空 → null', () => {
+  it('細かい 点が 500m より 遠い＝null（「付近」に しない）', () => {
     global.window = {
-      ADDRESSES_COARSE_JP: { items: [] },
+      ADDRESSES_COARSE_JP: { items: [{ lat: 3394621, lng: 13311180, n: '西条市', c: '38206' }] },
+      ADDRESSES_FINE_EHIME: {
+        items: [{ lat: 3401685, lng: 13303519, n: '郷桜井三丁目', c: '今治市' }],
+      },
     };
-    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
+    expect(chimei(34.0066, 133.04)).toBe(null);
   });
-
-  it('items が・Array でない → null', () => {
+  it('市の 名前を 持たない 細かい 点は 使わない', () => {
     global.window = {
-      ADDRESSES_COARSE_JP: { items: 'not an array' },
+      ADDRESSES_FINE_EHIME: { items: [{ lat: 3401685, lng: 13303519, n: '郷桜井三丁目' }] },
     };
-    expect(findNearestMunicipality(34.0939, 132.9622)).toBe(null);
+    expect(chimei(34.0165, 133.0349)).toBe(null);
+  });
+  it('何も 読めて いない＝null', () => {
+    global.window = {};
+    expect(chimei(34.0939, 132.9622)).toBe(null);
   });
 });
 
-// ─── 9. mm-data-pipeline.js auxKinds に・'addresses-fine' 追加 verify (= 配線) ─
 describe('mm-data-pipeline.js auxKinds: addresses-fine 配線 verify', () => {
   it('loadAuxData の auxKinds に・"addresses-fine" を含む', () => {
     const src = fs.readFileSync(
@@ -192,50 +170,5 @@ describe('mm-data-pipeline.js auxKinds: addresses-fine 配線 verify', () => {
     expect(src).toMatch(/kind:\s*'addresses-fine'/);
     expect(src).toMatch(/template:\s*'\/data\/addresses-fine-\{pref\}\.js'/);
     expect(src).toMatch(/ADDRESSES_FINE_/);
-  });
-});
-
-// ─── 10. 統合シナリオ (= 住所の・想定挙動) ──────
-describe('住所① 統合シナリオ: 例 (今治市別宮町二丁目) → 今治市別宮町', () => {
-  it('fine 戻り値「別宮町二丁目」+ coarse「今治市」 → 「今治市別宮町」', () => {
-    // 本物 coarse data・今治市 hit
-    global.window = {
-      ADDRESSES_COARSE_JP: {
-        items: [{ lat: 3409442, lng: 13294775, n: '今治市', c: '38202' }],
-      },
-    };
-    // meter.js fine 戻り値・想定 (= 司さん希望)
-    const fineRaw = '別宮町二丁目';
-    const cut = cutChomeSuffix(fineRaw);
-    expect(cut).toBe('別宮町');
-    const city = findNearestMunicipality(34.0939, 132.9622);
-    expect(city).toBe('今治市');
-    // 連結
-    expect(city + cut).toBe('今治市別宮町');
-  });
-
-  it('fine 戻り値「松本町一丁目」(= 例) + 「今治市」 → 「今治市松本町」', () => {
-    global.window = {
-      ADDRESSES_COARSE_JP: {
-        items: [{ lat: 3409442, lng: 13294775, n: '今治市', c: '38202' }],
-      },
-    };
-    expect(cutChomeSuffix('松本町一丁目')).toBe('松本町');
-    expect(findNearestMunicipality(34.0939, 132.9622) + cutChomeSuffix('松本町一丁目')).toBe(
-      '今治市松本町'
-    );
-  });
-
-  it('fine 戻り値「市坪西町」(= 大字止まり) + 「松山市」 → 「松山市市坪西町」', () => {
-    global.window = {
-      ADDRESSES_COARSE_JP: {
-        items: [{ lat: 3384889, lng: 13276706, n: '松山市', c: '38201' }],
-      },
-    };
-    // 大字止まり (= 丁目なし) は・カット不要・無変換
-    expect(cutChomeSuffix('市坪西町')).toBe('市坪西町');
-    expect(findNearestMunicipality(33.8489, 132.7671) + cutChomeSuffix('市坪西町')).toBe(
-      '松山市市坪西町'
-    );
   });
 });

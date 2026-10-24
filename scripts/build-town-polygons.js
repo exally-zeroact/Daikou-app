@@ -1,67 +1,39 @@
 #!/usr/bin/env node
 /* eslint-env node */
-// scripts/build-town-polygons.js (= dev tool・新規 2026-05-23)
+// ============================================================
+// scripts/build-town-polygons.js  町丁・字の 境の 形を 県ごとに 作る（dev tool）
 //
-// ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・町丁字 polygon build):
-//   NII Geoshape 国勢調査町丁・字等境界 2020 (CC BY 4.0) を・市町村別 TopoJSON で取得・
-//   県別に・合成 + 適応簡略化 + quantize + JSON 出力する。
+// ★★2026-10-24 作り直し（司さん「どの都道府県でもきっちりやれ」）★★
+//   前の 作り方（2026-05-23）は 町ごとに 輪を 別々に 削った（郊外 100m・緯度経度の 順も 逆）
+//   ⇒ 隣の 町との 間に 隙間が でき、隙間に 落ちた 点は「一番 近い 市の 代表点＋付近」に なった
+//     （今治市郷桜井 が「西条市 付近」「西条市郷桜井」・愛媛を 面積で 2万点＝引けない 1.35%・違う 町 1.68%）
+//   ⇒ ファイルが 無い 市町村は 黙って 飛ばした（全国で 9市町村 まるごと 形が 無かった）
 //
-// 入力:
-//   tmp/nii-geoshape/{5桁JIS code}.topojson (= 1 市町村 1 file・curl 等で・別途取得)
-//   data/addresses-coarse-jp.js (= 全 1919 市町村 JIS code list source)
-// 出力:
-//   data/town-polygons-{pref}.js (= 47 県別・既存 fine bundle 互換 globalKey)
+//   今の 作り方：
+//     ① 県の 中の 全部の 町の 輪を 集め、2つ以上の 町が 本当に 共有して いる 境の 線（arc）を 見つける
+//        （市の 境＝別の ファイル 同士も 同じ 線に なる＝今治と 西条の 間にも 隙間が 無い）
+//     ② 線ごとに 1回だけ Douglas-Peucker 5m（メートルで・[lng,lat] の 順）
+//     ③ 線を 差分の 整数（×1e5）で 書き、町は 線の 番号の 並びで 持つ＝端末で 輪に 組む（js/business.js）
+//     ④ 水面（HCODE 8154）は 町に しない
+//     ⑤ 市町村の ファイルが 1つでも 欠けたら 止める（黙って 抜かない）
 //
-// schema (= 既存 fine bundle pattern):
-//   window.TOWN_POLYGONS_{PREF} = {
-//     v: 1,
-//     generated: '<ISO>',
-//     precision: 100000,       // int × 1e5 quantize (= 既存 fine 整合)
-//     prefecture: 'ehime',
-//     prefCode: 38,
-//     bbox: [latMin*1e5, lngMin*1e5, latMax*1e5, lngMax*1e5],
-//     gridSize: 1000,          // ~1km tile (= 既存 fine 整合)
-//     items: [
-//       {
-//         id: <int>,             // item index
-//         n: '本町七丁目',         // S_NAME (= 町字名)
-//         c: '今治市',             // CITY_NAME (= 市町村名)
-//         code: '38202001001',   // KEY_CODE (= 識別)
-//         rings: [               // 簡略化後 polygon rings (= 外周 + 穴・複数 ring 対応)
-//           [[latI, lngI], ...]  // int × 1e5 quantize
-//         ],
-//         bbox: [latMinI, lngMinI, latMaxI, lngMaxI],
-//       },
-//       ...
-//     ],
-//     grid: {                   // 1km tile index・key = '{tileLat}_{tileLng}'
-//       '35000_135000': [itemIdx, ...],
-//       ...
-//     },
-//     source: '...',            // CC BY 4.0 credit (= 必須)
-//     license: 'CC BY 4.0',
-//   };
+// 入力:  tmp/nii-geoshape/r2ka{5桁}.topojson（NII Geoshape 町丁・字等境界 2020・フル解像度）
+//        取り方 = https://geoshape.ex.nii.ac.jp/ka/topojson/2020/{県2桁}/r2ka{5桁}.topojson
+//        別の 置き場は 環境変数 TOWN_SRC_DIR
+// 出力:  data/town-polygons-{pref}.js（window.TOWN_POLYGONS_{PREF}・v 2）
 //
-// 適応簡略化:
-//   ・小 polygon (= AREA < 50000 m²): DP tolerance 5m (= 都市部・密 町)
-//   ・大 polygon (= AREA >= 50000 m²): DP tolerance 50m (= 郊外・大 町)
-//   ・判定: TopoJSON properties.AREA を使用 (= 面積 m²・実 data field)
+// schema (v 2):
+//   { v: 2, generated, precision: 100000, prefecture, prefCode, tolM: 5,
+//     bbox: [latMinI, lngMinI, latMaxI, lngMaxI],
+//     arcs: [[lat0I, lng0I, dLat1, dLng1, ...], ...],      // 差分の 整数（×1e5）
+//     items: [{ n: '郷桜井三丁目', c: '今治市', code: '38202…', r: [[arcRef, ...], ...穴], bbox }],
+//       // arcRef は 線の 番号（負＝~番号 を 逆向きに）。r[0] が 外周・r[1..] が 穴
+//     cities: 市町村の 数, source, license, licenseUrl, sourceUrl }
 //
-// 絶対ルール準拠:
-//   ✓ distance_m / 課金 / Worker B 本体には・1 byte も触れない (= 表示専用)
-//   ✓ 既存 fine bundle 形式 互換 (= 同 pattern で・loader 自動対応)
-//   ✓ CC BY 4.0 出典明記 (= source field + 法的ページ反映)
+// 使い方: node scripts/build-town-polygons.js [pref]   例: node scripts/build-town-polygons.js ehime
 //
-// 使い方:
-//   1. 各 市町村 TopoJSON を・tmp/nii-geoshape/{code}.topojson に取得 (curl)
-//   2. node scripts/build-town-polygons.js {pref}
-//      例: node scripts/build-town-polygons.js ehime
-//      pref 省略 → 全 47 県 build
-//
-// 出典:
-//   「『国勢調査町丁・字等別境界データセット』(CODH 作成)」+
-//   「令和2年国勢調査町丁・字等別境界データ (e-Stat)」を加工して作成
-//   https://geoshape.ex.nii.ac.jp/ka/
+// 出典: 「令和2年国勢調査町丁・字等別境界データ」をもとに NII が 加工（NII Geoshape・CODH）
+// ============================================================
 
 'use strict';
 
@@ -69,24 +41,39 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const CACHE_DIR = path.join(ROOT, 'tmp', 'nii-geoshape');
-const OUT_DIR = path.join(ROOT, 'data');
+const SRC_DIR = process.env.TOWN_SRC_DIR || path.join(ROOT, 'tmp', 'nii-geoshape');
+const OUT_DIR = process.env.TOWN_OUT_DIR || path.join(ROOT, 'data');
 const COARSE_JS = path.join(ROOT, 'data', 'addresses-coarse-jp.js');
 
-const COORD_SCALE = 100000;
-const GRID_SIZE = 1000; // 1km tile (= 既存 fine 整合)
+const COORD_SCALE = 100000; // 出力（×1e5 ≒ 1.1m）
+const KEY_SCALE = 1000000; // 元の 座標（小数 6桁）を 同じ 点と 見る 鍵
+const TOL_M = 5; // 線を 削る 細かさ（愛媛で 違う 町 0.01%・10m で 0.24%・20m で 0.48%）
+const SUIMEN_HCODE = 8154; // 水面 調査区＝町に しない
 
-// 適応簡略化 thresholds
-const URBAN_AREA_THRESHOLD = 50000; // m² (= 5 万 m² 未満 = 小 polygon = 都市部)
-const URBAN_DP_M = 5; // 都市部・5m
-const RURAL_DP_M = 100; // 郊外・100m (= 2026-05-23 第2回会議 B 採用・hokkaido 8.17MB 解消・全国 -30%)
+// 元データに 無い 市町村（北方領土＝404）
+const NAI_KODE = new Set(['01695', '01696', '01697', '01698', '01699', '01700']);
 
-// 出典 (= CC BY 4.0 必須)
+// ★浜松市は 2024-01-01 に 区を 7 → 3（中央区・浜名区・天竜区）★ 2026-10-24
+//   元データ（2020）は 古い 区（22131〜22137）＝一覧（coarse）の 新しい 番号（22138〜22140）では 取れず、
+//   前の 作り方は 浜松市を まるごと 黙って 飛ばして いた。古い 区の ファイルを 読み、区の 名前を 今の 物に 置き換える
+//   中・東・西・南区→中央区／北区の 三方原地区 7町→中央区・北区の 残り→浜名区／浜北区→浜名区／天竜区→天竜区
+//   出典：浜松市「区再編」https://www.city.hamamatsu.shizuoka.jp/kikaku/kuseido/index.html
+const HAMAMATSU_SHIN = ['22138', '22139', '22140'];
+const HAMAMATSU_KYU = ['22131', '22132', '22133', '22134', '22135', '22136', '22137'];
+const MIKATAHARA = /^(初生町|三方原町|東三方町|豊岡町|三幸町|大原町|根洗町)/;
+function imaNoShi(cityName, sName) {
+  if (!/^浜松市/.test(cityName)) return cityName;
+  if (/^浜松市(中|東|西|南)区$/.test(cityName)) return '浜松市中央区';
+  if (cityName === '浜松市北区') return MIKATAHARA.test(sName) ? '浜松市中央区' : '浜松市浜名区';
+  if (cityName === '浜松市浜北区') return '浜松市浜名区';
+  return cityName;
+}
+
 const SOURCE_CREDIT =
-  '『国勢調査町丁・字等別境界データセット』(CODH 作成) + 令和2年国勢調査町丁・字等別境界データ (e-Stat) を加工';
-const LICENSE = 'CC BY 4.0';
+  '「令和2年国勢調査町丁・字等別境界データ」をもとにNIIが加工（NII Geoshape・CODH）';
+const LICENSE_URL = 'https://www.e-stat.go.jp/terms-of-use';
+const SOURCE_URL = 'https://geoshape.ex.nii.ac.jp/ka/';
 
-// 全 prefecture (= JIS 2 桁) 名 mapping
 const PREF_NAMES = {
   '01': 'hokkaido',
   '02': 'aomori',
@@ -137,423 +124,354 @@ const PREF_NAMES = {
   47: 'okinawa',
 };
 
-// ─── TopoJSON arc decode → GeoJSON polygon ───
-// 標準 TopoJSON (= transform あり) / 絶対座標 mode (= transform なし・NII Geoshape) 両対応
+// ─── TopoJSON の 線を 絶対座標へ（NII は transform 無し＝[lng, lat] の 絶対値）───
 function topojsonDecode(topology) {
-  const transform = topology.transform;
-  if (transform && transform.scale && transform.translate) {
-    // 標準 TopoJSON: delta encoding + scale + translate
-    const scale = transform.scale;
-    const translate = transform.translate;
+  const tr = topology.transform;
+  if (tr && tr.scale && tr.translate) {
     return topology.arcs.map((arc) => {
       let x = 0;
       let y = 0;
-      return arc.map((pair) => {
-        x += pair[0];
-        y += pair[1];
-        return [x * scale[0] + translate[0], y * scale[1] + translate[1]];
+      return arc.map((p) => {
+        x += p[0];
+        y += p[1];
+        return [x * tr.scale[0] + tr.translate[0], y * tr.scale[1] + tr.translate[1]];
       });
     });
   }
-  // 絶対座標 mode (= NII Geoshape は・transform なし・各 arc pair が・[lng, lat] 絶対値)
-  return topology.arcs.map((arc) => arc.map((pair) => [pair[0], pair[1]]));
+  return topology.arcs.map((arc) => arc.map((p) => [p[0], p[1]]));
 }
 
-function topoArcsToCoords(arcsIndices, decodedArcs) {
-  // arcsIndices = [arc1, arc2, ...] (= arc index・負値で逆順)
-  const coords = [];
-  arcsIndices.forEach((idx, i) => {
-    const reverse = idx < 0;
-    const arcIdx = reverse ? ~idx : idx;
-    const arc = decodedArcs[arcIdx];
-    if (!arc) return;
-    const seq = reverse ? arc.slice().reverse() : arc;
-    if (i === 0) {
-      coords.push(...seq);
-    } else {
-      // 連結時・末尾と先頭が重複・skip
-      coords.push(...seq.slice(1));
-    }
-  });
-  return coords;
-}
-
-function topoGeometryToRings(geom, decodedArcs) {
-  // GeometryCollection 内・1 geometry を polygon rings に変換
-  // type: 'Polygon' → arcs: [[outerRing], [hole1], ...]
-  // type: 'MultiPolygon' → arcs: [[[outerRing], [hole1]], ...]
-  if (geom.type === 'Polygon') {
-    return [geom.arcs.map((ringArcs) => topoArcsToCoords(ringArcs, decodedArcs))];
-  }
-  if (geom.type === 'MultiPolygon') {
-    return geom.arcs.map((poly) => poly.map((ringArcs) => topoArcsToCoords(ringArcs, decodedArcs)));
-  }
-  return [];
-}
-
-// ─── Douglas-Peucker simplify (= scripts/build-roads.js 同 logic) ───
-// _haversineM: 将来用 helper (= 距離計算 needed なら使う・現状 DP は pointToSegMeterDist の平面近似で済む)
-// eslint-disable-next-line no-unused-vars
-function _haversineM(lat1, lng1, lat2, lng2) {
-  const R = 6371000;
-  const T = Math.PI / 180;
-  const dLat = (lat2 - lat1) * T;
-  const dLng = (lng2 - lng1) * T;
-  const a =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * T) * Math.cos(lat2 * T) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function pointToSegMeterDist(p, a, b) {
-  // 簡略化: 緯度経度 → 平面近似 (= 短距離なので・度差を・m に変換)
-  const mPerDegLat = 111000;
-  const mPerDegLng = 111000 * Math.cos((p[0] * Math.PI) / 180);
-  const px = p[1] * mPerDegLng;
-  const py = p[0] * mPerDegLat;
-  const ax = a[1] * mPerDegLng;
-  const ay = a[0] * mPerDegLat;
-  const bx = b[1] * mPerDegLng;
-  const by = b[0] * mPerDegLat;
-  const dx = bx - ax;
-  const dy = by - ay;
-  if (dx === 0 && dy === 0) {
-    return Math.hypot(px - ax, py - ay);
-  }
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
-  const cx = ax + t * dx;
-  const cy = ay + t * dy;
-  return Math.hypot(px - cx, py - cy);
-}
-
-// iterative Douglas-Peucker (= stack ベース・recursive 回避で・大 polygon 高速化)
-function douglasPeucker(points, toleranceM) {
-  const n = points.length;
-  if (n < 3) return points.slice();
-  const keep = new Uint8Array(n);
-  keep[0] = 1;
-  keep[n - 1] = 1;
-  // stack: [startIdx, endIdx] のペア
-  const stack = [[0, n - 1]];
-  while (stack.length > 0) {
-    const [s, e] = stack.pop();
-    if (e - s < 2) continue;
-    let maxDist = 0;
-    let maxIdx = -1;
-    const first = points[s];
-    const last = points[e];
-    for (let i = s + 1; i < e; i++) {
-      const d = pointToSegMeterDist(points[i], first, last);
-      if (d > maxDist) {
-        maxDist = d;
-        maxIdx = i;
-      }
-    }
-    if (maxDist > toleranceM && maxIdx > 0) {
-      keep[maxIdx] = 1;
-      stack.push([s, maxIdx]);
-      stack.push([maxIdx, e]);
-    }
-  }
+function arcsToRing(refs, arcs) {
   const out = [];
-  for (let i = 0; i < n; i++) {
-    if (keep[i]) out.push(points[i]);
-  }
+  refs.forEach((idx, i) => {
+    const arc = arcs[idx < 0 ? ~idx : idx];
+    if (!arc) return;
+    const seq = idx < 0 ? arc.slice().reverse() : arc;
+    out.push(...(i === 0 ? seq : seq.slice(1)));
+  });
   return out;
 }
 
-// ─── ring → quantized int rings (= int × 1e5) ───
-function quantizeRing(ring) {
-  return ring.map((p) => [
-    Math.round(p[1] * COORD_SCALE), // lat (= note: TopoJSON は・[lng, lat] 順)
-    Math.round(p[0] * COORD_SCALE), // lng
-  ]);
+// geometry → [[外周, 穴...], ...]（Polygon / MultiPolygon）
+function geometryToPolys(geom, arcs) {
+  if (geom.type === 'Polygon') return [geom.arcs.map((r) => arcsToRing(r, arcs))];
+  if (geom.type === 'MultiPolygon') return geom.arcs.map((p) => p.map((r) => arcsToRing(r, arcs)));
+  return [];
 }
 
-// ─── grid index 構築 (= 1km tile・既存 fine 整合) ───
-// _gridKey: 将来用 helper (= 現状 grid build は runtime lazy で・business.js consumer 側・本 script では未使用)
-// eslint-disable-next-line no-unused-vars
-function _gridKey(latI, lngI) {
-  return Math.floor(latI / GRID_SIZE) + '_' + Math.floor(lngI / GRID_SIZE);
+// ─── 点と 線分の 距離（メートル・[lng, lat]）───
+function segDistM(p, a, b) {
+  const k = Math.cos((p[1] * Math.PI) / 180);
+  const px = p[0] * 111320 * k;
+  const py = p[1] * 110574;
+  const ax = a[0] * 111320 * k;
+  const ay = a[1] * 110574;
+  const dx = b[0] * 111320 * k - ax;
+  const dy = b[1] * 110574 - ay;
+  const L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
 }
 
-function buildGridIndex(items) {
-  const grid = {};
-  items.forEach((it, idx) => {
-    if (!it.bbox) return;
-    const [latMin, lngMin, latMax, lngMax] = it.bbox;
-    const tLatMin = Math.floor(latMin / GRID_SIZE);
-    const tLatMax = Math.floor(latMax / GRID_SIZE);
-    const tLngMin = Math.floor(lngMin / GRID_SIZE);
-    const tLngMax = Math.floor(lngMax / GRID_SIZE);
-    for (let tlat = tLatMin; tlat <= tLatMax; tlat++) {
-      for (let tlng = tLngMin; tlng <= tLngMax; tlng++) {
-        const key = tlat + '_' + tlng;
-        if (!grid[key]) grid[key] = [];
-        grid[key].push(idx);
+// Douglas-Peucker（両端は 残す・stack で）
+function douglasPeucker(pts, tolM) {
+  const n = pts.length;
+  if (n < 3) return pts.slice();
+  const keep = new Uint8Array(n);
+  keep[0] = 1;
+  keep[n - 1] = 1;
+  const st = [[0, n - 1]];
+  while (st.length) {
+    const [s, e] = st.pop();
+    let m = 0;
+    let mi = -1;
+    for (let i = s + 1; i < e; i++) {
+      const d = segDistM(pts[i], pts[s], pts[e]);
+      if (d > m) {
+        m = d;
+        mi = i;
       }
     }
-  });
-  return grid;
+    if (m > tolM && mi > 0) {
+      keep[mi] = 1;
+      st.push([s, mi], [mi, e]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
 }
 
-// ─── 1 県分 build ───
-function buildPref(prefCode, prefName, cityCodes) {
-  console.log('[build] pref=' + prefName + ' (' + prefCode + ') / cities=' + cityCodes.length);
-  const items = [];
-  let totalVerticesBefore = 0;
-  let totalVerticesAfter = 0;
-  let skipped = 0;
-  let urbanCount = 0;
-  let ruralCount = 0;
+const keyOf = (p) => Math.round(p[0] * KEY_SCALE) + ',' + Math.round(p[1] * KEY_SCALE);
 
-  for (const code of cityCodes) {
-    const file = path.join(CACHE_DIR, code + '.topojson');
-    if (!fs.existsSync(file)) {
-      console.log('  skip ' + code + ' (file not found)');
-      skipped++;
-      continue;
-    }
-    let topology;
-    try {
-      topology = JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch (e) {
-      console.log('  parse fail ' + code + ': ' + e.message);
-      skipped++;
-      continue;
-    }
-    if (!topology.objects || !topology.objects.town) {
-      console.log('  no town objects ' + code);
-      skipped++;
-      continue;
-    }
-    const decodedArcs = topojsonDecode(topology);
-    const geometries = topology.objects.town.geometries || [];
-    const beforeItems = items.length;
-    const t0 = Date.now();
-    geometries.forEach((g) => {
-      const props = g.properties || {};
-      const sName = props.S_NAME;
-      const cName = props.CITY_NAME;
-      const kCode = props.KEY_CODE;
-      const area = props.AREA || 0;
-      if (!sName || !cName) return;
-      const polys = topoGeometryToRings(g, decodedArcs);
-      if (polys.length === 0) return;
-      // 適応簡略化: AREA で・tolerance 切替
-      const isUrban = area < URBAN_AREA_THRESHOLD;
-      const tolerance = isUrban ? URBAN_DP_M : RURAL_DP_M;
-      if (isUrban) urbanCount++;
-      else ruralCount++;
-      // 複数 polygon (= MultiPolygon) → 全 ring を結合
-      polys.forEach((rings) => {
-        const simplifiedRings = rings.map((ring) => {
-          totalVerticesBefore += ring.length;
-          const simplified = douglasPeucker(ring, tolerance);
-          totalVerticesAfter += simplified.length;
-          return quantizeRing(simplified);
-        });
-        // bbox 計算
-        let latMin = Infinity;
-        let lngMin = Infinity;
-        let latMax = -Infinity;
-        let lngMax = -Infinity;
-        simplifiedRings.forEach((r) =>
-          r.forEach(([la, ln]) => {
-            if (la < latMin) latMin = la;
-            if (la > latMax) latMax = la;
-            if (ln < lngMin) lngMin = ln;
-            if (ln > lngMax) lngMax = ln;
-          })
-        );
-        items.push({
-          id: items.length,
-          n: sName,
-          c: cName,
-          code: kCode,
-          rings: simplifiedRings,
-          bbox: [latMin, lngMin, latMax, lngMax],
-        });
-      });
-    });
-    const dt = Date.now() - t0;
-    console.log(
-      '  ✓ ' +
-        code +
-        ' geometries=' +
-        geometries.length +
-        ' added=' +
-        (items.length - beforeItems) +
-        ' (' +
-        dt +
-        'ms)'
-    );
-  }
-  console.log('  [' + prefName + '] cities done, total items=' + items.length);
-
-  // 県全体 bbox
-  let prefLatMin = Infinity;
-  let prefLngMin = Infinity;
-  let prefLatMax = -Infinity;
-  let prefLngMax = -Infinity;
-  items.forEach((it) => {
-    if (!it.bbox) return;
-    if (it.bbox[0] < prefLatMin) prefLatMin = it.bbox[0];
-    if (it.bbox[1] < prefLngMin) prefLngMin = it.bbox[1];
-    if (it.bbox[2] > prefLatMax) prefLatMax = it.bbox[2];
-    if (it.bbox[3] > prefLngMax) prefLngMax = it.bbox[3];
-  });
-
-  // grid index は・runtime (= business.js consumer side) で・初回 lazy build に・委譲
-  // (= build script size 縮小・hang 回避・~3000 items naive iter ms 単位で許容)
-  console.log('  [' + prefName + '] grid: runtime-built (skip)');
-
-  const out = {
-    v: 1,
-    generated: new Date().toISOString(),
-    precision: COORD_SCALE,
-    prefecture: prefName,
-    prefCode: prefCode,
-    bbox: prefLatMin === Infinity ? null : [prefLatMin, prefLngMin, prefLatMax, prefLngMax],
-    gridSize: GRID_SIZE,
-    items: items,
-    // grid は runtime build (= business.js consumer 側で・初回 PIP 時に lazy build)
-    source: SOURCE_CREDIT,
-    license: LICENSE,
-    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-    sourceUrl: 'https://geoshape.ex.nii.ac.jp/ka/',
+// ─── 共有の 境の 線を 作る ───
+// rings: [[ [lng,lat], ... ], ...]（閉じた 輪）
+// 返り: { arcs: [[ [lng,lat], ... ]], refs: [[arcRef, ...] (輪ごと)] }
+function buildTopology(rings) {
+  // 点ごとの 隣の 点（向き 無し）
+  const nb = new Map();
+  const addNb = (k, a, b) => {
+    let s = nb.get(k);
+    if (!s) nb.set(k, (s = new Set()));
+    s.add(a);
+    s.add(b);
   };
-
-  const globalKey = 'TOWN_POLYGONS_' + prefName.toUpperCase();
-  const outFile = path.join(OUT_DIR, 'town-polygons-' + prefName + '.js');
-  const header =
-    '// Auto-generated by scripts/build-town-polygons.js\n' +
-    '// Generated: ' +
-    out.generated +
-    '\n' +
-    '// 出典: ' +
-    SOURCE_CREDIT +
-    '\n' +
-    '// License: ' +
-    LICENSE +
-    ' (' +
-    out.licenseUrl +
-    ')\n' +
-    '// Source URL: ' +
-    out.sourceUrl +
-    '\n' +
-    '// 件数: ' +
-    items.length +
-    ' polygons / ' +
-    urbanCount +
-    ' urban (≤5m DP) / ' +
-    ruralCount +
-    ' rural (≤50m DP)\n' +
-    '// vertex 減: ' +
-    totalVerticesBefore +
-    ' → ' +
-    totalVerticesAfter +
-    ' (' +
-    ((totalVerticesAfter / totalVerticesBefore) * 100).toFixed(1) +
-    '%)\n';
-  console.log('  [' + prefName + '] stringify...');
-  const body = 'window.' + globalKey + ' = ' + JSON.stringify(out) + ';\n';
-  console.log('  [' + prefName + '] write to ' + outFile);
-  fs.writeFileSync(outFile, header + body);
-  const size = fs.statSync(outFile).size;
-  console.log(
-    '[build] wrote ' +
-      outFile +
-      ' size=' +
-      (size / 1024).toFixed(1) +
-      'KB' +
-      ' / polygons=' +
-      items.length +
-      ' / vertices ' +
-      totalVerticesBefore +
-      '→' +
-      totalVerticesAfter +
-      ' (urban=' +
-      urbanCount +
-      ', rural=' +
-      ruralCount +
-      (skipped > 0 ? ', skipped=' + skipped : '') +
-      ')'
-  );
-  return { items: items.length, size: size, prefName: prefName };
+  const keyed = rings.map((r0) => {
+    let r = r0;
+    const ks = r.map(keyOf);
+    // 閉じて いない 輪は 閉じる
+    if (ks[0] !== ks[ks.length - 1]) {
+      r = r.concat([r[0]]);
+      ks.push(ks[0]);
+    }
+    return { r, ks };
+  });
+  keyed.forEach(({ ks }) => {
+    const m = ks.length - 1; // 最後は 最初と 同じ
+    for (let i = 0; i < m; i++) addNb(ks[i], ks[(i - 1 + m) % m], ks[(i + 1) % m]);
+  });
+  // 分かれ目＝隣が 3つ 以上（3つ 以上の 町が 会う・線が 枝分かれ）
+  const isJ = (k) => nb.get(k).size > 2;
+  const arcIdx = new Map(); // 線の 鍵 → 番号
+  const arcs = [];
+  const refs = keyed.map(({ r, ks }) => {
+    const m = ks.length - 1;
+    let start = -1;
+    for (let i = 0; i < m; i++)
+      if (isJ(ks[i])) {
+        start = i;
+        break;
+      }
+    const pieces = [];
+    if (start < 0) {
+      // 分かれ目が 無い 輪（島・1つの 町だけで 囲む）＝輪 まるごと 1本。始まりを 一番 小さい 鍵に 揃える
+      let s = 0;
+      for (let i = 1; i < m; i++) if (ks[i] < ks[s]) s = i;
+      const seq = [];
+      const kq = [];
+      for (let i = 0; i <= m; i++) {
+        seq.push(r[(s + i) % m]);
+        kq.push(ks[(s + i) % m]);
+      }
+      pieces.push({ seq, kq });
+    } else {
+      let cur = [r[start]];
+      let ck = [ks[start]];
+      for (let step = 1; step <= m; step++) {
+        const i = (start + step) % m;
+        cur.push(r[i]);
+        ck.push(ks[i]);
+        if (isJ(ks[i])) {
+          pieces.push({ seq: cur, kq: ck });
+          cur = [r[i]];
+          ck = [ks[i]];
+        }
+      }
+    }
+    return pieces.map(({ seq, kq }) => {
+      const f = kq.join(';');
+      const b = kq.slice().reverse().join(';');
+      if (arcIdx.has(f)) return arcIdx.get(f);
+      if (arcIdx.has(b)) return ~arcIdx.get(b);
+      const id = arcs.length;
+      arcs.push(seq);
+      arcIdx.set(f, id);
+      return id;
+    });
+  });
+  return { arcs, refs };
 }
 
-// ─── 全市町村 JIS code を・addresses-coarse-jp から・抽出 ───
-function loadCityCodes() {
+function prefCityCodes() {
   const sandbox = {};
-  const src = fs.readFileSync(COARSE_JS, 'utf8');
-  new Function('window', src)(sandbox);
-  const coarse = sandbox.ADDRESSES_COARSE_JP;
-  if (!coarse || !Array.isArray(coarse.items)) {
-    throw new Error('addresses-coarse-jp.js 読み込み失敗');
-  }
+  new Function('window', fs.readFileSync(COARSE_JS, 'utf8'))(sandbox);
   const byPref = {};
-  coarse.items.forEach((it) => {
-    if (!it.c || typeof it.c !== 'string' || it.c.length !== 5) return;
-    const prefCode = it.c.substring(0, 2);
-    if (!byPref[prefCode]) byPref[prefCode] = [];
-    byPref[prefCode].push(it.c);
-  });
+  for (const it of sandbox.ADDRESSES_COARSE_JP.items) {
+    if (!it.c || it.c.length !== 5 || !it.n || /所属未定/.test(it.n) || NAI_KODE.has(it.c))
+      continue;
+    (byPref[it.c.slice(0, 2)] = byPref[it.c.slice(0, 2)] || []).push(it.c);
+  }
   return byPref;
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  const onlyPref = args[0];
-  const cityByPref = loadCityCodes();
-  const results = [];
-  for (const prefCode of Object.keys(PREF_NAMES).sort()) {
-    const prefName = PREF_NAMES[prefCode];
-    if (onlyPref && onlyPref !== prefName && onlyPref !== prefCode) continue;
-    const cityCodes = cityByPref[prefCode] || [];
-    if (cityCodes.length === 0) {
-      console.log('[build] skip ' + prefName + ' (no city codes)');
-      continue;
+function buildPref(prefCode, prefName, cityCodes0) {
+  // 浜松市の 新しい 区の 番号は 古い 区の ファイルで 読む
+  let cityCodes = cityCodes0.filter((c) => HAMAMATSU_SHIN.indexOf(c) < 0);
+  if (cityCodes.length !== cityCodes0.length) cityCodes = cityCodes.concat(HAMAMATSU_KYU);
+  // ⑤ 欠けたら 止める
+  const kake = cityCodes.filter(
+    (c) => !fs.existsSync(path.join(SRC_DIR, 'r2ka' + c + '.topojson'))
+  );
+  if (kake.length)
+    throw new Error(prefName + ': 元データが 無い 市町村 ' + kake.length + ' = ' + kake.join(','));
+  if (!cityCodes.length) throw new Error(prefName + ': 市町村が 0');
+  const towns = []; // { n, c, code, ids: [輪の 番号] }
+  const rings = [];
+  let cities = 0;
+  for (const code of cityCodes) {
+    const t = JSON.parse(fs.readFileSync(path.join(SRC_DIR, 'r2ka' + code + '.topojson'), 'utf8'));
+    if (!t.objects || !t.objects.town) throw new Error(code + ': town の 形が 無い');
+    const arcs = topojsonDecode(t);
+    let n = 0;
+    for (const g of t.objects.town.geometries) {
+      const p = g.properties || {};
+      // ④ 水面は 町に しない。★町の 名前が 無い 区画（直島町・知夫村・平谷村 等の 町字に 分かれて いない 町村 全体 など・全国 211）は
+      //   市町村の 名前だけで 入れる★（前の 作り方は 捨てた＝9市町村が まるごと 抜けた）
+      if (!p.CITY_NAME || Number(p.HCODE) === SUIMEN_HCODE) continue;
+      for (const poly of geometryToPolys(g, arcs)) {
+        const ids = poly.map((r) => rings.push(r) - 1);
+        towns.push({
+          n: p.S_NAME || '',
+          c: imaNoShi(p.CITY_NAME, p.S_NAME || ''),
+          code: p.KEY_CODE,
+          ids,
+        });
+        n++;
+      }
     }
-    const r = buildPref(prefCode, prefName, cityCodes);
-    results.push(r);
+    if (!n) throw new Error(code + ': 町が 0');
+    cities++;
   }
-  // 合計サマリ
-  const totalSize = results.reduce((s, r) => s + r.size, 0);
-  const totalPoly = results.reduce((s, r) => s + r.items, 0);
-  console.log('');
-  console.log('===== build summary =====');
-  console.log('prefs:', results.length);
-  console.log('total polygons:', totalPoly);
-  console.log('total size:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
-  console.log('avg per pref:', (totalSize / results.length / 1024).toFixed(0), 'KB');
-  // 大きい / 小さい 県 top 3
-  results.sort((a, b) => b.size - a.size);
-  console.log('largest:');
-  results
-    .slice(0, 3)
-    .forEach((r) =>
-      console.log(
-        '  ' + r.prefName + ' ' + (r.size / 1024).toFixed(0) + 'KB / ' + r.items + ' polys'
-      )
-    );
+  const topo = buildTopology(rings);
+  let vRaw = 0;
+  let vOut = 0;
+  const q = (v) => Math.round(v * COORD_SCALE);
+  const outArcs = topo.arcs.map((a) => {
+    vRaw += a.length;
+    const s = douglasPeucker(a, TOL_M);
+    // 差分の 整数（[lat, lng] の 順＝前の データと 同じ 向き）。重なった 点は 1つに
+    const o = [];
+    let pl = null;
+    let pn = null;
+    for (const p of s) {
+      const la = q(p[1]);
+      const ln = q(p[0]);
+      if (pl === null) o.push(la, ln);
+      else if (la !== pl || ln !== pn) o.push(la - pl, ln - pn);
+      else continue;
+      pl = la;
+      pn = ln;
+    }
+    vOut += o.length / 2;
+    return o;
+  });
+  // 線の 外枠（町の bbox 用）
+  const arcBox = outArcs.map((o) => {
+    let la = o[0];
+    let ln = o[1];
+    const b = [la, ln, la, ln];
+    for (let i = 2; i < o.length; i += 2) {
+      la += o[i];
+      ln += o[i + 1];
+      if (la < b[0]) b[0] = la;
+      if (ln < b[1]) b[1] = ln;
+      if (la > b[2]) b[2] = la;
+      if (ln > b[3]) b[3] = ln;
+    }
+    return b;
+  });
+  const all = [Infinity, Infinity, -Infinity, -Infinity];
+  const items = towns.map((t) => {
+    const r = t.ids.map((i) => topo.refs[i]);
+    const b = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const ref of r[0]) {
+      const ab = arcBox[ref < 0 ? ~ref : ref];
+      if (ab[0] < b[0]) b[0] = ab[0];
+      if (ab[1] < b[1]) b[1] = ab[1];
+      if (ab[2] > b[2]) b[2] = ab[2];
+      if (ab[3] > b[3]) b[3] = ab[3];
+    }
+    for (let k = 0; k < 4; k++) all[k] = k < 2 ? Math.min(all[k], b[k]) : Math.max(all[k], b[k]);
+    return { n: t.n, c: t.c, code: t.code, r, bbox: b };
+  });
+  const out = {
+    v: 2,
+    generated: new Date().toISOString(),
+    precision: COORD_SCALE,
+    prefecture: prefName,
+    prefCode: Number(prefCode),
+    tolM: TOL_M,
+    bbox: all,
+    arcs: outArcs,
+    items,
+    cities,
+    source: SOURCE_CREDIT,
+    licenseUrl: LICENSE_URL,
+    sourceUrl: SOURCE_URL,
+  };
+  const outFile = path.join(OUT_DIR, 'town-polygons-' + prefName + '.js');
+  const header =
+    '// Auto-generated by scripts/build-town-polygons.js (v 2・共有の 境を 1回だけ ' +
+    TOL_M +
+    'm で 削る)\n// 出典: ' +
+    SOURCE_CREDIT +
+    '\n// 利用規約: ' +
+    LICENSE_URL +
+    '\n// 市町村 ' +
+    cities +
+    ' / 町 ' +
+    items.length +
+    ' / 線 ' +
+    outArcs.length +
+    ' / 点 ' +
+    vRaw +
+    ' → ' +
+    vOut +
+    '\n';
+  fs.writeFileSync(
+    outFile,
+    header + 'window.TOWN_POLYGONS_' + prefName.toUpperCase() + ' = ' + JSON.stringify(out) + ';\n'
+  );
+  const size = fs.statSync(outFile).size;
+  console.log(
+    '[build] ' +
+      prefName +
+      ' 市町村 ' +
+      cities +
+      ' 町 ' +
+      items.length +
+      ' 線 ' +
+      outArcs.length +
+      ' 点 ' +
+      vRaw +
+      '→' +
+      vOut +
+      ' ' +
+      (size / 1024).toFixed(0) +
+      'KB'
+  );
+  return { prefName, size, items: items.length, cities };
+}
+
+function main() {
+  const only = process.argv[2];
+  const byPref = prefCityCodes();
+  const res = [];
+  for (let i = 1; i <= 47; i++) {
+    const pc = String(i).padStart(2, '0');
+    const pn = PREF_NAMES[pc] || PREF_NAMES[i];
+    if (only && only !== pn && only !== pc) continue;
+    res.push(buildPref(pc, pn, byPref[pc] || []));
+  }
+  if (!res.length) throw new Error('県が 0（' + only + '）');
+  const total = res.reduce((s, r) => s + r.size, 0);
+  console.log('[build] 県 ' + res.length + ' / 合計 ' + (total / 1024 / 1024).toFixed(1) + 'MB');
 }
 
 if (require.main === module) {
   try {
     main();
-    process.exit(0);
   } catch (e) {
-    console.error('[build] FATAL:', e && (e.stack || e.message));
+    console.error('[build] 止めた:', e && (e.stack || e.message));
     process.exit(1);
   }
 }
 
 module.exports = {
+  PREF_NAMES,
+  imaNoShi,
   topojsonDecode,
-  topoArcsToCoords,
-  topoGeometryToRings,
+  geometryToPolys,
   douglasPeucker,
-  quantizeRing,
-  buildGridIndex,
+  buildTopology,
   buildPref,
+  segDistM,
 };

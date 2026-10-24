@@ -21,6 +21,7 @@ data/poi-akita.js	当たり1	61842d8fba2835ab	公の地図データ・偶然の�
 data/poi-ehime.js	当たり3	2f0217595e9c5acd	公の地図データ・偶然の一致
 data/poi-fukuoka.js	当たり1	588b9084910d1108	公の地図データ・偶然の一致
 data/poi-fukushima.js	当たり1	2ee5374e6c08a7a8	公の地図データ・偶然の一致
+data/poi-gunma.js	当たり1	af8ee84717ca4d31	公の地図データ・同じ名の施設が地図に載る
 data/poi-hiroshima.js	当たり2	5df14bf1dbd2d5db	公の地図データ・偶然の一致
 data/poi-hokkaido.js	当たり1	fc78a97cd9ca7ea0	公の地図データ・偶然の一致
 data/poi-hyogo.js	当たり1	e63970393000d7f3	公の地図データ・偶然の一致
@@ -44,21 +45,21 @@ data/poi-tokyo.js	当たり6	8b35b8ec17965462	公の地図データ・偶然の�
 data/poi-yamagata.js	当たり2	b939c38fe9b8c55e	公の地図データ・同じ名の施設が地図に載る
 data/shelters-jp.js	当たり6	7a8c2b57546aedae	公の地図データ・偶然の一致
 data/stations-jp.js	当たり3	22d4044b1cf0d60e	公の地図データ・偶然の一致
-data/town-polygons-ehime.js	当たり4	f00e15b83c56cda1	公の地図データ・偶然の一致
-data/town-polygons-fukuoka.js	当たり1	af8d5e7c985ba561	公の地図データ・偶然の一致
-data/town-polygons-fukushima.js	当たり2	ca59124c75008aae	公の地図データ・偶然の一致
-data/town-polygons-hiroshima.js	当たり27	fd678cf97ee906df	公の地図データ・偶然の一致
-data/town-polygons-hyogo.js	当たり14	7255042b08bc3dd6	公の地図データ・偶然の一致
-data/town-polygons-ibaraki.js	当たり1	f3a9560bc8ac8a48	公の地図データ・偶然の一致
-data/town-polygons-mie.js	当たり1	76e131a44e4625b6	公の地図データ・偶然の一致
-data/town-polygons-nagano.js	当たり2	db8383db39efefcb	公の地図データ・偶然の一致
-data/town-polygons-okayama.js	当たり1	7ad23abdcbf034a7	公の地図データ・偶然の一致
-data/town-polygons-shimane.js	当たり1	12f17a34fa495957	公の地図データ・偶然の一致
-data/town-polygons-tochigi.js	当たり1	42a6556c43dfa4a1	公の地図データ・偶然の一致
-data/town-polygons-tokushima.js	当たり4	6ed7f3dae2dbf472	公の地図データ・偶然の一致
-data/town-polygons-tokyo.js	当たり8	64b10610c7ea25e0	公の地図データ・偶然の一致
-data/town-polygons-wakayama.js	当たり1	687ab1904bed5476	公の地図データ・偶然の一致
-data/town-polygons-yamagata.js	当たり2	244f2f60bad2e967	公の地図データ・偶然の一致
+data/town-polygons-ehime.js	当たり1	3bfbd72b861aae06	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-fukuoka.js	当たり1	1999638611008f05	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-fukushima.js	当たり1	96d0e40daf91c36a	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-hiroshima.js	当たり1	9615323bd798f3f3	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-hyogo.js	当たり1	b5020f72da74f281	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-ibaraki.js	当たり1	2650a920809ec276	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-mie.js	当たり1	bdc26b5c1187c350	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-nagano.js	当たり1	8088b8dbe8b93f28	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-okayama.js	当たり1	f51d7e4e8da94069	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-shimane.js	当たり1	e967622f8f09b398	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-tochigi.js	当たり1	eef0d838fde0d8e0	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-tokushima.js	当たり1	3c6dbec9a9fdb3b6	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-tokyo.js	当たり2	79e3ebc7c1fbae81	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-wakayama.js	当たり1	ab9b5f77f72c144e	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
+data/town-polygons-yamagata.js	当たり1	238b2d0d89a50408	公の地図データ・偶然の一致（2026-10-24 共有の 境で 作り直し・当たりは 1行の 町名）
 data/tunnels-hiroshima.js	当たり2	ba934708b0ca08c1	公の地図データ・偶然の一致
 data/tunnels-kumamoto.js	当たり1	895185701f98c8c6	公の地図データ・偶然の一致
 data/tunnels-nagano.js	当たり22	43976ca4ac56e3e1	公の地図データ・偶然の一致
@@ -69,6 +70,6 @@ privacy.html	当たり1	fe6bc4f0ae31871b	決め6・法律で載せる事業者�
 screenshots/screenshot-1.jpg	未測定1	14a0274e5ad9b289	アプリの画面の絵（目で見た・名前・住所・電話なし）
 screenshots/screenshot-2.jpg	未測定1	f32416f0bb656b09	アプリの画面の絵（目で見た・名前・住所・電話なし）
 screenshots/screenshot-3.jpg	未測定1	bd3ef79c86c5961b	アプリの画面の絵（目で見た・名前・住所・電話なし）
+tests/fixtures/chimei-seikai.json	当たり1	9d8ebc9965fbf2ad	公の地図データ（町丁・字の 境 2020）から 作った 正解の 点の 町名・偶然の一致（2026-10-24）
 tests/gate-realdevice-doppler-rej.js	当たり2	8251c9620e14cb10	変数名の一部・偶然の一致（指示役の決め4）
 vendor/fonts/BIZUDPGothic-Regular.ttf	未測定1	0753da0963c2fa25	借り物の字体・BIZ UD
-data/poi-gunma.js	当たり1	af8ee84717ca4d31	公の地図データ・同じ名の施設が地図に載る

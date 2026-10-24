@@ -440,7 +440,13 @@ describe('作り物の点 baseline (= 案 C 既存 PIP regression と整合)', (
     expect(takabe).toBeDefined();
     const userLatI = Math.round(34.0939 * 100000);
     const userLngI = Math.round(132.9622 * 100000);
-    expect(pointInPolygon(userLatI, userLngI, takabe.rings[0])).toBe(true);
+    expect(
+      pointInPolygon(
+        userLatI,
+        userLngI,
+        Business.__addressFormatter.townRings(ehimeBundle, takabe)[0]
+      )
+    ).toBe(true);
   });
 
   it('★ 作り物の点 北浜町 polygon 内 = NO (= 案 C 既存 regression)', () => {
@@ -449,7 +455,13 @@ describe('作り物の点 baseline (= 案 C 既存 PIP regression と整合)', (
     expect(kitahama).toBeDefined();
     const userLatI = Math.round(34.0939 * 100000);
     const userLngI = Math.round(132.9622 * 100000);
-    expect(pointInPolygon(userLatI, userLngI, kitahama.rings[0])).toBe(false);
+    expect(
+      pointInPolygon(
+        userLatI,
+        userLngI,
+        Business.__addressFormatter.townRings(ehimeBundle, kitahama)[0]
+      )
+    ).toBe(false);
   });
 });
 

@@ -58,6 +58,9 @@
       "sha256": "25ef3443df6ba45bcab7759f4e31a40520712fcafe541bd0a697e8c281dff2cf",
       "kind": "合成"
     },
+    "tests/fixtures/chimei-seikai.json": {
+      "kind": "合成（中身は道具が更新）"
+    },
     "tests/fixtures/daiko-month-jan2026.json": {
       "sha256": "fdfc4edb9bd2cf5e1be021757d958f61308ab5d52a2b71497bbc124891bc5bfc",
       "kind": "実物の数（凍結）"

@@ -73,87 +73,17 @@ function loadTownBundle(pref) {
   }
 }
 
-// ─── PIP エンジン: business.js:400-496 の ★逐語ミラー★ (private のため複製・標準ray-casting) ───
-//   ★business.js の _pointInPolygon/_findTownPolygonAddress が変わったら本ミラーも更新する★
-const _townGrid = new Map();
-const _TOWN_GRID_SIZE_INT = 1000;
-function _buildTownGrid(bundle) {
-  const grid = {};
-  const items = bundle.items;
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    if (!it.bbox || it.bbox.length !== 4) continue;
-    const [latMin, lngMin, latMax, lngMax] = it.bbox;
-    const tLatMin = Math.floor(latMin / _TOWN_GRID_SIZE_INT);
-    const tLatMax = Math.floor(latMax / _TOWN_GRID_SIZE_INT);
-    const tLngMin = Math.floor(lngMin / _TOWN_GRID_SIZE_INT);
-    const tLngMax = Math.floor(lngMax / _TOWN_GRID_SIZE_INT);
-    for (let tlat = tLatMin; tlat <= tLatMax; tlat++) {
-      for (let tlng = tLngMin; tlng <= tLngMax; tlng++) {
-        const key = tlat + '_' + tlng;
-        if (!grid[key]) grid[key] = [];
-        grid[key].push(i);
-      }
-    }
-  }
-  return grid;
-}
-function _getTownGrid(bundle) {
-  if (!_townGrid.has(bundle)) _townGrid.set(bundle, _buildTownGrid(bundle));
-  return _townGrid.get(bundle);
-}
-function _pointInPolygon(latI, lngI, ring) {
-  if (!ring || ring.length < 3) return false;
-  let inside = false;
-  const n = ring.length;
-  let j = n - 1;
-  for (let i = 0; i < n; i++) {
-    const iLat = ring[i][0];
-    const iLng = ring[i][1];
-    const jLat = ring[j][0];
-    const jLng = ring[j][1];
-    if (
-      iLng > lngI !== jLng > lngI &&
-      latI < ((jLat - iLat) * (lngI - iLng)) / (jLng - iLng) + iLat
-    ) {
-      inside = !inside;
-    }
-    j = i;
-  }
-  return inside;
-}
+// ─── PIP エンジン＝★本物の business.js の 関数を そのまま 呼ぶ★ 2026-10-24 ───
+//   前は business.js の 逐語ミラー（写し）だった＝町の 境の 形を v 2（共有の 線）に 作り直した 時に 写しだけ 前の 形（it.rings）を
+//   読み続け、町に 1点も 当たらず 門が 赤（対立役 止1）。写しは 本物と ずれる＝本物を 呼ぶ
+const Business = require('../js/business.js');
 function _findTownPolygonAddress(lat, lng, bundle) {
-  if (!bundle || !Array.isArray(bundle.items) || bundle.items.length === 0) return null;
-  const COORD_SCALE = bundle.precision || 100000;
-  const latI = Math.round(lat * COORD_SCALE);
-  const lngI = Math.round(lng * COORD_SCALE);
-  const grid = _getTownGrid(bundle);
-  const tLat = Math.floor(latI / _TOWN_GRID_SIZE_INT);
-  const tLng = Math.floor(lngI / _TOWN_GRID_SIZE_INT);
-  const candidates = (grid && grid[tLat + '_' + tLng]) || null;
-  const iterIdx = candidates || bundle.items.map((_, i) => i);
-  for (let k = 0; k < iterIdx.length; k++) {
-    const it = bundle.items[iterIdx[k]];
-    if (!it || !it.bbox) continue;
-    if (latI < it.bbox[0] || latI > it.bbox[2] || lngI < it.bbox[1] || lngI > it.bbox[3]) continue;
-    if (!it.rings || it.rings.length === 0) continue;
-    if (_pointInPolygon(latI, lngI, it.rings[0])) {
-      let inHole = false;
-      for (let r = 1; r < it.rings.length; r++) {
-        if (_pointInPolygon(latI, lngI, it.rings[r])) {
-          inHole = true;
-          break;
-        }
-      }
-      if (!inHole) return { n: it.n, c: it.c };
-    }
-  }
-  return null;
+  return Business.__addressFormatter.findTownPolygonAddress(lat, lng, bundle);
 }
-
 // 町名キー (市町村+町名・丁目はカットせず素のnで比較=粒度最大)
 function _townKey(t) {
-  return t && t.n ? (t.c || '') + '/' + t.n : null;
+  // 町の 名前が 無い 区画（町字に 分かれて いない 町村）は 市町村だけで 1つの 町
+  return t && (t.n || t.c) ? (t.c || '') + '/' + (t.n || '') : null;
 }
 
 // 町境あいまい? 生GPSを ★その点のGPS精度ぶん★ ジッタして町が変われば true(オラクル不確実)。

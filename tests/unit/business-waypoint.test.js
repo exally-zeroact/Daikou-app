@@ -54,14 +54,43 @@ function makeMeterMock(opts) {
     setBusinessDistance: (v) => {
       bizDist = typeof v === 'number' && v >= 0 ? v : 0;
     },
-    getNearestAddress: opts.getNearestAddress || (() => 'mock-address'),
-    isAddressDataReady: opts.isAddressDataReady || (() => true),
   };
+}
+
+// ★地名は 町の 境の 形から 引く★（2026-10-24・メーターの 関数は もう 使わない）＝作り物の 町の 四角
+//   出発台（33.84,132.7656）・見本台（33.85,132.77）・試験台（33.86,132.78）。外の 点は null
+function makeTownBundle() {
+  const sq = (n, lat, lng) => {
+    const a = Math.round(lat * 1e5);
+    const b = Math.round(lng * 1e5);
+    const d = 400;
+    return {
+      n: n,
+      c: '架空市',
+      rings: [
+        [
+          [a - d, b - d],
+          [a - d, b + d],
+          [a + d, b + d],
+          [a + d, b - d],
+          [a - d, b - d],
+        ],
+      ],
+      bbox: [a - d, b - d, a + d, b + d],
+    };
+  };
+  const items = [
+    sq('出発台', 33.84, 132.7656),
+    sq('見本台', 33.85, 132.77),
+    sq('試験台', 33.86, 132.78),
+  ];
+  return { v: 1, precision: 100000, bbox: [3383600, 13276160, 3386400, 13278400], items: items };
 }
 
 function loadBusiness({ meter } = {}) {
   const sandbox = {};
   sandbox.window = sandbox;
+  sandbox.TOWN_POLYGONS_KAKUU = makeTownBundle();
   sandbox.Meter = meter || makeMeterMock();
   sandbox.localStorage = makeLocalStorage();
   sandbox.dlog = () => {};
@@ -98,17 +127,16 @@ describe('business.js onWaypoint / setEndAddress (P2-⑩)', () => {
       Business.onWaypoint(33.85, 132.77, 5);
       const trip = Business.getCurrentTrip();
       expect(trip.waypoints.length).toBe(1);
-      expect(trip.waypoints[0].address).toBe('mock-address');
+      expect(trip.waypoints[0].address).toBe('架空市見本台');
       expect(typeof trip.waypoints[0].timestamp).toBe('number');
     });
 
     it('onWaypoint は記録した住所文字列を返す', () => {
-      const meter = makeMeterMock({ getNearestAddress: () => '東京都港区 1-2-3' });
-      const { Business } = loadBusiness({ meter });
+      const { Business } = loadBusiness();
       Business.start();
       Business.onTripStart(33.84, 132.7656, 5);
       const addr = Business.onWaypoint(33.85, 132.77, 5);
-      expect(addr).toBe('東京都港区 1-2-3');
+      expect(addr).toBe('架空市見本台');
     });
 
     it('onWaypoint を複数回呼ぶと waypoints に順次追加される', () => {
@@ -123,11 +151,10 @@ describe('business.js onWaypoint / setEndAddress (P2-⑩)', () => {
     });
 
     it('住所取得失敗 (null) でも waypoints には push される (= 業務継続性最優先)', () => {
-      const meter = makeMeterMock({ getNearestAddress: () => null });
-      const { Business } = loadBusiness({ meter });
+      const { Business } = loadBusiness();
       Business.start();
       Business.onTripStart(33.84, 132.7656, 5);
-      Business.onWaypoint(33.85, 132.77, 5);
+      Business.onWaypoint(35.5, 139.5, 5); // 町の 形の 外
       const trip = Business.getCurrentTrip();
       expect(trip.waypoints.length).toBe(1);
       expect(trip.waypoints[0].address).toBeNull();
@@ -159,46 +186,38 @@ describe('business.js onWaypoint / setEndAddress (P2-⑩)', () => {
     });
 
     it('current_trip.end_address に set される', () => {
-      const meter = makeMeterMock({ getNearestAddress: () => '到着地住所' });
-      const { Business } = loadBusiness({ meter });
+      const { Business } = loadBusiness();
       Business.start();
       Business.onTripStart(33.84, 132.7656, 5);
       const addr = Business.setEndAddress(33.85, 132.77, 5);
-      expect(addr).toBe('到着地住所');
+      expect(addr).toBe('架空市見本台');
       const trip = Business.getCurrentTrip();
-      expect(trip.end_address).toBe('到着地住所');
+      expect(trip.end_address).toBe('架空市見本台');
     });
 
     it('住所取得失敗 (null) でも end_address は null セットされる', () => {
-      const meter = makeMeterMock({ getNearestAddress: () => null });
-      const { Business } = loadBusiness({ meter });
+      const { Business } = loadBusiness();
       Business.start();
       Business.onTripStart(33.84, 132.7656, 5);
-      Business.setEndAddress(33.85, 132.77, 5);
+      Business.setEndAddress(35.5, 139.5, 5); // 町の 形の 外
       const trip = Business.getCurrentTrip();
       expect(trip.end_address).toBeNull();
     });
 
     it('setEndAddress 後の onTripEnd で end_address が trips[] に保持', () => {
-      const meter = makeMeterMock({ getNearestAddress: () => '最終目的地' });
-      const { Business } = loadBusiness({ meter });
+      const { Business } = loadBusiness();
       Business.start();
       Business.onTripStart(33.84, 132.7656, 5);
       Business.setEndAddress(33.85, 132.77, 5);
       Business.onTripEnd(500, 1300, Date.now());
       const state = Business.getState();
-      expect(state.trips[0].end_address).toBe('最終目的地');
+      expect(state.trips[0].end_address).toBe('架空市見本台');
     });
 
     it('setEndAddress を複数回呼ぶと最新値で上書きされる (= 仕様: 最終確定用)', () => {
-      const addresses = ['addr-1', 'addr-2', 'addr-3'];
-      let idx = 0;
-      const meter = makeMeterMock({
-        getNearestAddress: () => addresses[idx++] || 'addr-final',
-      });
-      const { Business } = loadBusiness({ meter });
+      const { Business } = loadBusiness();
       Business.start();
-      Business.onTripStart(33.84, 132.7656, 5); // start_address で addr-1 消費
+      Business.onTripStart(33.84, 132.7656, 5);
       const firstSet = Business.setEndAddress(33.85, 132.77, 5);
       const firstSnapshot = Business.getCurrentTrip().end_address;
       Business.setEndAddress(33.86, 132.78, 5);

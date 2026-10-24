@@ -272,7 +272,10 @@
   //   即時 (= 全国共通のみ) + 背景遅延 (= 47県 roads/aux) + priority load (= 現在地県) の
   //   3 段階 ロードに変更。バージョン bump で既存 IDB parse cache + localStorage warmup
   //   marker を全 invalidate → 新フローで clean start。
-  const VERSION = '2026-05-23-e1';
+  // ★2026-10-24 町の 境の 形を v 2（共有の 境の 線・隙間 無し・全国の 欠け 0）へ 作り直した＝bump★
+  //   bump しないと 端末の IDB に 溜まった 前の 形（隙間が あり「西条市 付近」に なる）を 使い 続ける（対立役 止5）
+  //   代わりに 全県の データを 1回 読み直す
+  const VERSION = '2026-10-24-t2';
 
   global.DataRegistry = {
     PREFECTURES_47: PREFECTURES_47,

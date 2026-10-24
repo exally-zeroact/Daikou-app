@@ -424,20 +424,9 @@ const Business = (function () {
   //     getCurrentTrip: renderFare で経路情報を読む際に呼ぶ
   //   onTripEnd は既存 signature 維持・内部で current_trip を trips[] に統合してリセット。
   // ─────────────────────────────────────────
-  // ★設計変更宣言 (2026-05-23・住所① fine 配線 + 丁目カット表示・business.js consumer 側):
-  //   meter.js getNearestAddress は・fine hit 時に・「常盤町八丁目」(= 大字単体・市町村なし) を return。
-  //   coarse fallback 時は・「今治市 付近」(= 市町村 + " 付近")。
-  //   司さん希望「今治市常盤町」(= 市町村 + 大字・丁目カット) を実現するため・consumer 側で:
-  //     1. coarse bundle (window.ADDRESSES_COARSE_JP) から・市町村名 ("今治市") を別 query
-  //     2. fine 戻り値「常盤町五丁目」を・末尾 丁目カット → "常盤町"
-  //     3. 連結 → "今治市常盤町"
-  //   fine 未 load (= 起動直後・現在地県 priority load 前) → meter.js coarse fallback の
-  //   "今治市 付近" を・そのまま return (= graceful fallback・業務継続性最優先)。
-  //   絶対ルール準拠:
-  //     ✓ distance_m / Meter.reset / Worker B 本体: 1 byte も触らない (= 表示専用・consumer side)
-  //     ✓ meter.js は・無変更 (= getNearestAddress 戻り値を・wrap するのみ)
-  //     ✓ ADDRESSES_COARSE_JP は・PRECACHE 維持 (= 必ず load 済・data-registry 既登録)
-  //     ✓ iOS Safari / Android Chrome 共通 (= 既存 native API のみ)
+  // ★地名の 字の 形＝「市＋町」（丁目は 切る＝司さん 05-23「今治市常盤町」）★
+  //   ★市の 名前は その 町が 持つ 市の 名前だけ★（2026-10-24 前は 一番 近い 市の 代表点で 付け「西条市郷桜井」に なった）
+  //   ★「○○市 付近」は 出さない★（司さん 10-24「そんな曖昧にすんなや」）。地名の 引き方は _chimeiAt
 
   // 末尾「○丁目」(漢数字・算用数字・全角算用 両対応) をカット
   // 大字止まり (= "市坪西町") は・無変換で返却
@@ -445,39 +434,6 @@ const Business = (function () {
     if (!name || typeof name !== 'string') return name;
     // 漢数字 (一二三四五六七八九十百千〇零) + 半角 0-9 + 全角 ０-９ の・1 つ以上 + "丁目" 末尾
     return name.replace(/[一二三四五六七八九十百千〇零0-9０-９]+丁目$/, '');
-  }
-
-  // window.ADDRESSES_COARSE_JP.items から・最近傍 市町村名 を・取得 (= "今治市" 等)
-  // 半径 25km プレフィルタ + 平方距離比較 (= ms 精度不要・最近傍 1 件のみ)
-  // load 未完了 → null・consumer 側で・coarse fallback 維持
-  function _findNearestMunicipality(lat, lng) {
-    if (
-      typeof window === 'undefined' ||
-      !window.ADDRESSES_COARSE_JP ||
-      !Array.isArray(window.ADDRESSES_COARSE_JP.items)
-    ) {
-      return null;
-    }
-    const items = window.ADDRESSES_COARSE_JP.items;
-    const COORD_SCALE = 100000;
-    const targetLatI = Math.round(lat * COORD_SCALE);
-    const targetLngI = Math.round(lng * COORD_SCALE);
-    const RANGE_I = 25000; // ~25km プレフィルタ (= meter.js COARSE_RADIUS_M と整合)
-    let best = null;
-    let bestSq = Infinity;
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      const dLatI = it.lat - targetLatI;
-      if (dLatI > RANGE_I || dLatI < -RANGE_I) continue;
-      const dLngI = it.lng - targetLngI;
-      if (dLngI > RANGE_I || dLngI < -RANGE_I) continue;
-      const sq = dLatI * dLatI + dLngI * dLngI;
-      if (sq < bestSq) {
-        bestSq = sq;
-        best = it;
-      }
-    }
-    return best ? best.n : null;
   }
 
   // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・(B) map-matched snap 位置 cache):
@@ -564,10 +520,12 @@ const Business = (function () {
     return _safeGetNearestAddress(pos.lat, pos.lng, null);
   }
 
-  // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・(C) 1km grid index lazy build):
-  //   build script では・grid を含めず・consumer 側で・初回 PIP 時に・lazy build (= cache・1 回)。
-  //   key = '{tileLat}_{tileLng}' / GRID_SIZE_INT = 1000 (= int×1e5 単位の 1km 相当)
+  // ★★町の 境の 形（data/town-polygons-{pref}.js）★★
+  //   v 2（2026-10-24）＝共有の 境の 線（arcs・差分の 整数）＋町は 線の 番号の 並び（r）。輪は 要る 町の 分だけ 組んで 溜める
+  //   v 1（前の 形）＝町ごとの 輪（rings）。両方 読める（端末の 溜めに 前の 形が 残って いても 動く）
+  //   grid＝1km の 升（町の bbox が 掛かる 升に 町の 番号）。初めて 引く 時に 作って 溜める
   const _townGridCache = new WeakMap();
+  const _townArcCache = new WeakMap();
   const _TOWN_GRID_SIZE_INT = 1000;
 
   function _buildTownGrid(bundle) {
@@ -602,19 +560,82 @@ const Business = (function () {
     return grid;
   }
 
-  // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・point-in-polygon ray casting):
-  //   ring = [[latI, lngI], ...] (= 既存 build-town-polygons.js の・int×1e5 quantize 後形式)
-  //   標準 ray casting・closed ring 想定 (= 開閉自動 補正)
+  // v 2 の 線を 絶対の 整数へ（線ごとに Int32Array [lat0, lng0, lat1, lng1, ...]）。県ごとに 1回
+  //   配列の 配列（[[lat, lng], ...]）だと 全県で 1GB 近く なる（2026-10-24 実測 960MB）＝詰めた 整数で 持つ
+  function _townArcs(bundle) {
+    let a = _townArcCache.get(bundle);
+    if (a) return a;
+    a = (bundle.arcs || []).map(function (o) {
+      const out = new Int32Array(o.length);
+      let la = 0;
+      let ln = 0;
+      for (let i = 0; i < o.length; i += 2) {
+        la += o[i];
+        ln += o[i + 1];
+        out[i] = la;
+        out[i + 1] = ln;
+      }
+      return out;
+    });
+    _townArcCache.set(bundle, a);
+    return a;
+  }
+
+  // 町の 輪（[外周, 穴...]・各 輪は 詰めた 整数 [lat0, lng0, lat1, lng1, ...]）。組んで 町に 溜める
+  //   v 2＝線から 組む／v 1（前の 形・rings: [[lat, lng], ...]）＝詰め直す
+  function _townRings(bundle, it) {
+    if (it._rings) return it._rings;
+    let rings = null;
+    if (Array.isArray(it.r)) {
+      const arcs = _townArcs(bundle);
+      rings = it.r.map(function (refs) {
+        let n = 0;
+        for (let k = 0; k < refs.length; k++) {
+          const arc = arcs[refs[k] < 0 ? ~refs[k] : refs[k]];
+          if (arc) n += arc.length - (n ? 2 : 0);
+        }
+        const ring = new Int32Array(n);
+        let p = 0;
+        for (let k = 0; k < refs.length; k++) {
+          const ref = refs[k];
+          const arc = arcs[ref < 0 ? ~ref : ref];
+          if (!arc) continue;
+          const m = arc.length / 2;
+          for (let j = p ? 1 : 0; j < m; j++) {
+            const q = ref < 0 ? m - 1 - j : j;
+            ring[p++] = arc[q * 2];
+            ring[p++] = arc[q * 2 + 1];
+          }
+        }
+        return ring;
+      });
+    } else if (Array.isArray(it.rings)) {
+      rings = it.rings.map(function (r) {
+        const ring = new Int32Array(r.length * 2);
+        for (let i = 0; i < r.length; i++) {
+          ring[i * 2] = r[i][0];
+          ring[i * 2 + 1] = r[i][1];
+        }
+        return ring;
+      });
+    }
+    if (rings) Object.defineProperty(it, '_rings', { value: rings, enumerable: false });
+    return rings;
+  }
+
+  // 標準の ray casting（ring＝詰めた 整数 [lat0, lng0, ...] か [[lat, lng], ...]・閉じて いても いなくても 良い）
   function _pointInPolygon(latI, lngI, ring) {
-    if (!ring || ring.length < 3) return false;
+    if (!ring) return false;
+    const flat = typeof ring[0] === 'number';
+    const n = flat ? ring.length / 2 : ring.length;
+    if (n < 3) return false;
     let inside = false;
-    const n = ring.length;
     let j = n - 1;
     for (let i = 0; i < n; i++) {
-      const iLat = ring[i][0];
-      const iLng = ring[i][1];
-      const jLat = ring[j][0];
-      const jLng = ring[j][1];
+      const iLat = flat ? ring[i * 2] : ring[i][0];
+      const iLng = flat ? ring[i * 2 + 1] : ring[i][1];
+      const jLat = flat ? ring[j * 2] : ring[j][0];
+      const jLng = flat ? ring[j * 2 + 1] : ring[j][1];
       if (
         iLng > lngI !== jLng > lngI &&
         latI < ((jLat - iLat) * (lngI - iLng)) / (jLng - iLng) + iLat
@@ -626,55 +647,148 @@ const Business = (function () {
     return inside;
   }
 
-  // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・PIP wrapper):
-  //   bundle.items の・各 polygon (= 複数 ring・外周 + 穴) に・point-in-polygon。
-  //   外周 hit ∧ 穴 hit でない → 採用。多 polygon 候補 grid 絞り後・最初 hit 採用。
-  //   戻り値: { n: '本町七丁目', c: '今治市' } or null
+  // 点を 囲む 町（外周に 入り・穴に 入らない）。戻り値: { n: '本町七丁目', c: '今治市', it, bundle } or null
   function _findTownPolygonAddress(lat, lng, bundle) {
     if (!bundle || !Array.isArray(bundle.items) || bundle.items.length === 0) return null;
     const COORD_SCALE = bundle.precision || 100000;
     const latI = Math.round(lat * COORD_SCALE);
     const lngI = Math.round(lng * COORD_SCALE);
+    if (
+      bundle.bbox &&
+      (latI < bundle.bbox[0] ||
+        latI > bundle.bbox[2] ||
+        lngI < bundle.bbox[1] ||
+        lngI > bundle.bbox[3])
+    )
+      return null;
     const grid = _getTownGrid(bundle);
     const tLat = Math.floor(latI / _TOWN_GRID_SIZE_INT);
     const tLng = Math.floor(lngI / _TOWN_GRID_SIZE_INT);
-    const candidates = (grid && grid[tLat + '_' + tLng]) || null;
-    const iterIdx = candidates || bundle.items.map((_, i) => i);
+    const iterIdx = (grid && grid[tLat + '_' + tLng]) || [];
     for (let k = 0; k < iterIdx.length; k++) {
       const it = bundle.items[iterIdx[k]];
       if (!it || !it.bbox) continue;
-      // bbox プレフィルタ (= 候補絞り)
       if (latI < it.bbox[0] || latI > it.bbox[2] || lngI < it.bbox[1] || lngI > it.bbox[3])
         continue;
-      if (!it.rings || it.rings.length === 0) continue;
-      // 外周 ring (= rings[0]) hit 判定
-      if (_pointInPolygon(latI, lngI, it.rings[0])) {
-        // 穴 (= rings[1..]) で・点が入ってるなら・除外
+      const rings = _townRings(bundle, it);
+      if (!rings || rings.length === 0) continue;
+      if (_pointInPolygon(latI, lngI, rings[0])) {
         let inHole = false;
-        for (let r = 1; r < it.rings.length; r++) {
-          if (_pointInPolygon(latI, lngI, it.rings[r])) {
+        for (let r = 1; r < rings.length; r++) {
+          if (_pointInPolygon(latI, lngI, rings[r])) {
             inHole = true;
             break;
           }
         }
-        if (!inHole) {
-          return { n: it.n, c: it.c };
-        }
+        if (!inHole) return { n: it.n || '', c: it.c, it: it, bundle: bundle };
       }
     }
     return null;
   }
 
-  // 県名 → bundle 解決 (= window.TOWN_POLYGONS_{PREF})
+  // ★どの 町にも 入らない 点（岸壁・海の 際・県や 市の 境の 細い 隙）★ 2026-10-24
+  //   境が _TOWN_NEAR_M 以内の 一番 近い 町。それより 遠い（海の 上 等）＝null（言い切らない・対立役 止4）
+  const _TOWN_NEAR_M = 200;
+  // 点と 線分（詰めた 整数の i 番目と i+1 番目の 点）の 距離 m（×1e5 の 平面近似・200m の 内なので 十分）
+  function _segDistM(latI, lngI, ring, i) {
+    const k = Math.cos((latI / 100000) * (Math.PI / 180));
+    const ax = ring[i * 2 + 1] * k;
+    const ay = ring[i * 2];
+    const dx = ring[i * 2 + 3] * k - ax;
+    const dy = ring[i * 2 + 2] - ay;
+    const px = lngI * k;
+    const py = latI;
+    const L = dx * dx + dy * dy;
+    const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+    return Math.hypot(px - ax - t * dx, py - ay - t * dy) * 1.1132; // 1e-5 度 ≒ 1.1132m
+  }
+  // 町の 境までの 一番 短い 距離 m
+  function _edgeM(latI, lngI, rings) {
+    let m = Infinity;
+    for (let r = 0; r < rings.length; r++) {
+      const ring = rings[r];
+      for (let i = 0; i + 3 < ring.length; i += 2) {
+        const d = _segDistM(latI, lngI, ring, i / 2);
+        if (d < m) m = d;
+      }
+    }
+    return m;
+  }
+  function _nearestTown(lat, lng, bundle, maxM) {
+    if (!bundle || !Array.isArray(bundle.items)) return null;
+    const SC = bundle.precision || 100000;
+    const latI = Math.round(lat * SC);
+    const lngI = Math.round(lng * SC);
+    const padI = Math.ceil(maxM / 1.1132) + 1;
+    if (
+      bundle.bbox &&
+      (latI < bundle.bbox[0] - padI ||
+        latI > bundle.bbox[2] + padI ||
+        lngI < bundle.bbox[1] - padI * 2 ||
+        lngI > bundle.bbox[3] + padI * 2)
+    )
+      return null;
+    const grid = _getTownGrid(bundle);
+    const seen = {};
+    let best = null;
+    let bestM = maxM;
+    const t0 = Math.floor((latI - padI) / _TOWN_GRID_SIZE_INT);
+    const t1 = Math.floor((latI + padI) / _TOWN_GRID_SIZE_INT);
+    const u0 = Math.floor((lngI - padI * 2) / _TOWN_GRID_SIZE_INT);
+    const u1 = Math.floor((lngI + padI * 2) / _TOWN_GRID_SIZE_INT);
+    for (let t = t0; t <= t1; t++) {
+      for (let u = u0; u <= u1; u++) {
+        const idx = (grid && grid[t + '_' + u]) || [];
+        for (let k = 0; k < idx.length; k++) {
+          if (seen[idx[k]]) continue;
+          seen[idx[k]] = 1;
+          const it = bundle.items[idx[k]];
+          if (!it || !it.bbox) continue;
+          if (
+            latI < it.bbox[0] - padI ||
+            latI > it.bbox[2] + padI ||
+            lngI < it.bbox[1] - padI * 2 ||
+            lngI > it.bbox[3] + padI * 2
+          )
+            continue;
+          const rings = _townRings(bundle, it);
+          if (!rings) continue;
+          const d = _edgeM(latI, lngI, rings);
+          if (d < bestM) {
+            bestM = d;
+            best = it;
+          }
+        }
+      }
+    }
+    return best ? { n: best.n, c: best.c, m: bestM } : null;
+  }
+
+  // 県名 → 束（window.TOWN_POLYGONS_{PREF}）
   function _resolveTownBundle(prefName) {
     if (typeof window === 'undefined' || !prefName) return null;
     const key = 'TOWN_POLYGONS_' + prefName.toUpperCase();
     return window[key] || null;
   }
 
-  // coarse JIS 5 桁 から・pref 名解決 (= 既存 RegionHelper 利用・なければ・先頭 2 桁 mapping)
+  // 読み込めて いる 町の 束 全部（今の 県を 先に）
+  function _loadedTownBundles(firstPref) {
+    if (typeof window === 'undefined') return [];
+    const out = [];
+    const first = _resolveTownBundle(firstPref);
+    if (first) out.push(first);
+    const keys = Object.keys(window);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (k.indexOf('TOWN_POLYGONS_') !== 0) continue;
+      const b = window[k];
+      if (b && b !== first && Array.isArray(b.items)) out.push(b);
+    }
+    return out;
+  }
+
+  // 県の 当たり（荒い 点で 決める＝束を 先に 見る 順番に だけ 使う。地名の 字には 使わない）
   function _prefNameFromCoarseCity(cityName, lat, lng) {
-    // RegionHelper.getCurrentPref を・優先 (= 既存 X4 で・利用)
     if (
       typeof window !== 'undefined' &&
       window.RegionHelper &&
@@ -684,170 +798,282 @@ const Business = (function () {
         const p = window.RegionHelper.getCurrentPref(lat, lng, null);
         if (p) return p;
       } catch (_) {
-        // RegionHelper fail → fallback below
+        // 県が 分からなくても 全部の 束を 見る
       }
     }
     return null;
   }
 
-  function _safeGetNearestAddress(lat, lng, accuracy) {
-    // 入力 validate
+  // ★点の 地名（市＋町・丁目は 切る）★ 2026-10-24（司さん「そんな曖昧にすんなや どの都道府県でもきっちりやれ」）
+  //   ① 読めて いる 町の 束で 点を 囲む 町（県の 境でも 隣の 県の 束で 当たる）
+  //   ② 囲む 町が 無い（岸壁・細い 隙）＝境が 200m 以内の 一番 近い 町
+  //   ③ その 辺りの 町の 束が まだ 無い ＝ 細かい 点（addresses-fine）の 500m 以内（その 点が 持つ 市の 名前）
+  //   ④ どれも 無い ＝ null（やり直しで 埋める）
+  //   ★「○○市 付近」は 出さない・市の 名前を 一番 近い 市の 代表点で 付けない★
+  //   （前は 隙間に 落ちると 代表点が 近い 隣の 市＝今治市郷桜井 が「西条市 付近」「西条市郷桜井」に なった）
+  function _chimeiAt(lat, lng) {
+    const bundles = _loadedTownBundles(_prefNameFromCoarseCity(null, lat, lng));
+    // ★県の 境で 両側の 県の 町が 重なる（元データ 自体が 重なる・宮城と岩手 等）＝境から 一番 深く 入って いる 方★
+    let hit = null;
+    let hitM = -1;
+    const la = Math.round(lat * 100000);
+    const ln = Math.round(lng * 100000);
+    for (let i = 0; i < bundles.length; i++) {
+      const r = _findTownPolygonAddress(lat, lng, bundles[i]);
+      if (!r || !(r.n || r.c)) continue;
+      if (!hit) {
+        hit = r;
+        continue;
+      }
+      if (hitM < 0) hitM = _edgeM(la, ln, _townRings(hit.bundle, hit.it));
+      const m = _edgeM(la, ln, _townRings(r.bundle, r.it));
+      if (m > hitM) {
+        hit = r;
+        hitM = m;
+      }
+    }
+    // 町の 名前が 無い 区画（町字に 分かれて いない 町村）は 市町村の 名前だけ
+    if (hit) return { s: (hit.c || '') + _cutChomeSuffix(hit.n || ''), how: 'pip' };
+    let near = null;
+    for (let i = 0; i < bundles.length; i++) {
+      const r = _nearestTown(lat, lng, bundles[i], near ? near.m : _TOWN_NEAR_M);
+      if (r && (!near || r.m < near.m)) near = r;
+    }
+    if (near) return { s: (near.c || '') + _cutChomeSuffix(near.n || ''), how: 'near' };
+    // 町の 束が この 辺りを 覆って いる のに 当たらない＝海の 上 等（細かい 点で 言い切らない）
+    if (_townCovers(bundles, lat, lng)) return null;
+    const f = _nearestFine(lat, lng);
+    if (f) return { s: (f.c || '') + _cutChomeSuffix(f.n), how: 'fine' };
+    return null;
+  }
+
+  // ★この 点の まわりを 町の 束が 覆って いるか★＝点の 1km の 升に 町が 掛かる 束が 読めて いる
+  //   前は 束の 外枠（県の bbox）で 決めた＝東京の 外枠は 小笠原まで 含み 神奈川・千葉・静岡を まるごと 覆う
+  //   ⇒ 隣の 県の 束しか 無い 間に 引くと「覆って いる」と 見て 細かい 点も やり直しも 飛ばし 空の まま（対立役 止2）
+  function _townCovers(bundles, lat, lng) {
+    for (let i = 0; i < bundles.length; i++) {
+      const b = bundles[i];
+      const SC = b.precision || 100000;
+      // ★束の 外枠の 外なら 升を 作らない★（全県の 升を 作ると +100MB・海の 1回 0.8秒＝対立役 2回目 止A）
+      const la = Math.round(lat * SC);
+      const ln = Math.round(lng * SC);
+      if (b.bbox && (la < b.bbox[0] || la > b.bbox[2] || ln < b.bbox[1] || ln > b.bbox[3]))
+        continue;
+      const grid = _getTownGrid(b);
+      const key =
+        Math.floor(Math.round(lat * SC) / _TOWN_GRID_SIZE_INT) +
+        '_' +
+        Math.floor(Math.round(lng * SC) / _TOWN_GRID_SIZE_INT);
+      if (grid && grid[key] && grid[key].length) return true;
+    }
+    return false;
+  }
+  // 細かい 点（window.ADDRESSES_FINE_{PREF}・{lat, lng, n, c}）の 500m 以内で 一番 近い 点
+  const _FINE_NEAR_M = 500;
+  function _nearestFine(lat, lng) {
+    if (typeof window === 'undefined') return null;
+    const latI = Math.round(lat * 100000);
+    const lngI = Math.round(lng * 100000);
+    const k = Math.cos(lat * (Math.PI / 180));
+    let best = null;
+    let bestM = _FINE_NEAR_M;
+    const keys = Object.keys(window);
+    for (let i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf('ADDRESSES_FINE_') !== 0) continue;
+      const b = window[keys[i]];
+      const items = b && b.items;
+      if (!Array.isArray(items)) continue;
+      for (let j = 0; j < items.length; j++) {
+        const it = items[j];
+        if (!it || !it.c) continue; // 市の 名前を 持たない 点は 使わない（市を 当てずっぽうで 付けない）
+        const dLa = it.lat - latI;
+        if (dLa > 520 || dLa < -520) continue;
+        const dLn = it.lng - lngI;
+        if (dLn > 700 || dLn < -700) continue;
+        const m = Math.hypot(dLa, dLn * k) * 1.1132;
+        if (m < bestM) {
+          bestM = m;
+          best = it;
+        }
+      }
+    }
+    return best;
+  }
+
+  function _safeGetNearestAddress(lat, lng, _accuracy) {
     if (typeof lat !== 'number' || typeof lng !== 'number' || !isFinite(lat) || !isFinite(lng)) {
       return null;
     }
-
-    // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・4 段 fallback):
-    //   1. _lastMMSnap fresh (5 秒以内) → snap 位置で PIP (= GPS 揺れ吸収)
-    //   2. snap stale / なし → raw GPS で PIP
-    //   3. PIP miss → 既存 fine 最近傍 (= Meter.getNearestAddress 経路) で・大字単独取得
-    //   4. fine 未 load / null → coarse「市町村 付近」(= meter.js coarse fallback)
-    //   絶対ルール準拠:
-    //     ✓ distance_m / meter.js / map-matcher.js / Worker B 本体には・1 byte も触れない
-    //     ✓ 表示専用・PIP 結果は・既存 _cutChomeSuffix で・丁目カット
-    //     ✓ ADDRESSES_COARSE_JP 未 load → _findNearestMunicipality null → city prefix 省略
-
-    // pref 名解決 (= PIP bundle 選択用)
-    const prefName = _prefNameFromCoarseCity(null, lat, lng);
-    const bundle = _resolveTownBundle(prefName);
-
-    // ─── 段階 1: snap fresh → snap 位置で PIP ───
-    if (bundle && _lastMMSnap && Date.now() - _lastMMSnap.t < _MM_SNAP_FRESH_MS) {
-      const r = _findTownPolygonAddress(_lastMMSnap.lat, _lastMMSnap.lng, bundle);
-      if (r && r.n) {
-        const cut = _cutChomeSuffix(r.n);
-        const city = r.c || _findNearestMunicipality(_lastMMSnap.lat, _lastMMSnap.lng) || '';
-        const result = city + cut;
-        if (typeof dlog === 'function') {
-          dlog('[ADDR] snap PIP hit "' + result + '"');
-        }
-        return result;
+    // 走って いる 時は 道に 合わせた 点（GPS の 揺れを 吸う）を 先に。外れたら 生の 点
+    if (_lastMMSnap && Date.now() - _lastMMSnap.t < _MM_SNAP_FRESH_MS) {
+      const s = _chimeiAt(_lastMMSnap.lat, _lastMMSnap.lng);
+      if (s) {
+        if (typeof dlog === 'function') dlog('[ADDR] snap ' + s.how + ' "' + s.s + '"');
+        return s.s;
       }
     }
-
-    // ─── 段階 2: raw GPS で PIP ───
-    if (bundle) {
-      const r = _findTownPolygonAddress(lat, lng, bundle);
-      if (r && r.n) {
-        const cut = _cutChomeSuffix(r.n);
-        const city = r.c || _findNearestMunicipality(lat, lng) || '';
-        const result = city + cut;
-        if (typeof dlog === 'function') {
-          dlog('[ADDR] raw PIP hit "' + result + '"');
-        }
-        return result;
-      }
-    }
-
-    // ─── 段階 3: PIP miss → 既存 fine 最近傍 (= 住所① 経路・Meter.getNearestAddress) ───
-    if (typeof Meter === 'undefined' || !Meter || typeof Meter.getNearestAddress !== 'function') {
-      return null;
-    }
-    let raw;
-    try {
-      raw = Meter.getNearestAddress(lat, lng, accuracy);
-    } catch (_) {
-      return null;
-    }
-    if (!raw) return null;
-    // 段階 4: coarse fallback (= "今治市 付近") は・そのまま返却
-    if (/ 付近$/.test(raw)) {
-      if (typeof dlog === 'function') {
-        dlog('[ADDR] coarse fallback raw=' + raw);
-      }
-      return raw;
-    }
-    // fine hit (= 段階 3 結果): "常盤町八丁目" 等 → 丁目カット + 市町村名 prefix
-    const cut = _cutChomeSuffix(raw);
-    const city = _findNearestMunicipality(lat, lng);
-    const result = city ? city + cut : cut;
-    if (typeof dlog === 'function') {
-      dlog('[ADDR] fine fallback raw=' + raw + ' → cut=' + cut + ' → ' + result);
-    }
-    return result;
+    const r = _chimeiAt(lat, lng);
+    if (typeof dlog === 'function') dlog('[ADDR] raw ' + (r ? r.how + ' "' + r.s + '"' : 'null'));
+    return r ? r.s : null;
   }
 
-  // ★設計変更宣言 (2026-05-15・住所取得 retry ロジック・data load 遅延吸収):
-  //   addresses-fine-jp.js (24.6 MB) の defer load 完了前に経由地点ボタン/代行開始/確定が
-  //   発火すると、Meter.getNearestAddress が null を返し「⚠ 住所を取得できませんでした」が
-  //   毎回出る (2026-05-15 報告事象)。本ヘルパで未 load 時は 1 秒間隔で最大 5 回再試行し、
-  //   load 完了後の最初の解決で current_trip の該当フィールドを更新する。
-  //   再解決成功時は window CustomEvent 'business:address-resolved' を発火し、UI 側 (index.html)
-  //   が waypointCard / routeCard を即時更新できるようにする。
-  //   絶対ルール準拠:
-  //     ✓ 業務継続性最優先: retry 全失敗でも null 据え置きで業務は止めない
-  //     ✓ 同期完結は維持: 関数 (onTripStart 等) は同期呼出のまま・retry は背景で実行
-  //     ✓ current_trip が onTripEnd で null 化された後に retry が解決しても上書きしない
-  //       (state.current_trip 存在チェックを毎回行う)
-  //   iOS/Android 共通: setTimeout は両 OS 同一動作・onLoad 検知ではなく時間ベースで簡素化
-  const _ADDR_RETRY_MAX = 5;
-  const _ADDR_RETRY_INTERVAL_MS = 1000;
-  function _scheduleAddressRetry(kind, lat, lng, accuracy, waypointIdx, attempt) {
-    const cur = attempt || 1;
-    if (cur > _ADDR_RETRY_MAX) return;
-    setTimeout(function () {
-      // current_trip が無くなっていたら retry 中止 (= onTripEnd 後)
-      if (!state.current_trip) return;
-      // 該当 waypoint がまだ null のままか確認 (= 他経路で解決していたらスキップ)
-      let alreadyResolved = false;
-      if (kind === 'start') {
-        alreadyResolved = state.current_trip.start_address != null;
-      } else if (kind === 'end') {
-        alreadyResolved = state.current_trip.end_address != null;
-      } else if (kind === 'waypoint') {
-        const wps = state.current_trip.waypoints;
-        if (Array.isArray(wps) && wps[waypointIdx]) {
-          alreadyResolved = wps[waypointIdx].address != null;
-        } else {
-          // waypoint がもう存在しない (異常系) → 中止
-          return;
-        }
-      }
-      if (alreadyResolved) return;
+  // ★★地名の やり直し★★（2026-05-15 → 2026-10-24 作り直し・対立役 止1 止2）
+  //   地名が null の 時（町の 束が まだ 届いて いない・代行開始の 時に GPS が 無い）に、後で 埋める。
+  //   前の 作り＝1秒ごと 5回だけ・「荒い 点が 読めたら やり直さない」・支払い（onTripEnd）で 打ち切り
+  //     ⇒ 荒い 点は 起動で すぐ 読める＝やり直しが 始まらず、支払いの 後も 空の まま、開始の GPS が 無いと 二度と 埋まらない
+  //   今＝2秒ごと・10分まで。支払いの 後も 記録（state.trips の その 代行）へ 書き戻す。
+  //       座標が 無い 出発地は、その 後に 届いた GPS で 埋める。データが 揃って いて 当たらない（海の 上 等）時は やめる。
+  //   解けたら window の 'business:address-resolved' で 画面へ 知らせる（前と 同じ）。
+  const _ADDR_RETRY_INTERVAL_MS = 2000;
+  const _ADDR_RETRY_MAX_MS = 10 * 60 * 1000;
+  let _addrPending = []; // { kind, lat, lng, accuracy, target, wp, t0 }
+  let _addrTimer = null;
+  const _ADDR_FIELD = { start: 'start_address', end: 'end_address' };
 
-      const addr = _safeGetNearestAddress(lat, lng, accuracy);
+  function _addrIsResolved(p) {
+    if (p.kind === 'waypoint') return !p.wp || p.wp.address != null;
+    return !p.target || p.target[_ADDR_FIELD[p.kind]] != null;
+  }
+
+  function _addAddrPending(kind, lat, lng, accuracy, target, wp) {
+    _addrPending.push({
+      kind: kind,
+      lat: typeof lat === 'number' && isFinite(lat) ? lat : null,
+      lng: typeof lng === 'number' && isFinite(lng) ? lng : null,
+      accuracy: accuracy,
+      target: target,
+      wp: wp || null,
+      // 履歴（daikou_history_<日付>）の 鍵＝代行開始の 時刻・経由地の 何番目
+      tripKey: target && target.start_time ? target.start_time : null,
+      wpIdx: wp && target && Array.isArray(target.waypoints) ? target.waypoints.indexOf(wp) : -1,
+      t0: Date.now(),
+    });
+    if (!_addrTimer) _addrTimer = setInterval(_addrTick, _ADDR_RETRY_INTERVAL_MS);
+  }
+
+  function _addrTick() {
+    const now = Date.now();
+    const keep = [];
+    for (let i = 0; i < _addrPending.length; i++) {
+      const p = _addrPending[i];
+      if (_addrIsResolved(p) || now - p.t0 > _ADDR_RETRY_MAX_MS) continue;
+      // 座標が 無い（開始の 時に GPS が 無かった）＝その 後に 届いた GPS を 使う
+      if (p.lat == null && _lastRawGps && _lastRawGps.t >= p.t0) {
+        p.lat = _lastRawGps.lat;
+        p.lng = _lastRawGps.lng;
+      }
+      if (p.lat == null) {
+        keep.push(p);
+        continue;
+      }
+      // ★待って いる 点 そのものを 引く★（_safeGetNearestAddress は 5秒 以内の 道に 合わせた 点＝今の 車の 場所を 先に 使う
+      //   ＝車が 動いた 後に 形が 届くと 行って いない 町を 書いた・1km で 200点中 115〜137点＝対立役 3回目 止C）
+      const r = _chimeiAt(p.lat, p.lng);
+      const addr = r ? r.s : null;
       if (addr) {
-        if (kind === 'start') {
-          state.current_trip.start_address = addr;
-        } else if (kind === 'end') {
-          state.current_trip.end_address = addr;
-        } else if (kind === 'waypoint') {
-          state.current_trip.waypoints[waypointIdx].address = addr;
-        }
-        save();
-        if (typeof dlog === 'function') {
-          dlog(
-            '[Business] address retry resolved (kind=' + kind + ' attempt=' + cur + ') => ' + addr
-          );
-        }
-        // UI 通知 (browser context のみ・Node test では window 未定義で skip)
-        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-          try {
-            window.dispatchEvent(
-              new CustomEvent('business:address-resolved', {
-                detail: { kind: kind, address: addr, waypointIdx: waypointIdx },
-              })
-            );
-          } catch (_) {
-            // CustomEvent dispatch fail (= 未対応 browser 等) → retry 解決 path に・影響なし
-          }
-        }
-        return; // 解決済 → retry 終了
+        _addrSet(p, addr);
+        continue;
       }
-      // まだ null・データもまだ未 load 確率高 → 再試行
-      _scheduleAddressRetry(kind, lat, lng, accuracy, waypointIdx, cur + 1);
-    }, _ADDR_RETRY_INTERVAL_MS);
+      // ★当たらなくても 10分 までは 続ける★（自分の 県の 形が まだ 届かない 間に 隣の 県の 升が 掛かると「揃って いる」と 見て
+      //   やめて しまい 空の まま 残った・全県 2km おきで 5.1%＝対立役 2回目 止B）。2秒に 1回 引く だけ
+      keep.push(p);
+    }
+    _addrPending = keep;
+    if (!_addrPending.length && _addrTimer) {
+      clearInterval(_addrTimer);
+      _addrTimer = null;
+    }
   }
 
-  function _needsAddressRetry() {
-    // データ未 load なら true・load 済 (miss 起因 null) なら retry しても無駄なので false
-    if (typeof Meter !== 'undefined' && typeof Meter.isAddressDataReady === 'function') {
+  function _addrSet(p, addr) {
+    let waypointIdx = null;
+    if (p.kind === 'waypoint') {
+      p.wp.address = addr;
+      const wps = p.target && p.target.waypoints;
+      if (Array.isArray(wps)) waypointIdx = wps.indexOf(p.wp);
+    } else {
+      p.target[_ADDR_FIELD[p.kind]] = addr;
+    }
+    save();
+    _addrKakimodosu(p, addr);
+    if (typeof dlog === 'function') {
+      dlog('[Business] address retry resolved (kind=' + p.kind + ') => ' + addr);
+    }
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       try {
-        return !Meter.isAddressDataReady();
+        window.dispatchEvent(
+          new CustomEvent('business:address-resolved', {
+            detail: { kind: p.kind, address: addr, waypointIdx: waypointIdx },
+          })
+        );
       } catch (_) {
-        return false;
+        // 画面へ 知らせられなくても 記録には 書けて いる
       }
     }
-    return false;
+  }
+
+  // ★業務を 閉じた 後に 解けた 地名を 控えへも 書き戻す★ 2026-10-24（対立役 止3）
+  //   end() は その 時点の 写しを 事務所へ 送る 控え（daikou_business_history）に 積み、清算の 時に 運転手の 履歴
+  //   （daikou_history_<日付>）にも 写しを 取る＝state だけ 直しても 事務所にも 履歴にも 空の まま 残った
+  //   ・控え＝同じ 業務（start_time）の 同じ 順番の 代行の 空の 欄だけ 埋め、送った 印を 外す（直した 版を 送り直す）
+  //   ・履歴＝trip_key（代行開始の 時刻）が 同じ 行の 空の 欄だけ 埋める
+  //   ★書けなくても 業務は 止めない（throw しない）★
+  function _addrKakimodosu(p, addr) {
+    const umeru = function (t) {
+      if (!t) return false;
+      if (p.kind === 'waypoint') {
+        const w = Array.isArray(t.waypoints) ? t.waypoints[p.wpIdx] : null;
+        if (!w || w.address != null) return false;
+        w.address = addr;
+        return true;
+      }
+      const k = _ADDR_FIELD[p.kind];
+      if (t[k] != null) return false;
+      t[k] = addr;
+      return true;
+    };
+    try {
+      // 控えの 中の 同じ 代行＝開始と 終わりの 時刻が 同じ 行（業務の 何番目かで なく 時刻で 探す＝閉じて すぐ 次の 業務を 始めても 届く）
+      const t = p.target;
+      if (t && typeof t.end_time === 'number') {
+        const list = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        let kaita = false;
+        (Array.isArray(list) ? list : []).forEach(function (r) {
+          if (!r || !Array.isArray(r.trips)) return;
+          r.trips.forEach(function (x) {
+            if (x && x.start_time === t.start_time && x.end_time === t.end_time && umeru(x)) {
+              kaita = true;
+              _unsealSynced(r.start_time);
+            }
+          });
+        });
+        if (kaita) localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+      }
+    } catch (_) {
+      // 控えに 書けなくても state には 入って いる
+    }
+    try {
+      if (!p.tripKey || typeof localStorage.key !== 'function') return;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key || key.indexOf('daikou_history_') !== 0) continue;
+        const hist = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!Array.isArray(hist)) continue;
+        const e = hist.find(function (x) {
+          return x && x.trip_key === p.tripKey;
+        });
+        if (e && umeru(e)) localStorage.setItem(key, JSON.stringify(hist));
+      }
+    } catch (_) {
+      // 履歴に 書けなくても state には 入って いる
+    }
+  }
+
+  // 支払いで 代行が 記録（state.trips）へ 移ったら、やり直しの 書き先も 記録へ 移す
+  function _addrRetarget(fromTrip, toRecord) {
+    for (let i = 0; i < _addrPending.length; i++) {
+      if (_addrPending[i].target === fromTrip) _addrPending[i].target = toRecord;
+    }
   }
 
   // ★請求書払い(掛け)先の紐付け (2026-07-31・司さん要件)★
@@ -928,10 +1154,8 @@ const Business = (function () {
             : '?')
       );
     }
-    // データ未 load による null の場合のみ retry (load 済 miss なら retry しても解決しない)
-    if (!startAddr && _needsAddressRetry() && lat != null && lng != null) {
-      _scheduleAddressRetry('start', lat, lng, accuracy, null, 1);
-    }
+    // 地名が 無い（データ待ち・開始の 時に GPS が 無い）＝後で 埋める（座標が 無ければ 次の GPS で）
+    if (!startAddr) _addAddrPending('start', lat, lng, accuracy, state.current_trip, null);
     return startAddr;
   }
 
@@ -957,10 +1181,15 @@ const Business = (function () {
           (addr || '(null)')
       );
     }
-    // データ未 load による null の場合のみ retry
-    if (!addr && _needsAddressRetry() && lat != null && lng != null) {
-      _scheduleAddressRetry('waypoint', lat, lng, accuracy, waypointIdx, 1);
-    }
+    if (!addr && lat != null && lng != null)
+      _addAddrPending(
+        'waypoint',
+        lat,
+        lng,
+        accuracy,
+        state.current_trip,
+        state.current_trip.waypoints[waypointIdx]
+      );
     return addr;
   }
 
@@ -973,10 +1202,8 @@ const Business = (function () {
     if (typeof dlog === 'function') {
       dlog('[Business] setEndAddress end_address=' + (endAddr || '(null)'));
     }
-    // データ未 load による null の場合のみ retry
-    if (!endAddr && _needsAddressRetry() && lat != null && lng != null) {
-      _scheduleAddressRetry('end', lat, lng, accuracy, null, 1);
-    }
+    if (!endAddr && lat != null && lng != null)
+      _addAddrPending('end', lat, lng, accuracy, state.current_trip, null);
     return endAddr;
   }
 
@@ -1033,6 +1260,8 @@ const Business = (function () {
       customer_note: _custId ? currentTrip.customer_note || null : null,
       payment_type: _custId ? 'invoice' : 'cash',
     });
+    // 地名の やり直しが 残って いれば 書き先を 記録へ（支払いの 後に 解けても 空の まま に しない）
+    if (state.current_trip) _addrRetarget(state.current_trip, state.trips[state.trips.length - 1]);
     // 統合後 current_trip はリセット (次の代行で onTripStart が新規初期化する)
     state.current_trip = null;
     save();
@@ -1561,12 +1790,18 @@ const Business = (function () {
     //   真似て書いた写しを測っても、本物が直っている証しにならない。
     __unsealSynced: _unsealSynced,
     // ★設計変更宣言 (2026-05-23・住所① fine 配線 + 丁目カット表示・test 用 export):
-    //   _cutChomeSuffix / _findNearestMunicipality は・pure helper (= 副作用なし)。
+    //   地名の 部品（_cutChomeSuffix・_chimeiAt 等）は 副作用 なし。試験が 画面と 同じ 関数を 呼ぶ ため（2026-10-24 代表点の 市名は 外した）。
     //   test で・unit verify するため・public API に・1 key 経由で・export。
     //   本番動作には・影響なし (= 既存 callers は・触らず・新 namespace のみ追加)。
     __addressFormatter: {
       cutChomeSuffix: _cutChomeSuffix,
-      findNearestMunicipality: _findNearestMunicipality,
+      chimeiAt: _chimeiAt,
+      nearestTown: _nearestTown,
+      townRings: _townRings,
+      addrPending: function () {
+        return _addrPending;
+      },
+      addrTick: _addrTick,
       pointInPolygon: _pointInPolygon,
       findTownPolygonAddress: _findTownPolygonAddress,
       buildTownGrid: _buildTownGrid,
