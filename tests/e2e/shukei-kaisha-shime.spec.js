@@ -295,6 +295,21 @@ test('★③ 締め日の 列が 読めない ⇒ 末日に 倒さず 止める�
   expect(r.tbody, '売上の 表を 出さない').toBe('');
   expect(r.kami).toContain('締め日');
   expect(r.mado).toBe('');
+  // 細かい 表の ボタンを 押しても 暦の 月に 倒した 売上・距離・電子決済を 出さない
+  await page.evaluate(() => {
+    document.getElementById('motoHyou').open = true;
+    document.querySelector('[data-uri="month"]').click();
+    document.querySelector('[data-kyori="month"]').click();
+    document.getElementById('dkSegM').click();
+  });
+  await page.waitForTimeout(300);
+  const hyou = await page.evaluate(() =>
+    ['uriBody', 'kyoriBody', 'dkBody'].map((id) => document.getElementById(id).textContent)
+  );
+  hyou.forEach((t) => {
+    expect(t).toContain('締め日');
+    expect(t).not.toMatch(/\d{1,3},\d{3}/);
+  });
   expect(err).toEqual([]);
 });
 

@@ -246,41 +246,57 @@ test('③ 給料：記録（何日から）が 在っても・読めなくても
   expect(err).toEqual([]);
 });
 
-test('④ 月次：記録・設定の 表が 読めなくても 売上を 出す', async ({ page }) => {
-  const err = [];
-  page.on('pageerror', (e) => err.push(e.message));
-  const FIX = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'kyuryo-real.json'), 'utf8')
-  );
-  const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
-  const co = { company_id: FIX.settings[0].company_id, name: '見張り用' };
-  const body =
-    moto +
-    ';(function(){var F=' +
-    JSON.stringify(FIX) +
-    ';var co=' +
-    JSON.stringify(co) +
-    ';' +
-    'function rows(p){ if(p.indexOf("dk_employees")===0)return F.emps||[]; if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +
-    ' if(p.indexOf("dk_payroll_settings")===0)return F.settings||[]; if(p.indexOf("dk_shifts")===0)return F.shifts||[];' +
-    ' if(p.indexOf("dk_shift_edits")===0)return F.edits||[]; if(p.indexOf("dk_work_hours")===0)return F.workHours||[];' +
-    ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[]; return [];}' +
-    'var S=window.DKSession;S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
-    'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
-    'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
-    'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
-    'S.softList=function(s,p,st){if(st)st.tried++;if(String(p).indexOf("dk_uriage_rireki")===0||String(p).indexOf("dk_sales_settings")===0){if(st)st.failed++;return Promise.resolve([]);}return Promise.resolve(rows(p));};})();';
-  await page.route('**/js/dk-session.js*', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: body })
-  );
-  await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
-  await page.locator('#motoHyou > summary').click({ timeout: 15000 });
-  await page.waitForTimeout(1500);
-  await page.locator('[data-uri="month"]').click();
-  await page.waitForTimeout(200);
-  const ji = await page.evaluate(() => document.getElementById('uriBody').textContent);
-  expect(ji, '★売上が 出ていない★').toMatch(/\d{1,3},\d{3}/);
-  expect(ji).not.toContain('売上から 引く 物');
-  expect(err).toEqual([]);
-});
+// 件K（2026-10-24）：設定の 表（dk_sales_settings）は 会社の 締め日で 読む＝読めない 時は 末日に 倒さず 止める（④b）
+//   ④ は 記録の 表だけ 読めない 形（売上は 出す）
+for (const [na, yomenai, deru] of [
+  ['④ 月次：記録の 表が 読めなくても 売上を 出す', ['dk_uriage_rireki'], true],
+  [
+    '④b 月次：設定の 表が 読めない ⇒ 会社の 締め日で 止める（引く 物の 訳は 出さない）',
+    ['dk_sales_settings'],
+    false,
+  ],
+])
+  test(na, async ({ page }) => {
+    const err = [];
+    page.on('pageerror', (e) => err.push(e.message));
+    const FIX = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'kyuryo-real.json'), 'utf8')
+    );
+    const moto = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'dk-session.js'), 'utf8');
+    const co = { company_id: FIX.settings[0].company_id, name: '見張り用' };
+    const body =
+      moto +
+      ';(function(){var F=' +
+      JSON.stringify(FIX) +
+      ';var co=' +
+      JSON.stringify(co) +
+      ';' +
+      'function rows(p){ if(p.indexOf("dk_employees")===0)return F.emps||[]; if(p.indexOf("dk_device_labels")===0)return F.labels||[];' +
+      ' if(p.indexOf("dk_payroll_settings")===0)return F.settings||[]; if(p.indexOf("dk_shifts")===0)return F.shifts||[];' +
+      ' if(p.indexOf("dk_shift_edits")===0)return F.edits||[]; if(p.indexOf("dk_work_hours")===0)return F.workHours||[];' +
+      ' if(p.indexOf("dk_manual_days")===0)return F.manualDays||[]; return [];}' +
+      'var S=window.DKSession;S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
+      'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
+      'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
+      'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
+      'var YOMENAI=' +
+      JSON.stringify(yomenai) +
+      ';S.softList=function(s,p,st){if(st)st.tried++;if(YOMENAI.some(function(n){return String(p).indexOf(n)===0;})){if(st)st.failed++;return Promise.resolve([]);}return Promise.resolve(rows(p));};})();';
+    await page.route('**/js/dk-session.js*', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: body })
+    );
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/shukei.html', { waitUntil: 'domcontentloaded' });
+    await page.locator('#motoHyou > summary').click({ timeout: 15000 });
+    await page.waitForTimeout(1500);
+    await page.locator('[data-uri="month"]').click();
+    await page.waitForTimeout(200);
+    const ji = await page.evaluate(() => document.getElementById('uriBody').textContent);
+    if (deru) expect(ji, '★売上が 出ていない★').toMatch(/\d{1,3},\d{3}/);
+    else {
+      expect(ji, '★締め日が 読めないのに 暦の 月で 売上を 出した★').not.toMatch(/\d{1,3},\d{3}/);
+      expect(ji).toContain('締め日');
+    }
+    expect(ji).not.toContain('売上から 引く 物');
+    expect(err).toEqual([]);
+  });

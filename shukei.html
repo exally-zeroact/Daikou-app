@@ -2005,9 +2005,10 @@
           var head = $('uriHead');
           var body = $('uriBody');
           if (!head || !body) return;
-          if (SHIME_JIPPI) {
+          if (SHIME_JIPPI || KAISHA.dame) {
             head.innerHTML = '';
-            body.innerHTML = '<tr><td>' + esc(jippiDameBun()) + '</td></tr>';
+            body.innerHTML =
+              '<tr><td>' + esc(SHIME_JIPPI ? jippiDameBun() : kaishaDameBun()) + '</td></tr>';
             return;
           }
 
@@ -2213,9 +2214,10 @@
           var head = $('kyoriHead');
           var body = $('kyoriBody');
           if (!head || !body) return;
-          if (SHIME_JIPPI) {
+          if (SHIME_JIPPI || KAISHA.dame) {
             head.innerHTML = '';
-            body.innerHTML = '<tr><td>' + esc(jippiDameBun()) + '</td></tr>';
+            body.innerHTML =
+              '<tr><td>' + esc(SHIME_JIPPI ? jippiDameBun() : kaishaDameBun()) + '</td></tr>';
             return;
           }
           var all = kyoriMoto().filter(function (x) {
@@ -2332,6 +2334,12 @@
         var SHIME_KAISHA = false;
         var SHIME_HABA = false;
         var LOAD_HABA = { kara: '', made: '' };
+        // 細かい 表（売上・距離・電子決済）も 締め日が 読めない 時は 出さない（暦の 月に 倒さない・叩き役 K-8）
+        function kaishaDameBun() {
+          return (
+            (KAISHA.riyuu || '会社の 締め日が 読めません') + '（末日には 倒さず 止めています）'
+          );
+        }
         function kaishaKamiBun() {
           if (SHIME_KAISHA)
             return '会社の 締め日が 読めないので 紙は 出せません（もう一度 開いてください）';
@@ -2786,10 +2794,11 @@
         var DENSHI_MODE = 'm'; // 'm' = 月ごと / 'd' = 日ごと
         function renderDenshi() {
           var html = '';
-          if (SHIME_JIPPI) {
+          if (SHIME_JIPPI || KAISHA.dame) {
             $('dkHead').innerHTML = '';
             if ($('dkBody'))
-              $('dkBody').innerHTML = '<tr><td>' + esc(jippiDameBun()) + '</td></tr>';
+              $('dkBody').innerHTML =
+                '<tr><td>' + esc(SHIME_JIPPI ? jippiDameBun() : kaishaDameBun()) + '</td></tr>';
             return;
           }
           $('dkSegM').className = 'segb' + (DENSHI_MODE === 'm' ? ' on' : '');
