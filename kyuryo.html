@@ -1291,6 +1291,74 @@
         color: var(--danger);
       }
 
+      /* ★作った PDF を 画面の 中に 開く★ 2026-10-25（見本＝代行請求書の 実PDFを 描く 形） */
+      .hn-pdf-miru {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        background: #e9edf3;
+      }
+
+      .hn-pdf-miru-ue {
+        display: flex;
+        gap: 8px;
+        padding: 10px 12px;
+        padding-top: max(10px, env(safe-area-inset-top));
+        background: #fff;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .hn-pdf-miru-b {
+        flex: 1;
+        min-height: 44px;
+        border: 1px solid var(--line);
+        background: #fff;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .hn-pdf-miru-tojiru {
+        flex: 0 0 auto;
+        padding: 0 14px;
+        font-weight: 400;
+      }
+
+      .hn-pdf-miru-msg {
+        padding: 8px 12px;
+        background: #fff;
+        color: var(--danger);
+      }
+
+      .hn-pdf-miru-msg.hn-pdf-miru-annai {
+        color: var(--ink, #1f2937);
+      }
+
+      .hn-pdf-miru-naka {
+        flex: 1;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 8px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+        text-align: center;
+      }
+
+      .hn-pdf-miru-kami {
+        display: block;
+        margin: 0 auto 8px;
+        background: #fff;
+        box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
+      }
+
+      .hn-pdf-miru-chu {
+        padding: 40px 0;
+        color: var(--sub, #667);
+      }
+
       /* ★期間の ボタンは 1行★ 2026-10-20（司さん「赤丸のところは1行にしろ」）
          3つ まで（月3回・締め日2つ/3つ）＝幅を 等分して 画面に 収める
          4つ 以上（週1回・毎日）＝1行の まま その 中だけ 横に 送る（字を 潰さない・ページは 横に すべらない） */
@@ -2724,9 +2792,11 @@
         //   「明細だが従業員が各々自由にPDFや印刷するボタンがない
         //     代行請求書のように（毎回のミスをしない）自作でPDF（データの重さも）を作成するやり方をパクってつくれ」
         //   ・作るのは 事務所と 同じ 紙（_empSheets）と 同じ 道具（KamiEgaku＝代行請求書と 同じ pdf-lib・軽い 字体）
-        //   ・★2回 押し★：1回目で 作り、2回目で 共有の 画面（iPhone＝保存・印刷・LINE）に 渡す
-        //     （字体の 読み込みは 電波で 数秒＝待った 後では 共有の 画面を 開けない・iPhone の ホーム画面で
-        //       window.open すると 戻れない 前例が 在る＝共有の 画面を 先に 使う）
+        //   ・★1回 押せば 画面の 中に PDF そのものを 開く★ 2026-10-25（司さん「PDFを開く押してもこの状態になるだけやが
+        //     代行請求書アプリを見本にしろってゆわんかったか？」）＝前の「2回目で 共有の 画面に 渡すだけ」は PDF が どこにも 開かなかった。
+        //     見本と 同じ pdf.js（vendor/pdf.min.js）で 1ページ＝1枚の 絵に 描く（新しい 窓は 開かない＝ホーム画面の アプリでも 戻れる）。
+        //     上の「保存・送る」＝共有の 画面／「印刷」＝PDF を 開いて 印刷（ホーム画面の アプリは 共有の 画面の プリント）／「閉じる」。
+        //     共有の 画面は 押した その 時に 開く（字体の 読み込みを 待った 後の 自動では 開けない 端末が 在る）
         //   ・事務所の printOne は 使わない（本人の 画面には #slip-0 が 無い・YM は 本人の 月を 持たない＝対立役）
         //   ・★月・期間を 替えたら 作った PDF を 捨てる★（HN_NO が 印・作っている 途中に 替えても 古い 物を 渡さない）
         var HN_NO = 0; // 月・期間を 替えた 回数
@@ -2735,14 +2805,14 @@
         function hnPdfSuteru() {
           HN_NO++;
           HN_PDF = null;
+          hnPdfTojiru(); // 月・期間を 替えたら 見せている PDF も 閉じる（前の 月を 見せ続けない）
         }
         function hnPdfAru() {
           return !!(HN_PDF && HN_PDF.no === HN_NO);
         }
         function hnPdfJi() {
-          if (hnPdfAru()) return 'PDFを 開く（保存・印刷）';
           if (HN_PDF_CHU === HN_NO) return 'PDFを 作っています…';
-          return 'PDFで 保存・印刷';
+          return 'PDFを 開く（保存・印刷）';
         }
         function hnPdfBotan() {
           var b = document.getElementById('hnPdf');
@@ -2767,7 +2837,7 @@
         }
         function honninPdf() {
           hnPdfErr('');
-          if (hnPdfAru()) return hnPdfWatasu(HN_PDF);
+          if (hnPdfAru()) return hnPdfMiseru(HN_PDF);
           if (HN_PDF_CHU === HN_NO) return;
           if (HN_KEISAN_NG || !REP) return hnPdfErr(HN_KEISAN_NG_BUN);
           if (kyuDameBun(CTX)) return hnPdfErr(kyuDameBun(CTX));
@@ -2796,6 +2866,7 @@
               if (no !== HN_NO || !d) return; // 替えた 後に できた 物は 捨てる
               HN_PDF = { no: no, blob: d.blob, name: hnPdfNamae(emp) };
               hnPdfBotan();
+              hnPdfMiseru(HN_PDF); // ★1回 押せば 開く★（2026-10-25 司さん「代行請求書アプリを見本に」）
             })
             .catch(function (err) {
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
@@ -2848,9 +2919,10 @@
         // ★窓に 落ちる 時は 必ず 案内を 出す★（LINE の 中の ブラウザ・Android の WebView は 窓も 保存も 黙って 効かない 事が 在る＝
         //   押しても 何も 起きない まま に しない・対立役 直2）
         function hnPdfMado(p) {
-          hnPdfErr(
-            '開かない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。'
-          );
+          var annai =
+            '開かない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。';
+          hnPdfErr(annai);
+          hnPdfMiruMsg(annai, true); // PDF を 開いて いる 時は その 上に（後ろの 字は 隠れて 見えない）
           var url = URL.createObjectURL(p.blob);
           var w = window.open(url, '_blank');
           if (!w) {
@@ -2864,6 +2936,178 @@
           setTimeout(function () {
             URL.revokeObjectURL(url);
           }, 60000);
+        }
+
+        // ★★作った PDF を 画面の 中に 開く★★ 2026-10-25（見本＝代行請求書の「実PDFを そのまま 描く」と 同じ pdf.js）
+        //   pdf.js は 押した 時に 初めて 読む（約 1.4MB・事務所や 運転手の 画面では 読まない）
+        var HN_PDFJS = null;
+        function hnPdfjs() {
+          if (HN_PDFJS) return HN_PDFJS;
+          HN_PDFJS = new Promise(function (ok, ng) {
+            if (window.pdfjsLib) return ok(window.pdfjsLib);
+            var el = document.createElement('script');
+            el.src = 'vendor/pdf.min.js';
+            el.onload = function () {
+              window.pdfjsLib ? ok(window.pdfjsLib) : ng(new Error('vendor/pdf.min.js'));
+            };
+            el.onerror = function () {
+              ng(new Error('vendor/pdf.min.js'));
+            };
+            document.head.appendChild(el);
+          }).then(function (lib) {
+            lib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+            return lib;
+          });
+          // 読めなかった 時は 次に 押した 時に 読み直す（1回の 電波の 切れで ずっと 出せなく しない）
+          HN_PDFJS.catch(function () {
+            HN_PDFJS = null;
+          });
+          return HN_PDFJS;
+        }
+        // ホーム画面に 置いた アプリ（新しい 窓を 開くと 戻れない）か
+        function hnHomeApp() {
+          try {
+            return (
+              window.navigator.standalone === true ||
+              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+            );
+          } catch (_) {
+            return false;
+          }
+        }
+        // annai＝案内（間違いでは ない＝赤く しない・対立役 N3）
+        function hnPdfMiruMsg(bun, annai) {
+          var el = document.getElementById('hnPdfMiruMsg');
+          if (!el) return;
+          el.textContent = bun || '';
+          el.hidden = !bun;
+          el.classList.toggle('hn-pdf-miru-annai', !!annai);
+        }
+        function hnPdfTojiru() {
+          var v = document.getElementById('hnPdfMiru');
+          if (!v) return;
+          v.parentNode.removeChild(v);
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        }
+        function hnPdfMiseru(p) {
+          hnPdfTojiru();
+          var no = p.no;
+          var v = document.createElement('div');
+          v.id = 'hnPdfMiru';
+          v.className = 'hn-pdf-miru';
+          v.setAttribute('role', 'dialog');
+          v.setAttribute('aria-label', '給料明細の PDF');
+          v.innerHTML =
+            '<div class="hn-pdf-miru-ue">' +
+            '<button type="button" class="hn-pdf-miru-b" id="hnPdfOkuru">保存・送る</button>' +
+            '<button type="button" class="hn-pdf-miru-b" id="hnPdfInsatsu">印刷</button>' +
+            '<button type="button" class="hn-pdf-miru-b hn-pdf-miru-tojiru" id="hnPdfTojiru">閉じる</button>' +
+            '</div>' +
+            '<div class="msg hn-pdf-miru-msg" id="hnPdfMiruMsg" hidden></div>' +
+            '<div class="hn-pdf-miru-naka" id="hnPdfMiruNaka"><div class="hn-pdf-miru-chu">PDFを 開いています…</div></div>';
+          // テスト線だけの「テスト用」の 帯（一番 上・常に 見せる 物）が 在れば その 下から（ボタンを 帯に 隠さない）
+          var obi = document.getElementById('dkEnvBadge');
+          if (obi && obi.offsetHeight) v.style.top = obi.offsetHeight + 'px';
+          document.body.appendChild(v);
+          // 後ろの 明細を 巻かない（PDF だけ 巻く）
+          document.documentElement.style.overflow = 'hidden';
+          document.body.style.overflow = 'hidden';
+          document.getElementById('hnPdfTojiru').onclick = hnPdfTojiru;
+          document.getElementById('hnPdfOkuru').onclick = function () {
+            hnPdfMiruMsg('');
+            hnPdfWatasu(p);
+          };
+          document.getElementById('hnPdfInsatsu').onclick = function () {
+            hnPdfMiruMsg('');
+            // ホーム画面の アプリは 新しい 窓で 戻れなく なる＝共有の 画面（の「プリント」）を 使う
+            if (hnHomeApp()) {
+              hnPdfMiruMsg('出てきた 画面の「プリント」から 印刷してください。', true);
+              return hnPdfWatasu(p);
+            }
+            var url = URL.createObjectURL(p.blob);
+            var w = window.open(url, '_blank');
+            if (!w) {
+              URL.revokeObjectURL(url);
+              hnPdfMiruMsg('出てきた 画面の「プリント」から 印刷してください。', true);
+              return hnPdfWatasu(p);
+            }
+            // ★窓を 開いた 時も 必ず 案内★（LINE の 中の ブラウザ 等は 窓が 黙って 効かない＝hnPdfMado と 同じ 守り・対立役 S1）
+            hnPdfMiruMsg(
+              '開いた PDF の 共有 →「プリント」から 印刷してください。開かない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 開けない 事が あります）。',
+              true
+            );
+            setTimeout(function () {
+              URL.revokeObjectURL(url);
+            }, 60000);
+          };
+          var naka = document.getElementById('hnPdfMiruNaka');
+          var mada = function () {
+            return no === HN_NO && document.getElementById('hnPdfMiru') === v;
+          };
+          _withTimeout(hnPdfjs(), PDF_TIMEOUT_MS, 'PDF の 絵')
+            .then(function (lib) {
+              if (!mada()) return null;
+              return p.blob.arrayBuffer().then(function (buf) {
+                // isEvalSupported:false＝pdf.js 3.11 の 既知の 穴（CVE-2024-4367）の 道を 閉じる（読むのは 自分で 作った PDF だけ・対立役 N5）
+                return lib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false })
+                  .promise;
+              });
+            })
+            .then(function (pdf) {
+              if (!pdf || !mada()) return;
+              var haba = Math.max(280, Math.min(naka.clientWidth || 360, 900) - 16);
+              var dpr = Math.min(window.devicePixelRatio || 1, 3);
+              var junban = Promise.resolve();
+              var waku = document.createElement('div');
+              for (var i = 1; i <= pdf.numPages; i++)
+                (function (k) {
+                  junban = junban.then(function () {
+                    if (!mada()) return;
+                    return pdf.getPage(k).then(function (pg) {
+                      var vp1 = pg.getViewport({ scale: 1 });
+                      var vp = pg.getViewport({ scale: (haba / vp1.width) * dpr });
+                      var cv = document.createElement('canvas');
+                      cv.className = 'hn-pdf-miru-kami';
+                      cv.width = Math.round(vp.width);
+                      cv.height = Math.round(vp.height);
+                      cv.style.width = haba + 'px';
+                      cv.setAttribute('data-page', String(k));
+                      waku.appendChild(cv);
+                      return pg.render({ canvasContext: cv.getContext('2d'), viewport: vp })
+                        .promise;
+                    });
+                  });
+                })(i);
+              // ★描き終わったら（閉じた 時も）pdf.js の 裏の 仕事を 止める★（開く たびに 1つずつ 増えて 消えなかった・対立役 N1）
+              var owari = function () {
+                try {
+                  pdf.destroy();
+                } catch (_) {
+                  /* もう 止まっている */
+                }
+              };
+              return junban.then(
+                function () {
+                  owari();
+                  if (!mada()) return;
+                  naka.innerHTML = '';
+                  naka.appendChild(waku);
+                },
+                function (e) {
+                  owari();
+                  throw e;
+                }
+              );
+            })
+            .catch(function () {
+              if (!mada()) return;
+              // 絵に できなくても 保存・送る・印刷は 使える（PDF は もう できている）
+              naka.innerHTML = '';
+              hnPdfMiruMsg(
+                'PDF を 画面に 出せませんでした（通信）。上の「保存・送る」か「印刷」から 開いてください。'
+              );
+            });
         }
 
         // ★★給料明細を 出す＝事務所の 紙と 同じ 物★★
