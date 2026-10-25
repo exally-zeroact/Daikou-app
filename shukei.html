@@ -1811,8 +1811,9 @@
             }
           });
           SEIKYU_URI_NASHI = [];
+          // ★知らせも その年の 期間の 日だけ★ 2026-10-25（前は 前の 年の 12月 等の 日が 知らせに 混ざった＝お金は 下の 門で 既に 除いて いた）
           Object.keys(MEISAI_HI).forEach(function (d) {
-            if (!MEISAI_HI[d]) return;
+            if (!MEISAI_HI[d] || !tsukiNoHi(d)) return;
             if (!uriHi[d]) {
               if (uriTsuki[tsukiKagi(d)]) SEIKYU_URI_NASHI.push({ hi: d, meisai: MEISAI_HI[d] });
               return;
@@ -1820,7 +1821,7 @@
             seikyuHi[d] = MEISAI_HI[d];
           });
           Object.keys(utta).forEach(function (d) {
-            if (MEISAI_HI[d] && MEISAI_HI[d] !== utta[d]) {
+            if (MEISAI_HI[d] && MEISAI_HI[d] !== utta[d] && tsukiNoHi(d)) {
               SEIKYU_KUICHIGAI.push({ hi: d, utta: utta[d], meisai: MEISAI_HI[d] });
             }
             seikyuHi[d] = utta[d];

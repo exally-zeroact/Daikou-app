@@ -132,3 +132,30 @@ for (const [na, hyou, kitai] of [
     expect(err, '★画面が 落ちた★').toEqual([]);
   });
 }
+
+// ★前の 年の 日は 知らせに 出さない★ 2026-10-25（お金は 前から 「その年の 期間の 日だけ」・知らせだけ 門が 無かった）
+//   前の 年の 12/31 に 売上と 違う 額（打った 4,000／明細 5,000）・12/30 に 売上の 無い 日の 明細
+//   わざと壊す：shukei.html の 食い違いの 門（&& tsukiNoHi(d)）を 外す ⇒ 赤（12/31 入力 4,000円／アプリ 5,000円 が 出た・2026-10-25 実測）
+//   ★12/30（売上の 無い 日）は 門を 外しても 出ない★＝uriTsuki が その年の 売上の 月だけ＝明細の 側の 門は 重ねの 守り
+test('★請求書 ⑥ 前の 年の 日の 食い違い・売上の 無い 日は 知らせに 出さない★', async ({ page }) => {
+  const err = [];
+  page.on('pageerror', (e) => err.push(e.message));
+  const s0 = Object.assign({}, SHIFTS[0], {
+    shift_id: 's0',
+    started_at: '2025-12-31T20:00:00+09:00',
+    ended_at: '2026-01-01T03:00:00+09:00',
+    fare_total_yen: 20000,
+  });
+  const r = await hiraku(page, {
+    dk_shifts: [s0].concat(SHIFTS),
+    dk_shift_edits: [
+      { shift_id: 's0', toll_yen: 0, bridge_yen: 0, other_yen: 0, denshi_yen: 0, seikyu_yen: 4000 },
+    ],
+    meisai: [MS(10000), MS(5000, false, '2025-12-31'), MS(3000, false, '2025-12-30')],
+  });
+  // eslint-disable-next-line no-console
+  console.log('★⑥★ 知らせ=' + JSON.stringify(r.shirase));
+  expect(r.ji, '★現金が Excel（43,300）と 違う★').toContain('43,300');
+  expect(r.shirase, '★前の 年の 日が 知らせに 出た★').toBe('');
+  expect(err, '★画面が 落ちた★').toEqual([]);
+});
