@@ -41,6 +41,24 @@ export function kagiNoNa(f) {
 // ★ファイルごとの当てた後の確かめ★（2026-10-17 対立役 N7）棚の数だけでは、窓の列や守りが入ったか分からない。
 //   q を読んで ok(rows) が true の時だけ OK。
 export const ATO_NO_KAKUNIN = {
+  // ★請求書アプリの 明細の 日ごとの 合計★ 2026-10-25（5万行で 黙って 打ち切った 件・対立役 S3＝窓の 印を 数える）
+  'supabase/apply-dk-meisai-hi-goukei.sql': [
+    {
+      w: '窓 public.dk_meisai_hi_goukei が date・goukei・kensuu の 3列',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_meisai_hi_goukei' and column_name in ('date','goukei','kensuu')",
+      ok: (rows) => rows?.[0]?.n === 3,
+    },
+    {
+      w: '窓 public.dk_meisai_hi_goukei が security_invoker=true（見る 人の RLS が 効く）',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_meisai_hi_goukei' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: 'authenticated が 窓を 読める',
+      q: "select has_table_privilege('authenticated','public.dk_meisai_hi_goukei','select') as ok",
+      ok: (rows) => rows?.[0]?.ok === true,
+    },
+  ],
   // ★メーターの 車の 回数・距離の 直し★ 2026-10-25（対立役 止3＝窓に 出ないと 黙って 直らない）
   'supabase/apply-kazu-naoshi.sql': [
     {

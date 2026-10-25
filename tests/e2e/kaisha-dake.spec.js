@@ -56,8 +56,12 @@ async function hiraku(page, ura) {
   await page.waitForTimeout(2600);
 }
 
+// ★請求の 窓（頭は dk_ だが 中身は 請求書アプリの 明細＝company_id の 列が 無い）★ 2026-10-25
+//   会社で 絞ると 倉庫が 400 を 返し 月次集計が 全部 止まる＝名指しで 外し、絞って いない 事を 別に 見る
+const SEIKYU_MADO = ['dk_meisai_hi_goukei'];
+const seikyuMado = (p) => SEIKYU_MADO.indexOf(String(p).split('?')[0]) >= 0;
 function mite(yomi, saitei) {
-  const dk = yomi.filter((p) => /^dk_/.test(p));
+  const dk = yomi.filter((p) => /^dk_/.test(p) && !seikyuMado(p));
   const nuke = dk.filter((p) => p.indexOf('company_id=eq.' + encodeURIComponent(CO)) < 0);
   expect(dk.length, 'ダイコメの 表の 読みが 少な過ぎる（数えて いない）').toBeGreaterThanOrEqual(
     saitei
@@ -92,6 +96,13 @@ test('月次の 画面は ダイコメの 表を 全部 この 会社だけに �
   const yomi = await page.evaluate(() => window.__yomi);
   mite(yomi, 8);
   expect(yomi.filter((p) => /^meisai/.test(p) && p.indexOf('company_id=') >= 0)).toEqual([]);
+  // 請求の 窓は 読む・会社で 絞らない（わざと壊す：meisaiZenbu を kaishaDake に 通す ⇒ ★赤★）
+  const mado = yomi.filter(seikyuMado);
+  expect(mado.length, '★請求の 窓を 読んで いない★').toBeGreaterThan(0);
+  expect(
+    mado.filter((p) => p.indexOf('company_id=') >= 0),
+    '★請求の 窓を 会社で 絞った（400 で 止まる）★'
+  ).toEqual([]);
 });
 
 test('売上の 画面は ダイコメの 表を 全部 この 会社だけに 絞って 読む', async ({ page }) => {

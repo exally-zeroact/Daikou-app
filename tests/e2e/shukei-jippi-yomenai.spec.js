@@ -64,10 +64,9 @@ const LABELS = [
 // ★★請求書の もと＝請求書アプリの 明細（meisai）★★ 2026-10-06（1/5 に 6,000円）
 //   ★消した 明細（9,999円）は 数えない★／★運転手の アプリの 請求書払い（TRIPS）は もう 数えない★
 //   （TRIPS を 6,000 の まま 残す＝二重に 数えたら 現金が 46,000 に なって 赤）
-const MEISAI = [
-  { date: '2026-01-05', amount: 6000, deleted_at: null },
-  { date: '2026-01-05', amount: 9999, deleted_at: '2026-01-06T00:00:00Z' },
-];
+//   ★2026-10-25 から 倉庫の 窓 dk_meisai_hi_goukei が 日ごとに 足した 額を 返す★（消した 明細は 窓の 中で 除く＝
+//   supabase/apply-dk-meisai-hi-goukei.sql・当てた 後の 確かめ ATO_NO_KAKUNIN）＝まねは 窓の 返りの 形（1日 1行）
+const MEISAI = [{ date: '2026-01-05', goukei: 6000 }];
 // 運転手の アプリの 請求書払い（1/5 に 6,000円）＝もう 足さない
 const TRIPS = [
   { fare_yen: 6000, started_at: '2026-01-05T21:00:00+09:00', payment_type: 'invoice' },
@@ -83,7 +82,7 @@ function tsukuru(yomenai) {
     dk_shift_edits: EDITS,
     dk_device_labels: LABELS,
     dk_trips: TRIPS,
-    meisai: MEISAI,
+    dk_meisai_hi_goukei: MEISAI,
     dk_day_extras: DAY_EXTRAS,
   };
   const nakami = function (co, T, Y) {

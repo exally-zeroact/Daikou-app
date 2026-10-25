@@ -1421,30 +1421,34 @@
           el.textContent = t;
           el.style.display = t ? '' : 'none';
         }
+        // ★★請求書アプリの 明細は 倉庫で 日ごとに 足した 額を 読む★★ 2026-10-25
+        //   司さん「このようなシステムを使ってるサイトはどうしとんど？読み込めんってありえんやろが」
+        //   前：明細を 1行ずつ 1000行 ごとに 運び、5万行で 黙って 打ち切った（越えると 請求書の 額が 数えられず 現金が 多く 出た）
+        //   今：窓 dk_meisai_hi_goukei（supabase/apply-dk-meisai-hi-goukei.sql・生きている 行を 日ごとに 足す）を 1回 読む
+        //       ＝来るのは 日の 数だけ（前の 年の 12/1〜今年の 12/31＝最大 397行）・明細が 何万行 在っても 変わらない
+        //   ★1000行 返ったら 読めなかった 事に する★（倉庫は 1回 1000行まで＝切れた かも しれない 額を 出さない）
+        //   ★会社で 絞らない★（請求の 窓に company_id の 列は 無い＝付けると 400 で 全部 止まる・kaishaDake を 通さない）
         function meisaiZenbu(st) {
           if (KAISHA_KAZU > 1) return Promise.resolve([]);
-          var out = [];
           var KAI = 1000;
-          function tsugi(from) {
-            return DKSession.softList(
-              SESS,
-              // ★前の 年の 12月から★ 2026-10-24（会社の 締めの 1月＝前の 年の 12/(締め日+1)〜・数えるのは その年の 期間の 日だけ＝recalc）
-              'meisai?select=date,amount,deleted_at&deleted_at=is.null&date=gte.' +
-                (YEAR - 1) +
-                '-12-01&date=lte.' +
-                YEAR +
-                '-12-31&order=date.asc,id.asc&limit=' +
-                KAI +
-                '&offset=' +
-                from,
-              st
-            ).then(function (r) {
-              var a = Array.isArray(r) ? r : [];
-              out = out.concat(a);
-              return a.length === KAI && from < 50000 ? tsugi(from + KAI) : out;
-            });
-          }
-          return tsugi(0);
+          return DKSession.softList(
+            SESS,
+            // ★前の 年の 12月から★ 2026-10-24（会社の 締めの 1月＝前の 年の 12/(締め日+1)〜・数えるのは その年の 期間の 日だけ＝recalc）
+            'dk_meisai_hi_goukei?select=date,goukei&date=gte.' +
+              (YEAR - 1) +
+              '-12-01&date=lte.' +
+              YEAR +
+              '-12-31&order=date.asc&limit=' +
+              KAI,
+            st
+          ).then(function (r) {
+            var a = Array.isArray(r) ? r : [];
+            if (a.length >= KAI) {
+              if (st) st.failed++;
+              return [];
+            }
+            return a;
+          });
         }
         // ★★ダイコメの 表を 読む 時は この 会社だけに 絞る★★ 2026-10-17
         //   前は 会社で 絞らず 読んでいた（設定は limit=1）＝会社を 2つ 持つ 人は 別の 会社の 歩合・人・売上が 混ざる
@@ -1575,7 +1579,7 @@
             //   前は ★運転手の アプリで「請求書払い」を 押した 代行（dk_trips）だけ★ を 数えていた
             //   ＝請求書アプリに 手で 入れた 明細（本番 1221行）は 1円も 入っていなかった。
             //   明細の 日付は ★業務の 日★（dk-sync-jobs の businessDate）＝売上と 同じ 日に 載る。
-            //   ★消した 明細（deleted_at）は 数えない★／★1000行 ずつ 全部 読む★（倉庫は 1回 1000行まで）
+            //   ★消した 明細（deleted_at）は 数えない★／★倉庫で 日ごとに 足した 額を 1回 読む★（2026-10-25・meisaiZenbu）
             meisaiZenbu(ky),
             soft('dk_month_extras?select=*&limit=200'),
             // ★★日ごとの 電子決済★★ 2026-09-06
@@ -1691,12 +1695,12 @@
             // ★手当・控除★ 2026-10-06（司さん「ア」＝月次集計の 給料と 会社に 残る分も 動く）
             RAW.adjustments = res[11] || [];
 
-            // ★請求書アプリの 明細を 日ごとに まとめる★
+            // ★請求書アプリの 明細の 日ごとの 額★（倉庫で 足した 額・消した 明細は 窓の 中で 除いて ある＝meisaiZenbu）
             MEISAI_HI = {};
             (res[7] || []).forEach(function (m) {
-              if (!m || m.deleted_at || !m.date) return;
+              if (!m || !m.date) return;
               var d = String(m.date).slice(0, 10);
-              MEISAI_HI[d] = (MEISAI_HI[d] || 0) + num(m.amount);
+              MEISAI_HI[d] = (MEISAI_HI[d] || 0) + num(m.goukei);
             });
             PAYMENTS = [];
 

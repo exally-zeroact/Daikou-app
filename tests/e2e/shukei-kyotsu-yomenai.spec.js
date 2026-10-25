@@ -66,10 +66,9 @@ const LABELS = [
 // ★★請求書の もと＝請求書アプリの 明細（meisai）★★ 2026-10-06（1/5 に 6,000円）
 //   ★消した 明細（9,999円）は 数えない★／★運転手の アプリの 請求書払い（TRIPS）は もう 数えない★
 //   （TRIPS を 6,000 の まま 残す＝二重に 数えたら 現金が 46,000 に なって 赤）
-const MEISAI = [
-  { date: '2026-01-05', amount: 6000, deleted_at: null },
-  { date: '2026-01-05', amount: 9999, deleted_at: '2026-01-06T00:00:00Z' },
-];
+//   ★2026-10-25 から 倉庫の 窓 dk_meisai_hi_goukei が 日ごとに 足した 額を 返す★（消した 明細は 窓の 中で 除く＝
+//   supabase/apply-dk-meisai-hi-goukei.sql・当てた 後の 確かめ ATO_NO_KAKUNIN）＝まねは 窓の 返りの 形（1日 1行）
+const MEISAI = [{ date: '2026-01-05', goukei: 6000 }];
 // 運転手の アプリの 請求書払い（1/5 に 6,000円）＝もう 足さない
 const TRIPS = [
   { fare_yen: 6000, started_at: '2026-01-05T21:00:00+09:00', payment_type: 'invoice' },
@@ -81,7 +80,7 @@ const DAY_EXTRAS = [{ pay_date: '2026-01-05', denshi_yen: 4000 }];
 function umekusa(na, n) {
   const out = [];
   for (let i = 0; i < n; i++) {
-    if (na === 'meisai') out.push({ date: '2026-02-01', amount: 0, deleted_at: null });
+    if (na === 'dk_meisai_hi_goukei') out.push({ date: '2026-02-01', goukei: 0 });
     else
       out.push({
         shift_id: 'u' + i,
@@ -106,10 +105,13 @@ function tsukuru(dame, nimaime) {
     dk_shift_edits: EDITS,
     dk_device_labels: LABELS,
     dk_trips: TRIPS,
-    meisai: MEISAI,
+    dk_meisai_hi_goukei: MEISAI,
     dk_day_extras: DAY_EXTRAS,
   };
-  const ume = { dk_shifts: umekusa('dk_shifts', 1000), meisai: umekusa('meisai', 1000) };
+  const ume = {
+    dk_shifts: umekusa('dk_shifts', 1000),
+    dk_meisai_hi_goukei: umekusa('dk_meisai_hi_goukei', 1000),
+  };
   const nakami = function (co, T, D, N, U) {
     const S = window.DKSession;
     window.__dame = D; // 読めない 表（全部の 読み）
@@ -232,7 +234,7 @@ for (const na of [
   'dk_employees',
   'dk_work_hours',
   // dk_sales_settings は 2026-10-24 件J で 読まなくした（入れた 実費は 全部 引く）
-  'meisai',
+  'dk_meisai_hi_goukei',
   'dk_month_extras',
   'dk_day_extras',
   'dk_pay_adjustments',
@@ -246,7 +248,9 @@ for (const na of [
 }
 
 // 1000行 ずつ 読む 表は 1枚目が 読めて 2枚目で 切れる 形も 在る（対立役 指摘3）
-for (const na of ['dk_shifts', 'meisai']) {
+//   ★請求書の 窓（dk_meisai_hi_goukei）は 1回 読み＝1000行 返ったら（切れた かも しれない）止める★ 2026-10-25
+//   わざと壊す：meisaiZenbu の「a.length >= KAI」で failed を 数えない ⇒ ★赤★（紙と 売上が 出る）
+for (const na of ['dk_shifts', 'dk_meisai_hi_goukei']) {
   test(`★${na} が 2枚目（1000行 目から）で 読めない 年も 止める★`, async ({ page }) => {
     await akeru(page, [], [na]);
     await tomatta(page, na + ' の 2枚目');

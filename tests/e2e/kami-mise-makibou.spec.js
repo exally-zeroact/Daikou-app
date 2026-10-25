@@ -41,7 +41,7 @@ const T = {
   dk_shift_edits: [],
   dk_device_labels: [{ device_id: 'd1', label: '4987', sort_order: 1 }],
   dk_trips: [],
-  meisai: [],
+  dk_meisai_hi_goukei: [],
   dk_day_extras: [],
 };
 function sess() {

@@ -52,7 +52,7 @@ function tsukuru(dir, hyou) {
     'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co,list:[co]};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
-    'S.softList=function(s,p,st){if(st)st.tried++;return Promise.resolve(rows(p));};})();'
+    'S.softList=function(s,p,st){(window.__yomi=window.__yomi||[]).push(String(p));if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
 }
 
@@ -83,26 +83,23 @@ async function hiraku(page, hyou) {
 const ED = (seikyu) => [
   { shift_id: 's1', toll_yen: 0, bridge_yen: 0, other_yen: 0, denshi_yen: 0, seikyu_yen: seikyu },
 ];
-const MS = (amount, deleted, date) => ({
-  date: date || '2026-10-03',
-  amount: amount,
-  deleted_at: deleted ? '2026-10-04T00:00:00Z' : null,
-});
+// ★2026-10-25 から 請求書の もとは 倉庫の 窓 dk_meisai_hi_goukei（日ごとに 足した 額・消した 明細は 窓の 中で 除く）★
+//   まねは 窓の 返りの 形（1日 1行 { date, goukei }）。消した 明細を 除くのは 倉庫（ATO_NO_KAKUNIN と 当てた 後の 突き合わせ）
+const MS = (goukei, date) => ({ date: date || '2026-10-03', goukei: goukei });
 
 for (const [na, hyou, kitai] of [
   ['① 入力で 打った 額だけ', { dk_shift_edits: ED(10000) }, { shirase: false }],
-  ['② 請求書アプリの 明細だけ', { meisai: [MS(10000)] }, { shirase: false }],
+  ['② 請求書アプリの 明細だけ', { dk_meisai_hi_goukei: [MS(10000)] }, { shirase: false }],
   [
     '③ 両方に 違う 額（打った 額を 使い 知らせを 出す・足さない）',
-    { dk_shift_edits: ED(10000), meisai: [MS(12000)] },
+    { dk_shift_edits: ED(10000), dk_meisai_hi_goukei: [MS(12000)] },
     { shirase: true, nai: ['31,300', '22,000'] },
   ],
-  ['④ 消した 明細は 数えない', { meisai: [MS(10000), MS(7777, true)] }, { shirase: false }],
   [
     // ★売上の 無い 日の 明細は 数えない★（請求書アプリは 1月から・ダイコメの 売上は 8月から＝引くと 現金が マイナス）
     //   同じ 月（10/5）は 知らせに 出す／売上の 無い 月（7/10）は 黙って 数えない
     '⑤ 売上の 無い 日の 明細は 数えない',
-    { meisai: [MS(10000), MS(5000, false, '2026-10-05'), MS(3000, false, '2026-07-10')] },
+    { dk_meisai_hi_goukei: [MS(10000), MS(5000, '2026-10-05'), MS(3000, '2026-07-10')] },
     { shirase: '10/5', nai: ['38,300', '35,300', '15,000'] },
   ],
 ]) {
@@ -151,11 +148,36 @@ test('★請求書 ⑥ 前の 年の 日の 食い違い・売上の 無い 日�
     dk_shift_edits: [
       { shift_id: 's0', toll_yen: 0, bridge_yen: 0, other_yen: 0, denshi_yen: 0, seikyu_yen: 4000 },
     ],
-    meisai: [MS(10000), MS(5000, false, '2025-12-31'), MS(3000, false, '2025-12-30')],
+    dk_meisai_hi_goukei: [MS(10000), MS(5000, '2025-12-31'), MS(3000, '2025-12-30')],
   });
   // eslint-disable-next-line no-console
   console.log('★⑥★ 知らせ=' + JSON.stringify(r.shirase));
   expect(r.ji, '★現金が Excel（43,300）と 違う★').toContain('43,300');
   expect(r.shirase, '★前の 年の 日が 知らせに 出た★').toBe('');
   expect(err, '★画面が 落ちた★').toEqual([]);
+});
+
+// ★④ 請求書の もとは 窓を 1回 読む・その年の 窓（前の 年の 12/1〜今年の 12/31）・会社で 絞らない・明細の 行は 読まない★ 2026-10-25
+//   司さん「読み込めんってありえんやろが」＝前は 明細を 1000行 ずつ 運び 5万行で 黙って 打ち切った
+//   わざと壊す：meisaiZenbu の 日付の 絞りを 外す／kaishaDake を 通す ⇒ ★赤★
+test('★請求書 ④ 窓 dk_meisai_hi_goukei を その年の 日付で 1回 読む（明細の 行は 読まない）★', async ({
+  page,
+}) => {
+  await hiraku(page, { dk_meisai_hi_goukei: [MS(10000)] });
+  const yomi = await page.evaluate(() => window.__yomi || []);
+  const mado = yomi.filter((p) => p.indexOf('dk_meisai_hi_goukei?') === 0);
+  expect(mado.length, '★窓を 読んで いない★').toBeGreaterThan(0);
+  mado.forEach((p) => {
+    expect(p).toContain('select=date,goukei');
+    expect(p).toContain('date=gte.2025-12-01');
+    expect(p).toContain('date=lte.2026-12-31');
+    expect(p, '★窓に company_id の 列は 無い（付けると 400 で 全部 止まる）★').not.toContain(
+      'company_id='
+    );
+    expect(p, '★1000行 より 多く 頼むと 黙って ページ読みに 入る★').toContain('limit=1000');
+  });
+  expect(
+    yomi.filter((p) => /^meisai?/.test(p)),
+    '★明細の 行を 読んだ★'
+  ).toEqual([]);
 });
