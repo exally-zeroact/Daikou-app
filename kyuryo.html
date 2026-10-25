@@ -1291,6 +1291,57 @@
         color: var(--danger);
       }
 
+      /* ★送る 範囲（この 期間｜1か月分）と 明細の コピー★ 2026-10-25 */
+      .hn-hani {
+        display: inline-flex;
+        margin: 0 0 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+
+      .hn-hani-b {
+        min-height: 40px;
+        padding: 0 16px;
+        border: 0;
+        background: #fff;
+        color: var(--ink);
+        font-family: inherit;
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .hn-hani-b.on {
+        background: var(--blue);
+        color: #fff;
+        font-weight: 700;
+      }
+
+      .hn-pdf-gyou {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+      }
+
+      .hn-copy-msg {
+        margin-top: 6px;
+        color: var(--ink);
+      }
+
+      .hn-copy-hako {
+        display: block;
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 160px;
+        margin-top: 8px;
+        padding: 8px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+
       /* ★作った PDF を 画面の 中に 開く★ 2026-10-25（見本＝代行請求書の 実PDFを 描く 形） */
       .hn-pdf-miru {
         position: fixed;
@@ -2800,6 +2851,197 @@
         //   ・事務所の printOne は 使わない（本人の 画面には #slip-0 が 無い・YM は 本人の 月を 持たない＝対立役）
         //   ・★月・期間を 替えたら 作った PDF を 捨てる★（HN_NO が 印・作っている 途中に 替えても 古い 物を 渡さない）
         var HN_NO = 0; // 月・期間を 替えた 回数
+        // ★★送る 範囲★★ 2026-10-25 司さん「従業員のページやから送るとしたら1ヶ月分をまとめてや選択してるものだけ
+        //   明細をコピーやLINEなどで送れるようにするべきやろ」（見本＝代行請求書の「全社／会社ごと」の PDF）
+        //   'ki'＝見ている 期間だけ（今まで 通り）／'tsuki'＝その 月の 期間を 全部 1つに（期間が 2つ以上の 月だけ 選べる）
+        //   ★全体で 1つの 変数に 持つ★（画面の 幅が 変わると honninKami が 描き直す＝DOM に 持つと 戻る・対立役 任4）
+        var HN_HANI = 'ki';
+        function hnHani() {
+          return HN_HANI === 'tsuki' && PERIODS && PERIODS.length > 1 ? 'tsuki' : 'ki';
+        }
+        function hnHaniKaeru(h) {
+          if (HN_HANI === h) return;
+          HN_HANI = h;
+          hnPdfSuteru(); // ★範囲を 替えたら 作った PDF を 捨てる★（前の 範囲の PDF を 渡さない）
+          honninKami();
+        }
+        // ★1か月分の 期間ごとの 明細★ → { ki: [{ p, e, rp, tochu }] } ／ 止める 時は { dame: 字 }
+        //   ★出すのは 記録の 在る 期間だけ★（働いた 日 か 手当・控除＝report は 勤め始めた 後の 期間なら 0円の 行も 返す＝
+        //   まだ 来て いない 期間を ¥0 の 明細に しない・対立役 止1）
+        //   ★記録が 在るのに 行が 無い 期間は 止める★（計算が 転んだ 期間を 黙って 飛ばすと 合計が 少なく 出る・対立役 止2）
+        //   CTX は 月の 全部の 期間の 日を 持つ（取る 幅は 前の 月の 1日〜次の 月の 末日・はみ出せば 広げて 取り直す）
+        function hnTsukiNoKi() {
+          var hd = (CTX && CTX.hoursByDate) || {};
+          var ad = (CTX && CTX.adjByDate) || {};
+          var kyou = kyouJst();
+          var ki = [];
+          for (var i = 0; i < (PERIODS || []).length; i++) {
+            var p = PERIODS[i];
+            var rp = PayrollDaily.report(p.dates || [], CTX);
+            var e = rp && rp.employees ? rp.employees[0] : null;
+            var aru = !!e && (e.workedDays > 0 || (e.adj || []).length > 0);
+            if (!aru) {
+              var kiroku = (p.dates || []).some(function (d) {
+                return (hd[d] && Object.keys(hd[d]).length) || (ad[d] && ad[d].length);
+              });
+              if (kiroku)
+                return {
+                  dame:
+                    String(p.rangeLabel || '') +
+                    ' の 明細を 計算できませんでした。画面を 開き直してください（直らない 時は 会社に 知らせてください）。',
+                };
+              continue;
+            }
+            ki.push({ p: p, e: e, rp: rp, tochu: p.start <= kyou && kyou <= p.end });
+          }
+          if (!ki.length) return { dame: 'この 月の 記録は ありません。' };
+          return { ki: ki };
+        }
+        // ★紙と 同じ 字の 行★（働いた 分／＋手当／−控除／＝差引支給・yen＝Math.round・紙の adjMigi と 同じ 組み方・対立役 任2）
+        function meisaiJiGyou(e) {
+          var gyou = ['働いた 分 ¥' + yen(e.kasegi)];
+          (e.adj || []).forEach(function (a) {
+            var na = a.label || (a.kind === 'koujo' ? '控除' : '手当');
+            gyou.push((a.kind === 'koujo' ? '− ' : '＋ ') + na + ' ¥' + yen(a.yen));
+          });
+          return { gyou: gyou, owari: '＝ 差引 支給 ¥' + yen(e.totalPay) };
+        }
+        // ★明細を 字に★（見出しは 紙と 同じ 期間の 名前＝p.year・p.label・p.rangeLabel・対立役 任1）
+        function hnMeisaiJi(ki) {
+          var out = [];
+          var goukei = 0;
+          ki.forEach(function (k) {
+            var e = k.e;
+            var j = meisaiJiGyou(e);
+            out.push(
+              '【給料明細】' +
+                k.p.year +
+                '年 ' +
+                k.p.label +
+                '（' +
+                k.p.rangeLabel +
+                '）' +
+                (k.tochu ? '（途中）' : '')
+            );
+            out.push(String(e.name || ''));
+            out.push('働いた 時間 ' + hrs(e.totalHours) + ' 時間');
+            j.gyou.forEach(function (g) {
+              out.push(g);
+            });
+            out.push(j.owari);
+            out.push('');
+            goukei += PayrollDaily.haraiGaku(e.totalPay); // ★丸めてから 足す★（払う 額＝明細の 差引支給）
+          });
+          if (ki.length > 1) {
+            out.push(
+              '1か月の 差引 支給 合計 ¥' +
+                yen(goukei) +
+                (ki.some(function (k) {
+                  return k.tochu;
+                })
+                  ? '（途中の 期間を 含む）'
+                  : '')
+            );
+          }
+          return out.join('\n').replace(/\n+$/, '');
+        }
+        // 今の 範囲の 明細（字・PDF の もと）→ { ki } ／ { dame }
+        function hnHaniNoKi() {
+          if (HN_KEISAN_NG || !REP) return { dame: HN_KEISAN_NG_BUN };
+          if (kyuDameBun(CTX)) return { dame: kyuDameBun(CTX) };
+          if (hnHani() === 'tsuki') return hnTsukiNoKi();
+          var e = REP.employees ? REP.employees[0] : null;
+          if (!e) return { dame: 'この 期間の 記録は ありません。' };
+          var kyou = kyouJst();
+          return {
+            ki: [
+              {
+                p: PERIOD,
+                e: e,
+                rp: REP,
+                tochu: !!PERIOD && PERIOD.start <= kyou && kyou <= PERIOD.end,
+              },
+            ],
+          };
+        }
+        // ★明細を コピー★ できたかは 返りで 決める（返りを 待たずに「コピーしました」と 言わない・対立役 任3）
+        //   効かない 端末（LINE の 中 等）・3秒 返らない 時は 字を 選べる 箱に 出す
+        function hnCopyMsg(bun) {
+          var el = document.getElementById('hnCopyMsg');
+          if (!el) return;
+          el.textContent = bun || '';
+          el.hidden = !bun;
+        }
+        function hnCopyHako(ji) {
+          var w = document.getElementById('hnCopyWaku');
+          if (!w) return;
+          w.innerHTML = '<textarea class="hn-copy-hako" id="hnCopyHako" readonly></textarea>';
+          var t = document.getElementById('hnCopyHako');
+          t.value = ji;
+          try {
+            t.focus();
+            t.select();
+          } catch (_) {
+            /* 選べない 端末 */
+          }
+          hnCopyMsg('下の 字を 長押しして「コピー」を 押してください。');
+        }
+        function honninCopy() {
+          hnPdfErr('');
+          hnCopyMsg('');
+          var w = document.getElementById('hnCopyWaku');
+          if (w) w.innerHTML = '';
+          var h = hnHaniNoKi();
+          if (h.dame) return hnPdfErr(h.dame);
+          var ji = hnMeisaiJi(h.ki);
+          var no = HN_NO;
+          var owatta = false;
+          var cb = window.navigator && window.navigator.clipboard;
+          if (!cb || typeof cb.writeText !== 'function') return hnCopyHako(ji);
+          var tm = setTimeout(function () {
+            if (owatta || no !== HN_NO) return;
+            owatta = true;
+            hnCopyHako(ji);
+          }, 3000);
+          var p;
+          try {
+            p = cb.writeText(ji);
+          } catch (_) {
+            p = Promise.reject(new Error('copy'));
+          }
+          Promise.resolve(p).then(
+            function () {
+              clearTimeout(tm);
+              if (owatta || no !== HN_NO) return;
+              owatta = true;
+              hnCopyMsg('コピーしました。LINE などに 貼り付けて 送れます。');
+            },
+            function () {
+              clearTimeout(tm);
+              if (owatta || no !== HN_NO) return;
+              owatta = true;
+              hnCopyHako(ji);
+            }
+          );
+        }
+        // ★字で 送る★（共有の 画面＝LINE などを 選ぶ・押した その 時に 開く）。共有が 無い 端末には ボタンを 出さない
+        function hnJiOkuruAru() {
+          return typeof (window.navigator && window.navigator.share) === 'function';
+        }
+        function honninJiOkuru() {
+          hnPdfErr('');
+          var h = hnHaniNoKi();
+          if (h.dame) return hnPdfErr(h.dame);
+          var ji = hnMeisaiJi(h.ki);
+          try {
+            window.navigator.share({ text: ji }).catch(function (e) {
+              if (e && (e.name === 'AbortError' || e.name === 'InvalidStateError')) return;
+              hnCopyHako(ji);
+            });
+          } catch (_) {
+            hnCopyHako(ji);
+          }
+        }
         var HN_PDF = null; // 作った PDF { no, blob, name }
         var HN_PDF_CHU = -1; // 作っている 途中の 印（HN_NO と 同じ 時だけ 作っている 途中）
         function hnPdfSuteru() {
@@ -2812,7 +3054,9 @@
         }
         function hnPdfJi() {
           if (HN_PDF_CHU === HN_NO) return 'PDFを 作っています…';
-          return 'PDFを 開く（保存・印刷）';
+          return hnHani() === 'tsuki'
+            ? '1か月分の PDFを 開く（保存・印刷）'
+            : 'PDFを 開く（保存・印刷）';
         }
         function hnPdfBotan() {
           var b = document.getElementById('hnPdf');
@@ -2830,7 +3074,8 @@
         // ★名前は 本人が 見ている 月から★（事務所の YM は 本人の 月を 持たない・期間が 2つ以上の 月は 期間も 付ける）
         function hnPdfNamae(emp) {
           var nm = '給料明細_' + HN_Y + '-' + String(HN_M).padStart(2, '0');
-          if (PERIODS && PERIODS.length > 1 && PERIOD)
+          if (hnHani() === 'tsuki') nm += '_1か月分';
+          else if (PERIODS && PERIODS.length > 1 && PERIOD)
             nm += '_' + String(PERIOD.start).slice(5) + '〜' + String(PERIOD.end).slice(5);
           nm += '_' + String((emp && emp.name) || '');
           return nm.replace(/[\\/:*?"<>|]/g, '_') + '.pdf';
@@ -2839,10 +3084,9 @@
           hnPdfErr('');
           if (hnPdfAru()) return hnPdfMiseru(HN_PDF);
           if (HN_PDF_CHU === HN_NO) return;
-          if (HN_KEISAN_NG || !REP) return hnPdfErr(HN_KEISAN_NG_BUN);
-          if (kyuDameBun(CTX)) return hnPdfErr(kyuDameBun(CTX));
-          var emp = REP && REP.employees ? REP.employees[0] : null;
-          if (!emp) return hnPdfErr('この月の 記録は ありません。');
+          var h = hnHaniNoKi();
+          if (h.dame) return hnPdfErr(h.dame);
+          var emp = h.ki[0].e;
           var no = HN_NO;
           var dougu = false;
           HN_PDF_CHU = no;
@@ -2854,12 +3098,24 @@
               if (no !== HN_NO) return null;
               if (typeof E.tsukuru !== 'function') throw new Error('PDF の 道具が 古い');
               // ★字体を 読んだ 後で 測る★（事務所の hamiTomeru と 同じ・控えの 字体で 測ると 食い違う）
-              if (window.__paper.maisu(0).hamidasu) throw new Error('hamidasu');
-              return _withTimeout(
-                E.tsukuru(_empSheets(emp, slipCars(REP.cars, emp.employee_id)), KAMI_KATA),
-                PDF_TIMEOUT_MS,
-                'PDF'
-              );
+              // ★1か月分は 期間ごとに 紙を 組んで 1つの PDF に★（期間の 順・見出しは その 期間＝PERIOD を 一時 替えて finally で 戻す
+              //   ＝テンプレの 見本 tplMihon と 同じ 形・事務所の printAll の concat と 同じ）
+              var sheets = [];
+              h.ki.forEach(function (k) {
+                var mae = PERIOD;
+                try {
+                  PERIOD = k.p;
+                  var cars = slipCars(k.rp.cars, k.e.employee_id);
+                  if (_maisu(k.e, showCarSalesNow(), cars).hamidasu)
+                    throw new Error(
+                      'hamidasu:' + (h.ki.length > 1 ? String(k.p.rangeLabel || '') : '')
+                    );
+                  sheets = sheets.concat(_empSheets(k.e, cars));
+                } finally {
+                  PERIOD = mae;
+                }
+              });
+              return _withTimeout(E.tsukuru(sheets, KAMI_KATA), PDF_TIMEOUT_MS, 'PDF');
             })
             .then(function (d) {
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
@@ -2873,9 +3129,10 @@
               if (no !== HN_NO) return;
               hnPdfBotan();
               var m = String((err && err.message) || err || '');
-              if (m === 'hamidasu')
+              if (m.indexOf('hamidasu:') === 0)
                 return hnPdfErr(
-                  '手当・控除が 多すぎて 明細の 紙に 入らないので PDF は 作りません。会社に 知らせてください。'
+                  (m.slice(9) ? m.slice(9) + ' の ' : '') +
+                    '手当・控除が 多すぎて 明細の 紙に 入らないので PDF は 作りません。会社に 知らせてください。'
                 );
               if (m.indexOf('PDF が ') === 0)
                 return hnPdfErr(
@@ -3183,11 +3440,28 @@
           }
           var n = window.__paper && window.__paper.ninzu ? window.__paper.ninzu() : 0;
           // ★本人の PDF（保存・印刷）★ 2026-10-21（記録の 在る 月だけ）
-          if (n)
+          // ★送る★ 2026-10-25（期間が 2つ以上の 月は 範囲を 選べる＝この 期間 だけ／1か月分 まとめて）
+          var hnFuku = !!(PERIODS && PERIODS.length > 1);
+          if (n || hnFuku)
             atama +=
-              '<div class="hn-pdf"><button class="hn-pdf-b" id="hnPdf">' +
+              '<div class="hn-pdf">' +
+              (hnFuku
+                ? '<div class="hn-hani" role="group" aria-label="送る 範囲">' +
+                  '<button class="hn-hani-b' +
+                  (hnHani() === 'ki' ? ' on' : '') +
+                  '" data-hani="ki">この 期間</button>' +
+                  '<button class="hn-hani-b' +
+                  (hnHani() === 'tsuki' ? ' on' : '') +
+                  '" data-hani="tsuki">1か月分</button></div>'
+                : '') +
+              '<div class="hn-pdf-gyou"><button class="hn-pdf-b" id="hnPdf">' +
               esc(hnPdfJi()) +
-              '</button><div class="msg hn-pdf-err" id="hnPdfErr" hidden></div></div>';
+              '</button><button class="hn-pdf-b" id="hnCopy">明細を コピー</button>' +
+              (hnJiOkuruAru()
+                ? '<button class="hn-pdf-b" id="hnJiOkuru">字で 送る（LINE など）</button>'
+                : '') +
+              '</div><div class="msg hn-pdf-err" id="hnPdfErr" hidden></div>' +
+              '<div class="msg hn-copy-msg" id="hnCopyMsg" hidden></div><div id="hnCopyWaku"></div></div>';
           // ★箱の 高さを 保って 入れ替える★ 2026-10-23（事務所の renderSlips と 同じ：空の 箱で 幅を 測ると 巻いた 位置が 詰まる）
           var hnTamotsu = box.offsetHeight;
           if (hnTamotsu) box.style.minHeight = hnTamotsu + 'px';
@@ -3195,6 +3469,15 @@
           hnPdfBotan();
           var pdfB = document.getElementById('hnPdf');
           if (pdfB) pdfB.onclick = honninPdf;
+          var copyB = document.getElementById('hnCopy');
+          if (copyB) copyB.onclick = honninCopy;
+          var jiB = document.getElementById('hnJiOkuru');
+          if (jiB) jiB.onclick = honninJiOkuru;
+          Array.prototype.forEach.call(box.querySelectorAll('[data-hani]'), function (b) {
+            b.onclick = function () {
+              hnHaniKaeru(b.getAttribute('data-hani'));
+            };
+          });
 
           var mado = document.getElementById('hnKami');
           if (!n) {
@@ -5393,12 +5676,9 @@
         function adjMigi(e, areaW) {
           var nashi = { ok: false, cap: 0, html: '', n: 0 };
           if (!e || !(e.teate || e.koujo)) return nashi;
-          var gyou = ['働いた 分 ¥' + yen(e.kasegi)];
-          (e.adj || []).forEach(function (a) {
-            var na = a.label || (a.kind === 'koujo' ? '控除' : '手当');
-            gyou.push((a.kind === 'koujo' ? '− ' : '＋ ') + na + ' ¥' + yen(a.yen));
-          });
-          var owari = '＝ 差引 支給 ¥' + yen(e.totalPay);
+          var mj = meisaiJiGyou(e); // ★本人の「明細を コピー」と 同じ 行★（2026-10-25）
+          var gyou = mj.gyou;
+          var owari = mj.owari;
           var haba = _textW(owari, MIGI_PX, 700);
           gyou.forEach(function (g) {
             haba = Math.max(haba, _textW(g, MIGI_PX, 400));
