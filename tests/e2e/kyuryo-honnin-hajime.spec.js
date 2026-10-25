@@ -46,6 +46,7 @@ async function akeru(page, emp, mazeru) {
         shimeRireki: [],
         uriageNaoshi: true,
         tebikiJippi: true,
+        kazuNaoshi: true, // 回数・距離の 直しを 返す 版の 印（10-25：無い 時は 止める）
         manualDays: [],
         ...(mazeru || {}),
       }),

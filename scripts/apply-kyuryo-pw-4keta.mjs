@@ -84,7 +84,9 @@ export const KANSUU = [
     //   4桁の 版（f8466f06…）の 倉庫へは scripts/apply-kyuryo-get.mjs が md5 の 門（MAE_4KETA）で 当てる
     // 2026-10-21 司さん「パスワードなしで入れる時間を設けて」＝札の 枝（'fuda:'）を 足した 版。
     //   「揃えろ」の 版（eb7fe6bb…）の 倉庫へは scripts/apply-kyuryo-fuda.mjs が md5 の 門（MAE_SOROERO）で 当てる
-    ato: 'f1f6d63ce5e51c52bff9263c7e53ec6c',
+    // 2026-10-25 司さん「全部の車に自動反映できるもので（修正できるように）つけろよ」＝回数・距離の 直し（edits.*_naoshi）と
+    //   印 kazuNaoshi を 足した 版。札の 版（f1f6d63c…）の 倉庫へは scripts/apply-kyuryo-get.mjs が md5 の 門（MAE_FUDA）で 当てる
+    ato: 'c5c317067dcb45f8f0f0ffa306eafd5f',
     sig: 'dk_kyuryo_get(text, text, date, date)',
     file: 'supabase/apply-kyuryo-honnin-kansuu.sql',
     atama:

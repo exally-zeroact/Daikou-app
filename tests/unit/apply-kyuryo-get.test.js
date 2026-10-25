@@ -110,3 +110,20 @@ describe('★4桁の 後の md5 の 門（yonketaNoMon）★', () => {
     expect(ng.some((x) => x.indexOf('4桁の 守り') >= 0)).toBe(true);
   });
 });
+
+// ★回数・距離の 直しの 列が 3列 無い 倉庫には 当てない★ 2026-10-25（対立役 2回目 止1）
+//   わざと壊す：kazuRetsuNoMon が いつも '' を 返す ⇒ 赤
+describe('★回数・距離の 直しの 列の 門（kazuRetsuNoMon）★', () => {
+  it('3列 在れば 通す・0列／2列／読めない は 止める', () => {
+    expect(T.kazuRetsuNoMon([{ n: 3 }])).toBe('');
+    expect(T.kazuRetsuNoMon([{ n: 0 }])).toMatch(/apply-kazu-naoshi\.sql/);
+    expect(T.kazuRetsuNoMon([{ n: 2 }])).not.toBe('');
+    expect(T.kazuRetsuNoMon(null)).not.toBe('');
+    expect(T.kazuRetsuNoMon([])).not.toBe('');
+  });
+  it('問いは 3つの 列を 名指しで 数える', () => {
+    ['trip_count_naoshi', 'actual_total_m_naoshi', 'total_distance_m_naoshi'].forEach((c) =>
+      expect(T.KAZU_RETSU_Q).toContain("'" + c + "'")
+    );
+  });
+});

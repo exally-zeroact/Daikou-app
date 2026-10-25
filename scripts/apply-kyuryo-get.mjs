@@ -33,6 +33,22 @@ import { KANSUU as K4, honbunMd5, kazoeru as kazoeru4 } from './apply-kyuryo-pw-
 //   今は 守る 中身を 字と md5 で 決める：①倉庫の 今の 関数が 4桁の 版（MAE_4KETA）か 当てる 版
 //   ②当てる 塊の md5 が 4桁の 道具に 書いた 版（K4 の ato）③4桁の 守りの 字（照らし方・3回で 止める）が 全部 在る
 export const MAE_4KETA = 'f8466f060d89895efde720ac7c7b907e';
+// ★札の 版（10-21〜10-25 の 両方の 倉庫・2026-10-25 に md5 を 読んだ）★
+//   2026-10-25 司さん「修正できるように つけろよ」＝回数・距離の 直し（edits.*_naoshi・印 kazuNaoshi）を 足した 版を この 上に 当てる
+export const MAE_FUDA = 'f1f6d63ce5e51c52bff9263c7e53ec6c';
+// ★関数が 名指しで 読む 直しの 列（supabase/apply-kazu-naoshi.sql）が 3列 在るか★（無ければ 当てない・対立役 2回目 止1）
+export const KAZU_RETSU_Q =
+  "select count(*)::int as n from information_schema.columns where table_schema = 'daikome' and table_name = 'dk_shift_edits' and column_name in ('trip_count_naoshi', 'actual_total_m_naoshi', 'total_distance_m_naoshi')";
+export function kazuRetsuNoMon(rows) {
+  if (!rows || !rows[0]) return '回数・距離の 直しの 列を 確かめられない';
+  if (rows[0].n !== 3)
+    return (
+      '回数・距離の 直しの 列が ' +
+      rows[0].n +
+      '列（3列 要る）。先に node scripts/apply-supabase-sql.mjs supabase/apply-kazu-naoshi.sql を 当てて ください'
+    );
+  return '';
+}
 export function yonketaNoMon(block, kuraMd5) {
   const k = K4.find((x) => x.na === 'dk_kyuryo_get');
   const ng = [];
@@ -40,8 +56,8 @@ export function yonketaNoMon(block, kuraMd5) {
   if (!k || m !== k.ato)
     ng.push('当てる 塊の md5（' + m + '）が 4桁の 道具に 書いた 版（' + (k && k.ato) + '）と 違う');
   if (!k || !kazoeru4(block, k).ok) ng.push('当てる 塊に 4桁の 守りの 字が 足りない');
-  if (kuraMd5 !== MAE_4KETA && kuraMd5 !== m)
-    ng.push('倉庫の 今の 関数（' + kuraMd5 + '）が 4桁の 版でも 当てる 版でも ない');
+  if (kuraMd5 !== MAE_4KETA && kuraMd5 !== MAE_FUDA && kuraMd5 !== m)
+    ng.push('倉庫の 今の 関数（' + kuraMd5 + '）が 4桁の 版・札の 版・当てる 版の どれでも ない');
   return ng;
 }
 
@@ -60,6 +76,11 @@ export const ARU = [
   ['from daikome.dk_sales_settings ss', '売上から 何を 引くか（会社の 設定）を 返す（10-02 夜）'],
   ['m.actual_total_m, m.total_distance_m', '手入力の日の 距離を 返す（距離歩合・10-06）'],
   ['m.expenses', '手入力の日の 会社が 足した 実費を 返す（司さん「揃えろ」・10-20）'],
+  ["'kazuNaoshi', true", '回数・距離の 直しを 返す 版の 印（画面は 無ければ 止める・10-25）'],
+  [
+    'ed.trip_count_naoshi, ed.actual_total_m_naoshi, ed.total_distance_m_naoshi',
+    '回数・距離の 直しを 返す（10-25）',
+  ],
   [
     "'tebikiJippi', true",
     '手入力の日の 足した 実費を 返す 版の 印（画面は 無ければ 止める・10-20）',
@@ -234,6 +255,14 @@ async function main() {
       console.error(
         'NG: 4桁の 件が 入って いない 倉庫。先に scripts/apply-kyuryo-pw-4keta.mjs で 当てて ください'
       );
+      process.exit(7);
+    }
+    // ★回数・距離の 直しの 列が 無い 倉庫には 当てない★ 2026-10-25（対立役 2回目 止1）
+    //   plpgsql は 作る 時に 列を 見ない＝列の 前に 当てても 作れて「OK」が 出、本人の 明細が 全員 開けなく なる
+    const kz = await runSql(ref, t.token, KAZU_RETSU_Q);
+    const kzNg = kazuRetsuNoMon(kz.ok ? kz.body : null);
+    if (kzNg) {
+      console.error('NG: ' + kzNg);
       process.exit(7);
     }
     {

@@ -119,7 +119,13 @@ test('★★② 会社が 足した 名前が 欄に 出る★★', async ({ pag
     na: [...document.querySelectorAll('#shaList .flabel')]
       .map((x) => x.textContent.trim())
       // 10-23 時数・乗った人（と 2回 走った 日の 回ごとの 売上）も 実費では ない
-      .filter((x) => !/^(売上|時数|乗った人)/.test(x) && x !== '電子決済' && x !== '請求書'),
+      // 10-25 メーターの 車の 回数・距離 も 実費では ない
+      .filter(
+        (x) =>
+          !/^(売上|時数|乗った人|回数|実車距離|総走行距離)/.test(x) &&
+          x !== '電子決済' &&
+          x !== '請求書'
+      ),
     ran: [...document.querySelectorAll('#shaList [data-sid]')].filter(
       (x) => ['sales_yen', 'denshi_yen', 'seikyu_yen'].indexOf(x.getAttribute('data-f')) < 0
     ).length,

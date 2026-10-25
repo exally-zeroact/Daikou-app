@@ -266,10 +266,15 @@ begin
     -- 手入力の 日の 会社が 足した 実費（manualDays.expenses）を 返す 版の 印 2026-10-20（司さん「揃えろ」）。
     --   画面は 印が 無ければ 止める（古い 関数の まま だと 本人だけ 引かれず 高く 出る＝対立役）
     'tebikiJippi', true,
+    -- 回数・距離の 直し（edits.*_naoshi）を 返す 版の 印 2026-10-25。画面は 印が 無ければ 止める
+    --   （古い 関数の まま だと 本人だけ メーターの 回数・距離で 計算し 事務所と ずれる）
+    'kazuNaoshi', true,
     'edits', (
       select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb) from (
         -- uriage_yen＝事務所が 直した 売上（2026-10-14・apply-uriage-naoshi.sql と 同じ 送りで 当てる）
-        select ed.shift_id, ed.toll_yen, ed.bridge_yen, ed.other_yen, ed.expenses, ed.hours, ed.uriage_yen
+        -- *_naoshi＝事務所が 直した 回数・距離（2026-10-25・apply-kazu-naoshi.sql を 先に 当てる）
+        select ed.shift_id, ed.toll_yen, ed.bridge_yen, ed.other_yen, ed.expenses, ed.hours, ed.uriage_yen,
+               ed.trip_count_naoshi, ed.actual_total_m_naoshi, ed.total_distance_m_naoshi
         from daikome.dk_shift_edits ed where ed.company_id = r.company_id
           -- ★返す 勤務（同じ 日付の 窓）の 直しだけ★ 2026-10-16（前は 会社の 直しを 全部 返し、辞めた 人も
           --   働いた 日の 窓を 1回 通れば 新しい 直しの 額を 見続けられた・対立役）。

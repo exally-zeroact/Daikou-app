@@ -41,6 +41,29 @@ export function kagiNoNa(f) {
 // ★ファイルごとの当てた後の確かめ★（2026-10-17 対立役 N7）棚の数だけでは、窓の列や守りが入ったか分からない。
 //   q を読んで ok(rows) が true の時だけ OK。
 export const ATO_NO_KAKUNIN = {
+  // ★メーターの 車の 回数・距離の 直し★ 2026-10-25（対立役 止3＝窓に 出ないと 黙って 直らない）
+  'supabase/apply-kazu-naoshi.sql': [
+    {
+      w: 'daikome.dk_shift_edits に *_naoshi（integer）が 3列',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='daikome' and table_name='dk_shift_edits' and column_name in ('trip_count_naoshi','actual_total_m_naoshi','total_distance_m_naoshi') and data_type='integer'",
+      ok: (rows) => rows?.[0]?.n === 3,
+    },
+    {
+      w: '窓 public.dk_shift_edits に *_naoshi が 3列',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_shift_edits' and column_name in ('trip_count_naoshi','actual_total_m_naoshi','total_distance_m_naoshi')",
+      ok: (rows) => rows?.[0]?.n === 3,
+    },
+    {
+      w: '窓 public.dk_shift_edits の 前からの 列（uriage_yen 等）が 残っている（17列）',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_shift_edits'",
+      ok: (rows) => rows?.[0]?.n === 17,
+    },
+    {
+      w: '窓 public.dk_shift_edits が security_invoker=true',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_shift_edits' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+  ],
   // ★会社の 締め日★ 2026-10-24（叩き役 K-1・K-2）
   'supabase/apply-kaisha-shime-hi.sql': [
     {

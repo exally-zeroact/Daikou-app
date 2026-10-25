@@ -1228,12 +1228,20 @@
             })() +
             '</span></div>' +
             '<div class="dsub">' +
-            (s.trip_count || 0) +
-            '件　実車 ' +
-            UriageAgg.km(s.actual_total_m) +
-            ' km　総走行 ' +
-            UriageAgg.km(s.total_distance_m) +
-            ' km</div>' +
+            (function () {
+              // 回数・距離＝事務所が 直した 数 か メーター（UriageAgg.kazuOf の 1か所）2026-10-25
+              var kz = UriageAgg.kazuOf(s, e);
+              return (
+                kz.trip_count +
+                '件　実車 ' +
+                UriageAgg.km(kz.actual_total_m) +
+                ' km　総走行 ' +
+                UriageAgg.km(kz.total_distance_m) +
+                ' km' +
+                (kz.naoshi ? '（直した）' : '')
+              );
+            })() +
+            '</div>' +
             '<div class="dedit">' +
             (s.isManual
               ? '手で入れた分（下の 帯の「入力」で その 日の 車を 開いて 直せます）'

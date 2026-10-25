@@ -2536,6 +2536,14 @@
                     '<div class="card"><div class="msg">手入力の 日の 実費を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
                 return;
               }
+              // ★回数・距離の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-25
+              //   返さないと 本人だけ メーターの 回数・距離で 回数歩合・距離歩合を 出し、事務所と 給料が 黙って ずれる（対立役 止2）
+              if (r.kazuNaoshi !== true) {
+                if (box)
+                  box.innerHTML =
+                    '<div class="card"><div class="msg">回数・距離の 直しを 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+                return;
+              }
               HN_YOMI = HN_Y + '-' + HN_M;
               var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
               // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07

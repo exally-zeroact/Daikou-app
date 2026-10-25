@@ -256,9 +256,16 @@
         const ym = yakanFun(s, ctx.settings && ctx.settings.extra && ctx.settings.extra.yakan);
         c.span = n(c.span) + ym.span;
         c.yakan = n(c.yakan) + ym.yakan;
-        c.trips += n(s.trip_count);
-        c.jissha_m += n(s.actual_total_m);
-        c.sou_m += n(s.total_distance_m);
+        //   回数・距離＝事務所が 直した 数 か メーター（UriageAgg.kazuOf の 1か所）2026-10-25
+        //   ★部品が 無い 時に メーターの 数へ 黙って 倒さない★（売上と 同じく 読めない 業務に 数える・対立役 止1）
+        const kz = Uriage && Uriage.kazuOf ? Uriage.kazuOf(s, e) : null;
+        if (!kz) {
+          ctx.uriageDame.push(s.shift_id);
+          return;
+        }
+        c.trips += n(kz.trip_count);
+        c.jissha_m += n(kz.actual_total_m);
+        c.sou_m += n(kz.total_distance_m);
         // 売上＝事務所が 直した 額 か メーターの 確定値（UriageAgg.uriageOf の 1か所）2026-10-14
         //   部品（UriageAgg）が 読めない 時も メーターに 倒さず 読めない 業務に 数える
         const u = Uriage ? Uriage.uriageOf(s, e) : null;

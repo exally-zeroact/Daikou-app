@@ -74,6 +74,34 @@
     return null;
   }
 
+  // ─── 1回の 業務の 回数・実車距離・総走行距離 ──────────────────────
+  //   2026-10-25 司さん「全部の車に自動反映できるもので（修正できるように）つけろよ」（入力の 画面）
+  //   事務所が 直した 数（dk_shift_edits の *_naoshi）が 在れば それ、無ければ メーターの 数（dk_shifts）。
+  //   ★給料（回数・距離歩合）・売上表・月次・本人の 給料は 全部 ここを 通す（1か所）★
+  //   メーターの 元データ（dk_shifts・課金の distance_m）は 書かない。距離は m（整数）。
+  //   直しの 形が 壊れている（負・小数・字）列は メーターの 数（保存の 口で 止めるので 入らない 筈の 物）
+  const KAZU = [
+    ['trip_count', 'trip_count_naoshi'],
+    ['actual_total_m', 'actual_total_m_naoshi'],
+    ['total_distance_m', 'total_distance_m_naoshi'],
+  ];
+  function kazuNaoshiOf(edit, col) {
+    const v = edit ? edit[col] : null;
+    return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
+  }
+  function kazuOf(shift, edit) {
+    const o = { naoshi: false };
+    KAZU.forEach(function (k) {
+      const v = kazuNaoshiOf(edit, k[1]);
+      if (v === null) o[k[0]] = n(shift && shift[k[0]]);
+      else {
+        o[k[0]] = v;
+        o.naoshi = true;
+      }
+    });
+    return o;
+  }
+
   // 売上の 欄の 字を 読む（給料の 時数を入れる・入力 の 両方が 使う 1か所）2026-10-14
   //   カンマ・空白・円・全角の 数字を 外し、0以上の 整数だけ。空＝null（メーターに 戻す）。
   //   読めない 時は undefined（保存を 止めて 字で 出す）＝parseInt で「9,800」が 9円 に ならない 様に（対立役）
@@ -183,9 +211,11 @@
         const e = editById[s.shift_id] || {};
 
         r.shift_count += 1;
-        r.trip_count += n(s.trip_count);
-        r.total_distance_m += n(s.total_distance_m);
-        r.actual_total_m += n(s.actual_total_m);
+        // 回数・距離＝事務所が 直した 数 か メーター（kazuOf の 1か所）2026-10-25
+        const kz = kazuOf(s, e);
+        r.trip_count += kz.trip_count;
+        r.total_distance_m += kz.total_distance_m;
+        r.actual_total_m += kz.actual_total_m;
         // 売上＝事務所が 直した 額 か メーターの 確定値（uriageOf）。2026-10-14
         const u = uriageOf(s, e);
         if (u === null)
@@ -345,6 +375,8 @@
     total: total,
     deductOf: deductOf,
     uriageOf: uriageOf,
+    kazuOf: kazuOf,
+    KAZU: KAZU,
     yomuUriage: yomuUriage,
   };
 

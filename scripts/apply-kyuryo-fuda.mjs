@@ -34,7 +34,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readToken, whereWeLooked } from './db-token.mjs';
 import { HONBAN_REF, honbanNoTome } from './honban-tome.mjs';
-import { kiridasu as kiridasuGet, kazoeru as kazoeruGet } from './apply-kyuryo-get.mjs';
+import {
+  kiridasu as kiridasuGet,
+  kazoeru as kazoeruGet,
+  KAZU_RETSU_Q,
+  kazuRetsuNoMon,
+} from './apply-kyuryo-get.mjs';
 import { KANSUU as K4, honbunMd5 } from './apply-kyuryo-pw-4keta.mjs';
 
 // ★倉庫の 今の get＝「揃えろ」の 版（2026-10-20・両方の 倉庫で md5 を 読んだ 2026-10-21）★
@@ -239,6 +244,10 @@ async function main() {
     '当てる 前: get ' + mae.gm + ' ／ verify ' + mae.vm + ' ／ fuda ' + (mae.fm || '（無い）')
   );
   const ng = fudaNoMon(getBlock, fudaBlock, mae.gm, mae.vm);
+  // ★回数・距離の 直しの 列が 無い 倉庫には 当てない★ 2026-10-25（get も 一緒に 当てる＝対立役 2回目 止1）
+  const kz = await runSql(ref, t.token, KAZU_RETSU_Q);
+  const kzNg = kazuRetsuNoMon(kz.ok ? kz.body : null);
+  if (kzNg) ng.push(kzNg);
   if (ng.length) {
     ng.forEach((x) => console.error('  ★門★ ' + x));
     console.error('NG: 門で 止めた。当てていない');

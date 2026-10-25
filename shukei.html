@@ -1934,11 +1934,17 @@
         }
         function kyoriTasu(list) {
           var k = { kaisuu: 0, jissha: 0, sou: 0 };
+          // ★事務所が 直した 回数・距離（dk_shift_edits）を 使う★ 2026-10-25（UriageAgg.kazuOf の 1か所・給料と 同じ）
+          var ed = {};
+          (RAW.edits || []).forEach(function (e) {
+            if (e && e.shift_id) ed[e.shift_id] = e;
+          });
           (list || []).forEach(function (x) {
             if (!x || x.excluded) return;
-            k.kaisuu += Number(x.trip_count) || 0;
-            k.jissha += Number(x.actual_total_m) || 0;
-            k.sou += Number(x.total_distance_m) || 0;
+            var kz = UriageAgg.kazuOf(x, ed[x.shift_id] || null);
+            k.kaisuu += kz.trip_count;
+            k.jissha += kz.actual_total_m;
+            k.sou += kz.total_distance_m;
           });
           return k;
         }

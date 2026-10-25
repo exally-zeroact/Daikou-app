@@ -537,7 +537,9 @@
           <b>請求書</b> … 請求書で もらう 分。打った 日は 請求書アプリの 額より こちらを
           使います（下がるのは 月次集計の 現金だけ）。<br />
           <b>実費</b> … 名前は <b>会社設定 → 実費</b> で 変えられます（足す・消す・並び替え）。<br />
-          <b>回数・実車距離・総走行距離</b> … 読めていない 車だけ 打てます（距離は km）。<br />
+          <b>回数・実車距離・総走行距離</b> … メーターの 車は 空なら メーターの 数（薄い 字）。違う
+          時は 打ち直せます（空に すると メーターに 戻ります）。読めていない 車は 手で
+          入れます（距離は km）。<br />
           <b>時数</b> … 車が 働いた 時間（h）。メーターの 車は 空なら 記録から 自動で 入ります。<br />
           <b>乗った人</b> … 名前の 札を 押すと 乗せます（1台 2人まで）。その人の 時数は 車と
           同じ。早上がり など その人だけ 違う 時は 人の 横の 欄に 入れます。✕ で 外せます。<br />
@@ -692,6 +694,8 @@
         var KYORI_ARU = false;
         // ★倉庫に 請求書の 列（seikyu_yen）が 在るか★ 2026-10-06（無い 線では 請求書の 欄を 出さない）
         var SEIKYU_ARU = false;
+        // ★倉庫に メーターの 車の 回数・距離の 直しの 列が 在るか★ 2026-10-25（無い 線では メーターの 車に 欄を 出さない）
+        var KAZU_ARU = false;
         var NAMAE = {}; // 端末ID → 車の名前
         var PP = 0; // その日の 電子決済
         // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
@@ -921,7 +925,7 @@
             //   ★使わない 印（excluded）も 取って 外す★ 2026-10-07（司さん「前からある2つもやれ」）
             //   ＝給料・売上表・月次集計も 同じ日に 揃えた（前は どの 画面も 印を 読まず 数えていた）
             //   ★車の 時間の 材料（ended_at・elapsed_sec）も 取る★ 2026-10-23（入れ漏れの 判じを 給料の 計算と 同じ 材料で）
-            'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,excluded&company_id=eq.' +
+            'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded&company_id=eq.' +
             encodeURIComponent(COMPANY.company_id) +
             '&started_at=gte.' +
             encodeURIComponent(r.from) +
@@ -994,6 +998,15 @@
               'dk_payroll_settings?select=owner_device_id&company_id=eq.' + co + '&limit=1',
               stP
             ),
+            // ★★メーターの 車の 回数・距離の 直しの 列が 倉庫に 在るか★★ 2026-10-25（supabase/apply-kazu-naoshi.sql を 当てた 線だけ）
+            //   無い（400）⇒ メーターの 車には 欄を 出さない（打っても 保存できない 為）
+            DKSession.rest(SESS, 'dk_shift_edits?select=trip_count_naoshi&limit=1')
+              .then(function (x) {
+                return !!(x && x.ok);
+              })
+              .catch(function () {
+                return false;
+              }),
           ])
             .then(function (res) {
               if (no !== LOADNO) return; // ★古い 読みの 返事は 捨てる★
@@ -1042,6 +1055,7 @@
               });
               KYORI_ARU = res[6] === true;
               SEIKYU_ARU = res[7] === true;
+              KAZU_ARU = res[11] === true;
               TEBIKI = {};
               TEBIKI_HI = HI;
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
@@ -1347,7 +1361,9 @@
             // ★★時数（車の 時間）★★ 経費の 下（司さん「経費の下に時数、乗った人」）
             //   2回 以上 走った 日・売上が 読めない 日は 回ごとに 売上・時数（業務ごとの 鍵＝1つの 欄に 足すと 時間が 二重に なる・対立役 A-2）
             if (fuku) naka += kaiHtml(sh, hoka.length > 0);
-            else naka += jisuuMeterHtml(sh.runs[0], '時数（車の 時間）');
+            else
+              naka +=
+                jisuuMeterHtml(sh.runs[0], '時数（車の 時間）') + kazuMeterHtml(sh.runs[0], '');
           } else {
             var t = TEBIKI[dev] || {};
             naka +=
@@ -1433,6 +1449,7 @@
               '</div>';
             if (jippiMo) h += jippiHtml(s.shift_id, 'data-sid', e, '');
             h += jisuuMeterHtml(s, '時数（' + kai + '）');
+            h += kazuMeterHtml(s, '（' + kai + '）');
             h += '</div>';
           });
           return h;
@@ -1461,6 +1478,80 @@
               : 'メーターの 時間が 読めません。働いた 時間を 入れてください。') +
             '</span></div>'
           );
+        }
+        // ★★メーターの 車の 回数・実車距離・総走行距離（業務ごと・dk_shift_edits の *_naoshi）★★ 2026-10-25
+        //   司さん「全部の車に自動反映できるもので（修正できるように）つけろよ」
+        //   空＝メーターの 数（薄い 字で 出す）。打てば その 数（給料・売上表・月次は UriageAgg.kazuOf で 引く）
+        //   印は data-kazu-sid と data-kz（列）。距離は km で 打つ（しまうのは m）
+        function kazuMeterHtml(s, ato) {
+          if (!KAZU_ARU) return '';
+          var e = EDITS[s.shift_id] || {};
+          var kmJi = function (m) {
+            var v = Number(m);
+            return isFinite(v) && v >= 0 ? String(Math.round(v / 100) / 10) : '';
+          };
+          var h = '';
+          [
+            ['回数', 'trip_count', 'trip_count_naoshi', '回', 'numeric', '1', false],
+            ['実車距離', 'actual_total_m', 'actual_total_m_naoshi', 'km', 'decimal', '0.1', true],
+            [
+              '総走行距離',
+              'total_distance_m',
+              'total_distance_m_naoshi',
+              'km',
+              'decimal',
+              '0.1',
+              true,
+            ],
+          ].forEach(function (f) {
+            var meter = Number(s[f[1]]) || 0;
+            var meterJi = f[6] ? kmJi(meter) : String(meter);
+            var v = e[f[2]];
+            var naoshi = typeof v === 'number' && Number.isInteger(v) && v >= 0;
+            h +=
+              '<div class="frow"><span class="flabel">' +
+              f[0] +
+              esc(ato) +
+              '</span><div class="fen"><input class="finput fnum" inputmode="' +
+              f[4] +
+              '" data-kazu-sid="' +
+              esc(s.shift_id) +
+              '" data-kz="' +
+              f[2] +
+              '" value="' +
+              (naoshi ? esc(f[6] ? kmJi(v) : String(v)) : '') +
+              '" placeholder="' +
+              esc(meterJi) +
+              '" data-yomitori="1"><span class="en">' +
+              f[3] +
+              '</span></div><span class="hint">' +
+              (naoshi
+                ? '直した 数です（メーター ' +
+                  esc(meterJi) +
+                  f[3] +
+                  '）。空に すると メーターに 戻ります。'
+                : '空＝メーターの 数（' + esc(meterJi) + f[3] + '）。違う 時は 打ち直せます。') +
+              '</span></div>';
+          });
+          return h;
+        }
+        // 回数・距離の 欄の 字を 読む：空＝null（メーターに 戻す）・読めない＝undefined
+        //   回数は 0以上の 整数・距離は km（小数 可）を m の 整数に
+        function yomuKazu(col, value) {
+          var t = String(value == null ? '' : value)
+            .replace(/[０-９．]/g, function (c) {
+              return c === '．' ? '.' : String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+            })
+            .replace(/[,，\s]|km|回/gi, '');
+          if (t === '') return null;
+          if (col === 'trip_count_naoshi') {
+            if (!/^\d+$/.test(t)) return undefined;
+            var x = Number(t);
+            return Number.isSafeInteger(x) ? x : undefined;
+          }
+          if (!/^\d+(\.\d+)?$/.test(t)) return undefined;
+          var m = Math.round(Number(t) * 1000);
+          return Number.isSafeInteger(m) ? m : undefined;
         }
         // 手で 入れた 車の 時数（dk_manual_days.hours）＝★JippiHozon.saveTebiki と 同じ 写し・同じ 鍵で 書く★（対立役 A-3）
         function jisuuTebikiHtml(dev, t) {
@@ -2012,6 +2103,15 @@
               };
             }
           );
+          // ★★メーターの 車の 回数・距離の 直し★★ 2026-10-25
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-kazu-sid]'),
+            function (i) {
+              i.onchange = function () {
+                saveKazuRan(i, i.getAttribute('data-kazu-sid'), i.getAttribute('data-kz'), i.value);
+              };
+            }
+          );
           Array.prototype.forEach.call(document.querySelectorAll('#shaList .nori'), bindNori);
           Array.prototype.forEach.call(
             document.querySelectorAll('#shaList [data-man-del]'),
@@ -2206,6 +2306,52 @@
                 hozonDekinai(
                   kagi + ':hours',
                   '時数を 保存できませんでした。通信を確認してください。',
+                  r
+                );
+              });
+          });
+        }
+
+        // ★★メーターの 車の 回数・実車距離・総走行距離を 直す★★ 2026-10-25（dk_shift_edits の その 1列だけ）
+        //   鍵は 実費・売上・時数の 直しと 同じ 業務（同じ 行を 順に 送る）
+        function saveKazuRan(inp, shiftId, col, value) {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var kagi = 's:' + shiftId;
+          var v = yomuKazu(col, value);
+          if (v === undefined) {
+            delete ERR_KAGI[kagi + ':' + col + ':katachi'];
+            ERR_KAGI[kagi + ':' + col + ':katachi'] =
+              (col === 'trip_count_naoshi'
+                ? '回数は 0以上の 整数で 入れてください'
+                : '距離は 0以上の km の 数で 入れてください') +
+              '（空に すると メーターの 数に 戻ります）。';
+            akeru(kagiNoKuruma(kagi), true);
+            errNuru();
+            return;
+          }
+          inp.disabled = true;
+          return junban(kagi, function () {
+            return JippiHozon.saveKazu(SESS, shiftId, COMPANY.company_id, col, v)
+              .then(function (body) {
+                inp.disabled = !!YOMENAI;
+                hozonDekita(kagi + ':' + col + ':katachi');
+                hozonDekita(kagi + ':' + col);
+                EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
+                inp.value =
+                  v === null
+                    ? ''
+                    : col === 'trip_count_naoshi'
+                      ? String(v)
+                      : String(Math.round(v / 100) / 10);
+                shirushiNuru();
+              })
+              .catch(function (r) {
+                inp.disabled = !!YOMENAI;
+                hozonDekinai(
+                  kagi + ':' + col,
+                  (col === 'trip_count_naoshi' ? '回数' : '距離') +
+                    'を 保存できませんでした。通信を確認してください。',
                   r
                 );
               });

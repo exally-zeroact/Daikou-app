@@ -120,6 +120,31 @@
     });
   }
 
+  // ★★メーターの 車の 回数・実車距離・総走行距離を 事務所が 直す★★ 2026-10-25
+  //   （司さん「全部の車に自動反映できるもので（修正できるように）つけろよ」）
+  //   dk_shift_edits の その 1列（*_naoshi）と updated_at だけ 送る（他の 列を 古い 値で 上書きしない）。
+  //   col は 直しの 列名だけ。v は 0以上の 整数（回・m）か null（メーターに 戻す）
+  const KAZU_RETSU = ['trip_count_naoshi', 'actual_total_m_naoshi', 'total_distance_m_naoshi'];
+  function saveKazu(sess, shiftId, companyId, col, v) {
+    if (KAZU_RETSU.indexOf(col) < 0) return Promise.reject(new Error('知らない 列: ' + col));
+    if (v !== null && !(typeof v === 'number' && Number.isInteger(v) && v >= 0))
+      return Promise.reject(new Error('0以上の 整数で ない: ' + v));
+    const body = {
+      shift_id: shiftId,
+      company_id: companyId,
+      updated_at: new Date().toISOString(),
+    };
+    body[col] = v;
+    return global.DKSession.rest(sess, 'dk_shift_edits?on_conflict=shift_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      if (!r.ok) throw r;
+      return body;
+    });
+  }
+
   // ★★走った 記録が 無い 日の 実費★★ 2026-09-08（司さん「入力するとこ出しとけや」）
   //   ★入れる 棚★ daikome.dk_manual_days（会社×日×車）＝「手で 入れた 1日ぶん」
   //   ★売上は 0 の まま★（実費だけ 入れる）＝走っていない 日に 売上は 立たない
@@ -274,6 +299,7 @@
     karada: karada,
     saveJippi: saveJippi,
     saveUriage: saveUriage,
+    saveKazu: saveKazu,
     saveTebiki: saveTebiki,
     delTebiki: delTebiki,
     saveDenshi: saveDenshi,
