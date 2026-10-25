@@ -196,3 +196,31 @@ test('★⑨ メーターが 0 の 業務は 300km を 超えると「1回の �
   await expect(chuui(c2)).toContainText('301km は 1回の 目安（300km）を 超えています');
   await expect(chuui(c2)).not.toContainText('メーター（0km）');
 });
+
+// ★⑩ 列が 在るかを 通信で 確かめられない 時は 欄を 黙って 消さず 訳を 出す★（2026-10-25 対立役 任4）
+//   わざと壊す：kazuMeterHtml の KAZU_YOMENAI の 訳を 外す ⇒ ★赤★（何も 出ない）
+test('★⑩ 直しの 列を 通信で 読めない 時は 「読めませんでした」を 出す★', async ({ page }) => {
+  await K.nyuryokuWoHiraku(page, zairyou(), HI, {
+    yomiDame: ['dk_shift_edits?select=trip_count_naoshi'],
+  });
+  const c2 = await K.akeru(page, K.CAR2);
+  await expect(c2.locator('input[data-kazu-sid]')).toHaveCount(0);
+  await expect(c2.locator('.kazu-yomenai')).toContainText('直しを 読めませんでした（通信）');
+});
+
+// ★⑪ 通信が 切れて 投げた 時も「読めませんでした」・列が 無い（400）線では 何も 出さない★（対立役 任1）
+//   わざと壊す：問い合わせの catch を「return 'nai'」に ⇒ ★赤★（投げた 時に 黙る）／400 の 分けを 外す ⇒ ★赤★（列が 無い 線で 毎日 赤い 字）
+for (const [na, st, deru] of [
+  ['通信が 切れて 投げた', 'throw', true],
+  ['列が 無い 線（400）', 400, false],
+]) {
+  test('★⑪ ' + na + ' 時の 直しの 欄★', async ({ page }) => {
+    await K.nyuryokuWoHiraku(page, zairyou(), HI, {
+      yomiDame: ['dk_shift_edits?select=trip_count_naoshi'],
+      yomiSt: st,
+    });
+    const c2 = await K.akeru(page, K.CAR2);
+    await expect(c2.locator('input[data-kazu-sid]')).toHaveCount(0);
+    await expect(c2.locator('.kazu-yomenai')).toHaveCount(deru ? 1 : 0);
+  });
+}

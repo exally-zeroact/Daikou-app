@@ -696,6 +696,7 @@
         var SEIKYU_ARU = false;
         // ★倉庫に メーターの 車の 回数・距離の 直しの 列が 在るか★ 2026-10-25（無い 線では メーターの 車に 欄を 出さない）
         var KAZU_ARU = false;
+        var KAZU_YOMENAI = false; // 列が 在るかを 通信で 確かめられなかった（欄を 黙って 消さず 訳を 出す）
         var NAMAE = {}; // 端末ID → 車の名前
         var PP = 0; // その日の 電子決済
         // ★★手で 入れた 1日ぶん★★ 2026-09-08（走った 記録が 無い 日の 実費）
@@ -1000,12 +1001,14 @@
             ),
             // ★★メーターの 車の 回数・距離の 直しの 列が 倉庫に 在るか★★ 2026-10-25（supabase/apply-kazu-naoshi.sql を 当てた 線だけ）
             //   無い（400）⇒ メーターの 車には 欄を 出さない（打っても 保存できない 為）
+            //   ★通信で 読めない 時は 黙って 消さない★（列が 無い＝400 だけ 出さない・他は 「読めませんでした」と 出す・2026-10-25 対立役 任4）
             DKSession.rest(SESS, 'dk_shift_edits?select=trip_count_naoshi&limit=1')
               .then(function (x) {
-                return !!(x && x.ok);
+                if (x && x.ok) return true;
+                return x && x.status === 400 ? 'nai' : 'yomenai';
               })
               .catch(function () {
-                return false;
+                return 'yomenai';
               }),
           ])
             .then(function (res) {
@@ -1056,6 +1059,7 @@
               KYORI_ARU = res[6] === true;
               SEIKYU_ARU = res[7] === true;
               KAZU_ARU = res[11] === true;
+              KAZU_YOMENAI = res[11] === 'yomenai';
               TEBIKI = {};
               TEBIKI_HI = HI;
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
@@ -1484,7 +1488,12 @@
         //   空＝メーターの 数（薄い 字で 出す）。打てば その 数（給料・売上表・月次は UriageAgg.kazuOf で 引く）
         //   印は data-kazu-sid と data-kz（列）。距離は km で 打つ（しまうのは m）
         function kazuMeterHtml(s, ato) {
-          if (!KAZU_ARU) return '';
+          if (!KAZU_ARU)
+            return KAZU_YOMENAI
+              ? '<div class="frow"><span class="flabel">回数・実車距離・総走行距離</span>' +
+                  '<span class="hint kazu-yomenai" style="color:#b42318;font-weight:700">' +
+                  '直しを 読めませんでした（通信）。この 日を 開き直してください（給料は 入っている 直しの まま です）。</span></div>'
+              : '';
           var e = EDITS[s.shift_id] || {};
           var kmJi = function (m) {
             var v = Number(m);

@@ -66,7 +66,7 @@ const KOTAE = {
   sou: (218000 + 257600 + 204000) / 1000,
 };
 
-function tsukuru(dir) {
+function tsukuru(dir, ed) {
   const moto = fs.readFileSync(path.join(dir, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const co = { company_id: CO, name: '見張り用' };
   return (
@@ -75,8 +75,10 @@ function tsukuru(dir) {
     JSON.stringify(co) +
     ';var SH=' +
     JSON.stringify(SHIFTS) +
+    ';var ED=' +
+    JSON.stringify(ed || []) +
     ';' +
-    'function rows(p){ if(p.indexOf("dk_shifts")===0)return SH; return [];}' +
+    'function rows(p){ if(p.indexOf("dk_shifts")===0)return SH; if(p.indexOf("dk_shift_edits")===0)return ED; return [];}' +
     'S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
     'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
@@ -85,12 +87,12 @@ function tsukuru(dir) {
   );
 }
 
-async function hiraku(page) {
+async function hiraku(page, ed) {
   await page.route('**/js/dk-session.js*', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/javascript; charset=utf-8',
-      body: tsukuru(__dirname),
+      body: tsukuru(__dirname, ed),
     })
   );
   await page.setViewportSize({ width: 390, height: 900 });
@@ -419,4 +421,16 @@ test('★★内訳が 紙（罫線の表）で 出る／短い★★', async ({ 
   expect(r.hamidashi, '★横に はみ出しています★').toBeLessThanOrEqual(1);
   // ★短い★＝1画面（844px）に 収まる
   expect(r.takasa, '★長すぎます（画面に 収まりません）★').toBeLessThan(844);
+});
+
+// ★★事務所が 直した 回数・距離（dk_shift_edits の *_naoshi）で 数える★★ 2026-10-25
+//   （入力の 画面で メーターの 車の 回数・距離を 直せる＝月次の 距離も 直した 数・UriageAgg.kazuOf の 1か所）
+//   わざと壊す：shukei.html の kyoriTasu で kazuOf を 通さず x.trip_count を 足す ⇒ ★赤★（1月が 32回・234.4 km の まま）
+test('★直した 回数・実車距離で 1月を 数える（総走行は メーターの まま）★', async ({ page }) => {
+  await hiraku(page, [{ shift_id: 's1', trip_count_naoshi: 20, actual_total_m_naoshi: 110000 }]);
+  const r = await yomu(page);
+  const tsuki1 = r.rows.find((x) => x[0] === '1月');
+  expect(tsuki1[1], '★直した 回数で 数えていない★').toBe(String(20 + 14));
+  expect(tsuki1[2], '★直した 実車距離で 数えていない★').toBe('237.7 km');
+  expect(tsuki1[3]).toBe('475.6 km');
 });

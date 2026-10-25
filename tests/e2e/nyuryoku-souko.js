@@ -91,7 +91,9 @@ function soukoJs(F, o) {
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     // OPT.osoi＝{表の 頭: ミリ秒}（その 書き込みの 返事を 遅らせる）／OPT.dame＝[表の 頭]（その 書き込みを 断る）
     'function henji(ok,st,j){return {ok:ok,status:st,text:function(){return Promise.resolve("");},json:function(){return Promise.resolve(j);}};}' +
-    'S.rest=function(s,p,o){var m=(o&&o.method)||"GET";if(m==="GET")return Promise.resolve(henji(true,200,rows(p)));' +
+    // OPT.yomiDame＝[道の 頭]（その 読みを 500 で 断る＝通信で 読めない 形）2026-10-25
+    //   OPT.yomiSt＝その 断り方（数＝その status で 返す・"throw"＝通信が 切れて fetch が 投げる 形）
+    'S.rest=function(s,p,o){var m=(o&&o.method)||"GET";if(m==="GET"&&(OPT.yomiDame||[]).some(function(x){return String(p).indexOf(x)===0;})){if(OPT.yomiSt==="throw")return Promise.reject(new Error("Failed to fetch"));return Promise.resolve(henji(false,OPT.yomiSt||500,{}));}if(m==="GET")return Promise.resolve(henji(true,200,rows(p)));' +
     'window.__calls.push({p:p,m:m,b:o&&o.body?JSON.parse(o.body):null});var t=tb(p)||"";' +
     'var dame=(OPT.dame||[]).indexOf(t)>=0;var ms=(OPT.osoi||{})[t]||0;' +
     'return new Promise(function(ok){setTimeout(function(){if(dame){ok(henji(false,500,{}));return;}kaku(p,o);ok(henji(true,201,[]));},ms);});};' +
