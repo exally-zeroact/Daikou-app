@@ -1524,19 +1524,14 @@
               esc(meterJi) +
               '" data-yomitori="1"><span class="en">' +
               f[3] +
-              '</span></div><span class="hint">' +
-              (naoshi
-                ? '直した 数です（メーター ' +
-                  esc(meterJi) +
-                  f[3] +
-                  '）。空に すると メーターに 戻ります。'
-                : '空＝メーターの 数（' + esc(meterJi) + f[3] + '）。違う 時は 打ち直せます。') +
+              '</span></div><span class="hint" data-kazu-hint="1">' +
+              kazuHintHtml(f[2], meter, v, f[3], f[6]) +
               '</span></div>';
           });
           return h;
         }
         // 回数・距離の 欄の 字を 読む：空＝null（メーターに 戻す）・読めない＝undefined
-        //   回数は 0以上の 整数・距離は km（小数 可）を m の 整数に
+        //   回数は 0以上の 整数・距離は km（★小数 1桁まで★＝欄に 出す 細かさと 揃える・2026-10-25 対立役 任2）を m の 整数に
         function yomuKazu(col, value) {
           var t = String(value == null ? '' : value)
             .replace(/[０-９．]/g, function (c) {
@@ -1549,9 +1544,61 @@
             var x = Number(t);
             return Number.isSafeInteger(x) ? x : undefined;
           }
-          if (!/^\d+(\.\d+)?$/.test(t)) return undefined;
+          if (!/^\d+(\.\d)?$/.test(t)) return undefined;
           var m = Math.round(Number(t) * 1000);
           return Number.isSafeInteger(m) ? m : undefined;
+        }
+        // ★打ち間違いの 注意★ 2026-10-25（司さん「全て最適解でやれ」＝止めは しない）
+        //   打った 数は すぐ 入れ、メーターの 3倍を 超える（メーターが 0 なら 1回 300km・50回を 超える）間は
+        //   欄の 下に 注意を 出し 続ける。★注意は 入っている 数から 毎回 描く★＝日を 変える・描き直しでも 消えず、直せば 消える
+        //   （前の「1回 止めて もう一度で 入れる」は 打って すぐ 日を 変えると 数が 黙って 消えた・対立役 2回目 止-A／赤い 字が 残った 止-B）
+        var KAZU_JOGEN = {
+          trip_count_naoshi: 50,
+          actual_total_m_naoshi: 300000,
+          total_distance_m_naoshi: 300000,
+        };
+        // 返り＝注意の 字（空＝注意 なし）。meter は その 業務の メーターの 数（回・m）
+        function kazuChuui(col, meter, v) {
+          if (typeof v !== 'number') return '';
+          var m = Number(meter) || 0;
+          var kyori = col !== 'trip_count_naoshi';
+          // メーターが 0（距離は 0.1km 未満）＝比べる 相手が 無い ⇒ 1回の 目安（300km・50回）で 見る（「メーター（0km）の 3倍」と 出さない）
+          var hikaku = kyori ? m >= 100 : m > 0;
+          if (!(hikaku ? v > m * 3 : v > KAZU_JOGEN[col])) return '';
+          var ji = function (x) {
+            return kyori ? Math.round(x / 100) / 10 + 'km' : x + '回';
+          };
+          return (
+            '注意：' +
+            ji(v) +
+            (hikaku
+              ? ' は メーター（' + ji(m) + '）の 3倍を 超えています。'
+              : ' は 1回の 目安（' + ji(KAZU_JOGEN[col]) + '）を 超えています。') +
+            '打ち間違いなら 直してください。'
+          );
+        }
+        // 欄の 下の 字（直した 数・メーター・注意）＝描く 時と 保存の 後で 同じ 1か所
+        function kazuHintHtml(col, meter, v, tani, kyori) {
+          var kmJi = function (m) {
+            var x = Number(m);
+            return isFinite(x) && x >= 0 ? String(Math.round(x / 100) / 10) : '';
+          };
+          var meterJi = kyori ? kmJi(meter) : String(Number(meter) || 0);
+          var naoshi = typeof v === 'number' && Number.isInteger(v) && v >= 0;
+          var chuui = naoshi ? kazuChuui(col, meter, v) : '';
+          return (
+            (naoshi
+              ? '直した 数です（メーター ' +
+                esc(meterJi) +
+                tani +
+                '）。空に すると メーターに 戻ります。'
+              : '空＝メーターの 数（' + esc(meterJi) + tani + '）。違う 時は 打ち直せます。') +
+            (chuui
+              ? '<span class="kazu-chuui" style="display:block;color:#8a5a00;font-weight:700">' +
+                esc(chuui) +
+                '</span>'
+              : '')
+          );
         }
         // 手で 入れた 車の 時数（dk_manual_days.hours）＝★JippiHozon.saveTebiki と 同じ 写し・同じ 鍵で 書く★（対立役 A-3）
         function jisuuTebikiHtml(dev, t) {
@@ -2324,7 +2371,7 @@
             ERR_KAGI[kagi + ':' + col + ':katachi'] =
               (col === 'trip_count_naoshi'
                 ? '回数は 0以上の 整数で 入れてください'
-                : '距離は 0以上の km の 数で 入れてください') +
+                : '距離は 0以上の km の 数（小数は 1桁まで）で 入れてください') +
               '（空に すると メーターの 数に 戻ります）。';
             akeru(kagiNoKuruma(kagi), true);
             errNuru();
@@ -2344,6 +2391,20 @@
                     : col === 'trip_count_naoshi'
                       ? String(v)
                       : String(Math.round(v / 100) / 10);
+                // 欄の 下の 字（直した 数・注意）を 入った 数で 描き直す（kazuHintHtml の 1か所）
+                var row = inp.closest ? inp.closest('.frow') : null;
+                var hint = row && row.querySelector('[data-kazu-hint]');
+                var s = RAW.shifts.filter(function (x) {
+                  return x && x.shift_id === shiftId;
+                })[0];
+                if (hint && s)
+                  hint.innerHTML = kazuHintHtml(
+                    col,
+                    s[col.replace(/_naoshi$/, '')],
+                    v,
+                    col === 'trip_count_naoshi' ? '回' : 'km',
+                    col !== 'trip_count_naoshi'
+                  );
                 shirushiNuru();
               })
               .catch(function (r) {
