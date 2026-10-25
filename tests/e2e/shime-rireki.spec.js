@@ -248,6 +248,40 @@ test('③e 設定の 行が 無い 会社・何日から 空で 月3回の ま�
   ).toBe(1);
 });
 
+// ★設定の 行が 無い 会社が 既定の「今日から」で 払い方を 選んで 保存 ⇒ 止めずに 列は 月3回・記録は 今日から★ 2026-10-25
+//   わざと壊す：shimeRetsuKata の 頭を「!SET || SET.yomenai」に 戻す ⇒ 赤（「最初からの 払い方が 読めない」で 止まった）
+test('③f 設定の 行が 無い 会社・何日から 今日で 末日締めを 選んで 保存 ⇒ 列は 月3回・記録は 今日から', async ({
+  page,
+}) => {
+  await openKyuryo(
+    page,
+    (f) => {
+      const g = hiOkikae(f);
+      g.settings = [];
+      g.shimeRireki = [];
+      return g;
+    },
+    { ura: '?henshu=1#set' }
+  );
+  await kakuWoHikaeru(page);
+  await page.waitForSelector('#pMode', { state: 'visible' });
+  expect(await page.inputValue('#pHi')).toBe('2026-10-07');
+  expect(await page.inputValue('#pMode')).toBe('thirds');
+  await page.selectOption('#pMode', 'matsu');
+  await page.click('#btnSaveSet');
+  await page.waitForTimeout(800);
+  await expect(page.locator('#err')).not.toContainText('読めない');
+  const o = await page.evaluate(() => window.__okutta);
+  const set = o.filter((x) => x.p.indexOf('dk_payroll_settings') === 0);
+  const ki = o.filter((x) => x.p.indexOf('dk_shime_rireki') === 0);
+  expect(set.length, '★行が 無い だけで 止めた★').toBe(1);
+  expect(set[0].b.period_shime, '★今日より 前の 月を 変えた★').toBe(null);
+  expect(set[0].b.period_end_mode).toBe('thirds');
+  expect(ki.length).toBe(1);
+  expect(ki[0].b.from_date).toBe('2026-10-07');
+  expect(ki[0].b.value).toEqual({ kind: 'tsuki', hi: [0] });
+});
+
 // ★1回 知らせた 後に 払い方を 変えたら また 止める★（対立役 任1）
 //   わざと壊す：KARA_KAKUNIN の 比べを「一度 確かめれば 通す」に ⇒ 赤
 test('③d 空で 知らせた 後に 払い方を 変えて 押す ⇒ また 止める・同じ 形で もう 一度 ⇒ 保存', async ({

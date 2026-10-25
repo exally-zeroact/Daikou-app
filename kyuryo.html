@@ -8454,8 +8454,10 @@
           return SHIME_HI === null ? kyouJst() : SHIME_HI;
         }
         // 列の 形（記録より 前の 日）。読めなければ null
+        //   ★設定の 行が 無い 会社は 計算と 同じ yomu で 月3回★ 2026-10-25（前は null＝既定の「今日から」で 保存すると
+        //   「最初からの 払い方が 読めない」で 必ず 止まった）。止めるのは 通信で 読めなかった（yomenai）時だけ
         function shimeRetsuKata() {
-          if (!SET || SET.yomenai) return null;
+          if (SET && SET.yomenai) return null;
           var y = PayrollPeriod.yomu(SET);
           return y && y.ok ? y.kata : null;
         }
