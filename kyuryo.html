@@ -2894,6 +2894,27 @@
               hnPdfErr('明細の 紙を 作れませんでした（' + m + '）。もう一度 押してください。');
             });
         }
+        // ★保存（ダウンロード）★ 見本の InvoicePDF.save（invoice-pdf.js）と 同じ 形＝a の download で 名前つきで 落とす
+        //   ★ホーム画面の アプリでは 使わない★（download の a は アプリの 中で ファイルを 開き 戻れなく なる＝
+        //   feedback_ios_standalone_download_traps_app・target=_blank でも 止まらなかった）＝呼ぶ 側で 共有の 画面へ
+        //   URL は 60秒 残す（保存の 画面を 待つ 間に 消すと 白い 窓に なり得る・対立役 S2）
+        function hnPdfHozon(p) {
+          var url = URL.createObjectURL(p.blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = p.name;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            URL.revokeObjectURL(url);
+            if (a.parentNode) a.parentNode.removeChild(a);
+          }, 60000);
+          // ★保存できたかは 画面から 分からない＝言い切らない★（やめた 時・LINE の 中で 黙って 効かない 時も 嘘に しない・対立役 S3）
+          hnPdfMiruMsg(
+            '保存の 画面が 出たら「ダウンロード」を 押してください。保存した PDF（iPhone は Safari の ↓ か ファイルアプリの「ダウンロード」）を 開いて 共有（□↑）から LINE や メールに 送れます。何も 出ない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。',
+            true
+          );
+        }
         // ★渡す★：共有の 画面（ファイルを 渡せる 端末）→ 無ければ 新しい 窓
         //   閉じた（AbortError）・開いている 間に もう一度 押した（InvalidStateError）時は 窓を 開かない（二重に 出さない）
         function hnPdfWatasu(p) {
@@ -3014,9 +3035,21 @@
           document.documentElement.style.overflow = 'hidden';
           document.body.style.overflow = 'hidden';
           document.getElementById('hnPdfTojiru').onclick = hnPdfTojiru;
+          // ★「保存・送る」＝見本（代行請求書の「PDFで保存 / 送る」InvoicePDF.save）と 同じ ダウンロード★ 2026-10-25
+          //   司さん「送るからなぜLINEが使えない？やり方間違えてるのでは？代行請求書アプリではちゃんとできるやろが」
+          //   前は 共有の 画面（navigator.share）に ファイルを 直に 渡していた＝受け取り先に LINE が 出ない。
+          //   保存した PDF を 開いて 共有すると LINE に 送れる（見本と 同じ 道）
+          //   ホーム画面の アプリだけは 前の 共有の 画面（戻れなく ならない 唯一の 道・印刷と 同じ）
           document.getElementById('hnPdfOkuru').onclick = function () {
             hnPdfMiruMsg('');
-            hnPdfWatasu(p);
+            if (hnHomeApp()) {
+              hnPdfMiruMsg(
+                '出てきた 画面で 送り先を 選んでください（LINE が 並ばない 時は 右の「その他」から 選べます）。',
+                true
+              );
+              return hnPdfWatasu(p);
+            }
+            hnPdfHozon(p);
           };
           document.getElementById('hnPdfInsatsu').onclick = function () {
             hnPdfMiruMsg('');
