@@ -116,7 +116,8 @@ function junbi(d, imaO) {
   return maeBlob;
 }
 
-describe('★店ごとの 印で 白名簿の blob を 書き継ぐ 道具★', () => {
+// ★20秒の 枠★ 2026-10-25（git を 何度も 起こす 試験＝1本で 0.7秒・押す 前の 門で 332本と 並べると 5秒を 越えて 3回 続けて 落ちた・shime-rireki と 同じ 形）
+describe('★店ごとの 印で 白名簿の blob を 書き継ぐ 道具★', { timeout: 20000 }, () => {
   it('9. 本体の 版を 名指しで 照らす（変わったら 道具を 見直す）', () => {
     const b = execFileSync('git', ['-C', ROOT, 'hash-object', 'tests/kinshi-ji.test.mjs'], {
       encoding: 'utf8',
