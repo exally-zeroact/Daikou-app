@@ -993,7 +993,10 @@
                   .then(function (a) {
                     a = Array.isArray(a) ? a : [];
                     out = out.concat(a);
-                    return a.length === 1000 && from < 200000 ? tsugi(from + 1000) : out;
+                    if (a.length < 1000) return out;
+                    // ★20万行で 黙って 打ち切らない★ 2026-10-25（届いたら 読み込みに 失敗＝抜けた 売上を 出さない）
+                    if (from + 1000 >= 200000) throw new Error('shifts');
+                    return tsugi(from + 1000);
                   });
               }
               return tsugi(0);

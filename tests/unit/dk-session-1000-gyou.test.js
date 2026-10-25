@@ -79,3 +79,18 @@ describe('★1000行 より 多い 表も 全部 読む★', () => {
     expect(decodeURIComponent(kiita[0])).not.toContain('offset=');
   });
 });
+
+// ★暴走 止め（20万行）に 届いたら 黙って 切らずに 読めなかった 事に する★ 2026-10-25
+//   司さん「読み込めんってありえんやろが」（5万行の 件）と 同じ 形＝前は 20万行で 黙って 打ち切り、抜けた 額を 出した
+//   わざと壊す：zenbuYomu の「from + KAI_1000 >= ZENBU_MADE」で failed を 数えない ⇒ ★赤★
+describe('★20万行で 黙って 切らない★', () => {
+  it('200,500行 ⇒ 読めなかった 事に する（failed 1）', async () => {
+    const { st } = await yomu(200500, 'dk_shift_edits?select=*&limit=5000');
+    expect(st.failed, '★20万行で 黙って 切れた★').toBe(1);
+  });
+  it('199,500行 ⇒ 全部 読む（failed 0）', async () => {
+    const { r, st } = await yomu(199500, 'dk_shift_edits?select=*&limit=5000');
+    expect(r.length).toBe(199500);
+    expect(st.failed).toBe(0);
+  });
+});

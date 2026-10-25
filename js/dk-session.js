@@ -400,6 +400,7 @@
   //   実費の 行（dk_shift_edits）は 日付で 絞らずに 全部 読むので 年ごとに 増える＝いつか 切れて 給料・売上が 黙って 減る。
   //   ⇒ ★1000行 より 多く 頼まれたら 1000行 ずつ 全部 読む★。順番は ★表の 鍵★で 決める（同じ 行を 2回／読み落とし を 出さない）。
   const KAI_1000 = 1000;
+  const ZENBU_MADE = 200000; // 全部 読む 時の 暴走 止め（届いたら 読めなかった 事に する）
   const KAGI_JUN = {
     dk_shifts: 'started_at.asc,shift_id.asc',
     dk_shift_edits: 'shift_id.asc',
@@ -432,8 +433,14 @@
       return hitoTsu(sess, moto + 'limit=' + KAI_1000 + '&offset=' + from, st).then(function (a) {
         const arr = Array.isArray(a) ? a : [];
         out = out.concat(arr);
-        if (arr.length === KAI_1000 && from < 200000) return tsugi(from + KAI_1000);
-        return out;
+        if (arr.length < KAI_1000) return out;
+        // ★暴走 止めに 届いたら 読めなかった 事に する★ 2026-10-25（前は 20万行で 黙って 打ち切り＝その 先の 行が 抜けた 額を 出した・
+        //   司さん「読み込めんってありえんやろが」の 5万行の 件と 同じ 形）
+        if (from + KAI_1000 >= ZENBU_MADE) {
+          if (st) st.failed++;
+          return out;
+        }
+        return tsugi(from + KAI_1000);
       });
     }
     return tsugi(0);
