@@ -497,6 +497,8 @@
 
   // ── 使う / 止める ──
   //   ★押した瞬間に画面を変え、失敗したら戻す★（待たせない）
+  //   ★書けた 行を 返させて 1行 か 見る★ 2026-10-25（前は 倉庫が 0行 しか 書かなくても「止めました」と 出した＝
+  //   権限で 弾かれた・行が 無い 時も 成功に 見えた・Rakunally 席の 横断の 候補）
   function setStatus(id, next) {
     const r = rows.filter(function (x) {
       return x.id === id;
@@ -508,8 +510,9 @@
     sb.from('dk_companies')
       .update({ status: next })
       .eq('company_id', id)
+      .select('company_id')
       .then(function (res) {
-        if (res.error) {
+        if (res.error || !res.data || res.data.length !== 1) {
           r.status = before;
           render();
           toast('変えられませんでした');
@@ -524,6 +527,7 @@
   }
 
   // ── 席数 ──
+  //   ★書けた 行が 1行 か 見る★（0行で「席数を 変えました」と 言わない・2026-10-25）
   function setSeat(id, n, el) {
     const r = rows.filter(function (x) {
       return x.id === id;
@@ -534,8 +538,9 @@
     sb.from('dk_companies')
       .update({ seat_limit: n })
       .eq('company_id', id)
+      .select('company_id')
       .then(function (res) {
-        if (res.error) {
+        if (res.error || !res.data || res.data.length !== 1) {
           r.seat = before;
           if (el) el.value = before;
           toast('変えられませんでした');

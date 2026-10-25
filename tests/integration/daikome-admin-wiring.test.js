@@ -157,11 +157,12 @@ describe('★押す物は「使う/止める」と「席数」であること★
 
   it('★押した瞬間に画面を変え、失敗したら戻す★（待たせない）', () => {
     // var/let/const は整形の道具が変えるので、どれでも通るようにする
+    // 2026-10-25 書けた 行を 見る .select と 1行の 比べを 足した 分 窓を 広げた（見る 中身は 同じ）
     expect(JS, '★状態: 失敗しても戻していない★').toMatch(
-      /(var|let|const) before = r\.status;[\s\S]{0,220}r\.status = before;/
+      /(var|let|const) before = r\.status;[\s\S]{0,320}r\.status = before;/
     );
     expect(JS, '★席数: 失敗しても戻していない★').toMatch(
-      /(var|let|const) before = r\.seat;[\s\S]{0,260}r\.seat = before;/
+      /(var|let|const) before = r\.seat;[\s\S]{0,360}r\.seat = before;/
     );
   });
 
@@ -257,9 +258,7 @@ describe('★はじめて入る道があること★', () => {
     ).toEqual([]);
 
     // ★テストの分に 本番のホストが 1つも混ざらない★
-    const mixedInTest = test.filter((u) =>
-      /daikou-app\.vercel|daikome-jimusho\.vercel/.test(u)
-    );
+    const mixedInTest = test.filter((u) => /daikou-app\.vercel|daikome-jimusho\.vercel/.test(u));
     expect(
       mixedInTest,
       `★テストに足す住所に 本番が ${mixedInTest.length} 件 混ざっています★ ` +
@@ -269,9 +268,7 @@ describe('★はじめて入る道があること★', () => {
     // ★押す前に 数を出す★（見たつもりで当てるのを防ぐ）
     const src = fs.readFileSync(path.join(ROOT, 'scripts', 'auth-redirect-allow.mjs'), 'utf8');
     expect(src, '★押す前に 数を出していない★').toContain('★数えます★');
-    expect(src, '★混ざりを見つけても 止まらない★').toContain(
-      'の住所を足そうとしました★'
-    );
+    expect(src, '★混ざりを見つけても 止まらない★').toContain('の住所を足そうとしました★');
   });
 
   // ★2026-08-07 司さん「他のアプリでユーザーがやるように、なんで同じ構造にせんのど」★
@@ -369,5 +366,22 @@ describe('★危ない物を置いていないこと★', () => {
   it('★事務所の画面には出さない★（運営専用・お客さんに見せない）', () => {
     const allow = fs.readFileSync(path.join(ROOT, 'scripts', 'office-allow.mjs'), 'utf8');
     expect(allow, '★事務所に管理画面が並ぶ★').not.toContain('daikome-admin.html');
+  });
+});
+
+// ★★0行でも「止めました」と 言わない★★ 2026-10-25（Rakunally 席の 横断の 候補＝update の 後に 書けた 行を 見ない 形）
+//   倉庫が 権限で 弾いた・行が 無い 時、supabase は error 無しの 0行を 返す＝前は 成功の 知らせを 出した
+//   わざと壊す：setStatus の .select('company_id') か「res.data.length !== 1」を 外す ⇒ 赤
+describe('★使う/止める・席数は 書けた 行が 1行 の 時だけ 成功★', () => {
+  ['setStatus', 'setSeat'].forEach(function (na) {
+    it(na + '：書けた 行を 返させ、1行で なければ 戻す', () => {
+      const i = JS.indexOf('function ' + na);
+      const naka = JS.slice(i, JS.indexOf('\n  }\n', i));
+      expect(naka, '★書けた 行を 返させていない★').toContain(".select('company_id')");
+      // ★返った 行を 見る if の 中で すぐ 画面を 戻す★（字が 在るだけで なく 形まで 見る・対立役 任1）
+      expect(naka, '★0行を 成功に している★').toMatch(
+        /\.select\('company_id'\)\s*\.then\(function \(res\) \{\s*if \(res\.error \|\| !res\.data \|\| res\.data\.length !== 1\) \{\s*r\.(status|seat) = before;/
+      );
+    });
   });
 });
