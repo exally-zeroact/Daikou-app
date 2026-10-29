@@ -22,6 +22,7 @@
 //     戻した後 … ★4本とも 緑★
 // ============================================================
 const { test, expect } = require('@playwright/test');
+const { maeNoTsuki } = require('./honnin-harness');
 
 const EMP = {
   employee_id: 'e1',
@@ -181,12 +182,12 @@ test('★★★⑥ 本人の 画面に「他の人を 選べる」口が 1つも
     expect(mieru.indexOf(w), '★本人に 見えています: ' + w + '★').toBe(-1);
 
   // ③ ★次に カードを 足しても 漏れない★
-  //   明細の 置き場(#paneSlip)の 中で 見えていてよい のは #slips だけ
+  //   明細の 置き場(#paneSlip)の 中で 見えていてよい のは #slips と 上の 並び #hnBar（自分の 月・期間・印刷 / 送る＝2026-10-29）だけ
   const hoka = await page.evaluate(() => {
     const ps = document.getElementById('paneSlip');
     if (!ps) return ['paneSlip が 無い'];
     return Array.from(ps.children)
-      .filter((el) => el.id !== 'slips' && el.offsetParent !== null)
+      .filter((el) => el.id !== 'slips' && el.id !== 'hnBar' && el.offsetParent !== null)
       .map((el) => el.id || el.className || el.tagName);
   });
   expect(hoka, '★明細の 置き場に 他の 物が 見えています★').toEqual([]);
@@ -273,9 +274,9 @@ test('締めの 変え方で 空いた 月は 本人の 明細を 出さずに �
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
   // 今日（10/7）は 11月分（10/2〜11/1）→ 10月分 → 9月分（空いた 月）
-  await page.click('#hnMae');
+  await maeNoTsuki(page);
   await page.waitForTimeout(800);
-  await page.click('#hnMae');
+  await maeNoTsuki(page);
   await expect(page.locator('#slips')).toContainText(
     '締めの 変え方で この 月の 給料が 無くなっています。会社に 知らせてください。'
   );

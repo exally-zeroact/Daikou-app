@@ -6,12 +6,12 @@
 //   わざと壊す：kyuryo.html の tebikiJippi の 止めを 外す ⇒ 赤
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { hiraku } = require('./honnin-harness');
+const { hiraku, maeNoTsuki } = require('./honnin-harness');
 
 test('本人の 明細：印 tebikiJippi が 無い 返事なら 紙を 出さず 止める', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await hiraku(page, null, { tebikiJippi: undefined });
-  await page.click('#hnMae');
+  await maeNoTsuki(page);
   await expect(page.locator('#slips')).not.toContainText('読み込み中');
   await expect(page.locator('#slips')).toContainText('手入力の 日の 実費を 読めなかった');
   await expect(page.locator('#hnKami'), '★止めたのに 紙が 出た★').toHaveCount(0);
@@ -20,7 +20,7 @@ test('本人の 明細：印 tebikiJippi が 無い 返事なら 紙を 出さ�
 test('本人の 明細：印が 在れば 紙を 出す（止めっぱなしに しない）', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await hiraku(page, null, {});
-  await page.click('#hnMae');
+  await maeNoTsuki(page);
   await expect(page.locator('#slips')).not.toContainText('読み込み中');
   await expect(page.locator('#slips')).not.toContainText('手入力の 日の 実費を 読めなかった');
 });

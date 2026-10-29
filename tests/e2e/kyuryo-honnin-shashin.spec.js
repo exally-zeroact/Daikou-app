@@ -168,13 +168,14 @@ test('★本人の 画面を 撮る（はじめて → 決めた後）★', asyn
   // ★★空の 絵を 司さんに 送らない★★
   //   2026-10-01 に ★全部「—」・合計 ¥0 の 絵を 1枚 送って しまった★
   //   （仮の 勤務を 先月に 置いていた）。数で 止める。
+  // ★月を 選ぶ 所は 上の 並び #hnBar（#slips の 外）に 移した★ 2026-10-29（代行請求書と 同じ 作り）＝紙の 高さだけを 見る
   const naka = await page.evaluate(() => {
     const b = document.getElementById('slips');
     return { h: b.scrollHeight, ji: b.innerText || '' };
   });
-  expect(naka.h, '★明細の 絵が 空です★').toBeGreaterThan(300);
+  expect(naka.h, '★明細の 絵が 空です★').toBeGreaterThan(200);
   expect(naka.ji, '★名前が 出ていません★').toContain(EMP.name);
-  expect(naka.ji, '★月を 選ぶ 所が 出ていません★').toContain('年');
+  await expect(page.locator('#hnTsukiSel'), '★月を 選ぶ 所が 出ていません★').toContainText('年');
   // ★合計が ¥0 の 絵は 出さない★（中身の 無い 絵を 見せない）
   expect(naka.ji.replace(/\s/g, ''), '★合計が ¥0＝中身の 無い 絵★').not.toContain('¥0');
   expect(naka.ji, '★金額が 1つも 出ていません★').toMatch(/[¥￥]\s?[1-9]/);

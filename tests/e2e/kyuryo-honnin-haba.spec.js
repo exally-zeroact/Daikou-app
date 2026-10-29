@@ -14,7 +14,7 @@
 //     戻した 後 … ★6本 緑★
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { hiraku, hakaru } = require('./honnin-harness');
+const { hiraku, hakaru, maeNoTsuki } = require('./honnin-harness');
 
 function kirenai(m) {
   expect(m.maisu, '★紙が 1枚も 無い＝何も 測っていない★').toBeGreaterThan(0);
@@ -45,7 +45,7 @@ test('★本人の 紙：広い 画面で 開いてから 縮めても（向き�
 test('★本人の 紙：止めた 文の 時に 向きを 変えても 文の まま★', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await hiraku(page, null, { uriageNaoshi: undefined });
-  await page.click('#hnMae');
+  await maeNoTsuki(page);
   await expect(page.locator('#slips')).not.toContainText('読み込み中');
   await expect(page.locator('#hnKami')).toHaveCount(0);
   const mae = await page.locator('#slips').innerText();
@@ -63,7 +63,7 @@ test('★本人の 紙：縮めて すぐ ◀ で 止めた 文に なっても 
   await page.setViewportSize({ width: 390, height: 844 });
   await hiraku(page, null, { uriageNaoshi: undefined });
   await page.setViewportSize({ width: 320, height: 844 });
-  await page.click('#hnMae');
+  await maeNoTsuki(page);
   await page.waitForTimeout(800);
   await expect(page.locator('#slips')).not.toContainText('読み込み中');
   await expect(page.locator('#hnKami'), '★止めた 文の 後に 前の 月の 紙が 出た★').toHaveCount(0);

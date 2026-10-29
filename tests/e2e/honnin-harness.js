@@ -138,4 +138,12 @@ async function hakaru(page) {
   });
 }
 
-module.exports = { EMP, SET, getKotae, hiraku, hakaru, jitaiKotei };
+// ★前の 月へ★ 2026-10-29（◀ を 無くし 代行請求書と 同じ 月の 選ぶ 欄 #hnTsukiSel に した＝新しい 月が 上）
+async function maeNoTsuki(page) {
+  const sel = page.locator('#hnTsukiSel');
+  await expect(sel).toBeVisible();
+  const i = await sel.evaluate((s) => s.selectedIndex);
+  await sel.selectOption({ index: i + 1 });
+}
+
+module.exports = { EMP, SET, getKotae, hiraku, hakaru, jitaiKotei, maeNoTsuki };

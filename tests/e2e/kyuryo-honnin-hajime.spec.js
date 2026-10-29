@@ -7,7 +7,12 @@
 //   ★偽の 倉庫に created_at を 入れる★（本物の dk_kyuryo_get は to_jsonb(e) で 返す。
 //     honnin-harness の EMP には 無い＝今までの 本人の 試験は この 道を 一度も 通らなかった・対立役 N4 直す1）
 //
-//   ★押す物の一覧（先に書く）★ 1. リンクを 開く 2. パスワードを 入れて「見る」 3. 期間の ボタン
+//   ★★2026-10-29 司さん「記録なくても押せる開くようにしろや」★★
+//     記録の 無い 期間は ¥0 の 紙を 出す（勤め始める 前の 期も）＝前の「この期間の 記録は ありません」は 無くした。
+//     ただし 記録（働いた 日・手当・控除）が 在る 期は 額を 消さない（下の 3本）は そのまま 守る。
+//     期間は 札でなく 上の 並びの 選ぶ 欄 #hnKikanSel（代行請求書と 同じ 作り）。
+//
+//   ★押す物の一覧（先に書く）★ 1. リンクを 開く 2. パスワードを 入れて「見る」 3. 期間の 選ぶ 欄
 //   ★★わざと壊して 赤に なるのを 見た（2026-10-21 実測）★★
 //     kyuryo.html の「if (HONNIN) CTX.honnin = true;」を 消す …… ★1本 赤★（勤め始め 前の 期に ¥0 の 紙）
 //     js/payroll-daily.js の aru から 手当・控除を 外す … ★2本 赤★（手当だけ・控除だけ の 期）
@@ -61,23 +66,26 @@ async function akeru(page, emp, mazeru) {
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
-  await expect(page.locator('#slips .hn-chip')).toHaveCount(3);
+  // 1か月分 ＋ 月3回の 3つ
+  await expect(page.locator('#hnKikanSel option')).toHaveCount(4);
 }
 
 // 本物の 関数が 返す 形（to_jsonb の timestamptz）で 10/19 に 登録した 人
 const ATARASHII = Object.assign({}, EMP, { created_at: '2026-10-19T01:00:00.123456+00:00' });
 
-test('★勤め始める 前の 期（10/1〜10/10）は 紙を 出さず 字を 出す・勤め始めた 期は 紙を 出す★', async ({
+test('★勤め始める 前の 期（10/1〜10/10）は ¥0 の 紙・勤め始めた 期は 紙を 出す★', async ({
   page,
 }) => {
   await akeru(page, ATARASHII);
-  await expect(page.locator('#slips .hn-chip.on')).toHaveAttribute('data-k', '0');
-  await expect(page.locator('#hnKami .msg')).toHaveText('この期間の 記録は ありません。');
+  await expect(page.locator('#hnKikanSel')).toHaveValue('0');
   await expect(
-    page.locator('#hnKami .hn-kami-waku'),
-    '★勤め始める 前の 期に 紙（¥0）が 出た★'
-  ).toHaveCount(0);
-  await page.locator('#slips .hn-chip').nth(1).click();
+    page.locator('#hnKami .hn-kami-waku').first(),
+    '★記録の 無い 期に 紙が 出ない（司さん 10-29：記録なくても 開く）★'
+  ).toBeVisible();
+  await expect(page.locator('#hnKami')).toContainText(/合計\s*¥0\s*0\.00\s*時間/);
+  await expect(page.locator('#hnPdf'), '★記録の 無い 期で 印刷 / 送る が 押せない★').toBeEnabled();
+  await page.locator('#hnKikanSel').selectOption('1');
+  await expect(page.locator('#hnKikanSel')).toHaveValue('1');
   await expect(
     page.locator('#hnKami .hn-kami-waku').first(),
     '★勤め始めた 期の 紙が 出ない★'
@@ -88,7 +96,7 @@ test('★勤め始める 前の 期でも 働いた 日が 在れば 紙を 出�
   await akeru(page, ATARASHII, {
     workHours: [{ work_date: '2026-10-05', employee_id: 'e1', device_id: 'd1', hours: 5 }],
   });
-  await expect(page.locator('#slips .hn-chip.on')).toHaveAttribute('data-k', '0');
+  await expect(page.locator('#hnKikanSel')).toHaveValue('0');
   await expect(
     page.locator('#hnKami .hn-kami-waku').first(),
     '★働いた 日の 紙が 消えた★'
@@ -111,7 +119,7 @@ test('★勤め始める 前の 期でも 手当だけ 在れば 紙を 出す�
       },
     ],
   });
-  await expect(page.locator('#slips .hn-chip.on')).toHaveAttribute('data-k', '0');
+  await expect(page.locator('#hnKikanSel')).toHaveValue('0');
   await expect(page.locator('#hnKami .hn-kami-waku').first(), '★手当の 紙が 消えた★').toBeVisible();
   // 額まで 縛る（差引 支給 で 見る＝手当の 字だけ 出て 差引が ¥0 でも 緑に しない・対立役 3回目 見立て1）
   await expect(page.locator('#hnKami')).toContainText(/差引\s*支給\s*¥5,000/);
@@ -132,13 +140,13 @@ test('★勤め始める 前の 期でも 控除だけ 在れば 紙を 出す�
       },
     ],
   });
-  await expect(page.locator('#slips .hn-chip.on')).toHaveAttribute('data-k', '0');
+  await expect(page.locator('#hnKikanSel')).toHaveValue('0');
   await expect(page.locator('#hnKami .hn-kami-waku').first(), '★控除の 紙が 消えた★').toBeVisible();
   await expect(page.locator('#hnKami')).toContainText('見張り控除');
 });
 
 test('★登録日が 来ない（古い 関数）時は 前の 通り 紙を 出す★', async ({ page }) => {
   await akeru(page, EMP);
-  await expect(page.locator('#slips .hn-chip.on')).toHaveAttribute('data-k', '0');
+  await expect(page.locator('#hnKikanSel')).toHaveValue('0');
   await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
 });

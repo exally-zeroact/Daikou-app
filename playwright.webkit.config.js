@@ -61,6 +61,8 @@ export const WEBKIT_KUMI = [
   'kyuryo-honnin-kikan.spec.js',
   // 従業員の 明細＝勤め始める 前の 期を ¥0 の 紙で 出さない（登録日の 字の 読みが Safari で 違えば iPhone だけ 戻る・N4 対立役 2026-10-21）
   'kyuryo-honnin-hajime.spec.js',
+  // 従業員の 明細＝辞めた 人の 記録の 無い 期は ¥0・札が 切れた 後の 入れる 画面に 月の 欄を 出さない（本番前の 対立役 止1・止2 2026-10-30）
+  'kyuryo-honnin-yameta.spec.js',
   'kyuryo-meisai-miseru.spec.js',
   // 幅の 変わらない resize（iPhone の 帯の 伸び縮み・板の 開け閉め）で 紙を 作り直さず 巻いた 位置が 飛ばない（2026-10-23）
   'kami-maki-zurenai.spec.js',

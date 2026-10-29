@@ -1,14 +1,16 @@
 // ============================================================
-// ★★本人の 明細を 送る（範囲＝この 期間｜1か月分・PDF・明細の コピー・字で 送る）★★ 2026-10-25
+// ★★本人の 明細を 送る（範囲＝期間ごと｜1か月分）★★ 2026-10-25／2026-10-29 作り直し
 //
 //   ★司さんの言葉★
 //     「LINEで配るやなくて送るやけど？代行請求書アプリでは全社や各々分けてLINEで送れるやろが？
 //       従業員のページやから送るとしたら1ヶ月分をまとめてや選択してるものだけ明細をコピーやLINEなどで送れるようにするべきやろ」
+//     2026-10-29「赤丸のどこが代行請求書と同じ作りなんどぼけ勝手にごちゃごちゃさすなや記録なくても押せる開くようにしろや」
+//       ⇒ 範囲は 上の 並びの 期間の 選ぶ 欄（「1か月分」＋ 期間ごと）・送るは「📄 印刷 / 送る」1つ
+//         明細の コピー・字で 送る は 無くした／記録の 無い 期間も ¥0 の 紙を 出す（1か月分にも 入る）
 //
 //   ★偽の 倉庫★ 月3回（10/1〜10/10・10/11〜10/20・10/21〜10/31）・今日 10/21
-//     10/5 と 10/15 に 1時間ずつ（売上 10,005円・歩合 0.3）＝紙の 合計は 各 ¥2,851（端数 在り）／10/21〜 は まだ 記録 無し
-//     ＝1か月の 合計は 期間ごとに 丸めてから 足す（紙の 額の 和）
-//   ★比べる 相手は 紙（期間の 札を 押して 出た 画面の 明細）と 期間ごとの PDF＝同じ 計算を 2回 なぞらない（対立役 止3）★
+//     10/5 と 10/15 に 1時間ずつ（売上 10,005円・歩合 0.3）＝紙の 合計は 各 ¥2,851（端数 在り）／10/21〜 は まだ 記録 無し（¥0）
+//   ★比べる 相手は 期間ごとに 選んで 出た 紙と 期間ごとの PDF＝同じ 計算を 2回 なぞらない（対立役 止3）★
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const { EMP, SET } = require('./honnin-harness');
@@ -31,28 +33,15 @@ const HOURS = ['2026-10-05', '2026-10-15'].map((d) => ({
   hours: 1,
 }));
 
-async function akeru(page, mazeru, copyMode, chips) {
-  await page.addInitScript((m) => {
-    window.__copy = [];
-    window.__share = [];
-    const cb = {
-      writeText: (t) => {
-        window.__copy.push(t);
-        if (m === 'dame') return Promise.reject(new Error('dame'));
-        if (m === 'kaeranai') return new Promise(() => {});
-        return Promise.resolve();
-      },
+// kikan＝期間の 選ぶ 欄の 選べる 数（1か月分 ＋ 期間の 数・期間が 1つの 月は 1）
+async function akeru(page, mazeru, kikan) {
+  await page.addInitScript(() => {
+    window.__dl = [];
+    window.__kyouyu = [];
+    HTMLAnchorElement.prototype.click = function () {
+      window.__dl.push({ name: this.download, href: this.href });
     };
-    Object.defineProperty(navigator, 'clipboard', { value: cb, configurable: true });
-    Object.defineProperty(navigator, 'share', {
-      value: (d) => {
-        window.__share.push(d);
-        return Promise.resolve();
-      },
-      configurable: true,
-    });
-    Object.defineProperty(navigator, 'canShare', { value: () => true, configurable: true });
-  }, copyMode || 'ok');
+  });
   await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
     r.fulfill({
       status: 200,
@@ -96,158 +85,121 @@ async function akeru(page, mazeru, copyMode, chips) {
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
-  await expect(page.locator('#slips .hn-chip')).toHaveCount(chips === undefined ? 3 : chips);
-  if (chips === 0) await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await expect(page.locator('#hnKikanSel option')).toHaveCount(kikan === undefined ? 4 : kikan);
+  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
 }
-// 紙（画面の 明細）の 合計の 額＝別の 道（コピーの 字と 比べる 相手）
-//   紙の 1枚目の「合計」の 額（¥ だけの 字の 塊）
-async function kamiNoGaku(page, k) {
-  await page.locator('#slips .hn-chip').nth(k).click();
+// 画面の 紙 1枚ずつの「合計」の 額（¥ だけの 字の 塊の 1つ目）
+async function kamiNoGaku(page) {
+  return page.evaluate(() =>
+    Array.from(document.querySelectorAll('#hnKami .hn-kami-waku')).map((w) => {
+      const el = Array.from(w.querySelectorAll('*')).find(
+        (x) => x.children.length === 0 && /^¥[\d,]+$/.test((x.textContent || '').trim())
+      );
+      return el ? Number(el.textContent.trim().slice(1).replace(/,/g, '')) : NaN;
+    })
+  );
+}
+async function erabu(page, v) {
+  await page.locator('#hnKikanSel').selectOption(v);
+  await expect(page.locator('#hnKikanSel')).toHaveValue(v);
   await page.waitForTimeout(300);
-  return page.evaluate(() => {
-    const w = document.querySelector('#hnKami .hn-kami-waku');
-    if (!w) return NaN;
-    const el = Array.from(w.querySelectorAll('*')).find(
-      (x) => x.children.length === 0 && /^¥[\d,]+$/.test((x.textContent || '').trim())
-    );
-    return el ? Number(el.textContent.trim().slice(1).replace(/,/g, '')) : NaN;
-  });
 }
-const gakuOf = (v) => v;
-const yenJi = (v) => '¥' + v.toLocaleString('en-US');
-
-// わざと壊す：hnTsukiNoKi の aru を employees[0] の 有無に 戻す ⇒ ★赤★（まだ 来て いない 10/21〜 が ¥0 で 入る）
-// わざと壊す：hnMeisaiJi の 合計を 足してから 丸める ⇒ ★赤★（合計が 紙の 和と 違う）
-test('① 1か月分の コピー：記録の 在る 期間だけ・額は 紙と 同じ・合計は 紙の 和（丸めてから 足す）', async ({
-  page,
-}) => {
-  await akeru(page);
-  const g0 = gakuOf(await kamiNoGaku(page, 0));
-  const g1 = gakuOf(await kamiNoGaku(page, 1));
-  expect(g0).toBeGreaterThan(0);
-  expect(g1).toBeGreaterThan(0);
-  await expect(page.locator('.hn-hani-b')).toHaveCount(2);
-  await expect(page.locator('.hn-hani-b.on')).toHaveText('この 期間');
-  await page.click('.hn-hani-b[data-hani="tsuki"]');
-  await expect(page.locator('.hn-hani-b.on')).toHaveText('1か月分');
-  await expect(page.locator('#hnPdf')).toHaveText('1か月分の PDFを 開く（保存・印刷）');
-  await page.click('#hnCopy');
-  await expect(page.locator('#hnCopyMsg')).toHaveText(
-    'コピーしました。LINE などに 貼り付けて 送れます。'
-  );
-  const ji = await page.evaluate(() => window.__copy[0]);
-  // eslint-disable-next-line no-console
-  console.log(ji);
-  expect((ji.match(/【給料明細】/g) || []).length, '★記録の 無い 期間（10/21〜）が 入った★').toBe(
-    2
-  );
-  expect(ji).toContain('10/1 〜 10/10');
-  expect(ji).toContain('10/11 〜 10/20');
-  expect(ji).not.toContain('10/21');
-  expect(ji, '★¥0 の 明細が 入った★').not.toMatch(/差引 支給 ¥0\b/);
-  expect(ji).toContain('＝ 差引 支給 ' + yenJi(g0));
-  expect(ji).toContain('見張り太郎');
-  expect(ji, '★合計が 紙の 額の 和で ない★').toContain('1か月の 差引 支給 合計 ' + yenJi(g0 + g1));
-});
-
-test('② この 期間の コピー：見ている 期間だけ・合計の 行は 出さない', async ({ page }) => {
-  await akeru(page);
-  const g1 = gakuOf(await kamiNoGaku(page, 1));
-  await page.click('#hnCopy');
-  await expect(page.locator('#hnCopyMsg')).toContainText('コピーしました');
-  const ji = await page.evaluate(() => window.__copy[0]);
-  expect((ji.match(/【給料明細】/g) || []).length).toBe(1);
-  expect(ji).toContain('10/11 〜 10/20');
-  expect(ji).toContain('＝ 差引 支給 ' + yenJi(g1));
-  expect(ji).not.toContain('1か月の');
-});
-
-// わざと壊す：honninCopy で writeText の 返りを 待たずに「コピーしました」⇒ ★赤★
-test('③ コピーが 効かない・返らない 端末は 字を 選べる 箱に 出す（「コピーしました」と 言わない）', async ({
-  page,
-}) => {
-  await akeru(page, null, 'dame');
-  await page.click('#hnCopy');
-  await expect(page.locator('#hnCopyHako')).toBeVisible();
-  await expect(page.locator('#hnCopyMsg')).toHaveText(
-    '下の 字を 長押しして「コピー」を 押してください。'
-  );
-  expect(await page.locator('#hnCopyHako').inputValue()).toContain('【給料明細】');
-});
-test('③b コピーが 3秒 返らない 時も 箱に 出す', async ({ page }) => {
-  await akeru(page, null, 'kaeranai');
-  await page.click('#hnCopy');
-  await page.clock.runFor(3500);
-  await expect(page.locator('#hnCopyHako')).toBeVisible();
-  await expect(page.locator('#hnCopyMsg')).not.toContainText('コピーしました');
-});
-
-test('④ 字で 送る：共有の 画面に 同じ 字を 渡す（LINE などを 選ぶ）', async ({ page }) => {
-  await akeru(page);
-  await page.click('.hn-hani-b[data-hani="tsuki"]');
-  await page.click('#hnJiOkuru');
-  await expect.poll(() => page.evaluate(() => window.__share.length)).toBe(1);
-  const d = await page.evaluate(() => window.__share[0]);
-  expect((d.text.match(/【給料明細】/g) || []).length).toBe(2);
-});
-
-// わざと壊す：hnTsukiNoKi の「記録が 在るのに 行が 無い」止めを 外す ⇒ ★赤★（10/11〜 が 黙って 抜けた 合計を 出す）
-test('⑤ 記録が 在るのに 計算できない 期間が 在れば 1か月分は 止めて 訳を 出す（黙って 飛ばさない）', async ({
-  page,
-}) => {
-  await akeru(page);
-  await page.evaluate(() => {
-    const moto = window.PayrollDaily.report;
-    window.PayrollDaily.report = function (dates) {
-      const r = moto.apply(this, arguments);
-      if ((dates || []).indexOf('2026-10-15') >= 0) return Object.assign({}, r, { employees: [] });
-      return r;
-    };
-  });
-  await page.click('.hn-hani-b[data-hani="tsuki"]');
-  await page.click('#hnCopy');
-  await expect(page.locator('#hnPdfErr')).toContainText(
-    '10/11 〜 10/20 の 明細を 計算できませんでした'
-  );
-  expect(await page.evaluate(() => window.__copy.length), '★抜けた 合計を コピーした★').toBe(0);
+// 作った PDF の ページ数（作った 物を 道具 pdf-lib で 開き直して 数える＝紙の 数え方と 別の 道）
+async function pdfNoMaisu(page) {
+  const n = await page.evaluate(() => window.__dl.length);
   await page.click('#hnPdf');
-  await expect(page.locator('#hnPdfErr')).toContainText('計算できませんでした');
-  await expect(page.locator('#hnPdfMiru')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(n + 1);
+  return page.evaluate(async (i) => {
+    const d = window.__dl[i];
+    const buf = await (await fetch(d.href)).arrayBuffer();
+    const doc = await window.PDFLib.PDFDocument.load(buf);
+    return { name: d.name, maisu: doc.getPageCount() };
+  }, n);
+}
+
+// わざと壊す：hnHaniNoKi の 1か月分で 最後の 期間だけ 入れる ⇒ ★赤★（紙の 数・額が 違う）
+test('① 1か月分：画面に 期間ごとの 紙を 全部（記録の 無い 期間は ¥0）・額は 期間ごとの 紙と 同じ', async ({
+  page,
+}) => {
+  await akeru(page);
+  // 開いた 時は 今日を 含む 期…でなく 月3回は 最初の 期（今の 会社の 見え方）
+  await expect(page.locator('#hnKikanSel')).toHaveValue('0');
+  const g = [];
+  for (const v of ['0', '1', '2']) {
+    await erabu(page, v);
+    const k = await kamiNoGaku(page);
+    expect(k.length, '★期間ごとの 紙が 1枚で ない★').toBe(1);
+    g.push(k[0]);
+  }
+  expect(g[0]).toBeGreaterThan(0);
+  expect(g[1]).toBeGreaterThan(0);
+  expect(g[2], '★記録の 無い 10/21〜 が ¥0 で ない★').toBe(0);
+  await erabu(page, 'tsuki');
+  const t = await kamiNoGaku(page);
+  expect(t, '★1か月分の 紙が 期間ごとの 紙と 違う★').toEqual(g);
 });
 
 // ★1か月分の PDF の ページ数＝期間ごとに 作った PDF の ページ数の 和★（別の 道＝期間ごとに 今の 道で 作って 数える・対立役 止3）
-//   わざと壊す：honninPdf の 1か月分で 最後の 期間だけ 入れる ⇒ ★赤★
-async function pdfNoMaisu(page) {
-  await page.click('#hnPdf');
-  await expect(page.locator('#hnPdfMiru .hn-pdf-miru-kami').first()).toBeVisible({
-    timeout: 30000,
-  });
-  await page.waitForTimeout(500);
-  const n = await page.locator('#hnPdfMiru .hn-pdf-miru-kami').count();
-  await page.click('#hnPdfTojiru');
-  await expect(page.locator('#hnPdfMiru')).toHaveCount(0);
-  return n;
-}
-test('⑥ 1か月分の PDF は 記録の 在る 期間の 紙を 全部（ページ数＝期間ごとの PDF の 和）・範囲を 替えたら 作り直す', async ({
+//   わざと壊す：hnPdfTsukuru の 1か月分で 最後の 期間だけ 入れる ⇒ ★赤★
+test('② 1か月分の PDF は 期間の 紙を 全部（ページ数＝期間ごとの PDF の 和）・範囲を 替えたら 作り直す', async ({
   page,
 }) => {
   await akeru(page);
-  await page.locator('#slips .hn-chip').nth(0).click();
-  const p0 = await pdfNoMaisu(page);
-  await page.locator('#slips .hn-chip').nth(1).click();
-  const p1 = await pdfNoMaisu(page);
-  expect(p0).toBeGreaterThan(0);
-  await page.click('.hn-hani-b[data-hani="tsuki"]');
-  await expect(page.locator('#hnPdf')).toHaveText('1か月分の PDFを 開く（保存・印刷）');
-  const pt = await pdfNoMaisu(page);
-  expect(pt, '★1か月分の ページ数が 期間ごとの 和で ない★').toBe(p0 + p1);
+  const p = [];
+  for (const v of ['0', '1', '2']) {
+    await erabu(page, v);
+    p.push((await pdfNoMaisu(page)).maisu);
+  }
+  expect(p[0]).toBeGreaterThan(0);
+  expect(p[2], '★記録の 無い 期間の PDF が 0枚（押せる・開く が 効いていない）★').toBeGreaterThan(
+    0
+  );
+  await erabu(page, 'tsuki');
+  const t = await pdfNoMaisu(page);
+  expect(t.maisu, '★1か月分の ページ数が 期間ごとの 和で ない★').toBe(p[0] + p[1] + p[2]);
+  expect(t.name).toBe('給料明細_2026-10_1か月分_見張り太郎.pdf');
   // 範囲を 戻すと 見ている 期間だけ（作った 1か月分を 渡さない）
-  await page.click('.hn-hani-b[data-hani="ki"]');
-  await expect(page.locator('#hnPdf')).toHaveText('PDFを 開く（保存・印刷）');
-  expect(await pdfNoMaisu(page)).toBe(p1);
+  await erabu(page, '1');
+  const b = await pdfNoMaisu(page);
+  expect(b.maisu).toBe(p[1]);
+  expect(b.name).toBe('給料明細_2026-10_10-11〜10-20_見張り太郎.pdf');
 });
 
-test('⑦ 期間が 1つの 月は 範囲の 切り替えを 出さない', async ({ page }) => {
+// わざと壊す：hnKiNoE の「記録が 在るのに 行が 無い」止めを 外す ⇒ ★赤★（10/11〜 を ¥0 に 倒した 紙・PDF を 出す）
+test('③ 記録が 在るのに 計算できない 期間が 在れば 1か月分は 止めて 訳を 出す（¥0 に 倒さない）', async ({
+  page,
+}) => {
+  await akeru(page);
+  // 本人の 計算（ctx.honnin）は 行を 返さず、勤め始めを 外した 写し（honnin:false）は 働いた 日 0 の 行を 返す 形
+  //   ＝奥の 止め（写しの 行に 働いた 日が 在る）では 止まらない＝手前の「記録が 在る」止めだけを 縛る
+  await page.evaluate(() => {
+    const moto = window.PayrollDaily.report;
+    window.PayrollDaily.report = function (dates, ctx) {
+      const r = moto.apply(this, arguments);
+      if ((dates || []).indexOf('2026-10-15') < 0) return r;
+      if (!ctx || ctx.honnin !== false) return Object.assign({}, r, { employees: [] });
+      return Object.assign({}, r, {
+        employees: (r.employees || []).map((e) =>
+          Object.assign({}, e, { workedDays: 0, adj: [], kasegi: 0, totalPay: 0 })
+        ),
+      });
+    };
+  });
+  await erabu(page, 'tsuki');
+  await expect(page.locator('#hnKami')).toContainText(
+    '10/11 〜 10/20 の 明細を 計算できませんでした'
+  );
+  await expect(page.locator('#hnKami .hn-kami-waku'), '★¥0 に 倒した 紙を 出した★').toHaveCount(0);
+  await page.click('#hnPdf');
+  await expect(page.locator('#hnPdfErr')).toContainText('計算できませんでした');
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => window.__dl.length), '★抜けた PDF を 渡した★').toBe(0);
+});
+
+// わざと壊す：hnBarKaku の 期間が 1つの 時の disabled を 外す ⇒ ★赤★
+test('④ 期間が 1つの 月は 期間の 欄を 選べない（1か月分も 出さない）・印刷 / 送る は 押せる', async ({
+  page,
+}) => {
   await akeru(
     page,
     {
@@ -258,9 +210,12 @@ test('⑦ 期間が 1つの 月は 範囲の 切り替えを 出さない', asyn
         }),
       ],
     },
-    null,
-    0
+    1
   );
-  await expect(page.locator('.hn-hani-b')).toHaveCount(0);
-  await expect(page.locator('#hnCopy')).toBeVisible();
+  await expect(page.locator('#hnKikanSel')).toBeDisabled();
+  await expect(page.locator('#hnKikanSel option[value="tsuki"]')).toHaveCount(0);
+  const t = await pdfNoMaisu(page);
+  expect(t.maisu).toBeGreaterThan(0);
+  // 期間が 1つの 月は 名前に 期間を 付けない
+  expect(t.name).toBe('給料明細_2026-10_見張り太郎.pdf');
 });
