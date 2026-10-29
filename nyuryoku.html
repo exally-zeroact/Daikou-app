@@ -694,6 +694,10 @@
         var KYORI_ARU = false;
         // ★倉庫に 請求書の 列（seikyu_yen）が 在るか★ 2026-10-06（無い 線では 請求書の 欄を 出さない）
         var SEIKYU_ARU = false;
+        // ★メーターで 請求書を 押した 額（業務ごと）★ 2026-10-30＝窓 dk_meisai_gyoumu_goukei（請求書アプリの 明細を 業務ごとに 足した 額）
+        //   shift_id → 円。請求書アプリで 直した・消した 額が そのまま 入る（司さん 10-29「代行請求書アプリの方を修正しても事務所の方に反映」）
+        var GYO_SEIKYU = {};
+        var GYO_SEIKYU_NG = false; // 窓が 読めなかった（黙って 0円と 出さない）
         // ★倉庫に メーターの 車の 回数・距離の 直しの 列が 在るか★ 2026-10-25（無い 線では メーターの 車に 欄を 出さない）
         var KAZU_ARU = false;
         var KAZU_YOMENAI = false; // 列が 在るかを 通信で 確かめられなかった（欄を 黙って 消さず 訳を 出す）
@@ -908,7 +912,7 @@
           var no = ++LOADNO;
           // 打ち方の 間違いの 字は 描き直すと 欄の 字が 消える ので 一緒に 消す
           Object.keys(ERR_KAGI).forEach(function (k) {
-            if (/:katachi$/.test(k)) delete ERR_KAGI[k];
+            if (/:s?katachi$/.test(k)) delete ERR_KAGI[k]; // 請求書の 打ち方の 字（:skatachi）も
           });
           errNuru();
           YOMENAI = '読み込み中';
@@ -947,6 +951,7 @@
           var stEmp = DKSession.newLoadState();
           var stW = DKSession.newLoadState();
           var stP = DKSession.newLoadState();
+          var stG = DKSession.newLoadState(); // メーターの 請求書の 額（読めない 時は 欄に 訳を 出す）
           var co = encodeURIComponent(COMPANY.company_id);
           Promise.all([
             DKSession.rest(SESS, q).then(function (x) {
@@ -1010,6 +1015,15 @@
               .catch(function () {
                 return 'yomenai';
               }),
+            // ★★メーターで 請求書を 押した 額（業務ごと）★★ 2026-10-30＝res[12]
+            //   明細の 日（date）＝業務を 始めた 日本の 日＝この 日の 分だけ（請求書アプリで 日を 動かした 行は 入れない）
+            //   会社で 絞らない（窓の 中で 見る 人の RLS が 効く・明細は 持ち主の 物だけ）＝使うのは この 日の 業務の 鍵だけ
+            soft(
+              'dk_meisai_gyoumu_goukei?select=shift_id,date,goukei&date=eq.' +
+                encodeURIComponent(HI) +
+                '&order=shift_id.asc&limit=1000',
+              stG
+            ),
           ])
             .then(function (res) {
               if (no !== LOADNO) return; // ★古い 読みの 返事は 捨てる★
@@ -1017,7 +1031,7 @@
               if (stE.failed) nai.push('実費');
               if (stM.failed) nai.push('手で 入れた 日');
               YOMENAI = nai.join('・');
-              [stE, stK, stX, stM, stEmp, stW, stP].forEach(function (st) {
+              [stE, stK, stX, stM, stEmp, stW, stP, stG].forEach(function (st) {
                 LOAD.tried += st.tried;
                 LOAD.failed += st.failed;
               });
@@ -1060,6 +1074,12 @@
               SEIKYU_ARU = res[7] === true;
               KAZU_ARU = res[11] === true;
               KAZU_YOMENAI = res[11] === 'yomenai';
+              GYO_SEIKYU = {};
+              GYO_SEIKYU_NG = !!stG.failed;
+              (Array.isArray(res[12]) ? res[12] : []).forEach(function (x) {
+                if (!x || !x.shift_id || String(x.date).slice(0, 10) !== HI) return;
+                GYO_SEIKYU[x.shift_id] = (GYO_SEIKYU[x.shift_id] || 0) + (Number(x.goukei) || 0);
+              });
               TEBIKI = {};
               TEBIKI_HI = HI;
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
@@ -1294,7 +1314,10 @@
         // 他の 回にも 額が 入っている（最後の 回 以外）
         function hokaOf(sh) {
           return sh.ids.filter(function (id) {
-            return id !== sh.shift_id && edGaku(EDITS[id]) > 0;
+            // 請求書に 0 を 打った 回も「入っている」（0＝請求書 なし も 打った 額・2026-10-30）
+            return (
+              id !== sh.shift_id && (edGaku(EDITS[id]) > 0 || JippiHozon.seikyuUtta(EDITS[id]))
+            );
           });
         }
         function edGaku(e) {
@@ -1326,7 +1349,102 @@
             var x = e.expenses || {};
             for (var k in x) o.expenses[k] = (o.expenses[k] || 0) + (Number(x[k]) || 0);
           });
+          // どの 回にも 請求書を 打っていない＝空（メーターの 額）。0 と 描かない（0＝請求書 なし に 読める）
+          if (
+            !ids.some(function (id) {
+              return JippiHozon.seikyuUtta(EDITS[id]);
+            })
+          )
+            o.seikyu_yen = null;
           return o;
+        }
+        // ★★請求書の 欄の 決まり＝車×日★★ 2026-10-30（司さん 10-29「メーターの方で請求書押してるんやから請求書も自動で反映」）
+        //   その 車の その 日の 回の どれかに 打って あれば ★打った 額の 合計（空の 回は 0）★
+        //   どれにも 打って いなければ ★メーターで 請求書を 押した 額（請求書アプリの 明細）★
+        //   ＝車の 欄に 車の 日の 合計を 打った 時、他の 回の メーターの 額を 二重に 数えない（月次 shukei.html と 同じ 決まり）
+        function shaSeikyuUtta(sh) {
+          return (
+            !!sh &&
+            sh.ids.some(function (id) {
+              return JippiHozon.seikyuUtta(EDITS[id]);
+            })
+          );
+        }
+        // 欄の 見本の 字と 下の 字。ids＝その 欄が 持つ 業務（車の 欄＝その 日の 全部の 回・回ごと＝その 回）
+        function seikyuMi(sh, ids, e) {
+          if (!sh) return null;
+          var en = function (x) {
+            return Number(x).toLocaleString('ja-JP') + '円';
+          };
+          var meter = 0;
+          ids.forEach(function (id) {
+            meter += Number(GYO_SEIKYU[id]) || 0;
+          });
+          if (JippiHozon.seikyuUtta(e))
+            return {
+              ph: '',
+              hint: GYO_SEIKYU_NG
+                ? '打った 額です（空に すると メーターの 額に 戻ります）。'
+                : '打った 額です（メーターの 請求書 ' +
+                  en(meter) +
+                  '）。空に すると メーターの 額に 戻ります。',
+            };
+          if (shaSeikyuUtta(sh))
+            return {
+              ph: '0',
+              hint: 'この 車は この日 別の 回に 打った 額だけを 使います（空の 回は 0円）。',
+            };
+          if (GYO_SEIKYU_NG)
+            return {
+              ph: '',
+              ng: true,
+              hint: 'メーターの 請求書の 額を 読めませんでした（通信）。この 日を 開き直してください。',
+            };
+          return {
+            ph: String(meter),
+            hint:
+              '空＝メーターで 請求書を 押した 額（請求書アプリの 明細・' +
+              en(meter) +
+              '）。違う 時は 打ち直せます（0＝請求書 なし）。',
+          };
+        }
+        // 車の 上の 欄が 持つ 1行（別の 回にも 額が 在る＝合計 を 出すだけ の 時は 合わせた 物）
+        function shaUeNoE(sh, matome) {
+          return matome ? edAwase(sh.ids) : EDITS[sh.shift_id] || {};
+        }
+        function seikyuHintHtml(mi) {
+          return mi
+            ? '<span class="hint" data-seikyu-hint="1"' +
+                (mi.ng ? ' style="color:#b42318;font-weight:700"' : '') +
+                '>' +
+                esc(mi.hint) +
+                '</span>'
+            : '';
+        }
+        // 打った 後に 同じ 車の 請求書の 欄の 見本・下の 字を 描き直す（別の 回に 打つと 他の 回の 意味が 変わる）
+        function seikyuNuru(dev) {
+          var sh = DETA[dev];
+          var car = document.querySelector(
+            '#shaList .sha[data-car="' + CSS.escape(String(dev)) + '"]'
+          );
+          if (!sh || !car) return;
+          Array.prototype.forEach.call(
+            car.querySelectorAll('input[data-f="seikyu_yen"]'),
+            function (i) {
+              var kai = i.closest('.kai');
+              var mi = kai
+                ? seikyuMi(
+                    sh,
+                    [kai.getAttribute('data-kai-sid')],
+                    EDITS[kai.getAttribute('data-kai-sid')]
+                  )
+                : seikyuMi(sh, sh.ids, shaUeNoE(sh, !!i.closest('.ran-ue[data-matome="1"]')));
+              if (!mi) return;
+              i.setAttribute('placeholder', mi.ph);
+              var h = i.closest('.frow') && i.closest('.frow').querySelector('[data-seikyu-hint]');
+              if (h) h.outerHTML = seikyuHintHtml(mi);
+            }
+          );
         }
 
         // ★★1台ぶん（畳んだ 見出し＋中身）★★
@@ -1359,7 +1477,8 @@
                     '回 走り、別の 回にも 額が 入っています（上は 合計です）。' +
                     '直す 時は 下の 回ごとの 欄で 直してください。'
                 : '',
-              dev
+              dev,
+              seikyuMi(sh, sh.ids, shaUeNoE(sh, hoka.length > 0))
             );
             naka += '</div>';
             // ★★時数（車の 時間）★★ 経費の 下（司さん「経費の下に時数、乗った人」）
@@ -1451,7 +1570,8 @@
                   JippiHozon.seisuu(s.fare_total_yen) +
                   '円）。</span>') +
               '</div>';
-            if (jippiMo) h += jippiHtml(s.shift_id, 'data-sid', e, '');
+            if (jippiMo)
+              h += jippiHtml(s.shift_id, 'data-sid', e, '', seikyuMi(sh, [s.shift_id], e));
             h += jisuuMeterHtml(s, '時数（' + kai + '）');
             h += kazuMeterHtml(s, '（' + kai + '）');
             h += '</div>';
@@ -1853,7 +1973,7 @@
         //   tomeru … 打たせない 訳（空なら 打てる）＝実費・電子決済を 出すだけに する
         // hashitta … 走った 車なら { meter: メーターの額 }（1回だけ＝売上を 直せる）か { kaisu: 回数 }（2回 以上）
         //   ★見出し（車の 名前）と 畳む 箱は shaHitotsu＝ここは 欄だけ★（2026-10-23）
-        function ranHtml(key, keyAttr, e, uriage, hashitta, tomeru, dev) {
+        function ranHtml(key, keyAttr, e, uriage, hashitta, tomeru, dev, mi) {
           var h = '';
           var dis = tomeru ? ' disabled' : '';
           if (tomeru) h += '<div class="hint fuku">' + esc(tomeru) + '</div>';
@@ -1968,12 +2088,13 @@
                   '</span></div></div>';
               });
           }
-          h += jippiHtml(key, keyAttr, e, dis);
+          h += jippiHtml(key, keyAttr, e, dis, mi);
           return h;
         }
 
         // ★★電子決済・請求書・実費★★（車の 欄と 回ごとの 欄の 両方で 使う）
-        function jippiHtml(key, keyAttr, e, dis) {
+        //   mi … メーターの 車の 請求書の 見本と 下の 字（seikyuMi）。手で 入れた 日の 車は 無し（メーターが 無い）
+        function jippiHtml(key, keyAttr, e, dis, mi) {
           var h = '';
           // ★★電子決済★★（どちらの 車でも 打てる）
           h +=
@@ -2000,8 +2121,17 @@
               '="' +
               esc(key) +
               '" data-f="seikyu_yen" value="' +
-              (JippiHozon.seisuu(e && e.seikyu_yen) || '') +
-              '"><span class="en">円</span></div></div>';
+              // メーターの 車＝0 も「0」と 描く（0＝請求書 なし・空＝メーターの 額）。手で 入れた 日は 今まで 通り
+              (mi
+                ? JippiHozon.seikyuUtta(e)
+                  ? String(e.seikyu_yen)
+                  : ''
+                : JippiHozon.seisuu(e && e.seikyu_yen) || '') +
+              '"' +
+              (mi ? ' placeholder="' + esc(mi.ph) + '"' : '') +
+              '><span class="en">円</span></div>' +
+              seikyuHintHtml(mi) +
+              '</div>';
           }
           // ★★実費★★（会社設定で 決めた 名前を そのまま 出す）
           h += (RAW.kinds || [])
@@ -2128,8 +2258,22 @@
             document.querySelectorAll('#shaList [data-sid]'),
             function (i) {
               i.onchange = function () {
-                saveJippi(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
+                // 数の 欄に 形の 崩れた 字（3-000 等）＝value は 空・badInput＝空（メーターの 額）と 読まない 2026-10-30 対立役 止1
+                var f = i.getAttribute('data-f');
+                var v = f === 'seikyu_yen' && i.validity && i.validity.badInput ? '?' : i.value;
+                saveJippi(i.getAttribute('data-sid'), f, v);
               };
+              // ★空の 欄に 崩れた 字を 打つと change が 来ない★（value は 空の まま）2026-10-30 対立役 止1′
+              //   欄を 離れた 時に badInput を 見て 赤い 字。赤い 字の 後に 空に した 時も change は 来ない＝その 時は 今の 字で 送る（任B）
+              //   正しい 字の 時は change が 先に 保存して 赤い 字を 消す＝ここでは 送らない（二重に 送らない）
+              if (i.getAttribute('data-f') === 'seikyu_yen') {
+                i.onblur = function () {
+                  var sid = i.getAttribute('data-sid');
+                  if (i.validity && i.validity.badInput) saveJippi(sid, 'seikyu_yen', '?');
+                  else if (ERR_KAGI['s:' + sid + ':skatachi'])
+                    saveJippi(sid, 'seikyu_yen', i.value);
+                };
+              }
             }
           );
           // メーターの 売上の 直し 2026-10-14
@@ -2310,6 +2454,22 @@
           if (yomenaiNara()) return;
           // EDITS は 業務（shift_id）ごと＝返事は いつでも 重ねる（捨てると 次の 1打で 前の 額に 戻った・対立役 止B）
           var kagi = 's:' + shiftId;
+          // ★請求書の 読めない 字（-5・1.5・1e3 等）は 送らない★ 2026-10-30（対立役 止1）
+          //   送ると 空（null＝メーターの 額）で 保存され、欄には 打った 字が 残った まま 月次は メーターの 額に なる
+          if (field === 'seikyu_yen') {
+            delete ERR_KAGI[kagi + ':skatachi'];
+            if (
+              String(value == null ? '' : value).trim() !== '' &&
+              JippiHozon.yomuSeikyu(value) === null
+            ) {
+              ERR_KAGI[kagi + ':skatachi'] =
+                '請求書は 0以上の 整数（円）で 入れてください（空に すると メーターの 額・0＝請求書 なし）。保存していません。';
+              akeru(kagiNoKuruma(kagi), true);
+              errNuru();
+              return;
+            }
+            errNuru();
+          }
           return junban(kagi, function () {
             // 中身は 順番が 来た 時の 記録で 作る（前の 返事を 重ねた 後＝前の 額に 戻さない）
             return JippiHozon.saveJippi(
@@ -2324,6 +2484,12 @@
                 hozonDekita(kagi + ':' + field);
                 // 前の 行に 重ねる（置き換えると 売上の 直し などが 読み直すまで 画面から 消える）
                 EDITS[shiftId] = Object.assign({}, EDITS[shiftId] || {}, body);
+                // 請求書＝同じ 車の 他の 欄の 意味が 変わる（打った 回が 在ると 空の 回は 0円）2026-10-30
+                if (field === 'seikyu_yen') {
+                  Object.keys(DETA).forEach(function (dev) {
+                    if (DETA[dev] && DETA[dev].ids.indexOf(shiftId) >= 0) seikyuNuru(dev);
+                  });
+                }
               })
               .catch(function (r) {
                 hozonDekinai(

@@ -58,7 +58,8 @@ async function hiraku(page, ura) {
 
 // ★請求の 窓（頭は dk_ だが 中身は 請求書アプリの 明細＝company_id の 列が 無い）★ 2026-10-25
 //   会社で 絞ると 倉庫が 400 を 返し 月次集計が 全部 止まる＝名指しで 外し、絞って いない 事を 別に 見る
-const SEIKYU_MADO = ['dk_meisai_hi_goukei'];
+// 2026-10-30 業務ごとの 窓（dk_meisai_gyoumu_goukei）も 同じ＝company_id の 列が 無い（窓の 中で 持ち主と 会社で 結ぶ）
+const SEIKYU_MADO = ['dk_meisai_hi_goukei', 'dk_meisai_gyoumu_goukei'];
 const seikyuMado = (p) => SEIKYU_MADO.indexOf(String(p).split('?')[0]) >= 0;
 function mite(yomi, saitei) {
   const dk = yomi.filter((p) => /^dk_/.test(p) && !seikyuMado(p));

@@ -59,6 +59,29 @@ export const ATO_NO_KAKUNIN = {
       ok: (rows) => rows?.[0]?.ok === true,
     },
   ],
+  // ★請求書アプリの 明細の 業務ごとの 合計★ 2026-10-30（入力の 請求書の 欄の メーターの 額）
+  'supabase/apply-dk-meisai-gyoumu-goukei.sql': [
+    {
+      w: '窓 public.dk_meisai_gyoumu_goukei が shift_id・date・goukei・kensuu の 4列',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_meisai_gyoumu_goukei' and column_name in ('shift_id','date','goukei','kensuu')",
+      ok: (rows) => rows?.[0]?.n === 4,
+    },
+    {
+      w: '窓 public.dk_meisai_gyoumu_goukei が security_invoker=true（見る 人の RLS が 効く）',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_meisai_gyoumu_goukei' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: 'authenticated が 窓を 読める',
+      q: "select has_table_privilege('authenticated','public.dk_meisai_gyoumu_goukei','select') as ok",
+      ok: (rows) => rows?.[0]?.ok === true,
+    },
+    {
+      w: '窓が 落ちずに 読める（形の 崩れた dk_ref で 窓ごと 止まらない）',
+      q: 'select count(*)::int as n from public.dk_meisai_gyoumu_goukei',
+      ok: (rows) => Number.isInteger(rows?.[0]?.n),
+    },
+  ],
   // ★メーターの 車の 回数・距離の 直し★ 2026-10-25（対立役 止3＝窓に 出ないと 黙って 直らない）
   'supabase/apply-kazu-naoshi.sql': [
     {

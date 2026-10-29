@@ -1387,7 +1387,7 @@
             t =
               '請求書：入力と 請求書アプリで 額が 違う 日 ' +
               SEIKYU_KUICHIGAI.length +
-              '日（入力の 額を 使っています）　' +
+              '日（入力の 額＝打っていない 車は メーターの 額 を 使っています）　' +
               SEIKYU_KUICHIGAI.slice(0, 3)
                 .map(function (x) {
                   return (
@@ -1398,7 +1398,10 @@
                     num(x.utta).toLocaleString('ja-JP') +
                     '円／アプリ ' +
                     num(x.meisai).toLocaleString('ja-JP') +
-                    '円'
+                    '円' +
+                    (num(x.musubenai)
+                      ? '（うち 車に 結べない ' + num(x.musubenai).toLocaleString('ja-JP') + '円）'
+                      : '')
                   );
                 })
                 .join('　') +
@@ -1449,6 +1452,22 @@
             }
             return a;
           });
+        }
+        // ★★請求書アプリの 明細を 業務ごとに 足した 額★★ 2026-10-30（窓 dk_meisai_gyoumu_goukei）
+        //   メーターで 請求書を 押した 乗車（dk_ref 付きの 明細）だけ。請求書アプリで 直した・消した 額が そのまま 入る
+        //   ★会社で 絞らない★（窓に company_id の 列は 無い）・会社が 2つ 以上は 明細と 同じく 使わない
+        //   1000行 ごとに 全部 読む（DKSession.softList・読めない 時は 帯に 出る）
+        function gyoumuZenbu(st) {
+          if (KAISHA_KAZU > 1) return Promise.resolve([]);
+          return DKSession.softList(
+            SESS,
+            'dk_meisai_gyoumu_goukei?select=shift_id,date,goukei&date=gte.' +
+              (YEAR - 1) +
+              '-12-01&date=lte.' +
+              YEAR +
+              '-12-31&order=shift_id.asc,date.asc&limit=200000',
+            st
+          );
         }
         // ★★ダイコメの 表を 読む 時は この 会社だけに 絞る★★ 2026-10-17
         //   前は 会社で 絞らず 読んでいた（設定は limit=1）＝会社を 2つ 持つ 人は 別の 会社の 歩合・人・売上が 混ざる
@@ -1644,6 +1663,9 @@
               kaishaDake('dk_expense_kinds?select=*&order=sort_order.asc&limit=200'),
               KINDS_YOMI
             )),
+            // ★★メーターで 請求書を 押した 額（業務ごと）★★ 2026-10-30＝res[17]
+            //   司さん 10-29「メーターの方で請求書押してるんやから請求書も自動で反映」＝打っていない 車は この 額
+            gyoumuZenbu(ky),
           ]).then(function (res) {
             if (no !== LOAD_NO) return; // ★古い 読みの 返事は 捨てる★
             JIPPI_YOMI = jy;
@@ -1702,6 +1724,8 @@
               var d = String(m.date).slice(0, 10);
               MEISAI_HI[d] = (MEISAI_HI[d] || 0) + num(m.goukei);
             });
+            // ★メーターで 請求書を 押した 額（業務ごと・明細の 日ごと）★ 2026-10-30
+            RAW.gyoumuSeikyu = Array.isArray(res[17]) ? res[17] : [];
             PAYMENTS = [];
 
             // 電子決済 の手入力（月ごと）
@@ -1784,18 +1808,67 @@
           //   ★その日 どこかの 車に 打った 額が 在れば その日は 打った 額の 合計★／無ければ 明細の 合計
           //   （打った 額と 明細は 鍵で 繋がらない＝両方 足すと 同じ 請求書が 二重に なる・対立役 10-06）
           //   ★下がるのは 現金だけ★（売上・給料は 下げない＝Excel の 式・司さん 1A）
-          var utta = {};
+          // ★★2026-10-30 打っていない 車は メーターで 請求書を 押した 額★★（司さん 10-29「請求書も自動で反映されるようにしろ」）
+          //   決まり＝★車×日★：その 車の その 日の 回の どれかに 打って あれば 打った 額の 合計（空の 回は 0）、
+          //   どれにも 打って いなければ メーターの 額（窓 dk_meisai_gyoumu_goukei・明細の 日＝業務の 日の 分だけ）。
+          //   ★1台も 打っていない 日は 今まで 通り 明細の 日の 合計★（車に 結べない 手入れの 明細も 入る）
+          //   ★打った 日は Σ車＋手で 入れた 日★＝車に 結べない 明細は 入らない（事務所が 車に 打つ 形・本番 10-30 実測 8日中 6日）
+          //   空＝null（メーター）・0＝この 車は 請求書 なし（js/jippi-hozon.js yomuSeikyu）
+          var gyoMeter = {};
+          (RAW.gyoumuSeikyu || []).forEach(function (g) {
+            var sh = g && SHIFT_BY_ID[g.shift_id];
+            if (!sh || PayrollDaily.dateOf(sh.started_at) !== String(g.date).slice(0, 10)) return;
+            gyoMeter[g.shift_id] = (gyoMeter[g.shift_id] || 0) + num(g.goukei);
+          });
+          var edBy = {};
           (RAW.edits || []).forEach(function (e) {
-            if (!e || !num(e.seikyu_yen)) return;
-            var sh = SHIFT_BY_ID[e.shift_id];
-            if (!sh) return;
-            var d = PayrollDaily.dateOf(sh.started_at);
-            if (d) utta[d] = (utta[d] || 0) + num(e.seikyu_yen);
+            if (e && e.shift_id) edBy[e.shift_id] = e;
+          });
+          var shaHi = {}; // 日 → 車 → { utta, ji（打った 額）, meter }
+          (RAW.shifts || []).forEach(function (x) {
+            if (!x || !x.shift_id || x.excluded === true) return;
+            var d = PayrollDaily.dateOf(x.started_at);
+            if (!d) return;
+            var hi = (shaHi[d] = shaHi[d] || {});
+            var c = (hi[x.device_id] = hi[x.device_id] || { utta: false, ji: 0, meter: 0 });
+            var e = edBy[x.shift_id];
+            if (JippiHozon.seikyuUtta(e)) {
+              c.utta = true;
+              c.ji += e.seikyu_yen;
+            }
+            c.meter += gyoMeter[x.shift_id] || 0;
+          });
+          var utta = {};
+          var meterHi = {}; // 打った 日の 車に 結べた メーターの 額（知らせの 内訳）
+          Object.keys(shaHi).forEach(function (d) {
+            var cs = shaHi[d];
+            var aru = Object.keys(cs).some(function (k) {
+              return cs[k].utta;
+            });
+            if (!aru) return;
+            var g = 0;
+            var mg = 0;
+            Object.keys(cs).forEach(function (k) {
+              g += cs[k].utta ? cs[k].ji : cs[k].meter;
+              mg += cs[k].meter;
+            });
+            utta[d] = g;
+            meterHi[d] = mg;
           });
           (RAW.manualDays || []).forEach(function (m) {
             if (!m || !num(m.seikyu_yen) || !m.work_date) return;
             var d = String(m.work_date).slice(0, 10);
-            utta[d] = (utta[d] || 0) + num(m.seikyu_yen);
+            if (utta[d] === undefined) {
+              // 手で 入れた 日だけ 打った 日＝メーターの 車は 空＝メーターの 額（本番 10-30 は 0行）
+              var cs = shaHi[d] || {};
+              utta[d] = 0;
+              meterHi[d] = 0;
+              Object.keys(cs).forEach(function (k) {
+                utta[d] += cs[k].meter;
+                meterHi[d] += cs[k].meter;
+              });
+            }
+            utta[d] += num(m.seikyu_yen);
           });
           SEIKYU_KUICHIGAI = [];
           var seikyuHi = {};
@@ -1826,7 +1899,13 @@
           });
           Object.keys(utta).forEach(function (d) {
             if (MEISAI_HI[d] && MEISAI_HI[d] !== utta[d] && tsukiNoHi(d)) {
-              SEIKYU_KUICHIGAI.push({ hi: d, utta: utta[d], meisai: MEISAI_HI[d] });
+              SEIKYU_KUICHIGAI.push({
+                hi: d,
+                utta: utta[d],
+                meisai: MEISAI_HI[d],
+                // 車に 結べない 請求書アプリの 額（手で 足した 明細・別の 日へ 動かした 明細 等）
+                musubenai: Math.max(0, MEISAI_HI[d] - (meterHi[d] || 0)),
+              });
             }
             seikyuHi[d] = utta[d];
           });

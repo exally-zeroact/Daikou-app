@@ -53,6 +53,24 @@
     }
   }
 
+  // ★★メーターの 車の 請求書の 欄の 字を 読む★★ 2026-10-30
+  //   司さん 10-29「メーターの方で請求書押してるんやから請求書も自動で反映されるようにしろ」
+  //   空＝null（メーターで 請求書を 押した 額＝請求書アプリの 明細を 使う）／0以上の 整数＝打った 額（0＝この 車は 請求書 なし）
+  //   読めない 字も null（前の 様に 0 に すると 黙って「請求書 なし」に なる）
+  //   ★手で 入れた 日（dk_manual_days）は メーターが 無い＝今まで 通り 空は 0★（saveTebiki）
+  function yomuSeikyu(value) {
+    const t = String(value == null ? '' : value).trim();
+    if (!/^\d+$/.test(t)) return null;
+    const n = Number(t);
+    return Number.isSafeInteger(n) ? n : null;
+  }
+  // 倉庫の 1行に 請求書の 額が 打って あるか（null・undefined＝メーターの 額）
+  function seikyuUtta(e) {
+    return (
+      !!e && typeof e.seikyu_yen === 'number' && Number.isInteger(e.seikyu_yen) && e.seikyu_yen >= 0
+    );
+  }
+
   // ★打った 1つを 入れた 形にする★（送る 中身を 作るだけ＝通信は しない）
   //   cur … 今 倉庫に 在る 1行（無ければ {}）
   function karada(shiftId, companyId, cur, field, value) {
@@ -71,7 +89,9 @@
       updated_at: new Date().toISOString(),
     };
     motikosuSeikyu(body, cur);
-    if (FURUI[field]) {
+    if (field === 'seikyu_yen') {
+      body.seikyu_yen = yomuSeikyu(value); // ★空＝null（メーターの 額）・0＝請求書 なし★
+    } else if (FURUI[field]) {
       body[FURUI[field]] = v;
     } else if (field.indexOf('_yen') > 0) {
       body[field] = v; // ★前からの 呼び方（toll_yen 等）も そのまま 通す★
@@ -297,6 +317,8 @@
     ima: ima,
     goukei: goukei,
     karada: karada,
+    yomuSeikyu: yomuSeikyu,
+    seikyuUtta: seikyuUtta,
     saveJippi: saveJippi,
     saveUriage: saveUriage,
     saveKazu: saveKazu,
