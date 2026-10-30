@@ -3038,25 +3038,22 @@
           nm += '_' + String((emp && emp.name) || '');
           return nm.replace(/[\\/:*?"<>|]/g, '_') + '.pdf';
         }
-        // ★出す★：ホーム画面の アプリ＝共有の 画面（新しい 窓・ダウンロードは 戻れなく なる）／他＝見本と 同じ 保存
+        // ★出す★＝ホーム画面の アプリも 見本（代行請求書 InvoicePDF.save）と 同じ 保存（2026-10-30）
+        //   前は ホーム画面の アプリだけ 共有の 画面に PDF を 直に 渡した ⇒ iPhone で LINE が 並ばず「その他」にも 無い
+        //   （司さん 10-30「LINEないやないか 代行請求書アプリみたんか？」）。代行請求書は ホーム画面でも 保存の 道で、
+        //   開いた PDF の 画面の 共有に LINE が 出る。★共有の 画面に 直に 渡す 道は 外した★
         function hnPdfDasu(p) {
-          if (hnHomeApp()) {
-            hnAnnai(
-              '出てきた 画面で 送り先（LINE など）か「プリント」を 選んでください（LINE が 並ばない 時は 右の「その他」から 選べます）。'
-            );
-            return hnPdfWatasu(p);
-          }
           hnPdfHozon(p);
         }
         // ★「印刷 / 送る」★ 押すと 選んだ 範囲の PDF を 作って そのまま 出す（代行請求書の「印刷 / 送る」と 同じ 1回）
-        //   ホーム画面の アプリは 共有の 画面を 押した その 時に 開く 必要が ある（作り終わってからでは 断られる 端末が 在る・対立役 止1）
-        //   ＝ホーム画面の アプリは 描いた 時に 裏で 作っておき、押したら 出来た PDF を すぐ 渡す
+        //   ホーム画面の アプリは 描いた 時に 裏で 作っておく（押したら すぐ 出る）。出来て いなければ 作り終わってから 出す
+        //   （2026-10-30 前は ホーム画面だけ 押しても 出さなかった＝裏の 作りが 失敗した 後の 1回目が 黙った・対立役 止1）
         function honninPdf() {
           hnPdfErr('');
           hnAnnai('');
           if (hnPdfAru()) return hnPdfDasu(HN_PDF);
           if (HN_PDF_CHU === HN_NO) return;
-          hnPdfTsukuru(!hnHomeApp());
+          hnPdfTsukuru(true);
         }
         function hnPdfTsukuru(dasu) {
           var h = hnHaniNoKi();
@@ -3122,8 +3119,8 @@
             });
         }
         // ★保存（ダウンロード）★ 見本の InvoicePDF.save（invoice-pdf.js）と 同じ 形＝a の download で 名前つきで 落とす
-        //   ★ホーム画面の アプリでは 使わない★（download の a は アプリの 中で ファイルを 開き 戻れなく なる＝
-        //   feedback_ios_standalone_download_traps_app・target=_blank でも 止まらなかった）＝呼ぶ 側で 共有の 画面へ
+        //   ★ホーム画面の アプリでも これ★（2026-10-30・見本と 同じ。前の 心配＝戻れなく なる 事故は サーバーの 生ファイルへの a で、
+        //   ここは blob の PDF＝見本の 代行請求書の コードも ホーム画面で 同じ 道・iPhone の ホーム画面で 戻れるかは 実機では 未測定）
         //   URL は 60秒 残す（保存の 画面を 待つ 間に 消すと 白い 窓に なり得る・対立役 S2）
         function hnPdfHozon(p) {
           var url = URL.createObjectURL(p.blob);
@@ -3141,49 +3138,7 @@
             'PDF の 画面が 出たら 共有（□↑）から LINE などに 送るか「プリント」で 印刷してください。保存の 画面が 出た 時は「ダウンロード」を 押して、保存した PDF（iPhone は Safari の ↓ か ファイルアプリの「ダウンロード」）を 開いてください。何も 出ない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。'
           );
         }
-        // ★渡す★：共有の 画面（ファイルを 渡せる 端末）→ 無ければ 新しい 窓
-        //   閉じた（AbortError）・開いている 間に もう一度 押した（InvalidStateError）時は 窓を 開かない（二重に 出さない）
-        function hnPdfWatasu(p) {
-          var f = null;
-          var nav = window.navigator;
-          try {
-            f = new File([p.blob], p.name, { type: 'application/pdf' });
-            if (
-              typeof nav.share !== 'function' ||
-              typeof nav.canShare !== 'function' ||
-              !nav.canShare({ files: [f] })
-            )
-              f = null;
-          } catch (_) {
-            f = null;
-          }
-          if (!f) return hnPdfMado(p);
-          nav.share({ files: [f] }).catch(function (e) {
-            if (e && (e.name === 'AbortError' || e.name === 'InvalidStateError')) return;
-            hnPdfMado(p);
-          });
-        }
-        // ★窓に 落ちる 時は 必ず 案内を 出す★（LINE の 中の ブラウザ・Android の WebView は 窓も 保存も 黙って 効かない 事が 在る＝
-        //   押しても 何も 起きない まま に しない・対立役 直2）
-        function hnPdfMado(p) {
-          hnPdfErr(
-            '開かない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。'
-          );
-          var url = URL.createObjectURL(p.blob);
-          var w = window.open(url, '_blank');
-          if (!w) {
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = p.name;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          }
-          setTimeout(function () {
-            URL.revokeObjectURL(url);
-          }, 60000);
-        }
-        // ホーム画面に 置いた アプリ（新しい 窓を 開くと 戻れない）か
+        // ホーム画面に 置いた アプリか（裏で 先に PDF を 作っておく 為）
         function hnHomeApp() {
           try {
             return (
@@ -3262,7 +3217,7 @@
             _hnHaba = haba2;
           }
           box.style.minHeight = '';
-          // ★ホーム画面の アプリは 裏で PDF を 作っておく★（押した その 時に 共有の 画面を 開く 為・対立役 止1）
+          // ★ホーム画面の アプリは 裏で PDF を 作っておく★（押したら すぐ 出る 為）
           if (hnHomeApp() && !hnPdfAru() && HN_PDF_CHU !== HN_NO) hnPdfTsukuru(false);
         }
 

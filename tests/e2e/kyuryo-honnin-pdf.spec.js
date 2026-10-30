@@ -9,8 +9,8 @@
 //
 //   ★今の 作り（代行請求書の「📄 印刷 / 送る」と 同じ 1つの ボタン）★
 //     ブラウザ＝押すと PDF を 作って そのまま 保存（a の download＝見本の InvoicePDF.save と 同じ）・案内を ボタンの 下に
-//     ホーム画面の アプリ＝紙を 描いた 時に 裏で 作っておき、押すと 共有の 画面（ダウンロードは アプリから 戻れなく なる）
-//       共有が 無い 端末は 新しい 窓／閉じた（AbortError）・開いている 間（InvalidStateError）は 窓を 開かない
+//     ホーム画面の アプリ＝紙を 描いた 時に 裏で 作っておき、押すと 同じ 保存（2026-10-30 前は 共有の 画面に 直に 渡し
+//       iPhone で LINE が 並ばなかった＝司さん「LINEないやないか 代行請求書アプリみたんか？」）
 //     前の 画面の 中の PDF の 窓（pdf.js）・「保存・送る」「印刷」「閉じる」は 無くした
 //
 //   ★ここで 見張る 事★
@@ -27,8 +27,8 @@ test.use({ timezoneId: 'Asia/Tokyo' });
 
 const BOTAN = '📄 印刷 / 送る';
 
-async function kyouyuNise(page, mode) {
-  await page.addInitScript((m) => {
+async function kyouyuNise(page, _mode) {
+  await page.addInitScript(() => {
     window.__kyouyu = [];
     window.__mado = [];
     // ★ダウンロード（a の download）を 控える★（見本の InvoicePDF.save と 同じ 道・本物の 保存は しない）
@@ -50,17 +50,7 @@ async function kyouyuNise(page, mode) {
       return { closed: false };
     };
     void open0;
-    if (m === 'nashi') {
-      try {
-        delete Navigator.prototype.share;
-        delete Navigator.prototype.canShare;
-      } catch (_) {
-        /* 消せない 端末 */
-      }
-      Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
-      Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true });
-      return;
-    }
+    // 共有の 画面（使われたら 控える＝渡しては いけない）
     Object.defineProperty(navigator, 'canShare', {
       value: (d) => !!(d && d.files && d.files.length),
       configurable: true,
@@ -70,21 +60,11 @@ async function kyouyuNise(page, mode) {
         window.__kyouyu.push(
           (d.files || []).map((f) => ({ name: f.name, type: f.type, size: f.size }))
         );
-        if (m === 'futatabi') {
-          const e = new Error('開いている 間に もう一度');
-          e.name = 'InvalidStateError';
-          return Promise.reject(e);
-        }
-        if (m === 'tojita') {
-          const e = new Error('閉じた');
-          e.name = 'AbortError';
-          return Promise.reject(e);
-        }
         return Promise.resolve();
       },
       configurable: true,
     });
-  }, mode || 'ari');
+  });
 }
 
 async function homeApp(page) {
@@ -118,7 +98,7 @@ test('⓪ ボタンは「📄 印刷 / 送る」1つ・前の PDF の 窓と 3�
 });
 
 // ★「印刷 / 送る」＝見本（代行請求書）と 同じ ダウンロード★ 2026-10-25（司さん「代行請求書アプリではちゃんとできるやろが」）
-// わざと壊す：ブラウザで hnPdfWatasu（共有の 画面）に 渡す ⇒ 赤（ダウンロードが 0）
+// わざと壊す：ブラウザで 共有の 画面（navigator.share）に 渡す ⇒ 赤（ダウンロードが 0）
 test('① 1回 押すと 自分の 明細の PDF を ダウンロードする（名前・型・重さ・共有の 画面は 出さない）', async ({
   page,
 }) => {
@@ -163,10 +143,10 @@ test('① 1回 押すと 自分の 明細の PDF を ダウンロードする（
   await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(2);
 });
 
-// ★ホーム画面の アプリでは 共有の 画面（アプリの 中で ダウンロードすると 戻れなく なる）★
-//   わざと壊す：hnPdfDasu の hnHomeApp の 分かれを 外す ⇒ 赤（ダウンロードした）
-//   わざと壊す：描いた 時に 裏で 作らない ⇒ 1回目の 押しで 共有が 出ない（作り終わってから では 断られる 端末・対立役 止1）
-test('⑭ ホーム画面の アプリでは 押した その 時に 共有の 画面（ダウンロードしない）', async ({
+// ★ホーム画面の アプリでも 見本（代行請求書）と 同じ 保存（ダウンロード）★ 2026-10-30
+//   司さん「LINEないやないか 代行請求書アプリみたんか？」＝前は 共有の 画面に 直に 渡し、iPhone で LINE が 並ばなかった
+//   わざと壊す：hnPdfDasu で ホーム画面の アプリだけ 共有の 画面に 渡す（前の 形）⇒ 赤（共有に 渡した・ダウンロード 0）
+test('⑭ ホーム画面の アプリでも 押した その 時に PDF を 保存する（共有の 画面に 直に 渡さない）', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 430, height: 900 });
@@ -177,42 +157,35 @@ test('⑭ ホーム画面の アプリでは 押した その 時に 共有の �
   await expect(page.locator('#hnPdf')).toHaveText(BOTAN, { timeout: 30000 });
   await expect(page.locator('#hnPdf')).toBeEnabled();
   await page.click('#hnPdf');
-  await expect.poll(() => page.evaluate(() => window.__kyouyu.length)).toBe(1);
-  const k = await page.evaluate(() => window.__kyouyu[0][0]);
+  await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(1);
+  const k = await page.evaluate(() => window.__dl[0]);
   expect(k.type).toBe('application/pdf');
+  expect(k.href).toMatch(/^blob:/);
   expect(k.name).toMatch(/^給料明細_\d{4}-\d{2}_.*_見張り太郎\.pdf$/);
-  expect(await page.evaluate(() => window.__dl.length), '★アプリの 中で ダウンロードした★').toBe(0);
+  expect(
+    await page.evaluate(() => window.__kyouyu.length),
+    '★共有の 画面に 直に 渡した（LINE が 並ばない）★'
+  ).toBe(0);
   expect(await page.evaluate(() => window.__mado.length), '★戻れない 窓を 開いた★').toBe(0);
-  await expect(page.locator('#hnPdfAnnai')).toContainText('その他');
+  await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
+  await expect(page.locator('#hnPdfAnnai')).not.toContainText('その他');
 });
 
-// わざと壊す：共有が 無い 時の 控えを 外す ⇒ 赤（何も 開かない）
-test('② 共有が 無い ホーム画面の アプリは 新しい 窓に PDF を 開き、案内を ボタンの 下に 出す', async ({
-  page,
-}) => {
+// ★裏の 作りが 失敗した 後に 1回 押せば 出る（ホーム画面の アプリ）★ 2026-10-30 対立役 止1
+//   わざと壊す：honninPdf で ホーム画面は 作り終わっても 出さない（hnPdfTsukuru(!hnHomeApp())）⇒ 赤（保存 0）
+test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、1回 押せば 保存する', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 900 });
-  await kyouyuNise(page, 'nashi');
+  await kyouyuNise(page, 'ari');
   await homeApp(page);
+  let otosu = 1;
+  await page.route('**/js/kami-egaku.js', (r) => (otosu-- > 0 ? r.abort() : r.continue()));
   await hiraku(page);
-  await expect(page.locator('#hnPdf')).toBeEnabled({ timeout: 30000 });
+  await expect(page.locator('#hnPdfErr')).toContainText('もう一度', { timeout: 30000 });
+  await expect(page.locator('#hnPdf')).toBeEnabled();
   await page.click('#hnPdf');
-  await expect.poll(() => page.evaluate(() => window.__mado.length)).toBe(1);
-  expect(await page.evaluate(() => window.__mado[0])).toMatch(/^blob:/);
-  // 窓に 落ちる 時は 必ず 案内（LINE の 中 等で 黙って 何も 起きない まま に しない・対立役 直2）
-  await expect(page.locator('#hnPdfErr')).toContainText('Safari か Chrome');
-});
-
-// わざと壊す：AbortError でも 窓を 開く ⇒ 赤（二重に 出る）
-test('③ 共有の 画面を 閉じた 時は 窓を 開かない（ホーム画面の アプリ）', async ({ page }) => {
-  await page.setViewportSize({ width: 430, height: 900 });
-  await kyouyuNise(page, 'tojita');
-  await homeApp(page);
-  await hiraku(page);
-  await expect(page.locator('#hnPdf')).toBeEnabled({ timeout: 30000 });
-  await page.click('#hnPdf');
-  await expect.poll(() => page.evaluate(() => window.__kyouyu.length)).toBe(1);
-  await page.waitForTimeout(500);
-  expect(await page.evaluate(() => window.__mado.length)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
+  expect(await page.evaluate(() => window.__kyouyu.length)).toBe(0);
+  await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
 });
 
 // わざと壊す：honninTsuki で 作った PDF を 捨てない（hnPdfSuteru を 外す）⇒ 赤（前の 月の PDF を 渡す）
@@ -271,21 +244,6 @@ test('⑤ 作っている 途中で 月を 替えたら できた PDF を 捨て
   await page.waitForTimeout(3000);
   expect(await watashita(page), '★前の 月の PDF を 渡した★').toBe(0);
   await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
-});
-
-// わざと壊す：InvalidStateError を 閉じた 扱いに しない ⇒ 赤（窓が 二重に 出る）
-test('⑥ 共有の 画面を 開いている 間に もう一度 押しても 窓を 開かない（ホーム画面の アプリ）', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 430, height: 900 });
-  await kyouyuNise(page, 'futatabi');
-  await homeApp(page);
-  await hiraku(page);
-  await expect(page.locator('#hnPdf')).toBeEnabled({ timeout: 30000 });
-  await page.click('#hnPdf');
-  await expect.poll(() => page.evaluate(() => window.__kyouyu.length)).toBe(1);
-  await page.waitForTimeout(500);
-  expect(await page.evaluate(() => window.__mado.length)).toBe(0);
 });
 
 // わざと壊す：道具の 読み込みの 時間切れを 外す ⇒ 赤（「作っています…」の まま）
