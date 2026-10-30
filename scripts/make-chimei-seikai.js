@@ -13,6 +13,12 @@
 //     ・元の 町の 境から 10m より 近い 点は 使わない（5m の 削りで どちらにも なり得る）
 //   出力: tests/fixtures/chimei-seikai.json { v, n, perPref: { ehime: [[lat, lng, '今治市郷桜井'], ...] } }
 //   使い方: TOWN_SRC_DIR=<元データ> node scripts/make-chimei-seikai.js [pref] [N]
+//
+//   ★--shi＝市町村（区）ごとに 1点（2026-10-30・6 住所の 全国確認）★
+//     県ごとの 点は 小さな 村に 落ちない＝村が まるごと 抜けても 見張りが 緑（前の 作り方で 9市町村 抜けて いた）。
+//     元データの 全部の 市町村（区・浜松は 今の 3区）で 一番 広い 町の 中の 1点 ⇒ perShi（perPref は 触らない）
+//     ＋ tokubetsu＝町の 名前が 無い 区画 1つに 1点（混ざった 市町村の 分も）・浜松の 三方原地区 7町に 1点ずつ
+//     使い方: TOWN_SRC_DIR=<元データ> node scripts/make-chimei-seikai.js --shi
 // ============================================================
 'use strict';
 
@@ -80,8 +86,11 @@ function prefPolys(prefCode) {
       const p = g.properties || {};
       if (!p.CITY_NAME || Number(p.HCODE) === 8154) continue;
       for (const rings of B.geometryToPolys(g, arcs)) {
+        const shi = B.imaNoShi(p.CITY_NAME, p.S_NAME || '');
         polys.push({
-          name: B.imaNoShi(p.CITY_NAME, p.S_NAME || '') + cut(p.S_NAME || ''),
+          shi,
+          nashi: !p.S_NAME,
+          name: shi + cut(p.S_NAME || ''),
           jinko: Number(p.JINKO) || 0,
           rings,
           bb: box(rings),
@@ -148,4 +157,95 @@ function main() {
   fs.writeFileSync(OUT, JSON.stringify(out));
 }
 
-if (require.main === module) main();
+function menseki(r) {
+  let s = 0;
+  for (let i = 0, j = r.length - 1; i < r.length; j = i++)
+    s += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]);
+  return Math.abs(s / 2);
+}
+
+// 市町村（区）ごとに 一番 広い 町の 中の 1点（境から 10m 以上）
+function shiMain() {
+  const out = JSON.parse(fs.readFileSync(OUT, 'utf8'));
+  const perShi = {};
+  const tokubetsu = [];
+  let nashiKukaku = 0;
+  let kazu = 0;
+  for (let i = 1; i <= 47; i++) {
+    const pc = String(i).padStart(2, '0');
+    const pn = B.PREF_NAMES[pc] || B.PREF_NAMES[i];
+    const polys = prefPolys(pc);
+    if (!polys.length) throw new Error(pn + ': 元データが 無い');
+    let seed = 5000 + i;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const hiroi = new Map();
+    for (const p of polys) {
+      p.a = menseki(p.rings[0]);
+      const m = hiroi.get(p.shi);
+      if (!m || p.a > m.a) hiroi.set(p.shi, p);
+    }
+    const ten = (p) => {
+      for (let k = 0; k < 2000; k++) {
+        const x = p.bb[0] + rnd() * (p.bb[2] - p.bb[0]);
+        const y = p.bb[1] + rnd() * (p.bb[3] - p.bb[1]);
+        if (inPoly(p, x, y) && edgeM(p, x, y) >= KYORI_M)
+          return [+y.toFixed(6), +x.toFixed(6), p.name];
+      }
+      return null;
+    };
+    const pts = [];
+    for (const [shi, p] of hiroi) {
+      const pt = ten(p);
+      if (!pt) throw new Error(pn + ': ' + shi + ' の 中に 点が 取れない');
+      pts.push(pt);
+    }
+    perShi[pn] = pts;
+    // ★町の 名前が 無い 区画（全国 211・S_NAME が 空・町名の ある 町と 混ざった 市町村にも ある）は 1区画 1点★
+    //   （小さくて 境から 10m の 点が 取れない 区画は 飛ばす＝数は 残す）
+    for (const p of polys) {
+      if (!p.nashi) continue; // ★元の 町名が 空か で 決める（「十二丁目」だけの 区画は 町名が ある＝名前で 決めると 混ざる）★
+      nashiKukaku++;
+      const pt = ten(p);
+      if (pt) tokubetsu.push(pt.concat(pn));
+    }
+    // ★浜松の 旧北区 三方原地区 7町（今は 中央区）は 1町 1点（imaNoShi の 置き換えを 見張る）★
+    if (pc === '22') {
+      const hiroiMachi = new Map();
+      for (const p of polys) {
+        const m = /^浜松市中央区(初生町|三方原町|東三方町|豊岡町|三幸町|大原町|根洗町)/.exec(
+          p.name
+        );
+        if (!m) continue;
+        const q = hiroiMachi.get(m[1]);
+        if (!q || p.a > q.a) hiroiMachi.set(m[1], p);
+      }
+      if (hiroiMachi.size !== 7)
+        throw new Error('三方原地区の 町が ' + hiroiMachi.size + '（7 の はず）');
+      for (const p of hiroiMachi.values()) {
+        const pt = ten(p);
+        if (!pt) throw new Error(p.name + ' の 中に 点が 取れない');
+        tokubetsu.push(pt.concat(pn));
+      }
+    }
+    kazu += pts.length;
+    console.log('[seikai --shi] ' + pn + ' ' + pts.length + ' 市町村');
+  }
+  out.perShi = perShi;
+  out.shiKazu = kazu;
+  out.tokubetsu = tokubetsu;
+  out.nashiKukaku = nashiKukaku;
+  fs.writeFileSync(OUT, JSON.stringify(out));
+  console.log(
+    '[seikai --shi] 全国 ' +
+      kazu +
+      ' 市町村・町名の 無い 区画 ' +
+      nashiKukaku +
+      '・特別の 点 ' +
+      tokubetsu.length
+  );
+}
+
+if (require.main === module) {
+  if (process.argv[2] === '--shi') shiMain();
+  else main();
+}
