@@ -158,6 +158,8 @@ test('⑭ ホーム画面の アプリでも 押した その 時に PDF を 保
   await expect(page.locator('#hnPdf')).toBeEnabled();
   await page.click('#hnPdf');
   await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(1);
+  // ★型と 重さは blob を 読み終わってから 入る（①と 同じく 待つ・本番 CI で 1回目だけ 空で 揺れた 10-30）★
+  await expect.poll(() => page.evaluate(() => window.__dl[0].size)).toBeGreaterThan(0);
   const k = await page.evaluate(() => window.__dl[0]);
   expect(k.type).toBe('application/pdf');
   expect(k.href).toMatch(/^blob:/);
