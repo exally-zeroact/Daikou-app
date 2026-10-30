@@ -430,10 +430,13 @@ const Business = (function () {
 
   // 末尾「○丁目」(漢数字・算用数字・全角算用 両対応) をカット
   // 大字止まり (= "市坪西町") は・無変換で返却
+  // ★名前が まるごと「○丁目」（花巻市十二丁目・春日部市八丁目・下田市一丁目〜六丁目＝全国 8区画）は 切らない★
+  //   （2026-10-30・切ると 市の 名前 だけ＝「花巻市」に なって いた）
   function _cutChomeSuffix(name) {
     if (!name || typeof name !== 'string') return name;
     // 漢数字 (一二三四五六七八九十百千〇零) + 半角 0-9 + 全角 ０-９ の・1 つ以上 + "丁目" 末尾
-    return name.replace(/[一二三四五六七八九十百千〇零0-9０-９]+丁目$/, '');
+    const cut = name.replace(/[一二三四五六七八九十百千〇零0-9０-９]+丁目$/, '');
+    return cut === '' ? name : cut;
   }
 
   // ★設計変更宣言 (2026-05-23・住所① 案 C 高精度版・(B) map-matched snap 位置 cache):

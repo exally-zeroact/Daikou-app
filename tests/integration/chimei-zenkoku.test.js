@@ -18,6 +18,9 @@
 //   tokubetsu＝町の 名前が 無い 区画（元の S_NAME が 空・全国 211・町名の ある 町と 混ざった 市町村の 分も）に 1点ずつ（取れない 小さな 3区画は 除く）
 //             ＋浜松の 三方原地区 7町（旧北区→中央区・imaNoShi の 置き換え）に 1点ずつ
 //   わざと壊す：島根の 束から 町の 名前が 無い 区画（知夫村 まるごと）を 抜く ⇒ 赤1（島根 違う 市町村 1・知夫村→null）
+//   chomeDake＝名前が まるごと「○丁目」の 区画（花巻市十二丁目・春日部市八丁目・下田市一丁目〜六丁目＝全国 8）に 1点ずつ
+//             （2026-10-30 前は 丁目を 切って「花巻市」だけ だった＝js/business.js _cutChomeSuffix）
+//   わざと壊す：_cutChomeSuffix を 前の 形（空でも 切る）に ⇒ 赤4（chomeDake 岩手1・埼玉1・静岡6 の 3本＋address-fine-chome-cut の 1本）
 //   わざと壊す：三方原地区 7町を 浜名区に／愛知の 束から 町の 名前が 無い 区画を 抜く ⇒ 赤2（静岡 違う 点 7・愛知 14＝県ごとの 1点 では 愛知は 緑の まま だった）
 // ============================================================
 'use strict';
@@ -151,6 +154,50 @@ describe('町の 名前が 無い 区画・浜松の 三方原地区 も 正し�
           if (s !== seikai) chigau.push([lat, lng, seikai, s]);
         }
         expect(chigau.slice(0, 5), pref + ' で 違う 点 ' + chigau.length).toEqual([]);
+      },
+      60000
+    );
+  }
+});
+
+describe('名前が まるごと「○丁目」の 区画は 丁目まで 出す', () => {
+  afterEach(() => {
+    delete global.window;
+  });
+  const chome = SEIKAI.chomeDake || [];
+  it('8区画 揃う', () => {
+    expect(chome.map((p) => p[2]).sort()).toEqual(
+      [
+        '花巻市十二丁目',
+        '春日部市八丁目',
+        '下田市一丁目',
+        '下田市二丁目',
+        '下田市三丁目',
+        '下田市四丁目',
+        '下田市五丁目',
+        '下田市六丁目',
+      ].sort()
+    );
+  });
+  for (const pref of [...new Set(chome.map((p) => p[3]))]) {
+    const pts = chome.filter((p) => p[3] === pref);
+    it(
+      pref + '：' + pts.length + ' 点 全部 正しい（pip）',
+      () => {
+        const sb = {};
+        new Function(
+          'window',
+          fs.readFileSync(path.join(ROOT, 'data', 'town-polygons-' + pref + '.js'), 'utf8')
+        )(sb);
+        global.window = sb;
+        const B = loadBusiness();
+        const chigau = [];
+        for (const [lat, lng, seikai] of pts) {
+          const r = B.__addressFormatter.chimeiAt(lat, lng);
+          const s = r ? r.s + (r.how === 'pip' ? '' : '（' + r.how + '）') : null;
+          if (s !== seikai) chigau.push([lat, lng, seikai, s]);
+        }
+        expect(chigau, pref + ' で 違う 点 ' + chigau.length).toEqual([]);
       },
       60000
     );

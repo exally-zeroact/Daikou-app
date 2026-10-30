@@ -94,6 +94,12 @@ describe('_cutChomeSuffix: 末尾 ○丁目 カット', () => {
     expect(cutChomeSuffix('五丁目通り')).toBe('五丁目通り');
   });
 
+  it('名前が まるごと「○丁目」は 切らない（2026-10-30・花巻市十二丁目 が「花巻市」に なって いた）', () => {
+    expect(cutChomeSuffix('十二丁目')).toBe('十二丁目');
+    expect(cutChomeSuffix('八丁目')).toBe('八丁目');
+    expect(cutChomeSuffix('１丁目')).toBe('１丁目');
+  });
+
   it('「丁目」単体 / 数字なし「丁目」は・カットしない', () => {
     expect(cutChomeSuffix('丁目')).toBe('丁目');
     expect(cutChomeSuffix('松本町丁目')).toBe('松本町丁目');

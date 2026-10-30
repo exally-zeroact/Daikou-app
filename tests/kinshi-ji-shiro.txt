@@ -70,6 +70,6 @@ privacy.html	当たり1	fe6bc4f0ae31871b	決め6・法律で載せる事業者�
 screenshots/screenshot-1.jpg	未測定1	14a0274e5ad9b289	アプリの画面の絵（目で見た・名前・住所・電話なし）
 screenshots/screenshot-2.jpg	未測定1	f32416f0bb656b09	アプリの画面の絵（目で見た・名前・住所・電話なし）
 screenshots/screenshot-3.jpg	未測定1	bd3ef79c86c5961b	アプリの画面の絵（目で見た・名前・住所・電話なし）
-tests/fixtures/chimei-seikai.json	当たり1	1dfdf805c6336734	公の地図データ（町丁・字の 境 2020）から 作った 正解の 点の 町名・偶然の一致（2026-10-24）・10-30 市町村ごとの 1点（perShi）と 町名の 無い 区画・三方原の 点（tokubetsu）を 足した＝当たりは 前と 同じ 点だけ
+tests/fixtures/chimei-seikai.json	当たり1	47f018fd52c5b0c1	公の地図データ（町丁・字の 境 2020）から 作った 正解の 点の 町名・偶然の一致（2026-10-24）・10-30 市町村ごとの 1点（perShi）と 町名の 無い 区画・三方原の 点（tokubetsu）を 足した＝当たりは 前と 同じ 点だけ・丁目だけの 区画の 点（chomeDake）
 tests/gate-realdevice-doppler-rej.js	当たり2	8251c9620e14cb10	変数名の一部・偶然の一致（指示役の決め4）
 vendor/fonts/BIZUDPGothic-Regular.ttf	未測定1	0753da0963c2fa25	借り物の字体・BIZ UD

@@ -32,7 +32,9 @@ const OUT = path.join(ROOT, 'tests', 'fixtures', 'chimei-seikai.json');
 const N = Number(process.argv[3] || 200);
 const KYORI_M = 10;
 
-const cut = (n) => String(n).replace(/[一二三四五六七八九十百千〇零0-9０-９]+丁目$/, '');
+// 名前が まるごと「○丁目」なら 切らない（js/business.js _cutChomeSuffix と 同じ・2026-10-30）
+const CHOME = /[一二三四五六七八九十百千〇零0-9０-９]+丁目$/;
+const cut = (n) => String(n).replace(CHOME, '') || String(n);
 
 function pip(x, y, ring) {
   let inside = false;
@@ -90,6 +92,7 @@ function prefPolys(prefCode) {
         polys.push({
           shi,
           nashi: !p.S_NAME,
+          chomeDake: /^[一二三四五六七八九十百千〇零0-9０-９]+丁目$/.test(p.S_NAME || ''),
           name: shi + cut(p.S_NAME || ''),
           jinko: Number(p.JINKO) || 0,
           rings,
@@ -169,6 +172,7 @@ function shiMain() {
   const out = JSON.parse(fs.readFileSync(OUT, 'utf8'));
   const perShi = {};
   const tokubetsu = [];
+  const chomeDake = []; // 名前が まるごと「○丁目」の 区画（全国 8）に 1点
   let nashiKukaku = 0;
   let kazu = 0;
   for (let i = 1; i <= 47; i++) {
@@ -184,10 +188,12 @@ function shiMain() {
       const m = hiroi.get(p.shi);
       if (!m || p.a > m.a) hiroi.set(p.shi, p);
     }
-    const ten = (p) => {
+    let seed2 = 9000 + i; // 丁目だけの 区画は 別の 種（前の 点を 動かさない）
+    const rnd2 = () => (seed2 = (seed2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const ten = (p, r = rnd) => {
       for (let k = 0; k < 2000; k++) {
-        const x = p.bb[0] + rnd() * (p.bb[2] - p.bb[0]);
-        const y = p.bb[1] + rnd() * (p.bb[3] - p.bb[1]);
+        const x = p.bb[0] + r() * (p.bb[2] - p.bb[0]);
+        const y = p.bb[1] + r() * (p.bb[3] - p.bb[1]);
         if (inPoly(p, x, y) && edgeM(p, x, y) >= KYORI_M)
           return [+y.toFixed(6), +x.toFixed(6), p.name];
       }
@@ -203,6 +209,11 @@ function shiMain() {
     // ★町の 名前が 無い 区画（全国 211・S_NAME が 空・町名の ある 町と 混ざった 市町村にも ある）は 1区画 1点★
     //   （小さくて 境から 10m の 点が 取れない 区画は 飛ばす＝数は 残す）
     for (const p of polys) {
+      if (p.chomeDake) {
+        const pt = ten(p, rnd2);
+        if (pt) chomeDake.push(pt.concat(pn));
+        continue;
+      }
       if (!p.nashi) continue; // ★元の 町名が 空か で 決める（「十二丁目」だけの 区画は 町名が ある＝名前で 決めると 混ざる）★
       nashiKukaku++;
       const pt = ten(p);
@@ -234,6 +245,7 @@ function shiMain() {
   out.shiKazu = kazu;
   out.tokubetsu = tokubetsu;
   out.nashiKukaku = nashiKukaku;
+  out.chomeDake = chomeDake;
   fs.writeFileSync(OUT, JSON.stringify(out));
   console.log(
     '[seikai --shi] 全国 ' +
