@@ -355,3 +355,34 @@ test('★⑩ 使わない 印の 業務と 同じ 日・同じ 車の 手入力�
   expect(m.sales_yen).toBe(7000);
   expect(m.expenses).toEqual({ kabc: 500 });
 });
+
+// ★★⑤ 乗った人の 時数：「1,5」「1-2」「7 5」は 送らない（15・1・75 時間に しない）・「6.5」は 送る★★ 2026-10-30（対立役 任2）
+//   わざと壊す：nyuryoku.html saveNori の 門の yomuKm を 外す ⇒ ★赤 1本★（1-2 が 1時間・2026-10-30 実測）
+test('★⑤ 乗った人の 時数の 崩れた 字は 送らない★', async ({ page }) => {
+  const F = K.zairyou();
+  await K.nyuryokuWoHiraku(page, F, HI);
+  const c2 = await K.akeru(page, K.CAR2);
+  await c2.locator('[data-chip-emp="' + K.JIRO + '"]').click();
+  await K.machi(page);
+  const ran = c2.locator('input[data-wh-emp="' + K.JIRO + '"]');
+  const jikan = () =>
+    page.evaluate(
+      (a) =>
+        window.__F.workHours
+          .filter((w) => w.work_date === a.hi && w.employee_id === a.emp)
+          .map((w) => w.hours),
+      { hi: HI, emp: K.JIRO }
+    );
+  const mae = await jikan();
+  for (const ji of ['1,5', '1-2', '7 5']) {
+    await K.utsu(ran, ji);
+    await K.machi(page);
+    // eslint-disable-next-line no-console
+    console.log('★⑤★ ' + ji + ' ' + JSON.stringify(await jikan()));
+    expect(await jikan(), '★乗った人の 時数に「' + ji + '」を 送った★').toEqual(mae);
+    await expect(page.locator('#err')).toContainText('時数は');
+  }
+  await K.utsu(ran, '6.5');
+  await K.machi(page);
+  expect(await jikan(), '★「6.5」を 送っていない★').toEqual([6.5]);
+});

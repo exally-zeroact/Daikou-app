@@ -38,6 +38,8 @@ export const WEBKIT_KUMI = [
   'stationary-no-increase.spec.js',
   'kakutei-go-kill.spec.js',
   'daikou-kakeru-kakujitsu.spec.js',
+  // 入力の 請求書＝メーターの 額・読めない 字は 送らない（2026-10-30・Safari の 数の 欄で「1-2」が 12 に なった 件）
+  'nyuryoku-seikyu-meter.spec.js',
   'fare-hozon-shippai-uwagaki.spec.js',
   'meter-ryokin-miru-dake.spec.js',
   // 距離（iPhone の 位置の 取り方で 請求の 距離が 変わる 道・対立役 10-17）

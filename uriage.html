@@ -1484,6 +1484,12 @@
             );
             return;
           }
+          // ★読めない 字は 送らない★ 2026-10-30（入力の 画面と 同じ 読み方＝JippiHozon.yomuEn）
+          //   前は 崩れた 字（1-2・1.5）を seisuu で 黙って 1円 等に して 保存した。「1,000」は 1000
+          if (JippiHozon.yomuEn(value) === undefined) {
+            showErr('金額は 0以上の 整数で 入れてください（空＝0）。保存していません。');
+            return;
+          }
           var cur = (window.__editsById || {})[shiftId] || {};
           JippiHozon.saveJippi(SESS, shiftId, COMPANY.company_id, cur, field, value)
             .then(function (body) {

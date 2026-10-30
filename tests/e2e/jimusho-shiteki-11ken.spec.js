@@ -141,7 +141,8 @@ test('★★② 単位「円」は 欄の 中★★', async ({ page }) => {
   const zenbu = await page.evaluate(() => {
     const out = { ran: 0, naka: 0, lab: [] };
     document.querySelectorAll('.frow').forEach((row) => {
-      const inp = row.querySelector('input[type=number]');
+      // 2026-10-30 打つ 欄は 字の 欄（type=number を やめた）＝数の 欄の 形（fnum）で 拾う
+      const inp = row.querySelector('input.fnum');
       if (!inp) return;
       out.ran++;
       const en = row.querySelector('.fen .en');

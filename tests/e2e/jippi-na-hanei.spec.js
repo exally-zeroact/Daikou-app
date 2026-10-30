@@ -439,3 +439,41 @@ test('⑰ 売上表：月を 替えると 前の 月だけに 額が 在った �
   );
   expect(na, '★前の 月の 欄が 残った★').toEqual(['経費']);
 });
+
+// ★★⑱ 売上表の 実費の 欄：崩れた 字（1-2・1.5・7 5）は 送らず 知らせる・「1,500」は 1500★★ 2026-10-30
+//   前は seisuu で 黙って「1-2」＝1円・「1.5」＝1円 で 保存した（入力の 画面と 同じ 読み方 JippiHozon.yomuEn に 揃えた）
+//   わざと壊す：uriage.html saveEdit の yomuEn の 門を 外す ⇒ ★赤 1本★（2026-10-30 実測）
+test('⑱ 売上表の 実費：崩れた 字は 送らない・「1,500」は 1500', async ({ page }) => {
+  await uriage(page, { kinds: ZERO_KINDS });
+  await page.locator('summary', { hasText: '一覧で 見る' }).click();
+  await page.locator('button.rmore', { hasText: '実費を 入れる' }).first().click();
+  const ran = page.locator('.dedit input.yen').first();
+  await expect(ran).toBeVisible();
+  for (const ji of ['1-2', '1.5', '7 5']) {
+    await page.evaluate(() => {
+      window.__okutta = [];
+    });
+    await ran.fill(ji);
+    await ran.press('Tab');
+    await page.waitForTimeout(500);
+    const o = await page.evaluate(() =>
+      window.__okutta.filter((x) => x.p.indexOf('dk_shift_edits') === 0)
+    );
+    // eslint-disable-next-line no-console
+    console.log('★⑱★ ' + ji + ' 送った=' + o.length);
+    expect(o.length, '★崩れた「' + ji + '」を 送った★').toBe(0);
+    expect(await page.locator('body').textContent()).toContain('0以上の 整数');
+  }
+  await page.evaluate(() => {
+    window.__okutta = [];
+  });
+  const ran2 = page.locator('.dedit input.yen').first();
+  await ran2.fill('1,500');
+  await ran2.press('Tab');
+  await page.waitForTimeout(600);
+  const o = await page.evaluate(() =>
+    window.__okutta.filter((x) => x.p.indexOf('dk_shift_edits') === 0)
+  );
+  expect(o.length, '★「1,500」を 送っていない★').toBe(1);
+  expect(o[0].b.bridge_yen, '★「1,500」を 1500 と 読まない★').toBe(1500);
+});

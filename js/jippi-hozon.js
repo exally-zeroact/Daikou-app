@@ -19,8 +19,34 @@
 (function (global) {
   const FURUI = { toll: 'toll_yen', bridge: 'bridge_yen', other: 'other_yen' };
 
+  // ★打った 字を 揃える★ 2026-10-30（全角の 数字・点→半角・桁の 区切り「,」・円¥ を 除き 前後の 空白を 落とす）
+  //   前は「1,000」を parseInt で 1円・数の 欄（type=number）は 空＝0円に して 黙って 保存した
+  //   shousuu＝小数の 欄（時数・距離）＝「,」「，」は 消さない（「1,5」を 15 に しない＝崩れた 字で 止める・対立役 10-30 止1）
+  //   空白は ★前後だけ★ 落とす（途中の 空白＝「7 5」は 崩れた 字＝75 に しない・対立役 10-30 止A）
+  function seiri(v, shousuu) {
+    const t = String(v == null ? '' : v).replace(/[０-９．]/g, function (c) {
+      return c === '．' ? '.' : String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+    });
+    return (shousuu ? t : t.replace(/[,，円¥￥]/g, '')).trim();
+  }
+  // ★金額・回数の 欄の 字を 読む★ 2026-10-30：空＝0／0以上の 整数＝その 数／★読めない 字＝undefined（送らない）★
+  function yomuEn(value) {
+    const t = seiri(value);
+    if (t === '') return 0;
+    if (!/^\d+$/.test(t)) return undefined;
+    const n = Number(t);
+    return Number.isSafeInteger(n) ? n : undefined;
+  }
+  // ★距離（km）・時数の 欄の 字を 読む★：空＝null／0以上の 数（小数 可）＝その 数／読めない 字＝undefined
+  function yomuKm(value) {
+    const t = seiri(value, true);
+    if (t === '') return null;
+    if (!/^\d+(\.\d+)?$/.test(t)) return undefined;
+    return Number(t);
+  }
+
   function seisuu(v) {
-    const n = parseInt(v, 10);
+    const n = parseInt(typeof v === 'number' ? v : seiri(v), 10);
     return isFinite(n) && n > 0 ? n : 0;
   }
 
@@ -59,7 +85,7 @@
   //   読めない 字も null（前の 様に 0 に すると 黙って「請求書 なし」に なる）
   //   ★手で 入れた 日（dk_manual_days）は メーターが 無い＝今まで 通り 空は 0★（saveTebiki）
   function yomuSeikyu(value) {
-    const t = String(value == null ? '' : value).trim();
+    const t = seiri(value);
     if (!/^\d+$/.test(t)) return null;
     const n = Number(t);
     return Number.isSafeInteger(n) ? n : null;
@@ -201,10 +227,10 @@
       // ★★車の 時間（時数）★★ 2026-10-23（司さん「入力の各車ごとに経費の下に時数」）
       //   ★小数（0.25 刻み 等）★＝整数に 丸めない。空・0・読めない ⇒ 0（乗った人が 居ても 給料は 出ない＝入れ漏れの 印が 出る）
       //   ★時間は この 写しで 書く★（別の 写しで 書くと 次の 保存が cur.hours＝古い 値で 上書きする・対立役 A-3）
-      const h = parseFloat(String(value).replace(/,/g, ''));
+      const h = parseFloat(seiri(value, true));
       body.hours = isFinite(h) && h > 0 ? h : 0;
     } else if (field === 'actual_total_km' || field === 'total_distance_km') {
-      const km = parseFloat(String(value).replace(/,/g, ''));
+      const km = parseFloat(seiri(value, true));
       body[field.replace('_km', '_m')] = isFinite(km) && km > 0 ? Math.round(km * 1000) : null;
     } else if (FURUI[field]) {
       body[FURUI[field]] = v;
@@ -314,6 +340,9 @@
     mieruKinds: mieruKinds,
     FURUI: FURUI,
     seisuu: seisuu,
+    seiri: seiri,
+    yomuEn: yomuEn,
+    yomuKm: yomuKm,
     ima: ima,
     goukei: goukei,
     karada: karada,

@@ -81,6 +81,12 @@ export const ATO_NO_KAKUNIN = {
       q: 'select count(*)::int as n from public.dk_meisai_gyoumu_goukei',
       ok: (rows) => Number.isInteger(rows?.[0]?.n),
     },
+    {
+      // 2026-10-30 対立役 任意＝上は 0行でも 通る。窓の 件数が 明細の 側から 数えた 件数と 合うかを 見る（窓が 黙って 行を 落とさない）
+      w: '窓の 件数（sum kensuu）＝業務に 結べる 生きた 明細の 件数',
+      q: "select (select coalesce(sum(kensuu),0)::int from public.dk_meisai_gyoumu_goukei) as mado, (select count(*)::int from daikou.meisai m where m.deleted_at is null and m.extra->>'dk_source'='daikome' and m.extra->>'dk_ref' ~ '^[^:]+:[0-9]{1,15}:[0-9]{1,9}$' and exists (select 1 from daikome.dk_shifts s join daikome.dk_companies c on c.company_id=s.company_id and c.owner_id=m.user_id where s.device_id::text=split_part(m.extra->>'dk_ref',':',1) and floor(extract(epoch from s.started_at)*1000)::bigint=split_part(m.extra->>'dk_ref',':',2)::bigint)) as moto",
+      ok: (rows) => Number.isInteger(rows?.[0]?.mado) && rows[0].mado === rows[0].moto,
+    },
   ],
   // ★メーターの 車の 回数・距離の 直し★ 2026-10-25（対立役 止3＝窓に 出ないと 黙って 直らない）
   'supabase/apply-kazu-naoshi.sql': [

@@ -11,6 +11,7 @@
 //   ★★わざと壊して 赤に なるのを 見た（2026-10-30 実測）★★
 //     打っていない 車を メーターの 額で なく 0 に する（g += cs[k].utta ? cs[k].ji : 0）⇒ ★赤 4本★（⑥⑧⑨⑩）
 //     ⑦（誰も 打っていない 日）は 緑の まま＝今まで 通りの 道
+//     会社が 2つ でも 打っていない 日を 飛ばす（if (!aru) return）⇒ ★赤 1本★（⑪）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
@@ -48,33 +49,37 @@ const LABELS = [
   { device_id: 'd2', label: '1466', sort_order: 2 },
 ];
 
-function tsukuru(dir, hyou) {
+function tsukuru(dir, hyou, futatsu) {
   const moto = fs.readFileSync(path.join(dir, '..', '..', 'js', 'dk-session.js'), 'utf8');
   const co = { company_id: CO, name: '見張り用' };
+  // futatsu＝持ち主が 会社を 2つ 持つ（2つ目は 名前だけ）
+  const list = futatsu ? [co, { company_id: 'betsu-kaisha', name: '別の 会社' }] : [co];
   const T = Object.assign({ dk_shifts: SHIFTS, dk_device_labels: LABELS }, hyou);
   return (
     moto +
     ';(function(){var S=window.DKSession;var co=' +
     JSON.stringify(co) +
+    ';var L=' +
+    JSON.stringify(list) +
     ';var T=' +
     JSON.stringify(T) +
     ';' +
     'function rows(p){var na=String(p).split("?")[0];return T[na]||[];}' +
     'S.ensure=function(){return Promise.resolve({token:"d"});};S.goLogin=function(){};S.logout=function(){};' +
-    'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co,list:[co]};};' +
+    'S.rememberedCompanyId=function(){return co.company_id;};S.pickCompany=function(){return {mode:"one",company:co,list:L};};' +
     'S.myCompanies=function(){return Promise.resolve({ok:true,json:function(){return Promise.resolve([co]);}});};' +
     'S.rest=function(s,p){return Promise.resolve({ok:true,status:200,json:function(){return Promise.resolve(rows(p));}});};' +
     'S.softList=function(s,p,st){(window.__yomi=window.__yomi||[]).push(String(p));if(st)st.tried++;return Promise.resolve(rows(p));};})();'
   );
 }
 
-async function hiraku(page, hyou) {
+async function hiraku(page, hyou, futatsu) {
   await page.clock.setFixedTime(new Date('2026-10-20T12:00:00+09:00'));
   await page.route('**/js/dk-session.js*', (r) =>
     r.fulfill({
       status: 200,
       contentType: 'application/javascript; charset=utf-8',
-      body: tsukuru(__dirname, hyou),
+      body: tsukuru(__dirname, hyou, futatsu),
     })
   );
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -180,4 +185,35 @@ test('★請求書 ⑩ 食い違いの 知らせに 車に 結べない 額が �
   console.log('★⑩★ 知らせ=' + JSON.stringify(r.shirase));
   expect(r.shirase).toContain('10,000円／アプリ 11,000円');
   expect(r.shirase, '★車に 結べない 4,000円 が 出ない★').toContain('車に 結べない 4,000円');
+});
+
+// ★★⑪ 会社が 2つ 以上＝明細の 日の 額は 使えない・メーターで 押した 額は 業務の 鍵で この 会社の 分だけ 使う★★ 2026-10-30
+//   前は 窓ごと 読まず 打った 額だけ（入力の 画面は メーターの 額を 見せるのに 月次は 0円＝食い違い）
+//   s9＝別の 会社の 業務（この 会社の 業務に 無い）＝入れない
+test('★請求書 ⑪ 会社が 2つ＝この 会社の 業務の メーターの 額だけ（別の 会社の 30,000 は 入れない）★', async ({
+  page,
+}) => {
+  const r = await hiraku(
+    page,
+    {
+      dk_shift_edits: ED(null, null),
+      dk_meisai_gyoumu_goukei: [GY('s1', 5000), GY('s2', 2000), GY('s9', 30000)],
+      dk_meisai_hi_goukei: [MS(99000)],
+    },
+    true
+  );
+  // eslint-disable-next-line no-console
+  console.log('★⑪★ 知らせ=' + JSON.stringify(r.shirase));
+  expect(
+    r.yomi.some((p) => p.indexOf('dk_meisai_gyoumu_goukei') === 0),
+    '★会社が 2つで 業務ごとの 窓を 読んでいない★'
+  ).toBe(true);
+  expect(r.ji).toContain('60,000');
+  expect(r.ji, '★請求書が 7,000 で ない★').toContain('7,000');
+  expect(r.ji, '★現金が 53,000 で ない★').toContain('53,000');
+  expect(r.ji, '★別の 会社の 業務の 額（30,000）を 入れた★').not.toContain('37,000');
+  expect(r.ji, '★どの 会社か 決められない 明細の 日の 額（99,000）を 使った★').not.toContain(
+    '99,000'
+  );
+  expect(r.shirase).toContain('会社が 2つ 以上');
 });

@@ -81,6 +81,8 @@ function umekusa(na, n) {
   const out = [];
   for (let i = 0; i < n; i++) {
     if (na === 'dk_meisai_hi_goukei') out.push({ date: '2026-02-01', goukei: 0 });
+    else if (na === 'dk_meisai_gyoumu_goukei')
+      out.push({ shift_id: 'u' + i, date: '2026-02-01', goukei: 0 });
     else
       out.push({
         shift_id: 'u' + i,
@@ -111,6 +113,7 @@ function tsukuru(dame, nimaime) {
   const ume = {
     dk_shifts: umekusa('dk_shifts', 1000),
     dk_meisai_hi_goukei: umekusa('dk_meisai_hi_goukei', 1000),
+    dk_meisai_gyoumu_goukei: umekusa('dk_meisai_gyoumu_goukei', 1000),
   };
   const nakami = function (co, T, D, N, U) {
     const S = window.DKSession;
@@ -235,6 +238,9 @@ for (const na of [
   'dk_work_hours',
   // dk_sales_settings は 2026-10-24 件J で 読まなくした（入れた 実費は 全部 引く）
   'dk_meisai_hi_goukei',
+  // 2026-10-30 業務ごとの 請求書の 窓（メーターで 請求書を 押した 額）＝読めないのに 0円で 現金を 出さない
+  //   わざと壊す：gyoumuZenbu の softList に st を 渡さない ⇒ ★赤 2本★（この 行・2枚目）
+  'dk_meisai_gyoumu_goukei',
   'dk_month_extras',
   'dk_day_extras',
   'dk_pay_adjustments',
@@ -250,7 +256,7 @@ for (const na of [
 // 1000行 ずつ 読む 表は 1枚目が 読めて 2枚目で 切れる 形も 在る（対立役 指摘3）
 //   ★請求書の 窓（dk_meisai_hi_goukei）は 1回 読み＝1000行 返ったら（切れた かも しれない）止める★ 2026-10-25
 //   わざと壊す：meisaiZenbu の「a.length >= KAI」で failed を 数えない ⇒ ★赤★（紙と 売上が 出る）
-for (const na of ['dk_shifts', 'dk_meisai_hi_goukei']) {
+for (const na of ['dk_shifts', 'dk_meisai_hi_goukei', 'dk_meisai_gyoumu_goukei']) {
   test(`★${na} が 2枚目（1000行 目から）で 読めない 年も 止める★`, async ({ page }) => {
     await akeru(page, [], [na]);
     await tomatta(page, na + ' の 2枚目');

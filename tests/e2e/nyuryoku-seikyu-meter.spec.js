@@ -15,8 +15,15 @@
 //   ★★わざと壊して 赤に なるのを 見た（2026-10-30 実測）★★
 //     js/jippi-hozon.js yomuSeikyu で 空を null で なく 0 に する ⇒ ★赤 2本★（③ 空で 0 を 送った・⑤ 戻した 後の 見本が 0 の まま）
 //     nyuryoku.html saveJippi の 読めない 字の 門（yomuSeikyu(value) === null）を 外す ⇒ ★赤 1本★（③-2 -5 を 送った）
-//     nyuryoku.html bindYen の badInput の 門を 外す（v = i.value のみ）⇒ ★赤★（③-2 3-000 を null で 送った）
-//     nyuryoku.html bindYen の onblur を 外す ⇒ ★赤★（③-3 空の 欄の 3-000 で 赤い 字が 出ない）
+//     （badInput・onblur の 門は 10-30 午後に 外した＝欄を 字の 欄に して 崩れた 字も change で 届く・③-2 ③-3 は その まま 緑）
+//   ★★2026-10-30 午後（⑥〜⑨）わざと壊した★★
+//     nyuryoku.html katachiDame を いつも false ⇒ ★赤 2本★（⑦ 実費・⑧ 手で 入れる 日）
+//     js/jippi-hozon.js seiri で「,」「，」を 除かない ⇒ ★赤 3本★（⑥ 3,000・⑦ 1,500・⑧ 2,000）
+//     nyuryoku.html 時数の 門で yomuKm を 見ない ⇒ ★赤 1本★（⑨ 1-2 を 1時間で 送った）
+//     js/jippi-hozon.js seiri の 小数の 欄でも「,」を 消す ⇒ ★赤 2本★（⑨ 1,5 を 15時間・⑩ 手で 入れる 日の 時数・距離）
+//     nyuryoku.html 電子決済の 欄を type=number に 戻す ⇒ ★赤 1本★（⑫）
+//     js/jippi-hozon.js seiri で 途中の 空白も 消す ⇒ ★赤 3本★（⑦⑨⑩ の「7 5」が 75）
+//     nyuryoku.html yomuKazu を 前の 消し方（,・空白を 消す）に 戻す ⇒ ★赤 1本★（⑬）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const { zenbuAkeru } = require('./nyuryoku-akeru.js');
@@ -28,6 +35,8 @@ const HI = '2026-09-02';
 const LABELS = [
   { company_id: 'c1', device_id: 'd1', label: '4987', sort_order: 1 },
   { company_id: 'c1', device_id: 'd2', label: '1466', sort_order: 2 },
+  // d3＝この 日 走っていない 車（手で 入れる 欄）2026-10-30
+  { company_id: 'c1', device_id: 'd3', label: '7777', sort_order: 3 },
 ];
 // d1 は 1日 2回（s1・s1b）・d2 は 1回（s2）
 const SH = [
@@ -296,4 +305,205 @@ test('★★⑤ 別の 回に 打った 車＝空の 回の 見本は 0（打っ
   expect(await kai.getAttribute('placeholder'), '★戻した 後の 見本が メーターの 額で ない★').toBe(
     '2000'
   );
+});
+
+// ★★⑥〜⑨ 打った 字の 読み方（2026-10-30・欄は 字の 欄＝type=number を やめた）★★
+//   前は 数の 欄＝「1,000」は 欄が 読めず 0円・Safari は「1-2」を 12・実費や 手で 入れる 日は 崩れた 字を 黙って 0 で 保存した
+//   今は 全部の 欄で ★全角・「,」・円 は 揃えて 読み、崩れた 字は 送らず 赤い 字★
+const errJi = (page) =>
+  page.evaluate(() => (document.getElementById('err') || {}).textContent || '');
+async function utsu(page, i, ji) {
+  await page.evaluate(() => {
+    window.__okutta = [];
+  });
+  // 本物の 打ち方（欄に 打って 離れる＝ブラウザが change を 1回 出す）
+  await i.fill(ji);
+  await i.evaluate((el) => el.blur());
+  await page.waitForTimeout(600);
+  return page.evaluate(() => window.__okutta || []);
+}
+
+test('★★⑥ 請求書：「3,000」「１２００」は 読む・「1-2」は 送らず 赤い 字（Safari で 12 に なった 形）★★', async ({
+  page,
+}) => {
+  await hiraku(page, []);
+  const d2 = await ueNoRan(page, '1466');
+  for (const [ji, kitai] of [
+    ['3,000', 3000],
+    ['１２００', 1200],
+    ['2500円', 2500],
+  ]) {
+    const r = await utsu(page, d2.i, ji);
+    expect(r.length, '★「' + ji + '」を 送っていない★').toBe(1);
+    expect(JSON.parse(r[0].body).seikyu_yen, '★「' + ji + '」の 読み方が 違う★').toBe(kitai);
+  }
+  const r = await utsu(page, d2.i, '1-2');
+  // eslint-disable-next-line no-console
+  console.log('★⑥★ 1-2 送った=' + r.length + ' 字=' + JSON.stringify(await errJi(page)));
+  expect(r.length, '★「1-2」を 送った（12 や 空で 保存される）★').toBe(0);
+  expect(await errJi(page)).toContain('0以上の 整数');
+});
+
+test('★★⑦ 実費（メーターの 車）：崩れた 字は 送らず 赤い 字・「1,500」は 1500★★', async ({
+  page,
+}) => {
+  await hiraku(page, []);
+  const i = page.locator('.sha', { hasText: '1466' }).locator('.ran-ue input[data-f="toll"]');
+  await expect(i, '★高速代の 欄が 無い★').toHaveCount(1);
+  for (const ji of ['1-2', 'abc', '-300', '1.5', '7 5']) {
+    const r = await utsu(page, i, ji);
+    // eslint-disable-next-line no-console
+    console.log('★⑦★ ' + ji + ' 送った=' + r.length);
+    expect(r.length, '★崩れた「' + ji + '」を 送った（黙って 0円や 1円で 保存）★').toBe(0);
+    expect(await errJi(page), '★「' + ji + '」で 赤い 字が 出ない★').toContain(
+      '金額は 0以上の 整数'
+    );
+  }
+  const r = await utsu(page, i, '1,500');
+  expect(r.length, '★「1,500」を 送っていない★').toBe(1);
+  expect(JSON.parse(r[0].body).toll_yen, '★「1,500」を 1500 と 読まない★').toBe(1500);
+  expect(await errJi(page), '★正しく 打った 後も 赤い 字が 残る★').not.toContain('0以上の 整数');
+  // 空は 今まで 通り 0
+  const r0 = await utsu(page, i, '');
+  expect(JSON.parse(r0[0].body).toll_yen).toBe(0);
+});
+
+test('★★⑧ 手で 入れる 日の 車：売上・回数・請求書・実費の 崩れた 字は 送らない・「2,000」は 2000★★', async ({
+  page,
+}) => {
+  await hiraku(page, []);
+  const car = page.locator('.sha', { hasText: '7777' });
+  const ran = (f) => car.locator('input[data-dev="d3"][data-f="' + f + '"]').first();
+  for (const f of ['sales_yen', 'trip_count', 'seikyu_yen', 'toll']) {
+    await expect(ran(f), '★手で 入れる 車に ' + f + ' の 欄が 無い★').toHaveCount(1);
+    const r = await utsu(page, ran(f), '1-2');
+    // eslint-disable-next-line no-console
+    console.log('★⑧★ ' + f + ' 1-2 送った=' + r.length);
+    expect(
+      r.length,
+      '★手で 入れる 日の ' + f + ' に 崩れた 字を 送った（黙って 0 や 1 で 保存）★'
+    ).toBe(0);
+    expect(await errJi(page)).toContain('0以上の 整数');
+  }
+  // 崩れた 字を 打った 4つの 欄を 全部 直す（直さない 欄の 赤い 字は 残る＝正しい）
+  for (const [f, ji, kitai, kagi] of [
+    ['sales_yen', '2,000', 2000],
+    ['seikyu_yen', '１０００', 1000],
+    ['trip_count', '3', 3],
+    ['toll', '1,200', 1200, 'toll_yen'],
+  ]) {
+    const r = await utsu(page, ran(f), ji);
+    expect(r.length, '★' + f + ' の「' + ji + '」を 送っていない★').toBe(1);
+    expect(r[0].saki).toContain('dk_manual_days');
+    expect(JSON.parse(r[0].body)[kagi || f], '★' + f + ' の「' + ji + '」の 読み方が 違う★').toBe(
+      kitai
+    );
+  }
+  expect(await errJi(page), '★正しく 打った 後も 赤い 字が 残る★').not.toContain('0以上の 整数');
+});
+
+test('★★⑨ 時数：「1-2」を 1時間に しない（送らず 赤い 字）★★', async ({ page }) => {
+  await hiraku(page, []);
+  const i = page.locator('.sha', { hasText: '1466' }).locator('input[data-hours-sid]').first();
+  await expect(i, '★時数の 欄が 無い★').toHaveCount(1);
+  // 「1,5」「1，5」＝小数の つもり＝15時間に しない（対立役 10-30 止1）
+  for (const ji of ['1-2', '1,5', '1，5', '7 5', '７　５']) {
+    const r = await utsu(page, i, ji);
+    // eslint-disable-next-line no-console
+    console.log('★⑨★ ' + ji + ' 送った=' + r.length + ' 字=' + JSON.stringify(await errJi(page)));
+    expect(r.length, '★「' + ji + '」を 時数で 送った（1 や 15 時間）★').toBe(0);
+    expect(await errJi(page)).toContain('時数は');
+  }
+  const r2 = await utsu(page, i, '1.5');
+  expect(r2.length, '★「1.5」を 送っていない★').toBe(1);
+});
+
+test('★★⑩ 手で 入れる 日の 時数・距離：「1-2」「1,5」は 送らない・「2.5」「１２．３」は 読む★★', async ({
+  page,
+}) => {
+  await hiraku(page, []);
+  const car = page.locator('.sha', { hasText: '7777' });
+  const ran = (f) => car.locator('input[data-dev="d3"][data-f="' + f + '"]').first();
+  for (const f of ['hours', 'actual_total_km', 'total_distance_km']) {
+    await expect(ran(f), '★手で 入れる 車に ' + f + ' の 欄が 無い★').toHaveCount(1);
+    for (const ji of ['1-2', '1,5', '7 5']) {
+      const r = await utsu(page, ran(f), ji);
+      // eslint-disable-next-line no-console
+      console.log('★⑩★ ' + f + ' ' + ji + ' 送った=' + r.length);
+      expect(r.length, '★' + f + ' に 崩れた「' + ji + '」を 送った★').toBe(0);
+    }
+  }
+  for (const [f, ji, kagi, kitai] of [
+    ['hours', '2.5', 'hours', 2.5],
+    ['actual_total_km', '１２．３', 'actual_total_m', 12300],
+    ['total_distance_km', '20', 'total_distance_m', 20000],
+  ]) {
+    const r = await utsu(page, ran(f), ji);
+    expect(r.length, '★' + f + ' の「' + ji + '」を 送っていない★').toBe(1);
+    expect(JSON.parse(r[0].body)[kagi], '★' + f + ' の「' + ji + '」の 読み方が 違う★').toBe(kitai);
+  }
+  expect(await errJi(page), '★正しく 打った 後も 赤い 字が 残る★').not.toContain('0以上の 数');
+});
+
+// ★★⑫ 打つ 欄に 数の 欄（type=number）を 戻さない★★（対立役 10-30 任3）
+//   戻すと Safari で「1-2」が 12・Chrome で「1,000」が 空＝0円に なる（読む 側の 門では 捕まらない）
+test('★★⑫ 打てる 欄に type=number が 1つも 無い★★', async ({ page }) => {
+  await hiraku(page, [{ shift_id: 's1', seikyu_yen: 1000 }]);
+  const n = await page.evaluate(() => ({
+    kazu: document.querySelectorAll('#shaList input[type=number]:not([disabled])').length,
+    ran: document.querySelectorAll('#shaList input.fnum:not([disabled])').length,
+  }));
+  // eslint-disable-next-line no-console
+  console.log('★⑫★ ' + JSON.stringify(n));
+  expect(n.ran, '★打てる 欄が 見つからない（何も 見ていない）★').toBeGreaterThan(10);
+  expect(n.kazu, '★数の 欄（type=number）が 戻った★').toBe(0);
+});
+
+// ★★⑬ メーターの 車の 回数・距離の 直し：距離の「1,5」「7 5」は 崩れた 字・回数の「1,000」は 1000★★ 2026-10-30（対立役 任1）
+//   前は yomuKazu が「,」と 途中の 空白を 消した＝距離「1,5」が 15km
+test('★★⑬ メーターの 車の 距離の 直し：「1,5」「7 5」を 15km・75km に しない★★', async ({
+  page,
+}) => {
+  await hiraku(page, []);
+  const i = page
+    .locator('.sha', { hasText: '1466' })
+    .locator('input[data-kazu-sid][data-kz="actual_total_m_naoshi"]')
+    .first();
+  await expect(i, '★実車距離の 直しの 欄が 無い★').toHaveCount(1);
+  for (const ji of ['1,5', '7 5']) {
+    const r = await utsu(page, i, ji);
+    // eslint-disable-next-line no-console
+    console.log('★⑬★ ' + ji + ' 送った=' + r.length);
+    expect(r.length, '★距離の「' + ji + '」を 送った★').toBe(0);
+  }
+  const r = await utsu(page, i, '１．５');
+  expect(r.length, '★「１．５」を 送っていない★').toBe(1);
+  expect(JSON.parse(r[0].body).actual_total_m_naoshi).toBe(1500);
+  // 回数は 円の 欄と 同じ 読み（「1,000」＝1000）
+  const kai = page
+    .locator('.sha', { hasText: '1466' })
+    .locator('input[data-kazu-sid][data-kz="trip_count_naoshi"]')
+    .first();
+  const rk = await utsu(page, kai, '1,000');
+  expect(rk.length, '★回数の「1,000」を 送っていない★').toBe(1);
+  expect(JSON.parse(rk[0].body).trip_count_naoshi).toBe(1000);
+});
+
+// ★★⑭ メーターの 車の 売上の 直し：途中の 空白（7 5・1 000）は 送らない・「9,800」は 9800★★ 2026-10-30（対立役 3回目 止1）
+//   前は UriageAgg.yomuUriage が 空白を 全部 消した＝「7 5」が 75円
+//   わざと壊す：js/uriage-agg.js yomuUriage で 空白を 全部 消す ⇒ ★赤 1本★（2026-10-30 実測）
+test('★★⑭ メーターの 売上の 直し：「7 5」を 75円に しない★★', async ({ page }) => {
+  await hiraku(page, []);
+  const i = page.locator('.sha', { hasText: '1466' }).locator('input[data-uri-sid]').first();
+  await expect(i, '★売上の 直しの 欄が 無い★').toHaveCount(1);
+  for (const ji of ['7 5', '1 000']) {
+    const r = await utsu(page, i, ji);
+    // eslint-disable-next-line no-console
+    console.log('★⑭★ ' + ji + ' 送った=' + r.length);
+    expect(r.length, '★売上に「' + ji + '」を 送った★').toBe(0);
+    expect(await errJi(page)).toContain('売上は 0以上の 整数');
+  }
+  const r = await utsu(page, i, '9,800');
+  expect(r.length, '★「9,800」を 送っていない★').toBe(1);
+  expect(JSON.parse(r[0].body).uriage_yen).toBe(9800);
 });

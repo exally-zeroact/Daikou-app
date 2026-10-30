@@ -912,7 +912,7 @@
           var no = ++LOADNO;
           // 打ち方の 間違いの 字は 描き直すと 欄の 字が 消える ので 一緒に 消す
           Object.keys(ERR_KAGI).forEach(function (k) {
-            if (/:s?katachi$/.test(k)) delete ERR_KAGI[k]; // 請求書の 打ち方の 字（:skatachi）も
+            if (/:[sh]?katachi$/.test(k)) delete ERR_KAGI[k]; // 請求書の 打ち方の 字（:skatachi）・時数（:hkatachi）も
           });
           errNuru();
           YOMENAI = '読み込み中';
@@ -1075,7 +1075,8 @@
               KAZU_ARU = res[11] === true;
               KAZU_YOMENAI = res[11] === 'yomenai';
               GYO_SEIKYU = {};
-              GYO_SEIKYU_NG = !!stG.failed;
+              // 1000行 返った＝切れた かも しれない（倉庫は 1回 1000行まで）＝読めなかった 事に する 2026-10-30
+              GYO_SEIKYU_NG = !!stG.failed || (Array.isArray(res[12]) && res[12].length >= 1000);
               (Array.isArray(res[12]) ? res[12] : []).forEach(function (x) {
                 if (!x || !x.shift_id || String(x.date).slice(0, 10) !== HI) return;
                 GYO_SEIKYU[x.shift_id] = (GYO_SEIKYU[x.shift_id] || 0) + (Number(x.goukei) || 0);
@@ -1661,14 +1662,16 @@
         }
         // 回数・距離の 欄の 字を 読む：空＝null（メーターに 戻す）・読めない＝undefined
         //   回数は 0以上の 整数・距離は km（★小数 1桁まで★＝欄に 出す 細かさと 揃える・2026-10-25 対立役 任2）を m の 整数に
+        //   ★字の 揃え方は 他の 欄と 同じ JippiHozon.seiri★ 2026-10-30（前は「,」と 途中の 空白を 消した＝距離の「1,5」が 15km・「7 5」が 75）
+        //   回数は 円の 欄と 同じ（「1,000」＝1000）・距離は 小数の 欄（「,」と 途中の 空白は 崩れた 字）
         function yomuKazu(col, value) {
-          var t = String(value == null ? '' : value)
-            .replace(/[０-９．]/g, function (c) {
-              return c === '．' ? '.' : String.fromCharCode(c.charCodeAt(0) - 0xfee0);
-            })
-            .replace(/[,，\s]|km|回/gi, '');
+          var kazu = col === 'trip_count_naoshi';
+          var t = JippiHozon.seiri(
+            String(value == null ? '' : value).replace(/km|回/gi, ''),
+            !kazu
+          );
           if (t === '') return null;
-          if (col === 'trip_count_naoshi') {
+          if (kazu) {
             if (!/^\d+$/.test(t)) return undefined;
             var x = Number(t);
             return Number.isSafeInteger(x) ? x : undefined;
@@ -2022,7 +2025,7 @@
           } else {
             h +=
               '<div class="frow"><span class="flabel">売上</span>' +
-              '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+              '<div class="fen"><input class="finput fnum" inputmode="numeric" min="0"' +
               ' ' +
               keyAttr +
               '="' +
@@ -2071,7 +2074,7 @@
                 h +=
                   '<div class="frow"><span class="flabel">' +
                   f[0] +
-                  '</span><div class="fen"><input class="finput fnum" type="number" inputmode="' +
+                  '</span><div class="fen"><input class="finput fnum" inputmode="' +
                   f[4] +
                   '" min="0" step="' +
                   f[5] +
@@ -2099,7 +2102,7 @@
           // ★★電子決済★★（どちらの 車でも 打てる）
           h +=
             '<div class="frow"><span class="flabel">電子決済</span>' +
-            '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+            '<div class="fen"><input class="finput fnum" inputmode="numeric" min="0"' +
             dis +
             ' ' +
             keyAttr +
@@ -2114,7 +2117,7 @@
           if (SEIKYU_ARU) {
             h +=
               '<div class="frow"><span class="flabel">請求書</span>' +
-              '<div class="fen"><input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+              '<div class="fen"><input class="finput fnum" inputmode="numeric" min="0"' +
               dis +
               ' ' +
               keyAttr +
@@ -2140,7 +2143,7 @@
                 '<div class="frow"><span class="flabel">' +
                 esc(k.label) +
                 '</span><div class="fen">' +
-                '<input class="finput fnum" type="number" inputmode="numeric" min="0"' +
+                '<input class="finput fnum" inputmode="numeric" min="0"' +
                 dis +
                 ' ' +
                 keyAttr +
@@ -2177,10 +2180,9 @@
             return v === null ? JippiHozon.seisuu(i.getAttribute('placeholder')) : v;
           }
           // 手入力の 売上（空＝0）／2回 以上 走った 車の 合計（打てない 欄）
-          var t = String(i.value == null ? '' : i.value).trim();
-          if (t === '') return 0;
-          var n = Number(t);
-          return isFinite(n) && n >= 0 ? n : null;
+          //   欄は 字の 欄（2026-10-30）＝「1,000」も 保存と 同じ 読み方で 読む・読めない 字は null
+          var n = JippiHozon.yomuEn(i.value);
+          return n === undefined ? null : n;
         }
         function keihiOf(box) {
           var ids = {};
@@ -2189,7 +2191,8 @@
           });
           var g = 0;
           Array.prototype.forEach.call(box.querySelectorAll('input[data-f]'), function (i) {
-            if (ids[i.getAttribute('data-f')]) g += JippiHozon.seisuu(i.value);
+            // 保存と 同じ 読み方（崩れた 字＝送らない 字は 足さない）2026-10-30
+            if (ids[i.getAttribute('data-f')]) g += JippiHozon.yomuEn(i.value) || 0;
           });
           return g;
         }
@@ -2257,23 +2260,11 @@
           Array.prototype.forEach.call(
             document.querySelectorAll('#shaList [data-sid]'),
             function (i) {
+              // ★欄は 字の 欄（type=number を やめた）2026-10-30★＝崩れた 字（3-000・1-2）も その まま 届き change も 来る
+              //   前は 数の 欄＝崩れた 字は value が 空・空の 欄では change が 来ず・Safari は「1-2」を 12 に した（対立役 止1・止1′・任意）
               i.onchange = function () {
-                // 数の 欄に 形の 崩れた 字（3-000 等）＝value は 空・badInput＝空（メーターの 額）と 読まない 2026-10-30 対立役 止1
-                var f = i.getAttribute('data-f');
-                var v = f === 'seikyu_yen' && i.validity && i.validity.badInput ? '?' : i.value;
-                saveJippi(i.getAttribute('data-sid'), f, v);
+                saveJippi(i.getAttribute('data-sid'), i.getAttribute('data-f'), i.value);
               };
-              // ★空の 欄に 崩れた 字を 打つと change が 来ない★（value は 空の まま）2026-10-30 対立役 止1′
-              //   欄を 離れた 時に badInput を 見て 赤い 字。赤い 字の 後に 空に した 時も change は 来ない＝その 時は 今の 字で 送る（任B）
-              //   正しい 字の 時は change が 先に 保存して 赤い 字を 消す＝ここでは 送らない（二重に 送らない）
-              if (i.getAttribute('data-f') === 'seikyu_yen') {
-                i.onblur = function () {
-                  var sid = i.getAttribute('data-sid');
-                  if (i.validity && i.validity.badInput) saveJippi(sid, 'seikyu_yen', '?');
-                  else if (ERR_KAGI['s:' + sid + ':skatachi'])
-                    saveJippi(sid, 'seikyu_yen', i.value);
-                };
-              }
             }
           );
           // メーターの 売上の 直し 2026-10-14
@@ -2405,12 +2396,39 @@
           });
         }
 
+        // ★★読めない 字は 送らない★★ 2026-10-30（金額・回数・距離・時数の 欄 全部）
+        //   前は 数の 欄（type=number）が 崩れた 字を 空と して 渡し、送る 側が 0 に して 黙って 保存した
+        //   （「1,000」は 欄が 読めず 0円・Safari は「1-2」を 12 に した）。今は 欄は 字の 欄＝打った 字を そのまま 読む
+        //   空は 今まで 通り（金額・回数＝0・距離＝空）。読めない 時は 赤い 字を 出して true（呼ぶ 側は 送らない）
+        function katachiDame(kagi, field, value) {
+          var k = kagi + ':' + field + ':katachi';
+          delete ERR_KAGI[k];
+          var dame;
+          if (field === 'actual_total_km' || field === 'total_distance_km') {
+            dame = JippiHozon.yomuKm(value) === undefined;
+            if (dame) ERR_KAGI[k] = '距離は 0以上の km の 数で 入れてください。保存していません。';
+          } else if (field === 'hours') {
+            dame = JippiHozon.yomuKm(value) === undefined;
+            if (dame) ERR_KAGI[k] = '時数は 0以上の 数で 入れてください。保存していません。';
+          } else {
+            dame = JippiHozon.yomuEn(value) === undefined;
+            if (dame)
+              ERR_KAGI[k] =
+                (field === 'trip_count' ? '回数' : '金額') +
+                'は 0以上の 整数で 入れてください（空＝0）。保存していません。';
+          }
+          if (dame) akeru(kagiNoKuruma(kagi), true);
+          errNuru();
+          return dame;
+        }
+
         // ★保存の 決まりは js/jippi-hozon.js の 1か所★（ここは 呼ぶだけ）
         function saveTebiki(deviceId, field, value) {
           if (!COMPANY) return;
           if (yomenaiNara()) return;
           var hi0 = HI;
           var kagi = 'd:' + hi0 + ':' + deviceId;
+          if (katachiDame(kagi, field, value)) return;
           return junban(kagi, function () {
             // 中身は 順番が 来た 時の 記録で 作る（前の 返事を 重ねた 後）。TEBIKI が 別の 日の 表なら 送らない
             //   今の 作り（返事を 待って 読み直す）では 通らない 道。通ったら 黙って 捨てずに 訳を 出す（対立役 7回目 叩く点 3）
@@ -2458,10 +2476,7 @@
           //   送ると 空（null＝メーターの 額）で 保存され、欄には 打った 字が 残った まま 月次は メーターの 額に なる
           if (field === 'seikyu_yen') {
             delete ERR_KAGI[kagi + ':skatachi'];
-            if (
-              String(value == null ? '' : value).trim() !== '' &&
-              JippiHozon.yomuSeikyu(value) === null
-            ) {
+            if (JippiHozon.seiri(value) !== '' && JippiHozon.yomuSeikyu(value) === null) {
               ERR_KAGI[kagi + ':skatachi'] =
                 '請求書は 0以上の 整数（円）で 入れてください（空に すると メーターの 額・0＝請求書 なし）。保存していません。';
               akeru(kagiNoKuruma(kagi), true);
@@ -2469,7 +2484,7 @@
               return;
             }
             errNuru();
-          }
+          } else if (katachiDame(kagi, field, value)) return;
           return junban(kagi, function () {
             // 中身は 順番が 来た 時の 記録で 作る（前の 返事を 重ねた 後＝前の 額に 戻さない）
             return JippiHozon.saveJippi(
@@ -2507,8 +2522,13 @@
           if (!COMPANY) return;
           if (yomenaiNara()) return;
           var kagi = 's:' + shiftId;
-          var t = String(value == null ? '' : value).trim();
-          if (t !== '' && JisuuHozon.yomuJikan(t) === null && parseFloat(t) !== 0) {
+          // 字を 揃えて から 読む・「1-2」等の 崩れた 字を parseFloat で 1 に しない 2026-10-30
+          var t = JippiHozon.seiri(value, true); // 小数の 欄＝「1,5」を 15 に しない
+          if (
+            t !== '' &&
+            (JippiHozon.yomuKm(t) === undefined ||
+              (JisuuHozon.yomuJikan(t) === null && parseFloat(t) !== 0))
+          ) {
             delete ERR_KAGI[kagi + ':hkatachi'];
             ERR_KAGI[kagi + ':hkatachi'] =
               '時数は 0 より 大きい 数で 入れてください（空に すると メーターの 記録から 自動）。';
@@ -2615,8 +2635,13 @@
             hozonDekinai(kagi, NORI_NG, null, dev);
             return;
           }
-          var t = String(value == null ? '' : value).trim();
-          if (t !== '' && JisuuHozon.yomuJikan(t) === null && parseFloat(t) !== 0) {
+          // 字を 揃えて から 読む・「1-2」等の 崩れた 字を parseFloat で 1 に しない 2026-10-30
+          var t = JippiHozon.seiri(value, true); // 小数の 欄＝「1,5」を 15 に しない
+          if (
+            t !== '' &&
+            (JippiHozon.yomuKm(t) === undefined ||
+              (JisuuHozon.yomuJikan(t) === null && parseFloat(t) !== 0))
+          ) {
             delete ERR_KAGI[kagi + ':katachi'];
             ERR_KAGI[kagi + ':katachi'] =
               '時数は 0 より 大きい 数で 入れてください（空に すると 車と 同じ 時間）。';

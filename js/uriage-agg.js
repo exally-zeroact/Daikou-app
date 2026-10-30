@@ -105,12 +105,14 @@
   // 売上の 欄の 字を 読む（給料の 時数を入れる・入力 の 両方が 使う 1か所）2026-10-14
   //   カンマ・空白・円・全角の 数字を 外し、0以上の 整数だけ。空＝null（メーターに 戻す）。
   //   読めない 時は undefined（保存を 止めて 字で 出す）＝parseInt で「9,800」が 9円 に ならない 様に（対立役）
+  //   ★空白は 前後だけ 落とす★ 2026-10-30（途中の 空白「7 5」は 崩れた 字＝75円に しない・他の 欄の JippiHozon.seiri と 同じ・対立役 止1）
   function yomuUriage(v) {
     const t = String(v === null || v === undefined ? '' : v)
       .replace(/[０-９]/g, function (c) {
         return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
       })
-      .replace(/[,，\s円¥￥]/g, '');
+      .replace(/[,，円¥￥]/g, '')
+      .trim();
     if (t === '') return null;
     if (!/^\d+$/.test(t)) return undefined;
     const x = Number(t);

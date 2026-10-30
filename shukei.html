@@ -1382,7 +1382,7 @@
           var t = '';
           if (KAISHA_KAZU > 1) {
             t =
-              '請求書アプリの 額は 会社が 2つ 以上 あり どの 会社の 物か 決められません（入力で 打った 額だけ 使っています）。';
+              '請求書アプリの 日の 額は 会社が 2つ 以上 あり どの 会社の 物か 決められません（入力で 打った 額と メーターで 請求書を 押した 額を 使っています）。';
           } else if (SEIKYU_KUICHIGAI.length) {
             t =
               '請求書：入力と 請求書アプリで 額が 違う 日 ' +
@@ -1455,10 +1455,10 @@
         }
         // ★★請求書アプリの 明細を 業務ごとに 足した 額★★ 2026-10-30（窓 dk_meisai_gyoumu_goukei）
         //   メーターで 請求書を 押した 乗車（dk_ref 付きの 明細）だけ。請求書アプリで 直した・消した 額が そのまま 入る
-        //   ★会社で 絞らない★（窓に company_id の 列は 無い）・会社が 2つ 以上は 明細と 同じく 使わない
+        //   ★会社で 絞らない★（窓に company_id の 列は 無い）・★会社が 2つ 以上でも 読む★ 2026-10-30
+        //     業務の 鍵（shift_id）で この 会社の 業務だけ 使う（下の gyoMeter が SHIFT_BY_ID＝この 会社の 業務で 絞る）
         //   1000行 ごとに 全部 読む（DKSession.softList・読めない 時は 帯に 出る）
         function gyoumuZenbu(st) {
-          if (KAISHA_KAZU > 1) return Promise.resolve([]);
           return DKSession.softList(
             SESS,
             'dk_meisai_gyoumu_goukei?select=shift_id,date,goukei&date=gte.' +
@@ -1845,7 +1845,8 @@
             var aru = Object.keys(cs).some(function (k) {
               return cs[k].utta;
             });
-            if (!aru) return;
+            // 会社が 2つ 以上＝明細の 日の 額は 使えない（どの 会社の 物か 決められない）＝どの 日も 車ごとの 額で 数える
+            if (!aru && KAISHA_KAZU <= 1) return;
             var g = 0;
             var mg = 0;
             Object.keys(cs).forEach(function (k) {
