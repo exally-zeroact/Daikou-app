@@ -96,11 +96,8 @@ test.describe('iPhone', () => {
     await hiraku(page, undefined, undefined, false, { name: '𠮷田太郎' });
     await page.click('#hnPdf');
     await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
-    // ★知らせと 保存の 案内の 両方★（案内が 消えると LINE の 中で 出ない 時の 道が 無くなる・止1）
-    const a = page.locator('#hnPdfAnnai');
-    await expect(a).toContainText(BUN + '𠮷）');
-    await expect(a, '★保存の 案内が 消えた★').toContainText('LINE');
-    await expect(a).toContainText('ダウンロード');
+    // ★知らせだけ★（見本 exportInvoicePDF は miss が 在れば その 字だけを toast・見本との違い② 2026-11-01）
+    await expect(page.locator('#hnPdfAnnai')).toHaveText(BUN + '𠮷）');
   });
   // ★字体を 調べる 道具が 作れない ⇒ 黙って 豆腐で 出さない（保存 0・知らせ）★（見本 invoice-pdf.js も fontkit.create を 包まない）
   //   わざと壊す：_covFont を try/catch で 包む（前の 形）⇒ ★赤★（豆腐の PDF が 保存される）・直した後の 対立役 注B 10-31

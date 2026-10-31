@@ -22,6 +22,8 @@
 //     ④計算が 転んだ 期から PDF を 渡さない
 // ============================================================
 const { test, expect, devices } = require('@playwright/test');
+// ★保存の 時の 案内＝見本 exportInvoicePDF の toast と 同じ 字★（見本との違い② 2026-11-01・前は 長い 案内）
+const HOZON_BUN = 'PDFを作成しました（開いた画面の共有から 送る・プリント）';
 const { hiraku, maeNoTsuki, KAMI, kamiDekita } = require('./honnin-harness');
 
 // ★時計を 止める（⑦）なら 時間帯も 止める★（tests/unit/tokei-tomeru-nara-jikantai-mo.test.js・客は 日本に 居る）
@@ -123,7 +125,7 @@ test('① 1回 押すと 自分の 明細の PDF を ダウンロードする（
   expect(f.type).toBe('application/pdf');
   expect(f.href).toMatch(/^blob:/);
   expect(await page.evaluate(() => window.__kyouyu.length), '★共有の 画面に 直に 渡した★').toBe(0);
-  await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
+  await expect(page.locator('#hnPdfAnnai')).toHaveText(HOZON_BUN);
   const kk = e.ki.match(/(\d+)\/(\d+)〜(\d+)\/(\d+)/);
   expect(kk, '月3回の 会社で 期間の 選ぶ 欄が 無い').not.toBeNull();
   const p2 = (s) => String(s).padStart(2, '0');
@@ -176,7 +178,7 @@ test('⑭ ホーム画面の アプリでも 押した その 時に PDF を 保
     '★共有の 画面に 直に 渡した（LINE が 並ばない）★'
   ).toBe(0);
   expect(await page.evaluate(() => window.__mado.length), '★戻れない 窓を 開いた★').toBe(0);
-  await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
+  await expect(page.locator('#hnPdfAnnai')).toHaveText(HOZON_BUN);
   await expect(page.locator('#hnPdfAnnai')).not.toContainText('その他');
 });
 
@@ -211,7 +213,7 @@ test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、�
   await page.click('#hnPdf');
   await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
   expect(await page.evaluate(() => window.__kyouyu.length)).toBe(0);
-  await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
+  await expect(page.locator('#hnPdfAnnai')).toHaveText(HOZON_BUN);
 });
 
 // ★★裏で 作っている 間も ボタンは「📄 印刷 / 送る」の まま 押せる★★ 2026-10-31（見本＝代行請求書の 請求書の 欄）

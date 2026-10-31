@@ -91,7 +91,10 @@ test('★PC で 窓を 止められたら 保存に 落ちる★', async ({ page
   const k = await kazu(page);
   expect(k.mado, '窓を 試していない').toBe(1);
   expect(await page.evaluate(() => window.__dl[0].name)).toMatch(/^給料明細_.*\.pdf$/);
-  await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
+  // ★見本 exportInvoicePDF の 保存の 時の toast と 同じ 字★（見本との違い② 2026-11-01）
+  await expect(page.locator('#hnPdfAnnai')).toHaveText(
+    'PDFを作成しました（開いた画面の共有から 送る・プリント）'
+  );
 });
 
 test.describe('iPhone', () => {
