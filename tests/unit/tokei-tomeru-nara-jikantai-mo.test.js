@@ -96,4 +96,23 @@ describe('★時計を 止めるなら 時間帯も 止める★', { timeout: 60
         '（CI は UTC で 走るので ★深夜割増★と ★日付の 境目★が ずれます）'
     ).toBeGreaterThan(-1);
   });
+
+  // ★★2026-11-01 追記＝3回目★★ timezoneId は 画面だけ。試験の Node（new Date()）は UTC の まま だった
+  //   ⇒ 月初めの 0〜9時（JST）に 給料の 試験 11本が 赤（試験＝10月・画面＝11月）。
+  //   ★全体の 決まりの 頭で Node も 日本に する★（動きは e2e の shiken-no-jikantai が 見る）
+  it('★★⑤ 試験の Node 側も 日本に 固定している（process.env.TZ）★★', () => {
+    const cfg = fs.readFileSync(path.join(__dirname, '..', '..', 'playwright.config.js'), 'utf8');
+    const tz = cfg.indexOf("process.env.TZ = 'Asia/Tokyo';");
+    expect(
+      tz,
+      '★全体の 決まりに process.env.TZ が ありません★（月初め 0〜9時に 試験と 画面で 月が ずれます）'
+    ).toBeGreaterThan(-1);
+    expect(tz, '★process.env.TZ は defineConfig より 前に★').toBeLessThan(
+      cfg.indexOf('export default defineConfig')
+    );
+    expect(
+      fs.existsSync(path.join(__dirname, '..', 'e2e', 'shiken-no-jikantai.spec.js')),
+      '★Node の 時間帯を 動きで 見る e2e が 無い★'
+    ).toBe(true);
+  });
 });

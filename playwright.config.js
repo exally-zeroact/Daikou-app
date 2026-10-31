@@ -3,6 +3,14 @@
 // chromium のみ install (firefox/webkit は意図的に未導入・ディスク節約)
 import { defineConfig, devices } from '@playwright/test';
 
+// ★★試験の Node 側も 日本の 時間帯に 揃える★★ 2026-11-01（実測）
+//   下の use.timezoneId は ★画面（ブラウザ）だけ★を 日本に する。試験の 中の new Date()（Node）は CI の UTC の まま。
+//   ⇒ 月初めの 0〜9時（JST）は 画面＝新しい 月／試験＝前の 月 に ずれ、給料の 試験 11本が 赤（2026-11-01 0:34 TZ=UTC で 実測）。
+//   ★お客さんは 日本に 居る★ので 試験を 本番に 合わせる。設定は 走る 手番（workers）より 先に 読まれ、手番は この env を 継ぐ。
+//   見張り＝tests/unit/tokei-tomeru-nara-jikantai-mo.test.js ⑤
+/* global process */
+process.env.TZ = 'Asia/Tokyo';
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30000,
