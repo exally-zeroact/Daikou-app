@@ -14,6 +14,11 @@ export default defineConfig({
     ],
     environment: 'node',
     globals: true,
+    // ★1本の 時間切れは 30秒★ 2026-10-31
+    //   押す前の 門は 全部（4052本・試験の 時間の 和 1465秒）を 191秒で 回す＝混んで 子を 起こす 試験が 5.6〜5.7秒、
+    //   kata の 門（単独 18ms）も 5.2〜5.4秒に なり 既定の 5秒で 毎回 別の 試験が 切れた（10-29〜31 で 5本・8回）。
+    //   待ち（async）で 止まった 試験は 30秒で 赤。同期の 子（spawnSync）が 固まった 時は この 上限では 止まらない（5秒でも 同じ）。
+    testTimeout: 30000,
     include: ['tests/**/*.test.js'],
     exclude: ['tests/e2e/**', 'node_modules/**'],
     coverage: {
