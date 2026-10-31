@@ -9,8 +9,10 @@
 //
 //   ★今の 作り（代行請求書の「📄 印刷 / 送る」と 同じ 1つの ボタン）★
 //     ブラウザ＝押すと PDF を 作って そのまま 保存（a の download＝見本の InvoicePDF.save と 同じ）・案内を ボタンの 下に
-//     ホーム画面の アプリ＝紙を 描いた 時に 裏で 作っておき、押すと 同じ 保存（2026-10-30 前は 共有の 画面に 直に 渡し
+//     ホーム画面の アプリ＝押すと 同じ 保存（2026-10-30 前は 共有の 画面に 直に 渡し
 //       iPhone で LINE が 並ばなかった＝司さん「LINEないやないか 代行請求書アプリみたんか？」）
+//     どの 端末も 紙を 描いた 時に 裏で 作っておく。裏で 作る 間も ボタンは「📄 印刷 / 送る」の まま 押せる・押して 待つ 間だけ
+//       「PDF作成中…」（見本 exportInvoicePDF と 同じ・2026-10-31 司さん「なんなんPDFを作ってますって 代行請求書アプリの請求/集計の作りを見ろや」）
 //     前の 画面の 中の PDF の 窓（pdf.js）・「保存・送る」「印刷」「閉じる」は 無くした
 //
 //   ★ここで 見張る 事★
@@ -26,6 +28,7 @@ const { hiraku, maeNoTsuki } = require('./honnin-harness');
 test.use({ timezoneId: 'Asia/Tokyo' });
 
 const BOTAN = '📄 印刷 / 送る';
+const MATSU = 'PDF作成中…';
 
 async function kyouyuNise(page, _mode) {
   await page.addInitScript(() => {
@@ -153,11 +156,10 @@ test('⑭ ホーム画面の アプリでも 押した その 時に PDF を 保
   await kyouyuNise(page, 'ari');
   await homeApp(page);
   await hiraku(page);
-  // 裏で 作り終わるのを 待つ（ボタンが 押せる＝作り終わった）
-  await expect(page.locator('#hnPdf')).toHaveText(BOTAN, { timeout: 30000 });
+  await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
   await expect(page.locator('#hnPdf')).toBeEnabled();
   await page.click('#hnPdf');
-  await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
   // ★型と 重さは blob を 読み終わってから 入る（①と 同じく 待つ・本番 CI で 1回目だけ 空で 揺れた 10-30）★
   await expect.poll(() => page.evaluate(() => window.__dl[0].size)).toBeGreaterThan(0);
   const k = await page.evaluate(() => window.__dl[0]);
@@ -174,7 +176,7 @@ test('⑭ ホーム画面の アプリでも 押した その 時に PDF を 保
 });
 
 // ★裏の 作りが 失敗した 後に 1回 押せば 出る（ホーム画面の アプリ）★ 2026-10-30 対立役 止1
-//   わざと壊す：honninPdf で ホーム画面は 作り終わっても 出さない（hnPdfTsukuru(!hnHomeApp())）⇒ 赤（保存 0）
+//   わざと壊す：honninPdf で 裏で 作っている 時は 待たずに 返す（HN_PDF_MATSU を 立てない）⇒ 赤（保存 0）
 test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、1回 押せば 保存する', async ({ page }) => {
   await page.setViewportSize({ width: 430, height: 900 });
   await kyouyuNise(page, 'ari');
@@ -188,6 +190,74 @@ test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、1
   await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
   expect(await page.evaluate(() => window.__kyouyu.length)).toBe(0);
   await expect(page.locator('#hnPdfAnnai')).toContainText('LINE');
+});
+
+// ★★裏で 作っている 間も ボタンは「📄 印刷 / 送る」の まま 押せる★★ 2026-10-31（見本＝代行請求書の 請求書の 欄）
+//   司さん「なんなんPDFを作ってますって 代行請求書アプリの請求/集計の作りを見ろや」
+//   ＝前は ホーム画面の アプリで 紙を 描いた とたん 裏の 作りで「PDFを 作っています…」に なり 押せなかった
+//   わざと壊す：hnPdfJi・hnPdfBotan を 裏の 作り（HN_PDF_CHU）で 見る 前の 形に 戻す ⇒ 赤（字が「作っています」・押せない）
+for (const [na, home] of [
+  ['ホーム画面の アプリ', true],
+  ['ブラウザ', false],
+]) {
+  test(`⑮ ${na}：裏で 作っている 間も「印刷 / 送る」の まま 押せて、押すと「PDF作成中…」→ 出来たら 保存`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 430, height: 900 });
+    await kyouyuNise(page, 'ari');
+    if (home) await homeApp(page);
+    let tomeru = true;
+    let yomareta = 0;
+    await page.route('**/js/kami-egaku.js', async (r) => {
+      yomareta++;
+      while (tomeru) await new Promise((res) => setTimeout(res, 100));
+      return r.continue();
+    });
+    await hiraku(page);
+    // ★押す 前から 裏で 作り始めている★（道具を 取りに 行った）
+    await expect.poll(() => yomareta, { timeout: 10000 }).toBeGreaterThan(0);
+    await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
+    await expect(page.locator('#hnPdf')).toBeEnabled();
+    await expect(page.locator('#hnBar')).not.toContainText('作っています');
+    await page.click('#hnPdf');
+    await expect(page.locator('#hnPdf')).toHaveText(MATSU);
+    expect(await watashita(page), '★出来る 前に 渡した★').toBe(0);
+    tomeru = false;
+    await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
+    await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
+    await expect(page.locator('#hnPdf')).toBeEnabled();
+    expect(await page.evaluate(() => window.__kyouyu.length)).toBe(0);
+  });
+}
+
+// ★★裏で 作り終わった 後に 押すと、押した その 手の 中で すぐ 保存★★ 2026-10-31（対立役 任意B：一番 多く 通る 道）
+//   iPhone は 押した 手の 中の 保存が 一番 確か（await の 後は 黙る 事が ある）＝作り終わりを 待ってから 押して、
+//   click() から 戻った その 時に 保存 1 を 見る
+//   わざと壊す：honninPdf の hnPdfAru() の 道を 外す（毎回 作り直して 待つ）⇒ 赤（押した 時は 保存 0）
+test('⑯ 裏で 作り終わった 後に 押すと 押した その 時に 保存する（待たない）', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'ari');
+  await homeApp(page);
+  // ★作り終わりの 印★（道具の tsukuru が 返したら 数える＝画面の 中の 変数は 外から 見えない）
+  await page.route('**/js/kami-egaku.js', async (r) => {
+    const res = await r.fetch();
+    const body =
+      (await res.text()) +
+      ';(function(){var t=window.KamiEgaku.tsukuru;window.KamiEgaku.tsukuru=function(){return t.apply(this,arguments).then(function(d){window.__dekita=(window.__dekita||0)+1;return d;});};})();';
+    await r.fulfill({ response: res, body });
+  });
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  expect(await watashita(page), '★押す 前に 渡した★').toBe(0);
+  const sugu = await page.evaluate(() => {
+    document.getElementById('hnPdf').click();
+    return { dl: window.__dl.length, ji: document.getElementById('hnPdf').textContent };
+  });
+  expect(sugu.dl, '★押した 手の 中で 保存して いない★').toBe(1);
+  expect(sugu.ji).toBe(BOTAN);
+  expect(await page.evaluate(() => window.__kyouyu.length)).toBe(0);
 });
 
 // わざと壊す：honninTsuki で 作った PDF を 捨てない（hnPdfSuteru を 外す）⇒ 赤（前の 月の PDF を 渡す）
@@ -239,7 +309,7 @@ test('⑤ 作っている 途中で 月を 替えたら できた PDF を 捨て
   });
   await hiraku(page);
   await page.click('#hnPdf');
-  await expect(page.locator('#hnPdf')).toHaveText('PDFを 作っています…');
+  await expect(page.locator('#hnPdf')).toHaveText(MATSU);
   await maeNoTsuki(page);
   await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
   tomeru = false; // 前の 月の 分が できあがる
@@ -255,10 +325,11 @@ test('⑦ 道具の 読み込みが 返らない 時は 時間切れで 訳を �
   await page.route('**/js/kami-egaku.js', () => {
     /* 返さない（電波が 止まった） */
   });
-  await hiraku(page);
+  // ★時計は 開く 前に★（紙を 描いた 時に 裏の 作りが 始まる＝その 時間切れも 進めた 時計で 切る）
   await page.clock.install();
+  await hiraku(page);
   await page.click('#hnPdf');
-  await expect(page.locator('#hnPdf')).toHaveText('PDFを 作っています…');
+  await expect(page.locator('#hnPdf')).toHaveText(MATSU);
   await page.clock.runFor(31000);
   await expect(page.locator('#hnPdfErr')).toContainText('道具を 読めませんでした');
   await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
@@ -363,3 +434,64 @@ for (const [na, w] of [
     await expect(page.locator('#hnTsukiSel')).toBeVisible();
   });
 }
+
+// ★★連打で 2本 出さない★★ 2026-10-31（本番前 対立役 止1：裏で 作り済みだと 押した とたん 保存＝ダブルクリックで 2本）
+//   見本（代行請求書）は 押すと 作り終わるまで ボタンを 止める＝連打で 2本 出ない。こちらは 出した 後 1秒 止める
+//   わざと壊す：hnPdfDasu の 1秒の 止めと hnPdfBotan の HN_PDF_TOMETA の 行を 外す ⇒ 赤（保存 2）
+test('⑰ 作り終わった 後の ダブルクリックで 保存は 1本・1秒 後は また 押せる', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await kyouyuNise(page, 'ari');
+  await page.route('**/js/kami-egaku.js', async (r) => {
+    const res = await r.fetch();
+    const body =
+      (await res.text()) +
+      ';(function(){var t=window.KamiEgaku.tsukuru;window.KamiEgaku.tsukuru=function(){return t.apply(this,arguments).then(function(d){window.__dekita=(window.__dekita||0)+1;return d;});};})();';
+    await r.fulfill({ response: res, body });
+  });
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  await page.dblclick('#hnPdf');
+  await page.waitForTimeout(1500);
+  expect(await page.evaluate(() => window.__dl.length), '★連打で 2本 保存した★').toBe(1);
+  await expect(page.locator('#hnPdf')).toBeEnabled();
+  await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
+  await page.click('#hnPdf');
+  await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(2);
+});
+
+// ★★保存が 1回 転んでも 黙って 止まらない★★ 2026-10-31（対立役 注1：印を 外す タイマーが 保存の 後ろに 在ると 転んだ 時に 立った まま）
+//   わざと壊す：hnPdfDasu の setTimeout を hnPdfHozon の 後ろへ 戻し try を 外す ⇒ 赤（訳が 出ない・押し直しても 0本）
+test('⑱ 保存が 1回 転んだら 訳を 出し・1秒 後に 押し直せば 1本 出る', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await kyouyuNise(page, 'ari');
+  await page.route('**/js/kami-egaku.js', async (r) => {
+    const res = await r.fetch();
+    const body =
+      (await res.text()) +
+      ';(function(){var t=window.KamiEgaku.tsukuru;window.KamiEgaku.tsukuru=function(){return t.apply(this,arguments).then(function(d){window.__dekita=(window.__dekita||0)+1;return d;});};})();';
+    await r.fulfill({ response: res, body });
+  });
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const moto = URL.createObjectURL;
+    let ichido = true;
+    URL.createObjectURL = function () {
+      if (ichido) {
+        ichido = false;
+        throw new Error('わざと');
+      }
+      return moto.apply(this, arguments);
+    };
+  });
+  await page.click('#hnPdf');
+  await expect(page.locator('#hnPdfErr')).toContainText('PDF を 出せませんでした');
+  expect(await page.evaluate(() => window.__dl.length)).toBe(0);
+  await expect(page.locator('#hnPdf')).toBeEnabled({ timeout: 3000 });
+  await page.click('#hnPdf');
+  await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(1);
+});

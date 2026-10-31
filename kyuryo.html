@@ -2995,17 +2995,26 @@
         }
         var HN_PDF = null; // 作った PDF { no, blob, name }
         var HN_PDF_CHU = -1; // 作っている 途中の 印（HN_NO と 同じ 時だけ 作っている 途中）
+        var HN_PDF_MATSU = -1; // 押されて 出来上がりを 待つ 印（HN_NO と 同じ 時だけ・出来たら そのまま 出す）
+        // ★出した 後 1秒は 止める 印★（連打で 2本 出さない）。時刻の 差で 測らない＝端末の 時計が 戻ると 押せないまま 残る
+        //   （試験の 止めた 時計でも 同じ＝テスト線 E2E okuru ② が 30秒 押せず 赤 10-31）。タイマーで 外す
+        var HN_PDF_TOMETA = false;
+        var HN_RENDA_MS = 1000;
         function hnPdfSuteru() {
           HN_NO++;
           HN_PDF = null;
           HN_PDF_CHU = -1;
+          HN_PDF_MATSU = -1;
           hnPdfBotan();
         }
         function hnPdfAru() {
           return !!(HN_PDF && HN_PDF.no === HN_NO);
         }
+        // ★ボタンの 字は 代行請求書と 同じ★ 2026-10-31 司さん「なんなんPDFを作ってますって 代行請求書アプリの請求/集計の作りを見ろや」
+        //   ＝裏で 作っている 間も「📄 印刷 / 送る」の まま 押せる。押して 待つ 間だけ「PDF作成中…」（見本 exportInvoicePDF と 同じ 字）
+        //   前は ホーム画面の アプリで 紙を 描いた とたん 裏の 作りで「PDFを 作っています…」に なり 押せなかった
         function hnPdfJi() {
-          if (HN_PDF_CHU === HN_NO && !hnPdfAru()) return 'PDFを 作っています…';
+          if (HN_PDF_MATSU === HN_NO && !hnPdfAru()) return 'PDF作成中…';
           return '📄 印刷 / 送る';
         }
         function hnPdfBotan() {
@@ -3013,7 +3022,7 @@
           if (!b) return;
           b.textContent = hnPdfJi();
           var yometa = HN_YOMI === HN_Y + '-' + HN_M && PERIODS && PERIODS.length;
-          b.disabled = !yometa || (HN_PDF_CHU === HN_NO && !hnPdfAru());
+          b.disabled = !yometa || (HN_PDF_MATSU === HN_NO && !hnPdfAru()) || HN_PDF_TOMETA;
         }
         // ★訳は ボタンの すぐ 下に 出す★（#err は 画面の 一番 上＝下で 押した 人には 見えない・対立役）
         function hnPdfErr(bun) {
@@ -3042,23 +3051,41 @@
         //   前は ホーム画面の アプリだけ 共有の 画面に PDF を 直に 渡した ⇒ iPhone で LINE が 並ばず「その他」にも 無い
         //   （司さん 10-30「LINEないやないか 代行請求書アプリみたんか？」）。代行請求書は ホーム画面でも 保存の 道で、
         //   開いた PDF の 画面の 共有に LINE が 出る。★共有の 画面に 直に 渡す 道は 外した★
+        // ★出した 後 1秒は ボタンを 止める★（見本は 押すと 作り終わるまで 止める＝連打で 2本 出ない。
+        //   こちらは 裏で 作り済みなら すぐ 出る＝止めが 無いと ダブルクリックで 2本 保存・本番前 対立役 止1 10-31）
         function hnPdfDasu(p) {
-          hnPdfHozon(p);
+          if (HN_PDF_TOMETA) return;
+          HN_PDF_TOMETA = true;
+          // ★外す タイマーは 保存より 先に★（保存が 転ぶと 印が 立った まま＝黙って 出なく なる・対立役 注1 10-31）
+          setTimeout(function () {
+            HN_PDF_TOMETA = false;
+            hnPdfBotan();
+          }, HN_RENDA_MS);
+          hnPdfBotan();
+          try {
+            hnPdfHozon(p);
+          } catch (e) {
+            hnPdfErr('PDF を 出せませんでした。もう一度 押してください。');
+          }
         }
-        // ★「印刷 / 送る」★ 押すと 選んだ 範囲の PDF を 作って そのまま 出す（代行請求書の「印刷 / 送る」と 同じ 1回）
-        //   ホーム画面の アプリは 描いた 時に 裏で 作っておく（押したら すぐ 出る）。出来て いなければ 作り終わってから 出す
-        //   （2026-10-30 前は ホーム画面だけ 押しても 出さなかった＝裏の 作りが 失敗した 後の 1回目が 黙った・対立役 止1）
+        // ★「印刷 / 送る」★ 押すと 選んだ 範囲の PDF を そのまま 出す（代行請求書の「印刷 / 送る」と 同じ 1回）
+        //   紙を 描いた 時に 裏で 作っておく（どの 端末も・見本は 月を 選んだ 時に 作る）＝押したら すぐ 出る。
+        //   出来て いなければ「PDF作成中…」で 待ち 作り終わってから 出す（裏の 作りが 失敗した 後は 作り直す・対立役 止1 10-30）
         function honninPdf() {
           hnPdfErr('');
           hnAnnai('');
           if (hnPdfAru()) return hnPdfDasu(HN_PDF);
-          if (HN_PDF_CHU === HN_NO) return;
-          hnPdfTsukuru(true);
+          HN_PDF_MATSU = HN_NO;
+          if (HN_PDF_CHU === HN_NO) return hnPdfBotan();
+          hnPdfTsukuru();
         }
-        function hnPdfTsukuru(dasu) {
+        function hnPdfTsukuru() {
           var h = hnHaniNoKi();
           if (h.dame) {
-            if (dasu) hnPdfErr(h.dame);
+            if (HN_PDF_MATSU === HN_NO) {
+              HN_PDF_MATSU = -1;
+              hnPdfErr(h.dame);
+            }
             return;
           }
           var emp = h.ki[0].e;
@@ -3088,11 +3115,14 @@
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
               if (no !== HN_NO || !d) return; // 替えた 後に できた 物は 捨てる
               HN_PDF = { no: no, blob: d.blob, name: hnPdfNamae(emp) };
+              var matsu = HN_PDF_MATSU === no;
+              if (matsu) HN_PDF_MATSU = -1;
               hnPdfBotan();
-              if (dasu) hnPdfDasu(HN_PDF);
+              if (matsu) hnPdfDasu(HN_PDF);
             })
             .catch(function (err) {
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
+              if (HN_PDF_MATSU === no) HN_PDF_MATSU = -1;
               if (no !== HN_NO) return;
               hnPdfBotan();
               var m = String((err && err.message) || err || '');
@@ -3137,17 +3167,6 @@
           hnAnnai(
             'PDF の 画面が 出たら 共有（□↑）から LINE などに 送るか「プリント」で 印刷してください。保存の 画面が 出た 時は「ダウンロード」を 押して、保存した PDF（iPhone は Safari の ↓ か ファイルアプリの「ダウンロード」）を 開いてください。何も 出ない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。'
           );
-        }
-        // ホーム画面に 置いた アプリか（裏で 先に PDF を 作っておく 為）
-        function hnHomeApp() {
-          try {
-            return (
-              window.navigator.standalone === true ||
-              (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-            );
-          } catch (_) {
-            return false;
-          }
         }
 
         // ★★本人の 紙を 描く★★（選んだ 範囲の 期間ごとの 紙・記録が 無い 期間は ¥0 の 紙）
@@ -3217,8 +3236,8 @@
             _hnHaba = haba2;
           }
           box.style.minHeight = '';
-          // ★ホーム画面の アプリは 裏で PDF を 作っておく★（押したら すぐ 出る 為）
-          if (hnHomeApp() && !hnPdfAru() && HN_PDF_CHU !== HN_NO) hnPdfTsukuru(false);
+          // ★裏で PDF を 作っておく★（どの 端末も・押したら すぐ 出る 為）
+          if (!hnPdfAru() && HN_PDF_CHU !== HN_NO) hnPdfTsukuru();
         }
 
         // ============================================================
