@@ -3168,9 +3168,36 @@
           }, HN_RENDA_MS);
           hnPdfBotan();
           try {
-            hnPdfHozon(p);
+            // ★スマホは 保存（PDF の 画面が 開き 共有から 送る・プリント）／PC は 新しい 窓で 開く（印刷も 保存も そこから）★
+            //   見本 exportInvoicePDF（daikou-seikyu）の !insatsuSumaho の 道と 同じ 2026-11-01（司さん 指示②）
+            //   PC で 保存だけに すると ダウンロード欄に 入るだけで 印刷の 画面が 出ない。窓を 止められたら 保存に 落とす
+            var pcMado = false;
+            if (!insatsuSumaho()) {
+              var url = URL.createObjectURL(new Blob([p.blob], { type: 'application/pdf' }));
+              pcMado = !!window.open(url, '_blank');
+              setTimeout(function () {
+                URL.revokeObjectURL(url);
+              }, 60000);
+            }
+            if (!pcMado) hnPdfHozon(p);
+            else hnAnnai('PDFを開きました（印刷・保存は その画面から）');
           } catch (e) {
             hnPdfErr('PDF を 出せませんでした。もう一度 押してください。');
+          }
+        }
+        // スマホ・タブレット・ホーム画面の アプリ＝保存の 道（新しい 窓は 戻れなく なる 端末が 在る）
+        //   ★見本 daikou-seikyu の insatsuSumaho を 1行も 変えずに 写した★（違いを 作るな＝司さん 10-31）
+        function insatsuSumaho() {
+          try {
+            var n = window.navigator || {};
+            if (n.standalone === true) return true;
+            if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+              return true;
+            var ua = String(n.userAgent || '');
+            if (/iPhone|iPad|iPod|Android|Mobile/i.test(ua)) return true;
+            return /Macintosh/.test(ua) && (n.maxTouchPoints || 0) > 1; // iPadOS の Safari
+          } catch (_) {
+            return true;
           }
         }
         // ★「印刷 / 送る」★ 押すと 選んだ 範囲の PDF を そのまま 出す（代行請求書の「印刷 / 送る」と 同じ 1回）

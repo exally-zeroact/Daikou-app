@@ -12,10 +12,15 @@
 //     10/5 と 10/15 に 1時間ずつ（売上 10,005円・歩合 0.3）＝紙の 合計は 各 ¥2,851（端数 在り）／10/21〜 は まだ 記録 無し（¥0）
 //   ★比べる 相手は 期間ごとに 選んで 出た 紙と 期間ごとの PDF＝同じ 計算を 2回 なぞらない（対立役 止3）★
 // ============================================================
-const { test, expect } = require('@playwright/test');
+const { test, expect, devices } = require('@playwright/test');
 const { EMP, SET, KAMI, kamiDekita, kamiNoGaku, pdfMiru } = require('./honnin-harness');
 
 test.use({ timezoneId: 'Asia/Tokyo' });
+
+// ★この 試験は 保存の 道（スマホ・ホーム画面）を 見張る★ 2026-11-01（指示②）
+//   PC は 見本 exportInvoicePDF と 同じく 新しい 窓で 開く 道＝kyuryo-honnin-insatsu.spec.js が 見る。
+//   ここは iPhone の 字（userAgent）で 開く＝insatsuSumaho が 真＝保存の 道（画面の 幅は 変えない）
+test.use({ userAgent: devices['iPhone 13'].userAgent });
 
 const SHIFTS = ['2026-10-05', '2026-10-15'].map((d, i) => ({
   shift_id: 's' + i,

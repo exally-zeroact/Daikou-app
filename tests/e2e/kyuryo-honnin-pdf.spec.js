@@ -21,11 +21,16 @@
 //     ③道具が 読めない・古い 時は 訳を 出して 押し直せる
 //     ④計算が 転んだ 期から PDF を 渡さない
 // ============================================================
-const { test, expect } = require('@playwright/test');
+const { test, expect, devices } = require('@playwright/test');
 const { hiraku, maeNoTsuki, KAMI, kamiDekita } = require('./honnin-harness');
 
 // ★時計を 止める（⑦）なら 時間帯も 止める★（tests/unit/tokei-tomeru-nara-jikantai-mo.test.js・客は 日本に 居る）
 test.use({ timezoneId: 'Asia/Tokyo' });
+
+// ★この 試験は 保存の 道（スマホ・ホーム画面）を 見張る★ 2026-11-01（指示②）
+//   PC は 見本 exportInvoicePDF と 同じく 新しい 窓で 開く 道＝kyuryo-honnin-insatsu.spec.js が 見る。
+//   ここは iPhone の 字（userAgent）で 開く＝insatsuSumaho が 真＝保存の 道（画面の 幅は 変えない）
+test.use({ userAgent: devices['iPhone 13'].userAgent });
 
 const BOTAN = '📄 印刷 / 送る';
 const MATSU = 'PDF作成中…';
