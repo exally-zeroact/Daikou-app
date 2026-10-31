@@ -3090,6 +3090,8 @@
           if (h.dame) {
             if (HN_PDF_MATSU === HN_NO) {
               HN_PDF_MATSU = -1;
+              // ★待つ 印を 外したら ボタンも 戻す★（転んだ 後は REP が 無く 描き直しが 走らない＝字が「PDF作成中…」の まま 残り得る・2026-10-31）
+              hnPdfBotan();
               hnPdfErr(h.dame);
             }
             return;
@@ -3128,9 +3130,17 @@
             })
             .catch(function (err) {
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
-              if (HN_PDF_MATSU === no) HN_PDF_MATSU = -1;
+              // ★訳は 押して 待つ 人に だけ★（見本 exportInvoicePDF も 押した 時だけ 訳を 出す）2026-10-31（本番前 対立役 注1：
+              //   裏の 作りが 全端末に なり、押していない 人にも「通信・紙に 入らない」が ボタンの 下に 出た）
+              //   押していない 時は 黙って 捨てる＝押せば 作り直し、転べば その 時に 訳を 出す
+              var matsu = HN_PDF_MATSU === no;
+              if (matsu) HN_PDF_MATSU = -1;
               if (no !== HN_NO) return;
               hnPdfBotan();
+              if (!matsu) {
+                if (window.console) console.warn('[本人の PDF 裏の 作り]', err);
+                return;
+              }
               var m = String((err && err.message) || err || '');
               if (m.indexOf('hamidasu:') === 0)
                 return hnPdfErr(

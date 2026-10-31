@@ -176,15 +176,32 @@ test('⑭ ホーム画面の アプリでも 押した その 時に PDF を 保
 });
 
 // ★裏の 作りが 失敗した 後に 1回 押せば 出る（ホーム画面の アプリ）★ 2026-10-30 対立役 止1
+//   ★押していない 人には 裏の 失敗の 訳を 出さない★ 2026-10-31（本番前 対立役 注1・見本 exportInvoicePDF は 押した 時だけ 訳）
 //   わざと壊す：honninPdf で 裏で 作っている 時は 待たずに 返す（HN_PDF_MATSU を 立てない）⇒ 赤（保存 0）
-test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、1回 押せば 保存する', async ({ page }) => {
+//   わざと壊す：hnPdfTsukuru の catch の「押して 待つ 人に だけ」を 外す ⇒ 赤（押す 前に 訳が 出る）
+test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、訳は 出さず・1回 押せば 保存する', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 430, height: 900 });
   await kyouyuNise(page, 'ari');
   await homeApp(page);
   let otosu = 1;
-  await page.route('**/js/kami-egaku.js', (r) => (otosu-- > 0 ? r.abort() : r.continue()));
+  let otoshita = 0;
+  await page.route('**/js/kami-egaku.js', (r) => {
+    if (otosu-- > 0) {
+      otoshita++;
+      return r.abort();
+    }
+    return r.continue();
+  });
   await hiraku(page);
-  await expect(page.locator('#hnPdfErr')).toContainText('もう一度', { timeout: 30000 });
+  await expect.poll(() => otoshita, { timeout: 30000 }).toBe(1);
+  await page.waitForTimeout(800);
+  await expect(
+    page.locator('#hnPdfErr'),
+    '★押していない 人に 裏の 失敗の 訳を 出した★'
+  ).toBeHidden();
+  await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
   await expect(page.locator('#hnPdf')).toBeEnabled();
   await page.click('#hnPdf');
   await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
@@ -382,6 +399,7 @@ for (const [na, w] of [
     else await maeNoTsuki(page);
     await page.waitForTimeout(800);
     // PDF の ボタンが 押せれば 2回 押して みる（渡しては いけない）
+    let oshita = 0;
     for (let k = 0; k < 2; k++) {
       if (
         await page
@@ -390,7 +408,14 @@ for (const [na, w] of [
           .catch(() => false)
       ) {
         await page.click('#hnPdf');
+        oshita++;
         await page.waitForTimeout(1500);
+        // ★押した 後も ボタンの 字は 元の まま・また 押せる★ 2026-10-31（本番前 対立役 任意1）
+        //   転んだ 後は REP が 無く 描き直しが 走らない＝待つ 印で 替えた 字は 止める 道で 戻さないと 残る
+        //   わざと壊す：honninPdf で 待つ 印を 立てた 直後に hnPdfBotan() を 足し、hnPdfTsukuru の 止める 道の hnPdfBotan() を 外す
+        //   ⇒ 赤（「PDF作成中…」の まま 押せない）
+        await expect(page.locator('#hnPdf'), '★押した 後 字が 戻らない★').toHaveText(BOTAN);
+        await expect(page.locator('#hnPdf')).toBeEnabled();
       }
     }
     expect(await watashita(page), '★計算が 転んだ 期から PDF を 渡した★').toBe(0);
@@ -405,6 +430,7 @@ for (const [na, w] of [
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(500);
     expect(await page.locator('#hnKami .hn-kami-waku').count()).toBe(0);
+    expect(oshita, '★ボタンが 押せず 任意1 を 見ていない★').toBeGreaterThan(0);
   });
 }
 
