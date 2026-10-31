@@ -20,7 +20,7 @@
 //     戻した 後 … ★5本 緑★
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { EMP, SET } = require('./honnin-harness');
+const { EMP, SET, kamiDekita, kamiNoJi, pdfMiru } = require('./honnin-harness');
 
 async function akeru(page, emp, mazeru) {
   await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
@@ -62,6 +62,7 @@ async function akeru(page, emp, mazeru) {
   );
   await page.clock.setFixedTime(new Date('2026-10-21T12:00:00+09:00'));
   await page.setViewportSize({ width: 390, height: 844 });
+  await pdfMiru(page);
   await page.goto('/kyuryo.html?t=TOK');
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
@@ -78,18 +79,12 @@ test('★勤め始める 前の 期（10/1〜10/10）は ¥0 の 紙・勤め始
 }) => {
   await akeru(page, ATARASHII);
   await expect(page.locator('#hnKikanSel')).toHaveValue('0');
-  await expect(
-    page.locator('#hnKami .hn-kami-waku').first(),
-    '★記録の 無い 期に 紙が 出ない（司さん 10-29：記録なくても 開く）★'
-  ).toBeVisible();
-  await expect(page.locator('#hnKami')).toContainText(/合計\s*¥0\s*0\.00\s*時間/);
+  await kamiDekita(page, '★記録の 無い 期に 紙が 出ない（司さん 10-29：記録なくても 開く）★');
+  expect(await kamiNoJi(page)).toMatch(/合計\s*¥0\s*0\.00\s*時間/);
   await expect(page.locator('#hnPdf'), '★記録の 無い 期で 印刷 / 送る が 押せない★').toBeEnabled();
   await page.locator('#hnKikanSel').selectOption('1');
   await expect(page.locator('#hnKikanSel')).toHaveValue('1');
-  await expect(
-    page.locator('#hnKami .hn-kami-waku').first(),
-    '★勤め始めた 期の 紙が 出ない★'
-  ).toBeVisible();
+  await kamiDekita(page, '★勤め始めた 期の 紙が 出ない★');
 });
 
 test('★勤め始める 前の 期でも 働いた 日が 在れば 紙を 出す（額を 消さない）★', async ({ page }) => {
@@ -97,10 +92,7 @@ test('★勤め始める 前の 期でも 働いた 日が 在れば 紙を 出�
     workHours: [{ work_date: '2026-10-05', employee_id: 'e1', device_id: 'd1', hours: 5 }],
   });
   await expect(page.locator('#hnKikanSel')).toHaveValue('0');
-  await expect(
-    page.locator('#hnKami .hn-kami-waku').first(),
-    '★働いた 日の 紙が 消えた★'
-  ).toBeVisible();
+  await kamiDekita(page, '★働いた 日の 紙が 消えた★');
 });
 
 // ★乗った 記録が 無く 手当だけ の 期も 紙を 出す★（対立役 2回目 直す1：上の 1本は 乗った 記録が 勤め始めを 前へ 動かす ので
@@ -120,9 +112,9 @@ test('★勤め始める 前の 期でも 手当だけ 在れば 紙を 出す�
     ],
   });
   await expect(page.locator('#hnKikanSel')).toHaveValue('0');
-  await expect(page.locator('#hnKami .hn-kami-waku').first(), '★手当の 紙が 消えた★').toBeVisible();
+  await kamiDekita(page, '★手当の 紙が 消えた★');
   // 額まで 縛る（差引 支給 で 見る＝手当の 字だけ 出て 差引が ¥0 でも 緑に しない・対立役 3回目 見立て1）
-  await expect(page.locator('#hnKami')).toContainText(/差引\s*支給\s*¥5,000/);
+  expect(await kamiNoJi(page)).toMatch(/差引\s*支給\s*¥5,000/);
 });
 
 // ★控除だけの 期も 紙を 出す★（対立役 3回目 直す：aru を「手当が 在る」に 壊すと 控除だけの 期が 消え、控除が どの 明細にも 出なかった）
@@ -141,12 +133,12 @@ test('★勤め始める 前の 期でも 控除だけ 在れば 紙を 出す�
     ],
   });
   await expect(page.locator('#hnKikanSel')).toHaveValue('0');
-  await expect(page.locator('#hnKami .hn-kami-waku').first(), '★控除の 紙が 消えた★').toBeVisible();
-  await expect(page.locator('#hnKami')).toContainText('見張り控除');
+  await kamiDekita(page, '★控除の 紙が 消えた★');
+  expect(await kamiNoJi(page)).toContain('見張り控除');
 });
 
 test('★登録日が 来ない（古い 関数）時は 前の 通り 紙を 出す★', async ({ page }) => {
   await akeru(page, EMP);
   await expect(page.locator('#hnKikanSel')).toHaveValue('0');
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await kamiDekita(page);
 });

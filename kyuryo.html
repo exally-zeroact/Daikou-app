@@ -1494,6 +1494,104 @@
         overflow: hidden; /* ★幅に 合わせた ので 横に 送らない★ */
       }
 
+      /* ★★本人の 明細の 絵＝本物の PDF を pdf.js で 描いた 物★★ 2026-10-31（司さん 指示①
+           「代行請求書アプリの請求/集計の作りを見ろや」）＝見本 daikou-seikyu の .sheet-scale／.inv-scale-inner／
+           .sheet.sheet-pdf／.inv-pdf-canvas／.inv-loading／.li-empty を そのまま 写した（字・色・大きさ 同じ） */
+      .li-empty {
+        text-align: center;
+        color: #8a94a6;
+        font-size: 12px;
+        padding: 30px 0;
+      }
+
+      .sheet-scale {
+        overflow: hidden;
+        padding-bottom: 8px;
+      }
+
+      /* 720px の 紙を スマホ幅に 縮めて 全体を 見せる */
+      .inv-scale-inner {
+        width: 720px;
+        transform-origin: top left;
+      }
+
+      .sheet.sheet-pdf {
+        width: 720px;
+        min-height: 0;
+        padding: 0;
+        margin: 0 auto 18px;
+        border: none;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 4px 16px rgb(10 95 208 / 10%); /* = #0A5FD0 */
+        position: relative;
+      }
+
+      .inv-pdf-canvas {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .sheet-scale.inv-loading {
+        position: relative;
+        min-height: 150px; /* 空の まま 読み込み中でも「作成中」が 見える 高さ */
+      }
+
+      /* 前の 絵を 薄く 覆って「更新中」を 示す */
+      .sheet-scale.inv-loading::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgb(255 255 255 / 55%);
+        z-index: 5;
+      }
+
+      .sheet-scale.inv-loading::after {
+        content: '⏳ プレビュー作成中…';
+        position: absolute;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 9px 18px;
+        background: #0a5fd0;
+        color: #fff;
+        font-weight: 700;
+        font-size: 13.5px;
+        border-radius: 999px;
+        box-shadow: 0 3px 10px rgb(0 0 0 / 28%);
+        white-space: nowrap;
+        z-index: 6;
+      }
+
+      @media print {
+        #hnKami.sheet-scale {
+          overflow: visible;
+          height: auto !important;
+        }
+
+        #hnKami .inv-scale-inner {
+          transform: none !important;
+          width: auto !important;
+        }
+
+        #hnKami .sheet.sheet-pdf {
+          box-shadow: none;
+          margin: 0;
+          width: 100% !important;
+          break-after: page;
+        }
+
+        #hnKami .sheet.sheet-pdf:last-child {
+          break-after: auto;
+        }
+
+        #hnKami .inv-pdf-canvas {
+          width: 100% !important;
+          height: auto !important;
+        }
+      }
+
       .hoka-harai {
         margin-top: 12px;
       }
@@ -3006,6 +3104,7 @@
           HN_PDF_CHU = -1;
           HN_PDF_MATSU = -1;
           hnPdfBotan();
+          hnMiseSuteru();
         }
         function hnPdfAru() {
           return !!(HN_PDF && HN_PDF.no === HN_NO);
@@ -3127,6 +3226,7 @@
               if (matsu) HN_PDF_MATSU = -1;
               hnPdfBotan();
               if (matsu) hnPdfDasu(HN_PDF);
+              hnMiseru(HN_PDF); // ★出来た PDF を そのまま 絵に★（見本 renderInvoicePreviewPDF）
             })
             .catch(function (err) {
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
@@ -3137,32 +3237,35 @@
               if (matsu) HN_PDF_MATSU = -1;
               if (no !== HN_NO) return;
               hnPdfBotan();
+              var wake = hnPdfWake(err, dougu);
+              // ★絵の 所にも 訳★（見本 _doGenerateInvoices の catch＝「プレビュー作成に失敗：…」を .li-empty で）
+              //   紙に 入らない（hamidasu）時も 同じ＝切れた 紙は 見せない（見本と 同じ・設計前 対立役 N5 10-31）
+              hnMiseKara('プレビュー作成に失敗：' + wake);
               if (!matsu) {
                 if (window.console) console.warn('[本人の PDF 裏の 作り]', err);
                 return;
               }
-              var m = String((err && err.message) || err || '');
-              if (m.indexOf('hamidasu:') === 0)
-                return hnPdfErr(
-                  (m.slice(9) ? m.slice(9) + ' の ' : '') +
-                    '手当・控除が 多すぎて 明細の 紙に 入らないので PDF は 作りません。会社に 知らせてください。'
-                );
-              if (m.indexOf('PDF が ') === 0)
-                return hnPdfErr(
-                  '紙を 作るのに ' +
-                    Math.round(PDF_TIMEOUT_MS / 1000) +
-                    '秒 かかっても 終わりませんでした。もう一度 押してください。'
-                );
-              if (m === 'PDF の 道具が 古い')
-                return hnPdfErr(
-                  'PDF の 道具が 古いので 作れません。この 画面を 一度 閉じて 開き直してください。'
-                );
-              if (!dougu)
-                return hnPdfErr(
-                  'PDF の 道具を 読めませんでした（通信）。もう一度 押してください。'
-                );
-              hnPdfErr('明細の 紙を 作れませんでした（' + m + '）。もう一度 押してください。');
+              hnPdfErr(wake);
             });
+        }
+        // ★作れなかった 訳★（ボタンの 下と 絵の 所で 同じ 字）
+        function hnPdfWake(err, dougu) {
+          var m = String((err && err.message) || err || '');
+          if (m.indexOf('hamidasu:') === 0)
+            return (
+              (m.slice(9) ? m.slice(9) + ' の ' : '') +
+              '手当・控除が 多すぎて 明細の 紙に 入らないので PDF は 作りません。会社に 知らせてください。'
+            );
+          if (m.indexOf('PDF が ') === 0)
+            return (
+              '紙を 作るのに ' +
+              Math.round(PDF_TIMEOUT_MS / 1000) +
+              '秒 かかっても 終わりませんでした。もう一度 押してください。'
+            );
+          if (m === 'PDF の 道具が 古い')
+            return 'PDF の 道具が 古いので 作れません。この 画面を 一度 閉じて 開き直してください。';
+          if (!dougu) return 'PDF の 道具を 読めませんでした（通信）。もう一度 押してください。';
+          return '明細の 紙を 作れませんでした（' + m + '）。もう一度 押してください。';
         }
         // ★保存（ダウンロード）★ 見本の InvoicePDF.save（invoice-pdf.js）と 同じ 形＝a の download で 名前つきで 落とす
         //   ★ホーム画面の アプリでも これ★（2026-10-30・見本と 同じ。前の 心配＝戻れなく なる 事故は サーバーの 生ファイルへの a で、
@@ -3185,12 +3288,161 @@
           );
         }
 
-        // ★★本人の 紙を 描く★★（選んだ 範囲の 期間ごとの 紙・記録が 無い 期間は ¥0 の 紙）
+        // ============================================================
+        // ★★本人の 明細の 絵＝本物の PDF を pdf.js で 描く★★ 2026-10-31（司さん 指示①
+        //   「代行請求書アプリの請求/集計の作りを見ろや 何回もゆわすな」）
+        //   見本＝daikou-seikyu の ensurePdfjs／generateInvoices(immediate)／renderInvoicePreviewPDF／fitInvoice／_invEmpty。
+        //   前は HTML の 紙（PDF を 作る 前の 板）を 縮めて 見せていた＝押して 出る PDF と 別の 物を 見せていた
+        // ============================================================
+        // pdf.js は vendor から 遅れて 読む（CDN を 使わない＝見本と 同じ 版・同じ バイト）
+        var _pdfjsReady = null;
+        function ensurePdfjs() {
+          if (_pdfjsReady) return _pdfjsReady;
+          _pdfjsReady = new Promise(function (res, rej) {
+            if (window.pdfjsLib) return res(window.pdfjsLib);
+            var s = document.createElement('script');
+            s.src = 'vendor/pdf.min.js';
+            s.onload = function () {
+              res(window.pdfjsLib);
+            };
+            s.onerror = function () {
+              rej(new Error('pdf.js読込失敗'));
+            };
+            document.head.appendChild(s);
+          }).then(function (lib) {
+            lib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+            return lib;
+          });
+          return _pdfjsReady;
+        }
+        // 描き終えた 絵の 束（今の HN_NO の 1束 だけ 持つ・設計前 対立役 N3）
+        var HN_MISE = { no: -1, inner: null };
+        var HN_MISE_SEQ = 0;
+        var HN_MISE_FURUI = {};
+        // ★捨てた 絵の canvas は 0 に して 放す★（iPhone の canvas の 総量に 溜めない・対立役 N2/N3）
+        function hnMiseHanasu(inner) {
+          if (!inner) return;
+          Array.prototype.forEach.call(inner.querySelectorAll('canvas'), function (c) {
+            c.width = 0;
+            c.height = 0;
+          });
+          if (inner.parentNode) inner.parentNode.removeChild(inner);
+        }
+        // 画面から 外れた 束（月を 替えた・止めた 文に 替わった）を 放す
+        //   ★HN_MISE が 置かれる 前にも 呼ばれる★（札の 道は 読み込みの 途中で hnPdfSuteru を 呼ぶ＝var は まだ undefined）
+        function hnMiseSuteru() {
+          if (HN_MISE && HN_MISE.inner && !HN_MISE.inner.isConnected) {
+            hnMiseHanasu(HN_MISE.inner);
+            HN_MISE = { no: -1, inner: null };
+          }
+        }
+        // 見本 fitInvoice と 同じ＝720px の 紙を 枠の 幅に 縮め、縮めた 後の 高さを 枠に 入れる
+        function hnMiseFit() {
+          var out = document.getElementById('hnKami');
+          if (!out) return;
+          var inner = out.querySelector('.inv-scale-inner');
+          if (!inner) return;
+          if (out.clientWidth <= 0) return; // 見えない 間は scale(0) を 当てない
+          var s = Math.min(1, out.clientWidth / 720);
+          inner.style.transform = 'scale(' + s + ')';
+          out.style.height = inner.offsetHeight * s + 'px';
+        }
+        // 見本 _invEmpty と 同じ＝絵の 所に 訳だけ（.li-empty）
+        function hnMiseKara(msg) {
+          var out = document.getElementById('hnKami');
+          if (!out) return;
+          HN_MISE_SEQ++;
+          var old = HN_MISE && HN_MISE.inner;
+          HN_MISE = { no: -1, inner: null };
+          out.classList.remove('inv-loading');
+          out.removeAttribute('data-hn-no');
+          out.innerHTML = '<div class="li-empty">' + esc(msg) + '</div>';
+          out.style.height = '';
+          hnMiseHanasu(old);
+        }
+        // 見本 renderInvoicePreviewPDF と 同じ＝1ページ＝1枚の canvas（scale 2）を .sheet.sheet-pdf で 包む。
+        //   全ページ 描き終えてから 入れ替える（前の 絵は 覆いの 下に 残す＝ちらつかない）
+        function hnMiseru(p) {
+          var seq = ++HN_MISE_SEQ;
+          var no = p.no;
+          var pdf = null;
+          function furui() {
+            return seq !== HN_MISE_SEQ || no !== HN_NO;
+          }
+          var inner = document.createElement('div');
+          inner.className = 'inv-scale-inner';
+          return ensurePdfjs()
+            .then(function (pdfjs) {
+              if (furui()) return null;
+              // ★毎回 新しい 写し★（pdf.js は 渡した 配列を 外す＝同じ blob を 出す 道と 食い合わない）
+              return p.blob.arrayBuffer().then(function (buf) {
+                if (furui()) return null;
+                return pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+              });
+            })
+            .then(function (d) {
+              if (!d) return false;
+              pdf = d;
+              var jun = Promise.resolve();
+              for (var n = 1; n <= pdf.numPages; n++)
+                (function (pn) {
+                  jun = jun.then(function () {
+                    if (furui()) throw HN_MISE_FURUI;
+                    return pdf.getPage(pn).then(function (pg) {
+                      var vp = pg.getViewport({ scale: 2 }); // 高い 解像度＝印刷でも くっきり（見本と 同じ）
+                      var cv = document.createElement('canvas');
+                      cv.width = vp.width;
+                      cv.height = vp.height;
+                      cv.className = 'inv-pdf-canvas';
+                      var sheet = document.createElement('div');
+                      sheet.className = 'sheet sheet-pdf';
+                      sheet.dataset.page = pn;
+                      sheet.appendChild(cv);
+                      inner.appendChild(sheet);
+                      return pg.render({ canvasContext: cv.getContext('2d'), viewport: vp })
+                        .promise;
+                    });
+                  });
+                })(n);
+              return jun.then(function () {
+                return true;
+              });
+            })
+            .then(function (ok) {
+              if (!ok || furui()) return hnMiseHanasu(inner);
+              // ★入れる 枠は 描き終えた 後で 取り直す★（待つ 間に 止めた 文・月替えで 箱が 替わる・対立役 N2）
+              var out = document.getElementById('hnKami');
+              if (!out) return hnMiseHanasu(inner);
+              var old = HN_MISE && HN_MISE.inner;
+              out.innerHTML = '';
+              out.appendChild(inner);
+              if (old && old !== inner) hnMiseHanasu(old);
+              HN_MISE = { no: no, inner: inner };
+              out.setAttribute('data-hn-no', String(no)); // 描き終えた 印（試験が 待つ）
+              out.classList.remove('inv-loading');
+              hnMiseFit();
+            })
+            .catch(function (e) {
+              hnMiseHanasu(inner);
+              if (e === HN_MISE_FURUI || furui()) return;
+              hnMiseKara('プレビュー作成に失敗：' + (e && e.message ? e.message : e));
+            })
+            .then(function () {
+              if (pdf)
+                try {
+                  pdf.destroy();
+                } catch (_) {
+                  /* もう 放した */
+                }
+            });
+        }
+
+        // ★★本人の 明細を 見せる★★（選んだ 範囲の PDF を 描いた 絵・記録が 無い 期間は ¥0 の 紙）
         function honninKami() {
           var box = document.getElementById('slips');
           if (!box) return;
           hnBarKaku();
-          // 計算が 転んだ 間は 描かない（画面の 幅を 変えた 時の 描き直しでも 前の 期の 額を 出さない）
+          // 計算が 転んだ 間は 描かない（前の 期の 額を 出さない）
           if (HN_KEISAN_NG) return honninTomeru(HN_KEISAN_NG_BUN, true);
           // 売上の 直しが 読めない 業務が 在れば 本人の 明細も 出さない（事務所と 同じ 門）2026-10-14
           if (kyuDameBun(CTX)) {
@@ -3199,61 +3451,36 @@
             return;
           }
           var h = hnHaniNoKi();
-          // ★箱の 高さを 保って 入れ替える★ 2026-10-23（事務所の renderSlips と 同じ：空の 箱で 幅を 測ると 巻いた 位置が 詰まる）
-          var hnTamotsu = box.offsetHeight;
-          if (hnTamotsu) box.style.minHeight = hnTamotsu + 'px';
-          box.innerHTML = '<div id="hnKami"></div>';
-          var mado = document.getElementById('hnKami');
           if (h.dame) {
-            mado.innerHTML = '<div class="card"><div class="msg">' + esc(h.dame) + '</div></div>';
-            box.style.minHeight = '';
+            box.innerHTML =
+              '<div id="hnKami"><div class="card"><div class="msg">' +
+              esc(h.dame) +
+              '</div></div></div>';
             return;
           }
-          // ★★PDF と 同じ 紙の 束（日と 車の 両方で 分けた 後）を 見せる★★ 2026-10-07（対立役：
-          //   画面は 日だけで 分けて いて 車が 多いと 下が 切れた）
-          var hami = [];
-          var tabaH = [];
-          h.ki.forEach(function (k) {
-            tabaH = tabaH.concat(hnKiNoKami(k, hami));
-          });
-          // ★手当・控除が 紙に 入りきらない 時は 本人にも 知らせる★（対立役 10-07 C：差引支給が 黙って 切れた）
-          if (hami.length) {
-            var tsuchiH = document.createElement('div');
-            tsuchiH.className = 'card';
-            tsuchiH.innerHTML =
-              '<div class="msg">手当・控除が 多すぎて 明細の 紙に 入りません（下が 切れます）。会社に 知らせてください。</div>';
-            mado.appendChild(tsuchiH);
+          // ★期間を 替えた 時は 同じ 枠に 覆いを 足す★（見本 generateInvoices(immediate)＝前の 絵を 覆いの 下に 残す・
+          //   設計前 対立役 S2）。月を 替えた 時は honninTsuki が 箱ごと「読み込み中…」に する（古い 月の 紙を 見せない）
+          var mado = document.getElementById('hnKami');
+          if (!mado || !mado.classList.contains('sheet-scale')) {
+            box.innerHTML = '<div id="hnKami" class="sheet-scale"></div>';
+            mado = document.getElementById('hnKami');
           }
-          // ★紙は A4 の 大きさで 組まれる★ので 画面の 幅に 合わせて 縮める
-          var haba = mado.clientWidth || box.clientWidth || 360;
-          // ★紙 1枚が 画面に 全部 入る 大きさ★（事務所の kamiMadoNuru と 同じ 縮め方）2026-10-20
-          //   司さん「給料明細の表が見切れとんは直したんやないんか…事務所の直した時に一緒にやってない」
-          //   細かい 字は 指で 広げて 見る（viewport は 拡大を 止めていない）。
-          _hnHaba = haba;
-          for (var i = 0; i < tabaH.length; i++) {
-            var el = tabaH[i].el;
-            el.style.position = 'static';
-            el.style.left = 'auto';
-            el.style.top = 'auto';
-            el.style.transformOrigin = 'top left';
-            var waku = document.createElement('div');
-            waku.className = 'hn-kami-waku';
-            el.style.width = kamiWH(el).w + 'px'; // ★縮めても 中身の 組み方は 変えない★（縦の 紙は 794）
-            waku.appendChild(el);
-            kamiNobasu(waku, haba);
-            mado.appendChild(waku);
+          hnMiseSuteru();
+          // 同じ 中身の 絵が 手元に 在れば 入れ直す だけ（見本の 作り置き＝_invCache）
+          if (HN_MISE && HN_MISE.no === HN_NO && HN_MISE.inner) {
+            if (HN_MISE.inner.parentNode !== mado) {
+              mado.innerHTML = '';
+              mado.appendChild(HN_MISE.inner);
+            }
+            mado.classList.remove('inv-loading');
+            mado.setAttribute('data-hn-no', String(HN_NO));
+            hnMiseFit();
+            return;
           }
-          // ★紙を 入れた 後で 幅を 測り直す★（PC は 紙で 縦の 巻き棒が 出て 幅が 縮む＝resize は 起きない・対立役 止2）
-          var haba2 = mado.clientWidth;
-          if (haba2 && haba2 < haba) {
-            Array.prototype.forEach.call(mado.querySelectorAll('.hn-kami-waku'), function (w) {
-              kamiNobasu(w, haba2);
-            });
-            _hnHaba = haba2;
-          }
-          box.style.minHeight = '';
-          // ★裏で PDF を 作っておく★（どの 端末も・押したら すぐ 出る 為）
-          if (!hnPdfAru() && HN_PDF_CHU !== HN_NO) hnPdfTsukuru();
+          mado.classList.add('inv-loading'); // 白い 画面で なく すぐ「作成中」を 出す（見本と 同じ）
+          // ★PDF は 見せる 時に 作る★（どの 端末も・押したら すぐ 出る 為にも なる）
+          if (hnPdfAru()) hnMiseru(HN_PDF);
+          else if (HN_PDF_CHU !== HN_NO) hnPdfTsukuru();
         }
 
         // ============================================================
@@ -7076,22 +7303,14 @@
           clearTimeout(window.__slipT);
           window.__slipT = setTimeout(renderSlips, 150);
         });
-        // ★本人の 画面も 幅が 変わったら 描き直す★（スマホの 向きを 変えた 時に 右が 切れない）2026-10-20
-        var _hnHaba = 0;
-        window.addEventListener('resize', function () {
-          if (!HONNIN || !REP) return;
-          // ★紙が 出ている 時だけ★（止めた 文・読み込み中は 箱ごと 書き換わり #hnKami が 無い＝描かない。
-          //   描くと 前の 月の 紙が 新しい 月の 見出しの 下に 出る・対立役 S2）
-          var m = document.getElementById('hnKami');
-          var w = m ? m.clientWidth : 0;
-          if (!w || w === _hnHaba) return;
-          _hnHaba = w;
-          clearTimeout(window.__hnT);
-          window.__hnT = setTimeout(function () {
-            // ★走る 時にも 見直す★（縮めて すぐ 月を 送ると 止めた 文の 上に 前の 月の 紙が 出た・対立役 止1）
-            if (document.getElementById('hnKami')) honninKami();
-          }, 150);
-        });
+        // ★本人の 画面は 幅が 変わったら 縮め直す だけ★ 2026-10-31（見本 _onViewportChange → fitInvoice と 同じ 3つの 合図）
+        //   絵（本物の PDF）は 幅で 変わらない＝作り直さない（前は HTML の 紙を 幅ごとに 組み直していた）
+        function hnMiseKawatta() {
+          if (HONNIN) hnMiseFit();
+        }
+        window.addEventListener('resize', hnMiseKawatta);
+        window.addEventListener('orientationchange', hnMiseKawatta);
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', hnMiseKawatta);
         // ★明細の 箱に PDF と 同じ 紙を 入れる★（本人の 画面 honninKami と 同じ 縮め方）2026-10-05
         // ★★PDF の 字体（DKKami）が 入ったら 画面の 紙を 組み直す★★ 2026-10-07（対立役 C）
         //   画面の 紙は 控えの 字体で 測って 組む。PDF（明細・給料表 どちらでも）を 押して DKKami が 入ると

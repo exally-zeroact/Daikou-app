@@ -143,6 +143,14 @@
     {
       "source": "/vendor/pdf-lib.min.js",
       "destination": "https://daikou-app.vercel.app/vendor/pdf-lib.min.js"
+    },
+    {
+      "source": "/vendor/pdf.min.js",
+      "destination": "https://daikou-app.vercel.app/vendor/pdf.min.js"
+    },
+    {
+      "source": "/vendor/pdf.worker.min.js",
+      "destination": "https://daikou-app.vercel.app/vendor/pdf.worker.min.js"
     }
   ]
 }

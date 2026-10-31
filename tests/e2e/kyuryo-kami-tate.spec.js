@@ -212,23 +212,17 @@ test('⑦ 月1回の 縦の 紙は 事務所の 画面でも 本人の 画面で
   await p2.setViewportSize({ width: 390, height: 844 });
   const { hiraku } = require('./honnin-harness');
   await hiraku(p2, { period_shime: { kind: 'tsuki', hi: [0] } });
-  await p2.waitForTimeout(800);
-  const hon = await p2.evaluate(() =>
-    [...document.querySelectorAll('#hnKami .hn-kami-waku')].map((w) => {
-      const el = w.firstElementChild;
-      const trs = el.querySelectorAll('tbody tr');
-      return {
-        muki: el.getAttribute('data-muki'),
-        haba: el.style.width,
-        shita: trs.length ? trs[trs.length - 1].getBoundingClientRect().bottom : 0,
-        waku: w.getBoundingClientRect().bottom,
-      };
-    })
-  );
+  // ★本人の 画面は 本物の PDF の 絵★ 2026-10-31（見本 代行請求書と 同じ）＝絵の ページが 縦長・枠の 下で 切れない
+  const hon = await p2.evaluate(() => {
+    const mado = document.getElementById('hnKami').getBoundingClientRect();
+    return [...document.querySelectorAll('#hnKami .sheet-pdf canvas')].map((c) => {
+      const r = c.getBoundingClientRect();
+      return { tate: c.height > c.width, shita: r.bottom, waku: mado.bottom };
+    });
+  });
   expect(hon.length, '★本人の 画面に 紙が 無い★').toBeGreaterThan(0);
   hon.forEach((x) => {
-    expect(x.muki).toBe('tate');
-    expect(x.haba).toBe('794px');
+    expect(x.tate, '★月1回が 縦の 紙で ない★').toBe(true);
     expect(x.shita, '★本人の 画面で 縦の 紙の 下が 切れた★').toBeLessThanOrEqual(x.waku + 1);
   });
   await p2.close();

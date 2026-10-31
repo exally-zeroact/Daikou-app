@@ -22,7 +22,7 @@
 //     ④計算が 転んだ 期から PDF を 渡さない
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { hiraku, maeNoTsuki } = require('./honnin-harness');
+const { hiraku, maeNoTsuki, KAMI, kamiDekita } = require('./honnin-harness');
 
 // ★時計を 止める（⑦）なら 時間帯も 止める★（tests/unit/tokei-tomeru-nara-jikantai-mo.test.js・客は 日本に 居る）
 test.use({ timezoneId: 'Asia/Tokyo' });
@@ -194,7 +194,7 @@ test('⑭b ホーム画面の アプリで 裏の 作りが 失敗した 後、�
     }
     return r.continue();
   });
-  await hiraku(page);
+  await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
   await expect.poll(() => otoshita, { timeout: 30000 }).toBe(1);
   await page.waitForTimeout(800);
   await expect(
@@ -230,7 +230,7 @@ for (const [na, home] of [
       while (tomeru) await new Promise((res) => setTimeout(res, 100));
       return r.continue();
     });
-    await hiraku(page);
+    await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
     // ★押す 前から 裏で 作り始めている★（道具を 取りに 行った）
     await expect.poll(() => yomareta, { timeout: 10000 }).toBeGreaterThan(0);
     await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
@@ -286,7 +286,7 @@ test('④ 月を 替えたら 作った PDF を 捨てる（前の 月を 渡さ
   await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(1);
   const mae = await page.evaluate(() => window.__dl[0].name);
   await maeNoTsuki(page);
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await kamiDekita(page);
   const e = await erabi(page);
   await page.click('#hnPdf');
   await expect.poll(() => page.evaluate(() => window.__dl.length), { timeout: 30000 }).toBe(2);
@@ -324,7 +324,7 @@ test('⑤ 作っている 途中で 月を 替えたら できた PDF を 捨て
     while (tomeru) await new Promise((res) => setTimeout(res, 100));
     return r.continue();
   });
-  await hiraku(page);
+  await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
   await page.click('#hnPdf');
   await expect(page.locator('#hnPdf')).toHaveText(MATSU);
   await maeNoTsuki(page);
@@ -344,7 +344,7 @@ test('⑦ 道具の 読み込みが 返らない 時は 時間切れで 訳を �
   });
   // ★時計は 開く 前に★（紙を 描いた 時に 裏の 作りが 始まる＝その 時間切れも 進めた 時計で 切る）
   await page.clock.install();
-  await hiraku(page);
+  await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
   await page.click('#hnPdf');
   await expect(page.locator('#hnPdf')).toHaveText(MATSU);
   await page.clock.runFor(31000);
@@ -364,7 +364,7 @@ test('⑧ 道具が 古い（tsukuru が 無い）時は 開き直しを 頼む'
       body: 'window.KamiEgaku = { yomu: function () { return Promise.resolve(); }, dasu: function () {} };',
     })
   );
-  await hiraku(page);
+  await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
   await page.click('#hnPdf');
   await expect(page.locator('#hnPdfErr')).toContainText('開き直して');
 });
@@ -422,14 +422,11 @@ for (const [na, w] of [
     await expect(page.locator('#slips'), '★計算が 転んだ 訳が 出ない★').toContainText(
       '計算できませんでした'
     );
-    expect(
-      await page.locator('#hnKami .hn-kami-waku').count(),
-      '★計算が 転んだのに 前の 期の 紙が 残った★'
-    ).toBe(0);
+    expect(await page.locator(KAMI).count(), '★計算が 転んだのに 前の 期の 紙が 残った★').toBe(0);
     // 画面の 幅を 変えた 描き直しでも 前の 期の 紙を 出さない
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(500);
-    expect(await page.locator('#hnKami .hn-kami-waku').count()).toBe(0);
+    expect(await page.locator(KAMI).count()).toBe(0);
     expect(oshita, '★ボタンが 押せず 任意1 を 見ていない★').toBeGreaterThan(0);
   });
 }
@@ -455,7 +452,7 @@ for (const [na, w] of [
       '計算できませんでした',
       { timeout: 5000 }
     );
-    expect(await page.locator('#hnKami .hn-kami-waku').count()).toBe(0);
+    expect(await page.locator(KAMI).count()).toBe(0);
     // 訳に 替えても 月は 選べる（上の 並びは #slips の 外・対立役 止4）
     await expect(page.locator('#hnTsukiSel')).toBeVisible();
   });
@@ -538,7 +535,7 @@ test('⑲ 裏で 作り終わっても 字と 止めが 同じなら ボタン�
       ';(function(){var t=window.KamiEgaku.tsukuru;window.KamiEgaku.tsukuru=function(){var a=arguments,s=this;return new Promise(function(ok){(function m(){window.__ike?ok():setTimeout(m,20);})();}).then(function(){return t.apply(s,a);}).then(function(d){window.__dekita=(window.__dekita||0)+1;return d;});};})();';
     await r.fulfill({ response: res, body });
   });
-  await hiraku(page);
+  await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
   await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
   await page.evaluate(() => {
     const b = document.getElementById('hnPdf');

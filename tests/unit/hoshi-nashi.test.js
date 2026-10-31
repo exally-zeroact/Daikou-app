@@ -108,6 +108,9 @@ describe('客の 字に ★ が 無い', () => {
       'vendor/fontkit.umd.min.js',
       'vendor/pdf-lib.min.js',
       // 2026-10-29 pdf.js（本人の 明細の PDF の 窓）は 外した＝代行請求書と 同じ「印刷 / 送る」1つ（html が 読まなく なった）
+      // 2026-10-31 戻した＝本人の 明細の 絵を 本物の PDF を pdf.js で 描く（見本 代行請求書 renderInvoicePreviewPDF と 同じ）
+      'vendor/pdf.min.js',
+      'vendor/pdf.worker.min.js',
     ]);
   });
   it('data/ を 外す 訳が 生きている（本物の 店の 名前に ★ が 在る＝消すと 名前が 変わる）', () => {

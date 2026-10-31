@@ -12,7 +12,7 @@
 //   ★押す物の一覧（先に書く）★ 1. リンクを 開く 2. パスワードを 入れて「見る」 3. 期間の 選ぶ 欄
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { hiraku } = require('./honnin-harness');
+const { hiraku, kamiNoJi } = require('./honnin-harness');
 
 // ★字の 幅は repo に 置いた 字体（BIZ UDPゴシック）で 測る★（機械の 字体で 結果が 変わる・feedback_ji_no_haba_no_shiken_wa_jitai_wo_soroeru）
 async function jitaiKotei(page) {
@@ -84,7 +84,7 @@ for (const haba of [390, 375, 360, 320]) {
     expect(m.hairanai, '★選んでいる 字が 欄に 入らない★').toEqual([]);
     // 期間を 選んでも 1行の まま・紙の 見出しが その 期間
     await page.locator('#hnKikanSel').selectOption('2');
-    await expect(page.locator('#hnKami')).toContainText('10/21 〜 10/31');
+    await expect.poll(() => kamiNoJi(page)).toContain('10/21 〜 10/31');
     m = await hakaru(page);
     ikkou(m, haba);
     expect(m.hairanai).toEqual([]);

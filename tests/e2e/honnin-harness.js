@@ -48,8 +48,83 @@ function getKotae(set) {
 }
 
 // set: 締めの 形を 変える／nidome: 2回目 以降の 取りの 返事を 変える（止めた 文の 道）
-async function hiraku(page, set, nidome) {
+// ============================================================
+// ★★本人の 明細は 本物の PDF を pdf.js で 描いた 絵★★ 2026-10-31（見本 代行請求書と 同じ）
+//   絵（canvas）から 字は 読めない ⇒ 試験は ★絵に した PDF そのものの 字★を 読む（見せている 物と 同じ 物）
+// ============================================================
+// 描いた 絵の 1ページ（canvas を 包む 箱）
+const KAMI = '#hnKami .sheet-pdf';
+
+// ★開く 前に 呼ぶ★ 絵に する 為に 読まれた PDF の blob を 控える（画面の 中の 道は 変えない）
+async function pdfMiru(page) {
+  await page.addInitScript(() => {
+    const moto = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = function () {
+      if (this.type === 'application/pdf') window.__hnMisePdf = this;
+      return moto.apply(this, arguments);
+    };
+  });
+}
+
+// ★描き終えた★＝作成中の 覆いが 外れ、描き終えた 印が 付き、canvas が 在る
+async function kamiDekita(page, wake) {
+  await expect(
+    page.locator('#hnKami[data-hn-no]:not(.inv-loading) .sheet-pdf canvas').first(),
+    wake
+  ).toBeVisible({ timeout: 30000 });
+}
+
+// ★絵に した PDF の 字★ 太字は 同じ 字を 横に 少し ずらして 3回 描く（js/kami-egaku.js）＝
+//   ★同じ 高さ・同じ 字・横の ずれが 太字の ずらし 以下★の 物だけ 1つに まとめる
+//   （続く 同じ 字を 全部 まとめると 日ごとに 並ぶ 本物の ¥0 まで 潰れる・設計前 対立役 N1）
+async function kamiNoJi(page) {
+  await kamiDekita(page);
+  return page.evaluate(async () => {
+    const b = window.__hnMisePdf;
+    if (!b) throw new Error('絵に した PDF を 控えていない（pdfMiru を 開く 前に 呼ぶ）');
+    const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await b.arrayBuffer()) })
+      .promise;
+    const out = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const items = (await (await pdf.getPage(p)).getTextContent()).items;
+      const kept = [];
+      items.forEach((it) => {
+        const size = Math.hypot(it.transform[0], it.transform[1]) || it.height || 10;
+        const x = it.transform[4];
+        const y = it.transform[5];
+        const futoji = kept.some(
+          (k) =>
+            k.str === it.str &&
+            Math.abs(k.y - y) < 0.1 &&
+            x - k.x > 0 &&
+            x - k.x <= 2 * 0.025 * size + 0.01
+        );
+        if (!futoji) kept.push({ str: it.str, x, y });
+      });
+      out.push(
+        kept
+          .map((k) => k.str)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+      );
+    }
+    return out.join('\n');
+  });
+}
+
+// ★絵の ページ 1枚ずつの「合計」の 額★（ページの 字で 最初の ¥ の 塊・前は HTML の 紙で 数えていた）
+async function kamiNoGaku(page) {
+  const ji = await kamiNoJi(page);
+  return ji.split('\n').map((p) => {
+    const m = p.match(/¥([\d,]+)/);
+    return m ? Number(m[1].replace(/,/g, '')) : NaN;
+  });
+}
+
+// matanai: 描き終わりを 待たない（絵が 転ぶ 試験）
+async function hiraku(page, set, nidome, matanai) {
   let kai = 0;
+  await pdfMiru(page);
   await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
     r.fulfill({
       status: 200,
@@ -72,7 +147,7 @@ async function hiraku(page, set, nidome) {
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  if (!matanai) await kamiDekita(page);
 }
 
 // ★期間の ボタンの 字は repo に 置いた 字体（BIZ UDPゴシック）で 測る★ 2026-10-20
@@ -94,7 +169,10 @@ async function hakaru(page) {
     const d = document.documentElement;
     const chips = Array.from(document.querySelectorAll('#slips .hn-chip'));
     const tops = chips.map((c) => Math.round(c.getBoundingClientRect().top));
-    const waku = Array.from(document.querySelectorAll('#hnKami .hn-kami-waku'));
+    // ★絵の ページ（canvas）が 枠（#hnKami）の 右／下で 切れないか★（縮め方＝見本 fitInvoice）
+    const mado = document.getElementById('hnKami');
+    const mr = mado ? mado.getBoundingClientRect() : { right: 0, bottom: 0 };
+    const waku = Array.from(document.querySelectorAll('#hnKami .sheet-pdf canvas'));
     return {
       chips: chips.length,
       gyou: new Set(tops).size,
@@ -114,25 +192,10 @@ async function hakaru(page) {
       ),
       page: d.scrollWidth - d.clientWidth,
       maisu: waku.length,
-      migi: Math.max(
-        0,
-        ...waku.map((w) =>
-          Math.round(
-            w.firstElementChild.getBoundingClientRect().right - w.getBoundingClientRect().right
-          )
-        )
-      ),
+      migi: Math.max(0, ...waku.map((w) => Math.round(w.getBoundingClientRect().right - mr.right))),
       shita: Math.max(
         -9999,
-        ...waku.map((w) => {
-          const wb = w.getBoundingClientRect().bottom;
-          const b = Math.max(
-            ...Array.from(w.querySelectorAll('td,th,div')).map(
-              (x) => x.getBoundingClientRect().bottom
-            )
-          );
-          return Math.round(b - wb);
-        })
+        ...waku.map((w) => Math.round(w.getBoundingClientRect().bottom - mr.bottom))
       ),
     };
   });
@@ -146,4 +209,17 @@ async function maeNoTsuki(page) {
   await sel.selectOption({ index: i + 1 });
 }
 
-module.exports = { EMP, SET, getKotae, hiraku, hakaru, jitaiKotei, maeNoTsuki };
+module.exports = {
+  EMP,
+  SET,
+  KAMI,
+  getKotae,
+  hiraku,
+  hakaru,
+  jitaiKotei,
+  maeNoTsuki,
+  pdfMiru,
+  kamiDekita,
+  kamiNoJi,
+  kamiNoGaku,
+};

@@ -24,6 +24,7 @@
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const path = require('path');
+const { kamiDekita, kamiNoJi, pdfMiru } = require('./honnin-harness');
 
 const EMP = {
   employee_id: 'e1',
@@ -143,6 +144,7 @@ async function nise(page, hajimete) {
   await page.route('**/rest/v1/dk_**', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   );
+  await pdfMiru(page);
   await page.goto('/kyuryo.html?t=TOK' + (hajimete ? '&c=INIT12345' : ''));
   await page.waitForTimeout(1000);
 }
@@ -161,7 +163,7 @@ test('★本人の 画面を 撮る（はじめて → 決めた後）★', asyn
   await page.fill('#hnPw', '1234');
   await page.fill('#hnPw2', '1234');
   await page.click('#hnGo');
-  await expect(page.locator('#slips')).toContainText(EMP.name, { timeout: 15000 });
+  await kamiDekita(page); // 絵（本物の PDF）を 描き終えた 後に 撮る（2026-10-31）
   await page.waitForTimeout(600);
   await page.screenshot({ path: OUT('honnin-2-mita.png'), fullPage: true });
 
@@ -171,9 +173,10 @@ test('★本人の 画面を 撮る（はじめて → 決めた後）★', asyn
   // ★月を 選ぶ 所は 上の 並び #hnBar（#slips の 外）に 移した★ 2026-10-29（代行請求書と 同じ 作り）＝紙の 高さだけを 見る
   const naka = await page.evaluate(() => {
     const b = document.getElementById('slips');
-    return { h: b.scrollHeight, ji: b.innerText || '' };
+    return { h: b.scrollHeight };
   });
   expect(naka.h, '★明細の 絵が 空です★').toBeGreaterThan(200);
+  naka.ji = await kamiNoJi(page); // 絵に した PDF の 字
   expect(naka.ji, '★名前が 出ていません★').toContain(EMP.name);
   await expect(page.locator('#hnTsukiSel'), '★月を 選ぶ 所が 出ていません★').toContainText('年');
   // ★合計が ¥0 の 絵は 出さない★（中身の 無い 絵を 見せない）

@@ -17,7 +17,7 @@
 //     F8 c= 付きの リンクでも 札が 在れば 探りより 先に 明細
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { EMP, getKotae } = require('./honnin-harness');
+const { EMP, getKotae, kamiDekita } = require('./honnin-harness');
 
 const FUDA = 'ab'.repeat(24); // 48桁の 16進（数字 4桁の 字が 入らない 物）
 const KEY = 'dkKyuFuda:TOK';
@@ -97,7 +97,7 @@ async function okuFuda(page, kigen) {
   );
 }
 const yomuFuda = (page) => page.evaluate((k) => localStorage.getItem(k), KEY);
-const meisai = (page) => expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+const meisai = (page) => kamiDekita(page);
 
 // わざと壊す：入れた 後に hnFudaOku を 呼ばない ⇒ 赤（札が 無い）
 test('F1 パスワードが 合ったら 札を 置く（{fuda, kigen} だけ・4桁は 置かない）', async ({

@@ -13,7 +13,7 @@
 //   ★比べる 相手は 期間ごとに 選んで 出た 紙と 期間ごとの PDF＝同じ 計算を 2回 なぞらない（対立役 止3）★
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { EMP, SET } = require('./honnin-harness');
+const { EMP, SET, KAMI, kamiDekita, kamiNoGaku, pdfMiru } = require('./honnin-harness');
 
 test.use({ timezoneId: 'Asia/Tokyo' });
 
@@ -81,24 +81,15 @@ async function akeru(page, mazeru, kikan) {
   );
   await page.clock.setFixedTime(new Date('2026-10-21T12:00:00+09:00'));
   await page.setViewportSize({ width: 430, height: 900 });
+  await pdfMiru(page);
   await page.goto('/kyuryo.html?t=TOK');
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
   await expect(page.locator('#hnKikanSel option')).toHaveCount(kikan === undefined ? 4 : kikan);
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await kamiDekita(page);
 }
-// 画面の 紙 1枚ずつの「合計」の 額（¥ だけの 字の 塊の 1つ目）
-async function kamiNoGaku(page) {
-  return page.evaluate(() =>
-    Array.from(document.querySelectorAll('#hnKami .hn-kami-waku')).map((w) => {
-      const el = Array.from(w.querySelectorAll('*')).find(
-        (x) => x.children.length === 0 && /^¥[\d,]+$/.test((x.textContent || '').trim())
-      );
-      return el ? Number(el.textContent.trim().slice(1).replace(/,/g, '')) : NaN;
-    })
-  );
-}
+// 画面の 紙 1枚ずつの「合計」の 額＝道具の kamiNoGaku（絵に した PDF の 字・2026-10-31）
 async function erabu(page, v) {
   await page.locator('#hnKikanSel').selectOption(v);
   await expect(page.locator('#hnKikanSel')).toHaveValue(v);
@@ -189,7 +180,7 @@ test('③ 記録が 在るのに 計算できない 期間が 在れば 1か月�
   await expect(page.locator('#hnKami')).toContainText(
     '10/11 〜 10/20 の 明細を 計算できませんでした'
   );
-  await expect(page.locator('#hnKami .hn-kami-waku'), '★¥0 に 倒した 紙を 出した★').toHaveCount(0);
+  await expect(page.locator(KAMI), '★¥0 に 倒した 紙を 出した★').toHaveCount(0);
   await page.click('#hnPdf');
   await expect(page.locator('#hnPdfErr')).toContainText('計算できませんでした');
   await page.waitForTimeout(500);

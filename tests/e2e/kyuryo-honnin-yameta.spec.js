@@ -13,7 +13,7 @@
 //     honninStart の #hnBar を 隠す 所を 外す … ★止2 が 赤★
 // ============================================================
 const { test, expect } = require('@playwright/test');
-const { EMP, getKotae } = require('./honnin-harness');
+const { EMP, getKotae, kamiDekita, kamiNoGaku, pdfMiru } = require('./honnin-harness');
 
 test.use({ timezoneId: 'Asia/Tokyo' });
 
@@ -39,15 +39,7 @@ async function nise(page, getFn, log) {
     });
   });
 }
-const gaku = (page) =>
-  page.evaluate(() =>
-    Array.from(document.querySelectorAll('#hnKami .hn-kami-waku')).map((w) => {
-      const el = Array.from(w.querySelectorAll('*')).find(
-        (x) => x.children.length === 0 && /^¥[\d,]+$/.test((x.textContent || '').trim())
-      );
-      return el ? Number(el.textContent.trim().slice(1).replace(/,/g, '')) : NaN;
-    })
-  );
+const gaku = (page) => kamiNoGaku(page); // 絵に した PDF の ページごとの 合計（2026-10-31）
 
 test('止1 辞めた 人：記録の 無い 期は ¥0 の 紙・1か月分も 出る（「計算できませんでした」と 言わない）', async ({
   page,
@@ -76,12 +68,13 @@ test('止1 辞めた 人：記録の 無い 期は ¥0 の 紙・1か月分も �
       }),
     log
   );
+  await pdfMiru(page);
   await page.goto('/kyuryo.html?t=TOK');
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
   await expect(page.locator('#hnKikanSel option')).toHaveCount(4);
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await kamiDekita(page);
   for (const v of ['1', '2']) {
     await page.locator('#hnKikanSel').selectOption(v);
     await expect(
@@ -126,8 +119,9 @@ test('止2 札が 切れた 後の 入れる 画面では 月の 欄を 出さ�
     },
     [FUDA]
   );
+  await pdfMiru(page);
   await page.goto('/kyuryo.html?t=TOK');
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await kamiDekita(page);
   kire = true;
   const sel = page.locator('#hnTsukiSel');
   const i = await sel.evaluate((s) => s.selectedIndex);
@@ -144,5 +138,5 @@ test('止2 札が 切れた 後の 入れる 画面では 月の 欄を 出さ�
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
   await expect(page.locator('#hnTsukiSel')).toBeVisible();
-  await expect(page.locator('#hnKami .hn-kami-waku').first()).toBeVisible();
+  await kamiDekita(page);
 });
