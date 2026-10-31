@@ -495,3 +495,47 @@ test('⑱ 保存が 1回 転んだら 訳を 出し・1秒 後に 押し直せ�
   await page.click('#hnPdf');
   await expect.poll(() => page.evaluate(() => window.__dl.length)).toBe(1);
 });
+
+// ★★裏の 作りが 終わっても ボタンの 中身を 書き直さない★★ 2026-10-31（本番 CI webkit ④b：押した 1.5秒 頃に 裏の 作りが 終わり
+//   同じ 字を 書き直した ⇒ WebKit は 押している 間に 字の 節が 替わると click を 出さず 保存 0・30秒）。状態が 同じなら #hnPdf の 変化は 0
+//   わざと壊す：hnPdfBotan を 毎回 textContent・disabled を 書く 形に 戻す ⇒ 赤（字の 節が 替わる）
+test('⑲ 裏で 作り終わっても 字と 止めが 同じなら ボタンの 中身を 書き直さない', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'ari');
+  // ★作りを 待たせる★（見張りを 付ける 前に 終わらない 様に・window.__ike が 立つまで tsukuru を 返さない）
+  await page.route('**/js/kami-egaku.js', async (r) => {
+    const res = await r.fetch();
+    const body =
+      (await res.text()) +
+      ';(function(){var t=window.KamiEgaku.tsukuru;window.KamiEgaku.tsukuru=function(){var a=arguments,s=this;return new Promise(function(ok){(function m(){window.__ike?ok():setTimeout(m,20);})();}).then(function(){return t.apply(s,a);}).then(function(d){window.__dekita=(window.__dekita||0)+1;return d;});};})();';
+    await r.fulfill({ response: res, body });
+  });
+  await hiraku(page);
+  await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
+  await page.evaluate(() => {
+    const b = document.getElementById('hnPdf');
+    window.__botan = b;
+    window.__henka = [];
+    new MutationObserver((ms) => {
+      ms.forEach((m) => window.__henka.push(m.type + ':' + (m.attributeName || '')));
+    }).observe(b, { childList: true, characterData: true, subtree: true, attributes: true });
+    window.__ike = true;
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(300);
+  const r = await page.evaluate(() => ({
+    henka: window.__henka,
+    onaji: document.getElementById('hnPdf') === window.__botan,
+    ji: window.__botan.textContent,
+    tome: window.__botan.disabled,
+  }));
+  expect(r.onaji, '★ボタンを 作り直した＝見張りが 外れる★').toBe(true);
+  expect(r.henka, '★裏の 作りが 終わった 時に ボタンの 中身を 書き直した★').toEqual([]);
+  expect(r.ji).toBe(BOTAN);
+  expect(r.tome).toBe(false);
+  expect(await watashita(page), '★押す 前に 渡した★').toBe(0);
+});

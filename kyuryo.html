@@ -3020,9 +3020,15 @@
         function hnPdfBotan() {
           var b = document.getElementById('hnPdf');
           if (!b) return;
-          b.textContent = hnPdfJi();
+          // ★同じ 字・同じ 止めは 書き直さない★（textContent は 同じ 字でも 字の 節を 替える。
+          //   WebKit は 押し始めた 時の 字の 節を click の 的に 持つ＝押している 間に 節が 替わると click を 出さない
+          //   （iPhone の 形も PC の 形も 0 回・chromium は 1 回＝対立役 10-31 測り）。裏の 作りが 終わった 時に
+          //   押した 人の 押しが 消える。本番 CI webkit ④b の 最初の 押しで 保存 0・30秒 10-31）
+          var ji = hnPdfJi();
+          if (b.textContent !== ji) b.textContent = ji;
           var yometa = HN_YOMI === HN_Y + '-' + HN_M && PERIODS && PERIODS.length;
-          b.disabled = !yometa || (HN_PDF_MATSU === HN_NO && !hnPdfAru()) || HN_PDF_TOMETA;
+          var tome = !!(!yometa || (HN_PDF_MATSU === HN_NO && !hnPdfAru()) || HN_PDF_TOMETA);
+          if (b.disabled !== tome) b.disabled = tome;
         }
         // ★訳は ボタンの すぐ 下に 出す★（#err は 画面の 一番 上＝下で 押した 人には 見えない・対立役）
         function hnPdfErr(bun) {
