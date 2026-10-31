@@ -799,7 +799,9 @@
           kamiMsg('紙を 作っています…');
           return KamiPdf.dasu(mai, na)
             .then(function (r) {
-              kamiMsg('出しました（' + r.mai + '枚）');
+              // ★出せない 字が 在れば 知らせる★（見本 代行請求書と 同じ 字・2026-10-31）
+              var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(r.missing) : '';
+              kamiMsg('出しました（' + r.mai + '枚）' + (miss ? '　' + miss : ''));
             })
             .catch(function (e) {
               kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));

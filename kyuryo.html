@@ -3180,7 +3180,11 @@
               }, 60000);
             }
             if (!pcMado) hnPdfHozon(p);
-            else hnAnnai('PDFを開きました（印刷・保存は その画面から）');
+            // ★出せない 字が 在れば それを 先に 知らせる★（見本 exportInvoicePDF も miss を 一番 先に 出す・2026-10-31）
+            var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(p.missing) : '';
+            //   ★スマホは 保存の 案内も 消さない★（字の 知らせの 後ろに 続ける＝LINE の 中で 出ない 時の 道を 残す・設計前 対立役 止1 10-31）
+            if (miss) hnAnnai(pcMado ? miss : miss + '　' + HN_HOZON_ANNAI);
+            else if (pcMado) hnAnnai('PDFを開きました（印刷・保存は その画面から）');
           } catch (e) {
             hnPdfErr('PDF を 出せませんでした。もう一度 押してください。');
           }
@@ -3248,7 +3252,7 @@
             .then(function (d) {
               if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
               if (no !== HN_NO || !d) return; // 替えた 後に できた 物は 捨てる
-              HN_PDF = { no: no, blob: d.blob, name: hnPdfNamae(emp) };
+              HN_PDF = { no: no, blob: d.blob, name: hnPdfNamae(emp), missing: d.missing || [] };
               var matsu = HN_PDF_MATSU === no;
               if (matsu) HN_PDF_MATSU = -1;
               hnPdfBotan();
@@ -3298,6 +3302,8 @@
         //   ★ホーム画面の アプリでも これ★（2026-10-30・見本と 同じ。前の 心配＝戻れなく なる 事故は サーバーの 生ファイルへの a で、
         //   ここは blob の PDF＝見本の 代行請求書の コードも ホーム画面で 同じ 道・iPhone の ホーム画面で 戻れるかは 実機では 未測定）
         //   URL は 60秒 残す（保存の 画面を 待つ 間に 消すと 白い 窓に なり得る・対立役 S2）
+        var HN_HOZON_ANNAI =
+          'PDF の 画面が 出たら 共有（□↑）から LINE などに 送るか「プリント」で 印刷してください。保存の 画面が 出た 時は「ダウンロード」を 押して、保存した PDF（iPhone は Safari の ↓ か ファイルアプリの「ダウンロード」）を 開いてください。何も 出ない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。';
         function hnPdfHozon(p) {
           var url = URL.createObjectURL(p.blob);
           var a = document.createElement('a');
@@ -3310,9 +3316,7 @@
             if (a.parentNode) a.parentNode.removeChild(a);
           }, 60000);
           // ★保存できたかは 画面から 分からない＝言い切らない★（やめた 時・LINE の 中で 黙って 効かない 時も 嘘に しない・対立役 S3）
-          hnAnnai(
-            'PDF の 画面が 出たら 共有（□↑）から LINE などに 送るか「プリント」で 印刷してください。保存の 画面が 出た 時は「ダウンロード」を 押して、保存した PDF（iPhone は Safari の ↓ か ファイルアプリの「ダウンロード」）を 開いてください。何も 出ない 時は、この 画面を Safari か Chrome で 開いてから もう一度 押してください（LINE の 中では 保存 できない 事が あります）。'
-          );
+          hnAnnai(HN_HOZON_ANNAI);
         }
 
         // ============================================================
@@ -4493,11 +4497,13 @@
           return KamiPdf.dasu(mai, na)
             .then(function (x) {
               kamiBtn(false);
+              var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '';
               kamiMsg(
                 '出しました（' +
                   x.mai +
                   '枚）' +
-                  (kire ? '　上限 2000件に 当たっています＝欠けているかもしれません' : '')
+                  (kire ? '　上限 2000件に 当たっています＝欠けているかもしれません' : '') +
+                  (miss ? '　' + miss : '')
               );
             })
             .catch(function (e) {
@@ -6380,8 +6386,9 @@
                 'PDF'
               );
             })
-            .then(function () {
-              showMsg('');
+            .then(function (x) {
+              // ★出せない 字が 在れば 知らせる★（見本と 同じ 字・2026-10-31）
+              showMsg(x && window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '');
             })
             .catch(function (err) {
               // ★印刷の 保険へ 落ちる 時も はみ出す 人は 止める・道具を 読めた 後の 失敗は 印刷しない★
@@ -6821,8 +6828,9 @@
                     'PDF'
                   );
                 })
-                .then(function () {
-                  showMsg('');
+                .then(function (x) {
+                  // ★出せない 字が 在れば 知らせる★（見本と 同じ 字・2026-10-31）
+                  showMsg(x && window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '');
                 })
                 .catch(function () {
                   showMsg('');
@@ -6918,8 +6926,9 @@
               });
               return _withTimeout(E.dasu(mai, '給料明細_' + ym, KAMI_KATA), PDF_TIMEOUT_MS, 'PDF');
             })
-            .then(function () {
-              showMsg('');
+            .then(function (x) {
+              // ★出せない 字が 在れば 知らせる★（見本と 同じ 字・2026-10-31）
+              showMsg(x && window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '');
             })
             .catch(shippai);
         }

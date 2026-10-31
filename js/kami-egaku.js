@@ -273,15 +273,30 @@
   }
 
   // ★字体に 無い字は 落とさず 印に する★（黙って 消さない）
-  function _sanitize(str, font) {
+  //   ★〓に した 字は miss に 集める★ 2026-10-31（見本 代行請求書 invoice-pdf.js の _sanitize・lastMissing と 同じ＝使う 人に 知らせる）
+  //   ★字体に 字が 在るかは fontkit の hasGlyphForCodePoint で 見る★（見本と 同じ）。
+  //   前は 幅を 測って 投げたら〓＝pdf-lib の 字体は 無い字でも 投げない（空の 形で 描く）ので
+  //   一度も〓に ならず 豆腐で 黙って 出ていた（2026-10-31 測り：髙・𠮷・🙂 で 〓 0）
+  let _cov = null; // 字体の バイトから 作った fontkit の 字体（調べる だけ）
+  function _covFont() {
+    if (_cov && _cov.bytes === _font) return _cov.fk;
+    // ★作れない 時は 包まずに 投げる★（見本 invoice-pdf.js も fontkit.create を try で 包まない＝PDF 作りごと 落ちて 知らせる・
+    //   包むと 字体を 見られず 豆腐で 黙って 通る・設計前 対立役 注3 10-31）
+    const fk = global.fontkit && _font ? global.fontkit.create(_font) : null;
+    _cov = { bytes: _font, fk: fk };
+    return fk;
+  }
+  function _sanitize(str, font, miss) {
+    const fk = _covFont();
     let out = '';
     for (const ch of String(str)) {
       if (ch === '\n' || ch === '\r') continue;
-      try {
-        font.widthOfTextAtSize(ch, 10);
+      const cp = ch.codePointAt(0);
+      if (!fk || cp === 0x20 || cp === 0x3000 || fk.hasGlyphForCodePoint(cp)) {
         out += ch;
-      } catch (_) {
+      } else {
         out += '〓';
+        if (miss) miss.add(ch);
       }
     }
     return out;
@@ -301,6 +316,7 @@
         return document.fonts && document.fonts.ready ? document.fonts.ready : null;
       })
       .then(function () {
+        const miss = new Set();
         const kami = itas.map(function (x) {
           const kata = A4[x.muki === 'yoko' ? 'yoko' : 'tate'];
           return hakaru(x.el, kata);
@@ -330,7 +346,7 @@
               });
             });
             k.ji.forEach(function (o) {
-              const str = _sanitize(o.s, font);
+              const str = _sanitize(o.s, font, miss);
               let size = o.size;
               // ★測った 幅を 超えたら 小さく する★（隣と 重ならせない）
               if (o.w > 1) {
@@ -360,11 +376,13 @@
           fontkit: global.fontkit,
           fontBytes: _font,
           draw: draw,
+        }).then(function (bytes) {
+          return { bytes: bytes, missing: Array.from(miss) };
         });
       })
-      .then(function (bytes) {
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        return { blob: blob, mai: itas.length, size: blob.size };
+      .then(function (r) {
+        const blob = new Blob([r.bytes], { type: 'application/pdf' });
+        return { blob: blob, mai: itas.length, size: blob.size, missing: r.missing };
       });
   }
 
@@ -385,8 +403,15 @@
       setTimeout(function () {
         URL.revokeObjectURL(url);
       }, 60000);
-      return { mai: itas.length, size: blob.size };
+      return { mai: itas.length, size: blob.size, missing: dekita.missing };
     });
+  }
+
+  // ★出せない 字の 知らせ★（見本 exportInvoicePDF の 字と 同じ）＝無ければ ''
+  function missingBun(missing) {
+    return missing && missing.length
+      ? 'PDFを作成（注意：この字は出せず〓表示→ ' + missing.join(' ') + '）'
+      : '';
   }
 
   const api = {
@@ -397,6 +422,7 @@
     hakaru: hakaru,
     tsukuru: tsukuru,
     dasu: dasu,
+    missingBun: missingBun,
   };
   if (typeof global !== 'undefined') global.KamiEgaku = api;
   /* eslint-disable no-undef */
