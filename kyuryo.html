@@ -2264,8 +2264,50 @@
         var HN_YOMI_NO = 0;
         // 範囲：'tsuki'＝その 月の 期間 全部／数＝期間の 番号（PIDX と 同じ）。全体で 1つの 変数（描き直しで 戻さない）
         var HN_HANI = 0;
+        // ★もう 配った リンク（印 openExternalBrowser=1 が 無い）も LINE の 中で 開かない★ 2026-11-01
+        //   新しい リンクは haifuUrl が 印を 付ける。前に 配った リンクは 印が 無い＝LINE の 中の ブラウザで 開き、
+        //   PDF の 保存（blob の a download）が 効かない 端末が 在る。LINE の 中（UA に Line/）で 印が 無ければ
+        //   印を 足して 開き直す（LINE が 外の ブラウザへ 渡す＝実機では 未測定・見立て）。
+        //   ★渡す 間は 倉庫も ログインも 呼ばない★（else の goLogin へ 落ちると login.html に 飛ぶ・設計前 対立役 止1）
+        //   ★LINE が 頁を 替えない 時の 逃げ道★「ここで 見る」で その 場で honninStart（空の 画面に しない・止2）
+        //   ★2回目は 渡さない★（印が どこかで 落ちても 回り続けない・注B2）。URL は URL の 型で 組む（#・c・henshu を 残す・注B1）
+        function hnGaibuWatasu() {
+          try {
+            if (!/\bLine\//.test(String(navigator.userAgent || ''))) return false;
+            var u = new URL(location.href);
+            if (u.searchParams.get('openExternalBrowser') === '1') return false;
+            try {
+              if (sessionStorage.getItem('dkHnGaibu') === '1') return false;
+              sessionStorage.setItem('dkHnGaibu', '1');
+            } catch (_) {
+              // 札が 置けない 端末は 印だけで 止める
+            }
+            u.searchParams.set('openExternalBrowser', '1');
+            var box = document.createElement('div');
+            box.id = 'hnGaibu';
+            box.style.cssText =
+              'position:fixed;inset:0;z-index:9999;background:#fff;padding:24px 16px;text-align:center;font-size:15px;line-height:1.7';
+            box.textContent =
+              'Safari／Chrome で 開いています。開かない 時は 下を 押すと ここで 見られます（ここでは PDF の 保存が できない 端末が あります）';
+            var b = document.createElement('button');
+            b.id = 'hnGaibuKoko';
+            b.type = 'button';
+            b.textContent = 'ここで 見る';
+            b.style.cssText = 'display:block;margin:16px auto 0;padding:10px 24px;font-size:15px';
+            b.addEventListener('click', function () {
+              if (box.parentNode) box.parentNode.removeChild(box);
+              honninStart();
+            });
+            box.appendChild(b);
+            document.body.appendChild(box);
+            location.replace(u.href);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
         if (HONNIN) {
-          honninStart();
+          if (!hnGaibuWatasu()) honninStart();
         } else {
           DKSession.ensure().then(function (s) {
             if (!s) return DKSession.goLogin();
