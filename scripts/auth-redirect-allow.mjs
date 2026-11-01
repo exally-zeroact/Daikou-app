@@ -15,7 +15,7 @@
 //     node scripts/auth-redirect-allow.mjs            … 今の状態を見るだけ
 //     node scripts/auth-redirect-allow.mjs --prod     … 本番の倉庫だけ 見る
 //     node scripts/auth-redirect-allow.mjs --test     … テストの倉庫だけ 見る
-//     node scripts/auth-redirect-allow.mjs --apply    … 足りない物を足す
+//     node scripts/auth-redirect-allow.mjs --apply    … 足りない物を足す（本番は --honban を 付けた 時だけ・無しは 止まる）
 //
 //   ★当てる倉庫と 同じ側のホストしか 作りません★ 2026-08-25（指示役の裁定）
 //     本番の倉庫に daikou-app-test を足す、という事は ★起きません★。
@@ -27,6 +27,8 @@ import { HOSTS } from './dk-hosts.mjs';
 // ★鍵の探し場所は scripts/db-token.mjs 1箇所だけ★
 //   ここに自分で書くと必ずズレる（実際にズレて「鍵が無い」と誤診断した）。
 import { readToken, whereWeLooked } from './db-token.mjs';
+// ★本番の止め（1か所）★ 2026-11-01＝前は --apply で 本番の Auth に 門無しで PATCH した（Rakunally 席 odan 候補→中身で確かめた）
+import { honbanNoTome } from './honban-tome.mjs';
 
 // ★倉庫は2つある (2026-08-07)★
 //   テスト側が別の倉庫(DB-test)に切り替わったのに、この道具は本番だけを見ていた。
@@ -98,9 +100,17 @@ if (isMain) {
       : ['prod', 'test'];
 
   let missingTotal = 0;
+  const ateru = process.argv.includes('--apply');
   for (const key of which) {
     const url = `https://api.supabase.com/v1/projects/${PROJECTS[key]}/config/auth`;
     console.log('\n================ ' + (key === 'prod' ? '本番' : 'テスト') + ' ================');
+    // ★当てる時は 倉庫へ 1回も 向かう前に 止める★（本番は --honban の 時だけ・読むだけは 止めない）
+    const tome = honbanNoTome(PROJECTS[key], process.argv, !ateru);
+    if (tome) {
+      console.error(tome);
+      process.exitCode = 3;
+      continue;
+    }
     const cur = await fetch(url, { headers: H }).then((r) => r.json());
     console.log('★SITE_URL（触らない）★\n  ' + cur.site_url);
     console.log('\n★今の許可リスト★');
@@ -143,16 +153,16 @@ if (isMain) {
     //   まだ開いている通信が有るうちに切ると Windows の node が
     //   「Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)」で落ち、
     //   ★中身は正しいのに終了コード 9★ になる（CIが赤と誤解する）。
-    if (process.argv.includes('--apply') && added.length) {
+    if (ateru && added.length) {
       await applyList(url, H, list, wanted);
     }
   }
 
-  if (!process.argv.includes('--apply')) {
+  // ★当てた時に 0 で 上書きしない★ 2026-11-01
+  //   前は 最後の process.exitCode = 0 が、混ざりの止め（1）・PATCH の失敗（1）を 消していた＝失敗でも 緑に見えた。
+  if (!ateru) {
     console.log('\n見ただけです。足すなら --apply を付けてください。');
-    process.exitCode = missingTotal ? 1 : 0;
-  } else {
-    process.exitCode = 0;
+    process.exitCode = process.exitCode || (missingTotal ? 1 : 0);
   }
 }
 

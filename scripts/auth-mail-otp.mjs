@@ -17,9 +17,11 @@
 //   使い方:
 //     node scripts/auth-mail-otp.mjs                    … 本番とテスト 両方の本文を見るだけ
 //     node scripts/auth-mail-otp.mjs --test             … テストの倉庫だけ見る
-//     node scripts/auth-mail-otp.mjs --prod --apply     … 本番に6桁を入れる
+//     node scripts/auth-mail-otp.mjs --prod --apply --honban … 本番に6桁を入れる（--honban 無しは 止まる）
 // ============================================================
 import { readToken, whereWeLooked } from './db-token.mjs';
+// ★本番の止め（1か所）★ 2026-11-01＝前は --apply で 本番の Auth に 門無しで PATCH した（Rakunally 席 odan 候補→中身で確かめた）
+import { honbanNoTome } from './honban-tome.mjs';
 
 // ★倉庫は2つある (2026-08-07)★
 //   兄弟の auth-redirect-allow.mjs は 8/7 に両対応へ直したのに、
@@ -70,9 +72,17 @@ if (isMain) {
         : ['prod', 'test'];
 
     let missingTotal = 0;
+    const ateru = process.argv.includes('--apply');
     for (const key of which) {
       const url = `https://api.supabase.com/v1/projects/${PROJECTS[key]}/config/auth`;
       console.log('\n================ ' + (key === 'prod' ? '本番' : 'テスト') + ' ================');
+      // ★当てる時は 倉庫へ 1回も 向かう前に 止める★（本番は --honban の 時だけ・読むだけは 止めない）
+      const tome = honbanNoTome(PROJECTS[key], process.argv, !ateru);
+      if (tome) {
+        console.error(tome);
+        process.exitCode = 3;
+        continue;
+      }
       const cur = await fetch(url, { headers: H }).then((r) => r.json());
 
       console.log('★今の本文★');
@@ -83,7 +93,7 @@ if (isMain) {
 
       // ★process.exit() を使わない★（兄弟の auth-redirect-allow.mjs と同じ理由:
       //   通信が開いたまま切ると Windows の node が落ちて終了コード9＝CIが赤と誤解する）
-      if (process.argv.includes('--apply')) {
+      if (ateru) {
         const res = await fetch(url, {
           method: 'PATCH',
           headers: H,
