@@ -67,6 +67,15 @@ export function wantedUrls(hosts = HOSTS) {
   return out;
 }
 
+// ★今の設定を 読めたと 言えるか★ 2026-11-01
+//   許可リストの 欄が ★文字★ の 時だけ。null・欄無し・配列・{ message } は 読めなかった と 数える
+//   （null を 空と 見て 書くと、共有の 倉庫の 許可リストを この道具の 分だけで 置き換え得る＝誤って 止まる 方が 安い）
+export function yometaSettei(cur) {
+  return (
+    !!cur && typeof cur === 'object' && !Array.isArray(cur) && typeof cur.uri_allow_list === 'string'
+  );
+}
+
 // 既にある物を消さずに、足りない物だけ足す（★消すのは事故のもと★）
 export function merge(current, wanted) {
   const have = new Set(
@@ -111,7 +120,22 @@ if (isMain) {
       process.exitCode = 3;
       continue;
     }
-    const cur = await fetch(url, { headers: H }).then((r) => r.json());
+    // ★読めなかった時は 当てない★ 2026-11-01（対立役 注意）
+    //   前は r.ok を見ず、429/5xx の { message } を そのまま 今の設定と して 読んでいた。
+    //   uri_allow_list が 無い＝空と 数え、この道具の 2ホスト分だけの list で PATCH＝
+    //   ★共有の 倉庫の 許可リストを 丸ごと 置き換え★（他の アプリの 戻り先が 消える）。
+    const r0 = await fetch(url, { headers: H });
+    const cur = r0.ok ? await r0.json() : null;
+    if (!yometaSettei(cur)) {
+      console.error(
+        '★今の設定を 読めませんでした（' +
+          r0.status +
+          (r0.ok ? '・許可リストの 欄が 文字で ない' : '') +
+          '）＝足さずに 止めます（今の 許可リストを 消さない為）★'
+      );
+      process.exitCode = 1;
+      continue;
+    }
     console.log('★SITE_URL（触らない）★\n  ' + cur.site_url);
     console.log('\n★今の許可リスト★');
     const now = String(cur.uri_allow_list || '')
@@ -178,7 +202,18 @@ async function applyList(url, H, list, wanted) {
     process.exitCode = 1;
     return;
   }
-  const after = await fetch(url, { headers: H }).then((r) => r.json());
+  // ★足した後の 読み直しも 同じ 止め★（読めないと 一覧が 空に 見え「消えた」と 慌てて 打ち直す 道に なる）
+  const r1 = await fetch(url, { headers: H });
+  const after = r1.ok ? await r1.json() : null;
+  if (!yometaSettei(after)) {
+    console.error(
+      '★足した後の 設定を 読めませんでした（' +
+        r1.status +
+        '）＝PATCH は 通っています。間を 空けて 見るだけで 確かめてください★'
+    );
+    process.exitCode = 1;
+    return;
+  }
   console.log('\n★足したあと★');
   String(after.uri_allow_list || '')
     .split(',')

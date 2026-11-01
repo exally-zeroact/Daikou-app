@@ -40,6 +40,14 @@ function niseFetch() {
       "  const m = (o.method || 'GET').toUpperCase();",
       "  const ref = (String(u).match(/projects\\/([a-z0-9]+)\\//) || [])[1] || '?';",
       "  process.stdout.write('NISE_FETCH ' + m + ' ' + ref + '\\n');",
+      "  if (m === 'GET' && process.env.NISE_GET_NG === '1')",
+      '    return { ok: false, status: 429, text: async () => \'{"message":"nise"}\', json: async () => ({ message: \'nise\' }) };',
+      "  if (m === 'GET' && process.env.NISE_GET_KATACHI === '1')",
+      "    return { ok: true, status: 200, text: async () => '{}', json: async () => ({ message: 'nise' }) };",
+      "  if (m === 'GET' && process.env.NISE_GET_NULL === '1')",
+      "    return { ok: true, status: 200, text: async () => '{}', json: async () => ({ site_url: 'x', uri_allow_list: null }) };",
+      "  if (m === 'GET' && process.env.NISE_ATO_GET_NG === '1' && kura[ref])",
+      "    return { ok: false, status: 429, text: async () => '{}', json: async () => ({ message: 'nise' }) };",
       "  if (m === 'PATCH' && process.env.NISE_PATCH_NG === '1')",
       "    return { ok: false, status: 500, text: async () => 'nise', json: async () => ({}) };",
       "  if (m === 'PATCH') kura[ref] = Object.assign({}, kura[ref], JSON.parse(o.body));",
@@ -120,5 +128,36 @@ describe(
         expect(r.status, r.out).toBe(1);
       });
     }
+
+    // ★2026-11-01 対立役 注意★ 今の設定を 読めない 時に、許可リストを 丸ごと 置き換えない
+    //   わざと壊した 記録は 下の 4本の 後の 行に 書いた
+    it('auth-redirect-allow.mjs：今の設定を 読めない（429）＝PATCH 0回・終わり値 1', () => {
+      const r = hashiru('auth-redirect-allow.mjs', ['--test', '--apply'], { NISE_GET_NG: '1' });
+      expect(r.testPatch, r.out).toBe(0);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('読めませんでした');
+    });
+    it('auth-redirect-allow.mjs：200 でも 許可リストの 欄が 無い＝PATCH 0回・終わり値 1', () => {
+      const r = hashiru('auth-redirect-allow.mjs', ['--test', '--apply'], {
+        NISE_GET_KATACHI: '1',
+      });
+      expect(r.testPatch, r.out).toBe(0);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('読めませんでした');
+    });
+    it('auth-redirect-allow.mjs：許可リストが null＝空と 見て 書かない（PATCH 0回・終わり値 1）', () => {
+      const r = hashiru('auth-redirect-allow.mjs', ['--test', '--apply'], { NISE_GET_NULL: '1' });
+      expect(r.testPatch, r.out).toBe(0);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('読めませんでした');
+    });
+    it('auth-redirect-allow.mjs：足した後の 読み直しが 429＝落ちずに 知らせて 終わり値 1', () => {
+      const r = hashiru('auth-redirect-allow.mjs', ['--test', '--apply'], { NISE_ATO_GET_NG: '1' });
+      expect(r.testPatch, r.out).toBe(1);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain('足した後の 設定を 読めませんでした');
+      expect(r.out).not.toContain('TypeError');
+    });
+    // わざと壊した 記録（2026-11-01）：直す前の 道具に 戻す＝上の 4本 赤／null を 通す（in cur に 戻す）＝null の 1本 赤／足した後の 止めを 外す＝読み直しの 1本 赤
   }
 );
