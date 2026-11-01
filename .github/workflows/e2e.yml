@@ -77,8 +77,11 @@ jobs:
         run: node -e "const v=require('@playwright/test/package.json').version; if(v!=='1.60.0'){console.error('箱は 1.60.0・入ったのは '+v+'＝e2e.yml の image を 揃える');process.exit(1)}"
 
       - name: Run Playwright tests (webkit)
-        # ★段にも 時間の 上限★ 組は 約4分。worker が 止まらないと job の 20分まで 使われ「cancelled」に なり、手で 止めた 時と 区別が つかない＝ここで 段の 失敗として 出す（対立役 10-17）
-        timeout-minutes: 10
+        # ★段にも 時間の 上限★ worker が 止まらないと job の 上限まで 使われ「cancelled」に なり、手で 止めた 時と 区別が つかない＝ここで 段の 失敗として 出す（対立役 10-17）
+        # ★10分→16分★ 2026-11-02（対立役 止1）組が 増えて 約4分→8〜10分（直近15回 8:13〜9:52・8回が 9:36 以上＝上限まで 8秒）。
+        #   LINE の 2本（6本・手元 約25秒）を 足すと 半分ほどの 回が 試験は 緑の まま 時間切れで 赤に なる 見立て。
+        #   16分＝一番 長い 回 9:52 ＋ 約6分（job の 40分の 中）。固まった 時は 今まで通り 段の 失敗で 出る
+        timeout-minutes: 16
         run: npx playwright test --config=playwright.webkit.config.js --retries=0
         env:
           CI: true

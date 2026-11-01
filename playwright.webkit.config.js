@@ -57,6 +57,10 @@ export const WEBKIT_KUMI = [
   'kyuryo-honnin-shashin.spec.js',
   // 従業員が 自分で PDF に する（iPhone の 中身で 共有の 画面へ 渡す 道・2026-10-21）
   'kyuryo-honnin-pdf.spec.js',
+  // LINE の 中の ブラウザ＝配る URL の 印（openExternalBrowser=1）で 鍵が 崩れない・古い リンクは 印を 足して 開き直す（iPhone の 中身の location.replace・sessionStorage・2026-11-02）
+  //   ★わざと壊して 赤（WebKit 手元 実測）★ hnGaibuWatasu の 頭で return false ⇒ furui-link 3本 赤／鍵の 読みを split('t=') に ⇒ gaibu 1本 赤
+  'kyuryo-honnin-line-gaibu.spec.js',
+  'kyuryo-honnin-line-furui-link.spec.js',
   // 24時間 パスワード 無しで 見る 札（iPhone の 中身の localStorage・2026-10-21）
   'kyuryo-honnin-fuda.spec.js',
   'kyuryo-honnin-mise.spec.js', // 本人の 明細の 絵（pdf.js）＝iPhone の WebKit でも 描けるか（2026-10-31）
