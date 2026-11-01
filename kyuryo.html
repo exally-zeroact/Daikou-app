@@ -3541,11 +3541,17 @@
           var b = ofc
             ? String(ofc).replace(/\/+$/, '') + '/kyuryo.html'
             : location.href.split('?')[0].split('#')[0];
+          // ★LINE の 中の ブラウザで 開かない★ 2026-11-01（司さん「他のサービスの扱いを調べろ」）
+          //   LINE の トークで 押すと LINE の 中の ブラウザで 開く＝PDF の 保存（blob の a download）が 効かない 端末が 在る
+          //   （Android の WebView は blob: を 落とせない）。LINE 公式の openExternalBrowser=1 を 付けると
+          //   Safari／Chrome で 開く（LINE から 開く 全部の URL で 効く・LIFF だけ 効かない＝うちは LIFF でない）。
+          //   カメラの QR・メール等 LINE 以外では 何も しない 字（本人の 画面は t と c だけ 読む）
           return (
             b +
             '?t=' +
             encodeURIComponent(x.token) +
-            (x.init_code ? '&c=' + encodeURIComponent(x.init_code) : '')
+            (x.init_code ? '&c=' + encodeURIComponent(x.init_code) : '') +
+            '&openExternalBrowser=1'
           );
         }
 

@@ -113,6 +113,11 @@ test('★共有シートが 使える台＝押すと 共有シートが 出る�
   expect(d.length, '★共有シートを 呼んでいません★').toBe(1);
   expect(d[0].url, '★リンクを 渡していません★').toContain('kyuryo.html?t=');
   expect(d[0].url, '★初回コードが 入っていません★').toContain('&c=');
+  // ★スマホの 共有の 道にも LINE の 外で 開く 印★（2026-11-01・設計前 対立役 任4）
+  expect(
+    new URL(d[0].url).searchParams.get('openExternalBrowser'),
+    '★共有に 渡す リンクに LINE の 外で 開く 印が ありません★'
+  ).toBe('1');
   expect(d[0].text, '★誰の 分か 書いていません★').toContain(FIX.emps[0].name);
   expect(d[0].text, '★本人にだけ と 言っていません★').toContain('本人にだけ');
   expect(err, '★画面が 落ちました★').toEqual([]);

@@ -233,7 +233,8 @@ for (const d of [
       const dete = o.querySelector('svg').innerHTML;
       // ★先は 事務所の 公開の 住所（今 開いている 住所で ない）★ 2026-10-19
       const url =
-        window.DKConfig.OFFICE_BASE + '/kyuryo.html?t=7c4383b6aaaa1111bbbb2222cccc3333&c=07041B0C';
+        window.DKConfig.OFFICE_BASE +
+        '/kyuryo.html?t=7c4383b6aaaa1111bbbb2222cccc3333&c=07041B0C&openExternalBrowser=1'; // 後ろ＝LINE の 外で 開く 印（2026-11-01）
       const q = window.qrcode(0, 'M');
       q.addData(url);
       q.make();

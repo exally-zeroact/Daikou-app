@@ -133,6 +133,15 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   // ★初回コードは 未設定の人だけ★
   expect(taro.url, '★未設定の人の URL に 初回コードが ありません★').toContain('&c=07041B0C');
   expect(jiro.url, '★もう決めた人の URL に 初回コードが 付いています★').not.toContain('&c=');
+  // ★LINE の 中の ブラウザで 開かない 印★（2026-11-01・LINE 公式 openExternalBrowser=1＝保存の 効く Safari／Chrome で 開く）
+  //   初回コードが 在っても 無くても 付く・鍵（t）と 初回コード（c）の 字は 変えない
+  [taro, jiro].forEach((x) => {
+    const q = new URL(x.url).searchParams;
+    expect(q.get('openExternalBrowser'), '★LINE の 外で 開く 印が 付いていません★').toBe('1');
+  });
+  expect(new URL(taro.url).searchParams.get('t')).toBe(LIST[0].token);
+  expect(new URL(taro.url).searchParams.get('c')).toBe('07041B0C');
+  expect(new URL(jiro.url).searchParams.get('t')).toBe(LIST[1].token);
   // ★画面に 星が 字として 出ていない・初回コードの 字を 出さない・リンクが 鍵★
   [taro, jiro].forEach((x) => {
     expect(x.ji.indexOf(String.fromCharCode(9733)), '★星が 字として 出ています★').toBe(-1);
@@ -147,6 +156,9 @@ test('★配る＝人ごとに QRとURL／初回コードは 未設定の人だ�
   expect(await okuru.textContent(), '★URLを 写せていません★').toContain('コピーしました');
   const naka = await page.evaluate(() => navigator.clipboard.readText());
   expect(naka, '★送る 中身に 初回コードが 埋まっていません★').toContain('&c=07041B0C');
+  expect(naka, '★送る 中身に LINE の 外で 開く 印が ありません★').toContain(
+    '&openExternalBrowser=1'
+  );
   await page.waitForFunction(
     (sel) => {
       const b = document.querySelector(sel);

@@ -124,7 +124,8 @@ async function kamiNoGaku(page) {
 // matanai: 描き終わりを 待たない（絵が 転ぶ 試験）
 // emp＝本人の 字を 替える（例：字体に 無い 字の 名前・2026-10-31）
 // mazeru＝返事に 混ぜる（例：手当・控除を 90件＝紙に 入らない・2026-11-01）
-async function hiraku(page, set, nidome, matanai, emp, mazeru) {
+// iri＝入口の URL（例：配る URL の 後ろの 字＝openExternalBrowser=1・2026-11-01）
+async function hiraku(page, set, nidome, matanai, emp, mazeru, iri) {
   let kai = 0;
   await pdfMiru(page);
   await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
@@ -150,7 +151,7 @@ async function hiraku(page, set, nidome, matanai, emp, mazeru) {
   await page.route('**/rest/v1/dk_**', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
   );
-  await page.goto('/kyuryo.html?t=TOK');
+  await page.goto(iri || '/kyuryo.html?t=TOK');
   await page.waitForTimeout(800);
   await page.fill('#hnPw', '1234');
   await page.click('#hnGo');
