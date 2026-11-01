@@ -123,7 +123,8 @@ async function kamiNoGaku(page) {
 
 // matanai: 描き終わりを 待たない（絵が 転ぶ 試験）
 // emp＝本人の 字を 替える（例：字体に 無い 字の 名前・2026-10-31）
-async function hiraku(page, set, nidome, matanai, emp) {
+// mazeru＝返事に 混ぜる（例：手当・控除を 90件＝紙に 入らない・2026-11-01）
+async function hiraku(page, set, nidome, matanai, emp, mazeru) {
   let kai = 0;
   await pdfMiru(page);
   await page.route('**/rest/v1/rpc/dk_kyuryo_{verify,fuda}', (r) =>
@@ -141,6 +142,7 @@ async function hiraku(page, set, nidome, matanai, emp) {
       body: JSON.stringify({
         ...getKotae(set),
         ...(emp ? { emp: { ...EMP, ...emp } } : {}),
+        ...(mazeru || {}),
         ...(kai > 1 && nidome ? nidome : {}),
       }),
     });

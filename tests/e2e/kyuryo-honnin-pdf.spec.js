@@ -355,7 +355,10 @@ test('⑦ 道具の 読み込みが 返らない 時は 時間切れで 訳を �
   await page.click('#hnPdf');
   await expect(page.locator('#hnPdf')).toHaveText(MATSU);
   await page.clock.runFor(31000);
-  await expect(page.locator('#hnPdfErr')).toContainText('道具を 読めませんでした');
+  // ★見本 exportInvoicePDF の catch と 同じ「PDF作成に失敗：」＋訳★（見本との違い③ 2026-11-01）
+  await expect(page.locator('#hnPdfErr')).toHaveText(
+    'PDF作成に失敗：PDF の 道具を 読めませんでした（通信）'
+  );
   await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
   await expect(page.locator('#hnPdf')).toBeEnabled();
 });
@@ -373,7 +376,69 @@ test('⑧ 道具が 古い（tsukuru が 無い）時は 開き直しを 頼む'
   );
   await hiraku(page, null, null, true); // 作りを 止めて いる＝絵の 描き終わりを 待たない
   await page.click('#hnPdf');
-  await expect(page.locator('#hnPdfErr')).toContainText('開き直して');
+  await expect(page.locator('#hnPdfErr')).toHaveText(
+    'PDF作成に失敗：PDF の 道具が 古い（この 画面を 一度 閉じて 開き直してください）'
+  );
+});
+
+// ★失敗の 字＝見本 exportInvoicePDF の「PDF作成に失敗：」＋訳★（見本との違い③ 2026-11-01・設計前 対立役 注1）
+//   道具は 押して 待つ 間に 読み終わる 偽物（window.__yomuOk で 読み終える）＝裏の 作りと 押した 作りが 同じ 1回に なる
+//   わざと壊す：hnPdfWake の 訳を 前の 字（「…入らないので PDF は 作りません。」「…終わりませんでした。もう一度 押してください。」）に 戻す ⇒ 赤
+function nisenoDougu(page, tsukuru) {
+  return page.route('**/js/kami-egaku.js', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body:
+        'window.KamiEgaku = { yomu: function () { return new Promise(function (ok) { window.__yomuOk = ok; }); },' +
+        ' tsukuru: ' +
+        tsukuru +
+        ', dasu: function () {}, missingBun: function () { return ""; } };',
+    })
+  );
+}
+test('⑧b 手当・控除が 紙に 入らない 時は「PDF作成に失敗：」＋会社に 知らせての 訳', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'ari');
+  // 事務所の 試験（kyuryo-yomenai-pdf「手当・控除 90件」）と 同じ 形で 紙を あふれさせる
+  await page.clock.setFixedTime(new Date('2026-10-21T12:00:00+09:00'));
+  const adjustments = Array.from({ length: 90 }, (_, k) => ({
+    adj_id: 'n' + k,
+    company_id: 'c1',
+    employee_id: 'e1',
+    work_date: '2026-10-05',
+    kind: k % 2 ? 'koujo' : 'teate',
+    label: '長い 名前の 手当 その' + (k + 1) + '（ガソリン・駐車場・携帯 等）',
+    yen: 100 + k,
+  }));
+  await hiraku(page, null, null, true, undefined, { adjustments });
+  await page.click('#hnPdf');
+  await expect(page.locator('#hnPdfErr')).toHaveText(
+    'PDF作成に失敗：手当・控除が 多すぎて 明細の 紙に 入りません（会社に 知らせてください）',
+    { timeout: 30000 }
+  );
+  expect(await watashita(page)).toBe(0);
+});
+test('⑧c 紙を 作るのが 時間切れの 時は「PDF作成に失敗：30秒 かかっても 終わりませんでした」', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'ari');
+  await nisenoDougu(page, 'function () { return new Promise(function () {}); }');
+  await page.clock.install();
+  await hiraku(page, null, null, true);
+  await page.click('#hnPdf');
+  await expect(page.locator('#hnPdf')).toHaveText(MATSU);
+  await expect.poll(() => page.evaluate(() => typeof window.__yomuOk)).toBe('function');
+  await page.evaluate(() => window.__yomuOk());
+  await page.clock.runFor(31000);
+  await expect(page.locator('#hnPdfErr')).toHaveText(
+    'PDF作成に失敗：紙を 作るのに 30秒 かかっても 終わりませんでした'
+  );
+  await expect(page.locator('#hnPdf')).toHaveText(BOTAN);
+  await expect(page.locator('#hnPdf')).toBeEnabled();
 });
 
 // ★★本人の 画面の 計算が 転んだら 前の 期の 紙を 出さず PDF も 作らない★★ 2026-10-22
@@ -519,7 +584,8 @@ test('⑱ 保存が 1回 転んだら 訳を 出し・1秒 後に 押し直せ�
     };
   });
   await page.click('#hnPdf');
-  await expect(page.locator('#hnPdfErr')).toContainText('PDF を 出せませんでした');
+  // ★見本 exportInvoicePDF の catch と 同じ 字★（見本との違い③ 2026-11-01）
+  await expect(page.locator('#hnPdfErr')).toHaveText('PDF作成に失敗：わざと');
   expect(await page.evaluate(() => window.__dl.length)).toBe(0);
   await expect(page.locator('#hnPdf')).toBeEnabled({ timeout: 3000 });
   await page.click('#hnPdf');

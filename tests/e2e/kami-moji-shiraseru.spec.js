@@ -116,7 +116,9 @@ test.describe('iPhone', () => {
     await expect(page.locator('#hnKami')).toContainText('プレビュー作成に失敗', { timeout: 30000 });
     await page.click('#hnPdf');
     await expect(page.locator('#hnPdfErr')).toBeVisible({ timeout: 30000 });
-    await expect(page.locator('#hnPdfErr')).toContainText('もう一度 押してください');
+    // ★見本 exportInvoicePDF の catch と 同じ 形＝「PDF作成に失敗：」＋訳★（見本との違い③ 2026-11-01）
+    await expect(page.locator('#hnPdfErr')).toContainText('PDF作成に失敗：');
+    await expect(page.locator('#hnPdfErr')).toContainText('fk壊れ');
     expect(
       await page.evaluate(() => window.__fk),
       '★字体を 調べる 所を 通っていない★'

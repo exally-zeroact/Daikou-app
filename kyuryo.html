@@ -3192,7 +3192,8 @@
                   : 'PDFを作成しました（開いた画面の共有から 送る・プリント）'
             );
           } catch (e) {
-            hnPdfErr('PDF を 出せませんでした。もう一度 押してください。');
+            // ★見本 exportInvoicePDF の catch と 同じ 字★（見本との違い③ 2026-11-01）
+            hnPdfErr('PDF作成に失敗：' + (e && e.message ? e.message : e));
           }
         }
         // スマホ・タブレット・ホーム画面の アプリ＝保存の 道（新しい 窓は 戻れなく なる 端末が 在る）
@@ -3282,27 +3283,31 @@
                 if (window.console) console.warn('[本人の PDF 裏の 作り]', err);
                 return;
               }
-              hnPdfErr(wake);
+              // ★ボタンの 下の 字は 見本 exportInvoicePDF の catch と 同じ「PDF作成に失敗：」＋訳★（見本との違い③ 2026-11-01）
+              //   道具（字体・pdf-lib）が 読めない 時も 同じ＝見本も 押した 後に 読む 道具（loadAssets）で 転ぶと この catch。
+              //   見本の「読み込み待ちです」は 押す 前の 確かめ（InvoicePDF が 未定義）＝うちには 当たる 場面が 無い（設計前 対立役 止1）
+              hnPdfErr('PDF作成に失敗：' + wake);
             });
         }
-        // ★作れなかった 訳★（ボタンの 下と 絵の 所で 同じ 字）
+        // ★作れなかった 訳★（ボタンの 下＝「PDF作成に失敗：」の 後ろ・絵の 所＝「プレビュー作成に失敗：」の 後ろ）
+        //   見本の e.message に 当たる 所＝訳だけ（「もう一度 押してください」は 見本に 無い・見本との違い③ 2026-11-01）
         function hnPdfWake(err, dougu) {
           var m = String((err && err.message) || err || '');
           if (m.indexOf('hamidasu:') === 0)
             return (
               (m.slice(9) ? m.slice(9) + ' の ' : '') +
-              '手当・控除が 多すぎて 明細の 紙に 入らないので PDF は 作りません。会社に 知らせてください。'
+              '手当・控除が 多すぎて 明細の 紙に 入りません（会社に 知らせてください）'
             );
           if (m.indexOf('PDF が ') === 0)
             return (
               '紙を 作るのに ' +
               Math.round(PDF_TIMEOUT_MS / 1000) +
-              '秒 かかっても 終わりませんでした。もう一度 押してください。'
+              '秒 かかっても 終わりませんでした'
             );
           if (m === 'PDF の 道具が 古い')
-            return 'PDF の 道具が 古いので 作れません。この 画面を 一度 閉じて 開き直してください。';
-          if (!dougu) return 'PDF の 道具を 読めませんでした（通信）。もう一度 押してください。';
-          return '明細の 紙を 作れませんでした（' + m + '）。もう一度 押してください。';
+            return 'PDF の 道具が 古い（この 画面を 一度 閉じて 開き直してください）';
+          if (!dougu) return 'PDF の 道具を 読めませんでした（通信）';
+          return m;
         }
         // ★保存（ダウンロード）★ 見本の InvoicePDF.save（invoice-pdf.js）と 同じ 形＝a の download で 名前つきで 落とす
         //   ★ホーム画面の アプリでも これ★（2026-10-30・見本と 同じ。前の 心配＝戻れなく なる 事故は サーバーの 生ファイルへの a で、
