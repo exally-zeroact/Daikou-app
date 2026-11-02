@@ -10,13 +10,20 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-24.04
-    # ★15分では 足りなくなった★ 2026-10-08（総なめ 295本＝実測 約 840秒・919秒で 時間切れ＝「cancelled」と 出た）
-    # ★25分でも 足りなくなった★ 2026-10-20（468本・テスト線 d4e00cb で 464本 通した 所で 25分に 当たり cancelled・失敗 0）
-    #   本番③は 22.3分。workers を 増やすと 試験どうしの 当たりが 新しく 出得る＝今は 上限を 上げる（前と 同じ 形）
-    # ★38分の 段でも 足りなく なる★ 2026-10-22（テスト線 420c9c2 で 678本＝35.6分・残り 2.4分。retries の 再走りで 越える・対立役）
-    #   段 50分・job 60分 に 上げる（公開の repo＝Actions の 時間で お金は 増えない）
-    # ★50分にも 近づいた★ 2026-10-23（本番 1823b2b で 45.8分・残り 4分・指示役の 知らせ）＝段 65分・job 75分
-    timeout-minutes: 75
+    # ★4つに 割る★ 2026-11-02（コンサル：1本で 36〜40分＝kensan が 毎回 40分 待つ・24時間で 7.9h）
+    #   playwright の --shard で ファイル単位に 4つへ 割り、別の 箱で 並べて 走らせる。
+    #   ★見立て（対立役 2026-11-02・run 41354705441 の 行の 時刻から）★ 箱ごとの 試験 7.4／9.2／13.5／6.4分＋支度 80秒
+    #   ＝一番 長い 箱 約15分（3つ目に 重い nyuryoku-yomenai-tomeru 48本 5.4分が 固まる）・まとめを 足して 待ち 約17分（前は 36〜40分）
+    #   ★試験の 中身・retries・max-failures は 前と 同じ★（max-failures は 割った 1つごと）。
+    #   ★fail-fast は 切る★＝1つ 赤でも 残りを 最後まで 走らせ、全部の 赤を 出す。
+    #   ★cancel-in-progress は 入れない★（10-30 の 決め）
+    #   本数の 合計は 下の e2e-matome が 数えて「割る 前の 一覧と 同じ 本数を 走らせたか」を 縛る。
+    # 上限：前の 1本は 段 65分・job 75分。割った 1つは 1/4 の 見込みだが、偏りと retries の 再走りを 見て 段 40分・job 50分
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -33,19 +40,86 @@ jobs:
 
       - name: Run Playwright tests
         # ★段にも 時間の 上限★ 2026-10-20（固まった 時は job の cancelled で なく 段の 失敗で 出す＝手で 止めた 時と 区別する・webkit と 同じ 形）
-        timeout-minutes: 65
+        timeout-minutes: 40
         # ★10本 落ちたら そこで 止める★ 2026-10-20（倉庫が 引けない 等で 一斉に 落ちた 時に 上限を 使い切らず、まとめの 行も 出る・対立役）
-        run: npx playwright test --retries=2 --max-failures=10
+        # ★blob★ は 4つを 1つに 合わせて 数える 為（list は 今まで通り ログに 出る）
+        run: npx playwright test --retries=2 --max-failures=10 --shard=${{ matrix.shard }}/4 --reporter=list,blob
         env:
           CI: true
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 7
+          overwrite: true # 赤の 箱だけ やり直した 時に 前の 回の 同じ 名前と ぶつからない
 
       - name: Upload trace on failure
         if: failure() || cancelled() # 時間切れの 時も 足跡を 上げる（2026-10-20）
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-trace
+          name: playwright-trace-${{ matrix.shard }}
           path: test-results/
           retention-days: 7
+
+  # ★4つの 合計を 1か所で 数える★ 2026-11-02
+  #   ①4つの blob を 合わせ、まとめ（一覧 / passed / flaky / failed / skipped）を 1行で 出す＝数え直しは ここを 見る
+  #     ★赤の 日も 出す★（箱が 赤でも 先に 数える・対立役 注2）
+  #   ②一覧の 本数＝4つの 合計 か（blob が 1つ 欠けたら 赤）
+  #   ③★skipped が 上限を 越えたら 赤★（走らなかった 試験は skipped に 入る＝本数の 一致だけでは 必ず 緑に なる・対立役 注1）
+  #     今の skipped は 1本（nyuryoku-uriage-nashi-keihi.spec.js の test.skip(!process.env.KE_E)）。わざと 飛ばす 試験を 足したら SKIP_JOUGEN も 上げる
+  #   ④最後に 4つ 全部が success か（1つでも 抜け・cancelled・failure なら 赤）
+  e2e-matome:
+    runs-on: ubuntu-24.04
+    needs: e2e
+    if: ${{ always() }}
+    timeout-minutes: 15
+    env:
+      SKIP_JOUGEN: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 4つの blob を 集める
+        uses: actions/download-artifact@v4
+        with:
+          path: all-blob
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: 合わせて 数える
+        run: |
+          npx playwright merge-reports --reporter=json ./all-blob > merged.json
+          npx playwright test --list --reporter=json > listed.json
+          node -e "
+            const m=require('./merged.json').stats, l=require('./listed.json');
+            const cnt=(s)=>(s.specs||[]).reduce((a,x)=>a+(x.tests||[]).length,0)+(s.suites||[]).reduce((a,x)=>a+cnt(x),0);
+            const ichiran=(l.suites||[]).reduce((a,x)=>a+cnt(x),0);
+            const goukei=m.expected+m.unexpected+m.flaky+m.skipped;
+            const jougen=Number(process.env.SKIP_JOUGEN);
+            console.log('E2E まとめ: 一覧 '+ichiran+'本・4つの 合計 '+goukei+'本（passed '+m.expected+' / flaky '+m.flaky+' / failed '+m.unexpected+' / skipped '+m.skipped+'・skipped の 上限 '+jougen+'）');
+            let ng=0;
+            if(!(ichiran>0)){console.error('★一覧が 0本★');ng=1}
+            if(goukei!==ichiran){console.error('★4つの 合計が 一覧と 違う（blob が 欠けた）★');ng=1}
+            if(m.skipped>jougen){console.error('★skipped が 上限を 越えた＝走らなかった 試験が 在る★');ng=1}
+            if(m.unexpected>0){console.error('★failed が 在る★');ng=1}
+            process.exit(ng);
+          "
+
+      - name: 4つ 全部が 緑か
+        if: ${{ always() }}
+        run: |
+          echo "e2e（4つ）の 結果: ${{ needs.e2e.result }}"
+          test "${{ needs.e2e.result }}" = "success"
 
   # ★iPhone の Safari の 中身（WebKit）で 運転手が 一番 触る 道だけ 開く★ 2026-10-17
   #   前は chromium だけで、WebKit を 1回も 測っていなかった（指示役 10-16）。
