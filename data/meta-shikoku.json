@@ -1,10 +1,10 @@
 {
   "region": "shikoku",
-  "generated": "2026-10-01T22:26:46.102Z",
+  "generated": "2026-11-02T00:12:56.776Z",
   "prefectures": {
     "tokushima": {
-      "numRoads": 57163,
-      "sizeBytes": 2052590,
+      "numRoads": 57164,
+      "sizeBytes": 2052633,
       "bbox": [
         3324560,
         13392012,
@@ -16,8 +16,8 @@
         "incline": 15,
         "lanes": 5223,
         "width": 10,
-        "layer": 5612,
-        "access": 39,
+        "layer": 5613,
+        "access": 38,
         "maxspeed": 1674,
         "track": 0,
         "inclineFromOSM": 15,
@@ -25,8 +25,8 @@
       }
     },
     "kagawa": {
-      "numRoads": 77259,
-      "sizeBytes": 2693800,
+      "numRoads": 77386,
+      "sizeBytes": 2700674,
       "bbox": [
         3381258,
         13352821,
@@ -34,21 +34,21 @@
         13435819
       ],
       "attrCounts": {
-        "oneway": 3230,
+        "oneway": 3231,
         "incline": 72,
-        "lanes": 6948,
-        "width": 49,
-        "layer": 5473,
-        "access": 141,
-        "maxspeed": 4383,
+        "lanes": 6978,
+        "width": 50,
+        "layer": 5563,
+        "access": 140,
+        "maxspeed": 4390,
         "track": 0,
         "inclineFromOSM": 72,
         "inclineFromDem": 0
       }
     },
     "ehime": {
-      "numRoads": 117519,
-      "sizeBytes": 4608025,
+      "numRoads": 117539,
+      "sizeBytes": 4608911,
       "bbox": [
         3270859,
         13201828,
@@ -58,9 +58,9 @@
       "attrCounts": {
         "oneway": 2599,
         "incline": 7,
-        "lanes": 5262,
+        "lanes": 5263,
         "width": 592,
-        "layer": 6217,
+        "layer": 6218,
         "access": 36,
         "maxspeed": 786,
         "track": 0,
@@ -69,8 +69,8 @@
       }
     },
     "kochi": {
-      "numRoads": 56460,
-      "sizeBytes": 2148993,
+      "numRoads": 56469,
+      "sizeBytes": 2149199,
       "bbox": [
         3272272,
         13292826,
@@ -80,11 +80,11 @@
       "attrCounts": {
         "oneway": 1807,
         "incline": 24,
-        "lanes": 4641,
+        "lanes": 4645,
         "width": 6,
-        "layer": 4753,
+        "layer": 4762,
         "access": 45,
-        "maxspeed": 1802,
+        "maxspeed": 1803,
         "track": 0,
         "inclineFromOSM": 24,
         "inclineFromDem": 0
