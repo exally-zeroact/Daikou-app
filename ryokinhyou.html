@@ -297,6 +297,23 @@
         text-align: right;
       }
 
+      /* ★★選ぶ 欄も 入れる 欄と 同じ 形・16px・幅は 箱まで★★ 2026-11-04
+         前は select に 決まりが 無く、一番 長い 字の 幅（368px）まで 広がって
+         390px の 電話で 頁ごと 399px に はみ出し、下の 帯の「会社設定」が 外へ 押し出されていた。
+         字も 13px で iOS が 触ると 画面を 勝手に 寄せていた（kyuryo.html の select の 注と 同じ 穴）。
+         ★字は 短く 保つ★＝例の 数は 下の 説明へ（長い 字は 箱の 中で 切れる＝試験 ⑭ が 見る） */
+      .row select {
+        width: 100%;
+        min-width: 0;
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--ink);
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+      }
+
       .row .tani {
         font-size: 13px;
         color: var(--muted);
@@ -667,23 +684,21 @@
             同じ 時に 割増が いくつか 当たる 時の 掛け方は 下の「重なった 時」で 選べます。
           </div>
           <div class="row">
-            <span>土日・冬・期間を 決める 日</span>
+            <label for="fHiKijun">土日・冬・期間を 決める 日</label>
             <div class="in">
               <select id="fHiKijun" aria-label="土日・冬・期間を 決める 日">
-                <option value="hajime">
-                  業務を 始めた 日（夜に 始めて 日を 跨いでも 始めた 日）
-                </option>
+                <option value="hajime">業務を 始めた 日</option>
                 <option value="hashitta">走った 時の 日</option>
               </select>
             </div>
           </div>
           <div class="row">
-            <span>重なった 時（深夜・土日・冬・期間）</span>
+            <label for="fKasanari">重なった 時（深夜・土日・冬・期間）</label>
             <div class="in">
               <select id="fKasanari" aria-label="割増が 重なった 時">
-                <option value="kakeru">掛け合わせる（1.1倍 と 1.5倍 ⇒ 1.65倍）</option>
-                <option value="ookii">大きい 方 だけ（⇒ 1.5倍）</option>
-                <option value="tasu">足し合わせる（1 ＋ 0.1 ＋ 0.5 ⇒ 1.6倍）</option>
+                <option value="kakeru">掛け合わせる</option>
+                <option value="ookii">大きい 方 だけ</option>
+                <option value="tasu">足し合わせる</option>
               </select>
             </div>
           </div>
@@ -691,7 +706,9 @@
             冬は <b>月-日</b>（例 12-15）で 入れます。年を またいでも かまいません。<br />
             「業務を 始めた 日」＝金曜の 夜に 始めて 土曜の 1時に 走っても 金曜（土日の
             割増なし）・日曜の 夜に 始めて 月曜の 1時は 日曜（あり）。深夜は いつも 走った
-            時刻（日本時間）で 決めます。
+            時刻（日本時間）で 決めます。<br />
+            重なった 時（例 1.1倍 と 1.5倍）＝掛け合わせる ⇒ 1.65倍・大きい 方 だけ ⇒
+            1.5倍・足し合わせる（1 ＋ 0.1 ＋ 0.5）⇒ 1.6倍。
           </div>
         </div>
 

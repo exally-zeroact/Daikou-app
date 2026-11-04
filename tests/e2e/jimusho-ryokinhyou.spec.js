@@ -455,3 +455,62 @@ test('★★⑬ 期間の 名前に タグを 入れても 表で 動かない�
   expect(r.img, '★名前が タグとして 入った★').toBe(0);
   expect(r.ji).toContain('<img');
 });
+
+// ★★⑭ 電話の 幅で 選ぶ 欄が はみ出さない・字が 箱に 入る・16px★★ 2026-11-04
+//   前は #fHiKijun が 一番 長い 字の 幅（368px）まで 広がり、390px で 頁が 399px に なって
+//   下の 帯の「会社設定」が 画面の 外へ 押し出されていた（字も 13px＝iOS が 画面を 勝手に 寄せる）。
+//   ★字の 切れも 見る★＝幅を 100% に しただけでは 長い 字が 箱の 中で 切れる（360px で「⇒ 1.65倍」が 読めなかった）
+//   ★わざと壊して 赤（2026-11-04 実測）★ .row select の 決まりを 外す ⇒ 赤／option の 字を 前の 長い 字に 戻す ⇒ 赤
+for (const w of [360, 390]) {
+  test(`★★⑭ ${w}px で 選ぶ 欄が はみ出さず 字が 箱に 入る（16px）★★`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: 800 });
+    await login(page);
+    await souko(page);
+    await hiraku(page);
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => {
+      const vw = document.documentElement.clientWidth;
+      const cv = document.createElement('canvas').getContext('2d');
+      const sels = ['fHiKijun', 'fKasanari'].map((id) => {
+        const el = document.getElementById(id);
+        const cs = getComputedStyle(el);
+        cv.font = cs.fontSize + ' ' + cs.fontFamily;
+        // 矢印の 分 24px を 引いた 中の 幅
+        const naka = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 24;
+        const kireru = [...el.options]
+          .map((o) => ({ ji: o.text.trim(), w: Math.ceil(cv.measureText(o.text.trim()).width) }))
+          .filter((x) => x.w > naka)
+          .map((x) => x.ji + ' ' + x.w + '>' + Math.floor(naka));
+        return {
+          id,
+          px: parseFloat(cs.fontSize),
+          migi: Math.round(el.getBoundingClientRect().right),
+          kireru,
+        };
+      });
+      const foot = [...document.querySelectorAll('.dk-foot-i')].filter((x) => x.offsetParent);
+      const footMigi = foot.length
+        ? Math.max(...foot.map((x) => x.getBoundingClientRect().right))
+        : -1;
+      return {
+        vw,
+        sw: document.documentElement.scrollWidth,
+        sels,
+        nFoot: foot.length,
+        footMigi: Math.round(footMigi),
+      };
+    });
+    expect(r.sw, '★頁が 横に はみ出して います★').toBeLessThanOrEqual(r.vw);
+    for (const s of r.sels) {
+      expect(s.migi, `★${s.id} が 画面の 右へ 出て います★`).toBeLessThanOrEqual(r.vw);
+      expect(s.px, `★${s.id} の 字が 16px 未満（iOS が 画面を 寄せる）★`).toBeGreaterThanOrEqual(
+        16
+      );
+      expect(s.kireru, `★${s.id} の 字が 箱の 中で 切れます★`).toEqual([]);
+    }
+    expect(r.nFoot, '★下の 帯が 出て いません★').toBeGreaterThan(0);
+    expect(r.footMigi, '★下の 帯の ボタンが 画面の 外へ 押し出されて います★').toBeLessThanOrEqual(
+      r.vw
+    );
+  });
+}
