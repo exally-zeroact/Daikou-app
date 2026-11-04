@@ -242,51 +242,34 @@ test('★★②-2 狭い 窓の 幅でも 4列 切れない★★', async ({ pag
 //   ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
 //   ⇒ 変える 口は ★窓の 中の 見出しの 右横★ 1つだけ
 test('★★⑧ 会社設定の 料金に 同じ ボタンを 並べない★★', async ({ page }) => {
+  // ★2026-11-04★ 料金の 窓（iframe）を やめ、チップ「料金」は 料金の 決める 画面へ（司さん「統一感ないし」）。
+  //   守る 事は 同じ＝同じ 字の 見出し・同じ ボタンを 2つ 並べない
   await hiraku(page, 'dashboard.html');
-  await page.locator('[data-chip="ryokin"]').click();
-  await page.waitForTimeout(800);
+  expect(await page.locator('#ryokinMado').count(), '★料金の 窓が 残っています★').toBe(0);
+  await page.locator('[data-dkchip="ryokin"]').click();
+  await page.waitForURL(/ryokinhyou\.html\?henshu=1$/, { timeout: 15000 });
+  await page.waitForTimeout(1500);
   const r = await page.evaluate(() => {
-    const pane = document.querySelector('[data-pane="ryokin"]');
-    if (!pane) return { aru: false };
-    const a = [...pane.querySelectorAll('a')].map((x) => x.textContent.trim());
+    const mieru = (x) => x.offsetHeight > 0;
+    const oseru = [...document.querySelectorAll('a, button')].filter(mieru);
     return {
-      aru: true,
-      link: a,
-      mado: !!pane.querySelector('#ryokinMado'),
+      link: oseru.map((x) => x.textContent.trim()),
+      midashi: [...document.querySelectorAll('.ttl')]
+        .filter(mieru)
+        .map((x) => x.textContent.trim()),
+      mado: document.querySelectorAll('iframe').length,
     };
   });
   // eslint-disable-next-line no-console
-  console.log('★会社設定の 料金★ ' + JSON.stringify(r));
-  expect(r.aru, '★料金の 所が ありません★').toBe(true);
-  expect(r.mado, '★料金の 窓が ありません★').toBe(true);
-  expect(r.link.join(','), '★「料金を 決める」が 外に 残っています★').not.toContain(
-    '料金を 決める'
+  console.log('★料金の 画面★ ' + JSON.stringify(r));
+  expect(r.mado, '★窓が 在ります★').toBe(0);
+  expect(r.link.join(','), '★「料金を 決める」が 残っています★').not.toContain('料金を 決める');
+  expect(r.link.join(','), '★決める 画面に「料金を 変える」が 出ています★').not.toContain(
+    '料金を 変える'
   );
   expect(r.link.join(','), '★「紙で 出す」が 残っています★').not.toContain('紙で 出す');
-
-  // ★★見出しを 2つ 並べない★★ 2026-09-09
-  //   ★司さん★「今の料金表も どっちか 消して」
-  //   ★前★ 窓の 外に「今の 料金」／中に「今の 料金表」
-  //   ⇒ 窓の 中の 見出しを ★本物から 取って★ 外に 同じ 字が 無いか 見る
-  const nakaMidashi = await page.frameLocator('#ryokinMado').locator('.ttl-row .ttl').innerText();
-  const sotoJi = await page.evaluate(() => {
-    const pane = document.querySelector('[data-pane="ryokin"]');
-    if (!pane) return '';
-    const f = pane.querySelector('iframe');
-    const c = pane.cloneNode(true);
-    const cf = c.querySelector('iframe');
-    if (cf) cf.remove();
-    void f;
-    return (c.innerText || c.textContent || '').replace(/\s+/g, ' ').trim();
-  });
-  // eslint-disable-next-line no-console
-  console.log('★見出し★ 中=' + JSON.stringify(nakaMidashi) + ' 外=' + JSON.stringify(sotoJi));
-  const kaname = nakaMidashi.replace(/\s+/g, '').replace(/表$/, '');
-  expect(kaname, '★窓の 中の 見出しが ありません★').toBeTruthy();
-  expect(
-    sotoJi.replace(/\s+/g, ''),
-    '★同じ 見出しが 窓の 外にも 出ています★（二重）'
-  ).not.toContain(kaname);
+  const ima = r.midashi.filter((x) => x.indexOf('今の 料金') >= 0);
+  expect(ima.length, '★「今の 料金」の 見出しが 1つでは ありません★').toBe(1);
 });
 
 test('★★③ 何キロで いくらが 22km で 止まらない★★', async ({ page }) => {
@@ -384,23 +367,23 @@ test('★★⑥ 最後に 変えた 人を 出さない★★', async ({ page })
 
 // ★★会社設定の 料金＝開いたら すぐ 料金が 見える★★ 2026-09-08
 //   ★司さん★「赤丸のところは上の塊の説明を除けてそこでええやろ」
-test('★★⑦ 会社設定の 料金は 説明を やめて 表を 上に★★', async ({ page }) => {
+test('★★⑦ 会社設定の 料金は 開いたら すぐ 表が 見える★★', async ({ page }) => {
+  // ★2026-11-04★ 窓を やめた 後も「開いたら すぐ 今の 料金が 見える」（09-08 司さん）を 守る
   await hiraku(page, 'dashboard.html');
-  await page.locator('[data-chip="ryokin"]').click();
-  await page.waitForTimeout(800);
+  await page.locator('[data-dkchip="ryokin"]').click();
+  await page.waitForURL(/ryokinhyou\.html\?henshu=1$/, { timeout: 15000 });
+  await page.waitForTimeout(1500);
   const r = await page.evaluate(() => {
-    const pane = document.querySelector('[data-pane="ryokin"]');
-    const mado = document.getElementById('ryokinMado');
+    const t = document.getElementById('imaTbl');
     return {
-      card: pane ? pane.querySelectorAll('.card').length : 0,
-      setsumei: pane ? pane.innerText.indexOf('ここで 決めます') : -1,
-      ue: mado ? Math.round(mado.getBoundingClientRect().top) : -1,
+      ue: t ? Math.round(t.getBoundingClientRect().top) : -1,
       gamen: window.innerHeight,
+      setsumei: document.body.innerText.indexOf('ここで 決めます'),
     };
   });
   // eslint-disable-next-line no-console
   console.log('★料金の 中身★ ' + JSON.stringify(r));
-  expect(r.card, '★カードが 2枚の ままです（1枚に まとめる）★').toBe(1);
+  expect(r.ue, '★今の 料金表が ありません★').toBeGreaterThan(0);
+  expect(r.ue, '★今の 料金表が 画面の 外に あります★').toBeLessThan(r.gamen);
   expect(r.setsumei, '★説明が 残っています★').toBe(-1);
-  expect(r.ue, '★料金の 窓が 画面の 外に あります★').toBeLessThan(r.gamen);
 });

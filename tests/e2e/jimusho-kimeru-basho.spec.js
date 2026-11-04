@@ -113,38 +113,45 @@ test('★★① 給料の 画面に「従業員」「給料の設定」の タ�
 //   ★司さん★「従業員と給料の設定がなんで2個もある」「全ページで戻るボタンすらない」
 //   ⇒ 会社設定の チップと 給料の タブで ★同じ物への 入口が 2つ★に なっていた。
 //   ★今★「会社設定から 来たら ★タブの行は 出さない★／★戻る所が 在る★」
-test('★★② 会社設定から 来たら 入口は 1つ＋戻るが 在る★★', async ({ page }) => {
+//   ★2026-11-04★ 司さん「左上に意味わからん戻るボタンもあるし」「ボタン押してからの動きに統一感ないし」
+//     ⇒「← 会社設定へ 戻る」は 消し、★会社設定と 同じ チップの 列★が 残る（押した 物が 光る）
+test('★★② 会社設定から 来たら 入口は 1つ＋チップの 列が 残る★★', async ({ page }) => {
   await kyuryoHiraku(page, '?henshu=1#emp');
-  const r = await page.evaluate(() => {
-    const t = document.getElementById('tabs');
-    const m = document.getElementById('modoruSet');
-    const a = m ? m.querySelector('a') : null;
-    const emp = document.querySelector('[data-pane="emp"], #paneEmp, #empWrap');
-    return {
-      tabMieru: !!(t && t.offsetHeight > 0),
-      modoruMieru: !!(m && m.offsetHeight > 0),
-      iki: a ? a.getAttribute('href') : null,
-      // 2026-10-16 見出しの 字は「従業員／退職者」の 切り替えの ボタンに 替えた（司さん）＝見出しの 帯の 中の 字で 見る
-      midashi: (m || {}).textContent || '',
-      empAru: !!emp,
-    };
-  });
+  await page.locator('#dkChipRow').waitFor({ state: 'visible', timeout: 15000 });
+  const r = await page.evaluate(() => ({
+    tabMieru: !!(document.getElementById('tabs') || {}).offsetHeight,
+    chips: [...document.querySelectorAll('[data-dkchip]')].map((b) => b.textContent.trim()),
+    on: [...document.querySelectorAll('[data-dkchip].on')].map((b) => b.textContent.trim()),
+    modoru: [...document.querySelectorAll('button, a')]
+      .filter((x) => x.offsetHeight > 0 && /戻る/.test(x.textContent || ''))
+      .map((x) => x.textContent.trim()),
+    foot: document.querySelector('#dkFooter .on').getAttribute('data-dkgo'),
+  }));
   // eslint-disable-next-line no-console
   console.log('★会社設定から 来た時（従業員）★ ' + JSON.stringify(r));
   expect(r.tabMieru, '★タブの 行が 出ています＝入口が 2つ★').toBe(false);
-  expect(r.modoruMieru, '★戻る所が ありません★').toBe(true);
-  expect(r.iki, '★戻り先が 会社設定では ありません★').toBe('dashboard.html');
-  expect(r.midashi, '★今 何を 決めているか 出ていません★').toContain('従業員');
+  expect(r.chips, '★チップの 列が 違います★').toEqual(['会社', '車', '料金', '従業員', '実費']);
+  expect(r.on, '★今 何を 決めているか 光っていません★').toEqual(['従業員']);
+  expect(r.modoru, '★戻るが 残っています★').toEqual([]);
+  expect(r.foot, '★帯で 会社設定が 光っていません★').toBe('dashboard.html');
 
   await kyuryoHiraku(page, '?henshu=1#set');
+  await page.locator('#dkChipRow').waitFor({ state: 'visible', timeout: 15000 });
   const r2 = await page.evaluate(() => ({
     tabMieru: !!(document.getElementById('tabs') || {}).offsetHeight,
-    midashi: (document.getElementById('modoruMidashi') || {}).textContent || '',
+    on: [...document.querySelectorAll('[data-dkchip].on')].map((b) => b.textContent.trim()),
   }));
   // eslint-disable-next-line no-console
   console.log('★会社設定から 来た時（給料の設定）★ ' + JSON.stringify(r2));
   expect(r2.tabMieru, '★タブの 行が 出ています＝入口が 2つ★').toBe(false);
-  expect(r2.midashi, '★今 何を 決めているか 出ていません★').toContain('給料の設定');
+  expect(r2.on, '★車（給料の設定）が 光っていません★').toEqual(['車']);
+
+  // ★給料の 明細（\?henshu 無し）には 会社設定の チップを 出さない★
+  await kyuryoHiraku(page, '');
+  await page.waitForTimeout(800);
+  expect(await page.locator('[data-dkchip]').count(), '★給料の 明細に チップが 出ています★').toBe(
+    0
+  );
 });
 
 test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async ({ page }) => {
@@ -185,7 +192,7 @@ test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async
   await page.waitForTimeout(2600);
 
   const r = await page.evaluate(() => ({
-    chip: [...document.querySelectorAll('[data-chip]')].map((b) => b.textContent.trim()),
+    chip: [...document.querySelectorAll('[data-dkchip]')].map((b) => b.textContent.trim()),
     // ★押した 1つだけ 出る★
     mieru: [...document.querySelectorAll('[data-pane]')]
       .filter((d) => d.offsetHeight > 0)
@@ -200,46 +207,19 @@ test('★★③ 会社設定に チップ 4つと 入口が 在る★★', async
   expect(r.mieru.length, '★出ているのが 1つでは ありません★').toBe(1);
 
   // ★入口の 行き先★（ここが 崩れると 決められなく なる）
-  //   ★2026-10-16★ 車・従業員は 間の 札を 消し、★チップ そのものが 入口★（司さん「決めるボタン押さないかんのは めんどくさい」）
-  const iki = await page.evaluate(() => [
-    ...[...document.querySelectorAll('[data-pane] a.btn')].map((a) => a.getAttribute('href')),
-    ...[...document.querySelectorAll('[data-chip][data-href]')].map((b) =>
-      b.getAttribute('data-href')
-    ),
-  ]);
-  // eslint-disable-next-line no-console
-  console.log('★入口★ ' + JSON.stringify(iki));
-  expect(iki, '★車の 入口が ありません★').toContain('kyuryo.html?henshu=1#kuruma');
-  // ★★料金の 入口は 窓の 中へ 移しました★★ 2026-09-09
-  //   ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
-  //   ⇒ 窓の 外の 札は 消し、★窓の 中の 見出しの 右横★ 1つに まとめた。
-  //   ★ここで 守る 事★ 入口が ★本当に 押せる形で 存えているか★
-  //     （札を 消すだけで 緑に するのは 見張りを 殺すのと 同じ）
-  // ★窓は 押すまで 読み込まない（loading="lazy"）★ ⇒ 先に 料金を 開く
-  await page.locator('[data-chip="ryokin"]').click();
-  await page.waitForTimeout(800);
-  const mado = page.frameLocator('#ryokinMado');
-  const kimeru = mado.locator('#kimeruBtn');
-  await kimeru.waitFor({ state: 'visible', timeout: 8000 });
-  const ryokinIri = await kimeru.evaluate((a) => ({
-    href: a.getAttribute('href'),
-    target: a.getAttribute('target'),
-    ji: a.textContent.trim(),
-  }));
-  // eslint-disable-next-line no-console
-  console.log('★料金の 入口（窓の 中）★ ' + JSON.stringify(ryokinIri));
-  expect(ryokinIri.href, '★料金の 入口の 行き先が 違います★').toBe('ryokinhyou.html?henshu=1');
-  // ★窓の 中で 開くと 小さい 箱に 閉じ込められる★
-  expect(ryokinIri.target, '★窓の 中で 開いてしまいます★').toBe('_top');
-
-  // ★窓の 外に 同じ 札を 戻さない★
-  expect(iki.join(','), '★「料金を 決める」が 外に 戻っています★').not.toContain('ryokinhyou.html');
-  expect(iki, '★従業員の 入口が ありません★').toContain('kyuryo.html?henshu=1#emp');
-
+  //   ★2026-11-04★ 料金の 窓（iframe）を やめ、★チップ「料金」が 料金の 決める 画面へ★（5つとも 同じ 動き・司さん「統一感ないし」）
+  expect(await page.locator('#ryokinMado').count(), '★料金の 窓が 残っています★').toBe(0);
   expect(err, '★画面が 落ちました★').toEqual([]);
+  await page.locator('[data-dkchip="ryokin"]').click();
+  await page.waitForURL(/ryokinhyou\.html\?henshu=1$/, { timeout: 8000 });
+  await page.locator('[data-dkchip="hito"]').waitFor({ state: 'visible', timeout: 8000 });
+  await page.locator('[data-dkchip="hito"]').click();
+  await page.waitForURL(/kyuryo\.html\?henshu=1#emp$/, { timeout: 8000 });
+  await page.goto('/dashboard.html?p=kaisha', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2600);
 
   // ★車の チップを 押すと 間の 札を 通らず そのまま 車を 決める 画面へ★ 2026-10-16（司さん）
-  await page.locator('[data-chip="kuruma"]').click();
+  await page.locator('[data-dkchip="kuruma"]').click();
   await page.waitForURL(/kyuryo\.html\?henshu=1#kuruma$/, { timeout: 8000 });
 });
 
@@ -262,7 +242,10 @@ test('★★④ 会社設定の「車」から 来たら 車の 箱だけ★★'
         .length,
       hokaKazu: cards.filter((c) => !c.classList.contains('car-pane')).length,
       hozonObi: !!(document.getElementById('saveBar') || {}).offsetHeight,
-      midashi: (document.getElementById('modoruMidashi') || {}).textContent || '',
+      // 2026-11-04 見出しの「車」は やめ、会社設定の チップの 列で「車」が 光る（司さん「統一感ない」）
+      hikaruChip: [...document.querySelectorAll('[data-dkchip].on')].map((x) =>
+        x.textContent.trim()
+      ),
     };
   });
   // eslint-disable-next-line no-console
@@ -275,7 +258,7 @@ test('★★④ 会社設定の「車」から 来たら 車の 箱だけ★★'
   expect(r.hokaMieru, '★車と 関係ない 箱が 出ています★').toBe(0);
   // 車だけの 時は 下の 保存の 帯を 出さない（下の 帯に 覆われて 押せなかった）＝「載せる」の 印は その場で 保存（⑤）
   expect(r.hozonObi, '★押せない 保存の 帯が 出ています★').toBe(false);
-  expect(r.midashi).toBe('車');
+  expect(r.hikaruChip, '★チップの 列で 車だけが 光っていません★').toEqual(['車']);
 
   // #set（給料の 設定 ぜんぶ）は 今までどおり 他の 箱も 出る
   await kyuryoHiraku(page, '?henshu=1#set');
@@ -407,41 +390,54 @@ test('★★⑦ 「載せる」の 枝（keepalive・書けない・行が 無�
   expect(kekka.zeroAizu).toContain('保存できませんでした');
 });
 
-// ★★⑧「← 会社設定へ 戻る」は 書いている 最中の 保存が 済んでから 移る★★ 2026-10-16（対立役 S-B）
+// ★★⑧ チップ・下の 帯は 書いている 最中の 保存が 済んでから 移る★★ 2026-10-16（対立役 S-B）／2026-11-04「← 会社設定へ 戻る」を 消し チップと 帯へ
 //   keepalive では、別の 住所への 問い合わせの 最中に 画面を 移ると 書き込みが 届かなかった
-test('★★⑧ 戻るは 書き終わってから 移る★★', async ({ page }) => {
-  await kyuryoHiraku(page, '?henshu=1#kuruma');
-  await page.evaluate(() => {
-    localStorage.removeItem('__kaketa__');
-    window.__PATCH_OSOKU__ = 900;
+for (const [na, sel, iki] of [
+  ['チップ', '[data-dkchip="kaisha"]', /dashboard\.html/],
+  ['下の 帯', '[data-dkgo="shukei.html"]', /shukei\.html/],
+])
+  test('★★⑧ ' + na + 'は 書き終わってから 移る★★', async ({ page }) => {
+    await kyuryoHiraku(page, '?henshu=1#kuruma');
+    await page.evaluate(() => {
+      localStorage.removeItem('__kaketa__');
+      window.__PATCH_OSOKU__ = 900;
+    });
+    await page.locator('#showCarSales').click();
+    const oshita = await page.evaluate(() => Date.now());
+    await page.locator(sel).click();
+    await page.waitForURL(iki, { timeout: 15000 });
+    const kaketa = Number(await page.evaluate(() => localStorage.getItem('__kaketa__') || '0'));
+    expect(kaketa, '★書き終わる 前に 画面を 移った（書き込みが 消える）★').toBeGreaterThan(0);
+    expect(kaketa - oshita, '★待たずに 移った★').toBeGreaterThanOrEqual(800);
   });
-  await page.locator('#showCarSales').click();
-  const oshita = await page.evaluate(() => Date.now());
-  await page.locator('#modoruSet a').click();
-  await page.waitForURL(/dashboard\.html/, { timeout: 15000 });
-  const kaketa = Number(await page.evaluate(() => localStorage.getItem('__kaketa__') || '0'));
-  expect(kaketa, '★書き終わる 前に 画面を 移った（書き込みが 消える）★').toBeGreaterThan(0);
-  expect(kaketa - oshita, '★待たずに 移った★').toBeGreaterThanOrEqual(800);
-});
 
 // ★★⑨ 書けなかったら「戻る」は 移らずに 赤字を 残す★★ 2026-10-16（指示役・対立役：移ると 赤字が 消え「保存できた」に 見えた）
-test('★★⑨ 書けなかったら 戻るは 移らない★★', async ({ page }) => {
-  await kyuryoHiraku(page, '?henshu=1#kuruma');
-  await page.evaluate(() => {
-    window.__PATCH_NG__ = 1;
+for (const [na, sel] of [
+  ['チップ', '[data-dkchip="kaisha"]'],
+  ['下の 帯', '[data-dkgo="shukei.html"]'],
+])
+  test('★★⑨ 書けなかったら ' + na + 'は 移らない★★', async ({ page }) => {
+    await kyuryoHiraku(page, '?henshu=1#kuruma');
+    await page.evaluate(() => {
+      window.__PATCH_NG__ = 1;
+    });
+    await page.locator('#showCarSales').click();
+    await page.locator(sel).click();
+    await page.waitForTimeout(2000);
+    const r = await page.evaluate(() => ({
+      url: location.pathname,
+      aka: ((document.getElementById('dkUtsuruMsg') || {}).textContent || '').includes(
+        '画面を 移りませんでした'
+      ),
+      // ★待ちの 字が 元に 戻り、押せる★
+      oseru: [...document.querySelectorAll('[data-dkchip],[data-dkgo]')].every((b) => !b.disabled),
+      ji: (document.querySelector('[data-dkgo="shukei.html"] .dk-foot-lb') || {}).textContent || '',
+    }));
+    expect(r.url, '★書けなかったのに 画面を 移った（赤字が 消える）★').toContain('kyuryo.html');
+    expect(r.oseru, '★止めた まま★').toBe(true);
+    expect(r.ji).toBe('月次集計');
+    expect(r.aka, '★移らなかった 訳を 出していない★').toBe(true);
   });
-  await page.locator('#showCarSales').click();
-  await page.locator('#modoruSet a').click();
-  await page.waitForTimeout(2000);
-  const r = await page.evaluate(() => ({
-    url: location.pathname,
-    ji: (document.querySelector('#modoruSet a') || {}).textContent || '',
-    aka: document.body.innerText.includes('画面を 移りませんでした'),
-  }));
-  expect(r.url, '★書けなかったのに 画面を 移った（赤字が 消える）★').toContain('kyuryo.html');
-  expect(r.ji).toContain('会社設定へ');
-  expect(r.aka, '★移らなかった 訳を 出していない★').toBe(true);
-});
 
 // ★★⑩ 会社設定の チップも 書き終わってから 移り、書けなければ 移らない★★ 2026-10-16（対立役：試験が 無かった）
 async function dashHiraku(page, kakiKaesu) {
@@ -491,7 +487,7 @@ test('★★⑩a 会社設定の チップは 書き終わってから 移る★
   const kaki = await dashHiraku(page, 204);
   await page.locator('#homeCity').fill('松山市');
   await page.locator('#saveHomeCity').click();
-  await page.locator('[data-chip="kuruma"]').click();
+  await page.locator('[data-dkchip="kuruma"]').click();
   await page.waitForURL(/kyuryo\.html\?henshu=1#kuruma$/, { timeout: 15000 });
   const utsutta = Date.now();
   expect(kaki.owatta, '★書き込みが 届いていない★').toBeGreaterThan(0);
@@ -501,11 +497,11 @@ test('★★⑩b 会社設定の チップは 書けなければ 移らずに �
   await dashHiraku(page, 500);
   await page.locator('#homeCity').fill('松山市');
   await page.locator('#saveHomeCity').click();
-  await page.locator('[data-chip="kuruma"]').click();
+  await page.locator('[data-dkchip="kuruma"]').click();
   await page.waitForTimeout(2500);
   const r = await page.evaluate(() => ({
     url: location.pathname,
-    msg: (document.getElementById('chipMsg') || {}).textContent || '',
+    msg: (document.getElementById('dkUtsuruMsg') || {}).textContent || '',
   }));
   expect(r.url, '★書けなかったのに 移った★').toContain('dashboard');
   expect(r.msg).toContain('画面を 移りませんでした');

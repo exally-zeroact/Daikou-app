@@ -49,16 +49,310 @@
   ];
 
   // ★★帯を 出す 画面★★ 2026-09-08
-  //   札(SAKI)に 無くても ★事務所の 画面なら 帯と 戻るは 出す★。
+  //   札(SAKI)に 無くても ★事務所の 画面なら 帯は 出す★。
   //   ＝料金表を 単体で 開いた 時（紙で 出す 時）に 行き止まりに しない。
   const DASU = SAKI.map(function (x) {
     return x.f;
   }).concat(['ryokinhyou.html']);
 
+  // ★★会社設定の チップ（ここ 1か所）★★ 2026-11-04（司さん「赤丸の所のボタン 訳分からん仕組み・
+  //   ボタン押してからの動きに統一感ないし」）
+  //   ★前★ 5つが 3通り＝会社・実費は その場／料金は 窓（iframe）／車・従業員は 別の 画面へ 移り 列が 消え、帯は「給料」が 光った
+  //   ★今★ どれを 押しても 同じ＝★列は 残る・押した 物が 光る・下に その 中身★。帯は「会社設定」が 光る
+  //   同じ 画面の 中（会社↔実費）は その場で 替える（打ちかけの 欄を 消さない・対立役 注A3）
+  const CHIP = [
+    { k: 'kaisha', na: '会社', href: 'dashboard.html?p=kaisha' },
+    { k: 'kuruma', na: '車', href: 'kyuryo.html?henshu=1#kuruma' },
+    { k: 'ryokin', na: '料金', href: 'ryokinhyou.html?henshu=1' },
+    { k: 'hito', na: '従業員', href: 'kyuryo.html?henshu=1#emp' },
+    { k: 'jippi', na: '実費', href: 'dashboard.html?p=jippi' },
+  ];
+  const DASH_PANE = { kaisha: 1, jippi: 1 };
+  const CHIP_KEY = 'dk_dash_chip';
+
   function ima() {
     const p = location.pathname.split('/').pop() || 'dashboard.html';
     return p;
   }
+  function henshu() {
+    try {
+      return new URLSearchParams(location.search).get('henshu') === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+  // ★今 居る 所★＝名前だけで 決めない（kyuryo?henshu=1 は 会社設定の 中・対立役 止2）
+  function basho() {
+    const f = ima();
+    if (f === 'dashboard.html' || f === 'ryokinhyou.html') return 'dashboard.html';
+    if (f === 'kyuryo.html' && henshu()) return 'dashboard.html';
+    return f;
+  }
+  // ★今 光らせる チップ★（URL から 決める）
+  function imaChip() {
+    const f = ima();
+    if (f === 'dashboard.html') {
+      let p = null;
+      try {
+        p = new URLSearchParams(location.search).get('p');
+      } catch (_) {
+        p = null;
+      }
+      if (p && DASH_PANE[p]) return p;
+      try {
+        const v = localStorage.getItem(CHIP_KEY);
+        if (v && DASH_PANE[v]) return v;
+      } catch (_) {
+        /* 覚えられなくても 動く */
+      }
+      return 'kaisha';
+    }
+    if (f === 'ryokinhyou.html') return 'ryokin';
+    if (f === 'kyuryo.html') return (location.hash || '') === '#emp' ? 'hito' : 'kuruma';
+    return null;
+  }
+  // ★チップを 出す 画面★＝会社設定・車/従業員の 決める 画面・料金の 決める 画面（見るだけの 料金表・給料の 明細には 出さない・注C1）
+  function chipWoDasu() {
+    const f = ima();
+    if (f === 'dashboard.html') return true;
+    return (f === 'kyuryo.html' || f === 'ryokinhyou.html') && henshu();
+  }
+
+  // ============================================================
+  // ★★移る 前の 門（チップと 帯の 両方が 通る）★★ 2026-11-04（対立役 止1・止3）
+  //   画面が window.DKUtsuruMae を 置く＝() → Promise<{ ok:true } | { ok:false, ji:'訳', suteru:true? }>
+  //   ★書いている 最中の 物★は 書き終わるまで 待つ（最長 10 秒）。★書けなかった・保存していない★ なら 移らず 知らせる。
+  //   suteru:true の 時は「変えた所を 捨てて 移る」を 出す（料金の 画面に 閉じ込めない・対立役 止A1）
+  // ============================================================
+  let MATSU = false;
+  function oshiBotan() {
+    return Array.prototype.slice.call(document.querySelectorAll('[data-dkgo],[data-dkchip]'));
+  }
+  function tomeru(on) {
+    oshiBotan().forEach(function (b) {
+      b.disabled = !!on;
+    });
+  }
+  function shiraseBako() {
+    let m = document.getElementById('dkUtsuruMsg');
+    if (m) return m;
+    m = document.createElement('div');
+    m.id = 'dkUtsuruMsg';
+    m.className = 'dk-utsuru-msg noprint';
+    m.setAttribute('role', 'alert');
+    const chips = document.getElementById('dkChipRow');
+    if (chips && chips.parentNode) chips.parentNode.insertBefore(m, chips.nextSibling);
+    else {
+      const top = document.querySelector('.top');
+      if (top && top.parentNode) top.parentNode.insertBefore(m, top.nextSibling);
+      else document.body.insertBefore(m, document.body.firstChild);
+    }
+    return m;
+  }
+  function shirase(ji, iki) {
+    const m = shiraseBako();
+    m.textContent = ji || '';
+    m.style.display = ji ? '' : 'none';
+    if (ji && iki) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'dk-suteru';
+      b.textContent = '変えた所を 捨てて 移る';
+      b.onclick = function () {
+        iku(iki);
+      };
+      m.appendChild(document.createElement('br'));
+      m.appendChild(b);
+    }
+  }
+  function mon() {
+    const f = window.DKUtsuruMae;
+    if (typeof f !== 'function') return Promise.resolve({ ok: true });
+    return new Promise(function (yoi) {
+      let owari = false;
+      const kimeru = function (r) {
+        if (owari) return;
+        owari = true;
+        yoi(r);
+      };
+      setTimeout(function () {
+        kimeru({
+          ok: false,
+          ji: '保存が 10秒 で 終わらなかったので、画面を 移りませんでした。通信を 確かめて もう一度 押してください。',
+        });
+      }, 10000);
+      try {
+        Promise.resolve(f()).then(
+          function (r) {
+            kimeru(r && r.ok === false ? r : { ok: true });
+          },
+          function () {
+            kimeru({ ok: false, ji: '保存を 確かめられなかったので、画面を 移りませんでした。' });
+          }
+        );
+      } catch (_) {
+        kimeru({ ok: false, ji: '保存を 確かめられなかったので、画面を 移りませんでした。' });
+      }
+    });
+  }
+  function utsuru(iki, btn, sonoba) {
+    if (MATSU) return;
+    // 欄を 離れた 時の 保存（車の 名前 等）を 先に 出す
+    const a = document.activeElement;
+    if (a && a.blur && a !== document.body) a.blur();
+    shirase('');
+    // ★同じ 画面の 中★は 門を 通さずに その場で 替える（書いた 物は 消えない）
+    if (sonoba) {
+      sonoba();
+      return;
+    }
+    MATSU = true;
+    tomeru(true);
+    const lb = btn ? btn.querySelector('.dk-foot-lb') || btn : null;
+    const moto = lb ? lb.textContent : '';
+    if (lb) lb.textContent = '保存を 待っています…';
+    // 欄を 離れた 時の 保存が 走り出すのを 1拍 待つ
+    setTimeout(function () {
+      mon().then(function (r) {
+        if (r.ok) {
+          iku(iki);
+          return;
+        }
+        MATSU = false;
+        tomeru(false);
+        if (lb) lb.textContent = moto;
+        shirase(
+          r.ji || '保存できなかった 物が あるので、画面を 移りませんでした。',
+          r.suteru ? iki : null
+        );
+      });
+    }, 0);
+  }
+  // ★iPhone の 戻るで 画面ごと 戻った 時★に「待っています」の 字と 止めが 残らない（注A5）
+  window.addEventListener('pageshow', function () {
+    MATSU = false;
+    tomeru(false);
+    const n = document.getElementById('dkFooter');
+    if (n)
+      Array.prototype.forEach.call(n.querySelectorAll('[data-dkgo]'), function (b) {
+        const x = SAKI.filter(function (s) {
+          return s.f === b.getAttribute('data-dkgo');
+        })[0];
+        const lb = b.querySelector('.dk-foot-lb');
+        if (x && lb) lb.textContent = x.na;
+      });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dkchip]'), function (b) {
+      const x = CHIP.filter(function (s) {
+        return s.k === b.getAttribute('data-dkchip');
+      })[0];
+      if (x) b.textContent = x.na;
+    });
+  });
+  // ★★移る★★ # の 後ろ だけ 違う 行き先（kyuryo の #kuruma ↔ #emp）は location.href では 読み直さず、
+  //   # だけ 替わって 止めが 残り 画面が 固まった（対立役 2026-11-04 止1）＝その時は 読み直す
+  function iku(iki) {
+    let u = null;
+    try {
+      u = new URL(iki, location.href);
+    } catch (_) {
+      u = null;
+    }
+    const hashDake =
+      u &&
+      u.hash !== '' &&
+      u.pathname === location.pathname &&
+      u.search === location.search &&
+      u.hash !== location.hash;
+    if (hashDake) {
+      // 履歴を 増やさない＝端末の「戻る」で # だけ 戻り 画面と 食い違う 形を 作らない（対立役 止A）
+      try {
+        history.replaceState(null, '', iki);
+      } catch (_) {
+        location.href = iki;
+      }
+      location.reload();
+      return;
+    }
+    location.href = iki;
+  }
+  // ★kyuryo の 会社設定（?henshu=1）で # だけ 替わったら 読み直す★（端末の 戻る・手で # を 替えた 時も 中身と 光る 物を 合わせる・対立役 止A）
+  if (ima() === 'kyuryo.html' && henshu()) {
+    window.addEventListener('hashchange', function () {
+      location.reload();
+    });
+  }
+  function onajiUrl(href) {
+    try {
+      const u = new URL(href, location.href);
+      return u.pathname + u.search + u.hash === location.pathname + location.search + location.hash;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function chipWoTsukuru() {
+    if (!chipWoDasu()) return;
+    if (document.getElementById('dkChipRow')) return;
+    const oki = document.getElementById('dkChips');
+    if (!oki) return;
+    const now = imaChip();
+    const row = document.createElement('div');
+    row.id = 'dkChipRow';
+    row.className = 'dk-chips noprint';
+    row.setAttribute('role', 'tablist');
+    row.innerHTML = CHIP.map(function (c) {
+      const koko = c.k === now;
+      return (
+        '<button type="button" role="tab" class="dk-chip' +
+        (koko ? ' on' : '') +
+        '" data-dkchip="' +
+        c.k +
+        '"' +
+        (koko ? ' aria-selected="true"' : ' aria-selected="false"') +
+        '>' +
+        c.na +
+        '</button>'
+      );
+    }).join('');
+    oki.appendChild(row);
+    function hikaru(k) {
+      Array.prototype.forEach.call(row.querySelectorAll('[data-dkchip]'), function (b) {
+        const on = b.getAttribute('data-dkchip') === k;
+        b.className = 'dk-chip' + (on ? ' on' : '');
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+    }
+    row.addEventListener('click', function (ev) {
+      let t = ev.target;
+      while (t && t !== row && !(t.getAttribute && t.getAttribute('data-dkchip'))) t = t.parentNode;
+      const k = t && t.getAttribute && t.getAttribute('data-dkchip');
+      if (!k) return;
+      const c = CHIP.filter(function (x) {
+        return x.k === k;
+      })[0];
+      if (!c) return;
+      if (k === imaChip() && onajiUrl(c.href)) return;
+      // 会社設定の 中（会社↔実費）は その場で（画面が window.DKPaneKae を 置く）
+      const sonoba =
+        ima() === 'dashboard.html' && DASH_PANE[k] && typeof window.DKPaneKae === 'function'
+          ? function () {
+              window.DKPaneKae(k);
+              hikaru(k);
+              try {
+                history.replaceState(null, '', 'dashboard.html?p=' + k);
+              } catch (_) {
+                /* 書き替えられなくても 動く */
+              }
+            }
+          : null;
+      utsuru(c.href, t, sonoba);
+    });
+  }
+  // 車の 画面の「従業員 →」なども 同じ 道を 通る
+  window.DKChipNi = function (k) {
+    const b = document.querySelector('[data-dkchip="' + k + '"]');
+    if (b) b.click();
+  };
 
   function tsukuru() {
     // ★本人モード（?t=）では 出さない★
@@ -75,8 +369,6 @@
       return;
     }
     // ★★窓の 中（?embed=1）では 出さない★★ 2026-09-08
-    //   会社設定の「料金」の 中に 料金表を 窓で 入れる ので、
-    //   その 中で 帯を 出すと ★帯が 2つ★に なる。
     try {
       if (new URLSearchParams(location.search).get('embed') === '1') return;
     } catch (e) {
@@ -84,7 +376,7 @@
     }
     if (document.getElementById('dkFooter')) return;
 
-    const now = ima();
+    const now = basho();
     const nav = document.createElement('nav');
     nav.id = 'dkFooter';
     nav.className = 'dk-foot noprint';
@@ -110,8 +402,12 @@
       while (t && t !== nav && !(t.getAttribute && t.getAttribute('data-dkgo'))) t = t.parentNode;
       const go = t && t.getAttribute && t.getAttribute('data-dkgo');
       if (!go) return;
-      if (go === ima()) return; // ★今 居る所は 押しても 動かない★
-      location.href = go;
+      // ★今 居る 画面と 同じ 所★だけ 動かない（kyuryo?henshu=1 で「給料」を 押すと 給料の 明細へ 移る・対立役 止2）
+      if (onajiUrl(go)) return;
+      // 会社設定に 居る 時（?p=kaisha / ?p=jippi も）は 光っている「会社設定」を 押しても 読み直さない
+      //   （読み直すと 保存ボタンで 書く 欄の 打ちかけが 黙って 消えた・対立役 2026-11-04 止2）
+      if (go === 'dashboard.html' && ima() === 'dashboard.html') return;
+      utsuru(go, t);
     });
 
     const css = document.createElement('style');
@@ -125,53 +421,27 @@
       '.dk-foot-i.on{color:#1e6bff}' +
       '.dk-foot-ic{font-size:18px;line-height:1}' +
       '.dk-foot-lb{font-size:10px;font-weight:700;white-space:nowrap}' +
-      // ★★戻る（頭の 一番 左）★★ 2026-09-06（司さん「なんでこんなとこおいとんど」）
-      //   ★浮かせません★＝中身を 1px も 隠さない
-      '.dk-modoru{margin-right:8px;vertical-align:middle;' +
-      'background:#fff;border:1px solid #d7e3f5;border-radius:999px;' +
-      'padding:5px 11px;font-size:13px;font-weight:700;color:#1e6bff;' +
-      "cursor:pointer;font-family:'Noto Sans JP',sans-serif}" +
+      // ★会社設定の チップ（3画面 同じ 形）★
+      '.dk-chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}' +
+      //   形は 前の 会社設定の チップと 同じ（3画面とも 同じ 変数 --line/--muted/--blue）
+      '.dk-chip{background:#fff;border:1px solid var(--line,#dbe7f7);border-radius:999px;padding:7px 14px;' +
+      'font-size:13px;font-weight:700;color:var(--muted,#5a6b82);cursor:pointer;font-family:inherit}' +
+      '.dk-chip.on{background:var(--blue,#007aff);border-color:var(--blue,#007aff);color:#fff}' +
+      '.dk-chip:disabled,.dk-foot-i:disabled{opacity:.6;cursor:default}' +
+      '.dk-utsuru-msg{color:#c62828;font-weight:700;margin:0 0 10px;font-size:14px;line-height:1.6}' +
+      '.dk-suteru{margin-top:6px;background:#fff;border:1px solid #c62828;color:#c62828;border-radius:999px;' +
+      "padding:6px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:'Noto Sans JP',sans-serif}" +
       // ★帯に 隠れないように 下を 空ける★
       'body{padding-bottom:62px}' +
-      '@media print{.dk-foot,.dk-modoru{display:none!important}body{padding-bottom:0}}';
+      '@media print{.dk-foot,.dk-chips,.dk-utsuru-msg{display:none!important}body{padding-bottom:0}}';
     document.head.appendChild(css);
     document.body.appendChild(nav);
+    chipWoTsukuru();
 
-    // ★★戻る（全部の 画面）★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
-    //   ★★置き場所を 直しました★★ 2026-09-06（司さん「なんでこんなとこおいとんど」）
-    //     ★前★ 画面の 左下に ★浮かせていた★
-    //       ⇒ 中身の 上に 被る／下の 帯と 近い／★探す 所では ない★
-    //     ★今★ ★頭（ロゴの 左）★に 入れる＝★他の アプリと 同じ 場所★
-    //       ⇒ 浮かせない＝中身を 1px も 隠しません
-    //   ★行き先は ここ 1か所★（画面ごとに 手書きしない）
-    //   ★何をするか★ ①前の 画面へ 戻る ②無ければ ★会社設定★ へ
-    //   ★紙には 出しません★／★本人モードでは そもそも 帯ごと 出ません★
-    if (!document.getElementById('dkModoru')) {
-      const b = document.createElement('button');
-      b.id = 'dkModoru';
-      b.type = 'button';
-      b.className = 'dk-modoru noprint';
-      b.textContent = '← 戻る';
-      b.setAttribute('aria-label', '前の画面へ戻る');
-      b.onclick = function () {
-        try {
-          if (window.history.length > 1) {
-            window.history.back();
-            return;
-          }
-        } catch (_) {
-          /* 使えなくても 下で 行き先を 出す */
-        }
-        window.location.href = 'dashboard.html';
-      };
-      // ★頭の 一番 左★（ロゴの 前）に 入れる
-      //   ★5枚とも 同じ 形★＝<div class="top"> の 中の 1つ目の かたまり
-      const top = document.querySelector('.top');
-      const hidari = top ? top.firstElementChild : null;
-      if (hidari) hidari.insertBefore(b, hidari.firstChild);
-      else if (top) top.insertBefore(b, top.firstChild);
-      else document.body.appendChild(b); // ★頭が 無い 画面でも 出す（最後の 手）★
-    }
+    // ★★頭の「← 戻る」は 消しました★★ 2026-11-04（司さん「左上に意味わからん戻るボタンもあるし」）
+    //   ★前★ 6画面 全部の 頭に 置き、history.back()＝「前に 見た 画面」へ 戻るだけ（下の 帯と 食い違う）。
+    //     車・従業員・料金を 変える では「← 会社設定へ 戻る」と 2つ 並んでいた。
+    //   ★今★ 移るのは ★下の 帯 と 会社設定の チップ だけ★（飲み屋 Castally と 同じ＝頭に 戻るは 無い）
   }
 
   if (document.readyState === 'loading') {

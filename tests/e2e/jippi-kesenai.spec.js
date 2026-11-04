@@ -85,7 +85,7 @@ async function hiraku(page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/dashboard.html', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2600);
-  await page.locator('[data-chip="jippi"]').click();
+  await page.locator('[data-dkchip="jippi"]').click();
   await page.waitForTimeout(900);
 }
 

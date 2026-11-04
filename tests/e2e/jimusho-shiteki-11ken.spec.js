@@ -224,7 +224,7 @@ test('★★③-2 打つと dk_manual_days へ 行く（売上は 0 の まま�
 
 test('★★④ 実費の 順番は ▲▼（数字を 見せない）★★', async ({ page }) => {
   await hiraku(page, 'dashboard.html');
-  await page.locator('[data-chip="jippi"]').click();
+  await page.locator('[data-dkchip="jippi"]').click();
   await page.waitForTimeout(800);
   const r = await page.evaluate(() => ({
     th: [...document.querySelectorAll('#jippiTbl thead th')].map((x) => x.textContent.trim()),

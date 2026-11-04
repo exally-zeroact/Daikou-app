@@ -486,14 +486,13 @@
         </div>
       </div>
       <div class="sub" id="sub">読み込み中…</div>
+      <!-- ★★会社設定の チップの 列（?henshu=1 の 時だけ・js/jimusho-footer.js が 作る）★★ 2026-11-04（司さん「統一感ないし」）
+           前は「← 会社設定へ 戻る」を 置き、頭の「← 戻る」と 2つ 並んでいた。 -->
+      <div id="dkChips"></div>
 
       <div class="msg" id="msg">読み込み中…</div>
 
       <div id="honbun" style="display: none">
-        <!-- ★★会社設定から 来た時の「戻る」★★ 2026-09-06（司さん「全ページで戻るボタンすらない」） -->
-        <div id="modoruSet" style="display: none; margin: 0 0 12px">
-          <a class="btn ghost" href="dashboard.html">← 会社設定へ 戻る</a>
-        </div>
         <div class="card">
           <!-- ★★変える ボタンは 見出しの 右横★★ 2026-09-09
                ★司さん★「赤丸は 上の 今の料金表の 右横で よくないか？」
@@ -1472,9 +1471,6 @@
 
         function dashiwake() {
           var h = henshuKa();
-          // ★会社設定から 来た時だけ 戻る所を 出す★ 2026-09-06（司さん）
-          var md = $('modoruSet');
-          if (md) md.style.display = h ? '' : 'none';
           // ★1枚目（今の 料金）は いつでも 出す★／2枚目から 下が 入力
           var cards = document.querySelectorAll('#honbun > .card');
           for (var i = 1; i < cards.length; i++) cards[i].style.display = h ? '' : 'none';
@@ -1533,14 +1529,29 @@
             });
         }
 
+        var HOZON_CHU = null; // 保存の 最中（移る 前の 門が 待つ）
         function hozon() {
           atsumeru();
           if (tashikame()) return;
           $('btnSave').disabled = true;
           showDone('');
           showErr('');
-          window.FareConfigStore.kaku(SESS, COMPANY.company_id, utsushi(HENSHU), dareNoNamae())
+          var okuru = utsushi(HENSHU);
+          var okuruJi = JSON.stringify(HENSHU);
+          var x = window.FareConfigStore.kaku(SESS, COMPANY.company_id, okuru, dareNoNamae());
+          HOZON_CHU = x;
+          x.then(
+            function () {
+              HOZON_CHU = null;
+            },
+            function () {
+              HOZON_CHU = null;
+            }
+          );
+          return x
             .then(function () {
+              // ★保存が 通った 時点で 基準を 送った 中身に★（読み直しが 転んでも「保存していない」と 言い続けない・対立役 止A1）
+              KIJUN = okuruJi;
               showDone('保存しました。');
               return yomikomu();
             })
@@ -1569,6 +1580,33 @@
               showErr('戻せませんでした。' + (e && e.message ? e.message : ''));
             });
         }
+
+        // ★★移る 前の 門★★ 2026-11-04（会社設定の チップと 下の 帯の 両方が 通る・js/jimusho-footer.js）
+        //   ★保存していない 料金★が 在る 時は 移らずに 知らせる（黙って 元の 料金の ままに しない・対立役 止3）。
+        //   閉じ込めない（対立役 止A1）：読めなかった（KIJUN が 無い）なら 通す／知らせに「変えた所を 捨てて 移る」を 付ける
+        window.DKUtsuruMae = function () {
+          if (!henshuKa()) return Promise.resolve({ ok: true });
+          var mae = HOZON_CHU
+            ? HOZON_CHU.then(
+                function () {},
+                function () {}
+              )
+            : Promise.resolve();
+          return mae.then(function () {
+            if (KIJUN == null) return { ok: true };
+            try {
+              atsumeru();
+            } catch (_) {
+              /* 集められなくても 下で 比べる */
+            }
+            if (JSON.stringify(HENSHU) === KIJUN) return { ok: true };
+            return {
+              ok: false,
+              suteru: true,
+              ji: '保存していない 料金の 変更が あるので、画面を 移りませんでした。下の「保存」を 押すか、変えた所を 捨てて 移ってください。',
+            };
+          });
+        };
 
         // ---------- 起動 ----------
         window.DKSession.ensure().then(function (s) {

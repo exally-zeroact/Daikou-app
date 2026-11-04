@@ -1651,10 +1651,12 @@
       </div>
       <div class="sub noprint" id="sub">読み込み中…</div>
 
-      <!-- ★★会社設定から 来た時の「戻る」★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
-           ★入口は 会社設定の チップ ただ1つ★＝ここでは タブの 行を 出さない。 -->
+      <!-- ★★会社設定の チップの 列（?henshu=1 の 時だけ・js/jimusho-footer.js が 作る）★★ 2026-11-04
+           （司さん「ボタン押してからの動きに統一感ないし」「左上に意味わからん戻るボタンもあるし」）
+           前は ここに「← 会社設定へ 戻る」を 置き、頭の「← 戻る」と 2つ 並んでいた。今は 会社設定と 同じ チップの 列が 残る。
+           下の 箱（modoruSet）は 従業員／退職者の 切り替えの 置き場だけ（従業員の 時だけ 出す）。 -->
+      <div id="dkChips"></div>
       <div class="modoru-bar noprint" id="modoruSet" style="display: none">
-        <a class="btn ghost" href="dashboard.html">← 会社設定へ 戻る</a>
         <b id="modoruMidashi"></b>
       </div>
 
@@ -4823,14 +4825,11 @@
                 if (tabs) tabs.style.display = 'none';
                 // ★★戻る所を 作る★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
                 //   ★会社設定から 来たのに 会社設定へ 帰れませんでした★
+                // ★見出しは 出さない★（チップの 列で 光る 物が 見出し・2026-11-04）。箱は 従業員／退職者の 切り替えの 時だけ
                 var modoru = document.getElementById('modoruSet');
-                if (modoru) {
+                if (modoru && doko === 'emp') {
                   modoru.style.display = '';
-                  var mi = document.getElementById('modoruMidashi');
-                  if (mi)
-                    mi.textContent =
-                      doko === 'emp' ? '従業員' : kurumaDake ? '車' : '給料の設定（車）';
-                  if (doko === 'emp') empKiriWoMidashiE();
+                  empKiriWoMidashiE();
                 }
               }
             }
@@ -4916,19 +4915,13 @@
           var b = document.getElementById('toEmpTab');
           if (!b) return;
           b.onclick = function () {
+            // 会社設定から 来た 時（チップの 列が 在る）は チップ「従業員」と 同じ 道（保存を 待って 移る・2026-11-04）
+            if (document.getElementById('dkChipRow') && window.DKChipNi) {
+              window.DKChipNi('hito');
+              return;
+            }
             var t = document.querySelector('.tab[data-tab="emp"]');
             if (t && t.onclick) t.onclick();
-            // 会社設定から 来た時の 見出しも 合わせる（「車」の まま 従業員を 出さない）
-            var mi = document.getElementById('modoruMidashi');
-            if (mi && mi.textContent) {
-              mi.textContent = '従業員';
-              empKiriWoMidashiE();
-              try {
-                history.replaceState(null, '', location.pathname + location.search + '#emp');
-              } catch (_) {
-                /* 合わせられなくても 動く */
-              }
-            }
           };
         })();
 
@@ -4993,7 +4986,10 @@
           if (f0)
             window.fetch = function (u, o) {
               var x = f0.apply(this, arguments);
-              return o && o.method && o.method !== 'GET' && x && x.then ? kakiNoseru(x) : x;
+              // ★GET と HEAD は 数えない★（帯の 部品が 新しい 版を 見る HEAD を 書きかけに 数え、圏外で 偽の「保存できなかった」に なる・対立役 注A2）
+              return o && o.method && o.method !== 'GET' && o.method !== 'HEAD' && x && x.then
+                ? kakiNoseru(x)
+                : x;
             };
         })();
         // 欄を 離れた 時の 保存も 拾う ため 先に 欄を 離し、書き終わって（最長 10 秒）から 移る
@@ -5028,27 +5024,23 @@
             }, 10000);
           }, 0);
         }
-        (function modoruWaMatsu() {
-          var a = document.querySelector('#modoruSet a');
-          if (!a) return;
-          a.addEventListener('click', function (e) {
-            e.preventDefault();
-            var iki = a.href;
-            var moto = a.textContent;
-            a.textContent = '保存の 終わりを 待っています…';
+        // ★★移る 前の 門★★ 2026-11-04＝チップと 下の 帯の 両方が 通る（js/jimusho-footer.js）
+        //   前は「← 会社設定へ 戻る」だけが 待ち、下の 帯は 待たずに 移った（車の 名前が 黙って 切られ得た・対立役 止1）
+        window.DKUtsuruMae = function () {
+          return new Promise(function (yoi) {
             kakiOwattekara(
               function () {
-                location.href = iki;
+                yoi({ ok: true });
               },
               function () {
-                a.textContent = moto;
-                showErr(
-                  '保存できなかった 物が あるので、画面を 移りませんでした。赤字を 見て 直してから もう一度 押してください。'
-                );
+                yoi({
+                  ok: false,
+                  ji: '保存できなかった 物が あるので、画面を 移りませんでした。赤字を 見て 直してから もう一度 押してください。',
+                });
               }
             );
           });
-        })();
+        };
         function upsert(table, conflict, body) {
           return DKSession.rest(SESS, table + '?on_conflict=' + conflict, {
             method: 'POST',

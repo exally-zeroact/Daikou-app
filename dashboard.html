@@ -93,18 +93,33 @@
         margin: 14px 0 4px;
       }
 
+      /* ★★請求書は チップの 仲間に 見せない★★ 2026-11-04（司さん「統一感ないし」）
+         押すと 別の アプリ（別の ログイン）が 新しい 窓で 開く＝チップ（この 画面の 中で 替わる）と 動きが 違う。
+         ⇒ 丸い 形を やめ、横長の 札に「別の アプリ」と 書く */
       .otab {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        width: 100%;
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 999px;
-
-        /* ★詰めた★ 2026-09-05 */
-        padding: 7px 14px;
-        font-size: 13px;
-        font-weight: 700;
-        color: var(--muted);
+        border-radius: 12px;
+        padding: 10px 14px;
         cursor: pointer;
         font-family: inherit;
+        text-align: left;
+      }
+
+      .otab-t {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--blue-d);
+      }
+
+      .otab-d {
+        font-size: 11.5px;
+        color: var(--muted);
       }
 
       /* ★上の タブは 請求書 1つだけ★ 2026-09-05
@@ -132,7 +147,11 @@
         color: #fff;
         background: var(--blue);
         border-radius: 999px;
-        padding: 4px 12px;
+
+        /* ★他の 画面（給料・料金表）と 同じ 小さい 札★ 2026-11-04（前は 右端の 大きい 青＝押せる ボタンに 見えた） */
+        padding: 2px 10px;
+        margin-left: 8px;
+        vertical-align: middle;
 
         /* ★狭い画面で「給料」の2文字が 縦に割れていた★（2026-08-25 実測 375px … 110 x 51＝2行）
            札の字は 折り返さない。 */
@@ -404,34 +423,7 @@
         margin-top: 20px;
       }
 
-      /* ★★会社設定の 中の チップ★★ 2026-09-05（司さん
-         「設定画面の 中に チップで 車、料金、従業員マスタ つくったら
-           各ページ 見やすくなるやろ」）
-         ★決める所を ここに 集める★＝他の 画面は 見るだけに なる */
-      .chips {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        margin: 10px 0 12px;
-      }
-
-      .chip {
-        background: #fff;
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 7px 14px;
-        font-size: 13px;
-        font-weight: 700;
-        color: var(--muted);
-        cursor: pointer;
-        font-family: inherit;
-      }
-
-      .chip.on {
-        background: var(--blue);
-        border-color: var(--blue);
-        color: #fff;
-      }
+      /* ★会社設定の チップの 形は js/jimusho-footer.js（.dk-chip）に 移した 2026-11-04（3画面 同じ 形）★ */
 
       .mada {
         color: var(--muted);
@@ -500,8 +492,7 @@
          （前は ここに 直書きし、本番では 手で 消していました＝写し忘れ1回で 事故） -->
     <div class="wrap">
       <div class="top">
-        <div class="logo">🚗 ダイコメ</div>
-        <div class="tag">事務所</div>
+        <div><span class="logo">🚗 ダイコメ</span><span class="tag">事務所</span></div>
       </div>
       <div class="who" id="who" style="display: none">
         <span class="mail" id="whoMail"></span>
@@ -526,7 +517,10 @@
              ★光る 場所が 食い違って いました★。
            ⇒ 上は 消し、★請求書 だけ 残す★（別のアプリ・別ログインなので 帯に 入らない） -->
       <div class="otabs" id="otabs" style="display: none">
-        <button class="otab" data-otab="seikyu" type="button">請求書 ↗</button>
+        <button class="otab" data-otab="seikyu" type="button">
+          <span class="otab-t">🧾 請求書アプリを 開く ↗</span
+          ><span class="otab-d">別の アプリ・別の ログインで 開きます</span>
+        </button>
       </div>
 
       <div id="loading">読み込み中…</div>
@@ -554,34 +548,11 @@
              「設定画面の 中に チップで 車、料金、従業員マスタ つくったら
                各ページ 見やすくなるやろ」
              ★他の 画面（月次集計・売上表・料金表・給料明細）は 見るだけ★ -->
-        <div class="chips" id="chips">
-          <button class="chip on" type="button" data-chip="kaisha">会社</button>
-          <!-- ★★押したら そのまま 決める 画面へ★★ 2026-10-16（司さん「車と従業員のボタンおしても またそこから
-               決めるボタン押さないかんのは めんどくさいやろが」）＝間の 説明の 札と「決める」ボタンを 消した -->
-          <button
-            class="chip"
-            type="button"
-            data-chip="kuruma"
-            data-href="kyuryo.html?henshu=1#kuruma"
-          >
-            車
-          </button>
-          <button class="chip" type="button" data-chip="ryokin">料金</button>
-          <button class="chip" type="button" data-chip="hito" data-href="kyuryo.html?henshu=1#emp">
-            従業員
-          </button>
-          <!-- ★★実費の 名前を 自由に する★★ 2026-09-06（司さん
-               「この項目ってユーザーは自由に決めれるん？追加や削除できる？」→「ウ」）
-               ★前は 高速代・橋代・その他の ★3つ 固定★でした★（倉庫の 列が 3本）
-               ⇒ 会社ごとに 足す／消す／並べ替えが 出来るように します。 -->
-          <button class="chip" type="button" data-chip="jippi">実費</button>
-        </div>
-        <!-- 車・従業員の チップで 移る 前に 保存が 書けなかった 時の 知らせ（移らずに ここへ 出す） -->
-        <div
-          id="chipMsg"
-          role="alert"
-          style="color: #c62828; font-weight: 700; margin: 0 0 8px"
-        ></div>
+        <!-- ★★チップの 列は js/jimusho-footer.js が 作る★★ 2026-11-04（司さん「ボタン押してからの動きに統一感ないし」）
+             ★前★ ここに 5つ 書き、会社・実費は その場／料金は 窓／車・従業員は 別の 画面（列が 消える）の 3通り だった。
+             ★今★ 車・料金・従業員の 決める 画面にも 同じ 列を 出す＝どれを 押しても 列は 残り 押した 物が 光る。
+             移る 前の 保存の 待ちと 知らせも 部品（window.DKUtsuruMae を 下で 置く）。 -->
+        <div id="dkChips"></div>
 
         <!-- ★会社★（今まで 在った 中身） -->
         <div data-pane="kaisha">
@@ -694,31 +665,9 @@
             <div id="devList"></div>
           </div>
         </div>
-        <!-- ★料金★（次の 回で ryokinhyou から 移します） -->
-        <div data-pane="ryokin" style="display: none">
-          <!-- ★★説明を やめて、その 場所に 料金表★★ 2026-09-08
-               ★司さん★「赤丸のところは上の塊の説明を除けてそこでええやろ」
-               ★前★ 上は 説明だけ・料金は 下に スクロール
-               ★今★ ★開いたら すぐ 今の 料金が 見える★（説明は 消した）
-               ★中身は 料金表の 画面 そのもの★＝同じ 決まりを 2か所に 書かない -->
-          <div class="card">
-            <!-- ★★見出しを 1つに★★ 2026-09-09
-                 ★司さん★「今の料金表も どっちか 消して」
-                 ★前★ 外に「今の 料金」／中に「今の 料金表」＝ほぼ 同じ 字が 2つ
-                 ★今★ ★窓の 中の 1つだけ★（そこに「料金を 変える」の 札が 付いている） -->
-            <iframe
-              id="ryokinMado"
-              class="mado"
-              src="ryokinhyou.html?embed=1"
-              title="今の料金"
-              loading="lazy"
-            ></iframe>
-            <!-- ★★下の 2つは 消しました★★ 2026-09-09
-                 ★司さん★「料金を決めるは 被るから いらん」「紙に出すも」
-                 ⇒ 変える 口は ★窓の 中の 見出しの 右横★ 1つだけ
-                   （同じ 物を 2か所に 置かない） -->
-          </div>
-        </div>
+        <!-- ★★料金の 窓（iframe）は 消しました★★ 2026-11-04（司さん「統一感ないし」）
+             09-08「窓で 見せる」・09-09「変える 口は 窓の 右横」を 上書き＝窓の 中に 帯や 見出しが 二重に 出て、
+             押すと 窓の 外ごと 移る 別の 動きだった。今は チップ「料金」で 料金の 決める 画面（1枚目に 今の 料金表）へ。 -->
 
         <!-- ★★実費の 名前★★ 2026-09-06（司さん「自由に 足せる ように」） -->
         <div data-pane="jippi" style="display: none">
@@ -1101,22 +1050,30 @@
               });
           };
         })();
-        // ★★会社設定の 中の チップ★★ 2026-09-05（司さん）
+        // ★★会社設定の 中の 中身（会社・実費）★★ 2026-09-05（司さん）／2026-11-04 直し
         //   ★押した 物だけ 出す★／★押した 場所を 覚える★（開き直しても 同じ 所）
-        (function wireChips() {
+        //   チップの 列は js/jimusho-footer.js が 作る（車・料金・従業員の 画面と 同じ 列）。
+        //   ★?p= を 覚えた 所より 先に 読む★（「会社」を 押したのに「実費」が 開かない・対立役 注3）
+        (function wirePane() {
           var KEY = 'dk_dash_chip';
+          var PANE = { kaisha: 1, jippi: 1 };
           function ima() {
+            var p = null;
+            try {
+              p = new URLSearchParams(location.search).get('p');
+            } catch (_) {
+              p = null;
+            }
+            if (p && PANE[p]) return p;
             try {
               var v = localStorage.getItem(KEY);
-              return v && document.querySelector('[data-pane="' + v + '"]') ? v : 'kaisha';
+              return v && PANE[v] ? v : 'kaisha';
             } catch (_) {
               return 'kaisha';
             }
           }
           function dasu(na) {
-            Array.prototype.forEach.call(document.querySelectorAll('[data-chip]'), function (b) {
-              b.className = 'chip' + (b.getAttribute('data-chip') === na ? ' on' : '');
-            });
+            if (!PANE[na]) na = 'kaisha';
             Array.prototype.forEach.call(document.querySelectorAll('[data-pane]'), function (d) {
               d.style.display = d.getAttribute('data-pane') === na ? '' : 'none';
             });
@@ -1126,55 +1083,32 @@
               /* 覚えられなくても 動く */
             }
           }
-          Array.prototype.forEach.call(document.querySelectorAll('[data-chip]'), function (b) {
-            b.onclick = function () {
-              // 決める 画面が 別に 在る チップ（車・従業員）は そのまま そこへ（覚える 場所は 変えない）
-              var iki = b.getAttribute('data-href');
-              if (iki) {
-                // 欄を 離れた 時の 保存（車の 名前・実費）を 先に 出し、書き終わって（最長 10 秒）から 移る
-                var a = document.activeElement;
-                if (a && a.blur) a.blur();
-                // 書けなかった 物が 1つでも 在れば 移らずに 知らせる（移ると 赤字が 消えて「保存できた」に 見えた）
-                var cm = document.getElementById('chipMsg');
-                if (cm) cm.textContent = '';
-                var go = function () {
-                  location.href = iki;
-                };
-                var tomaru = function () {
-                  if (cm)
-                    cm.textContent =
-                      '保存できなかった 物が あるので、画面を 移りませんでした。下の 知らせを 見て 直してから もう一度 押してください。';
-                };
-                setTimeout(function () {
-                  var owari = false;
-                  var kimeru = function (yoi) {
-                    if (owari) return;
-                    owari = true;
-                    yoi ? go() : tomaru();
+          // 部品の チップが 同じ 画面の 中（会社↔実費）を 押した 時に 呼ぶ＝打ちかけの 欄は 消えない（対立役 注A3）
+          window.DKPaneKae = dasu;
+          // ★移る 前の 門★（チップと 下の 帯の 両方が 通る）
+          //   欄を 離れた 時の 保存（車の 名前・実費）が 書き終わってから 移る。★書けなかった 物が 1つでも 在れば 移らない★
+          //   （移ると 赤字が 消えて「保存できた」に 見えた・2026-10-16 対立役）
+          window.DKUtsuruMae = function () {
+            return Promise.all(
+              DASH_KAKI_CHU.slice().map(function (p) {
+                return p.then(
+                  function (r) {
+                    return !(r && r.ok === false);
+                  },
+                  function () {
+                    return false;
+                  }
+                );
+              })
+            ).then(function (kekka) {
+              return kekka.every(Boolean)
+                ? { ok: true }
+                : {
+                    ok: false,
+                    ji: '保存できなかった 物が あるので、画面を 移りませんでした。下の 知らせを 見て 直してから もう一度 押してください。',
                   };
-                  Promise.all(
-                    DASH_KAKI_CHU.slice().map(function (p) {
-                      return p.then(
-                        function (r) {
-                          return !(r && r.ok === false);
-                        },
-                        function () {
-                          return false;
-                        }
-                      );
-                    })
-                  ).then(function (kekka) {
-                    kimeru(kekka.every(Boolean));
-                  });
-                  setTimeout(function () {
-                    kimeru(false);
-                  }, 10000);
-                }, 0);
-                return;
-              }
-              dasu(b.getAttribute('data-chip'));
-            };
-          });
+            });
+          };
           dasu(ima());
         })();
 

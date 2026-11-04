@@ -136,8 +136,22 @@ test('★★② 明細に出す の 2か所が 名前で 分かる★★', async
   expect(SRC.indexOf('この人だけ'), '★この人だけ と 書いていません★').toBeGreaterThan(0);
 });
 
-test('★★③ 全部の 画面に 戻るが 在る★★', async ({ page }) => {
-  const GAMEN = ['kyuryo.html', 'uriage.html', 'shukei.html', 'ryokinhyou.html', 'dashboard.html'];
+// ★★見張りの 中身を 逆に しました（黙って 数だけ 動かさない）★★ 2026-11-04
+//   ★前★ 2026-09-06「全ページで戻るボタンすらない」＝6画面の 頭に「← 戻る」が 在る事を 見ていた
+//   ★司さん 11-04★「左上に意味わからん戻るボタンもあるし」＝history.back() で「前に 見た 画面」へ 戻るだけ・帯と 食い違う
+//   ★今★ 頭の 戻るも「← 会社設定へ 戻る」も 無い・移るのは 下の 帯（飲み屋 Castally と 同じ）
+test('★★③ どの 画面にも 戻るは 無く、下の 帯は 在る★★', async ({ page }) => {
+  const GAMEN = [
+    'kyuryo.html',
+    'kyuryo.html?henshu=1#kuruma',
+    'kyuryo.html?henshu=1#emp',
+    'uriage.html',
+    'shukei.html',
+    'nyuryoku.html',
+    'ryokinhyou.html',
+    'ryokinhyou.html?henshu=1',
+    'dashboard.html',
+  ];
   const dame = [];
   for (const g of GAMEN) {
     await page.route('**/js/dk-session.js*', (r) =>
@@ -156,22 +170,16 @@ test('★★③ 全部の 画面に 戻るが 在る★★', async ({ page }) =>
     await page.setViewportSize({ width: 390, height: 900 });
     await page.goto('/' + g, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1800);
-    const r = await page.evaluate(() => {
-      const b = document.getElementById('dkModoru');
-      const f = document.getElementById('dkFooter');
-      if (!b || !f) return { aru: false };
-      const bb = b.getBoundingClientRect();
-      const fb = f.getBoundingClientRect();
-      return {
-        aru: b.offsetHeight > 0,
-        ji: (b.textContent || '').trim(),
-        // ★帯と 重なっていない★
-        kasanari: Math.max(0, bb.bottom - fb.top),
-      };
-    });
+    const r = await page.evaluate(() => ({
+      // ★押せる 物だけ 見る★（script の 中の 字を 数えない）
+      modoru: [...document.querySelectorAll('button, a')]
+        .filter((x) => x.offsetHeight > 0 && /戻る/.test(x.textContent || ''))
+        .map((x) => (x.textContent || '').trim()),
+      foot: !!(document.getElementById('dkFooter') || {}).offsetHeight,
+    }));
     // eslint-disable-next-line no-console
     console.log('★' + g + '★ ' + JSON.stringify(r));
-    if (!r.aru || r.kasanari > 1) dame.push(g + ':' + JSON.stringify(r));
+    if (r.modoru.length || !r.foot) dame.push(g + ':' + JSON.stringify(r));
   }
-  expect(dame, '★戻るが 無い／帯に 重なっている 画面が あります★').toEqual([]);
+  expect(dame, '★戻るが 残っている／帯が 無い 画面が あります★').toEqual([]);
 });
