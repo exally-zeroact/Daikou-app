@@ -62,6 +62,15 @@ export default defineConfig({
         //   page.route で 偽の 返事を 用意した 所は ★住所を 引く 前に★ 横取りされるので 今まで通り 動く。
         //   用意していない 所だけ「見つからない 住所」で すぐ 失敗する（本物には 1本も 届かない）。
         launchOptions: { args: ['--host-resolver-rules=MAP *.supabase.co ~NOTFOUND'] },
+        // ★★CI の chromium は 足跡（trace）を やり直しの 1回目 だけ 取る★★ 2026-11-04（ダイコメ・対立役 3回 済み）
+        //   毎回 足跡を 取ると chromium 148（playwright 1.60.0）が 試験の 間で 落ちる（SEGV_MAPERR 0x1b0）
+        //   →次の 試験が「browser has been closed」→ retries で 緑、が 10-30〜 52 走り中 17。
+        //   実測（偏る 5ファイル 24本×30回・10箱・retries 0）：毎回 取る＝720 中 11 落ち（10箱中 6箱 赤）／
+        //   足跡なし＝720 中 0（0箱）。PR #59・#61（Daikou-app-test・merge しない）。
+        //   CI は --retries=2 なので 失敗の 証拠は やり直し1回目の 足跡＋1回目の 絵と 動画 で 残る（1回目の 足跡だけ 無くなる）。
+        //   手元（CI でない）は retries 0 なので 今まで通り。webkit の 箱は 上の 階の retain-on-failure の まま
+        //   （playwright.webkit.config.js は projects を 丸ごと 差し替える＝この 行は 運ばれない）。chaos.yml も CI なので この 形。
+        trace: process.env.CI ? 'on-first-retry' : 'retain-on-failure',
       },
     },
   ],
