@@ -302,7 +302,8 @@
          390px の 電話で 頁ごと 399px に はみ出し、下の 帯の「会社設定」が 外へ 押し出されていた。
          字も 13px で iOS が 触ると 画面を 勝手に 寄せていた（kyuryo.html の select の 注と 同じ 穴）。
          ★字は 短く 保つ★＝例の 数は 下の 説明へ（長い 字は 箱の 中で 切れる＝試験 ⑭ が 見る） */
-      .row select {
+      .row select,
+      #shashuSel {
         width: 100%;
         min-width: 0;
         font-size: 16px;
@@ -355,6 +356,18 @@
         flex-wrap: wrap;
         padding: 8px 0;
         border-bottom: 1px solid var(--line);
+      }
+
+      /* ★段・割増・期間・車種の 欄（JS で 作る）も 16px★ 2026-11-04＝iOS が 押すと 画面を 勝手に 寄せない */
+      .kumi input:not([type='checkbox']),
+      .kumi select {
+        font-size: 16px;
+        font-family: inherit;
+        color: var(--ink);
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
       }
 
       .kumi input[type='text'] {
@@ -686,7 +699,7 @@
           <div class="row">
             <label for="fHiKijun">土日・冬・期間を 決める 日</label>
             <div class="in">
-              <select id="fHiKijun" aria-label="土日・冬・期間を 決める 日">
+              <select id="fHiKijun">
                 <option value="hajime">業務を 始めた 日</option>
                 <option value="hashitta">走った 時の 日</option>
               </select>
@@ -695,7 +708,7 @@
           <div class="row">
             <label for="fKasanari">重なった 時（深夜・土日・冬・期間）</label>
             <div class="in">
-              <select id="fKasanari" aria-label="割増が 重なった 時">
+              <select id="fKasanari">
                 <option value="kakeru">掛け合わせる</option>
                 <option value="ookii">大きい 方 だけ</option>
                 <option value="tasu">足し合わせる</option>

@@ -462,7 +462,7 @@
         min-width: 0;
         box-sizing: border-box;
         font-family: inherit;
-        font-size: 13px;
+        font-size: 16px;
         padding: 3px 5px;
         border: 1px solid var(--line);
         border-radius: 6px;
@@ -607,7 +607,7 @@
                   padding: 10px;
                   border: 1px solid #cfe0ff;
                   border-radius: 10px;
-                  font-size: 15px;
+                  font-size: 16px;
                 "
               />
               <button class="btn" id="saveHomeCity" type="button">保存</button>
@@ -633,7 +633,7 @@
                   padding: 10px;
                   border: 1px solid #cfe0ff;
                   border-radius: 10px;
-                  font-size: 15px;
+                  font-size: 16px;
                 "
               ></select>
               <button class="btn" id="saveKaishaShime" type="button">保存</button>
@@ -695,7 +695,18 @@
               <tbody id="jippiBody"></tbody>
             </table>
             <div class="row" style="margin-top: 10px">
-              <input id="jippiNew" placeholder="足す 名前（例）駐車場代" />
+              <input
+                id="jippiNew"
+                placeholder="足す 名前（例）駐車場代"
+                style="
+                  flex: 1;
+                  min-width: 0;
+                  padding: 10px;
+                  border: 1px solid #cfe0ff;
+                  border-radius: 10px;
+                  font-size: 16px;
+                "
+              />
               <button class="btn" id="jippiAdd" type="button">足す</button>
             </div>
             <div class="mada" id="jippiMsg" style="margin-top: 8px"></div>
@@ -1416,7 +1427,7 @@
                 nameBox.value = carName;
                 nameBox.setAttribute('aria-label', '車の名前');
                 nameBox.style.cssText =
-                  'width:120px;padding:6px 8px;border:1px solid #cfe0ff;border-radius:8px;font-size:14px';
+                  'width:120px;padding:6px 8px;border:1px solid #cfe0ff;border-radius:8px;font-size:16px';
                 nameBox.onchange = function () {
                   saveLabel(d.device_id, nameBox.value.trim());
                 };
