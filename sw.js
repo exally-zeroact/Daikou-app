@@ -132,6 +132,7 @@ const CORE_CODE_FILES = [
   '/js/kami-hyou.js',
   '/js/kami-shukei.js',
   '/js/kami-egaku.js',
+  '/js/pdf-okuru.js',
   '/lib/font-slim.js',
   '/lib/pdf-slim.js',
   '/js/obd-client.js',

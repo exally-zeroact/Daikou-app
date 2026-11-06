@@ -84,3 +84,22 @@ describe('★メーターが 読む js は 先取りに 全部 在る★', () =>
     });
   });
 });
+
+// ★★PDF を 送る 道具（js/pdf-okuru.js）も 先取りに 在る★★ 2026-11-06（設計前 対立役 注6）
+//   上の 見張りは index.html しか 数えない。紙を 出す 3つの 頁が 読む pdf-okuru.js を 名簿から 抜くと、
+//   読めない 端末では 黙って 今の 道（blob の URL が LINE に 付く 道）へ 戻る。
+//   わざと壊す：sw.js の '/js/pdf-okuru.js' を 抜く ⇒ 赤／頁の script を 抜く ⇒ 赤
+describe('★紙を 出す 頁の PDF を 送る 道具は 先取りに 在る★', () => {
+  const P = meibo('PRECACHE_FILES') || [];
+  const C = meibo('CORE_CODE_FILES') || [];
+  for (const page of ['uriage.html', 'shukei.html', 'kyuryo.html']) {
+    it(page + ' は js/pdf-okuru.js を kami-pdf.js より 前に 読み、それが 先取りに 在る', () => {
+      const h = fs.readFileSync(path.join(ROOT, page), 'utf8');
+      const a = h.indexOf('<script src="js/pdf-okuru.js"></script>');
+      const b = h.indexOf('<script src="js/kami-pdf.js"></script>');
+      expect(a, page + ' が js/pdf-okuru.js を 読んでいません').toBeGreaterThanOrEqual(0);
+      expect(a, page + ' は kami-pdf.js より 前に 読む').toBeLessThan(b);
+      expect(P.indexOf('/js/pdf-okuru.js') >= 0 || C.indexOf('/js/pdf-okuru.js') >= 0).toBe(true);
+    });
+  }
+});

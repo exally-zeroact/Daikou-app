@@ -37,8 +37,13 @@ test.use({ userAgent: devices['iPhone 13'].userAgent });
 const BOTAN = '📄 印刷 / 送る';
 const MATSU = 'PDF作成中…';
 
-async function kyouyuNise(page, _mode) {
-  await page.addInitScript(() => {
+// ★mode★ 2026-11-06（司さんの 答え B・js/pdf-okuru.js）
+//   'ari'      … 共有が 無い iPhone（navigator.share を 外す）＝今までの 保存の 道を 見る（下の ①・⑭〜⑲）
+//   'share'    … 共有が 在る iPhone＝PDF と 字だけ 渡す 道（㉑）
+//   'kotowaru' … 1回目の 共有を NotAllowedError で 断る（作り待ちの 後・帯の 道）
+//   ★共有を 必ず 偽物か 無しに する★（Windows の chromium は 本物の share を 持つ＝手元だけ 本物を 呼ぶ・設計前 対立役 注5）
+async function kyouyuNise(page, mode) {
+  await page.addInitScript((mode) => {
     window.__kyouyu = [];
     window.__mado = [];
     // ★ダウンロード（a の download）を 控える★（見本の InvoicePDF.save と 同じ 道・本物の 保存は しない）
@@ -60,21 +65,31 @@ async function kyouyuNise(page, _mode) {
       return { closed: false };
     };
     void open0;
-    // 共有の 画面（使われたら 控える＝渡しては いけない）
+    // 共有の 画面（'ari' は 無し＝今の 道）
+    window.__kyouyuD = [];
+    let kotowaru = mode === 'kotowaru' ? 1 : 0;
     Object.defineProperty(navigator, 'canShare', {
-      value: (d) => !!(d && d.files && d.files.length),
+      value: mode === 'ari' ? undefined : (d) => !!(d && d.files && d.files.length),
       configurable: true,
     });
     Object.defineProperty(navigator, 'share', {
-      value: (d) => {
-        window.__kyouyu.push(
-          (d.files || []).map((f) => ({ name: f.name, type: f.type, size: f.size }))
-        );
-        return Promise.resolve();
-      },
+      value:
+        mode === 'ari'
+          ? undefined
+          : (d) => {
+              if (kotowaru > 0) {
+                kotowaru--;
+                return Promise.reject(new DOMException('need tap', 'NotAllowedError'));
+              }
+              window.__kyouyu.push(
+                (d.files || []).map((f) => ({ name: f.name, type: f.type, size: f.size }))
+              );
+              window.__kyouyuD.push({ keys: Object.keys(d).sort(), text: d.text });
+              return Promise.resolve();
+            },
       configurable: true,
     });
-  });
+  }, mode || 'ari');
 }
 
 async function homeApp(page) {
@@ -634,4 +649,110 @@ test('⑲ 裏で 作り終わっても 字と 止めが 同じなら ボタン�
   expect(r.ji).toBe(BOTAN);
   expect(r.tome).toBe(false);
   expect(await watashita(page), '★押す 前に 渡した★').toBe(0);
+});
+
+// ============================================================
+// ★★iPhone・iPad で 共有が 在る＝共有の 画面に PDF と 字だけ 渡す★★ 2026-11-06 司さんの 答え B（js/pdf-okuru.js）
+//   保存の 道で 開いた PDF の 画面から 共有すると blob:https://… の URL も LINE に 届いた（司さん 11-04）
+//   ★files だけ（字 無し）には 戻さない★（10-30「LINEないやないか」）＝鍵は ちょうど files と text・text は 空で ない
+// ============================================================
+const tsukuriOwariMiru = async (page) => {
+  await page.route('**/js/kami-egaku.js', async (r) => {
+    const res = await r.fetch();
+    const body =
+      (await res.text()) +
+      ';(function(){var t=window.KamiEgaku.tsukuru;window.KamiEgaku.tsukuru=function(){return t.apply(this,arguments).then(function(d){window.__dekita=(window.__dekita||0)+1;return d;});};})();';
+    await r.fulfill({ response: res, body });
+  });
+};
+
+// わざと壊す：hnPdfDasu の PdfOkuru の 道を 外す ⇒ 赤（共有 0・保存 1）
+//            js/pdf-okuru.js の share に url を 足す／text を 外す ⇒ 赤（鍵が files・text で ない）
+test('㉑ 共有が 在る iPhone は 押した その 時に 共有の 画面へ PDF と 字だけ 渡す（url・title 無し・保存 0）', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'share');
+  await tsukuriOwariMiru(page);
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  const e = await erabi(page);
+  // ★押した 手の 中で 共有を 呼ぶ★（then を 挟むと 押した 扱いが 切れて 断られる）
+  const sugu = await page.evaluate(() => {
+    document.getElementById('hnPdf').click();
+    return window.__kyouyu.length;
+  });
+  expect(sugu, '★押した 手の 中で 共有を 呼んで いない★').toBe(1);
+  const d = await page.evaluate(() => window.__kyouyuD[0]);
+  expect(d.keys, '★共有に 渡す 鍵は files と text だけ★').toEqual(['files', 'text']);
+  expect(d.text).toContain('給料明細 ' + e.y + '-' + e.m);
+  const f = await page.evaluate(() => window.__kyouyu[0][0]);
+  expect(f.type).toBe('application/pdf');
+  expect(f.name).toMatch(new RegExp('^給料明細_' + e.y + '-' + e.m + '.*[.]pdf$'));
+  expect(f.size).toBeGreaterThan(0);
+  expect(
+    await page.evaluate(() => window.__dl.length + window.__mado.length),
+    '★保存も した★'
+  ).toBe(0);
+  await expect(page.locator('#hnPdfAnnai')).toHaveText('PDFを渡しました');
+});
+
+// ★作り待ちの 後は 断られる（NotAllowedError）＝帯「送る・印刷する」→ 押すと 同じ 共有★
+//   わざと壊す：js/pdf-okuru.js の NotAllowedError で 帯を 出さない ⇒ 赤（帯 0）
+test('㉒ 共有を 断られたら 帯「送る・印刷する」を 出し、押すと PDF と 字だけ 渡す', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'kotowaru');
+  await tsukuriOwariMiru(page);
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  await page.click('#hnPdf');
+  await expect(page.locator('#pdfOkuruObi')).toBeVisible();
+  await expect(page.locator('#pdfOkuruMsg')).toContainText('.pdf');
+  expect(await page.evaluate(() => window.__kyouyu.length + window.__dl.length)).toBe(0);
+  await page.click('#pdfOkuruGo');
+  await expect.poll(() => page.evaluate(() => window.__kyouyu.length)).toBe(1);
+  expect((await page.evaluate(() => window.__kyouyuD[0])).keys).toEqual(['files', 'text']);
+  await expect(page.locator('#pdfOkuruObi')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__dl.length)).toBe(0);
+});
+
+// ★帯が 出た 後に 期間を 選び直したら 帯を 消す（前の 期間の 紙を 送らない）★
+//   わざと壊す：hnPdfSuteru の PdfOkuru.kesu を 外す ⇒ 赤（帯が 残る）
+test('㉓ 帯が 出た 後に 期間を 選び直すと 帯を 消す（前の 紙を 送らない）', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'kotowaru');
+  await tsukuriOwariMiru(page);
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  await page.click('#hnPdf');
+  await expect(page.locator('#pdfOkuruObi')).toBeVisible();
+  await page.locator('#hnKikanSel').selectOption('1');
+  await expect(page.locator('#pdfOkuruObi')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__kyouyu.length + window.__dl.length)).toBe(0);
+});
+
+// ★帯が 出た 後に「📄 印刷 / 送る」を もう一度 押す＝その 共有で 送り、古い 帯は 消す（同じ PDF を 2回 送らせない）★
+//   わざと壊す：hnPdfDasu の kai: PdfOkuru.kesu() を PdfOkuru.kai() に 戻す ⇒ 赤（帯が 残る）
+test('㉔ 帯が 出た 後に ボタンを もう一度 押すと 共有し、古い 帯は 消える', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 900 });
+  await kyouyuNise(page, 'kotowaru');
+  await tsukuriOwariMiru(page);
+  await hiraku(page);
+  await expect
+    .poll(() => page.evaluate(() => window.__dekita || 0), { timeout: 30000 })
+    .toBeGreaterThan(0);
+  await page.click('#hnPdf');
+  await expect(page.locator('#pdfOkuruObi')).toBeVisible();
+  await page.waitForTimeout(1100); // 1秒の 連打よけが 外れるのを 待つ
+  await page.click('#hnPdf');
+  await expect.poll(() => page.evaluate(() => window.__kyouyu.length)).toBe(1);
+  await expect(page.locator('#pdfOkuruObi')).toHaveCount(0);
 });

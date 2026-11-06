@@ -531,6 +531,7 @@
          ★本体より 前に 読む★ 2026-10-05：開いた 時に 紙を 描くので、後ろに 置くと 読み終わる 前に 描いて 落ちた -->
     <script src="js/kami-kumu.js"></script>
     <script src="js/kami-hyou.js"></script>
+    <script src="js/pdf-okuru.js"></script>
     <script src="js/kami-pdf.js"></script>
     <script>
       (function () {
@@ -796,12 +797,16 @@
           };
         }
         function kamiDasu(mai, na) {
+          // ★押した 時に 前の 帯を 消し その 数を 控える★（間に 選び直したら 送らない・js/pdf-okuru.js 2026-11-06）
+          var kai = window.PdfOkuru ? PdfOkuru.kesu() : null;
           kamiMsg('紙を 作っています…');
-          return KamiPdf.dasu(mai, na)
+          return KamiPdf.dasu(mai, na, { kai: kai })
             .then(function (r) {
               // ★出せない 字が 在れば 知らせる★（見本 代行請求書と 同じ 字・2026-10-31）
               var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(r.missing) : '';
-              kamiMsg('出しました（' + r.mai + '枚）' + (miss ? '　' + miss : ''));
+              // ★iPhone・iPad は 共有へ 渡した 字★（how ごと・見本 exportInvoicePDF と 同じ 字）
+              var w = window.PdfOkuru ? PdfOkuru.bun(r.how, miss) : null;
+              kamiMsg(w !== null ? w : '出しました（' + r.mai + '枚）' + (miss ? '　' + miss : ''));
             })
             .catch(function (e) {
               kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
@@ -839,6 +844,7 @@
         Array.prototype.forEach.call(document.querySelectorAll('#kamiSeg .segb'), function (b) {
           b.onclick = function () {
             KAMI_SHU = b.getAttribute('data-shu');
+            if (window.PdfOkuru) PdfOkuru.kesu(); // 紙を 選び直した＝前の 紙の 帯を 消す
             kamiMiseru();
           };
         });
@@ -924,6 +930,7 @@
         var LOAD_NO = 0;
         function load() {
           MIETA = {}; // 月を 替えたら 前の 月に 出した 欄の 控えを 空に（対立役 4回目 指2）
+          if (window.PdfOkuru) PdfOkuru.kesu(); // 月を 読み直す＝前の 月の 紙の 帯を 消す（送らない）
           if (!COMPANY) return;
           var no = ++LOAD_NO;
           var tsuki = ymKey(MONTH);

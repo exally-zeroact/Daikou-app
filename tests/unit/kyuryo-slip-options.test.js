@@ -255,10 +255,18 @@ describe('★①1人ごとにPDF★', () => {
     // ★新しいタブで開く所も 1本★（片方だけ直す事故を止める）
     //   ★2026-09-26★ 開く所は js/kami-egaku.js の dasu に 移した＝画面には 無い。
     //   ⇒ ★どちらも 同じ dasu を 呼んでいる事★ を 数える。
+    //   ★2026-11-06★ 時間切れを 作り終えるまでに する 為 E.dasu は _dasuMachi の 中の 1か所に まとめた
+    //   ⇒ ★_dasuMachi を 呼ぶ 所（1人・見本・全員）★と、その 中の E.dasu を 数える
     expect(
-      (HTML.match(/E\.dasu\(/g) || []).length,
+      (HTML.match(/return _dasuMachi\(/g) || []).length,
       '★出す所が 1本になっていない★'
     ).toBeGreaterThanOrEqual(2);
+    expect(HTML).toMatch(/function _dasuMachi\([\s\S]{0,600}E\.dasu\(/);
+    // ★時計は 作り終えた（dekita）所で 止める★（消すと 共有の 画面で 相手を 選ぶ 間に 30秒 過ぎて「PDFは出していません」と 嘘・再叩き 注1）
+    //   わざと壊す：_dasuMachi の dekita の 行を 消す ⇒ 赤
+    expect(HTML, '★_dasuMachi が dekita で 時計を 止めていない★').toMatch(
+      /function _dasuMachi\([\s\S]{0,700}dekita: function \(\) \{\s*clearTimeout\(tid\);/
+    );
     // ★★2026-09-05 印刷が 2つに なりました★★（司さん「チェックボタン 作って 全体と 選んだ人」）
     //   ★全員を 印刷★ … printAll(null)
     //   ★選んだ人を 印刷★ … printAll(erandaHito())

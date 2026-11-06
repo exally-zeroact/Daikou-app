@@ -89,16 +89,38 @@
   // ★出す★ itas … [{ el: 板のdiv, muki: 'tate'|'yoko' }, …]
   //   ★何枚でも 1つの PDF★（複数人＝複数ページ／給料画面と 同じ 決まり）
   // ============================================================
-  function dasu(itas, namae) {
+  //   opt.kai＝押した 時の PdfOkuru.kesu() の 数（js/pdf-okuru.js・間に 選び直したら 送らない）
+  //   ★時間切れは 作る 所だけ★（渡す＝共有の 画面の 待ちは 包まない・設計前 対立役 止1 2026-11-06）
+  // ★作り終えるまでの 時間切れ★（dekita が 呼ばれたら 止める＝共有の 画面の 待ちは 数えない）
+  function _matsuDekita(hajimeru, ms) {
+    let tid = null;
+    return new Promise(function (ok, ng) {
+      tid = setTimeout(function () {
+        ng(new Error('PDF が ' + Math.round(ms / 1000) + '秒で 返りませんでした'));
+      }, ms);
+      hajimeru(function () {
+        clearTimeout(tid);
+      }).then(
+        function (v) {
+          clearTimeout(tid);
+          ok(v);
+        },
+        function (e) {
+          clearTimeout(tid);
+          ng(e);
+        }
+      );
+    });
+  }
+  function dasu(itas, namae, opt) {
     itas = [].concat(itas || []);
     if (!itas.length) return Promise.reject(new Error('出す 紙が ありません'));
-    return _matsu(
-      yomu().then(function (E) {
-        return E.dasu(itas, namae, A4);
-      }),
-      MACHI_MS,
-      'PDF'
-    );
+    //   道具の 読み込みは ここで・作る 所は dasu の machi で（給料の 画面の 明細と 同じ 道＝e2e kami-pdf-okuru ⑤ が 両方を 見る）
+    return _matsu(yomu(), MACHI_MS, 'PDF').then(function (E) {
+      return _matsuDekita(function (dekita) {
+        return E.dasu(itas, namae, A4, Object.assign({}, opt, { dekita: dekita }));
+      }, MACHI_MS);
+    });
   }
 
   // ★紙を 入れた 後に 箱の 幅が 縮んだら 縮め直す★ 2026-10-21（事務所の 給料画面 kamiMadoNuru と 同じ 穴）

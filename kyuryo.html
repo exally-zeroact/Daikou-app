@@ -2286,6 +2286,7 @@
               // 札が 置けない 端末は 印だけで 止める
             }
             u.searchParams.set('openExternalBrowser', '1');
+            if (window.PdfOkuru) PdfOkuru.kesu(); // ★窓の 上に 帯を 残さない★
             var box = document.createElement('div');
             box.id = 'hnGaibu';
             box.style.cssText =
@@ -3144,6 +3145,7 @@
         var HN_PDF_TOMETA = false;
         var HN_RENDA_MS = 1000;
         function hnPdfSuteru() {
+          if (window.PdfOkuru) PdfOkuru.kesu(); // ★選び直した＝前の 紙の「送る・印刷する」の 帯を 消す（送らない）★
           HN_NO++;
           HN_PDF = null;
           HN_PDF_CHU = -1;
@@ -3197,10 +3199,12 @@
           nm += '_' + String((emp && emp.name) || '');
           return nm.replace(/[\\/:*?"<>|]/g, '_') + '.pdf';
         }
-        // ★出す★＝ホーム画面の アプリも 見本（代行請求書 InvoicePDF.save）と 同じ 保存（2026-10-30）
-        //   前は ホーム画面の アプリだけ 共有の 画面に PDF を 直に 渡した ⇒ iPhone で LINE が 並ばず「その他」にも 無い
-        //   （司さん 10-30「LINEないやないか 代行請求書アプリみたんか？」）。代行請求書は ホーム画面でも 保存の 道で、
-        //   開いた PDF の 画面の 共有に LINE が 出る。★共有の 画面に 直に 渡す 道は 外した★
+        // ★出す★ 2026-11-06 司さんの 答え B（代行請求書 本番 bdecd29 と 同じ・js/pdf-okuru.js）
+        //   iPhone・iPad＝共有の 画面に ★PDF と 字（text）だけ★ 渡す（url・title は 付けない）。
+        //   保存の 道（a download）で 開いた PDF の 画面から 共有すると blob:https://… の URL も 届いた（司さん 11-04）。
+        //   ★files だけ（字 無し）の 古い 形には 戻さない★（10-30「LINEないやないか」＝その 形は LINE が 並ばない。
+        //   files＋text は 司さんの 実機で LINE に 字と PDF が 届いた 11-06）。
+        //   Android・PC・共有が 無い 端末＝今までの 道（下の 保存／窓）
         // ★出した 後 1秒は ボタンを 止める★（見本は 押すと 作り終わるまで 止める＝連打で 2本 出ない。
         //   こちらは 裏で 作り済みなら すぐ 出る＝止めが 無いと ダブルクリックで 2本 保存・本番前 対立役 止1 10-31）
         function hnPdfDasu(p) {
@@ -3212,6 +3216,33 @@
             hnPdfBotan();
           }, HN_RENDA_MS);
           hnPdfBotan();
+          // ★iPhone・iPad＝共有へ★ 作り済みなら click の 中で そのまま 共有を 開く（then を 挟まない＝押した 扱いが 切れない）
+          //   作り待ちの 後で 断られた（NotAllowedError）＝帯「送る・印刷する」
+          //   ★共有が 無い iPhone（tsukaeru が 偽）は 下の 今の 道を その 場で＝押した 手の 中で 保存（約束を 待たない・e2e ⑯）★
+          if (window.PdfOkuru && PdfOkuru.tsukaeru(window.navigator)) {
+            var miss0 = window.KamiEgaku ? window.KamiEgaku.missingBun(p.missing) : '';
+            PdfOkuru.okuru(p.blob, p.name, PdfOkuru.namaeJi(p.name), window, {
+              chui: miss0,
+              hiraku: function () {
+                hnPdfHozon(p);
+              },
+              // ★押した 頭で 前の 帯を 消す★（見本 exportInvoicePDF と 同じ・残ると 同じ PDF を 2回 送れる・作った後の 対立役 止3）
+              kai: PdfOkuru.kesu(),
+            })
+              .then(function (ok) {
+                if (ok.how === 'none') return hnPdfImaNoMichi(p);
+                hnAnnai(PdfOkuru.bun(ok.how, miss0) || '');
+              })
+              .catch(function (e) {
+                // ★見本 exportInvoicePDF の catch と 同じ 字★（黙って 終わらない・作った後の 対立役 注3）
+                hnPdfErr('PDF作成に失敗：' + (e && e.message ? e.message : e));
+              });
+            return;
+          }
+          hnPdfImaNoMichi(p);
+        }
+        // ★今までの 道★（Android・PC・共有が 無い iPhone）
+        function hnPdfImaNoMichi(p) {
           try {
             // ★スマホは 保存（PDF の 画面が 開き 共有から 送る・プリント）／PC は 新しい 窓で 開く（印刷も 保存も そこから）★
             //   見本 exportInvoicePDF（daikou-seikyu）の !insatsuSumaho の 道と 同じ 2026-11-01（司さん 指示②）
@@ -3617,6 +3648,7 @@
         //   ★どこを 押しても 閉じる★／★Esc でも 閉じる★
         // ★大きい 窓を 出す（中身は 呼ぶ側が 決める）★
         function haifuMado(naka) {
+          if (window.PdfOkuru) PdfOkuru.kesu(); // ★窓の 上に「送る・印刷する」の 帯を 残さない★
           var furui = document.getElementById('haifuMise');
           if (furui) furui.parentNode.removeChild(furui);
           var d = document.createElement('div');
@@ -3642,6 +3674,7 @@
         }
 
         function haifuMiseru(eid) {
+          if (window.PdfOkuru) PdfOkuru.kesu(); // ★QR の 窓（z9999）の 上に 帯を 残さない★（作った後の 対立役 止1）
           var x = null;
           for (var i = 0; i < HAIFU.length; i++) {
             if (String(HAIFU[i].employee_id) === String(eid)) x = HAIFU[i];
@@ -4553,10 +4586,13 @@
         function kamiDasu(mai, na, kire) {
           kamiMsg('紙を 作っています…');
           kamiBtn(true);
-          return KamiPdf.dasu(mai, na)
+          // ★押した 時の 数（kamiJunbi で 控えた）★ 間に 月・期・人を 選び直したら 送らない（js/pdf-okuru.js）
+          return KamiPdf.dasu(mai, na, { kai: KAMI_KAI })
             .then(function (x) {
               kamiBtn(false);
               var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '';
+              var w = window.PdfOkuru ? PdfOkuru.bun(x.how, miss) : null;
+              if (w !== null) return kamiMsg(w);
               kamiMsg(
                 '出しました（' +
                   x.mai +
@@ -4570,7 +4606,10 @@
               kamiMsg('出せませんでした：' + (e && e.message ? e.message : e));
             });
         }
+        var KAMI_KAI = null;
         function kamiJunbi() {
+          // ★押した その 時に 前の 帯を 消し 数を 控える★（読み込む 間に 選び直したら 送らない）
+          KAMI_KAI = window.PdfOkuru ? PdfOkuru.kesu() : null;
           if (!COMPANY) {
             kamiMsg('会社が 選ばれていません。');
             return null;
@@ -4748,6 +4787,7 @@
 
         // ★選んだ 数を そのまま 見せる★（何人 出るのか 押す前に 分かる）
         function nurikae() {
+          if (window.PdfOkuru) PdfOkuru.kesu(); // ★出す 人を 選び直した＝前の 紙の 帯を 消す★
           var n2 = erandaHito().length;
           var b = $('btnPrintSel');
           var t = $('printNote');
@@ -5168,6 +5208,7 @@
         var LP_YOMICHU = false;
         var SET_YONDA = false; // ★給料の 設定を 読み終えたか★（読む 前は 締めの 形が 分からない）
         function loadPeriod() {
+          if (window.PdfOkuru) PdfOkuru.kesu(); // ★月・期を 読み直す＝前の 紙の 帯を 消す（送らない）★
           if (!COMPANY) return;
           // ★設定を 読み終える 前は 組まない★ 2026-10-07（読む 前は 月3回に 見え、20日締めの 会社でも 月3回で 明細を 組んだ・対立役 Q）
           if (!SET_YONDA) return;
@@ -6285,6 +6326,32 @@
         //     ＝絵にしていた 頃より ★速い★。30秒は 十分 余裕が 在る。
         //     （集計の 9種を 出す js/kami-pdf.js と 同じ 30秒に 揃えた）
         var PDF_TIMEOUT_MS = 30000;
+        // ★明細の PDF を 出す★ 時間切れ（PDF_TIMEOUT_MS）は 作り終える（dekita）まで＝共有の 画面の 待ちは 数えない 2026-11-06
+        //   （LINE で 相手を 選ぶ 間に 30秒 過ぎると「PDFは出していません」と 嘘に なる・設計前 対立役 止1）
+        //   作る 所が 返らない 時は 今まで 通り 時間切れ（e2e kyuryo-paper「永久に待たない」）。字は _withTimeout と 同じ
+        function _dasuMachi(E, itas, title, kai) {
+          var tid = null;
+          return new Promise(function (ok, ng) {
+            tid = setTimeout(function () {
+              ng(new Error('PDF が ' + PDF_TIMEOUT_MS + 'ms で返りませんでした'));
+            }, PDF_TIMEOUT_MS);
+            E.dasu(itas, title, KAMI_KATA, {
+              kai: kai,
+              dekita: function () {
+                clearTimeout(tid);
+              },
+            }).then(
+              function (v) {
+                clearTimeout(tid);
+                ok(v);
+              },
+              function (e) {
+                clearTimeout(tid);
+                ng(e);
+              }
+            );
+          });
+        }
         function _withTimeout(pr, ms, name) {
           var tid = null;
           return Promise.race([
@@ -6423,21 +6490,23 @@
           var title = '給料明細_' + ym + '_' + String(emp.name || '');
 
           showMsg('PDFを作っています…');
+          var kai1 = window.PdfOkuru ? PdfOkuru.kesu() : null;
           var dougu1 = false;
           loadPdfLibs()
             .then(function (E) {
               dougu1 = true;
               // ★はみ出す 人は 作らない★ 2026-10-08（printAll と 同じ 門・対立役：printOne だけ 門が 無かった）
               if (hamiTomeru([emp], kiOne)) return null;
-              return _withTimeout(
-                E.dasu(_empSheets(emp, slipCars(REP.cars, emp.employee_id)), title, KAMI_KATA),
-                PDF_TIMEOUT_MS,
-                'PDF'
+              // ★時間切れは 作る 所だけ★（共有の 画面の 待ちを 包まない・_dasuMachi・対立役 止1 2026-11-06）
+              return _dasuMachi(
+                E,
+                _empSheets(emp, slipCars(REP.cars, emp.employee_id)),
+                title,
+                kai1
               );
             })
             .then(function (x) {
-              // ★出せない 字が 在れば 知らせる★（見本と 同じ 字・2026-10-31）
-              showMsg(x && window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '');
+              showMsg(meisaiBun(x));
             })
             .catch(function (err) {
               // ★印刷の 保険へ 落ちる 時も はみ出す 人は 止める・道具を 読めた 後の 失敗は 印刷しない★
@@ -6869,17 +6938,13 @@
               if (!m || !m.sheets.length)
                 return showErr('この 月に 時数が 無いので 見本の 紙を 作れません。');
               showMsg('PDFを作っています…（見本）');
+              var kai2 = window.PdfOkuru ? PdfOkuru.kesu() : null;
               loadPdfLibs()
                 .then(function (E) {
-                  return _withTimeout(
-                    E.dasu(m.sheets, '給料明細_見本_' + narabi[i].na, KAMI_KATA),
-                    PDF_TIMEOUT_MS,
-                    'PDF'
-                  );
+                  return _dasuMachi(E, m.sheets, '給料明細_見本_' + narabi[i].na, kai2);
                 })
                 .then(function (x) {
-                  // ★出せない 字が 在れば 知らせる★（見本と 同じ 字・2026-10-31）
-                  showMsg(x && window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '');
+                  showMsg(meisaiBun(x));
                 })
                 .catch(function () {
                   showMsg('');
@@ -6962,6 +7027,7 @@
           var shippai = function (err) {
             pdfAtoshimatsu(boxes, dougu, err, kiAll);
           };
+          var kai3 = window.PdfOkuru ? PdfOkuru.kesu() : null;
           loadPdfLibs()
             .then(function (E) {
               dougu = true;
@@ -6973,15 +7039,21 @@
               boxes.forEach(function (e2) {
                 mai = mai.concat(_empSheets(e2, slipCars(REP.cars, e2.employee_id)));
               });
-              return _withTimeout(E.dasu(mai, '給料明細_' + ym, KAMI_KATA), PDF_TIMEOUT_MS, 'PDF');
+              return _dasuMachi(E, mai, '給料明細_' + ym, kai3);
             })
             .then(function (x) {
-              // ★出せない 字が 在れば 知らせる★（見本と 同じ 字・2026-10-31）
-              showMsg(x && window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '');
+              showMsg(meisaiBun(x));
             })
             .catch(shippai);
         }
         window.printAll = printAll;
+        // ★明細の PDF を 出した 後の 字★ 出せない 字（見本と 同じ 字・2026-10-31）＋iPhone・iPad の 共有の 字（how ごと）
+        function meisaiBun(x) {
+          if (!x) return '';
+          var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '';
+          var w = window.PdfOkuru ? PdfOkuru.bun(x.how, miss) : null;
+          return w !== null ? w : miss;
+        }
 
         // ★見張りが 実際に紙を組んで 数を測る為の入口★ 2026-08-26
         //   ＝★ソースを読むだけの見張りにしない★（読むだけの見張りは 何度も嘘をついた）。
@@ -10602,6 +10674,7 @@
     <!-- ★紙（A4のPDF）★ 2026-09-25（司さん「月で選んだら 項目別で その場で A4サイズPDFで 見せれるようにしろ」） -->
     <script src="js/kami-kumu.js"></script>
     <script src="js/kami-hyou.js"></script>
+    <script src="js/pdf-okuru.js"></script>
     <script src="js/kami-pdf.js"></script>
     <script src="js/jimusho-footer.js"></script>
   </body>

@@ -386,16 +386,26 @@
       });
   }
 
-  function dasu(itas, namae, A4) {
-    return tsukuru(itas, A4).then(function (dekita) {
-      const blob = dekita.blob;
+  // ★渡す★（作った 紙を 客へ）2026-11-06 司さんの 答え B（代行請求書 本番 bdecd29 と 同じ）
+  //   iPhone・iPad＝共有の 画面に PDF と 字だけ（js/pdf-okuru.js・blob の URL を 付けない＝LINE に 開けない URL が 届かない）
+  //   Android・PC・共有が 無い＝今までの 道（新しい タブ→止められたら 保存）
+  //   ★時間切れの 包みの 外で 呼ぶ★（共有の 画面を 開いた まま 30秒 過ぎると「出していません」に なる・設計前 対立役 止1）
+  //   opt.kai＝押した 時の PdfOkuru.kesu() の 数（間に 選び直したら 送らない）
+  //   戻り＝{ mai, size, missing, how }（how＝share/cancel/need-tap/kawatta/hiraita）
+  function watasu(dekita, namae, opt) {
+    const blob = dekita.blob;
+    const fname = (namae || '紙') + '.pdf';
+    const kekka = function (how) {
+      return { mai: dekita.mai, size: blob.size, missing: dekita.missing, how: how };
+    };
+    function imaNoMichi() {
       const url = URL.createObjectURL(blob);
       // ★blob を 新しいタブで 開く★（iOS の 不具合よけ・給与アプリと 同じ）
       const w = global.open(url, '_blank');
       if (!w) {
         const a = document.createElement('a');
         a.href = url;
-        a.download = (namae || '紙') + '.pdf';
+        a.download = fname;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -403,7 +413,30 @@
       setTimeout(function () {
         URL.revokeObjectURL(url);
       }, 60000);
-      return { mai: itas.length, size: blob.size, missing: dekita.missing };
+    }
+    const P = global.PdfOkuru;
+    if (!P || !P.appleTouch(global.navigator)) {
+      imaNoMichi();
+      return Promise.resolve(kekka('hiraita'));
+    }
+    return P.okuru(blob, fname, P.namaeJi(namae), global, {
+      chui: missingBun(dekita.missing),
+      hiraku: imaNoMichi,
+      kai: opt && opt.kai,
+    }).then(function (ok) {
+      if (ok.how !== 'none') return kekka(ok.how);
+      imaNoMichi();
+      return kekka('hiraita');
+    });
+  }
+
+  // ★出す＝作る＋渡す★ 2026-11-06
+  //   opt.dekita()＝作り終えた 所（渡す 前）で 呼ぶ＝呼ぶ 側の 時間切れは ここで 止める
+  //   （作る 所が 返らない 時は 時間切れ・渡す＝共有の 画面の 待ちは 包まない・設計前 対立役 止1）
+  function dasu(itas, namae, A4, opt) {
+    return tsukuru(itas, A4).then(function (dekita) {
+      if (opt && typeof opt.dekita === 'function') opt.dekita();
+      return watasu(dekita, namae, opt);
     });
   }
 
@@ -422,6 +455,7 @@
     hakaru: hakaru,
     tsukuru: tsukuru,
     dasu: dasu,
+    watasu: watasu,
     missingBun: missingBun,
   };
   if (typeof global !== 'undefined') global.KamiEgaku = api;
