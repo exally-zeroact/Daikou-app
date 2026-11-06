@@ -71,6 +71,8 @@ export const WEBKIT_KUMI = [
   // 従業員の 明細＝辞めた 人の 記録の 無い 期は ¥0・札が 切れた 後の 入れる 画面に 月の 欄を 出さない（本番前の 対立役 止1・止2 2026-10-30）
   'kyuryo-honnin-yameta.spec.js',
   'kyuryo-meisai-miseru.spec.js',
+  // 給料の 画面の 上の「その 期に 渡す 給料の 合計」（司さんが iPhone で 見る・2026-11-06）
+  'kyuryo-harai-goukei.spec.js',
   // 幅の 変わらない resize（iPhone の 帯の 伸び縮み・板の 開け閉め）で 紙を 作り直さず 巻いた 位置が 飛ばない（2026-10-23）
   'kami-maki-zurenai.spec.js',
   // 下の 帯の 巻き直しが 欄から 欄への 巻きを 止めない（2026-10-23）
