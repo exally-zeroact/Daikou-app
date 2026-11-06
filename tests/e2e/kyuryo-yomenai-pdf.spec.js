@@ -3,13 +3,24 @@
 //
 //   対立役 10-07：手当・控除（dk_pay_adjustments）が 読めないと ★控除の 無い 明細の PDF★ が 出た（帯だけ 出る）
 //   司さんの 決め「お金の 出力は 1人でも 計算 できなければ 止めて 警告」
-//   ★物差し★ 手当・控除が 読めない ⇒「明細を PDFで 見る」で PDF の 道具を 呼ばず 文を 出す
+//   ★物差し★ 手当・控除が 読めない ⇒ 明細の PDF（printAll）で PDF の 道具を 呼ばず 文を 出す
 //
 //   ★★わざと壊して 赤に なるのを 見た（2026-10-07 実測）★★
 //     printAll の loadFailed の 門を 外す ⇒ ★赤★（PDF の 道具を 呼んだ）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
+
+// ★★全員の 明細の PDF（printAll）を 呼ぶ★★ 2026-11-06
+//   前は「明細を PDFで 見る」（#btnPrint）を 押していた＝司さん「赤丸のところがいらない」で 消した。
+//   printAll は 1人ずつの 紙を 押した 時（printAll([id])）と 同じ 門を 通る＝門を 見る 為に 直に 呼ぶ
+//   （止めた 時は 紙を 描かない＝押す 紙が 無い・設計前 対立役 注1）。紙を 押す 道は tests/e2e/kyuryo-harai-goukei.spec.js
+function zeninPdf(page) {
+  // ★返りを 待たない★（前の click と 同じ＝押した 直後に 期を 変える 試験が 在る）
+  return page.evaluate(() => {
+    window.printAll(null);
+  });
+}
 
 // ★PDF を 作る 道具（KamiEgaku.dasu）が 呼ばれた 回数と 印刷の 回数を 数える★ 2026-10-08（文が 出ても PDF を 作ったら 赤に する）
 //   nageru＝dasu を 投げる 物に する（道具を 読めた 後の 失敗を 作る）
@@ -64,7 +75,7 @@ test('★手当・控除が 読めない ⇒ 明細の PDF を 作らず 止め�
     }
     return !!moto;
   });
-  await page.click('#btnPrint');
+  await zeninPdf(page);
   await page.waitForTimeout(1500);
   const r = await page.evaluate(() => ({
     err: document.getElementById('err').textContent,
@@ -76,29 +87,6 @@ test('★手当・控除が 読めない ⇒ 明細の PDF を 作らず 止め�
   expect(r.bar, '★読めなかった 帯が 出ていない＝この 見張りは 何も 見ていない★').toBe(true);
   expect(r.err, '★読めないのに 明細の PDF に 進んだ★').toContain('明細の PDF は 作りません');
   expect(r.msg, '★PDF を 作り始めた★').not.toContain('PDFを作っています');
-  expect(err).toEqual([]);
-});
-
-// ★★給料表（月ごと）の PDF も 読めなければ 作らない★★ 2026-10-07（対立役：控除の 抜けた 給料表が 黙って 出た）
-//   ★わざと壊して 赤（2026-10-07 実測）★ kamiCtx の KST の 門を 外す ⇒ ★赤★（「出しました」）
-test('★手当・控除が 読めない ⇒ 給料表の PDF も 作らない★', async ({ page }) => {
-  const err = [];
-  page.on('pageerror', (e) => err.push(e.message));
-  await openKyuryo(page, (f) => {
-    f.__yomenai = ['dk_pay_adjustments'];
-    return f;
-  });
-  await page.waitForTimeout(800);
-  await page.evaluate(() => {
-    document.getElementById('kamiCard').open = true;
-    document.getElementById('kamiTsuki').click();
-  });
-  await page.waitForTimeout(2500);
-  const note = await page.evaluate(() => document.getElementById('kamiNote').textContent);
-  // eslint-disable-next-line no-console
-  console.log('★給料表★ ' + note);
-  expect(note, '★読めないのに 給料表を 出した★').toContain('給料表は 作りません');
-  expect(note).not.toContain('出しました');
   expect(err).toEqual([]);
 });
 
@@ -123,7 +111,7 @@ test('★手当・控除 90件（長い 名前）⇒ 明細の PDF を 作らず
     return f;
   });
   await page.waitForTimeout(800);
-  await page.click('#btnPrint');
+  await zeninPdf(page);
   await page.waitForTimeout(1500);
   const r = await page.evaluate(() => ({
     err: document.getElementById('err').textContent,
@@ -139,32 +127,6 @@ test('★手当・控除 90件（長い 名前）⇒ 明細の PDF を 作らず
   expect(r.msg).not.toContain('PDFを作っています');
   expect(err).toEqual([]);
 });
-
-// ★★期間に 関係ない 物（売上の 設定・車の 名前）が 読めない ⇒ 給料表の PDF も 作らない★★ 2026-10-07（対立役 A）
-//   ★わざと壊して 赤（2026-10-07 実測）★ kamiCtx の LOAD_KIHON の 門を 外す ⇒ ★赤★（「出しました」）
-//   2026-10-24 件J：売上の 設定（dk_sales_settings）は もう 読まない（入れた 実費は 全部 引く）＝車の 名前だけ 見る
-for (const hyou of ['dk_device_labels']) {
-  test('★' + hyou + ' が 読めない ⇒ 給料表の PDF を 作らない★', async ({ page }) => {
-    const err = [];
-    page.on('pageerror', (e) => err.push(e.message));
-    await openKyuryo(page, (f) => {
-      f.__yomenai = [hyou];
-      return f;
-    });
-    await page.waitForTimeout(800);
-    await page.evaluate(() => {
-      document.getElementById('kamiCard').open = true;
-      document.getElementById('kamiKojin').click();
-    });
-    await page.waitForTimeout(2500);
-    const note = await page.evaluate(() => document.getElementById('kamiNote').textContent);
-    // eslint-disable-next-line no-console
-    console.log('★' + hyou + '★ ' + note);
-    expect(note, '★読めないのに 給料表を 出した★').toContain('給料表は 作りません');
-    expect(note).not.toContain('出しました');
-    expect(err).toEqual([]);
-  });
-}
 
 // ★★PDF の 道具が 読めず 印刷の 保険へ 落ちる 時も はみ出す 人が 居れば 印刷しない★★ 2026-10-07（対立役 4回目）
 //   ★わざと壊して 赤（2026-10-07 実測）★ printAll の catch を _pdfShippai に 戻す ⇒ ★赤★（印刷された）
@@ -193,7 +155,7 @@ test('★字体が 読めない（404）＋ 手当・控除 90件 ⇒ 印刷の 
       window.__insatsu++;
     };
   });
-  await page.click('#btnPrint');
+  await zeninPdf(page);
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => ({
     insatsu: window.__insatsu,
@@ -203,57 +165,6 @@ test('★字体が 読めない（404）＋ 手当・控除 90件 ⇒ 印刷の 
   console.log('★404★ ' + JSON.stringify(r));
   expect(r.insatsu, '★切れた 明細を 印刷に 出した★').toBe(0);
   expect(r.err).toContain('多すぎて 明細の 紙に 入りません');
-  expect(err).toEqual([]);
-});
-
-// ★★給料の 設定を 読み終わる 前に 給料表を 押す ⇒ 作らない（月3回・既定の 売上の 設定で 組まない）★★ 2026-10-08
-//   司さん「試験がないなら入れろ」（対立役 10-07 5回目：kamiCtx の !SET_YONDA の 門を 見る 試験が 0本）
-//   ★わざと壊して 赤（2026-10-08 実測）★ kamiCtx の !SET_YONDA の 門を 外す ⇒ ★赤★
-test('★設定を 読み終わる 前に 給料表を 押す ⇒「読み込み中」で 作らない★', async ({ page }) => {
-  const err = [];
-  page.on('pageerror', (e) => err.push(e.message));
-  await openKyuryo(
-    page,
-    (f) => {
-      f.__osoi = ['dk_payroll_settings'];
-      return f;
-    },
-    { matanai: true }
-  );
-  // ★設定が 返る 前（3秒 遅れ）に 押す★
-  // ★押す 口（onclick）が 付くまで 待つ★（固定の 待ちに しない・対立役 10-08）
-  await page.waitForFunction(() => {
-    const b = document.getElementById('kamiTsuki');
-    return !!(b && b.onclick);
-  });
-  const mae = await page.evaluate(() => {
-    document.getElementById('kamiCard').open = true;
-    document.getElementById('kamiTsuki').click();
-    return true;
-  });
-  await page.waitForTimeout(800);
-  const note = await page.evaluate(() => document.getElementById('kamiNote').textContent);
-  // eslint-disable-next-line no-console
-  console.log('★読み込み中★ ' + JSON.stringify({ mae: mae, note: note }));
-  expect(note, '★読み終わる 前に 給料表を 作った★').toContain('まだ 読み込み中');
-  expect(note).not.toContain('出しました');
-  // ★読み終わった 後は 作れる★（止めっぱなしに しない）
-  await page.waitForFunction(() => window.__paper && window.__paper.ninzu() > 0, null, {
-    timeout: 15000,
-  });
-  await page.evaluate(() => document.getElementById('kamiTsuki').click());
-  // ★「出しました」まで 待つ★（前は「読み込み中で ない」だけ＝別の 訳で 止まっても 緑・対立役 10-08）
-  await page
-    .waitForFunction(
-      () => /出しました/.test(document.getElementById('kamiNote').textContent),
-      null,
-      {
-        timeout: 15000,
-      }
-    )
-    .catch(() => {});
-  const ato = await page.evaluate(() => document.getElementById('kamiNote').textContent);
-  expect(ato, '★読み終わった 後も 作れない（止めっぱなし）★').toContain('出しました');
   expect(err).toEqual([]);
 });
 
@@ -275,7 +186,7 @@ test('★字体 404 ＋ 手当・控除 0行 ⇒ 印刷の 保険が 1回 出る
       window.__insatsu++;
     };
   });
-  await page.click('#btnPrint');
+  await zeninPdf(page);
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => ({
     insatsu: window.__insatsu,
@@ -304,7 +215,7 @@ test('★紙を 組めない（測る 所が 投げる）⇒ 文を 出して �
       throw new Error('てすと');
     };
   });
-  await page.click('#btnPrint');
+  await zeninPdf(page);
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => ({
     insatsu: window.__insatsu,
@@ -367,7 +278,7 @@ test('★printOne：手当・控除 90件 ⇒ 明細の PDF を 作らない★'
 //   前は「PDFの道具が読めませんでした。印刷で出します。」と 嘘の 文で 画面の 写しを 印刷した
 //   ★わざと壊して 赤（2026-10-08 実測）★ pdfAtoshimatsu の 道具の 印（dougu）を 見る 所を 外す ⇒ ★赤★（印刷 1回）
 for (const [na, osu] of [
-  ['明細を PDFで 見る（printAll）', (page) => page.click('#btnPrint')],
+  ['全員の 明細（printAll）', (page) => zeninPdf(page)],
   ['printOne', (page) => page.evaluate(() => window.printOne(0))],
 ]) {
   test('★' + na + '：PDF を 作る 所で 失敗 ⇒ 印刷 0回・本当の 訳を 出す★', async ({ page }) => {
@@ -403,7 +314,7 @@ for (const [na, sousa, kitai] of [
     async (page) => {
       await page.click('[data-pidx="1"]');
       await page.waitForTimeout(300);
-      await page.click('#btnPrint');
+      await zeninPdf(page);
     },
     '読み込み中',
   ],
@@ -415,7 +326,7 @@ for (const [na, sousa, kitai] of [
         await new Promise((ok) => setTimeout(ok, 2000));
         await r.continue();
       });
-      await page.click('#btnPrint');
+      await zeninPdf(page);
       await page.click('[data-pidx="1"]');
     },
     '画面が 変わった',
@@ -454,7 +365,7 @@ test('★期を 変えて 読み終わった 後に 押す ⇒ 明細の PDF が
   await page.click('[data-pidx="1"]');
   await page.waitForFunction(() => window.__paper && window.__paper.ninzu() > 0);
   await page.waitForTimeout(800);
-  await page.click('#btnPrint');
+  await zeninPdf(page);
   await page.waitForFunction(() => window.__dasu > 0, null, { timeout: 15000 }).catch(() => {});
   const r = await page.evaluate(() => ({
     dasu: window.__dasu,

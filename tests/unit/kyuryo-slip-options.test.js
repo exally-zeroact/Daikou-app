@@ -267,19 +267,11 @@ describe('★①1人ごとにPDF★', () => {
     expect(HTML, '★_dasuMachi が dekita で 時計を 止めていない★').toMatch(
       /function _dasuMachi\([\s\S]{0,700}dekita: function \(\) \{\s*clearTimeout\(tid\);/
     );
-    // ★★2026-09-05 印刷が 2つに なりました★★（司さん「チェックボタン 作って 全体と 選んだ人」）
-    //   ★全員を 印刷★ … printAll(null)
-    //   ★選んだ人を 印刷★ … printAll(erandaHito())
-    //   ★どちらも 同じ printAll★＝紙の 作り方は 1本のまま（二度書かない）
-    expect(HTML, '★「全員を 印刷」が まだブラウザ印刷★').toMatch(
-      /\$\('btnPrint'\)\.onclick = function \(\) \{\s*printAll\(null\);/
-    );
-    expect(HTML, '★「選んだ人を 印刷」が 無い／別の 作り方に なっている★').toMatch(
-      /\$\('btnPrintSel'\)\.onclick = function \(\) \{\s*printAll\(erandaHito\(\)\);/
-    );
-    // ★選ぶのは「画面に 描かれた チェック」から★（内側の 変数を 信じない）
-    expect(HTML, '★選んだ人を 画面から 数えていない★').toMatch(
-      /function erandaHito\(\)[\s\S]{0,300}querySelectorAll\('\.slip-pick'\)/
+    // ★★2026-11-06「明細を PDFで 見る（全員）」「選んだ人を 印刷」と チェックは 消した★★（司さん「赤丸のところがいらない」）
+    //   1人ずつの PDF は その人の 紙を 押す＝printAll([id])＝紙の 作り方は 1本のまま（二度書かない）
+    expect(HTML, '★紙を 押すと 同じ printAll で 出す 口が 無い★').toMatch(/printAll\(\[id\]\);/);
+    expect(HTML, '★消した 押し口が 残っている★').not.toMatch(
+      /\$\('btnPrint'\)|\$\('btnPrintSel'\)|function erandaHito\(|class="slip-pick"/
     );
     // ★1つも 選んでいない時は 全員★（前と 同じ 動き＝押す 回数を 増やさない）
     expect(HTML, '★選んでいない時に 全員に ならない★').toMatch(

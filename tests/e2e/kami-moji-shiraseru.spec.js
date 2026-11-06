@@ -171,7 +171,7 @@ function jimusho() {
   );
 }
 
-test('★事務所の 給料「全員を 印刷」：字体に 無い 字 ⇒ 知らせる★', async ({ page }) => {
+test('★事務所の 給料「紙を 押して PDF」：字体に 無い 字 ⇒ 知らせる★', async ({ page }) => {
   await nise(page);
   await page.route('**/js/dk-session.js*', (r) =>
     r.fulfill({
@@ -182,9 +182,10 @@ test('★事務所の 給料「全員を 印刷」：字体に 無い 字 ⇒ �
   );
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/kyuryo.html', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#btnPrint')).toBeEnabled({ timeout: 20000 });
+  // 2026-11-06「明細を PDFで 見る（全員）」は 消した＝その人の 紙を 押す（printAll([id])＝同じ 作り方）
+  await expect(page.locator('#slips .kami-oseru').first()).toBeVisible({ timeout: 20000 });
   await page.waitForTimeout(1500);
-  await page.locator('#btnPrint').click();
+  await page.locator('#slips .kami-oseru').first().click();
   await expect(page.locator('#msg')).toContainText(BUN, { timeout: 30000 });
   await expect(page.locator('#msg')).toContainText('𠮷）');
 });
@@ -223,20 +224,6 @@ test('★事務所の 給料「テンプレの 見本 PDF」：知らせる★',
   await egakuMane(page);
   await page.locator('#tplGrid .tpl-card[data-shurui="tsuki1"]').locator('.tpl-pdf').click();
   await expect(page.locator('#msg')).toHaveText(BUN + '𠮷）', { timeout: 15000 });
-});
-
-test('★事務所の 給料「給料表（まとめた表）」：知らせる★', async ({ page }) => {
-  await openKyuryo(page);
-  await page.waitForTimeout(800);
-  // 本物の KamiPdf.dasu は 先に 紙の 道具（KamiEgaku）を 読む＝まねる 時も 読んで おく
-  await page.addScriptTag({ path: path.join(ROOT, 'js/kami-egaku.js') });
-  await page.evaluate((miss) => {
-    window.KamiPdf.dasu = () => Promise.resolve({ mai: 1, size: 1, missing: miss });
-  }, MISS);
-  await page.locator('#kamiCard > summary').click();
-  await page.locator('#kamiTsuki').click();
-  await expect(page.locator('#kamiNote')).toContainText('出しました（1枚）', { timeout: 15000 });
-  await expect(page.locator('#kamiNote')).toContainText(BUN + '𠮷）');
 });
 
 // ★月次集計・売上表★（偽の 倉庫＝shukei-kami-miseru・uriage-kami-miseru と 同じ 作り）

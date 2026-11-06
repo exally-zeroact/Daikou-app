@@ -714,7 +714,7 @@ test('㉔ 名前の 保存中に 記録が 失敗 ⇒ 訳は 消えない', asyn
   expect(e2, '★記録の 失敗の 訳が 名前の 成功で 消えた★').toContain('書けた 行が ありません');
 });
 
-// ★㉕ 保存中に「明細を PDFで 見る」を 押す ⇒ 止めて 知らせ、返りの 後は その 字を 残さない★（対立役 11回目 止2）
+// ★㉕ 保存中に 明細の PDF（printAll・2026-11-06 に「明細を PDFで 見る」は 消した）を 呼ぶ ⇒ 止めて 知らせ、返りの 後は その 字を 残さない★（対立役 11回目 止2）
 test('㉕ 保存中に PDF を 押しても 返りの 後に 保存中の 字が 残らない', async ({ page }) => {
   await page.addInitScript(() => {
     window.__EMP_MATSU_MS = 5000;
@@ -725,11 +725,17 @@ test('㉕ 保存中に PDF を 押しても 返りの 後に 保存中の 字が
   await bu.fill('0.61');
   await bu.press('Tab');
   await page.click('.tab[data-tab="slip"]');
-  await page.click('#btnPrint');
+  // ★保存中は 上の 合計（#haraiCard）も 出さない★ 2026-11-06（保存 前の 額を 出さない）
+  await expect(page.locator('#haraiCard')).toHaveCount(1);
+  const g1 = await page.locator('#haraiCard').isVisible();
+  await page.evaluate(() => {
+    window.printAll(null);
+  });
   await page.waitForTimeout(200);
   const e1 = ((await page.locator('#err').textContent()) || '').trim();
   await page.waitForTimeout(1800);
   const e2 = ((await page.locator('#err').textContent()) || '').trim();
+  expect(g1, '★保存中 なのに 合計を 出した★').toBe(false);
   // eslint-disable-next-line no-console
   console.log('★㉕★ ' + JSON.stringify({ e1, e2 }));
   expect(e1, '★保存中に PDF が 止まらない★').toContain('保存して います');

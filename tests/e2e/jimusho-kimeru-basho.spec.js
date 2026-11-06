@@ -571,7 +571,8 @@ test('★★⑫ 辞めた 人の 明細にも QR・送るが 出る★★', asyn
     await kyuryoHiraku(page, '');
     await page.waitForTimeout(800);
     const deteiru = await page.evaluate(
-      (id) => !!document.querySelector('.slip-pick[data-emp="' + id + '"]'),
+      // 2026-11-06 チェック（.slip-pick）は 消した＝紙の 上の 名前（.kami-ue-na）で 見る
+      (id) => !!document.querySelector('.kami-ue-na[data-emp="' + id + '"]'),
       hataraita
     );
     expect(deteiru, '★働いた 月なのに 辞めた 人の 明細が 出ていない★').toBe(true);

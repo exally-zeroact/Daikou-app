@@ -108,24 +108,9 @@ const MEISAI_ZEN = MEISAI.reduce((a, b) => a + b, 0);
 const m = GA.month(2026, 9, ctx, []);
 const yr = GA.year(2026, ctx, []);
 
-// kyuryo.html の 中の 関数を 切り出す（同じ 物を 試す）
-function kiridasu(src, name, tsugi) {
-  const a = src.indexOf('function ' + name + '(');
-  const b = src.indexOf('function ' + tsugi + '(', a);
-  if (a < 0 || b < 0) throw new Error(name + ' が 見つからない');
-  return src.slice(a, b);
-}
-const kamiHito = new Function(
-  'PayrollDaily',
-  kiridasu(KYU, 'kamiHito', 'kamiNamae') + '\nreturn kamiHito;'
-)(PD);
-// 紙に 渡す 形（kyuryo.html kamiCtx の 戻りと 同じ）
-const hibi = [];
-ps.forEach((p) => p.dates.forEach((d) => hibi.push(d)));
-const R = { ps, hibi, mainichi: false, kikanRep: reps, hiRep: PD.report(hibi, ctx) };
-const HITO = kamiHito(R);
+// ★給料の 画面の 給料表（kamiHito・kyuryoTsuki/Hi/Kojin/Nen）は 2026-11-06 に 消した（司さん「赤丸のところがいらない」）★
+//   代わりに 画面の 上の #haraiCard（その 期に 渡す 給料の 合計）＝REP.harai を 出す（下の 見張り）
 const KAISHA = { name: '偽の会社', year: 2026, month: 9, settings: SET };
-const NAMAE = ps.map((p) => p.rangeLabel);
 // 紙の 大きい 箱の 数を 読む
 function hako(mai, k) {
   const html = mai.map((x) => x.el._html).join('');
@@ -174,66 +159,27 @@ describe('★給料タブ ＝ 同じ 数★', () => {
     expect(kakera).toMatch(/みんなの給料 ¥' \+\s*yen\(REP\.harai\)/);
     expect(kakera).not.toMatch(/REP\.staffTotalAll|REP\.ownerShareTotal/);
   });
+  // ★上の 合計の 箱（その 期に 渡す 給料）も REP.harai を そのまま 出す★ 2026-11-06（自分で 足し直さない）
+  //   わざと壊す：haraiNuru の yen(REP.harai) を yen(REP.staffTotalAll) に ⇒ 赤
+  it('上の 合計の 箱（#haraiCard）は REP.harai を 出す', () => {
+    const a = KYU.indexOf('function haraiNuru()');
+    expect(a, 'haraiNuru が 無い').toBeGreaterThan(0);
+    const kakera = KYU.slice(a, KYU.indexOf('function renderSlips()', a));
+    expect(kakera).toContain("$('haraiGaku').textContent = '¥' + yen(REP.harai);");
+    expect(kakera).not.toMatch(/REP\.staffTotalAll|REP\.ownerShareTotal|reduce\(/);
+    // ★出さない 門★（読み込み中・読めない・計算 できない・本人）＝明細の PDF と 同じ 門（設計前 対立役 止1・止2）
+    for (const mon of [
+      'HONNIN ||',
+      'LP_YOMICHU ||',
+      'KEISAN_NG ||',
+      'DKSession.loadFailed(LOAD) ||',
+      'kyuDameBun(CTX) ||',
+    ])
+      expect(kakera, mon + ' の 門が 無い').toContain(mon);
+  });
   it('会社に 残る分が 両画面で 同じ（月3回＝回の 和 ＝ 月）', () => {
     const kyu = reps.reduce((a, r) => a + r.nokori, 0);
     expect(Math.round(kyu)).toBe(Math.round(m.ownerShare));
-  });
-});
-
-describe('★給料表の 紙（月・日・年・個別）の 合計 ＝ 同じ 数★', () => {
-  it('月ごと', () => {
-    expect(hako(H.kyuryoTsuki(KAISHA, { namae: NAMAE, hito: HITO }), '給料 合計')).toBe(MEISAI_ZEN);
-  });
-  it('日ごと', () => {
-    expect(hako(H.kyuryoHi(KAISHA, { hito: HITO }), '給料 合計')).toBe(MEISAI_ZEN);
-  });
-  it('個別（全員分を 足す）', () => {
-    const s = HITO.reduce(
-      (a, p) => a + hako(H.kyuryoKojin(KAISHA, { namae: NAMAE, hito: p }), '支給 合計'),
-      0
-    );
-    expect(s).toBe(MEISAI_ZEN);
-  });
-  it('年ごと（kyuryo.html と 同じ まとめ方＝employee_id）', () => {
-    // kyuryo.html の 年ごとの 組み方を 写す（下の 字の 見張りで 本体と 同じかを 縛る）
-    const box = {};
-    const na = {};
-    HITO.forEach((p) => {
-      const v = p.kikan.reduce((a, b) => a + (b || 0), 0);
-      if (!v) return;
-      box[p.id] = (box[p.id] || 0) + v;
-      na[p.id] = p.name;
-    });
-    const hito = Object.keys(na).map((x) => ({ id: x, name: na[x] }));
-    let zen = 0;
-    Object.keys(box).forEach((x) => (zen += box[x]));
-    expect(zen).toBe(MEISAI_ZEN);
-    const mai = H.kyuryoNen({ ...KAISHA, month: 1 }, { hito, tsuki: { 9: box }, zen });
-    const html = mai[0].el._html;
-    const sum = /<tr class="sum">([\s\S]*?)<\/tr>/.exec(html)[1];
-    const tds = sum
-      .match(/<td>[^<]*(?:<span[^>]*>[^<]*<\/span>)?<\/td>/g)
-      .map((t) => Number(t.replace(/<[^>]*>/g, '').replace(/[^0-9-]/g, '')));
-    expect(tds[tds.length - 1]).toBe(MEISAI_ZEN);
-  });
-  it('年ごとは employee_id で まとめる（同じ 名前の 2人を 1列に しない）', () => {
-    expect(KYU).toMatch(/box\[p\.id\] = \(box\[p\.id\] \|\| 0\) \+ v;/);
-    expect(KYU).not.toMatch(/box\[p\.name\]/);
-    const mai = H.kyuryoNen(
-      { ...KAISHA, month: 1 },
-      {
-        hito: [
-          { id: 'x1', name: '同じ' },
-          { id: 'x2', name: '同じ' },
-        ],
-        tsuki: { 9: { x1: 100, x2: 200 } },
-        zen: 300,
-      }
-    );
-    const html = mai[0].el._html;
-    expect((html.match(/<th>同じ<\/th>/g) || []).length).toBe(2);
-    expect(html).toContain('>100<');
-    expect(html).toContain('>200<');
   });
 });
 
@@ -272,13 +218,9 @@ describe('★明細の 日の 欄の 注記（±1円）★', () => {
     const e = reps[0].employees.find((x) => x.employee_id === 'e1');
     expect(PD.hiNoZure(e)).toBe(false);
   });
-  it('明細の 紙（kyuryo.html）と 給料表の 日ごと・個別の 紙に 出さない（司さん 2026-10-23「説明書きがいらない」）', () => {
+  // 給料表の 日ごと・個別の 紙は 2026-11-06 に 給料の 画面から 消した（明細の 紙だけ 見る）
+  it('明細の 紙（kyuryo.html）に 出さない（司さん 2026-10-23「説明書きがいらない」）', () => {
     expect(KYU).not.toMatch(/hiZureGyou\(e\)/);
-    expect(H.kyuryoHi(KAISHA, { hito: HITO })[0].el._html).not.toContain(PD.HI_ZURE_JI);
-    const p = HITO.find((x) => x.id === 'e2');
-    expect(H.kyuryoKojin(KAISHA, { namae: NAMAE, hito: p })[0].el._html).not.toContain(
-      PD.HI_ZURE_JI
-    );
   });
   it('月次集計の 説明は 事実と 合う（「日ごとに出した分を足した物と一致」を 言わない）', () => {
     expect(SHU).not.toContain('日ごとに出した分を足した物と一致します');

@@ -152,8 +152,12 @@ test('★③ 事務所の 物を 出さない／事務所の 読み込みを 呼
   await page.fill('#hnPw', 'abcd1234');
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
-  for (const id of ['tabs', 'btnPrint', 'jimushoLinks', 'monthCard', 'paneEmp', 'paneSet'])
+  // 2026-11-06 #btnPrint は 消した＝在る 物だけ 数える（無い 物の toBeHidden は 黙って 緑・設計前 対立役 注3）
+  //   代わりに #haraiCard（その 期に 渡す 給料の 合計＝会社の 額）を 見る
+  for (const id of ['tabs', 'haraiCard', 'jimushoLinks', 'monthCard', 'paneEmp', 'paneSet']) {
+    await expect(page.locator('#' + id), '★在るはずの #' + id + ' が 無い★').toHaveCount(1);
     await expect(page.locator('#' + id), '★本人に 見えています: #' + id + '★').toBeHidden();
+  }
   expect(kazoe.jimusho, '★事務所の 読み込みを 呼んでいます★').toBe(0);
 });
 
@@ -174,8 +178,20 @@ test('★★★⑥ 本人の 画面に「他の人を 選べる」口が 1つも
   await page.click('#hnGo');
   await page.waitForTimeout(1200);
 
-  // ① 名指し：問題の カード
-  await expect(page.locator('#kamiCard'), '★PDFの カードが 本人に 見えています★').toBeHidden();
+  // ① 名指し：問題の カード（#kamiCard は 2026-11-06 に 消した＝在れば 赤）と 会社の 合計の 箱
+  //   ★合計の 箱の 守りは 3重★（2026-11-06 測った）本人の 画面は renderSlips を 通らない＝haraiNuru が 1回も 呼ばれない（字が 空）／
+  //   haraiNuru の HONNIN の 門／白名簿 DASU_SLIP に 入れていない。白名簿に 足し HONNIN の 門を 外しても 緑だった＝1つ目の 守りが 効いている。
+  //   本人の 画面から haraiNuru を 呼ぶ 様に 変えたら、下の「字が 空」で 赤に なる。
+  await expect(page.locator('#kamiCard'), '★消した 給料表の カードが 在る★').toHaveCount(0);
+  await expect(page.locator('#haraiCard')).toHaveCount(1);
+  await expect(
+    page.locator('#haraiCard'),
+    '★会社の 給料の 合計が 本人に 見えています★'
+  ).toBeHidden();
+  expect(
+    await page.evaluate(() => document.getElementById('haraiGaku').textContent),
+    '★本人の 画面で 会社の 合計を 書いた（隠れていても 字が 在る）★'
+  ).toBe('');
 
   // ② 字：他人を 選べる 言葉が 1つも 見えていない
   // ★明細は 絵（canvas）＝innerText に 入らない★ 絵に した PDF の 字も 足して 見る（2026-10-31 対立役 止1）

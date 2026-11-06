@@ -114,13 +114,8 @@ describe('★車を1台ずつ 明細に出す/出さない★', () => {
       const s = fs.readFileSync(path.join(JS, f), 'utf8');
       expect(s, `★js/${f} が 車を 隠している★`).not.toMatch(/show_in_slip|carShowsInSlip/);
     }
-    // 給料の まとめた 表は 画面の 中で 組む ⇒ その 区間で 明細用の 絞り（slipCars）を 使わない
-    const a = HTML.indexOf('★★給料表を A4の PDF で 出す★★');
-    const b = HTML.indexOf('function erandaHito', a);
-    expect(a > 0 && b > a, '★まとめた 表の 区間が 見つからない★').toBe(true);
-    expect(HTML.slice(a, b), '★まとめた 表が 給料明細の 車の 絞りを 使っている★').not.toMatch(
-      /slipCars|carShowsInSlip|show_in_slip/
-    );
+    // 給料の まとめた 表（給料の 画面の 中で 組んでいた）は 2026-11-06 に 消した（司さん「赤丸のところがいらない」）
+    expect(HTML, '★まとめた 表の 押し口が 残っている★').not.toMatch(/KamiHyou\.kyuryo/);
   });
 });
 

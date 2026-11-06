@@ -128,7 +128,14 @@ test('売上の 直しが 読めない 業務が 在れば 明細の 画面・PD
     const e = document.getElementById('err');
     e.textContent = '';
   });
-  await page.click('#btnPrint');
+  // ★止めた 時は 紙を 描かない＝押す 紙が 無い・上の 合計（#haraiCard）も 出さない★ 2026-11-06
+  await expect(page.locator('#slips .kami-oseru')).toHaveCount(0);
+  await expect(page.locator('#haraiCard')).toHaveCount(1);
+  await expect(page.locator('#haraiCard'), '★計算 できない のに 合計を 出した★').toBeHidden();
+  // 「明細を PDFで 見る」（#btnPrint）は 消した＝同じ 門の printAll を 直に 呼ぶ
+  await page.evaluate(() => {
+    window.printAll(null);
+  });
   await page.waitForTimeout(500);
   await expect(page.locator('#err')).toContainText('売上の 直しが 読めない');
 });
@@ -153,7 +160,14 @@ test('役割の 決まりに 無い 人（歩合・保証が 空）が 居れば
   await page.evaluate(() => {
     document.getElementById('err').textContent = '';
   });
-  await page.click('#btnPrint');
+  // ★止めた 時は 紙を 描かない＝押す 紙が 無い・上の 合計（#haraiCard）も 出さない★ 2026-11-06
+  await expect(page.locator('#slips .kami-oseru')).toHaveCount(0);
+  await expect(page.locator('#haraiCard')).toHaveCount(1);
+  await expect(page.locator('#haraiCard'), '★計算 できない のに 合計を 出した★').toBeHidden();
+  // 「明細を PDFで 見る」（#btnPrint）は 消した＝同じ 門の printAll を 直に 呼ぶ
+  await page.evaluate(() => {
+    window.printAll(null);
+  });
   await page.waitForTimeout(500);
   await expect(page.locator('#err')).toContainText('役割の 決まりが 無くて');
 });
@@ -215,7 +229,14 @@ for (const nageruNo of ['buildCtx', 'report']) {
       (await page.locator('#slips').innerText()).trim(),
       '★計算が 転んだ 期の 札の 下に 前の 期の 明細が 出た★'
     ).toBe('');
-    await page.click('#btnPrint');
+    // ★止めた 時は 紙を 描かない＝押す 紙が 無い・上の 合計（#haraiCard）も 出さない★ 2026-11-06
+    await expect(page.locator('#slips .kami-oseru')).toHaveCount(0);
+    await expect(page.locator('#haraiCard')).toHaveCount(1);
+    await expect(page.locator('#haraiCard'), '★計算 できない のに 合計を 出した★').toBeHidden();
+    // 「明細を PDFで 見る」（#btnPrint）は 消した＝同じ 門の printAll を 直に 呼ぶ
+    await page.evaluate(() => {
+      window.printAll(null);
+    });
     await page.waitForTimeout(800);
     await page.evaluate(() => {
       try {

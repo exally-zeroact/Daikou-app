@@ -93,13 +93,18 @@ describe('★紙を 出す 頁の PDF を 送る 道具は 先取りに 在る�
   const P = meibo('PRECACHE_FILES') || [];
   const C = meibo('CORE_CODE_FILES') || [];
   for (const page of ['uriage.html', 'shukei.html', 'kyuryo.html']) {
-    it(page + ' は js/pdf-okuru.js を kami-pdf.js より 前に 読み、それが 先取りに 在る', () => {
-      const h = fs.readFileSync(path.join(ROOT, page), 'utf8');
-      const a = h.indexOf('<script src="js/pdf-okuru.js"></script>');
-      const b = h.indexOf('<script src="js/kami-pdf.js"></script>');
-      expect(a, page + ' が js/pdf-okuru.js を 読んでいません').toBeGreaterThanOrEqual(0);
-      expect(a, page + ' は kami-pdf.js より 前に 読む').toBeLessThan(b);
-      expect(P.indexOf('/js/pdf-okuru.js') >= 0 || C.indexOf('/js/pdf-okuru.js') >= 0).toBe(true);
-    });
+    it(
+      page +
+        ' は js/pdf-okuru.js を（kami-pdf.js を 読む なら その 前に）読み、それが 先取りに 在る',
+      () => {
+        const h = fs.readFileSync(path.join(ROOT, page), 'utf8');
+        const a = h.indexOf('<script src="js/pdf-okuru.js"></script>');
+        const b = h.indexOf('<script src="js/kami-pdf.js"></script>');
+        expect(a, page + ' が js/pdf-okuru.js を 読んでいません').toBeGreaterThanOrEqual(0);
+        // kyuryo.html は 2026-11-06 に 給料表を 消して kami-pdf.js を 読まなく なった（読む 頁は 前に 読む 事）
+        if (b >= 0) expect(a, page + ' は kami-pdf.js より 前に 読む').toBeLessThan(b);
+        expect(P.indexOf('/js/pdf-okuru.js') >= 0 || C.indexOf('/js/pdf-okuru.js') >= 0).toBe(true);
+      }
+    );
   }
 });

@@ -68,15 +68,10 @@ describe('★手当・控除の 読みの 順★', () => {
     expect(yomu('js/dk-session.js')).toMatch(/dk_pay_adjustments: 'work_date\.asc,adj_id\.asc'/);
   });
 
-  it('給料タブ（給料表・明細）と 月次集計の 3か所の 読みは 全部 1000行 より 多く 頼み・順に adj_id', () => {
+  it('給料タブ（明細・見本）と 月次集計の 3か所の 読みは 全部 1000行 より 多く 頼み・順に adj_id', () => {
     const ji = yomiNoJi();
-    // kyuryo.html は 給料表・明細・テンプレの 見本（tplZairyo 2026-10-23）
-    expect(ji.map((x) => x.f)).toEqual([
-      'kyuryo.html',
-      'kyuryo.html',
-      'kyuryo.html',
-      'shukei.html',
-    ]);
+    // kyuryo.html は 明細・テンプレの 見本（tplZairyo 2026-10-23）＝給料表（kamiCtx）は 2026-11-06 に 消した
+    expect(ji.map((x) => x.f)).toEqual(['kyuryo.html', 'kyuryo.html', 'shukei.html']);
     ji.forEach((x) => {
       const l = /&limit=(\d+)/.exec(x.ji);
       expect(Number(l[1]), x.f + ' が 1000行で 切れる').toBeGreaterThan(1000);

@@ -61,6 +61,9 @@ async function hiraku(page, ura) {
 // 2026-10-30 業務ごとの 窓（dk_meisai_gyoumu_goukei）も 同じ＝company_id の 列が 無い（窓の 中で 持ち主と 会社で 結ぶ）
 const SEIKYU_MADO = ['dk_meisai_hi_goukei', 'dk_meisai_gyoumu_goukei'];
 const seikyuMado = (p) => SEIKYU_MADO.indexOf(String(p).split('?')[0]) >= 0;
+// 給料の 画面の 読みの 下限（明細だけ・2026-11-06 測った）
+const SAITEI_KYURYO = 11; // 11 表（人・車・設定・3つの 記録・勤務・直し・時数・手入力・手当控除）
+
 function mite(yomi, saitei) {
   const dk = yomi.filter((p) => /^dk_/.test(p) && !seikyuMado(p));
   const nuke = dk.filter((p) => p.indexOf('company_id=eq.' + encodeURIComponent(CO)) < 0);
@@ -77,16 +80,13 @@ test('給料の 画面（明細・紙）は ダイコメの 表を 全部 この
   page,
 }) => {
   await hiraku(page, '/kyuryo.html');
-  // 紙（給料表）を 作る 読み（kSoft）も 通す
-  await page.evaluate(() => {
-    document.getElementById('kamiCard').open = true;
-    document.getElementById('kamiTsuki').click();
-  });
+  // 紙（給料表）を 作る 読み（kSoft）は 2026-11-06 に 給料表ごと 消した（司さん「赤丸のところがいらない」）＝明細の 読みだけ
   await page.waitForTimeout(2500);
   const yomi = await page.evaluate(() => window.__yomi);
-  const dk = mite(yomi, 10);
-  // 紙の 読み（勤務を 2回目に 読む）も 入っている
-  expect(dk.filter((p) => p.indexOf('dk_shifts') === 0).length).toBeGreaterThanOrEqual(2);
+  const dk = mite(yomi, SAITEI_KYURYO);
+  // eslint-disable-next-line no-console
+  console.log('★給料の 読み★ ' + dk.length + ' ' + JSON.stringify(dk.map((p) => p.split('?')[0])));
+  expect(dk.filter((p) => p.indexOf('dk_shifts') === 0).length).toBeGreaterThanOrEqual(1);
   expect(dk.some((p) => p.indexOf('dk_payroll_settings') === 0)).toBe(true);
 });
 

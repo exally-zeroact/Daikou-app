@@ -370,13 +370,14 @@ describe('締めの 何日から', () => {
     const ky = fs.readFileSync(path.join(__dirname, '../../kyuryo.html'), 'utf8');
     const sk = fs.readFileSync(path.join(__dirname, '../../shukei.html'), 'utf8');
     const ns = ky.match(/normSettings\([^)]*\)/g);
-    expect(ns.length).toBeGreaterThanOrEqual(14);
+    // 2026-11-06 給料表（kamiCtx）を 消した＝1か所 減る（14→13）
+    expect(ns.length).toBeGreaterThanOrEqual(13);
     ns.forEach((c) => expect(c).toBe('normSettings(SET, RAW.shimeRireki)'));
     // 給料・紙・月次の buildCtx は RAW ごと か shimeRireki を 名指し
     const bc = ky.split('PayrollDaily.buildCtx(').slice(1);
     const kyuNoBc = bc.filter((t) => /shifts:|Object\.assign\(\{\}, RAW/.test(t.slice(0, 600)));
-    // 明細（recalc）・紙・テンプレの 見本（tplZairyo 2026-10-23）
-    expect(kyuNoBc.length).toBe(3);
+    // 明細（recalc）・テンプレの 見本（tplZairyo 2026-10-23）＝紙（給料表 kamiCtx）は 2026-11-06 に 消した
+    expect(kyuNoBc.length).toBe(2);
     kyuNoBc.forEach((t) =>
       expect(/shimeRireki: RAW\.shimeRireki|Object\.assign\(\{\}, RAW/.test(t.slice(0, 900))).toBe(
         true

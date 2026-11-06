@@ -4,14 +4,14 @@
 //   司さん「代行請求書アプリの請求書ページと同じ見せ方で月と名前で選んでPDFで見れるように」
 //          「ごちゃごちゃしとる スッキリさせろ」
 //   ★前★ 全員の 明細が 縦に 並び、箱 2つ・ボタン 6つ。1人 見るには 探して チェック。
-//   ★今★ 月の 箱に「名前」の 選ぶ欄。選ぶと その人の 明細だけ。出す 所は 箱 1つ・表の ボタン 1つ。
-//         まとめた 表（月ごと・日ごと・個別・年ごと）は 畳んで しまう（消していない）。
+//   ★今★ 月の 箱に「名前」の 選ぶ欄。選ぶと その人の 明細だけ。PDF は その人の 紙を 押す。
+//   ★2026-11-06★ 司さん「赤丸のところがいらない」＝「明細を PDFで 見る」・まとめた 表・チェックは 消した
+//                 （代わりに その 期に 渡す 給料の 合計＝tests/e2e/kyuryo-harai-goukei.spec.js）
 //
-//   ★押す物の一覧（先に書く）★ 1. 名前の 選ぶ欄 2.「明細を PDFで 見る」 3. 全員に 戻す
+//   ★押す物の一覧（先に書く）★ 1. 名前の 選ぶ欄 2. その人の 紙を 押す（PDF） 3. 全員に 戻す
 //
 //   ★★わざと壊して 赤に なるのを 見た（2026-10-03 実測）★★
 //     renderSlips の「名前で 選んでいれば その人だけ」を 外す ⇒ ★赤★（明細が 3枚の まま）
-//     printAll の「名前で 選んでいれば その人だけ」を 外す ⇒ ★赤★（3人ぶん）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const { openKyuryo } = require('./kyuryo-harness');
@@ -30,13 +30,11 @@ test('★名前を 選ぶと その人の 明細だけ・PDF も その人だけ
   expect(zenin, '★選べる 人が 2人 未満＝この 見張りは 何も 見ていない★').toBeGreaterThan(1);
   expect(await page.locator('#slips .slip').count()).toBe(zenin);
 
-  // ★スッキリ★ 表の ボタンは「明細を PDFで 見る」だけ・まとめた 表は 畳まれている
-  await expect(page.locator('#btnPrint')).toBeVisible();
-  await expect(
-    page.locator('#btnPrintSel'),
-    '★選んでいないのに「選んだ人」が 出ている★'
-  ).toBeHidden();
-  await expect(page.locator('#kamiTsuki'), '★まとめた 表が 畳まれていない★').toBeHidden();
+  // ★赤丸の 箱は 消した★ 2026-11-06（「明細を PDFで 見る」・まとめた 表・チェック）
+  for (const s of ['#printCard', '#btnPrint', '#btnPrintSel', '#kamiCard', '.slip-pick'])
+    await expect(page.locator(s), '★消した ' + s + ' が 残っている★').toHaveCount(0);
+  const goukei = (await page.locator('#haraiGaku').textContent()) || '';
+  expect(goukei, '★合計が 出ていない★').toMatch(/^¥[0-9,]+$/);
 
   // ① 名前を 選ぶ ⇒ その人の 明細だけ
   const namae = opts[2];
@@ -45,10 +43,12 @@ test('★名前を 選ぶと その人の 明細だけ・PDF も その人だけ
   const slips = page.locator('#slips .slip');
   await expect(slips, '★名前を 選んでも 全員の 明細が 出ている★').toHaveCount(1);
   await expect(slips.first()).toContainText(namae);
+  // ★名前を 選んでも 上の 合計は 全員の まま★（字に「全員」と 書いてある）
+  expect(await page.locator('#haraiGaku').textContent(), '★名前で 合計が 変わった★').toBe(goukei);
 
-  // ② 「明細を PDFで 見る」⇒ その人だけ（紙は 作らせず、何人ぶん 作るかの 知らせで 見る）
+  // ② その人の 紙を 押す ⇒ その人だけ（紙は 作らせず、何人ぶん 作るかの 知らせで 見る）
   await page.route(/pdf-lib|fontkit|font-slim|pdf-slim|\.ttf/, () => {});
-  await page.locator('#btnPrint').click();
+  await page.locator('#slips .kami-oseru').first().click();
   await page.waitForTimeout(500);
   const shirase = (await page.locator('#msg').textContent()) || '';
   expect(shirase, '★名前を 選んだのに 1人ぶんに なっていない★').toContain('（1人ぶん）');
@@ -58,36 +58,17 @@ test('★名前を 選ぶと その人の 明細だけ・PDF も その人だけ
   await page.waitForTimeout(300);
   await expect(page.locator('#slips .slip')).toHaveCount(zenin);
 
-  // ④ まとめた 表は 開けば 使える（消していない）
-  await page.locator('#kamiCard > summary').click();
-  await expect(page.locator('#kamiTsuki')).toBeVisible();
-  await expect(page.locator('#kamiKojin')).toBeVisible();
-
   expect(err, '★画面が 落ちた★').toEqual([]);
 });
 
-// ★10-03 対立役が 見つけた（前からの 穴）★ チェックを 付けて 月を 変えると チェックは 消えるのに
-//   「選んだ 1人を 印刷」が 残り、押すと ★全員ぶん★ 出た。時数の 画面にも 名前の 欄が 出て 何も 絞らなかった。
-//   ★わざと壊して 赤（10-03 実測）★ renderSlips の setTimeout(nurikae) を 外す ⇒ 赤（ボタンが 残る）
+// ★10-03 対立役が 見つけた（前からの 穴）★ 時数の 画面にも 名前の 欄が 出て 何も 絞らなかった。
+//   （「選んだ人を 印刷」と チェックは 2026-11-06 に 消した＝その 見張りは 外した）
 // 2026-10-23「時数を入れる」の 画面は 入力へ 移した＝給料の タブは 明細・従業員・給料の設定（名前の 欄は 明細だけ）
-test('★月を 変えたら「選んだ人を 印刷」は 消える／明細の 外の タブに 名前の 欄は 出ない★', async ({
-  page,
-}) => {
+test('★明細の 外の タブに 名前の 欄は 出ない★', async ({ page }) => {
   const err = [];
   page.on('pageerror', (e) => err.push(e.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await openKyuryo(page);
-  await page.waitForTimeout(1500);
-  await page.locator('.slip-pick').first().check();
-  await page.waitForTimeout(200);
-  await expect(page.locator('#btnPrintSel')).toBeVisible();
-  await page.locator('#nextM').click();
-  await page.waitForTimeout(1500);
-  await expect(
-    page.locator('#btnPrintSel'),
-    '★チェックが 消えたのに「選んだ人を 印刷」が 残っている★'
-  ).toBeHidden();
-  await page.locator('#prevM').click();
   await page.waitForTimeout(1500);
   // 「時数を入れる」の タブは もう 無い（入力の 画面へ 移した）
   await expect(page.locator('.tab', { hasText: '時数を入れる' })).toHaveCount(0);

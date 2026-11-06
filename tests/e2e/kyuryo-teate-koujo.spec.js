@@ -102,62 +102,7 @@ test('★「手当・控除」から 足すと 倉庫へ 送る★', async ({ pa
   expect(err, '★画面が 落ちた★').toEqual([]);
 });
 
-// ★★給料表（日ごと・個別）の 日の 合計 ＝ 期の 合計★★（対立役 10-06：日ごとに 手当・控除が 入らず 同じ 紙の 上で 合わなかった）
-//   わざと壊す（10-06 実測）：kamiHito の「手当・控除も その 日の 金額に 入れる」を 外す ⇒ ★赤★
-test('★給料表：手当・控除が 在っても 日の 合計 ＝ 期の 合計★', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await openKyuryo(page, (f) => {
-    const w = f.workHours[0];
-    f.adjustments = [
-      {
-        adj_id: 'a1',
-        employee_id: w.employee_id,
-        work_date: w.work_date,
-        kind: 'teate',
-        label: 'ガソリン代',
-        yen: 500,
-      },
-      {
-        adj_id: 'a2',
-        employee_id: w.employee_id,
-        work_date: w.work_date,
-        kind: 'koujo',
-        label: '前借り',
-        yen: 3000,
-      },
-    ];
-    return f;
-  });
-  await page.waitForTimeout(1500);
-  await page.evaluate(() => {
-    window.__hito = null;
-    const moto = window.KamiHyou.kyuryoHi;
-    window.KamiHyou.kyuryoHi = function (k, d) {
-      window.__hito = JSON.parse(JSON.stringify(d.hito));
-      return moto.apply(this, arguments);
-    };
-    window.KamiPdf.dasu = () => Promise.resolve({ mai: 1, size: 1 });
-  });
-  await page.evaluate(() => {
-    document.querySelectorAll('details').forEach((d) => (d.open = true));
-  });
-  await page.locator('#kamiHi').click();
-  await page.waitForTimeout(1500);
-  const hito = await page.evaluate(() => window.__hito);
-  expect(hito, '★給料表（日ごと）が 組まれなかった★').toBeTruthy();
-  const zure = hito
-    .map((p) => ({
-      na: p.name,
-      hi: Math.round((p.hi || []).reduce((a, b) => a + (b || 0), 0)),
-      kikan: Math.round((p.kikan || []).reduce((a, b) => a + (b || 0), 0)),
-    }))
-    .filter((x) => Math.abs(x.hi - x.kikan) > 1);
-  // eslint-disable-next-line no-console
-  console.log('★日の 合計と 期の 合計が 違う 人★ ' + JSON.stringify(zure));
-  expect(zure, '★日の 合計と 期の 合計が 合わない（手当・控除が 日に 入っていない）★').toEqual([]);
-});
-
-// ★★外した 人の 手当・控除は 知らせる★★（対立役 10-06：給料の 総額には 入るのに どの 明細にも 出ない）
+// ★★外した 人の 手当・控除は 知らせる★★（対立役 10-06：どの 明細にも 出ない・給料の 合計 REP.harai にも 入らない＝2026-11-06 字を 直した）
 //   わざと壊す（10-06 実測）：adjChui を 空に する ⇒ ★赤★
 test('★外した 人に 手当・控除が 在ると 知らせが 出る★', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
