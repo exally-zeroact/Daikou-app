@@ -7,7 +7,12 @@
 #   修正は absolute rule「指示された Phase のみ」を pre-commit hook では強制できないが、
 #   コミット内容の品質ガードとして機能する。
 #   既存 lint errors (217件) は MA-8 後の lint fix で別タスクで段階的に解消する想定。
+# ★給料の js（js/kyuryo.js）と 節ごとの 写し（kyuryo-src/）を 揃える★ 2026-11-07 件2
+#   --mae＝写しを 直した 時に 繋いで js を 書く（両方 直して ずれる・stage していない 直しが 在る 時は 止める）
+#   --ato＝lint-staged が js を 直した 後・js だけ 直した 時に 割り直して 写しを 書く
+node scripts/kyuryo-tsunagu.mjs --mae
 npx lint-staged
+node scripts/kyuryo-tsunagu.mjs --ato
 # ★割った画面（kyuryo.html）の css/js の 指紋を 書く★ 2026-11-07
 #   lint-staged の prettier / eslint が js・css を 直した ★後★ に 測る（順が 逆だと 指紋が ずれる）。
 #   書き直した 時だけ html を その commit に 入れる（git add は 台本の 中・書きかけの html が 在れば 止める＝1押し1件）。

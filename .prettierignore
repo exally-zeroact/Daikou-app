@@ -11,3 +11,7 @@ lib/
 #   lint-staged の prettier が 1本 5行の店データを 38089行に 整形し、白名簿の blob と合わなくなった（押す門が止めた）。
 #   eslint は .eslintignore で 前から data/ を 外している。
 data/
+
+# ★給料の js の 節ごとの 写し★（2026-11-07・件2）
+#   kyuryo-src/ は js/kyuryo.js を 行で 切った 切れ端＝1枚では 文に ならない。検査と 整形は 繋いだ js/kyuryo.js で する。
+kyuryo-src/

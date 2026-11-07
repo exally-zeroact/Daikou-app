@@ -15,3 +15,7 @@ node_modules/
 #   eslint --fix が var → let に 書き換えると sha256 が 変わる（実測 95件）。
 #   ⇒ ★ここでは 直さない★。正本（rakually-test/lib）で 直して 4repo に 配る。
 lib/
+
+# ★給料の js の 節ごとの 写し★（2026-11-07・件2）
+#   kyuryo-src/ は js/kyuryo.js を 行で 切った 切れ端＝1枚では 文に ならない。検査と 整形は 繋いだ js/kyuryo.js で する。
+kyuryo-src/

@@ -11,3 +11,6 @@ tests/
 .githooks/
 scripts/kinshi-commit-msg.mjs
 scripts/ci-yuka.sh
+
+# ★給料の js の 節ごとの 写し★（2026-11-07・件2・設計前 taiketsu 任意）＝配る のは js/kyuryo.js だけ
+kyuryo-src/
