@@ -1,0 +1,10 @@
+      /* ★距離を見やすく (2026-06-20): 12px灰→13px濃色・数値は16px太字の青で強調 */
+      #overlayHistory .ride-dist {
+        font-size: 13px;
+        color: #333;
+      }
+      #overlayHistory .ride-dist b {
+        font-size: 16px;
+        font-weight: 800;
+        color: #111;
+      }

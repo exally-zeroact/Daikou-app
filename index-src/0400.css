@@ -1,0 +1,10 @@
+      /* ★設計変更宣言 (2026-05-14・MA-4-FIX overlay スクロール修正):
+   旧: .spa-overlay.show{display:flex;flex-direction:column;}
+       → .spa-overlay 自体 (overflow-y:auto・親 scroll container) と
+          内側の .wrap / .content (flex:1 + overflow-y:auto・子 scroll container) が
+          二重ネストになり iOS Safari で scroll 不動作 + flex:1 が section を圧縮する不具合
+   新: display:block で単一 scroll container (=.spa-overlay 本体) に統一・子は自然 stack。
+       padding-bottom (60px + safe-area-inset-bottom) で bottom-nav 領域確保は MA-1 のまま。 */
+      .spa-overlay.show {
+        display: block;
+      }

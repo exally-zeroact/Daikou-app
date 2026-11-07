@@ -1,0 +1,26 @@
+      /* ★設計変更宣言 (2026-05-20・司さん指示・空車画面 縦横ボタン順統一):
+         portrait + landscape (= 空車表示時) 両方 screenIdle 内表示。
+         順序: 履歴 → 業務終了 → 代行開始 (= 最下部・主アクション)。
+         代行開始 と 業務終了 の間 余白 40px+ で押し間違い防止。
+         ボタン幅 calc(100% - 24px) (= 日時テキスト同等・画面 約 93%)。 */
+      .btn-main-idle-portrait {
+        display: none;
+        width: calc(100% - 24px);
+        margin: 40px 12px 4px; /* 上 40px 余白 (= 業務終了との間) */
+        padding: 14px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+      .btn-main-idle-portrait:active {
+        transform: scale(0.98);
+        filter: brightness(0.9);
+      }

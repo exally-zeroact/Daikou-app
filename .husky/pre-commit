@@ -10,9 +10,14 @@
 # ★給料の js（js/kyuryo.js）と 節ごとの 写し（kyuryo-src/）を 揃える★ 2026-11-07 件2
 #   --mae＝写しを 直した 時に 繋いで js を 書く（両方 直して ずれる・stage していない 直しが 在る 時は 止める）
 #   --ato＝lint-staged が js を 直した 後・js だけ 直した 時に 割り直して 写しを 書く
+# ★運転手の 画面（index.html）と 塊・節ごとの 写し（index-src/）も 同じ 形で 揃える★ 2026-11-08 件3
 node scripts/kyuryo-tsunagu.mjs --mae
-npx lint-staged
+node scripts/index-tsunagu.mjs --mae
+# ★字の 長さで 分けて 渡す★ 2026-11-08 件3：index-src/ を 入れた commit で stylelint に 185枚を 1行で 渡し
+#   Windows の「コマンド ラインが 長すぎます」（8191字）で 止まった。lint-staged 17 は 既定（0）だと 分けない。
+npx lint-staged --max-arg-length 4000
 node scripts/kyuryo-tsunagu.mjs --ato
+node scripts/index-tsunagu.mjs --ato
 # ★割った画面（kyuryo.html）の css/js の 指紋を 書く★ 2026-11-07
 #   lint-staged の prettier / eslint が js・css を 直した ★後★ に 測る（順が 逆だと 指紋が ずれる）。
 #   書き直した 時だけ html を その commit に 入れる（git add は 台本の 中・書きかけの html が 在れば 止める＝1押し1件）。

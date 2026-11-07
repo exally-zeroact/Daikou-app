@@ -1,0 +1,57 @@
+        <!-- ★OBD 車速計 (2026-06-05・obd ブランチ・実験機能):
+             BLE(Android Chrome のみ)で ELM327 OBD-II アダプターに接続し、車輪由来の車速を取得。
+             接続して速度が表示できるかの実機確認用。距離計算への反映は別途 flag で制御 (既定 OFF)。 -->
+        <div class="section" id="obdSection">
+          <div class="section-title">OBD 車速計 (実験)</div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">状態</div>
+            <div id="obdStatus" style="font-weight: 600; color: #8e8e93">未接続</div>
+          </div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">OBD 車速</div>
+            <div id="obdSpeed" style="font-weight: 600; font-family: monospace">— km/h</div>
+          </div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">距離の計測源</div>
+            <div id="obdSource" style="font-weight: 700; color: #007aff">📡 GPS</div>
+          </div>
+          <div class="row" style="justify-content: center; padding-top: 12px; gap: 10px">
+            <button
+              id="btnObdConnect"
+              style="
+                padding: 10px 20px;
+                background: #34c759;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                cursor: pointer;
+              "
+            >
+              📟 OBD 接続
+            </button>
+            <button
+              id="btnObdDisconnect"
+              style="
+                padding: 10px 16px;
+                background: #8e8e93;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                font-size: 14px;
+                cursor: pointer;
+              "
+            >
+              切断
+            </button>
+          </div>
+          <div
+            id="obdNote"
+            style="
+              text-align: center;
+              font-size: 12px;
+              color: #8e8e93;
+              margin-top: 8px;
+              min-height: 16px;
+            "
+          ></div>

@@ -1,0 +1,13 @@
+    <!-- ★設計変更宣言 (2026-05-18・㉑ OpenReplay 配線):
+         self-host OpenReplay の ingest URL + project key を meta で渡す。
+         空のままでも openreplay-config.js が silent skip するため安全。
+         司さん側で self-host インフラ準備後に Vercel env 経由で content 注入。 -->
+    <meta name="openreplay-ingest" content="" />
+    <meta name="openreplay-project-key" content="" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>

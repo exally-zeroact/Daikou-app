@@ -1,0 +1,129 @@
+            <!-- ★1km自動較正K (2026-06-26): 車の名前(自由)＋較正状態。名前は識別用・改名してもKは保持★ -->
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">車の名前(自由)</span>
+              <input
+                id="vehName"
+                type="text"
+                placeholder="例: アルト / 1号車"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 16px;
+                  height: 30px;
+                  box-sizing: border-box;
+                  -webkit-appearance: none;
+                  appearance: none;
+                "
+              />
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">較正状態</span>
+              <span id="vehCalibStatus" style="font-weight: 700; color: #ff9500">⚠ 未較正</span>
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">VIN(自動)</span>
+              <span id="vehVin" style="font-family: monospace; font-size: 11px"
+                >接続で自動取得</span
+              >
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">メーカー/年式(自動)</span>
+              <span id="vehMaker">—</span>
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">車種</span>
+              <input
+                id="vehModel"
+                type="text"
+                placeholder="例: プリウス"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 16px;
+                "
+              />
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">型式(車検証)</span>
+              <input
+                id="vehKatashiki"
+                type="text"
+                placeholder="例: DAA-ZVW50"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 16px;
+                "
+              />
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">工場タイヤ(ドアのステッカー)</span>
+              <input
+                id="vehTire"
+                type="text"
+                placeholder="例: 195/65R15"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 16px;
+                  height: 30px;
+                  box-sizing: border-box;
+                  -webkit-appearance: none;
+                  appearance: none;
+                "
+              />
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">今のタイヤ(交換した場合のみ)</span>
+              <input
+                id="vehTireCurrent"
+                type="text"
+                placeholder="未交換なら空欄"
+                style="
+                  width: 55%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 16px;
+                  height: 30px;
+                  box-sizing: border-box;
+                  -webkit-appearance: none;
+                  appearance: none;
+                "
+              />
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">タイヤ距離補正</span>
+              <span id="vehTireRatioDisp" style="font-weight: 700; color: #34c759">×1.000</span>
+            </div>
+            <div style="font-size: 11px; color: #ff9500; margin: 4px 0 8px">
+              ※工場タイヤ＝ドア内側のステッカー(いつでも変更可)。タイヤを替えたら「今のタイヤ」に実サイズを入れて保存。円周比で距離を自動補正(過大ゼロ維持)。
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">OBD距離能力</span>
+              <span id="vehObdCap" style="font-weight: 700">接続で判定</span>
+            </div>
+

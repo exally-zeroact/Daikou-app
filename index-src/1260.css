@@ -1,0 +1,11 @@
+      /* ★確定 (driving・フッター下段 全幅・2026-07-25) */
+      .btn-driving-confirm {
+        display: none;
+        width: 100%;
+        padding: 14px 0;
+        font-size: 15px;
+        letter-spacing: 3px;
+      }
+      .btn-driving-confirm.show {
+        display: block;
+      }

@@ -19,3 +19,7 @@ lib/
 # ★給料の js の 節ごとの 写し★（2026-11-07・件2）
 #   kyuryo-src/ は js/kyuryo.js を 行で 切った 切れ端＝1枚では 文に ならない。検査と 整形は 繋いだ js/kyuryo.js で する。
 kyuryo-src/
+
+# ★運転手の 画面（index.html）の 塊と 節ごとの 写し★（2026-11-08・件3）
+#   index-src/ は index.html を 行で 切った 切れ端＝1枚では 文書に ならない。検査と 整形は 繋いだ index.html で する。
+index-src/

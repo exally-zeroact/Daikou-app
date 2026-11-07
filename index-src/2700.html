@@ -1,0 +1,6 @@
+    <!-- ★OBD-II 速度源 (2026-06-05・obd ブランチ): Web Bluetooth(Android) → ELM327 → 車速PID。
+         gps.js が window.OBDClient.getSpeed() を実行時参照するため gps.js より前に load。
+         既定 OFF (window.OBD_DRIVE_DISTANCE 未設定)・未接続なら GPS 経路は完全不変。 -->
+    <script src="js/obd-client.js"></script>
+    <script src="js/obd-wheelspeed-map.js"></script>
+    <script src="js/obd-wheelspeed-identify.js"></script>

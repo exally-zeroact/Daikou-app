@@ -14,3 +14,6 @@ scripts/ci-yuka.sh
 
 # ★給料の js の 節ごとの 写し★（2026-11-07・件2・設計前 taiketsu 任意）＝配る のは js/kyuryo.js だけ
 kyuryo-src/
+
+# ★運転手の 画面の 写し★（2026-11-08・件3）＝配る のは index.html だけ
+index-src/

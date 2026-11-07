@@ -1,0 +1,13 @@
+      /* ★設計変更宣言 (2026-05-10 再修正): html/body の背景色変更を撤回
+   旧前修正: html/body=#007AFF → 全画面が青になってしまった
+   新: html/body=#fff (元に戻す)・白画面対策は dl-overlay の初期 display:flex で対応 */
+      html {
+        height: 100%;
+        overscroll-behavior: none;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }

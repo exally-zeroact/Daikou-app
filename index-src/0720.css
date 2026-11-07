@@ -1,0 +1,12 @@
+      /* ★止めるのは ★料金表(倉庫)の 中身★だけ★
+         追加料金・値引きは ★料金表では なく 端末ごとの その場の ボタン★なので
+         ★今まで通り 触れます★（実車ごとに 運転手が 押す 物）。 */
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) input,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) select,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) textarea,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) .toggle,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) button {
+        pointer-events: none;
+        opacity: 0.55;
+      }
+

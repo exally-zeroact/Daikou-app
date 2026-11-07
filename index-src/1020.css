@@ -1,0 +1,21 @@
+      /* ★設計変更宣言 (2026-05-20 司さん指示・続ける↔終了 間隔 40px):
+         旧: margin-top 0 で 続けると密着 (= 押し間違いリスク)
+         新: margin-top 40px で十分な余白確保 (= 業務報告以外の主要画面と同等の安全間隔) */
+      .btn-business-confirm {
+        width: calc(100% - 32px);
+        margin: 16px 16px 8px;
+        padding: 15px;
+        background: #fff;
+        border: 1.5px solid #ff3b30;
+        border-radius: 12px;
+        color: #ff3b30;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+      }
+      .btn-business-confirm:active {
+        background: #fff0f0;
+        transform: scale(0.97);
+      }

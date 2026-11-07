@@ -1,0 +1,31 @@
+        <!-- ★OBD 接続チップ (2026-06-11・最小化スッキリ rev・青バー常駐・全画面で見える&押せる)★:
+             GPSピルと同じ「ドット + OBD」の小ピル。接続状態は #obdDot の色だけ(緑=接続済 / 半透明白=未接続)。
+             絵文字/緑ベタ塗り/速度重複は廃止(車速はメーター本体に表示)。タップで接続/接続中タップで切断。
+             業務開始→走行と画面が遷移しても常駐。Web Bluetooth 非対応(iPhone)は .is-disabled。bindObdUI が 500ms 毎に更新。 -->
+        <button id="obdChip" type="button" class="gps-pill obd-chip">
+          <span class="gps-dot" id="obdDot"></span>
+          <span id="obdChipLabel">OBD</span>
+        </button>
+        <div
+          class="surcharge-badge"
+          id="surchargeBadge"
+          style="display: none"
+          onclick="toggleSurcharge()"
+        >
+          <span id="surchargeLabel">割増</span>
+        </div>
+      </div>
+      <nav class="appbar-nav" id="appbarNav">
+        <button class="nav-item active" type="button" onclick="window.hideAllOverlays()">
+          <span class="nav-icon">●</span><span class="nav-label">ホーム</span>
+        </button>
+        <button class="nav-item" type="button" onclick="window.showOverlay('help')">
+          <span class="nav-icon">?</span><span class="nav-label">使い方</span>
+        </button>
+        <button class="nav-item" type="button" onclick="window.showOverlay('settings')">
+          <span class="nav-icon">⚙</span><span class="nav-label">設定</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- fareConfig v2 (2026-05-10): 手動 surcharge ボタン群 + 倍率表示 -->

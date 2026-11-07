@@ -1,0 +1,17 @@
+      <!-- ★設計変更宣言 (2026-05-20・司さん指示・案 D・但し書き 続ける の上に移動 + グレー化):
+           旧: 続ける → note (赤) → 終了 で・終了 (赤枠) と混同リスク。
+           新: note (グレー) → 続ける → 終了 で押し間違い完全排除。 -->
+      <div class="report-note-landscape">※「続ける」でいつでも業務を再開できます</div>
+      <!-- 横画面用 業務報告 続けるボタン（businessReport時のみ表示・縦画面では非表示） -->
+      <button class="btn-resume-landscape" id="btnResumeLandscape" onclick="onBusinessResume()">
+        続ける
+      </button>
+      <!-- 横画面用 業務報告 終了ボタン（businessReport時のみ表示・縦画面では非表示） -->
+      <button class="btn-confirm-landscape" id="btnConfirmLandscape" onclick="onBusinessConfirm()">
+        終了
+      </button>
+      <!-- 2列ボタン（driving のみ表示）★順序: btn-row を btn-main より前に配置で
+           sibling combinator で 履歴/業務終了 を driving 時非表示制御可能 -->
+      <div class="btn-row" id="btnRow">
+        <button class="btn-sub btn-extra" onclick="openExtraModal()">追加料金</button>
+        <button class="btn-sub btn-discount" onclick="openDiscountModal()">値引き</button>

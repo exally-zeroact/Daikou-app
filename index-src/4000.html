@@ -1,0 +1,62 @@
+        <!-- ★設計変更宣言 (2026-05-21・noise calibration 用 GPS trace 送信 UI):
+             js/debug-trace.js が・feature flag (= ?trace=on) で activate された時のみ表示。
+             業務後に手動 tap で・Firebase RTDB の debug_traces に upload (= 較正用 raw GPS 送信)
+             prod 動作には一切影響なし (= flag OFF default で・本 section は display:none・
+             他 user / 通常端末ではサイレント) -->
+        <div class="section" id="debugTraceSection" style="display: none">
+          <div class="section-title">較正用 GPS trace</div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">端末 ID</div>
+            <div
+              id="traceDeviceId"
+              style="font-family: monospace; font-size: 11px; color: #aaa"
+            ></div>
+          </div>
+          <div class="row" style="align-items: center">
+            <div class="row-label">端末名 (任意)</div>
+            <input
+              id="traceDeviceLabel"
+              type="text"
+              placeholder="親機 / スタッフ A / 等"
+              style="
+                flex: 1;
+                margin-left: 12px;
+                padding: 6px 8px;
+                border: 1px solid #d1d1d6;
+                border-radius: 6px;
+                font-size: 16px;
+              "
+            />
+          </div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">蓄積 sample 数</div>
+            <div id="traceSampleCount" style="font-weight: 600">0</div>
+          </div>
+          <div class="row" style="justify-content: center; padding-top: 12px">
+            <button
+              id="btnUploadTrace"
+              style="
+                padding: 10px 20px;
+                background: #007aff;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                cursor: pointer;
+              "
+            >
+              📡 GPS trace 送信
+            </button>
+          </div>
+          <div
+            id="traceStatus"
+            style="
+              text-align: center;
+              font-size: 13px;
+              color: #007aff;
+              margin-top: 8px;
+              min-height: 18px;
+            "
+          ></div>
+        </div>
+

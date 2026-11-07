@@ -1,0 +1,6 @@
+    <!-- ★設計変更宣言 (2026-05-18・P3 A/B 実験 config 配線):
+         firebase-config.js load 後に ab-config.js を読込む (= Firebase RC instance 利用前提)。
+         initABConfig() は Remote Config fetch (未配線時 silent skip) + 決定論的 group 割当を実行。
+         Sentry tag (= daikome.exp.*) 設定で実験 group ごとのエラー集計可能。 -->
+    <script src="scripts/zeroact-test-commons/observability/ab-config.js"></script>
+    <script>

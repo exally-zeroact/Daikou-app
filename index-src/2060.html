@@ -1,0 +1,24 @@
+      <!-- ★設計変更宣言 (2026-06-05・司さん報告 端末で終了ボタンが見切れる根治・rev2):
+           真因: 画面下に固定の bottom-nav(業務/使い方/設定) があり、その ★裏に「終了」ボタンが
+                 隠れて★いた(画面に nav 分の下余白が無かった)→ スクロールしないと出てこなかった。
+           修正: スクロール構造にはせず(司さん指示)、自然な並びのまま画面に ★bottom-nav 分の
+                 下余白(padding-bottom 60px+safe-area)★ を確保 → 続ける/終了 が nav の上に出て、
+                 スクロール不要で全体が 1 画面に収まる(自然なバランス維持)。 -->
+      <div
+        id="screenBusinessReport"
+        style="
+          display: none;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: env(safe-area-inset-bottom);
+        "
+      >
+        <!-- 日時（全画面共通） -->
+        <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+        <div class="report-title">本日の業務報告</div>
+        <div class="report-card" id="reportCard">
+          <!-- JS で動的生成 -->
+        </div>

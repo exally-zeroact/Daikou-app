@@ -1,0 +1,11 @@
+    <!-- ★★Firebase は 使いません（司さん 2026-09-01「Firebaseは使うなっていよろがぼけ」）★★
+         ここに 在った 読み込みを ★全部 外しました★:
+           gstatic の Firebase SDK 4本（app / database / storage / remote-config）
+           js/firebase-config.js ／ js/firebase.js
+           js/trace-outbox.js ／ js/debug-trace.js ／ js/debug-log-uploader.js
+             （この3本は ★Firebase RTDB へ 書く為だけ★の 物）
+         ★FB を 呼ぶ 15か所は 全部 守りが 在るので 何も しなくなります★（2026-09-01 実測）
+         ★料金・距離には 効きません★（FB を 消しても calcFare(5000m)=2,300円）
+         ★ファイル自体は 消していません★（戻せる）。見張り: tests/unit/firebase-tsukawanai.test.js -->
+    <script src="js/debug-config.js"></script>
+

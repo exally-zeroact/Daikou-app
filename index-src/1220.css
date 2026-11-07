@@ -1,0 +1,122 @@
+      /* ★設計変更宣言 (2026-05-23・wp-sub 「タップ」 だけ赤強調・誘目強化):
+         配色 #e11d48 (= rose-600・hex 直値・CSS 変数禁止ルール準拠)。
+         縦横UI: span inline 1 単語のみ・layout 影響なし。 */
+      .waypoint-card .wp-sub-tap {
+        color: #e11d48;
+        font-weight: 800;
+      }
+      /* wp-title 縦画面 wrap 保障 (= 末尾「→ 📡 ○○(現在地)」 追加で 1 行超過時の・自然 wrap) */
+      .waypoint-card .wp-title {
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+
+      /* リロード復元バナー */
+      .restore-banner {
+        display: none;
+        width: fit-content;
+        max-width: calc(100% - 32px);
+        margin: 0 auto 10px;
+        padding: 6px 12px;
+        background: #e8f8ee;
+        border: 1.5px solid #b7e4c7;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #1f7a3f;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .restore-banner.show {
+        display: block;
+      }
+
+      /* ボタンエリア（固定） */
+      .btn-area {
+        /* ★設計変更宣言 (2026-06-06・司さん指示・Android下部ボタン見切れ根治):
+           viewport-fit=cover では body が下部システムバー(Android 3ボタン ◀●■ / iOS ホーム
+           インジケータ)の下まで広がるため、末尾の追加料金/確定ボタンがバーに隠れて見切れていた。
+           下 padding にシステムバー高 env(safe-area-inset-bottom) を加算し可視領域内へ押し上げる
+           (Android=ナビバー高/iOS=ホームインジケータ高・非対応端末は 0 で従来 40px のまま)。
+           ★2026-06-27 司さん実機: env が 0 を返す Android(3ボタンナビ等)で 40px では
+             ナビバー(≈48px)に負けて見切れ継続→ max() で最低 72px の床を保証(env報告時はそちら優先)。 */
+        padding: 10px 16px max(72px, calc(40px + env(safe-area-inset-bottom)));
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        border-top: 0.5px solid #f0f0f0;
+      }
+
+      /* メインボタン（idle:代行開始 / fare:精算終了） */
+      .btn-main {
+        display: none;
+        width: 100%;
+        padding: 18px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 3px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+        -webkit-transition:
+          transform 0.1s,
+          -webkit-filter 0.1s;
+        transition:
+          transform 0.1s,
+          filter 0.1s;
+      }
+      .btn-main.show {
+        display: block;
+      }
+      .btn-main:active {
+        -webkit-transform: scale(0.97);
+        transform: scale(0.97);
+        -webkit-filter: brightness(0.85);
+        filter: brightness(0.85);
+      }
+
+      /* 2列ボタン（driving のみ表示） */
+      .btn-row {
+        display: none;
+        /* ★2026-07-31: 請求書ボタン追加で 2列→3列。指の当たりを確保するため gap を詰める。
+           横画面は既存の !important で1列縦並びのまま(下部メディアクエリ)。 */
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
+      }
+      .btn-row.show {
+        display: grid;
+      }
+      .btn-sub {
+        padding: 12px 0;
+        border: none;
+        border-radius: 10px;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+        letter-spacing: 1px;
+        -webkit-transition:
+          transform 0.1s,
+          -webkit-filter 0.1s;
+        transition:
+          transform 0.1s,
+          filter 0.1s;
+      }
+      .btn-sub:active {
+        -webkit-transform: scale(0.95);
+        transform: scale(0.95);
+        -webkit-filter: brightness(0.8);
+        filter: brightness(0.8);
+      }
+      .btn-extra {
+        background: #ff9500;
+      }
+      .btn-discount {
+        background: #5856d6; /* ★値引き(紫・追加料金オレンジと区別) */
+      }

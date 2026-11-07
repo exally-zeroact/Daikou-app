@@ -1,0 +1,5 @@
+      /* ★設計変更宣言 (2026-05-15・修正2): Eruda 関連 CSS 削除済。
+         本ファイル内には Eruda 本体実装 (eruda.init / ⚙️ ボタン / ?debug=eruda 経路) は
+         元々存在せず、本 selector は旧 cache 上の Eruda DOM を保険的に隠す目的のみだった。
+         Eruda 機能自体は js/debug-config.js に常駐し続けるが、本 selector は不要のため削除。 */
+

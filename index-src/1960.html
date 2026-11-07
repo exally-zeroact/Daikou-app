@@ -1,0 +1,70 @@
+        <!-- ★今日の車 モーダル(中央カードで選択/追加・司さん要望2026-06-27・旧ドロップダウンがハリボテで作り直し)★ -->
+        <div
+          id="bizCarModal"
+          onclick="
+            if (event.target === this) {
+              window._closeBizCarModal && window._closeBizCarModal();
+            }
+          "
+          style="
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.45);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+          "
+        >
+          <div
+            style="
+              width: 100%;
+              max-width: 360px;
+              max-height: calc(100vh - 40px);
+              max-height: calc(100dvh - 40px);
+              display: flex;
+              flex-direction: column;
+              background: #fff;
+              border-radius: 16px;
+              overflow: hidden;
+              box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+            "
+          >
+            <div
+              style="
+                flex-shrink: 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 14px 18px;
+                border-bottom: 1px solid #f0f0f0;
+              "
+            >
+              <span style="font-weight: 800; font-size: 16px; color: #1c1c1e">🚗 今日の車</span>
+              <button
+                type="button"
+                onclick="window._closeBizCarModal && window._closeBizCarModal()"
+                style="
+                  border: none;
+                  background: #f2f2f7;
+                  color: #555;
+                  width: 30px;
+                  height: 30px;
+                  border-radius: 50%;
+                  font-size: 15px;
+                  font-weight: 700;
+                  cursor: pointer;
+                  line-height: 1;
+                "
+              >
+                ✕
+              </button>
+            </div>
+            <div
+              id="bizCarDropdown"
+              style="overflow-y: auto; -webkit-overflow-scrolling: touch"
+            ></div>
+          </div>
+        </div>

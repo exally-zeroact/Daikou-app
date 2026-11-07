@@ -1,0 +1,50 @@
+      /* ★設計変更宣言 (2026-05-19・司さん指示 履歴/業務終了 横並び):
+         portrait: display: contents で wrap 透過・既存縦並び挙動維持
+         landscape は後の @media で flex row + 50/50 配置 */
+      .screen-idle-actions {
+        display: contents;
+      }
+
+      /* 履歴ボタン（2026/05/01追加・2026-05-10 縦画面 1 画面化のため padding 縮小） */
+      .btn-history {
+        width: calc(100% - 24px);
+        padding: 11px;
+        margin: 8px 12px 0;
+        background: #fff;
+        border: 1.5px solid #007aff;
+        border-radius: 12px;
+        color: #007aff;
+        font-size: 15px; /* ★2026-07-18 司さん指示: 履歴の文字が細い→太字化+少し大きく */
+        font-weight: 800;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+      .btn-history:active {
+        background: #e8f4fd;
+        transform: scale(0.98);
+      }
+
+      /* 業務管理ボタン群（2026/05/01追加） */
+      /* 業務終了ボタン（待機画面の履歴の下・2026-05-10 padding 縮小） */
+      .btn-business-end {
+        width: calc(100% - 24px);
+        padding: 11px;
+        margin: 6px 12px 0;
+        background: #fff;
+        border: 1.5px solid #ff3b30;
+        border-radius: 12px;
+        color: #ff3b30;
+        font-size: 15px; /* ★2026-07-18 司さん指示: 業務終了の文字が細い→太字化+少し大きく */
+        font-weight: 800;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+        box-sizing: border-box;
+      }
+      .btn-business-end:active {
+        background: #fff0f0;
+        transform: scale(0.98);
+      }
+

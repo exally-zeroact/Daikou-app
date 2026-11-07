@@ -1,0 +1,37 @@
+        <!-- ★設計変更宣言 (2026-05-10): センサー許可明示ボタン -->
+        <!-- iOS PWA 未許可時のみ表示・押下で DeviceMotionEvent.requestPermission() を user gesture 経由で発火 -->
+        <button
+          id="btnSensorPermission"
+          onclick="
+            event.stopPropagation();
+            requestSensorPermission();
+          "
+          style="
+            display: none;
+            background: #007aff;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            font-family: 'Noto Sans JP', sans-serif;
+          "
+        >
+          センサーを許可する
+        </button>
+        <div
+          id="sensorPermissionNote"
+          style="
+            display: none;
+            font-size: 12px;
+            color: #8e8e93;
+            text-align: center;
+            padding: 0 24px;
+            line-height: 1.5;
+          "
+        >
+          業務開始前に位置・方位・加速度センサーの許可が必要です
+        </div>

@@ -1,0 +1,4 @@
+      /* ★司さん要望2026-06-27: 走行距離カードの下のGPS/OBDソースバッジ(📡GPS/🟢OBD)を非表示。 */
+      #obdDriveBadge {
+        display: none !important;
+      }

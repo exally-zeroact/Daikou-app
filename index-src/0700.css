@@ -1,0 +1,45 @@
+      /* ★★見るだけ（司さん 2026-09-01「事務所からだけにしたんやないんか」）★★
+         ・数字は 見える（今の 料金表が 分かる）
+         ・触れない・保存は 出さない
+         ★消さずに 止める★ので、事務所が 使えない 時に 戻せます。 */
+      #overlayFare .itsu-gyou {
+        font-size: 12px;
+        line-height: 1.5;
+        margin: 0 0 10px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+
+      #overlayFare .yomu-gyou {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid #e5e5ea;
+        font-size: 14px;
+      }
+
+      #overlayFare .yomu-na {
+        color: #6b6b70;
+        flex: 0 1 auto;
+      }
+
+      #overlayFare .yomu-at {
+        font-weight: 700;
+        color: #1c1c1e;
+        text-align: right;
+        flex: 1 1 auto;
+      }
+
+      #overlayFare .miru-dake-obi {
+        background: #fff4e5;
+        color: #7a4b00;
+        border-bottom: 1px solid #f0d9b5;
+        padding: 10px 14px;
+        font-size: 13px;
+        line-height: 1.6;
+        flex-shrink: 0;
+      }
+

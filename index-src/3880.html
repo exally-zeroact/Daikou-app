@@ -1,0 +1,12 @@
+      <!-- ★設計変更宣言 (2026-05-14・MA-4 settings.html の常時表示 section を移植 + B-1 resetTime UI 復活):
+       元 settings.html の visible section のみを取り込み:
+         料金設定 link / 道路データ最終更新 + DL 状況 / 業務リセット時刻 (新規・B-1 復活)
+         / 学習データ提供 / 端末警告 / 法的ページリンク
+       元 #devSection / #devSection2 (dev mode 限定の割増/時間料金/OSRM/精度テスト) は
+       元 settings.html に残置 (dual state・MA-6 まで bottom-nav 旧経路で到達可能)。
+       id は _st_ prefix で隔離 (index.html 既存 id と衝突回避)。 -->
+      <div class="appbar">
+        <div class="appbar-back" onclick="window.hideAllOverlays()">＜</div>
+        <div class="appbar-title">設定</div>
+      </div>
+      <div class="wrap">

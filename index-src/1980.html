@@ -1,0 +1,29 @@
+        <!-- ★OBD接続ボタン (2026-06-27・司さん要望): 今日の車と業務開始の間に同じ幅で配置。
+             OBDは重要なので目立たせる。青バーの #obdChip の click を呼んで接続/切断(トグル)。
+             見た目(接続済=緑/未接続=青枠)は bindObdUI(500ms) が更新。 -->
+        <button
+          id="bizObdConnect"
+          type="button"
+          onclick="
+            event.stopPropagation();
+            var c = document.getElementById('obdChip');
+            if (c) c.click();
+          "
+          style="
+            width: 80%;
+            max-width: 300px;
+            box-sizing: border-box;
+            padding: 13px 14px;
+            background: #fff;
+            border: 2px solid #007aff;
+            border-radius: 12px;
+            color: #007aff;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+          "
+        >
+          🔌 OBDを接続
+        </button>
+        <!-- 業務開始ボタン（中央配置・大ボタン） -->
+        <button class="btn-business-start" onclick="onBusinessStart()">業務開始</button>

@@ -1,0 +1,105 @@
+            <!-- ★コード活性化(2026-06-30・ドライバー端末・ログイン不要)★: コードを入れて有効化するだけ。端末IDは裏で自動。 -->
+            <div style="margin-bottom: 6px; color: #555; font-size: 12px">
+              代行会社からもらったコードを入れて有効化してください。
+            </div>
+            <input
+              id="licActivateCode"
+              placeholder="コード（例: DK-XXXXXXXX）"
+              autocapitalize="characters"
+              style="
+                width: 100%;
+                padding: 9px;
+                border: 1px solid #d1d1d6;
+                border-radius: 8px;
+                font-size: 16px;
+                margin-bottom: 6px;
+                box-sizing: border-box;
+                height: 38px;
+                -webkit-appearance: none;
+                font-family: monospace;
+                text-transform: uppercase;
+              "
+            />
+            <button
+              id="licActivateBtn"
+              type="button"
+              style="
+                width: 100%;
+                padding: 10px;
+                background: #34c759;
+                color: #fff;
+                border: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: 700;
+                cursor: pointer;
+                margin-bottom: 10px;
+              "
+            >
+              有効化する
+            </button>
+            <div
+              id="licActivateMsg"
+              style="font-size: 12px; min-height: 14px; margin-bottom: 8px"
+            ></div>
+            <details style="margin-bottom: 4px">
+              <summary style="font-size: 11px; color: #8e8e93; cursor: pointer">
+                端末ID（サポート用・通常は不要）
+              </summary>
+              <div style="margin-bottom: 6px; color: #555">
+                端末ID:
+                <span
+                  id="licDeviceId"
+                  style="
+                    font-family: monospace;
+                    font-size: 11px;
+                    word-break: break-all;
+                    color: #1c1c1e;
+                  "
+                  >—</span
+                >
+              </div>
+              <button
+                id="licCopyBtn"
+                type="button"
+                style="
+                  padding: 7px 12px;
+                  background: #007aff;
+                  color: #fff;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  font-weight: 700;
+                  cursor: pointer;
+                "
+              >
+                端末IDをコピー
+              </button>
+            </details>
+            <div style="margin: 10px 0 6px; color: #555">
+              状態: <span id="licState" style="font-weight: 700">—</span>
+            </div>
+            <label
+              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 6px 0"
+            >
+              <input type="checkbox" id="licGateToggle" style="width: 18px; height: 18px" />
+              ライセンスゲートを有効にする（この端末）
+            </label>
+            <button
+              id="licRefreshBtn"
+              type="button"
+              style="
+                margin-top: 4px;
+                padding: 7px 12px;
+                background: #fff;
+                color: #007aff;
+                border: 1.5px solid #007aff;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 700;
+                cursor: pointer;
+              "
+            >
+              再認証（オンライン確認）
+            </button>
+          </div>

@@ -1,0 +1,36 @@
+        <!-- ★設計変更宣言 (2026-05-20・司さん指示・空車画面 ボタン順統一):
+             縦横両方とも 履歴 → 業務終了 → 代行開始 (= 最下部) で統一。
+             業務終了 と 代行開始 の間に余白 40px (= 押し間違い防止)。
+             portrait は display: contents で wrap div を透過。
+             landscape (= 空車表示時) では btn-area 非表示・screen-idle-actions と
+             btn-main-idle-portrait を content 内 縦並び表示。 -->
+        <div class="screen-idle-actions">
+          <!-- 履歴ボタン -->
+          <button class="btn-history" onclick="onHistory()">履歴</button>
+          <!-- 業務終了ボタン（履歴の下・2026/05/01追加） -->
+          <button class="btn-business-end" onclick="onBusinessEnd()">業務終了</button>
+        </div>
+        <!-- 代行開始 (= 主アクション・最下部・40px+ 余白) -->
+        <button class="btn-main-idle-portrait" type="button" onclick="onMainBtn()">代行開始</button>
+      </div>
+
+      <!-- BUSINESS START（業務未開始時の専用画面・2026/05/01追加） -->
+
+      <!-- 2026/05/01：画面のどこタップしても許可ダイアログ発火（未許可時）・onClick で blockIfSensorNotGranted を呼ぶ -->
+      <div
+        id="screenBusinessStart"
+        onclick="blockIfSensorNotGranted()"
+        style="
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+          justify-content: center;
+          align-items: center;
+          gap: 12px;
+          padding: 8px 0 calc(12px + env(safe-area-inset-bottom));
+          box-sizing: border-box;
+        "
+      >
+        <!-- 日時（全画面共通） -->
+        <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>

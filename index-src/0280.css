@@ -1,0 +1,14 @@
+      /* ★OBD接続チップ (2026-06-11・最小化スッキリ rev)★: 絵文字/緑ベタ塗り/速度重複を廃止し
+         GPSピルと同じ「ドット + OBD」の小ピルに統一。接続状態は #obdDot の色だけで示す
+         (.gps-dot.ok=緑=接続済 / 既定=半透明白=未接続)。状態色はJSが classList で切替(inline style廃止)。 */
+      .obd-chip {
+        border: none;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-weight: 700;
+        color: #fff;
+      }
+      .obd-chip.is-disabled {
+        opacity: 0.45;
+        cursor: default;
+      }

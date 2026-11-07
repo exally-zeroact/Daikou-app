@@ -1,0 +1,272 @@
+      /* ★設計変更宣言 (2026-05-19 再・modal-custom input はみ出し対策):
+         旧: input flex: 1 / box-sizing 未指定で content-box 計算により
+             padding 含めた実寸が親 modal-custom (= padding 14px) の右端を超えてはみ出る事象
+         新: 全要素 box-sizing: border-box + input に min-width: 0 で flex shrink 許容
+             span / button に flex-shrink: 0 で潰れ防止
+         modal 内のみ・portrait/landscape どちらでも安全動作。 */
+      .modal-custom {
+        background: #fff8f0;
+        border: 0.5px solid #ffd6a5;
+        border-radius: 10px;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        box-sizing: border-box;
+      }
+      .modal-custom span {
+        font-size: 14px;
+        color: #ff9500;
+        font-weight: 700;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .modal-custom input {
+        flex: 1;
+        min-width: 0;
+        box-sizing: border-box;
+        border: 0.5px solid #ddd;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 16px;
+        text-align: right;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      .modal-custom-btn {
+        background: #ff9500;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+
+      /* 横画面対応 */
+      @media (orientation: landscape) {
+        /* ★設計変更宣言 (2026-05-19・CSS Grid 3 領域に書き換え・業界標準準拠):
+           旧: body { flex-direction: row; flex-wrap: wrap } で flex-wrap 依存配置
+               → iOS Safari WebKit bug #136041 + min-content 計算狂いで縦書き崩れ
+           新: display: grid + grid-template-areas で 3 領域明示配置 (= Holy Grail / 業界標準)
+               左 sidenav (= 80px) + 中央 content (= 1fr) + 右 btn-area (= 180px) を grid で固定
+               iOS Safari の flex 不安定動作を完全回避・確実な左右分割実現。
+           参考: WebKit bug #136041 公式回避策 + matthewjamestaylor 3-column layout */
+        /* ★設計変更宣言 (2026-05-19・司さん画像イメージ準拠・2 領域 grid):
+           司さん「縦画面のフッターを右に持ってくる」「バランス考えて」要求 +
+           実機画像で見る通り bottom-nav は landscape で非表示・content 広く・btn-area 狭く右に。
+           layout:
+             ┌──────────────────────────────────┐
+             │ appbar (= 40px)                   │
+             ├─────────────────────┬────────────┤
+             │ content (= 広い 1fr) │ btn-area   │
+             │ stats + 履歴 + 業務終 │ (= 160px)  │
+             │                       │ 代行開始等 │
+             └─────────────────────┴────────────┘ */
+        body {
+          display: grid !important;
+          /* 横画面の右カラム=btn-area。160→200pxに拡幅(2026-06-27 司さん): 右ナビバー回避の
+             padding を足してもボタン(追加料金等)が折り返さない幅を確保するため。 */
+          grid-template-columns: 1fr 210px !important;
+          grid-template-rows: 40px 1fr !important;
+          grid-template-areas:
+            'appbar appbar'
+            'content btn-area' !important;
+          /* ★横画面: 青バー(appbar)を端まで全幅で出す(2026-06-27 司さん実機)。
+             body に padding-right を付けると grid(=appbar含む)ごと内側に寄り、右上に白地が
+             見える(青バー見切れ)。padding を 0 にして appbar を全幅化。btn-area の余白は
+             btn-area 自身の padding(16px)で確保済み。 */
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          padding-bottom: 0 !important;
+          height: 100vh !important;
+          height: 100dvh !important;
+          flex-direction: unset !important;
+          flex-wrap: unset !important;
+        }
+        /* ★設計変更宣言 (2026-05-20・司さん指示・ホーム画面 landscape 中央配置):
+           businessStart 表示時は btn-area 非表示 + content 全幅で
+           業務開始・業務再開ボタンを画面水平中央に。 */
+        body:has(#screenBusinessStart[style*='display: flex']) {
+          grid-template-columns: 1fr !important;
+          grid-template-areas:
+            'appbar'
+            'content' !important;
+          padding-right: 0 !important;
+        }
+        body:has(#screenBusinessStart[style*='display: flex']) .btn-area {
+          display: none !important;
+        }
+        /* ★設計変更宣言 (2026-05-24・iOS Safari :has() + 属性 selector bug 回避・class detection 並記):
+           iOS Safari は・body:has(#xxx[style*='display: flex']) を・JS の style 属性 mutation 後
+           再評価しない bug あり (= L2685 既存コメント根拠)。
+           class detection (= body.screen-businessstart) を・並記して・iOS Safari でも・
+           grid-template-columns:1fr 等が・確実に適用されるよう・safety 確保。
+           class 付与は showScreen 関数 (= L7841 周辺・body.classList.toggle) で実施。
+           既存 :has() rule は・触らず維持 (= 他環境では・既存通り動作)。 */
+        body.screen-businessstart {
+          grid-template-columns: 1fr !important;
+          grid-template-areas:
+            'appbar'
+            'content' !important;
+          padding-right: 0 !important;
+        }
+        body.screen-businessstart .btn-area {
+          display: none !important;
+        }
+        .bottom-nav {
+          display: none !important;
+        }
+        .appbar {
+          grid-area: appbar !important;
+          position: static !important;
+        }
+        .content {
+          grid-area: content !important;
+          /* ★設計変更宣言 (2026-05-19・縦バランス): content も btn-area と同じく縦中央配置
+             stats + 履歴/業務終了 が縦中央・代行開始ボタンと縦位置揃う */
+          justify-content: center !important;
+        }
+        .btn-area {
+          grid-area: btn-area !important;
+        }
+        /* ★ 各画面 (screenIdle 等) も縦中央配置で上下バランス揃え
+           ★2026-06-27 司さん実機(横): 横画面は高さが低く、内容(日時/料金/距離/経由地カード)が
+             収まらず上下が見切れていた。safe center=収まる時は中央・溢れる時は上端揃え(上から見える)
+             + overflow-y:auto でスクロール可能にし、下の経由地カード/距離まで到達できるようにする。 */
+        #screenIdle,
+        #screenBusinessStart,
+        #screenBusinessReport,
+        #screenDriving,
+        #screenFare {
+          justify-content: safe center !important;
+          overflow-y: auto !important;
+        }
+        /* ★設計変更宣言 (2026-05-19・司さん指示書・空車 horizontal 統一レイアウト):
+           代行中 horizontal と同じ構造に: 左 content (= 日付・stats) + 右 btn-area (= 代行開始上・履歴中・業務終了下)。
+           screen-idle-actions (= 履歴 / 業務終了 wrap) を position: fixed で
+           btn-area area 内に視覚配置 (= HTML は screenIdle 内のまま・JS 触らず)。
+           btn-area justify-content: flex-start で代行開始を上に・screen-idle-actions が下に。 */
+        /* ★設計変更宣言 (2026-05-20 司さん指示・統計カード中心を日時と揃える):
+           旧 margin: 0 で左寄せ・日時 (max-width 80% margin auto) と中心ズレ
+           新 max-width: 80% / margin: 0 auto で日時と同じ container 配置・水平中央揃え */
+        .stats-dashboard {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 6px !important;
+          padding: 0 12px !important;
+          max-width: 80% !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          margin: 0 auto !important;
+        }
+        /* ★設計変更宣言 (2026-05-19・司さん指示「3 ボタン 1 集合体として中央配置」):
+           btn-area 内に・履歴 + 業務終了 + 代行開始 を 1 つの flex container として
+           justify-content: center で縦中央配置。集合体全体の重心が btn-area の縦中央。
+           順序 (上から): 履歴 → 業務終了 → 代行開始 (大・主アクション最下部)。
+           3 ボタン同じ横幅 100% (= btn-area width 160 - padding 32 = 128px) / gap 12px。 */
+        .btn-area {
+          justify-content: center !important;
+          /* ★横画面の右ナビバー(Androidホームボタン/ジェスチャー)から右ボタンを離す(2026-06-27 司さん)。
+             青バーは全幅のまま(bodyには足さない=白隙間再発防止)、btn-area自身の右paddingで内側へ。
+             env報告時は 20px+inset、0返し端末でも最低56pxの床でホームボタンを避ける。 */
+          padding: 16px max(76px, calc(36px + env(safe-area-inset-right))) 16px 16px !important;
+          gap: 12px !important;
+        }
+        /* ★設計変更宣言 (2026-05-20 司さん指示・横画面右カラム復元 + iOS Safari :has() bug 回避):
+           旧: body:has(#screenIdle[style*='display: flex']) で動的検出
+               → iOS Safari の :has() + 属性 selector が JS の style 属性 mutation 後に
+                  再評価されないバグで・他画面遷移後 rule が機能せず
+           新: :has() を完全に外し・@media (orientation: landscape) で
+               screen-idle-actions / btn-main-idle-portrait を **無条件** hide。
+               これらは HTML 上 screenIdle 内のみに存在するため・他画面への影響なし。
+               新規 btn-history-landscape-idle / btn-business-end-landscape-idle の
+               空車時のみ表示は sibling combinator ~ で .show 検知 (= driving/fare/businessReport
+               時の .btn-row.show / .btn-back-landscape.show / .btn-resume-landscape.show /
+               .btn-confirm-landscape.show と排他)。
+           layout:
+             - content (= 左) は 日時・stats-dashboard のみ
+             - btn-area (= 右 ~160-180px) は 履歴 (上) → 業務終了 (中) → 代行開始 (下)
+             - 3 ボタン同じ幅 (= btn-area 内 100%) / 同じ高さ
+             - 業務終了 と 代行開始 の間 40px 余白 */
+        .screen-idle-actions {
+          display: none !important;
+        }
+        .btn-main-idle-portrait {
+          display: none !important;
+        }
+        /* landscape default: 履歴/業務終了 を btn-area 右カラムに表示 (= 空車時のみ後段で他 mode 排他) */
+        .btn-history-landscape-idle,
+        .btn-business-end-landscape-idle {
+          display: block !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          padding: 14px 8px !important;
+          font-size: 15px !important; /* ★2026-07-18 横も履歴/業務終了を太字化+少し大きく */
+          font-weight: 800 !important;
+          letter-spacing: 1px !important;
+          font-family: 'Noto Sans JP', sans-serif !important;
+          border-radius: 12px !important;
+          background: #fff !important;
+          cursor: pointer !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        /* 履歴: 青枠 (= 縦画面 .btn-history と同色) */
+        .btn-history-landscape-idle {
+          border: 1.5px solid #007aff !important;
+          color: #007aff !important;
+        }
+        .btn-history-landscape-idle:active {
+          background: #f0f7ff !important;
+          transform: scale(0.97) !important;
+        }
+        /* 業務終了: 赤枠 (= 縦画面 .btn-business-end と同色・司さん指示 2026-05-20) */
+        .btn-business-end-landscape-idle {
+          border: 1.5px solid #ff3b30 !important;
+          color: #ff3b30 !important;
+        }
+        .btn-business-end-landscape-idle:active {
+          background: #fff0f0 !important;
+          transform: scale(0.98) !important;
+        }
+        /* HTML 順序 btn-area 内: btn-back-landscape → report-note-landscape → btn-resume-landscape →
+           btn-confirm-landscape → btn-row → btn-history-landscape-idle → btn-business-end-landscape-idle →
+           btn-main。前の兄弟に .show (= 他 mode) があれば 新規ボタン hide。 */
+        .btn-row.show ~ .btn-history-landscape-idle,
+        .btn-row.show ~ .btn-business-end-landscape-idle,
+        .btn-back-landscape.show ~ .btn-history-landscape-idle,
+        .btn-back-landscape.show ~ .btn-business-end-landscape-idle,
+        .btn-resume-landscape.show ~ .btn-history-landscape-idle,
+        .btn-resume-landscape.show ~ .btn-business-end-landscape-idle,
+        .btn-confirm-landscape.show ~ .btn-history-landscape-idle,
+        .btn-confirm-landscape.show ~ .btn-business-end-landscape-idle {
+          display: none !important;
+        }
+        /* landscape btn-main (= idle:代行開始 / fare:精算終了) の幅・高さを 履歴/業務終了 と統一。
+           idle 時 (= 前の .show なし) は margin-top 40px で押し間違い防止。
+           fare 時 (= .btn-back-landscape.show 兄弟あり) は既存 L2735 で margin-top 32px override。 */
+        .btn-main {
+          width: 100% !important;
+          box-sizing: border-box !important;
+          padding: 14px 8px !important;
+          font-size: 14px !important;
+          letter-spacing: 1px !important;
+          margin-top: 40px !important;
+        }
+        /* 代行中 btn-row (= 追加料金 + 確定) を縦並び 2 ボタンに統一 */
+        .btn-row {
+          grid-template-columns: 1fr !important;
+          gap: 8px !important;
+        }
+        /* ★ 代行中 btn-row (= 追加料金 + 値引き) を縦並びに。値引きを上(赤丸位置)に。 */
+        .btn-row {
+          grid-template-columns: 1fr !important;
+          gap: 8px !important;
+        }
+        .btn-row .btn-discount {
+          order: -1; /* ★横画面: 値引きを追加料金の上に(司さん赤丸) */
+        }

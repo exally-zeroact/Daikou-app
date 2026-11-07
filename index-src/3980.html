@@ -1,0 +1,109 @@
+        <!-- ★★学習データ提供は 出しません（司さん 2026-09-01「Firebaseは使うな」）★★
+             ★理由★ … この機能は ★Firebase Storage へ 上げる為だけ★の 物でした。
+             Firebase を 外したので ★ON にしても どこにも 上がりません★。
+             「削除」を 押しても ★何も 起きません★（FB.deleteAllTrainingData は 守りで no-op）。
+             ⇒ ★出来ていない物の ボタンを 見せない★ので 画面から 外します。
+             ★中の 仕掛け（TrainingCollector／IndexedDB）は 消していません★＝
+             別の 上げ先（Supabase）に 付け替える時に そのまま 使えます。 -->
+        <div class="section" id="_st_training" style="display: none">
+          <div class="section-title">学習データ提供</div>
+          <div class="row">
+            <div class="row-label">学習データ提供</div>
+            <div class="toggle" id="_st_trainingToggle" onclick="_st_toggleTrainingEnabled()"></div>
+          </div>
+          <div
+            style="
+              padding: 12px 16px;
+              font-size: 12px;
+              color: #8e8e93;
+              line-height: 1.7;
+              border-bottom: 0.5px solid #f0f0f0;
+            "
+          >
+            Map Matching の精度向上のため、加速度センサー値と速度を匿名で送信します。
+            <br />
+            <strong style="color: #34c759">送信される</strong>:
+            加速度・速度・匿名識別子・アプリバージョン
+            <br />
+            <strong style="color: #ff3b30">送信されない</strong>:
+            位置情報・出発地/目的地・お名前・連絡先
+          </div>
+          <div
+            class="row"
+            id="_st_trainingDetailsToggle"
+            onclick="_st_toggleTrainingDetails()"
+            style="cursor: pointer"
+          >
+            <div class="row-label" style="font-size: 13px; color: #007aff">利用規約を表示</div>
+            <div style="color: #8e8e93; font-size: 13px" id="_st_trainingDetailsChevron">▼</div>
+          </div>
+          <div
+            id="_st_trainingDetailsBody"
+            style="
+              display: none;
+              padding: 14px 16px;
+              font-size: 12px;
+              color: #444;
+              line-height: 1.8;
+              background: #e8f4fd;
+              border-bottom: 0.5px solid #f0f0f0;
+            "
+          >
+            <strong style="display: block; margin-bottom: 6px; color: #1c1c1e"
+              >学習データ提供に関するお知らせ</strong
+            >
+            ダイコメは Map Matching
+            の精度向上のため、お客様のスマートフォンの加速度センサー値と速度を匿名で送信します。
+            送信される: 加速度・速度・匿名識別子。 送信されない:
+            位置情報・出発地/目的地・お名前・連絡先。 設定画面でいつでも無効化できます。
+          </div>
+          <div style="padding: 12px 16px">
+            <button
+              id="_st_trainingDeleteBtn"
+              onclick="_st_deleteTrainingData()"
+              style="
+                width: 100%;
+                padding: 12px;
+                background: #ff3b30;
+                border: none;
+                border-radius: 10px;
+                color: #fff;
+                font-size: 14px;
+                font-weight: 700;
+                cursor: pointer;
+                font-family: 'Noto Sans JP', sans-serif;
+              "
+            >
+              過去の学習データを削除
+            </button>
+            <div
+              id="_st_trainingDeleteStatus"
+              style="
+                margin-top: 8px;
+                font-size: 12px;
+                color: #8e8e93;
+                text-align: center;
+                min-height: 18px;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <button class="btn-save" onclick="_st_saveAll()">保　存</button>
+        <div class="save-msg" id="_st_saveMsg"></div>
+
+        <div class="settings-toast" id="_st_settingsToast"></div>
+
+        <p
+          style="
+            text-align: center;
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 16px;
+            line-height: 1.8;
+            padding: 0 8px;
+          "
+        >
+          古い機種や低価格端末ではGPS精度が<br />低下する場合があります
+        </p>
+

@@ -1,0 +1,94 @@
+      /* ★設計変更宣言 (2026-05-23・ナビ再設計・横画面サイドレール 64px・overlay 連動):
+         司さんとモック合意済の最終方針。
+         切替条件:
+           ・portrait                          → 下部 60px・3 タブ均等 (= bottom-nav 既定)
+           ・landscape + overlay 表示時         → 左 64px サイドレール (= 本 rule)
+           ・landscape + 業務画面 (= overlay非)  → bottom-nav 非表示 (= 後段 L2628 既存維持)
+         レール幅 64px = タップターゲット 44pt + 縦並び label 余白 + 縦画面 60px と整合。
+         min-width 条件は撤去 (= 全 landscape 機種で適用)・iOS Safari 15.4+ / Chrome 105+ の
+         :has() 対応に依存 (= ダイコメ PWA モダンブラウザ前提)。
+         アクティブ表現: 既存 #007aff 色 + 左端 3px バー (::before・横画面のみ追加)。 */
+      @media (orientation: landscape) {
+        body:has(.spa-overlay.show) {
+          padding-bottom: 0;
+          padding-left: 0; /* ★2026-06-05: 左サイドレール撤去・余白不要 */
+        }
+        body:has(.spa-overlay.show) .bottom-nav {
+          display: flex !important;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: auto;
+          bottom: 0;
+          width: 64px;
+          flex-direction: column;
+          border-top: none;
+          border-right: 1px solid #c6c6c8;
+          padding-bottom: 0;
+          padding-top: env(safe-area-inset-top);
+          z-index: 100;
+        }
+        body:has(.spa-overlay.show) .bottom-nav .nav-item {
+          flex: 0 0 auto;
+          padding: 14px 4px;
+          position: relative;
+        }
+        body:has(.spa-overlay.show) .bottom-nav .nav-item.active::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 14px;
+          bottom: 14px;
+          width: 3px;
+          background: #007aff;
+          border-radius: 0 2px 2px 0;
+        }
+        /* ★2026-06-05: 左サイドレール撤去・overlay の左ずらしも不要 */
+        body:has(.spa-overlay.show) .spa-overlay.show {
+          left: 0;
+        }
+        /* ★設計変更宣言 (2026-05-24・空車 + 業務開始 横画面・サイドレール拡張):
+           司さん承認 (= 選択肢 A 採用)・screenIdle / screenBusinessStart 横画面でも・サイドレール表示。
+           class detection (= body.screen-xxx) で・iOS Safari :has() + 属性 selector bug 回避。
+           既存 overlay 用 rule と・同仕様 (= 64px / #007aff / 3px バー):
+             ・screenIdle = 待機系・履歴/業務終了/代行開始 (= 右 btn-area) は・触らず維持
+             ・screenBusinessStart = 業務開始 大ボタン中央配置 (= align-items:center) と・干渉なし */
+        body.screen-idle,
+        body.screen-businessstart {
+          padding-bottom: 0;
+          padding-left: 0; /* ★2026-06-05: 左サイドレール撤去・余白不要 */
+        }
+        body.screen-idle .bottom-nav,
+        body.screen-businessstart .bottom-nav {
+          display: flex !important;
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: auto;
+          bottom: 0;
+          width: 64px;
+          flex-direction: column;
+          border-top: none;
+          border-right: 1px solid #c6c6c8;
+          padding-bottom: 0;
+          padding-top: env(safe-area-inset-top);
+          z-index: 100;
+        }
+        body.screen-idle .bottom-nav .nav-item,
+        body.screen-businessstart .bottom-nav .nav-item {
+          flex: 0 0 auto;
+          padding: 14px 4px;
+          position: relative;
+        }
+        body.screen-idle .bottom-nav .nav-item.active::before,
+        body.screen-businessstart .bottom-nav .nav-item.active::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 14px;
+          bottom: 14px;
+          width: 3px;
+          background: #007aff;
+          border-radius: 0 2px 2px 0;
+        }
+      }

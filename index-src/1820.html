@@ -1,0 +1,89 @@
+    <!-- ★押すだけでは入らない端末の 入れ方★ 2026-08-25（司さん指示）
+         ▼やめた物
+           ここは「APKをダウンロード」の手順でした。配っていたのは ★2026/05/13の物★（3か月半 前）で、
+           これに従うと ★別の古いアプリ★が入って もっと分からなくなります。
+           ★APKのファイルは消していません★（案内だけ止めました）。
+         ▼今
+           Androidは 帯の「入れる」で ★押すだけ★で入ります。ここは出ません。
+           ここが出るのは ★iPhone など 押すだけでは入らない端末★だけ。 -->
+    <div
+      class="apk-modal"
+      id="apkModal"
+      onclick="if (event.target.id === 'apkModal') closeApkModal();"
+    >
+      <div class="apk-modal-box">
+        <div class="apk-modal-title">ダイコメを アプリとして入れる</div>
+        <div class="apk-modal-step">
+          <div class="apk-modal-step-num">1</div>
+          <div>画面の下（または上）の <b>共有</b>（□から↑が出ている印）を押します。</div>
+        </div>
+        <div class="apk-modal-step">
+          <div class="apk-modal-step-num">2</div>
+          <div><b>「ホーム画面に追加」</b> を押します。</div>
+        </div>
+        <div class="apk-modal-step">
+          <div class="apk-modal-step-num">3</div>
+          <div>
+            出てきた <b>ダイコメ</b> のアイコンから開きます。
+            <b>URL欄が出なくなったら 入っています。</b>
+          </div>
+        </div>
+        <div class="apk-modal-warn">
+          入れないと <b>業務開始が押せません</b>。<br />
+          道に沿った距離が使えず、直線の距離で料金を出してしまうためです。<br />
+          <b>入れ直しても 車の登録と較正（K）は消えません。</b>
+        </div>
+        <div class="apk-modal-actions">
+          <button class="apk-modal-close" onclick="closeApkModal()">閉じる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- コンテンツ -->
+
+    <div class="content" id="content">
+      <!-- IDLE -->
+
+      <div
+        id="screenIdle"
+        style="
+          display: none;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: calc(14px + env(safe-area-inset-bottom));
+        "
+      >
+        <!-- 現在地（日時の上・2026-07-23 司さん要望・空車画面のみ） -->
+        <div class="idle-location-line" id="idleLocation"></div>
+        <!-- 日時（1行表示・絵文字なし・2026/05/01仕様） -->
+        <div class="idle-datetime-line dateTimeLine" id="idleDateTime">
+          2026年5月1日（金） 15:43
+        </div>
+        <!-- 業務管理ダッシュボード（5項目縦積み・絵文字なし） -->
+        <div class="stats-dashboard">
+          <div class="stat-card-large">
+            <span class="stat-label">総走行距離</span>
+            <span class="stat-value"
+              ><span id="totalDist">0.00</span><span class="stat-unit">km</span></span
+            >
+          </div>
+          <div class="stat-card-large">
+            <span class="stat-label">実車総距離</span>
+            <span class="stat-value"
+              ><span id="todayDist">0.00</span><span class="stat-unit">km</span></span
+            >
+          </div>
+          <div class="stat-card-large">
+            <span class="stat-label">営業回数</span>
+            <span class="stat-value"
+              ><span id="todayCount">0</span><span class="stat-unit">回</span></span
+            >
+          </div>
+          <div class="stat-card-large">
+            <span class="stat-label">本日売上</span>
+            <span class="stat-value">¥<span id="fareTotalYen">0</span></span>
+          </div>
+        </div>

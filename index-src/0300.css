@@ -1,0 +1,5 @@
+      /* ★司さん2026-06-27: OBD接続中は緑ベタ塗りで一目で分かるように(未接続=半透明白のまま) */
+      .obd-chip.connected {
+        background: #34c759;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+      }

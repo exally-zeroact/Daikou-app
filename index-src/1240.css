@@ -1,0 +1,12 @@
+      /* ★請求書・2026-07-31: ダイコメ青。追加料金オレンジ/値引き紫と区別 */
+      .btn-invoice {
+        background: #007aff;
+      }
+      /* 会社が選ばれている間は色を変える(選び間違いにその場で気づける) */
+      .btn-invoice.is-selected {
+        background: #0051a8;
+        box-shadow: inset 0 0 0 2px #ffffff;
+      }
+      .btn-confirm {
+        background: #34c759;
+      }

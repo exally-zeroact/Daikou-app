@@ -1,0 +1,11 @@
+    <!-- ★設計変更宣言 (2026-05-18・P3 Sentry SDK 配線):
+         Firebase init より前に Sentry を init して error capture 範囲を広げる。
+         CDN version 8.55.0 (= 2026-01 時点 stable・要に応じて司さん が更新可)。
+         crossorigin で sourcemap upload 後の stack trace symbol 解決を有効化。
+         DSN 未設定なら sentry-config.js 内で skip (= 安全 fallback)。 -->
+    <script
+      src="https://browser.sentry-cdn.com/8.55.0/bundle.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script src="scripts/zeroact-test-commons/observability/sentry-config.js"></script>
+    <script>

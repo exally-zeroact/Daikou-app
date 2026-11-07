@@ -1,0 +1,57 @@
+      /* ★設計変更宣言 (2026-05-15・修正1): .menu-btn 削除済 (≡ ハンバーガーメニュー撤去) */
+      .surcharge-badge span {
+        font-size: 11px;
+        color: #fff;
+        font-weight: 700;
+      }
+
+      /* コンテンツエリア */
+      .content {
+        flex: 1;
+        padding: 16px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+      }
+
+      /* IDLE */
+      .idle-datetime {
+        text-align: center;
+        padding: 12px 0;
+      }
+      .idle-time {
+        font-size: 48px;
+        font-weight: 900;
+        color: #111;
+        line-height: 1;
+      }
+      .idle-date {
+        font-size: 13px;
+        color: #aaa;
+        margin-top: 4px;
+      }
+      /* 現在地（空車画面・日時の上・2026-07-23 司さん要望）: アイコンなし・薄めで控えめ */
+      .idle-location-line {
+        text-align: center;
+        font-size: 14px;
+        font-weight: 600;
+        color: #888;
+        padding: 0 12px;
+        letter-spacing: 0.5px;
+        line-height: 1.3;
+      }
+      .idle-location-line:empty {
+        display: none;
+      }
+      /* 日時1行表示（2026/05/01仕様変更） */
+      .idle-datetime-line {
+        text-align: center;
+        font-size: 18px;
+        font-weight: 700;
+        color: #111;
+        /* ★2026-07-18 司さん指示: 日時の幅を下のカードと揃える(左右12px=stats-dashboardと同じ) */
+        padding: 14px 12px 12px;
+        letter-spacing: 1px;
+      }

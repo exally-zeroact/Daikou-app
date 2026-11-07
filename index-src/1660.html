@@ -1,0 +1,12 @@
+    <!-- ★設計変更宣言 (2026-06-05・ナビを青バーに統合・下フッタ/左レール撤去・rev2):
+         左: 状態(空車/代行中)チップ + GPS精度ピル + 割増。 右: 業務/使い方/設定 ナビ。
+         ナビは bottom-nav と同じ onclick(hideAllOverlays/showOverlay)。appbar の z-index を
+         overlay より上に上げ overlay は padding-top で本バーを避けるため、使い方/設定 を開いた
+         ままでもこのナビでタブ切替可能(従来 bottom-nav の役割)。代行中/料金 では誤タップ防止で非表示。 -->
+    <div class="appbar" id="appbar">
+      <div class="appbar-left">
+        <div class="appbar-title" id="appbarTitle">空　車</div>
+        <div class="gps-pill">
+          <div class="gps-dot" id="gpsDot"></div>
+          <span class="gps-acc" id="gpsAcc">GPS</span>
+        </div>

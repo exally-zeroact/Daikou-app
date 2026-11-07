@@ -1,0 +1,12 @@
+    <!-- ★設計変更宣言 (2026-05-15・経由地点 + 住所表示機能・47 県分割対応):
+         Meter.getNearestAddress (js/meter.js 内) が同期で window.ADDRESSES_*_JP を参照するため
+         meter.js より前に load する。defer 属性で HTML パース完了後・並列 ダウンロード →
+         DOMContentLoaded 前に評価完了。
+         coarse (220 KB・市区町村レベル) のみ事前 load。fine は addresses-fine-{pref}.js
+         (47 県分割) に切替え、perPref 動的ロード (data-registry.js) で現在地の県のみ load。
+         旧 fine-jp.js (全国版・24.6 MB) の <script> ロードは削除 (手順 ④ 整合):
+           ・PRECACHE 対象外になったため defer load させると初回ネット fetch 24.6 MB が
+             走り起動遅延の原因に逆戻りする
+           ・後方互換用のファイル自体は data/ に残置・getNearestAddress 内の参照分岐も残置 -->
+    <script src="data/addresses-coarse-jp.js" defer></script>
+

@@ -1,0 +1,59 @@
+            <!-- ★★距離別の 料金（何km で いくら）★★ 2026-09-01
+                 司さん「前にあった何キロ走ったら何円の料金一覧表は？」
+                 ⇒ ★前は「確認」の 札に 在りました★。札を 減らした時に 一緒に 隠していました。
+                   ★運転手が 一番 見たい 表★なので ここに 戻します。
+                 ★計算は js/fare-calc.js（メーターと 同じ 1か所）★から 出します。
+                   前の 表は ★index.html の 中に もう1つ 計算を 持っていました★（_calcFareForPreview）。
+                   ⇒ ★2か所に なると 片方だけ 直って ずれます★ので もう 使いません。 -->
+            <div class="card">
+              <div class="card-title">距離別の 料金</div>
+              <div class="preview-table-scroll">
+                <table class="preview-table">
+                  <thead>
+                    <tr>
+                      <th>走った 距離</th>
+                      <th>料金</th>
+                    </tr>
+                  </thead>
+                  <tbody id="_fare_kmhyou"></tbody>
+                </table>
+              </div>
+              <div class="card-desc" id="_fare_kmhyouNote"></div>
+            </div>
+          </section>
+
+          <section class="tab-pane" data-pane="extras">
+            <div class="card">
+              <div class="card-title">追加料金項目 (迎車料金・キャンセル料など)</div>
+              <div class="card-desc">
+                業務画面でワンタップ加算できる項目を登録します。例: 迎車料金 1,000円 / キャンセル料
+                2,000円 / 高速料金など。
+              </div>
+              <div id="_fare_extraItems"></div>
+              <button class="btn-add" onclick="window._fare_addExtraItem()">＋ 項目を追加</button>
+            </div>
+          </section>
+          <section class="tab-pane" data-pane="discounts">
+            <div class="card">
+              <div class="card-title">値引き項目 (常連割・クーポンなど)</div>
+              <div class="card-desc">
+                業務画面でワンタップ減算できる値引きを登録します。例: 常連割 500円 / クーポン
+                300円。
+                合計はこの値引きぶん差し引かれ(0円未満にはならず)、その実請求額で記録されます。
+              </div>
+              <div id="_fare_discountItems"></div>
+              <button class="btn-add" onclick="window._fare_addDiscountItem()">
+                ＋ 値引きを追加
+              </button>
+            </div>
+          </section>
+          <section class="tab-pane" data-pane="preview" style="display: none">
+            <div class="card">
+              <div class="card-title">割増シミュレーション</div>
+              <div class="card-desc">適用した割増を組み合わせた料金プレビュー</div>
+              <div id="_fare_previewSurcharges"></div>
+              <div id="_fare_previewAutoStatus" style="margin-top: 10px"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">距離別料金</div>
+              <div class="preview-multiplier" id="_fare_previewMultiplier">適用倍率: 1.00</div>

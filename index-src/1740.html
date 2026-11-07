@@ -1,0 +1,49 @@
+    <!-- ★OBD切断 再接続バー (2026-06-30・司さん「全部の画面に途切れたら出して」)★:
+         OBDを一度繋いだ後に途切れたら、全画面の青バー直下に赤バーを出す(dataUpdateBannerと同じappbar直下flow)。
+         タップで青バーチップの接続処理を呼び再接続。bindObdUI が _obdWasConnected+切断猶予4sで表示制御。 -->
+    <div
+      id="obdReconnectBar"
+      role="alert"
+      onclick="
+        (function () {
+          var c = document.getElementById('obdChip');
+          if (c) c.click();
+        })()
+      "
+      style="
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: #ff3b30;
+        color: #fff;
+        font-weight: 700;
+        font-size: 14px;
+        padding: 11px 12px;
+        cursor: pointer;
+        text-align: center;
+        letter-spacing: 0.5px;
+        /* ★★出ても 画面を ずらさない★★ 2026-09-05（司さん）
+           「警告のせいで ボタン押せんとか ないようにしろ」
+           ★実測（直す前）★ 赤バー 42px ／ 業務終了ボタン 502px → 544px
+           ＝★押そうとした 瞬間に 42px 動く★（押し間違え・反応しない）
+           ⇒ ★上に 重ねる★＝★下の 中身は 1px も 動かない★
+           ★警告は そのまま 出す★（走っている時の 測り漏れは 守る） */
+        position: fixed;
+        left: 0;
+        right: 0;
+        /* ★★130 ＝ 常駐青バー(120)・overlay(80) より 上★★ 2026-09-06（司さん）
+           ★私が 09-05 に 70 に して しまい、青バー(120)と overlay(80)の 下に 潜りました★
+           ⇒ 司さんの 元の 指示「★全部の画面に 途切れたら 出して★」(2026-06-30)が
+             ★出ない 画面が ある★ 状態に なっていました。
+           ⇒ ★OBD が 切れても 運転手が 気づけない★＝距離が 黙って 少なくなる。 */
+        z-index: 130;
+      "
+      data-obd-bar-ukasu="1"
+    >
+      ⚠ OBDが切れました — タップで再接続
+    </div>
+
+    <!-- センサー再起動バナー（全画面共通・appbar直下・2026/05/03 統一） -->
+    <!-- iOS PWA で DeviceMotion/Orientation が session 毎に失効するため -->
+    <!-- ボタン押下で user gesture 内で同期発火：許可ダイアログ → リスナー再登録 → NoSleep起動 -->

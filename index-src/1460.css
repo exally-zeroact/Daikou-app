@@ -1,0 +1,79 @@
+      /* ★設計変更宣言 (2026-05-11): データ更新バナー (businessStart 7 日経過時のみ flow 表示) */
+      .data-update-banner-wrap {
+        flex-shrink: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.35s ease-out;
+      }
+      .data-update-banner-wrap.show {
+        max-height: 120px;
+      }
+      .data-update-banner {
+        margin: 8px 12px;
+        background: #e8f4fd;
+        border: 1px solid #b8d9ff;
+        border-left: 4px solid #007aff;
+        border-radius: 10px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #1c1c1e;
+        box-shadow: 0 1px 4px rgba(0, 122, 255, 0.08);
+      }
+      .data-update-banner .icon {
+        font-size: 18px;
+        flex-shrink: 0;
+        color: #007aff;
+        line-height: 1;
+      }
+      .data-update-banner .text {
+        flex: 1;
+        font-weight: 500;
+        color: #1c1c1e;
+      }
+      .data-update-banner .text strong {
+        color: #0056b3;
+        font-weight: 700;
+      }
+      .data-update-banner .close-btn {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: #0056b3;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .data-update-banner .close-btn:active {
+        background: rgba(0, 122, 255, 0.08);
+      }
+      .data-update-banner.downloading .icon {
+        animation: spin 1.2s linear infinite;
+        display: inline-block;
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .data-update-banner.downloading .close-btn {
+        display: none;
+      }
+      .data-update-banner .progress-text {
+        font-family: 'DM Mono', monospace;
+        font-size: 11px;
+        color: #0056b3;
+        font-weight: 600;
+      }

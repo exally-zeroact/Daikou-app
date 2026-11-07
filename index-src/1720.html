@@ -1,0 +1,12 @@
+    <!-- ★設計変更宣言 (2026-05-11): データ更新バナー (businessStart 画面で 7 日経過時のみ表示) -->
+    <!-- position:fixed ではなく flow 要素・appbar 直下に flex item として配置・コンテンツが自然に下ずれ -->
+    <div class="data-update-banner-wrap" id="dataUpdateBannerWrap">
+      <div class="data-update-banner" id="dataUpdateBanner" role="alert">
+        <span class="icon">📡</span>
+        <div class="text">
+          道路データが古くなっています。<strong>WiFiに繋いで</strong>更新してください。
+        </div>
+        <button class="close-btn" onclick="hideDataUpdateBanner()" aria-label="閉じる">×</button>
+      </div>
+    </div>
+

@@ -1,0 +1,29 @@
+      /* ★2026-06-05: 業務報告を SE/Android で 1 画面に収める縦詰め(報告画面のみ scope) */
+      #screenBusinessReport .idle-datetime-line {
+        padding: 6px 0 4px;
+      }
+      .report-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .report-row .lbl {
+        font-size: 13px;
+        color: #aaa;
+      }
+      .report-row .val {
+        font-size: 14px;
+        color: #111;
+        font-weight: 700;
+      }
+      .report-row.large .val {
+        font-size: 18px;
+        font-weight: 900;
+        color: #111;
+      }
+      .report-divider {
+        border: none;
+        border-top: 0.5px solid #e5e5e5;
+        margin: 4px 0;
+      }
+      /* [続ける]/[終了] ボタン：他画面のボタンとサイズ統一（btn-main / btn-business-start と同等） */

@@ -1,0 +1,36 @@
+      /* ★設計変更宣言 (2026-05-10): 縦画面で 4 カード縦積み → 2x2 grid 化
+   旧: flex-direction:column で 1 列縦積み・スクロール必須
+   新: grid 2x2 + 各カード 2 行 (label/value) で全 4 カードが 1 画面に収まる */
+      .stat-card-large {
+        background: #f5f5f5;
+        border-radius: 12px;
+        padding: 14px 10px; /* ★2026-07-18 司さん指示: カードを少し高く(10→14) */
+        text-align: center;
+      }
+      .stat-card-large .stat-label {
+        font-size: 12px; /* ★2026-07-18 司さん指示: ラベルを濃く大きく(見にくい) */
+        color: #555;
+        font-weight: 700;
+        margin-bottom: 4px;
+        letter-spacing: 0.5px;
+        display: block;
+      }
+      .stat-card-large .stat-value {
+        font-size: 30px; /* ★2026-07-18 司さん指示: 数字を大きく(22→30・見にくい) */
+        font-weight: 900;
+        color: #111;
+        line-height: 1.05;
+        display: block;
+      }
+      .stat-card-large .stat-unit {
+        font-size: 13px;
+        color: #555;
+        margin-left: 3px;
+        font-weight: 700;
+      }
+      .stats-dashboard {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px; /* ★2026-07-18 司さん指示: カード同士の隙間をバランス(8→12) */
+        padding: 0 12px;
+      }

@@ -1,0 +1,25 @@
+      /* ★設計変更宣言 (2026-05-14・MA-3 help コンテンツを #overlayHelp に移植):
+   元 help.html (125 行) の内部 CSS を index.html に scope して取り込む。
+   全 selector に #overlayHelp prefix を付与し既存 .appbar / .acc-* 等との衝突を回避。
+   .content の padding-bottom は .spa-overlay の padding-bottom と二重になるので除外。
+   元 help.html は変更せず残存 (dual state・MA-6 まで bottom-nav は旧 html 経路維持)。 */
+      #overlayHelp .appbar {
+        background: #007aff;
+        padding: 7px 14px;
+        padding-top: max(7px, env(safe-area-inset-top));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+      #overlayHelp .appbar-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: 2px;
+      }
+      #overlayHelp .appbar-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }

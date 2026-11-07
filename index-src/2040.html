@@ -1,0 +1,20 @@
+        <!-- ★設計変更宣言 (2026-05-14・業務再開ボタン仕様再修正):
+         旧: button「前回の業務を引き継ぐ場合」+ note「データ引き継いで再開します」
+         新: note (赤文字)「前回の業務を引き継ぐ場合は」+ button「業務再開」 の順序
+         表示条件: Business.getState().start_time !== null && !active (limbo 状態のみ・3 時間制限なし)
+         updateStartButtonsGate で未許可時は完全非表示 -->
+        <div class="resume-note" id="resumeNote" style="display: none">
+          前回の業務を引き継ぐ場合は
+        </div>
+        <button
+          class="btn-business-resume-start"
+          id="btnResumeFromStart"
+          onclick="onResumeFromStart()"
+          style="display: none"
+        >
+          業務再開
+        </button>
+      </div>
+
+      <!-- BUSINESS REPORT（業務終了画面・日報・2026/05/01追加） -->
+

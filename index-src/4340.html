@@ -1,0 +1,57 @@
+              <!-- ★設計変更宣言 (2026-05-15・修正3): 全段列挙 (~50 行) 化に伴い preview-table を
+                   固定高さスクロール container でラップ。max-height は viewport 45% 程度。 -->
+              <div class="preview-table-scroll">
+                <table class="preview-table">
+                  <thead>
+                    <tr>
+                      <th>距離</th>
+                      <th>料金</th>
+                    </tr>
+                  </thead>
+                  <tbody id="_fare_previewTbody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">基本料金</div>
+              <div id="_fare_previewBasic" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">段階料金</div>
+              <div id="_fare_previewTiers" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">手動割増</div>
+              <div id="_fare_previewSurchargesList" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">自動割増</div>
+              <div id="_fare_previewAutoList" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">車種</div>
+              <div id="_fare_previewVehicles" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">待機料金</div>
+              <div id="_fare_previewWait" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">区間料金</div>
+              <div id="_fare_previewZones" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">追加料金項目</div>
+              <div id="_fare_previewExtras" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">下限・上限・丸め</div>
+              <div id="_fare_previewLimits" style="font-size: 13px; line-height: 1.8"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+      <button class="btn-save" onclick="window._fare_saveAll()">保　存</button>
+      <div class="fare-toast" id="_fare_toast"></div>
+    </div>
+

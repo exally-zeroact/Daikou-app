@@ -1,0 +1,11 @@
+      /* ★2026-06-06 司さん指示「青バーは統一して無くせ」: 全 overlay の自前 appbar(二重目の青バー)を
+         統一非表示。常駐青バー(z120)が overlay(z80) の上に出るので、戻るは常駐青バーの「業務」タブで実現
+         (.spa-overlay は padding-top:40px で常駐バー分の余白を確保済=中身は潜らない)。
+         ★旧判断「履歴/料金 は独自 back が要るので自前 appbar を維持」は司さんの統一指示で撤回し、履歴/料金も追加。★
+         後段の各 overlay 個別 appbar の display flex 既存ルールを確実に上書きするため !important。 */
+      #overlayHelp .appbar,
+      #overlaySettings .appbar,
+      #overlayHistory .appbar,
+      #overlayFare .appbar {
+        display: none !important;
+      }

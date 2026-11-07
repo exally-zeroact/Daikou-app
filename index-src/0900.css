@@ -1,0 +1,11 @@
+      /* ★設計変更宣言 (2026-05-20 司さん指示・横画面右カラム復元):
+         landscape 空車専用 履歴/業務終了 ボタン (= btn-area 内)。
+         portrait では default display: none で完全非表示・landscape @media + body:has(#screenIdle) で
+         block 表示制御 (= 該当 rule は L2620 周辺 @media (orientation: landscape) 内に定義)。 */
+      .btn-history-landscape-idle,
+      .btn-business-end-landscape-idle {
+        display: none;
+      }
+
+      /* 業務開始ボタン（業務未開始画面・中央配置） */
+      /* 2026/05/01：[続きから再開]と同サイズに統一（司さん指示） */

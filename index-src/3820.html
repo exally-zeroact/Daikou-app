@@ -1,0 +1,117 @@
+    <!-- ★設計変更宣言 (2026-05-24・端末ライセンス未登録ゲート画面):
+         license.js の・checkBeforeBusinessStart が・allowed=false 時に表示。
+         お節介バナーではなく機能ゲート (= 業務開始 block・device_id 表示 + 司さん登録案内)。
+         spa-overlay 機構を流用 (= 既存 history/help/settings と同 z-index 80・全面 overlay)。
+         閉じる button あり (= 司さんが・device_id をメモして・閉じて・Firebase Console 登録後・再起動) -->
+    <div id="overlayLicenseGate" class="spa-overlay" aria-hidden="true" style="z-index: 200">
+      <div
+        style="
+          padding: 32px 24px;
+          max-width: 480px;
+          margin: 0 auto;
+          font-family: 'Noto Sans JP', sans-serif;
+        "
+      >
+        <h2 style="font-size: 20px; font-weight: 800; color: #1d4ed8; margin: 0 0 16px">
+          🔒 ライセンスの有効化
+        </h2>
+        <div
+          id="licenseGateMessage"
+          style="
+            font-size: 14px;
+            color: #1c1c1e;
+            line-height: 1.6;
+            margin: 0 0 24px;
+            padding: 12px 16px;
+            background: #f0f7ff;
+            border-radius: 8px;
+            border: 1px solid #b8d9ff;
+          "
+        >
+          この端末は未登録です
+        </div>
+        <div style="font-size: 13px; font-weight: 700; color: #8e8e93; margin: 0 0 6px">
+          端末番号（うまくいかない時 事務所に伝える用）
+        </div>
+        <div
+          id="licenseGateDeviceId"
+          style="
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px 12px;
+            background: #fff;
+            border: 1px solid #c6c6c8;
+            border-radius: 6px;
+            word-break: break-all;
+            user-select: all;
+            -webkit-user-select: all;
+            margin: 0 0 16px;
+          "
+        >
+          (loading...)
+        </div>
+        <button
+          type="button"
+          onclick="
+            (function () {
+              if (typeof showToast === 'function') showToast('更新中…');
+              try {
+                window.LicenseActivate &&
+                  window.LicenseActivate.sync().then(function (r) {
+                    if (r && r.ok) {
+                      if (typeof showToast === 'function') showToast('✅ 有効化しました');
+                      window.hideLicenseGate && window.hideLicenseGate();
+                    } else if (r && r.reason === 'no_company') {
+                      if (typeof showToast === 'function')
+                        showToast('会社から配布されたURL/QRを開いてください');
+                    } else if (r && r.reason === 'offline') {
+                      if (typeof showToast === 'function')
+                        showToast('⚠ Wi-Fiのある所で押してください');
+                    } else if (typeof showToast === 'function') {
+                      showToast('⚠ 有効化できませんでした');
+                    }
+                  });
+              } catch (_e) {
+                /* ignore */
+              }
+            })()
+          "
+          style="
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: #007aff;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 0 0 12px;
+            font-family: 'Noto Sans JP', sans-serif;
+          "
+        >
+          🔄 更新する（Wi-Fi接続後）
+        </button>
+        <button
+          type="button"
+          onclick="window.hideLicenseGate && window.hideLicenseGate()"
+          style="
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: none;
+            color: #8e8e93;
+            border: 1px solid #c6c6c8;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Noto Sans JP', sans-serif;
+          "
+        >
+          閉じる
+        </button>
+      </div>
+    </div>
+    <div id="overlayHistory" class="spa-overlay" aria-hidden="true">

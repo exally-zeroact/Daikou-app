@@ -1,0 +1,18 @@
+      /* ★左グループ: 状態(空車/代行中)チップ + GPS精度ピル + 割増 */
+      .appbar-left {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        flex-shrink: 1; /* 狭い時は左グループが先に縮む(ナビは flex-shrink:0 で死守) */
+      }
+      .appbar-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: 0.2px;
+        background: rgba(255, 255, 255, 0.22);
+        border-radius: 13px;
+        padding: 3px 9px;
+        white-space: nowrap;
+      }

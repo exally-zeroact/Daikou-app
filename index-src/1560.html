@@ -1,0 +1,54 @@
+    <!-- ★iPhone/iPad 未対応ゲートは将来(リリース前)に再導入。決定F=Android専用だが、
+         今は司さんのiPhone確認を妨げないため未実装(2026-06-27・司さん「今はまだするな」)。 -->
+    <!-- S1 (2026-05-10): 複数タブ guard・閲覧専用モードバナー -->
+    <!-- 他タブが既に開いている時のみ表示・このタブは GPS/距離計算/課金を停止 -->
+    <div
+      id="multiTabGuardBanner"
+      style="
+        display: none;
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        z-index: 10000;
+        background: #ff3b30;
+        color: #fff;
+        padding: 14px 20px;
+        padding-top: max(14px, env(safe-area-inset-top));
+        text-align: center;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      "
+    >
+      ⚠️ 別のタブで業務中です。このタブでは操作できません。
+    </div>
+
+    <!-- S2 (2026-05-10) 業務開始忘れ警告バナー: 2026-05-23 Phase 1 で・お節介ルール適用・完全削除 -->
+
+    <!-- S3 (2026-05-10): 1 trip 上限警告バナー (500km 超) -->
+    <div
+      id="tripLimitWarningBanner"
+      style="
+        display: none;
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        top: max(64px, calc(env(safe-area-inset-top) + 56px));
+        z-index: 9997;
+        background: #ff3b30;
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 10px;
+        font-family: 'Noto Sans JP', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        text-align: center;
+      "
+    >
+      ⚠️ 走行距離が異常です。確認してください。
+    </div>
+
+    <script>

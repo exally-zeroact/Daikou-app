@@ -1,0 +1,218 @@
+      /* ★設計変更宣言 (2026-05-15・MA Phase D・fare.html を #overlayFare に scope して移植):
+         元 fare.html (1864 行) の visible UI / JS / CSS を index.html に取り込み。
+         全 selector に #overlayFare prefix を付与し既存 .appbar / .card / .toggle 等
+         との衝突を回避。
+         元 fare.html は redirect stub に置換 (MA-7 と同パターン)。
+         料金設定 (Meter.setFareConfig 経由の業務本体) は無変更・UI 層のみ overlay 化。
+         appbar-back は hideAllOverlays() + showOverlay('settings') で設定画面に戻る。
+         旧 fare.html 内のローカル bottom-nav は移植不要 (index.html の bottom-nav が継続表示)。 */
+      #overlayFare {
+        background: #e8f4fd;
+        color: #1c1c1e;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      #overlayFare .appbar {
+        background: #007aff;
+        padding: 12px 16px;
+        padding-top: max(12px, env(safe-area-inset-top));
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      #overlayFare .appbar-back {
+        color: #fff;
+        font-size: 16px;
+        cursor: pointer;
+        padding: 4px 8px;
+      }
+      #overlayFare .appbar-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #fff;
+        font-family: 'DM Mono', monospace;
+        letter-spacing: 1px;
+      }
+      #overlayFare .layout {
+        display: flex;
+        flex-direction: column;
+      }
+      #overlayFare .tab-nav {
+        display: flex;
+        border-bottom: 1.5px solid #b8d9ff;
+        overflow-x: auto;
+        flex-shrink: 0;
+        /* ★横に すべる 事を 見せる 影★ 2026-08-31
+           実測(390px): 窓390px / 中身587px / はみ出し197px なのに 印が 1つも 無く、
+           ★「その機能が 無い」と 思われる★状態だった。
+           仕掛け … 白い覆い(local)は 中身と 一緒に すべり、
+                    影(scroll)は 枠に 貼り付く。
+                    ⇒ ★すべれる 側にだけ 影が 出る★（JSは 使わない）
+           ※端に 着いたら その側の 影は 白い覆いに 隠れて 消える */
+        background-color: #fff;
+        background-image:
+          linear-gradient(to right, #fff, rgba(255, 255, 255, 0)),
+          linear-gradient(to left, #fff, rgba(255, 255, 255, 0)),
+          radial-gradient(farthest-side at 0% 50%, rgba(0, 86, 179, 0.55), rgba(0, 86, 179, 0)),
+          radial-gradient(farthest-side at 100% 50%, rgba(0, 86, 179, 0.55), rgba(0, 86, 179, 0));
+        background-position:
+          left center,
+          right center,
+          left center,
+          right center;
+        background-repeat: no-repeat;
+        background-size:
+          24px 100%,
+          24px 100%,
+          20px 100%,
+          20px 100%;
+        background-attachment: local, local, scroll, scroll;
+      }
+      #overlayFare .tab-nav::-webkit-scrollbar {
+        display: none;
+      }
+      #overlayFare .tab-btn {
+        padding: 14px 16px;
+        font-size: 13px;
+        color: #0056b3;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        border: none;
+        background: transparent;
+        font-family: 'Noto Sans JP', sans-serif;
+        border-bottom: 3px solid transparent;
+      }
+      #overlayFare .tab-btn.active {
+        color: #1c1c1e;
+        border-bottom-color: #007aff;
+        background: #e8f4fd;
+      }
+      #overlayFare .tab-content {
+        padding: 16px;
+        padding-bottom: calc(140px + env(safe-area-inset-bottom));
+      }
+      #overlayFare .tab-pane {
+        display: none;
+      }
+      #overlayFare .tab-pane.active {
+        display: block;
+      }
+      #overlayFare .card {
+        background: #fff;
+        border: 1.5px solid #b8d9ff;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+      }
+      #overlayFare .card-title {
+        font-size: 13px;
+        color: #0056b3;
+        font-weight: 700;
+        margin-bottom: 8px;
+        letter-spacing: 1px;
+        font-family: 'DM Mono', monospace;
+      }
+      #overlayFare .card-desc {
+        font-size: 12px;
+        color: #0056b3;
+        line-height: 1.6;
+        margin-bottom: 8px;
+      }
+      #overlayFare .form-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 0.5px solid #b8d9ff;
+        gap: 8px;
+      }
+      #overlayFare .form-row:last-child {
+        border-bottom: none;
+      }
+      #overlayFare .form-label {
+        font-size: 14px;
+        color: #1c1c1e;
+        flex: 1;
+      }
+      #overlayFare .form-input {
+        width: 120px;
+        padding: 8px 10px;
+        border: 1px solid #b8d9ff;
+        border-radius: 8px;
+        font-size: 16px;
+        font-family: 'DM Mono', monospace;
+        text-align: right;
+        background: #e8f4fd;
+        color: #1c1c1e;
+      }
+      #overlayFare .form-input.text {
+        font-family: 'Noto Sans JP', sans-serif;
+        text-align: left;
+      }
+      #overlayFare .form-input.wide {
+        width: 160px;
+      }
+      #overlayFare .form-input.fullwidth {
+        width: 100%;
+      }
+      #overlayFare .form-unit {
+        font-size: 12px;
+        color: #0056b3;
+        font-family: 'DM Mono', monospace;
+        margin-left: 4px;
+      }
+      #overlayFare .toggle {
+        width: 44px;
+        height: 26px;
+        background: #b8d9ff;
+        border-radius: 13px;
+        position: relative;
+        cursor: pointer;
+        transition: background 0.2s;
+        flex-shrink: 0;
+      }
+      #overlayFare .toggle.on {
+        background: #007aff;
+      }
+      #overlayFare .toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 22px;
+        height: 22px;
+        background: #fff;
+        border-radius: 50%;
+        transition: left 0.2s;
+      }
+      #overlayFare .toggle.on::after {
+        left: 20px;
+      }
+      #overlayFare .btn-add {
+        display: block;
+        width: 100%;
+        padding: 12px;
+        background: #e8f4fd;
+        border: 1.5px dashed #007aff;
+        border-radius: 10px;
+        color: #0056b3;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        margin-top: 8px;
+      }
+      #overlayFare .btn-add:active {
+        background: #b8d9ff;
+      }
+      #overlayFare .btn-del {
+        padding: 6px 12px;
+        background: #fff;
+        border: 1px solid #ff3b30;
+        border-radius: 6px;
+        color: #ff3b30;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+      }

@@ -1,0 +1,24 @@
+      /* ★準備が終わるまで押せないボタンの姿 (2026-08-07)★
+         「押せないのに見た目が普通」を無くす。!important なのは、あとから
+         他の処理が inline style で opacity を書き戻しても消えないようにするため
+         （実際に _updateCalibGate が opacity='' で消していた＝実バグ）。 */
+      .dk-gate-off {
+        opacity: 0.4 !important;
+        pointer-events: none !important;
+        cursor: default !important;
+      }
+      .dk-gate-off:active {
+        transform: none !important;
+        filter: none !important;
+      }
+      /* portrait 空車画面: btn-main-idle-portrait 表示・btn-area 内 btn-main 非表示 */
+      @media (orientation: portrait) {
+        .btn-main-idle-portrait {
+          display: block;
+        }
+        body:has(#screenIdle[style*='display: flex']) .btn-area > .btn-main {
+          display: none !important;
+        }
+      }
+
+      /* トースト通知 */

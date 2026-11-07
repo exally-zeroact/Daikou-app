@@ -31,3 +31,7 @@ settings.html
 sub.html
 terms.html
 test-dashboard.html
+
+# ★運転手の 画面（index.html）の 塊と 節ごとの 写し★（2026-11-08・件3）
+#   index-src/ は index.html を 行で 切った 切れ端＝1枚では 文書に ならない。検査と 整形は 繋いだ index.html で する。
+index-src/

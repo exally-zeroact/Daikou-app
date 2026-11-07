@@ -1,0 +1,5 @@
+      /* ★設計変更宣言 (2026-05-16・履歴画面 経路表示):
+         各 ride-item の ride-left 内に「南江戸町 → 道後温泉 → 三津浜」形式で経路を表示。
+         既存 .ride-extras と同じ控えめなトーン (11px / margin-top 2px) に、route-card と
+         同じ青系 (#1d4ed8) を採用して「経路」とすぐわかるようにする。
+         長い経路の折返し対応に word-break: break-word を付与。 */

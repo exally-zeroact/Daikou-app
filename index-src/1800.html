@@ -1,0 +1,22 @@
+    <!-- ★入っていない時の案内★ 2026-08-25（司さん
+         「めんどくさいことやらすなや／全ユーザーがすると思うなよ／
+           それやったら最初から誘導しろや」）
+         ▼それまで何が起きていたか
+           ・URL欄が出た状態（＝入っていない）だと ★業務開始が押せない★（8644行あたり）
+             出る言葉は「ホーム画面に追加してから業務開始してください」だけ
+             ＝★何をどう押すのか 書いていない★
+           ・この帯は「APKをダウンロード」と言い、配っていたのは ★2026/05/13の物★
+             ＝★別の古いアプリ★が入って もっと分からなくなる
+           ・直し方は「アイコンを消して入れ直す」しか無かった＝★人にやらせていた★
+         ▼直した形
+           ★押す物ひとつ★で入る（Chromeに入れさせる・メニューを探させない）。
+           入れられない端末（iPhoneなど）の時だけ 手順を出す。 -->
+    <div class="apk-banner" id="apkBanner">
+      <div class="apk-banner-text">
+        <strong id="pwaBannerTitle">アプリとして入れてください</strong>
+        <span id="pwaBannerSub">入れないと 業務開始が押せません（今は URL欄が出ています）</span>
+      </div>
+      <button class="apk-banner-btn" id="pwaInstallBtn" onclick="dkInstallApp()">入れる</button>
+      <button class="apk-banner-close" onclick="closeApkBanner()">✕</button>
+    </div>
+

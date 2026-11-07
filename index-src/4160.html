@@ -1,0 +1,138 @@
+            <!-- ★随伴車別 k(メーター定数/器差調整)校正★ -->
+            <div
+              style="
+                border-top: 1px solid #e5e5ea;
+                margin-top: 8px;
+                padding-top: 8px;
+                font-size: 12px;
+                color: #8e8e93;
+              "
+            >
+              <b style="color: #1c1c1e">k 校正 (真距離基準)</b><br />
+              業務終了後、その業務の<b>真距離</b>(国道196号KP /
+              基準巻尺など)を入れると、この端末×この車の 器差(タイヤ補正値 k)を学習して −0.5〜−1%
+              帯へ寄せます(過大ゼロは死守)。<br />
+              ※入れるのは「その1業務の<b>真距離</b>」。随伴車メーター(DM
+              Light)は認定でなく長めに出るため
+              非推奨(入れると過大化リスク=随伴車合わせ込みであり認定校正ではない)。過大値・5%超急変は自動で弾く。
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">現在の k</span>
+              <span id="vehKValue" style="font-weight: 700">1.000</span>
+            </div>
+            <div class="row" style="justify-content: space-between; padding: 3px 0">
+              <span style="color: #8e8e93">直近業務のダイコメ距離</span>
+              <span id="vehLastBusinessDistM" style="font-weight: 700">—</span>
+            </div>
+            <div
+              class="row"
+              style="justify-content: space-between; padding: 3px 0; align-items: center"
+            >
+              <span style="color: #8e8e93">真距離(km)</span>
+              <input
+                id="vehCertMeterReadM"
+                type="number"
+                step="0.01"
+                inputmode="decimal"
+                placeholder="例: 9.00 (真距離)"
+                style="
+                  width: 45%;
+                  padding: 4px 8px;
+                  border: 1px solid #d1d1d6;
+                  border-radius: 6px;
+                  font-size: 16px;
+                "
+              />
+            </div>
+            <div class="row" style="justify-content: center; padding-top: 6px">
+              <button
+                id="btnVehCalibrate"
+                style="
+                  padding: 7px 20px;
+                  background: #34c759;
+                  color: #fff;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 13px;
+                  cursor: pointer;
+                "
+              >
+                🎯 この読みで k を較正
+              </button>
+            </div>
+            <div
+              id="vehCalibrateNote"
+              style="text-align: center; font-size: 11px; color: #8e8e93; padding: 4px 0 0"
+            ></div>
+
+            <div class="row" style="justify-content: center; gap: 10px; padding-top: 10px">
+              <button
+                id="btnVehSave"
+                style="
+                  padding: 8px 20px;
+                  background: #007aff;
+                  color: #fff;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 14px;
+                  cursor: pointer;
+                "
+              >
+                💾 この随伴車を保存
+              </button>
+              <button
+                id="btnVehDelete"
+                type="button"
+                style="
+                  padding: 8px 18px;
+                  background: #fff;
+                  color: #ff3b30;
+                  border: 1px solid #ff3b30;
+                  border-radius: 8px;
+                  font-size: 14px;
+                  cursor: pointer;
+                "
+              >
+                🗑 削除
+              </button>
+            </div>
+            <div
+              id="vehSaveNote"
+              style="
+                text-align: center;
+                font-size: 11px;
+                color: #8e8e93;
+                margin-top: 6px;
+                min-height: 14px;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <div
+          style="
+            text-align: center;
+            padding: 24px 16px;
+            border-top: 1px solid #e5e5ea;
+            margin-top: 24px;
+          "
+        >
+          <a
+            href="commerce.html"
+            style="color: #007aff; text-decoration: none; margin: 0 8px; font-size: 13px"
+            >特定商取引法</a
+          >
+          <a
+            href="privacy.html"
+            style="color: #007aff; text-decoration: none; margin: 0 8px; font-size: 13px"
+            >プライバシーポリシー</a
+          >
+          <a
+            href="terms.html"
+            style="color: #007aff; text-decoration: none; margin: 0 8px; font-size: 13px"
+            >利用規約</a
+          >
+        </div>
+      </div>
+    </div>
+    <div id="overlayHelp" class="spa-overlay" aria-hidden="true">

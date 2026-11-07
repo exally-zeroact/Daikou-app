@@ -1,0 +1,17 @@
+          <!-- ★設計変更宣言 (2026-05-15・経由地点 + 住所表示機能・waypointCard):
+               押下で現在地住所を Business.onWaypoint 経由で trip.waypoints に追加する。
+               1 件以上記録すると .recorded クラスで緑系に切り替わり・件数バッジを更新する。
+               住所取得失敗 (null) でもエントリ自体は記録される (絶対ルール: 業務継続性最優先・
+               位置情報は座標として後段で復元可能)。代行開始時に Business.onTripStart で
+               current_trip が初期化されるとき UI を未記録状態にリセットする。
+               走行中の誤タップを軽減するため :active で 0.985 倍縮小 + 押下時にトースト表示。 -->
+          <!-- 住所+キャンセルを1枠に(横画面: 住所=高・キャンセル=低で右カラムに縦積み) -->
+          <div class="addr-cancel">
+            <div
+              id="waypointCard"
+              class="waypoint-card"
+              role="button"
+              tabindex="0"
+              onclick="onWaypointBtn()"
+            >
+              <div class="wp-main">

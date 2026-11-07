@@ -1,0 +1,50 @@
+        <!-- ★設計変更宣言 (2026-05-29 PM rev3・アプリ バージョン表示): 司さん指示「CACHE_NAME どこ？」で追加 -->
+        <div class="section">
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">アプリ バージョン</div>
+            <div id="_st_appVersionLine" style="color: #1c1c1e; font-size: 14px; font-weight: 600">
+              確認中...
+            </div>
+          </div>
+        </div>
+
+        <!-- 道路データ最終更新 + DL 状況 -->
+        <div class="section">
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">道路データ最終更新</div>
+            <div
+              id="_st_dataLastUpdateLine"
+              style="color: #1c1c1e; font-size: 14px; font-weight: 600"
+            >
+              読込中...
+            </div>
+          </div>
+          <div class="row" style="justify-content: space-between">
+            <div class="row-label" style="color: #8e8e93">ダウンロード状況</div>
+            <div
+              id="_st_dataDlStatusLine"
+              style="color: #1c1c1e; font-size: 14px; font-weight: 600"
+            >
+              読込中...
+            </div>
+          </div>
+          <div
+            class="row"
+            id="_st_dataPendingRow"
+            style="display: none; justify-content: space-between; gap: 12px"
+          >
+            <div class="row-label" style="color: #8e8e93; flex-shrink: 0">未完了</div>
+            <div
+              id="_st_dataPendingLine"
+              style="
+                color: #1c1c1e;
+                font-size: 14px;
+                font-weight: 600;
+                text-align: right;
+                line-height: 1.5;
+              "
+            >
+              -
+            </div>
+          </div>
+          <div class="dl-update-btn-wrap">

@@ -1,0 +1,29 @@
+      /* ★極小端末(<360px・iPhoneSE1/旧Android)も1段死守 (2026-06-20)★:
+         主要実機(360〜430)は上の既定でフォント13px維持。ここはさらに狭い端末のみ
+         追加で gap/font を詰めて折り返しを防ぐ(青バー2段化の最後の保険)。 */
+      @media (max-width: 359px) {
+        .appbar {
+          gap: 3px 4px;
+        }
+        .appbar-left {
+          gap: 4px;
+        }
+        .appbar-title {
+          font-size: 12px;
+          padding: 3px 7px;
+        }
+        .appbar-nav {
+          gap: 6px;
+        }
+        .appbar-nav .nav-label {
+          font-size: 12px;
+        }
+        /* ★specificity を .appbar .gps-pill に上げる: 基底 .gps-pill が source-order で後にあり
+           等specificityだと負けるため (監査指摘・2026-06-20)。 */
+        .appbar .gps-pill {
+          padding: 3px 6px;
+        }
+        .appbar-left .surcharge-badge {
+          padding: 2px 6px;
+        }
+      }

@@ -1,0 +1,25 @@
+      /* ★設計変更宣言 (2026-06-30・司さん指摘「業務開始が2個に見える」):
+   旧(2026-05-14): 背景 #007AFF・業務開始と完全同色同サイズ → 2つ並ぶと見分け不能で「業務開始が2個」に見えた
+   新: 業務開始=主役(青ベタ大)／業務再開=脇役(白地+青枠・小さめ) に差別化。前回の続きだけ押す副アクションと一目で分かる。
+   margin-top: -18px→-4px: 赤注記(resume-note)と被っていた(実測6px重なり)のを 8px の隙間に修正。 */
+      .btn-business-resume-start {
+        box-sizing: border-box;
+        width: 66%;
+        max-width: 240px;
+        padding: 11px;
+        background: #fff;
+        border: 2px solid #007aff;
+        border-radius: 12px;
+        color: #007aff;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        margin-top: -4px;
+      }
+      .btn-business-resume-start:active {
+        transform: scale(0.98);
+        filter: brightness(0.9);
+      }

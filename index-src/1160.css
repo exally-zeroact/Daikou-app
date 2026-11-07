@@ -1,0 +1,40 @@
+      /* ★設計変更宣言 (2026-05-15・経由地点 + 住所表示機能・経路カード):
+         screenFare 内・fare-total 直下・breakdown 上に表示。
+         start_address → waypoints[].address → end_address を「→」区切りで連結する。
+         既存 breakdown カードと同じ border-radius / padding 質感に、ユーザー指示書の
+         青系 (#eff6ff / #bfdbfe) を採用。null 箇所は ⚠ 位置不明 を warn スタイルで表示。 */
+      .route-card {
+        background: #eff6ff;
+        border: 1.5px solid #bfdbfe;
+        border-radius: 12px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      .route-card .route-icon {
+        display: none; /* ★2026-07-18 司さん指示: 住所のアイコン(🗺)を除去 */
+      }
+      .route-card .route-body {
+        flex: 1 1 auto;
+        font-size: 17px; /* ★2026-07-18 住所を大きく統一(13→16→17) */
+        font-weight: 700;
+        color: #1d4ed8;
+        line-height: 1.5;
+        word-break: break-word;
+      }
+      .route-card .route-sep {
+        color: #1d4ed8; /* ★2026-07-18 司さん指示: 矢印を濃く(薄青→濃青) */
+        font-weight: 800;
+        margin: 0 4px;
+        font-weight: 700;
+      }
+      .route-card .route-warn {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 700;
+      }

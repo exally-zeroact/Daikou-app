@@ -1,0 +1,37 @@
+      /* ★2026-07-05 司さん指示: 走行を右へ移し左に余白ができた分、住所を大きく(11px→15px) */
+      #overlayHistory .ride-route {
+        font-size: 15px;
+        color: #111;
+        font-weight: 700;
+        margin-top: 3px;
+        word-break: break-word;
+        line-height: 1.35;
+      }
+      #overlayHistory .ride-route .route-sep {
+        color: #111;
+        margin: 0 3px;
+        font-weight: 700;
+      }
+      #overlayHistory .ride-route .route-warn {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-size: 10px;
+      }
+      #overlayHistory .empty {
+        text-align: center;
+        padding: 60px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      #overlayHistory .empty-icon {
+        font-size: 48px;
+        opacity: 0.2;
+      }
+      #overlayHistory .empty-text {
+        font-size: 15px;
+        color: #aaa;
+      }

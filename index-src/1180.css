@@ -1,0 +1,20 @@
+      /* ★設計変更宣言 (2026-05-23・住所② 現在地ライブ表示・カーナビ風 青パルス):
+         waypointCard / routeCard 末尾に・「📡 現在地住所」を・青色パルスで表示。
+         updateWaypointCardUI が・500ms timer で・Business.getCurrentLiveAddress を読み・
+         末尾に・追記する。住所表示専用・距離/課金 非連動。
+         縦横UI: 既存 .wp-title / .route-body 1 行追加のみ・縦横 layout 影響なし。 */
+      .route-live {
+        color: #2196f3;
+        font-weight: 700;
+        animation: route-live-pulse 2s ease-in-out infinite;
+        white-space: nowrap;
+      }
+      @keyframes route-live-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.55;
+        }
+      }

@@ -1,0 +1,11 @@
+    <!-- ★設計変更宣言 (2026-05-18・㉑ OpenReplay 配線):
+         OpenReplay tracker SDK (= self-host CDN・version 14 系想定) + openreplay-config.js 読込。
+         ingest / projectKey 未設定時は initOpenReplay() が silent skip するため安全。
+         司さん側で self-host インフラ準備後・CDN URL を実 self-host 値に書換える想定。
+         AB config init 後に配置 (= Sentry tag + user ID 連携の前提)。 -->
+    <script
+      src="https://static.openreplay.com/tracker/14.0.5/index.js"
+      crossorigin="anonymous"
+    ></script>
+    <script src="scripts/zeroact-test-commons/observability/openreplay-config.js"></script>
+    <script>

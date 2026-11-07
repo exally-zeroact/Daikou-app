@@ -1,0 +1,11 @@
+      /* ★司さん2026-06-27: GPS/OBDチップのドットは削除(緑on緑で見にくい)。
+         状態は背景色だけで示す=GPSチップもOBDチップと同じ見た目に統一。 */
+      #obdDot,
+      #gpsDot {
+        display: none !important;
+      }
+      /* GPSピル: GPS良好(dotが.ok)のとき緑ベタ塗り = OBD接続中と同じ表現。 */
+      .appbar .gps-pill:not(.obd-chip):has(.gps-dot.ok) {
+        background: #34c759;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+      }

@@ -1,0 +1,16 @@
+    <!-- ★設計変更宣言 (2026-05-10): ボトムナビ (4 タブ)
+     ★設計変更宣言 (2026-05-14・MA-6): bottom-nav の MPA 遷移 (location.href) を SPA overlay 切替
+     (showOverlay/hideAllOverlays) に変更。page reload が発生しなくなり GPS/sensor/MM Worker/WakeLock
+     が連続稼働する。MA の核心目標「業務中メーター止めない」を達成。
+     旧:
+       業務 → location.href='/'           (MPA・page reload)
+       履歴 → location.href='history.html' (MPA・page reload)
+       使い方 → location.href='help.html'  (MPA・page reload)
+       設定 → location.href='settings.html'(MPA・page reload)
+     新:
+       業務 → window.hideAllOverlays()   (overlay 全閉・業務画面表示)
+       履歴 → window.showOverlay('history')   (#overlayHistory・_hist_render() 自動呼出)
+       使い方 → window.showOverlay('help')    (#overlayHelp)
+       設定 → window.showOverlay('settings')  (#overlaySettings)
+     active class は showOverlay/hideAllOverlays 内部の _setNavActive(idx) が制御。
+     dual state は MA-7 で旧 html を redirect 化するまで維持 (直 URL 叩き対策)。 -->

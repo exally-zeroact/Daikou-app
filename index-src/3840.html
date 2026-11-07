@@ -1,0 +1,11 @@
+      <!-- ★設計変更宣言 (2026-05-14・MA-5 history.html の本体を #overlayHistory に移植):
+       元 history.html (204 行) の appbar + wrap を移植。
+       appbar-back の戻り先は元 settings.html 固定 → window.hideAllOverlays() に変更
+       (overlay は SPA で単一画面・「戻る」= overlay を閉じて業務画面に戻る、が意味的に正)。
+       wrap 内は _hist_render() (showOverlay('history') 時に呼出) が動的構築する。
+       id は _hist_ prefix で隔離 (index.html 既存 id と衝突回避)。
+       元 history.html は変更せず残存 (dual state・MA-6 まで bottom-nav は旧 html 経路維持)。 -->
+      <div class="appbar">
+        <div class="appbar-back" onclick="window.hideAllOverlays()">＜</div>
+        <div class="appbar-title">本日の走行履歴</div>
+      </div>

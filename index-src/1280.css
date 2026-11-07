@@ -1,0 +1,57 @@
+      /* ★代行キャンセル (住所下・緑丸位置・2026-07-25)・赤背景白文字・幅は住所カードと同じ(grid stretch) */
+      .btn-cancel-trip {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 13px 0;
+        background: #ff3b30;
+        color: #fff;
+        border: none;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+      }
+      .btn-cancel-trip:active {
+        filter: brightness(0.88);
+      }
+
+      /* 縦画面用 走行に戻るボタン（fare時のみ表示） */
+      .btn-back-portrait {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin: 14px auto 0;
+        padding: 8px 14px;
+        background: #fff;
+        border: 1.5px solid #ff3b30;
+        border-radius: 8px;
+        color: #ff3b30;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .btn-back-portrait.show {
+        display: flex;
+      }
+      .btn-back-portrait:active {
+        background: #fff0f0;
+        transform: scale(0.97);
+      }
+
+      /* 横画面用 走行に戻るボタン（fare時のみ表示・横画面メディアクエリ内で詳細制御） */
+      .btn-back-landscape {
+        display: none;
+      }
+      /* 横画面用 業務報告ボタン（businessReport時のみ表示・横画面メディアクエリ内で詳細制御） */
+      .btn-resume-landscape {
+        display: none;
+      }
+      .btn-confirm-landscape {
+        display: none;
+      }

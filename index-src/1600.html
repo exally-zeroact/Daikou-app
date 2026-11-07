@@ -1,0 +1,90 @@
+    </script>
+
+    <!-- Phase 3 (2026-05-10): 初回起動時バナー (データ収集についての注意) -->
+    <!-- 表示条件: localStorage 'daikome_training_consent' が null (= 初回 or 未consent) -->
+    <!-- OK / 閉じる いずれもデフォルト ON で開始・閉じるは「dismissed」記録のみ -->
+    <div
+      id="trainingConsentBanner"
+      style="
+        display: none;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+        background: #1c1c1e;
+        color: #fff;
+        padding: 16px 20px;
+        padding-bottom: max(16px, env(safe-area-inset-bottom));
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+        font-family: 'Noto Sans JP', sans-serif;
+      "
+    >
+      <div
+        style="
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 10px;
+        "
+      >
+        <div style="font-size: 14px; font-weight: 700">📊 データ収集について</div>
+        <div
+          onclick="dismissTrainingBanner()"
+          style="cursor: pointer; font-size: 18px; line-height: 1; color: #b8d9ff; padding: 0 4px"
+          aria-label="閉じる"
+        >
+          ✕
+        </div>
+      </div>
+      <div style="font-size: 12px; line-height: 1.6; color: #b8d9ff; margin-bottom: 12px">
+        Map Matching の精度向上のため、加速度センサー値と速度を匿名で送信します。<br />
+        <strong style="color: #fff">送信される</strong>: 加速度・速度・匿名識別子<br />
+        <strong style="color: #fff">送信されない</strong>:
+        位置情報・出発地/目的地・お名前・連絡先<br />
+        設定画面でいつでも無効化できます。
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button
+          onclick="
+            if (typeof window.showOverlay === 'function') {
+              window.showOverlay('settings');
+            } else {
+              location.href = 'settings.html#training';
+            }
+          "
+          style="
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            border: 1px solid #007aff;
+            border-radius: 8px;
+            color: #b8d9ff;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+          "
+        >
+          詳しく見る
+        </button>
+        <button
+          onclick="agreeTrainingBanner()"
+          style="
+            flex: 1;
+            padding: 10px;
+            background: #007aff;
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+          "
+        >
+          OK
+        </button>
+      </div>
+    </div>
+    <script>

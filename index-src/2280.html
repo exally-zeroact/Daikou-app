@@ -1,0 +1,163 @@
+      <!-- ★設計変更宣言 (2026-05-20 司さん指示・横画面右カラム復元 + inline style 保険):
+           landscape 空車時 btn-area に 履歴 → 業務終了 → 代行開始 を縦並びで表示。
+           portrait は CSS で完全非表示 (= screenIdle 内で表示)。
+           JS onclick は portrait 同等 (= onHistory/onBusinessEnd) で副作用なし。
+           inline style で border/color を直接指定し・CSS specificity 問題 / PWA キャッシュ問題でも
+           司さん指示の色 (履歴=青/業務終了=赤) を確実に適用。 -->
+      <button
+        class="btn-history-landscape-idle"
+        style="border: 1.5px solid #007aff; color: #007aff"
+        onclick="onHistory()"
+      >
+        履歴
+      </button>
+      <button
+        class="btn-business-end-landscape-idle"
+        style="border: 1.5px solid #ff3b30; color: #ff3b30"
+        onclick="onBusinessEnd()"
+      >
+        業務終了
+      </button>
+      <!-- メインボタン（idle landscape: btn-area 内で代行開始 / portrait: btn-area ごと非表示・
+           fare: 精算終了 / driving: 非表示） -->
+      <button class="btn-main" id="btnMain" onclick="onMainBtn()">代行開始</button>
+    </div>
+
+    <!-- トースト通知 -->
+
+    <div class="toast" id="toast"></div>
+
+    <!-- 追加料金モーダル -->
+
+    <div class="modal-overlay" id="modalOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">追加料金を選択</div>
+          <div class="modal-cancel" onclick="closeExtraModal()">キャンセル</div>
+        </div>
+        <div class="modal-items" id="modalItems"></div>
+        <div class="modal-custom" style="margin-top: 8px">
+          <span>任意入力</span>
+          <input type="number" id="customAmount" placeholder="0" inputmode="numeric" />
+          <button class="modal-custom-btn" onclick="addCustomExtra()">追加料金</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 請求書モーダル (2026-07-31・追加料金/値引きと同型) -->
+    <div class="modal-overlay" id="invoiceModalOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">請求書の会社を選ぶ</div>
+          <div class="modal-cancel" onclick="closeInvoiceModal()">キャンセル</div>
+        </div>
+        <div class="modal-items" id="invoiceModalItems"></div>
+      </div>
+    </div>
+
+    <!-- 誰が乗ったかモーダル (2026-08-05・司さん指摘)
+         標様建設のように請求書を「会長／社長／専務」で分けて小計を出す会社だけ出る。
+         中身は事務所の会社設定(noteGroups)から来る＝会社が増えてもここは直さない。 -->
+    <div class="modal-overlay" id="noteGroupModalOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">誰が乗った？</div>
+          <div class="modal-cancel" onclick="closeNoteGroupModal()">あとで</div>
+        </div>
+        <div class="modal-items" id="noteGroupModalItems"></div>
+      </div>
+    </div>
+
+    <!-- 値引きモーダル (2026-07-25・追加料金と同型) -->
+    <div class="modal-overlay" id="discountModalOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">値引きを選択</div>
+          <div class="modal-cancel" onclick="closeDiscountModal()">キャンセル</div>
+        </div>
+        <div class="modal-items" id="discountModalItems"></div>
+        <div class="modal-custom" style="margin-top: 8px">
+          <span>任意入力</span>
+          <input type="number" id="customDiscountAmount" placeholder="0" inputmode="numeric" />
+          <button class="modal-custom-btn" onclick="addCustomDiscount()">値引き</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         ★あとから代行を直す（履歴から）★ 2026-08-05
+           司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな
+                   忘れとる時があると思うから」
+
+           ★走行中のモーダル(extras/discounts のグローバル)は流用しない★
+             流用すると、走行中の代行の金額を書き換えてしまう。履歴専用に独立させる。
+           ★距離と走った分の料金は出すだけ・直せない★（距離コアは触らない）
+         ============================================================ -->
+    <div class="modal-overlay" id="tripEditOverlay">
+      <div class="modal te-modal">
+        <div class="modal-header">
+          <div class="modal-title" id="teTitle">代行を直す</div>
+          <div class="modal-cancel" onclick="_te_close()">やめる</div>
+        </div>
+        <div class="te-body">
+          <!-- 直せない所（見せるだけ） -->
+          <div class="te-fixed">
+            <div class="te-fixed-row">
+              <span class="te-lbl">走行</span><span id="teDist" class="te-val">-</span>
+            </div>
+            <div class="te-fixed-row">
+              <span class="te-lbl">走った分の料金</span><span id="teBase" class="te-val">-</span>
+            </div>
+            <div class="te-route" id="teRoute"></div>
+            <div class="te-note">走行と走った分の料金は直せません</div>
+          </div>
+
+          <!-- 直せる所 -->
+          <div class="te-sec">
+            <div class="te-sec-head">
+              <span>追加料金</span>
+              <button class="te-add" onclick="_te_pick('extra')">＋ 足す</button>
+            </div>
+            <div class="te-list" id="teExtras"></div>
+          </div>
+          <div class="te-sec">
+            <div class="te-sec-head">
+              <span>値引き</span>
+              <button class="te-add te-add-d" onclick="_te_pick('discount')">＋ 足す</button>
+            </div>
+            <div class="te-list" id="teDiscounts"></div>
+          </div>
+          <div class="te-sec">
+            <div class="te-sec-head">
+              <span>請求書</span>
+              <button class="te-add te-add-i" onclick="_te_pick('customer')">選ぶ</button>
+            </div>
+            <div class="te-list" id="teCustomer"></div>
+          </div>
+
+          <div class="te-total"><span>合計</span><span id="teTotal">¥0</span></div>
+          <div class="te-diff" id="teDiff"></div>
+        </div>
+        <div class="te-actions">
+          <button class="te-save" onclick="_te_save()">この内容で直す</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 直す時の選択（追加料金／値引き／請求先を1枚で使い回す） -->
+    <div class="modal-overlay" id="tePickOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="tePickTitle">選ぶ</div>
+          <div class="modal-cancel" onclick="_te_pickClose()">キャンセル</div>
+        </div>
+        <div class="modal-items" id="tePickItems"></div>
+        <div class="modal-custom" id="tePickCustom" style="margin-top: 8px">
+          <span>任意入力</span>
+          <input type="number" id="tePickAmount" placeholder="0" inputmode="numeric" />
+          <button class="modal-custom-btn" onclick="_te_pickCustom()">足す</button>
+        </div>
+      </div>
+    </div>
+
+    <script>

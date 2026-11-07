@@ -1,0 +1,63 @@
+      /* ★2026-07-18: 上の全体選択禁止の例外 = コピー/入力したい所だけ選択を戻す。
+         入力欄・編集可能域と、明示 .selectable を付けた要素(端末IDのinline user-select:all も含む)。 */
+      input,
+      textarea,
+      [contenteditable='true'],
+      .selectable {
+        -webkit-user-select: text;
+        user-select: text;
+        -webkit-touch-callout: default;
+      }
+      /* 画面内 scroll コンテナはバウンスを内側で完結させる（親への伝播禁止） */
+      /* 2026-05-08: #screenDriving を追加。メーター画面で起きる Android rubber-band/iOS momentum 由来の
+   「スクロールが無限に続く」バグの根本対策（業務中の誤タップ事故防止） */
+      #screenIdle,
+      #screenBusinessReport,
+      #screenFare,
+      #screenDriving {
+        overscroll-behavior-y: contain;
+      }
+
+      /* メーター画面（screenDriving）のスクロール制御。
+   旧コードは display:block のみで overflow 未定義 → Android Chrome で
+   .content (overflow:hidden) を貫通したスクロールが発生し止まらなくなることがあった。
+   flex:1 + overflow-y:auto + overscroll-behavior:contain で内側完結スクロールに固定。
+   touch-action:pan-y pinch-zoom = 縦スクロール＋ピンチズームを許可(高齢従業員が拡大して読める・
+   司さん要望2026-07-05)・横スワイプ誤操作のみ引き続き抑制。 */
+      #screenDriving {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+        touch-action: pan-y pinch-zoom;
+      }
+      /* 履歴スクロールボックス（screenIdle 内ネスト）にも同等の対策。
+   親 screenIdle が contain 済みでも、内側の history-box から overscroll が
+   親に bubble して二重スクロール状態になるのを防ぐ。 */
+      .history-box {
+        overscroll-behavior-y: contain;
+        touch-action: pan-y pinch-zoom;
+      }
+
+      /* AppBar */
+      .appbar {
+        background: #007aff;
+        padding: 6px 12px;
+        /* ★横画面ノッチ対策: 左右も safe-area を確保 (OBDチップ/ナビが切れない) */
+        padding-left: max(12px, env(safe-area-inset-left));
+        padding-right: max(12px, env(safe-area-inset-right));
+        padding-top: max(6px, env(safe-area-inset-top));
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        /* ★1段死守 (2026-06-20)★: 主要実機幅(360〜430)で 状態/GPS/OBD + ナビ が必ず1行に収まるよう
+           gap/font/padding を最小化。320px 未満の極小端末のみ安全弁として折り返す(重なり防止)。 */
+        flex-wrap: wrap;
+        gap: 4px 6px;
+        flex-shrink: 0;
+        position: sticky;
+        top: 0;
+        /* ★2026-06-05: ナビ統合・overlay(z80) より上に出して 使い方/設定 表示中もタブ切替可能に */
+        z-index: 120;
+      }

@@ -1,0 +1,40 @@
+      /* ★設計変更宣言 (2026-05-15・経由地点 + 住所表示機能):
+         driving-grid 内の経由地点記録カード。既存 meter-card と同じ border-radius / padding
+         トーンで統一感を出しつつ、ユーザー指示書の青系 (#eff6ff / #bfdbfe) で操作可能性を示す。
+         記録済 (.recorded) 切替で緑系 (#f0fdf4 / #86efac) に変化する。 */
+      .waypoint-card {
+        background: #eff6ff;
+        border: 1.5px solid #bfdbfe;
+        border-radius: 12px;
+        padding: 20px 16px; /* ★2026-07-18 司さん指示: 住所カードの縦幅を高く(14→20) */
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        cursor: pointer;
+        user-select: none;
+        -webkit-tap-highlight-color: rgba(37, 99, 235, 0.12);
+        transition:
+          background 0.18s ease,
+          border-color 0.18s ease;
+      }
+      .waypoint-card.recorded {
+        background: #f0fdf4;
+        border-color: #86efac;
+      }
+      .waypoint-card .wp-main {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        text-align: left;
+        min-width: 0;
+      }
+      .waypoint-card .wp-title {
+        font-size: 17px; /* ★2026-07-18 司さん指示: 住所の文字を大きく(15→17) */
+        font-weight: 700;
+        color: #1d4ed8;
+        line-height: 1.25;
+      }
+      .waypoint-card.recorded .wp-title {
+        color: #15803d;
+      }

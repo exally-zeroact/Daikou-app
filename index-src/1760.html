@@ -1,0 +1,54 @@
+    <!-- ★設計変更宣言 (2026-05-10 再修正): position:fixed + 高 z-index に変更
+     旧: 通常フロー (margin:8px 12px) のみ → body の flex layout で content 内
+         に紛れて視認できない位置に描画される問題
+     新: 他のバナー (multiTabGuard / businessForgot / tripLimit / trainingConsent)
+         と同じ position:fixed + z-index 9996 で必ず viewport 上に overlay
+         (z-index は trainingConsent 9999 / tripLimit 9997 より低く設定して優先順位を担保)
+     位置: appbar 下 (top: max(60px, safe-area-inset-top + 56px)) -->
+    <div
+      id="sensorRestoreBanner"
+      style="
+        display: none;
+        position: fixed;
+        left: 8px;
+        right: 8px;
+        top: max(60px, calc(env(safe-area-inset-top) + 56px));
+        z-index: 9996;
+        background: #ff9800;
+        border-radius: 12px;
+        padding: 14px;
+        text-align: center;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      "
+    >
+      <div style="color: #fff; font-size: 14px; line-height: 1.5; margin-bottom: 10px">
+        <strong style="font-size: 15px">📡 センサー再起動が必要です</strong><br />
+        <span style="font-size: 12px">下のボタンを押すと許可ダイアログが出ます</span>
+      </div>
+      <button
+        id="sensorRestoreBtn"
+        onclick="onSensorRestoreTap()"
+        style="
+          background: #fff;
+          color: #ff9800;
+          border: none;
+          border-radius: 8px;
+          padding: 12px 24px;
+          font-size: 16px;
+          font-weight: 700;
+          width: 100%;
+          cursor: pointer;
+        "
+      >
+        センサーを再起動する
+      </button>
+    </div>
+
+    <!-- PWAインストール促進バナー（iOS・未インストール時のみ表示） -->
+
+    <!-- 月次更新トースト（バックグラウンドDL完了時に表示） -->
+    <div class="dl-update-toast" id="dlUpdateToast" onclick="onDlToastTap()">
+      ✅ 最新の地図データに更新しました
+    </div>
+
+    <!-- 初回DL UI（IndexedDBの dl_completed=true で2回目以降は表示しない） -->

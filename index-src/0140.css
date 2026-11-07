@@ -1,0 +1,27 @@
+      /* ★設計変更宣言 (2026-05-23・Phase 1・お節介バナー禁止ルール適用):
+         businessForgotBanner (= 「業務開始していますか?」問いかけ) を・HTML/CSS/JS 完全削除。
+         旧 S2 (2026-05-10) 検知バナーは・旧 (2026-05-11) で CSS で・display:none 化済・
+         本 commit で・残骸 完全撤去。距離 / 業務 / GPS / 課金 logic には・触れない。 */
+      body {
+        font-family: 'Noto Sans JP', sans-serif;
+        background: #fff;
+        color: #111;
+        /* ★2026-07-18 司さん指示: 画面タッチで文字が選択されコピー/ペーストのメニューが出るのを防ぐ。
+           user-select は継承するので body で一括禁止 → アプリUI全体が非選択に。長押しの callout も抑止。
+           入力欄(input/textarea/contenteditable)と .selectable / 端末ID欄(inline user-select:all)は
+           下の例外ルールで選択可能に戻す(コピーしたい所は残す)。 */
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        /* ★設計変更宣言 (2026-06-06・司さん指示・Android下部ボタン見切れ根治):
+           100vh は Android のシステムナビバー(◀●■)の ★下まで★ 含むため、body 末尾の .btn-area
+           (追加料金/確定) がナビバーに隠れて見切れていた。100dvh(可視領域だけの動的ビューポート高)に
+           統一し可視領域内に収める(横画面 landscape は既に 100dvh 併用済・縦も統一)。
+           dvh 非対応の古ブラウザは直前の 100vh に fallback。 */
+        height: 100vh;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }

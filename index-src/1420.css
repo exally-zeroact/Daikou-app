@@ -1,0 +1,195 @@
+
+        /* IDLE：stats-grid・履歴を50%中央寄せ */
+        .idle-time {
+          font-size: 36px;
+        }
+        .stats-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          max-width: 50%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+        }
+        .stat-value {
+          font-size: 18px;
+        }
+
+        /* 2026/05/01：全画面共通の日時・stats-dashboard・履歴ボタンを中央寄せ */
+        .dateTimeLine {
+          max-width: 80%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+          padding-bottom: 8px; /* ★2026-07-18 横も日時とカードの間に余白 */
+        }
+        .stats-dashboard {
+          max-width: 80%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+          display: grid !important;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px; /* ★2026-07-18 司さん指示: 横のカード同士の隙間をバランス(6→12→16) */
+        }
+        .stat-card-large {
+          margin-bottom: 0 !important;
+          /* ★2026-07-18 司さん指示: カードの縦幅を広げる(8→18px) */
+          padding: 18px 12px !important;
+        }
+        .stat-card-large .stat-label {
+          font-size: 14px !important; /* ★2026-07-18 横も文字を大きく(12→14) */
+          margin-bottom: 4px !important;
+        }
+        .stat-card-large .stat-value {
+          font-size: 34px !important; /* ★2026-07-18 横も数字を大きく(27→30→34) */
+        }
+        .stat-card-large .stat-unit {
+          font-size: 14px !important;
+        }
+        .btn-history {
+          max-width: 80%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+          padding: 8px !important;
+          font-size: 13px !important;
+          margin-top: 4px !important;
+        }
+        /* 2026/05/01：[業務終了] ボタンも [履歴] と完全に同一サイズ・配置 */
+        .btn-business-end {
+          max-width: 80%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+          padding: 8px !important;
+          font-size: 13px !important;
+          margin-top: 4px !important;
+        }
+
+        /* ★2026-07-18 司さん指示: 横・走行画面は 現在料金+走行距離を左・住所カードを右(2列)に。
+           住所カードの見切れを解消し、カードの縦幅/文字/数字を待機画面(landscape)と統一。 */
+        .driving-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr; /* ★2026-07-18 司さん指示: 住所を狭く・現在料金を広く・左右統一(0.82:1.18→1:1) */
+          grid-auto-rows: min-content;
+          gap: 14px;
+          align-content: center;
+          max-width: 92%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+        }
+        .meter-value {
+          font-size: 34px; /* 待機画面(landscape 34px)と数字を統一 */
+        }
+        .driving-grid > .meter-card {
+          padding: 18px 12px; /* 待機カードと縦幅統一 */
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          max-width: none;
+          width: auto;
+          margin: 0;
+          grid-column: 1;
+          box-sizing: border-box;
+        }
+        .driving-grid > .meter-card:nth-child(1) {
+          grid-row: 1;
+        }
+        .driving-grid > .meter-card:nth-child(2) {
+          grid-row: 2;
+        }
+        .meter-label {
+          font-size: 14px; /* 待機ラベルと統一 */
+          margin-bottom: 4px;
+        }
+        /* 住所+キャンセルの束 = 右カラム・料金/距離の全高に整列(2行span)。
+           中で 住所=伸びて高く / キャンセル=自然な低い高さ。 */
+        .driving-grid > .addr-cancel {
+          grid-column: 2;
+          grid-row: 1 / span 2;
+          align-self: stretch;
+          max-width: none;
+          width: auto;
+          margin: 0;
+          box-sizing: border-box;
+          gap: 10px;
+        }
+        .driving-grid > .addr-cancel > .waypoint-card {
+          flex: 1 1 auto; /* ★住所が余白を全部取って高くなる(キャンセルより縦幅大) */
+          max-width: none;
+          width: auto;
+          margin: 0;
+          box-sizing: border-box;
+        }
+        .driving-grid > .addr-cancel > .btn-cancel-trip {
+          flex: 0 0 auto; /* ★キャンセルは自然な低い高さ */
+          width: 100%;
+          margin: 0;
+          padding: 12px 8px;
+          font-size: 14px;
+          letter-spacing: 1px;
+          box-sizing: border-box;
+        }
+        /* 稀に出る警告/追加料金セクションは全幅で下段に(グリッド崩れ防止) */
+        .driving-grid > .drive-source,
+        .driving-grid > #roadAttrBanner,
+        .driving-grid > #extrasSectionLabel,
+        .driving-grid > .extras-list {
+          grid-column: 1 / -1;
+        }
+        .route-card {
+          max-width: 50%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+        }
+
+        /* FARE：fare-total・breakdown・走行に戻るボタン 50%中央寄せ */
+        #screenFare {
+          overflow-y: auto;
+        }
+        .fare-total-amount {
+          font-size: 40px;
+        }
+        /* ★2026-07-18 司さん指示: 横は 合計料金=左 / 走行距離=右 で同大きさ */
+        .fare-total-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          max-width: 80%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+        }
+        .fare-total {
+          max-width: none;
+          width: auto;
+          margin: 0;
+          box-sizing: border-box;
+        }
+        .breakdown {
+          max-width: 50%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+        }
+        #screenFare button {
+          margin-top: 10px;
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
+        }
+      }
+

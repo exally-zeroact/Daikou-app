@@ -1,0 +1,157 @@
+      /* ★設計変更宣言 (2026-05-15・修正3): preview-table を全段列挙 (~50 行) に変更したため
+         固定高さ + 縦スクロール container でラップ・thead は sticky で常時表示。 */
+      #overlayFare .preview-table-scroll {
+        max-height: 45vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid #b8d9ff;
+        overscroll-behavior-y: contain;
+      }
+      #overlayFare .preview-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'DM Mono', monospace;
+        background: #fff;
+      }
+      #overlayFare .preview-table th,
+      #overlayFare .preview-table td {
+        padding: 10px;
+        font-size: 13px;
+        text-align: right;
+        border-bottom: 0.5px solid #b8d9ff;
+      }
+      #overlayFare .preview-table th {
+        background: #b8d9ff;
+        color: #1c1c1e;
+        font-weight: 700;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+      #overlayFare .preview-table td {
+        color: #1c1c1e;
+      }
+      #overlayFare .preview-multiplier {
+        padding: 10px;
+        background: #1c1c1e;
+        color: #b8d9ff;
+        border-radius: 8px;
+        font-family: 'DM Mono', monospace;
+        font-size: 14px;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+      #overlayFare .auto-status {
+        font-size: 12px;
+        color: #007aff;
+        font-family: 'DM Mono', monospace;
+        font-weight: 700;
+        margin-top: 4px;
+      }
+      #overlayFare .auto-status.inactive {
+        color: #999;
+      }
+      #overlayFare .fare-toast {
+        position: fixed;
+        left: 50%;
+        top: max(60px, calc(env(safe-area-inset-top) + 56px));
+        transform: translateX(-50%);
+        background: #1c1c1e;
+        color: #b8d9ff;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        z-index: 1050;
+        width: 85%;
+        max-width: 360px;
+        text-align: center;
+        font-weight: 700;
+        display: none;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      #overlayFare .fare-toast.show {
+        display: block;
+      }
+      @media (orientation: landscape) and (min-width: 700px) {
+        #overlayFare .layout {
+          flex-direction: row;
+        }
+        #overlayFare .tab-nav {
+          flex-direction: column;
+          width: 160px;
+          border-right: 1.5px solid #b8d9ff;
+          border-bottom: none;
+          overflow-y: auto;
+          overflow-x: hidden;
+          /* ★横長の 時は 縦に すべる★ので 影も 縦向きに 差し替える
+             （横向きの 影を 残すと ★すべらない 側に 影が 出る★） */
+          background-image:
+            linear-gradient(to bottom, #fff, rgba(255, 255, 255, 0)),
+            linear-gradient(to top, #fff, rgba(255, 255, 255, 0)),
+            radial-gradient(farthest-side at 50% 0%, rgba(0, 86, 179, 0.55), rgba(0, 86, 179, 0)),
+            radial-gradient(farthest-side at 50% 100%, rgba(0, 86, 179, 0.55), rgba(0, 86, 179, 0));
+          background-position:
+            center top,
+            center bottom,
+            center top,
+            center bottom;
+          background-size:
+            100% 24px,
+            100% 24px,
+            100% 20px,
+            100% 20px;
+        }
+        #overlayFare .tab-btn {
+          text-align: left;
+          padding: 14px 16px;
+          border-bottom: 0.5px solid #b8d9ff;
+          border-left: 3px solid transparent;
+        }
+        #overlayFare .tab-btn.active {
+          border-left-color: #007aff;
+          border-bottom-color: #b8d9ff;
+        }
+        #overlayFare .tab-content {
+          padding: 24px;
+          padding-bottom: 100px;
+        }
+        #overlayFare .btn-save {
+          left: auto;
+          right: 24px;
+          width: 200px;
+        }
+      }
+      .bottom-nav .nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        cursor: pointer;
+        background: none;
+        border: none;
+        font-family: 'Noto Sans JP', sans-serif;
+        color: #8e8e93;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .bottom-nav .nav-item:active {
+        background: #f2f2f7;
+      }
+      .bottom-nav .nav-item.active {
+        color: #007aff;
+      }
+      .bottom-nav .nav-icon {
+        font-size: 20px;
+        line-height: 1;
+        margin-bottom: 3px;
+        font-weight: 700;
+      }
+      .bottom-nav .nav-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }

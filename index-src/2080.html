@@ -1,0 +1,27 @@
+        <!-- ★設計変更宣言 (2026-05-20・司さん指示・案 D・但し書き 続ける の上に移動 + グレー化):
+             旧: 続ける → note (赤) → 終了 で・終了ボタン (赤枠) と混同リスク。
+             新: note (グレー) → 続ける → 終了 で・「続ける前に読む注記」として自然位置。 -->
+        <div class="report-note">※「続ける」でいつでも業務を再開できます</div>
+        <button class="btn-business-resume" onclick="onBusinessResume()">続ける</button>
+        <button class="btn-business-confirm" onclick="onBusinessConfirm()">終了</button>
+      </div>
+
+      <!-- DRIVING -->
+
+      <div id="screenDriving" style="display: none">
+        <!-- 日時（全画面共通・dateTimeLine クラス） -->
+        <div class="idle-datetime-line dateTimeLine">2026年5月1日（金） 15:43</div>
+        <!-- リロード復元バナー（走行距離の真上） -->
+        <div class="restore-banner" id="restoreBanner">✅ 走行データを復元しました</div>
+        <div class="driving-grid">
+          <!-- 2026/05/01 仕様変更：料金を上・走行距離を下に入れ替え -->
+          <div class="meter-card">
+            <div class="meter-label">現在料金</div>
+            <div class="meter-value fare">¥<span id="driveFare">0</span></div>
+            <div class="meter-sub" id="surchargeInfo" style="display: none"></div>
+          </div>
+          <div class="meter-card">
+            <div class="meter-label">走行距離</div>
+            <div class="meter-value">
+              <span id="driveDist">0.00</span><span class="meter-unit">km</span>
+            </div>

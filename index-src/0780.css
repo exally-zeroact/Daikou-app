@@ -1,0 +1,5 @@
+      /* ★2026-06-05: bottom-nav 撤去・ナビは appbar(上) へ。下フッタ分の余白は不要。
+         home indicator 回避の safe-area のみ残す。 */
+      body {
+        padding-bottom: env(safe-area-inset-bottom);
+      }

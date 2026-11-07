@@ -1,0 +1,10 @@
+      /* ★代行中/料金 画面は運転中ナビ不要・誤タップ防止でナビ非表示 (司さん指示準拠) */
+      body.screen-driving .appbar-nav,
+      body.screen-fare .appbar-nav {
+        display: none;
+      }
+      .appbar-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }

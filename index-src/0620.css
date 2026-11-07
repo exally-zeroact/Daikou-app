@@ -1,0 +1,21 @@
+      /* ★2026-07-05: 右カラムに 走行(上)+金額(下) を縦バランス配置 */
+      #overlayHistory .ride-right {
+        text-align: right;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 3px;
+        flex: 0 0 auto;
+        margin-left: 10px;
+      }
+      #overlayHistory .ride-fare {
+        font-size: 18px;
+        font-weight: 900;
+        color: #111;
+      }
+      #overlayHistory .ride-extras {
+        font-size: 11px;
+        color: #ff9500;
+        margin-top: 2px;
+      }

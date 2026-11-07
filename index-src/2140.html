@@ -1,0 +1,17 @@
+                <!-- ★設計変更宣言 (2026-05-16・waypointCard 表示拡張):
+                     wp-title を動的に書き換えて「出発地 → 経由地」を表示する。
+                     updateWaypointCardUI が startUiTimer (500ms) で Business.getCurrentTrip
+                     から start_address と waypoints を読み、矢印区切りで連結描画する。 -->
+                <div class="wp-title" id="waypointTitle">経由地点を記録</div>
+                <div class="wp-sub" id="waypointSub">
+                  <span class="wp-sub-tap">タップ</span>で現在地の住所を記録
+                </div>
+              </div>
+              <div class="wp-badge" id="waypointBadge">0</div>
+            </div>
+            <!-- キャンセル (代行取消=距離も料金も加算しない) -->
+            <button class="btn-cancel-trip" id="btnCancelTrip" onclick="onCancelTrip()">
+              キャンセル
+            </button>
+          </div>
+          <!-- 距離ソース表示 (2026-05-09・M3/M4) -->

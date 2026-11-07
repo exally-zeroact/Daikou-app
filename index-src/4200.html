@@ -1,0 +1,18 @@
+    <!-- ★設計変更宣言 (2026-05-15・MA Phase D・fare.html → #overlayFare 移植):
+         元 fare.html (1864 行) の body 内容を移植。appbar-back は hideAllOverlays() →
+         showOverlay('settings') で戻り経路を維持。bottom-nav は index.html 既存のものを継続。
+         JS は IIFE で _fare_ prefix の公開関数 (_fare_load / _fare_saveAll / _fare_addTier 等)
+         に集約・既存業務側 (Meter / FB / Business) との衝突を回避。 -->
+    <div id="overlayFare" class="spa-overlay" aria-hidden="true">
+      <div class="appbar">
+        <div
+          class="appbar-back"
+          onclick="
+            window.hideAllOverlays();
+            window.showOverlay('settings');
+          "
+        >
+          ＜
+        </div>
+        <div class="appbar-title">FARE CONFIG</div>
+      </div>

@@ -1,0 +1,58 @@
+      /* ★設計変更宣言 (2026-05-23・履歴画面 横画面 左右余白・サイドレール込み調和):
+         縦画面 padding 16px と整合・横画面はレール 64px の・更に内側に・適度な余白追加。
+         max-width 720px + margin auto で・大画面でも・カードが・横に伸び過ぎず・読みやすい。 */
+      @media (orientation: landscape) {
+        #overlayHistory .wrap {
+          padding-left: 32px;
+          padding-right: 32px;
+          max-width: 720px;
+          margin: 0 auto;
+        }
+      }
+      #overlayHistory .date-header {
+        font-size: 13px;
+        font-weight: 700;
+        color: #111;
+        letter-spacing: 1px;
+        padding: 4px 0;
+      }
+      #overlayHistory .summary-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      #overlayHistory .summary-item {
+        text-align: center;
+      }
+      #overlayHistory .summary-label {
+        font-size: 11px;
+        color: #111;
+        margin-bottom: 4px;
+      }
+      #overlayHistory .summary-value {
+        font-size: 18px;
+        font-weight: 900;
+        color: #111;
+      }
+      #overlayHistory .summary-unit {
+        font-size: 11px;
+        color: #111;
+      }
+      #overlayHistory .ride-list {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      #overlayHistory .ride-item {
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 0.5px solid #f0f0f0;
+      }
+      #overlayHistory .ride-item:last-child {
+        border-bottom: none;
+      }

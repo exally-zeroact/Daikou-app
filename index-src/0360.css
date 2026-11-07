@@ -1,0 +1,26 @@
+      /* ★設計変更宣言 (2026-05-14・MA-1 SPA overlay 基盤・静的構造のみ・未起動):
+   履歴 / 設定 / 使い方 を MPA → SPA overlay 化するための base CSS。
+   z-index 80 = appbar (50) より上・bottom-nav (100) より下
+   → bottom-nav はオーバレイ表示中も画面下に残り、別タブへ切替可能 (後 phase で実装)。
+   padding-bottom で overlay コンテンツが bottom-nav 領域に隠れないように余白確保。
+   本 phase では誰も .show を付けない (display:none のまま)・既存動作 0 影響。
+   MA-2 で showOverlay / hideAllOverlays API 追加
+   MA-3〜5 で help/settings/history.html を内容移植
+   MA-6 で bottom-nav onclick を showOverlay() に切替
+   MA-7 で旧 html を redirect 化 */
+      .spa-overlay {
+        display: none;
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        background: #fff;
+        z-index: 80;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        /* ★2026-06-05: ナビ統合・appbar(z120) がオーバレイの上に出るので、上に appbar 分の余白を確保。
+           下フッタ撤去のため padding-bottom は safe-area のみ。 */
+        padding-top: calc(40px + env(safe-area-inset-top));
+        padding-bottom: env(safe-area-inset-bottom);
+      }

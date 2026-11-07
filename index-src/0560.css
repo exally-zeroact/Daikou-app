@@ -1,0 +1,193 @@
+      /* ★押せることを見せる (2026-08-05・履歴から直す)★
+         司さん「その業務押したら追加料金や値引きや請求書などちゃんと編集できな」 */
+      #overlayHistory .hist-naoseru-note {
+        margin: 8px 16px 0;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #f2f2f7;
+        color: #3a3a3c;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      #overlayHistory .ride-item.tappable {
+        cursor: pointer;
+        position: relative;
+        padding-right: 30px; /* 右端の「＞」ぶん */
+      }
+      #overlayHistory .ride-item.tappable::after {
+        content: '›';
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #c7c7cc;
+        font-size: 26px;
+        line-height: 1;
+      }
+      #overlayHistory .ride-item.tappable:active {
+        background: #f2f2f7;
+      }
+      /* 直した代行の印（あとで見て分かるように） */
+      #overlayHistory .ride-edited {
+        font-size: 11px;
+        color: #ff9500;
+        font-weight: 700;
+      }
+      /* 値引きは紫・追加料金はオレンジ（走行中の画面と同じ色使い） */
+      #overlayHistory .ride-extras .r-d {
+        color: #5856d6;
+      }
+      #overlayHistory .ride-extras .r-i {
+        color: #007aff;
+      }
+
+      /* ─── あとから直すシート (2026-08-05) ─── */
+      .te-modal {
+        max-height: 86vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .te-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 4px 0 8px;
+      }
+      .te-fixed {
+        background: #f2f2f7;
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+      }
+      .te-fixed-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 2px 0;
+      }
+      .te-lbl {
+        font-size: 13px;
+        color: #6b6b70;
+      }
+      .te-val {
+        font-size: 17px;
+        font-weight: 700;
+        color: #1c1c1e;
+      }
+      .te-route {
+        font-size: 12px;
+        color: #6b6b70;
+        margin-top: 4px;
+        word-break: break-all;
+      }
+      .te-note {
+        font-size: 11px;
+        color: #8e8e93;
+        margin-top: 6px;
+      }
+      .te-sec {
+        margin-bottom: 12px;
+      }
+      .te-sec-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+        font-weight: 700;
+        color: #1c1c1e;
+        margin-bottom: 6px;
+      }
+      .te-add {
+        border: none;
+        border-radius: 8px;
+        padding: 7px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #fff;
+        background: #ff9500; /* 追加料金オレンジ */
+      }
+      .te-add-d {
+        background: #5856d6; /* 値引き紫 */
+      }
+      .te-add-i {
+        background: #007aff; /* 請求書 青 */
+      }
+      .te-add:active {
+        opacity: 0.7;
+      }
+      .te-list:empty::before {
+        content: 'なし';
+        font-size: 13px;
+        color: #8e8e93;
+      }
+      .te-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 10px;
+        background: #fff;
+        border: 1px solid #e5e5ea;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        font-size: 15px;
+      }
+      .te-row .te-x {
+        color: #ff3b30;
+        font-size: 20px;
+        padding: 0 4px;
+        line-height: 1;
+      }
+      .te-row .te-amt {
+        margin-left: auto;
+        margin-right: 10px;
+        font-weight: 700;
+      }
+      .te-amt.minus {
+        color: #5856d6;
+      }
+      .te-total {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        border-top: 2px solid #1c1c1e;
+        padding-top: 10px;
+        margin-top: 4px;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .te-total #teTotal {
+        font-size: 26px;
+      }
+      .te-diff {
+        font-size: 13px;
+        font-weight: 700;
+        color: #ff9500;
+        text-align: right;
+        min-height: 18px;
+      }
+      .te-actions {
+        padding-top: 10px;
+      }
+      .te-save {
+        width: 100%;
+        border: none;
+        border-radius: 12px;
+        padding: 15px;
+        font-size: 17px;
+        font-weight: 700;
+        color: #fff;
+        background: #2e7d54;
+      }
+      .te-save:active {
+        opacity: 0.8;
+      }
+      #overlayHistory .ride-left {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      #overlayHistory .ride-num {
+        font-size: 13px;
+        color: #007aff; /* ★2026-07-05 司さん指示: 回目だけ青で乗車の区切りを分かりやすく(他は黒統一) */
+        font-weight: 700;
+      }

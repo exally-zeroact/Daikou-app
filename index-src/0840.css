@@ -1,0 +1,32 @@
+      /* ★2026-07-18 司さん指示: 縦画面は上に寄りすぎ→適度に下げてバランス(中央寄せはしない・上に余白) */
+      @media (orientation: portrait) {
+        #screenIdle {
+          padding-top: 7vh;
+        }
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .stat-card {
+        background: #f5f5f5;
+        border-radius: 12px;
+        padding: 14px;
+        text-align: center;
+      }
+      .stat-label {
+        font-size: 11px;
+        color: #aaa;
+        margin-bottom: 4px;
+      }
+      .stat-value {
+        font-size: 22px;
+        font-weight: 900;
+        color: #111;
+      }
+      .stat-unit {
+        font-size: 12px;
+        color: #aaa;
+      }
+      /* 業務管理ダッシュボード用カード（2026/05/01追加・2026-05-10 縦画面 2x2 グリッド化） */

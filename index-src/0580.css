@@ -1,0 +1,28 @@
+      /* ★履歴の時刻行 (2026-06-20): 開始/経由/清算終了 を1行に・ラベル付き・折返し可 */
+      #overlayHistory .ride-times {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 2px 5px;
+        font-size: 14px;
+        font-weight: 700;
+        color: #111;
+        margin: 1px 0;
+      }
+      #overlayHistory .ride-times .t-seg {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 3px;
+      }
+      #overlayHistory .ride-times .t-lbl {
+        font-size: 10px;
+        font-weight: 700;
+        color: #111;
+      }
+      #overlayHistory .ride-times .t-wp .t-lbl {
+        color: #111;
+      }
+      #overlayHistory .ride-times .t-arrow {
+        color: #111;
+        font-weight: 700;
+      }

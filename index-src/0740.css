@@ -1,0 +1,140 @@
+      /* ★保存は 料金表 全体の 物なので 出さない★
+         ★「足す」「消す」は ★料金表の 札の 中だけ★ 隠す
+         （追加料金・値引きの「＋ 項目を 追加」は 今まで通り 出します） */
+      #overlayFare .btn-save,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) .btn-del,
+      #overlayFare .tab-pane:not([data-pane='extras']):not([data-pane='discounts']) .btn-add {
+        display: none !important;
+      }
+
+      #overlayFare .btn-save {
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: calc(60px + max(16px, env(safe-area-inset-bottom)));
+        padding: 14px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+        z-index: 110;
+        display: none;
+      }
+      #overlayFare.show .btn-save {
+        display: block;
+      }
+      #overlayFare .btn-save:active {
+        transform: scale(0.97);
+        filter: brightness(0.9);
+      }
+      #overlayFare .extra-item {
+        padding: 10px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        border-bottom: 0.5px solid #b8d9ff;
+      }
+      #overlayFare .extra-item:last-child {
+        border-bottom: none;
+      }
+      #overlayFare .extra-item-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #overlayFare .extra-name {
+        flex: 1;
+        border: 1px solid #b8d9ff;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 16px;
+        font-family: 'Noto Sans JP', sans-serif;
+        background: #e8f4fd;
+        color: #1c1c1e;
+      }
+      #overlayFare .extra-amount {
+        width: 110px;
+        border: 1px solid #b8d9ff;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 16px;
+        text-align: right;
+        font-family: 'DM Mono', monospace;
+        background: #e8f4fd;
+        color: #1c1c1e;
+      }
+      #overlayFare .extra-unit {
+        font-size: 12px;
+        color: #0056b3;
+        white-space: nowrap;
+        font-family: 'DM Mono', monospace;
+      }
+      #overlayFare .extra-del {
+        background: #fff;
+        border: 1px solid #ff3b30;
+        border-radius: 6px;
+        padding: 6px 12px;
+        color: #ff3b30;
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        white-space: nowrap;
+      }
+      #overlayFare .item-card {
+        border: 1px solid #b8d9ff;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+        background: #e8f4fd;
+      }
+      #overlayFare .item-card-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      #overlayFare .item-card-row:last-child {
+        margin-bottom: 0;
+      }
+      #overlayFare .color-picker {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      #overlayFare .color-swatch {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 1px #b8d9ff;
+      }
+      #overlayFare .color-swatch.selected {
+        box-shadow: 0 0 0 2px #1c1c1e;
+      }
+      #overlayFare .pill-group {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      #overlayFare .pill {
+        padding: 6px 12px;
+        border: 1.5px solid #b8d9ff;
+        border-radius: 16px;
+        background: #fff;
+        color: #0056b3;
+        font-size: 13px;
+        font-family: 'DM Mono', monospace;
+        cursor: pointer;
+      }
+      #overlayFare .pill.selected {
+        background: #007aff;
+        color: #fff;
+        border-color: #007aff;
+      }

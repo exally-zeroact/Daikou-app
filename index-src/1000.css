@@ -1,0 +1,21 @@
+      /* ★設計変更宣言 (2026-05-19 再・続ける ボタン margin-bottom 0 化):
+         note をボタン直下に密着配置・「続けるボタンの説明」と認識させる。
+         業務開始画面 .resume-note (= margin-top -18px で密着) と同じ思想。 */
+      .btn-business-resume {
+        width: calc(100% - 32px);
+        margin: 8px 16px 0;
+        padding: 15px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 3px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+      }
+      .btn-business-resume:active {
+        transform: scale(0.97);
+        filter: brightness(0.85);
+      }

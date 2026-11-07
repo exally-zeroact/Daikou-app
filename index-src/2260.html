@@ -1,0 +1,14 @@
+        <!-- ★請求書 (2026-07-31・司さん要件): 実車中に会社を選ぶとその代行が請求書払いになる。
+             どの会社の請求書かを知っているのは現場のドライバーだけなので、その場で1タップ。 -->
+        <button class="btn-sub btn-invoice" id="btnInvoice" onclick="openInvoiceModal()">
+          請求書
+        </button>
+      </div>
+      <!-- 確定 (driving時のみ・フッター下段 全幅・2026-07-25 司さん要望) -->
+      <button
+        class="btn-sub btn-confirm btn-driving-confirm"
+        id="btnDrivingConfirm"
+        onclick="onSend()"
+      >
+        確定
+      </button>

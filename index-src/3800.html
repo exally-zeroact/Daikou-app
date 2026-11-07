@@ -1,0 +1,10 @@
+    <!-- ★設計変更宣言 (2026-05-14・MA-1 SPA overlay 基盤・静的構造のみ・未起動):
+     履歴 / 設定 / 使い方 を SPA overlay として表示するためのコンテナを追加。
+     本 phase ではどの overlay も display:none で完全未起動・既存動作 0 影響。
+     MA-3 で help.html の <body> 内容を #overlayHelp に移植 (1-2h)
+     MA-4 で settings.html の <body> 内容を #overlaySettings に移植 (2-3h)
+     MA-5 で history.html の <body> 内容を #overlayHistory に移植 (1-2h)
+     MA-6 で bottom-nav onclick を showOverlay() に切替・MA-7 で旧 html を redirect 化
+     目的: MPA タブ遷移 (location.href) で起きていた watchPosition / MM Worker B /
+          sensor listener / WakeLock 全停止 = 走行距離取りこぼし を完全解消する。
+     業務 workflow (index.html JS) を常駐させたまま履歴/設定/使い方を viewing する。 -->

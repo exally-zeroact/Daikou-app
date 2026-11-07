@@ -26,6 +26,8 @@
 //   ★見る 範囲★
 //     git ls-files の *.js *.html と *manifest.json から 下を 除いた 物
 //       tests/ scripts/ tools/ docs/ data/ supabase/ vendor/ node_modules/ *.min.js
+//       index-src/（2026-11-08 件3＝index.html を 行で 切った 写し・配らない。index.html の 方を 見るので 取りこぼし 無し。
+//         枚は 開きタグで 終わる 等 1枚では 文書に ならず、src も index-src/ からの 相対に 化ける＝見ると 偽の 赤）
 //       根の 道具の 設定（*.config.js・lighthouserc.js＝試験・lint の 物）
 //     ＋ html の <script src> が 指す repo の 中の ファイル（除いた 場所に 在っても 見る）
 //       例：scripts/zeroact-test-commons/observability/*.js は 客に 配られている
@@ -46,7 +48,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 
 // 根の 道具の 設定（試験・lint・Lighthouse）は 客に 出ない＝名前の 形で 除く
 const NOZOKU =
-  /^(tests|scripts|tools|docs|data|supabase|vendor|node_modules)\/|\.min\.js$|^[\w-]+(\.[\w-]+)*\.config\.(js|mjs|cjs)$|^lighthouserc\.js$/;
+  /^(tests|scripts|tools|docs|data|supabase|vendor|node_modules|index-src)\/|\.min\.js$|^[\w-]+(\.[\w-]+)*\.config\.(js|mjs|cjs)$|^lighthouserc\.js$/;
 const KARIMONO = /^(data|vendor)\/|\.min\.js$/; // 見ない 訳＝上の 説明（data＝本物の 名前・vendor/min＝借り物）
 
 // ★ の 形（字の 生の 書き方で 探す）

@@ -1,0 +1,59 @@
+    <!-- ★設計変更宣言 (2026-05-13): inline style="display:flex" に変更 (初期表示 ON)
+     ユーザー指摘「データ揃う前に業務画面に行くから矛盾が起きる」を受けて、
+     起動時から overlay を表示し、warmup 完了 (cache 復元 or 新規 DL) まで
+     業務画面を裏に隠す方式へ。非 PWA (Safari ブラウザ) では JS 起動直後に
+     overlay を hide するため、ブラウザ閲覧体験には影響しない。 -->
+    <div class="dl-overlay" id="dlOverlay" style="display: flex">
+      <!-- 状態1：DL中 -->
+      <div class="dl-state-loading show" id="dlStateLoading">
+        <div
+          style="
+            text-align: center;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          "
+        >
+          <div class="dl-icon">⚡</div>
+          <div class="dl-title">ダイコメへようこそ</div>
+          <div class="dl-desc">
+            全国地図データをダウンロード中<br />圏外でも使えるように準備しています
+          </div>
+          <div class="dl-progress-wrap">
+            <div class="dl-progress-bar">
+              <div class="dl-progress-fill" id="dlProgressFill" style="width: 10%"></div>
+            </div>
+            <div class="dl-progress-text" id="dlProgressText">準備中...</div>
+          </div>
+          <div class="dl-hint">📶 Wi-Fi推奨（4G可）</div>
+        </div>
+      </div>
+      <!-- 状態2：完了（バナー表示後 自動でメーター画面へ遷移） -->
+      <div class="dl-state-complete" id="dlStateComplete">
+        <div
+          style="
+            text-align: center;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          "
+        >
+          <div class="dl-icon">✅</div>
+          <div class="dl-title">ダウンロード完了</div>
+          <div class="dl-desc">全国どこでもオフラインで使えます</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pwa-banner" id="pwaBanner">
+      <div class="pwa-banner-text">
+        <strong>📲 ホーム画面に追加してください</strong>
+        コンパス・ジャイロ・画面消灯防止が使えるようになります
+      </div>
+      <button class="pwa-banner-btn" onclick="showPwaInstructions()">追加方法</button>
+      <button class="pwa-banner-close" onclick="closePwaBanner()">✕</button>
+    </div>
+
+    <!-- Android APK 配布バナー (WebAPK 生成不可端末向け・JS で Android Chrome のみ表示) -->

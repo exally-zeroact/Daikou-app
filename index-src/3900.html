@@ -1,0 +1,46 @@
+        <!-- ★事務所への入口 (2026-08-01)★
+             司さん「どのURLもここにしかいかんけど」= 会社URL(?c=) を開くとメーターが出るのは
+             仕様(ドライバーのスマホを使えるようにする物)だが、メーターから事務所へ戻る道が
+             1つも無かった。ここに1つ置く。★UIだけ・メーターの中身には触っていない★
+
+             ★2026-08-02 変更★ 行き先を 'dashboard.html'(メーター内) から
+             ★事務所ホスト(OFFICE_BASE)★ へ直す。メーター側の /dashboard.html は
+             サービスワーカーが預かってしまい、旧SWが残っている端末では 308 が効かない。
+             最初から別ホストへ飛ばせば、SWを一度も踏まない。 -->
+        <div class="section">
+          <div class="section-title">事務所</div>
+          <div
+            class="row"
+            data-office-link="1"
+            onclick="location.href = (window.DKConfig &amp;&amp; window.DKConfig.OFFICE_BASE) || 'dashboard.html'"
+            style="cursor: pointer"
+          >
+            <div class="row-label">
+              事務所をひらく（売上表・給料・月次集計）<br />
+              <span style="color: #8e8e93; font-size: 12px">社長用・ログインが要ります</span>
+            </div>
+            <div style="color: #8e8e93; font-size: 13px">›</div>
+          </div>
+        </div>
+
+        <!-- 料金設定 → #overlayFare (MA Phase D で fare.html を overlay 化) -->
+        <div class="section">
+          <div class="section-title">料金設定</div>
+          <div
+            class="row"
+            onclick="
+              if (typeof window.showOverlay === 'function') {
+                window.showOverlay('fare');
+              } else {
+                location.href = 'fare.html';
+              }
+            "
+            style="cursor: pointer"
+          >
+            <div class="row-label">
+              料金設定（追加料金・基本・段階・割増・自動・車種・待機・区間・確認）
+            </div>
+            <div style="color: #8e8e93; font-size: 13px">›</div>
+          </div>
+        </div>
+

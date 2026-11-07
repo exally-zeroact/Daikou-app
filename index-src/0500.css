@@ -1,0 +1,169 @@
+      /* ★設計変更宣言 (2026-05-14・MA-4-FIX): 内側の flex:1 + overflow-y:auto を撤去・親 .spa-overlay が scroll を担う。
+   display:flex + gap:16px は section 間スペーシング維持のため残置 (flex:1 削除で section 圧縮なし)。 */
+      #overlaySettings .wrap {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      #overlaySettings .section {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      #overlaySettings .section-title {
+        font-size: 12px;
+        color: #8e8e93;
+        padding: 12px 16px 4px;
+        letter-spacing: 1px;
+      }
+      #overlaySettings .row {
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 0.5px solid #f0f0f0;
+      }
+      #overlaySettings .row:last-child {
+        border-bottom: none;
+      }
+      #overlaySettings .row-label {
+        font-size: 15px;
+        color: #111;
+      }
+      #overlaySettings .row-input {
+        width: 120px;
+        border: 0.5px solid #ddd;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 16px;
+        text-align: right;
+        font-family: 'Noto Sans JP', sans-serif;
+        background: #f9f9f9;
+      }
+      #overlaySettings .row-unit {
+        font-size: 13px;
+        color: #8e8e93;
+        margin-left: 4px;
+      }
+      #overlaySettings .toggle {
+        width: 44px;
+        height: 26px;
+        background: #ddd;
+        border-radius: 13px;
+        position: relative;
+        cursor: pointer;
+        transition: background 0.2s;
+        flex-shrink: 0;
+      }
+      #overlaySettings .toggle.on {
+        background: #007aff;
+      }
+      #overlaySettings .toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 22px;
+        height: 22px;
+        background: #fff;
+        border-radius: 50%;
+        transition: left 0.2s;
+      }
+      #overlaySettings .toggle.on::after {
+        left: 20px;
+      }
+      #overlaySettings .btn-save {
+        width: 100%;
+        padding: 16px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 2px;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        transition:
+          transform 0.1s,
+          filter 0.1s;
+      }
+      #overlaySettings .btn-save:active {
+        transform: scale(0.97);
+        filter: brightness(0.85);
+      }
+      #overlaySettings .save-msg {
+        text-align: center;
+        color: #34c759;
+        font-size: 13px;
+        min-height: 20px;
+        margin-top: 4px;
+      }
+      #overlaySettings .dl-info {
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 0.5px solid #f0f0f0;
+      }
+      #overlaySettings .dl-info-label {
+        font-size: 15px;
+        color: #111;
+      }
+      #overlaySettings .dl-info-value {
+        font-size: 14px;
+        color: #007aff;
+        font-weight: 700;
+        font-family: monospace;
+      }
+      #overlaySettings .dl-update-btn-wrap {
+        padding: 12px 16px;
+      }
+      #overlaySettings .dl-update-btn {
+        width: 100%;
+        padding: 14px;
+        background: #007aff;
+        border: none;
+        border-radius: 10px;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        letter-spacing: 1px;
+        transition:
+          transform 0.1s,
+          filter 0.1s;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #overlaySettings .dl-update-btn:active {
+        transform: scale(0.97);
+        filter: brightness(0.9);
+      }
+      #overlaySettings .dl-update-btn:disabled {
+        background: #aaa;
+        cursor: not-allowed;
+      }
+      #overlaySettings .settings-toast {
+        position: fixed;
+        left: 50%;
+        top: max(60px, calc(env(safe-area-inset-top) + 56px));
+        transform: translateX(-50%);
+        background: #e8f4fd;
+        border: 1.5px solid #007aff;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        color: #1c1c1e;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        z-index: 1050;
+        width: 85%;
+        max-width: 360px;
+        text-align: center;
+        font-weight: 600;
+        display: none;
+      }
+      #overlaySettings .settings-toast.show {
+        display: block;
+      }

@@ -1,0 +1,286 @@
+
+        /* 2026/05/01 横画面UI修正 */
+        /* 1. 待機画面のバランス調整：btn-area 幅。
+           ★2026-06-27 司さん: 右ナビバー回避の右paddingを足してもボタンが折り返さない様 180→210px。 */
+        .btn-area {
+          width: 210px !important;
+        }
+
+        /* 2. 縦画面用 走行に戻るボタンを完全非表示 */
+        .btn-back-portrait {
+          display: none !important;
+        }
+
+        /* 3. 横画面用 走行に戻るボタン（fare 時のみ・改行禁止・コンパクト） */
+        .btn-back-landscape.show {
+          display: block;
+          width: 100%;
+          padding: 14px 8px;
+          background: #fff;
+          border: 2px solid #ff3b30;
+          border-radius: 12px;
+          color: #ff3b30;
+          font-size: 14px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          font-family: 'Noto Sans JP', sans-serif;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .btn-back-landscape:active {
+          background: #fff0f0;
+          transform: scale(0.97);
+        }
+
+        /* 4. fare 時の精算終了は[走行に戻る]から離す（誤タップ防止） */
+        .btn-back-landscape.show ~ .btn-main.show {
+          margin-top: 32px;
+          padding: 10px;
+          font-size: 13px;
+          letter-spacing: 2px;
+        }
+
+        /* 2026/05/01 追加：業務報告画面の[続ける]/[終了]を横画面では右側 btn-area に表示 */
+        /*    縦画面では screenBusinessReport 内のボタンが見える・横画面ではそれを非表示 */
+        #screenBusinessReport .btn-business-resume {
+          display: none !important;
+        }
+        #screenBusinessReport .btn-business-confirm {
+          display: none !important;
+        }
+        #screenBusinessReport .report-note {
+          display: none !important;
+        }
+        .btn-resume-landscape.show {
+          display: block;
+          width: 100%;
+          padding: 14px 8px;
+          background: #007aff;
+          border: none;
+          border-radius: 12px;
+          color: #fff;
+          font-size: 15px;
+          font-weight: 900;
+          letter-spacing: 2px;
+          font-family: 'Noto Sans JP', sans-serif;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .btn-resume-landscape:active {
+          transform: scale(0.97);
+          filter: brightness(0.85);
+        }
+        .btn-confirm-landscape.show {
+          display: block;
+          width: 100%;
+          padding: 14px 8px;
+          background: #fff;
+          border: 1.5px solid #ff3b30;
+          border-radius: 12px;
+          color: #ff3b30;
+          font-size: 15px;
+          font-weight: 700;
+          letter-spacing: 2px;
+          font-family: 'Noto Sans JP', sans-serif;
+          cursor: pointer;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .btn-confirm-landscape:active {
+          background: #fff0f0;
+          transform: scale(0.97);
+        }
+        /* [続ける]と[終了]を離す（誤タップ防止・走行に戻ると同様） */
+        .btn-resume-landscape.show ~ .btn-confirm-landscape.show {
+          margin-top: 24px;
+        }
+        /* ★設計変更宣言 (2026-05-20・司さん指示・案 D・続けるの上に note 移動 + グレー化):
+           HTML 順序: note (グレー・上) → 続ける → 終了
+           表示制御: 後の兄弟 + で続けるが .show なら note を表示
+           (HTML 順序が note → 続ける なので・note の隣接後兄弟 .btn-resume-landscape.show を使う) */
+        .report-note-landscape:has(+ .btn-resume-landscape.show) {
+          display: block !important;
+          text-align: center !important;
+          font-size: 11px !important;
+          color: #666666 !important;
+          font-weight: 700 !important;
+          padding: 0 4px 8px !important;
+          line-height: 1.3 !important;
+          letter-spacing: 0 !important;
+        }
+
+        /* 5. 追加料金バナー（実車中の左ハンドル/深夜割増等）の幅を狭く */
+        .extras-list {
+          max-width: 50%;
+          width: 100%;
+          margin-left: auto;
+          margin-right: auto;
+        }
+
+        .appbar {
+          width: 100% !important;
+          flex-shrink: 0 !important;
+          padding: 0 12px !important;
+          height: 40px !important;
+          min-height: 40px !important;
+          max-height: 40px !important;
+          box-sizing: border-box !important;
+          overflow: hidden !important;
+        }
+        .appbar-title {
+          font-size: 14px !important;
+          line-height: 40px !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        .appbar-right {
+          margin: 0 !important;
+          padding: 0 !important;
+          gap: 8px !important;
+        }
+        .gps-acc {
+          font-size: 10px !important;
+        }
+        .gps-pill {
+          padding: 3px 10px !important;
+          font-size: 10px !important;
+        }
+        /* ★設計変更宣言 (2026-05-15・修正1): .menu-btn landscape 上書き削除済 (ハンバーガーメニュー撤去) */
+
+        /* コンテンツ：左半分 */
+        /* ★設計変更宣言 (2026-05-19 緊急・iOS Safari WebKit bug #136041 回避):
+           bug: flex-direction: row + flex-wrap: wrap で min-width 未指定の flex item が
+                min-content (= 文字 1 文字幅) に潰される事象・全画面 縦書き崩れ。
+           解決: min-width: 0 を明示・flex-basis 0 で残り全部取る指定
+                (= 業界標準 / WebKit bug tracker 公式回避策)。 */
+        .content {
+          flex: 1 1 0;
+          min-width: 0;
+          padding: 12px 16px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          height: calc(100vh - 40px);
+          max-height: calc(100vh - 40px);
+          min-height: 0;
+          justify-content: center;
+        }
+        /* ★2026-07-18 司さん指示: 横で使い方がスクロールできず詰まるバグ根治。
+           上の汎用.content(高さ100vh-40px/overflow:hidden・=業務画面用グリッドセル)が
+           overlay内の #overlayHelp .content にも波及しコンテンツを350pxでクリップ→無スクロール化していた。
+           overlay自体(.spa-overlay)がスクロール担当なので、使い方の.contentは高さ制約/overflow/中央寄せを解除。 */
+        #overlayHelp .content {
+          height: auto !important;
+          max-height: none !important;
+          overflow: visible !important;
+          display: block !important;
+          justify-content: normal !important;
+          flex: none !important;
+        }
+
+        /* ボタンエリア：右半分（縦に並ぶ）*/
+        /* ★ iOS Safari bug 回避: flex 明示指定 (= 縮ませない) */
+        .btn-area {
+          flex: 0 0 180px;
+          width: 180px;
+          min-width: 180px;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          border-top: none;
+          border-left: 0.5px solid #f0f0f0;
+          height: calc(100vh - 40px);
+          max-height: calc(100vh - 40px);
+          justify-content: center;
+        }
+
+        /* 2026/05/01 横画面ボタン仕様統一：全ボタン縦並び・同サイズ */
+        .btn-main {
+          padding: 14px !important;
+          font-size: 15px !important;
+          border-radius: 12px !important;
+          letter-spacing: 2px !important;
+        }
+        .btn-sub {
+          padding: 14px !important;
+          font-size: 15px !important;
+          border-radius: 12px !important;
+          letter-spacing: 2px !important;
+        }
+        .btn-row {
+          grid-template-columns: 1fr !important;
+          gap: 8px !important;
+        }
+        .btn-back-landscape.show {
+          /* ★2026-07-18 司さん指示: 「← 走行に戻る」が途切れる→フォント/文字間隔/左右paddingを詰めて
+             210pxの右カラムに全部収める(nowrapのまま切れない)。 */
+          padding: 14px 4px !important;
+          font-size: 13px !important;
+          border-radius: 12px !important;
+          letter-spacing: 0 !important;
+        }
+        /* 走行に戻ると精算終了は誤タップ防止で離す */
+        .btn-back-landscape.show ~ .btn-main.show {
+          margin-top: 32px !important;
+        }
+
+        /* ★設計変更宣言 (2026-05-20 司さん指示・ホーム横ボタン 日時と幅・中心 完全一致):
+           日時 .dateTimeLine は max-width: 80% / width: 100% / margin: 0 auto で画面中央配置。
+           ボタンも完全同じ container 設定にすることで・幅・左右マージン・中心を完全一致。
+           portrait は本 @media 外なので影響なし。 */
+        .btn-business-start {
+          max-width: 80% !important;
+          width: 100% !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          box-sizing: border-box !important;
+          padding: 14px !important;
+          font-size: 15px !important;
+          letter-spacing: 2px !important;
+        }
+        .btn-business-resume-start {
+          max-width: 80% !important;
+          width: 100% !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          box-sizing: border-box !important;
+          padding: 14px !important;
+          font-size: 15px !important;
+          letter-spacing: 2px !important;
+        }
+        .btn-business-resume {
+          max-width: 60% !important;
+          width: 60% !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          padding: 14px !important;
+          font-size: 15px !important;
+          letter-spacing: 2px !important;
+        }
+        .btn-business-confirm {
+          max-width: 60% !important;
+          width: 60% !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+          padding: 14px !important;
+          font-size: 15px !important;
+          letter-spacing: 2px !important;
+        }
+        /* 業務終了画面の日報カードも中央寄せ */
+        .report-card {
+          max-width: 60% !important;
+          margin-left: auto !important;
+          margin-right: auto !important;
+        }
+        .report-title {
+          font-size: 16px !important;
+          padding: 8px 0 4px !important;
+        }
+        .report-note {
+          font-size: 10px !important;
+          padding: 2px 16px 8px !important;
+        }

@@ -1,0 +1,26 @@
+        <!-- ★設計変更宣言 (2026-05-15・経由地点 + 住所表示機能・routeCard):
+             fare-total と breakdown の間に表示する経路サマリ。Business.getCurrentTrip() で
+             取得した start_address → waypoints[].address → end_address を「→」区切りで描画する。
+             両端 (start/end) とも null の場合は本カード自体を非表示 (display:none) にして
+             画面の主役 (合計料金 + 明細) を維持する。renderFare 内で組立て。 -->
+        <div id="routeCard" class="route-card" style="display: none">
+          <div class="route-icon">🗺</div>
+          <div class="route-body" id="routeCardBody"></div>
+        </div>
+        <div class="breakdown" id="breakdown"></div>
+        <!-- 縦画面用 走行に戻るボタン（fare時のみ表示） -->
+        <button class="btn-back-portrait" id="btnBackPortrait" onclick="cancelFare()">
+          ← 走行に戻る<span style="font-size: 11px; color: #aaa; font-weight: 400; margin-left: 6px"
+            >（まだ到着していない場合）</span
+          >
+        </button>
+      </div>
+    </div>
+
+    <!-- ボタンエリア（固定・全画面共通） -->
+
+    <div class="btn-area">
+      <!-- 横画面用 走行に戻るボタン（fare時のみ表示・縦画面では非表示） -->
+      <button class="btn-back-landscape" id="btnBackLandscape" onclick="cancelFare()">
+        ← 走行に戻る
+      </button>

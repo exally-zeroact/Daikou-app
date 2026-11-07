@@ -1,0 +1,156 @@
+      <!-- ★設計変更宣言 (2026-05-15・overlayHelp 全面改訂):
+           実際の業務フロー実装に合わせてテキストを全件書直し。
+           削除済機能 (3 時間以内なら続ける / canResume / checkAutoAbandon / 時刻ベース自動リセット)
+           の言及を全て除去。実際のボタン名・画面名・操作手順と完全に一致させた。
+           HTML 構造 (acc-card / acc-head / acc-body) と onclick 開閉ロジックは無変更・テキスト差替のみ。 -->
+      <div class="appbar">
+        <div class="appbar-title">使い方</div>
+        <div class="appbar-right"></div>
+      </div>
+      <div class="content">
+        <div class="section-title">操作手順</div>
+        <div class="acc-grid">
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">1</span><span class="acc-head-text">初回設定</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              ①
+              最初に<b>ホーム画面に追加</b>してください（これをしないと業務開始が押せません）。iPhoneはSafariの共有ボタン→「ホーム画面に追加」、AndroidはChromeメニュー→「アプリをインストール」。<br />②
+              下の<b>設定</b>タブ→<b>料金設定</b>で、初乗り料金・距離、加算料金・距離を入れます。迎車・高速などは「追加料金」タブで登録できます。
+            </div>
+          </div>
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">2</span><span class="acc-head-text">GPS許可</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              初回に画面中央の青い<b>センサーを許可する</b>ボタンを押します。位置情報などの許可が順に出るので、全て<b>「許可」</b>を選んでください。上の<b>GPS</b>バッジの点が<b>緑</b>になれば準備完了です（点が白いままなら未接続）。
+            </div>
+          </div>
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">3</span><span class="acc-head-text">業務開始</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              許可のあとに出る青い<b>業務開始</b>ボタンを押すと1日が始まり、空車画面になります。お客様を乗せたら<b>代行開始</b>を押すと、走行距離と料金がリアルタイムで動きます。目的地で<b>確定</b>→料金画面で<b>精算終了</b>を押すと1件完了、空車画面に戻ります。
+            </div>
+          </div>
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">4</span><span class="acc-head-text">割増の使い方</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              実車中の上に並ぶ<b>割増</b>ボタンでON/OFFできます。割増ボタンは<b>設定→料金設定→割増</b>で自分で作れます（名前・倍率・色）。2つ以上ONにすると倍率は掛け算です（例：1.2倍と1.1倍を両方ONで1.32倍）。深夜・週末などの<b>自動割増</b>は、<b>設定→料金設定→自動割増</b>でONにしておくと時間になって自動で入ります。
+            </div>
+          </div>
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">5</span><span class="acc-head-text">追加料金の使い方</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              実車中の<b>追加料金</b>ボタンで、迎車・高速・キャンセル料などを選ぶと加算されます。同じ項目は押した回数ぶん足されます（高速¥1,000を3回で¥3,000）。項目の追加・変更は<b>設定→料金設定→追加料金</b>から。
+            </div>
+          </div>
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">6</span><span class="acc-head-text">業務終了</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              空車画面の<b>業務終了</b>→「OK」で日報が出ます。<b>続ける</b>でその業務を再開、<b>終了</b>で最初の画面に戻ります。終了後も<b>業務再開</b>ボタンが残るので、いつでも戻せます（時間制限なし）。新しく始めるときは<b>業務開始</b>を押すと集計が0に戻ります。
+            </div>
+          </div>
+          <div class="acc-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">7</span><span class="acc-head-text">履歴の見方</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              空車画面の<b>履歴</b>ボタンで、その日の記録を見られます。各件に時刻・走行距離・料金が出て、上に<b>走行回数・総距離・総売上</b>の合計も出ます。日付が変わると新しい1日になります。
+            </div>
+          </div>
+        </div>
+        <div class="section-title">よくある質問</div>
+        <div class="acc-grid">
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span
+              ><span class="acc-head-text">GPS許可を拒否してしまった</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              iPhoneは<b>設定→ダイコメ→位置情報→「常に」</b>。Androidは<b>設定→アプリ→ダイコメ→権限→位置情報→「常に許可」</b>。ダイコメに戻るとGPSバッジの点が緑になります。
+            </div>
+          </div>
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span
+              ><span class="acc-head-text">途中でアプリが閉じた場合</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              業務中に閉じても、開き直すと直前の状態（実車中・距離・料金）に自動で戻ります。iPhoneはオレンジのバナーに出る<b>センサーを再起動する</b>を1回押せば計測が続きます。時間制限はありません。
+            </div>
+          </div>
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span
+              ><span class="acc-head-text">オフラインでも使えるか</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              使えます。全国の道路データは最初に端末へ保存されるので、トンネルや電波の無い所でも距離・料金の計算は続きます。
+            </div>
+          </div>
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span
+              ><span class="acc-head-text">追加料金の種類を変えたい</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              <b>設定→料金設定→追加料金</b
+              >で、名前と金額を自由に追加・変更・削除できます。実車中のボタンにすぐ反映されます。
+            </div>
+          </div>
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span
+              ><span class="acc-head-text">割増の種類を増やしたい</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              <b>設定→料金設定→割増</b
+              >で手動の割増ボタンを追加できます（名前・倍率・色）。複数ONで倍率は掛け算。深夜・週末などの自動割増は<b>自動割増</b>タブでON/OFFできます。
+            </div>
+          </div>
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span><span class="acc-head-text">料金が変わらない</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              <b>設定→料金設定→基本</b
+              >で、初乗り料金・距離、加算料金・距離が正しく入っているか確認してください。空欄や0だと加算されません。変更後は<b>保存</b>を必ず押してください。
+            </div>
+          </div>
+          <div class="acc-card faq-card" onclick="this.classList.toggle('open')">
+            <button class="acc-head" type="button">
+              <span class="acc-head-num">Q</span
+              ><span class="acc-head-text">「業務再開」ボタンとは</span
+              ><span class="acc-arrow">▾</span>
+            </button>
+            <div class="acc-body">
+              業務終了→「終了」のあと最初の画面に残る<b>業務再開</b>は、前の業務を続けるためのボタンです（時間制限なし）。新しく始めたいときは<b>業務開始</b>を押すと集計が0に戻ります。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+

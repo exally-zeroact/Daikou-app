@@ -1,0 +1,4 @@
+      /* ★ 横画面 業務報告 続ける/終了 間 但し書き (= portrait 非表示・landscape btn-resume-landscape.show 連動) */
+      .report-note-landscape {
+        display: none;
+      }

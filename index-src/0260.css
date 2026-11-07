@@ -1,0 +1,41 @@
+      /* ★割増バッジが青バーに出ている時だけ追加で詰める (= 1段死守・2026-06-20)★:
+         バッジ非表示の通常時は font 13px の読みやすいまま。バッジ(約38px)が左群に
+         加わる時のみ font/gap を一段詰めて nav の折り返しを防ぐ。 */
+      .appbar.appbar--surcharge {
+        gap: 4px 5px;
+      }
+      .appbar.appbar--surcharge .appbar-left {
+        gap: 4px;
+      }
+      .appbar.appbar--surcharge .appbar-title {
+        font-size: 12px;
+        padding: 3px 7px;
+      }
+      .appbar.appbar--surcharge .appbar-nav {
+        gap: 6px;
+      }
+      .appbar.appbar--surcharge .appbar-nav .nav-label {
+        font-size: 12px;
+      }
+      .appbar.appbar--surcharge .gps-pill {
+        padding: 3px 6px;
+      }
+      .gps-pill {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 3px 8px;
+      }
+      .gps-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #fff;
+        opacity: 0.4;
+      }
+      .gps-dot.ok {
+        opacity: 1;
+        background: #4ade80;
+      }

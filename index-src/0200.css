@@ -1,0 +1,41 @@
+      /* ★右グループ: 業務/使い方/設定 ナビ (青バー内・ラベルのみ・active は白+下線) */
+      .appbar-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .appbar-nav .nav-item {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        padding: 4px 1px;
+        position: relative;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .appbar-nav .nav-icon {
+        display: none; /* 青バーはラベルのみでスリムに */
+      }
+      .appbar-nav .nav-label {
+        font-size: 13px;
+        font-weight: 800; /* ★2026-07-18 司さん指示: タブ文字が薄い→濃く(0.72→0.95)太く */
+        color: rgba(255, 255, 255, 0.95);
+        letter-spacing: 0.2px;
+      }
+      .appbar-nav .nav-item.active .nav-label {
+        color: #fff;
+      }
+      .appbar-nav .nav-item.active::after {
+        content: '';
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        bottom: -1px;
+        height: 2.5px;
+        border-radius: 2px;
+        background: #fff;
+      }
+      .appbar-nav .nav-item:active {
+        opacity: 0.6;
+      }

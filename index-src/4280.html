@@ -1,0 +1,260 @@
+          <!-- ★区間(ゾーン)料金はcalcFare未実装=設定しても効かない死に機能→タブを隠す(監査・嘘設定で信頼破壊を防ぐ・今後対応)★ -->
+        </nav>
+        <div class="tab-content">
+          <section class="tab-pane" data-pane="basic" style="display: none">
+            <div class="card">
+              <div class="card-title">基本料金</div>
+              <div class="form-row">
+                <div class="form-label">初乗り料金</div>
+                <div>
+                  <input class="form-input" type="number" id="_fare_baseFare" min="0" /><span
+                    class="form-unit"
+                    >円</span
+                  >
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">初乗り距離</div>
+                <div>
+                  <input class="form-input" type="number" id="_fare_baseDistance" min="0" /><span
+                    class="form-unit"
+                    >m</span
+                  >
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">加算料金</div>
+                <div>
+                  <input class="form-input" type="number" id="_fare_addFare" min="0" /><span
+                    class="form-unit"
+                    >円</span
+                  >
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">加算距離</div>
+                <div>
+                  <input class="form-input" type="number" id="_fare_addDistance" min="0" /><span
+                    class="form-unit"
+                    >m</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">請求の下限・上限 (任意)</div>
+              <div class="card-desc">
+                自動計算後の料金がこの範囲を外れたら、強制的にこの金額にします。空欄なら制限なし。
+              </div>
+              <div class="form-row">
+                <div class="form-label">下限 (これ未満なら切り上げ)</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_minFare"
+                    min="0"
+                    placeholder="なし"
+                  /><span class="form-unit">円</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">上限 (これ超なら切り下げ)</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_maxFare"
+                    min="0"
+                    placeholder="なし"
+                  /><span class="form-unit">円</span>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">請求金額の丸め</div>
+              <div class="card-desc">
+                合計料金をこの単位で切り上げます (例: 10円 単位なら 1,387円 → 1,390円)。
+              </div>
+              <div class="pill-group" id="_fare_roundingPills">
+                <div class="pill" data-val="1">1円 (丸めなし)</div>
+                <div class="pill" data-val="10">10円</div>
+                <div class="pill" data-val="50">50円</div>
+                <div class="pill" data-val="100">100円</div>
+              </div>
+            </div>
+          </section>
+          <section class="tab-pane" data-pane="tiers" style="display: none">
+            <div class="card">
+              <div class="card-title">段階料金</div>
+              <div class="form-row">
+                <div class="form-label">段階料金を使用</div>
+                <div class="toggle" id="_fare_tiersEnabledToggle"></div>
+              </div>
+              <div class="card-desc">空=旧来 base+add 単純計算</div>
+            </div>
+            <div id="_fare_tiersList"></div>
+            <button class="btn-add" onclick="window._fare_addTier()">＋ 区間追加</button>
+          </section>
+          <section class="tab-pane" data-pane="surcharges" style="display: none">
+            <div class="card">
+              <div class="card-title">手動割増ボタン</div>
+              <div class="card-desc">業務画面で ON/OFF できる割増・複数同時で乗算</div>
+            </div>
+            <div id="_fare_surchargesList"></div>
+            <button class="btn-add" onclick="window._fare_addSurcharge()">＋ 割増追加</button>
+          </section>
+          <section class="tab-pane" data-pane="auto" style="display: none">
+            <div class="card">
+              <div class="card-title">深夜割増</div>
+              <div class="form-row">
+                <div class="form-label">使用</div>
+                <div class="toggle" id="_fare_autoNightToggle"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">開始時</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_autoNightFrom"
+                    min="0"
+                    max="23"
+                  /><span class="form-unit">時</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">終了時</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_autoNightTo"
+                    min="0"
+                    max="23"
+                  /><span class="form-unit">時</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">倍率</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_autoNightRate"
+                    step="0.05"
+                    min="1.0"
+                    max="3.0"
+                  /><span class="form-unit">倍</span>
+                </div>
+              </div>
+              <div class="auto-status inactive" id="_fare_autoNightStatus">現在 適用外</div>
+            </div>
+            <div class="card">
+              <div class="card-title">週末割増 (土日)</div>
+              <div class="form-row">
+                <div class="form-label">使用</div>
+                <div class="toggle" id="_fare_autoWeekendToggle"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">倍率</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_autoWeekendRate"
+                    step="0.05"
+                    min="1.0"
+                    max="3.0"
+                  /><span class="form-unit">倍</span>
+                </div>
+              </div>
+              <div class="auto-status inactive" id="_fare_autoWeekendStatus">現在 適用外</div>
+            </div>
+            <div class="card">
+              <div class="card-title">冬季割増</div>
+              <div class="form-row">
+                <div class="form-label">使用</div>
+                <div class="toggle" id="_fare_autoWinterToggle"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">開始日</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="text"
+                    id="_fare_autoWinterFrom"
+                    placeholder="12-15"
+                  />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">終了日</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="text"
+                    id="_fare_autoWinterTo"
+                    placeholder="03-15"
+                  />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">倍率</div>
+                <div>
+                  <input
+                    class="form-input"
+                    type="number"
+                    id="_fare_autoWinterRate"
+                    step="0.05"
+                    min="1.0"
+                    max="3.0"
+                  /><span class="form-unit">倍</span>
+                </div>
+              </div>
+              <div class="auto-status inactive" id="_fare_autoWinterStatus">現在 適用外</div>
+            </div>
+          </section>
+          <section class="tab-pane" data-pane="vehicles" style="display: none">
+            <div class="card">
+              <div class="card-title">車種別料金</div>
+              <div class="form-row">
+                <div class="form-label">車種別料金を使用</div>
+                <div class="toggle" id="_fare_vehiclesEnabledToggle"></div>
+              </div>
+              <div class="card-desc">業務開始時に車種を選択する設計</div>
+            </div>
+            <div id="_fare_vehiclesList"></div>
+            <button class="btn-add" onclick="window._fare_addVehicle()">＋ 車種追加</button>
+          </section>
+          <section class="tab-pane" data-pane="wait" style="display: none">
+            <div class="card">
+              <div class="card-title">待機料金</div>
+              <div class="form-row">
+                <div class="form-label">使用</div>
+                <div class="toggle" id="_fare_waitEnabledToggle"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">無料時間</div>
+                <div>
+                  <input class="form-input" type="number" id="_fare_waitFreeMins" min="0" /><span
+                    class="form-unit"
+                    >分</span
+                  >
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">単価</div>
+                <div>
+                  <input class="form-input" type="number" id="_fare_waitRate" min="0" /><span
+                    class="form-unit"
+                    >円/分</span
+                  >
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-label">停車判定速度</div>
+                <div><span class="form-unit" style="margin-right: 8px">3km/h 固定</span></div>
+              </div>
+            </div>
+          </section>

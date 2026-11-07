@@ -1,0 +1,4 @@
+      /* ★設計変更宣言 (2026-05-14・MA-4-FIX): 内側の flex:1 + overflow-y:auto を撤去・親 .spa-overlay が scroll を担う */
+      #overlayHelp .content {
+        padding: 16px 14px;
+      }

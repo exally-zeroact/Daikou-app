@@ -1,0 +1,22 @@
+      /* ★設計変更宣言 (2026-05-14): box-sizing:border-box で border 含めた寸法を統一・どんな border 設定でも .btn-business-resume-start と完全同サイズになる */
+      .btn-business-start {
+        box-sizing: border-box;
+        width: 80%;
+        max-width: 300px;
+        padding: 14px;
+        background: #007aff;
+        border: none;
+        border-radius: 12px;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        font-family: 'Noto Sans JP', sans-serif;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .btn-business-start:active {
+        transform: scale(0.98);
+        filter: brightness(0.9);
+      }
+

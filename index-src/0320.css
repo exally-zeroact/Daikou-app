@@ -1,0 +1,404 @@
+      /* ★OBD切断時(再接続促し・司さん2026-06-30「全部の画面に途切れたら出して」):
+         一度繋いだ後に途切れたらチップを赤ベタにして一目で異常+タップ再接続を誘導 */
+      .obd-chip.reconnect {
+        background: #ff3b30;
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+      }
+      /* PWAインストール促進バナー */
+      .pwa-banner {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        background: #e8f4fd;
+        border-bottom: 2px solid #007aff;
+        padding: 10px 14px;
+        flex-shrink: 0;
+      }
+      .pwa-banner.show {
+        display: flex;
+      }
+      .pwa-banner-text {
+        flex: 1;
+        font-size: 12px;
+        color: #005bb5;
+        line-height: 1.5;
+      }
+
+      /* ─── 初回DL UI（Phase 0a-1） ─── */
+      /* 最前面（z-index:1100）・初回DL完了まで全画面固定 */
+      .dl-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: #007aff;
+        z-index: 1100;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(20px, 5vh, 48px) 28px clamp(20px, 4vh, 40px);
+        padding-top: max(env(safe-area-inset-top), clamp(20px, 5vh, 48px));
+        opacity: 1;
+        transition: opacity 0.5s ease-out;
+      }
+      .dl-overlay.show {
+        display: flex;
+      }
+      .dl-overlay.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .dl-icon {
+        font-size: 48px;
+        margin-bottom: 18px;
+      }
+      .dl-title {
+        color: #fff;
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        text-align: center;
+        line-height: 1.4;
+      }
+      .dl-desc {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 14px;
+        line-height: 1.6;
+        text-align: center;
+        margin-bottom: 24px;
+        max-width: 400px;
+      }
+      .dl-progress-wrap {
+        width: 100%;
+        max-width: 360px;
+        margin-bottom: 14px;
+      }
+      .dl-progress-bar {
+        width: 100%;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        overflow: hidden;
+      }
+      .dl-progress-fill {
+        height: 100%;
+        background: #fff;
+        border-radius: 5px;
+        transition: width 0.3s ease;
+      }
+      .dl-progress-text {
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 8px;
+        text-align: center;
+      }
+      .dl-hint {
+        color: rgba(255, 255, 255, 0.75);
+        font-size: 12px;
+        margin-top: 14px;
+        text-align: center;
+      }
+      .dl-btn {
+        width: 100%;
+        max-width: 360px;
+        padding: 16px;
+        background: #fff;
+        color: #007aff;
+        border: none;
+        border-radius: 14px;
+        font-size: 17px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+        margin-top: 20px;
+      }
+      .dl-btn:active {
+        opacity: 0.85;
+      }
+      .dl-state-loading {
+        display: none;
+      }
+      .dl-state-loading.show {
+        display: block;
+      }
+      .dl-state-complete {
+        display: none;
+      }
+      .dl-state-complete.show {
+        display: block;
+      }
+      /* ─── 月次更新トースト ─── */
+      .dl-update-toast {
+        position: fixed;
+        left: 50%;
+        top: max(60px, calc(env(safe-area-inset-top) + 56px));
+        transform: translateX(-50%);
+        background: #e8f4fd;
+        border: 1.5px solid #007aff;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        color: #1c1c1e;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        z-index: 1050;
+        width: 85%;
+        max-width: 360px;
+        text-align: center;
+        font-weight: 600;
+        display: none;
+        cursor: pointer;
+      }
+      .dl-update-toast.show {
+        display: block;
+        animation: dl-toast-in 0.3s ease-out;
+      }
+      .dl-update-toast.fade-out {
+        animation: dl-toast-out 0.3s ease-in forwards;
+      }
+      @keyframes dl-toast-in {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -10px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
+      @keyframes dl-toast-out {
+        from {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+        to {
+          opacity: 0;
+          transform: translate(-50%, -10px);
+        }
+      }
+
+      .pwa-banner-text strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 2px;
+      }
+      .pwa-banner-btn {
+        background: #007aff;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      .pwa-banner-close {
+        background: none;
+        border: none;
+        color: #007aff;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0 4px;
+      }
+      /* Android APK 配布バナー (Chrome WebAPK 不可端末向け) */
+      .apk-banner {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        background: #fff8e1;
+        border-bottom: 2px solid #f59e0b;
+        padding: 10px 14px;
+        flex-shrink: 0;
+      }
+      .apk-banner.show {
+        display: flex;
+      }
+      .apk-banner-text {
+        flex: 1;
+        font-size: 12px;
+        color: #7a4a00;
+        line-height: 1.5;
+      }
+      .apk-banner-text strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 2px;
+        color: #7a4a00;
+      }
+      .apk-banner-btn {
+        background: #f59e0b;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        font-family: 'Noto Sans JP', sans-serif;
+        text-decoration: none;
+        display: inline-block;
+      }
+      .apk-banner-close {
+        background: none;
+        border: none;
+        color: #7a4a00;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0 4px;
+      }
+      /* APK インストール手順モーダル */
+      .apk-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 1200;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .apk-modal.show {
+        display: flex;
+      }
+      .apk-modal-box {
+        background: #fff;
+        border-radius: 14px;
+        max-width: 420px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 20px 22px;
+      }
+      .apk-modal-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #111;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .apk-modal-step {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: #333;
+        line-height: 1.6;
+      }
+      .apk-modal-step-num {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #f59e0b;
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+      }
+      .apk-modal-step b {
+        color: #111;
+      }
+      .apk-modal-warn {
+        background: #fff8e1;
+        border: 1px solid #f59e0b;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 12px;
+        color: #7a4a00;
+        line-height: 1.5;
+        margin: 14px 0;
+      }
+      .apk-modal-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .apk-modal-dl {
+        flex: 1;
+        background: #f59e0b;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        padding: 13px;
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+        text-decoration: none;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      .apk-modal-close {
+        background: #eee;
+        color: #555;
+        border: none;
+        border-radius: 10px;
+        padding: 13px 18px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        font-family: 'Noto Sans JP', sans-serif;
+      }
+      .gps-acc {
+        font-size: 11px;
+        color: #fff;
+        opacity: 0.8;
+      }
+      .surcharge-badge {
+        background: #ff3b30;
+        border-radius: 8px;
+        padding: 3px 8px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      /* fareConfig v2 (2026-05-10): 動的 surcharge ボタン群 */
+      .surcharge-group {
+        display: none;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        padding: 8px 12px;
+        background: #e8f4fd;
+        border-bottom: 1px solid #b8d9ff;
+      }
+      .surcharge-group.show {
+        display: flex;
+      }
+      .surcharge-btn {
+        padding: 6px 10px;
+        border-radius: 18px;
+        border: 1.5px solid;
+        font-size: 12px;
+        font-weight: 700;
+        font-family: 'DM Mono', monospace;
+        cursor: pointer;
+        background: #fff;
+        color: #999;
+        border-color: #ccc;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .surcharge-btn.on {
+        color: #fff;
+      }
+      .surcharge-mult {
+        margin-left: auto;
+        font-size: 13px;
+        color: #1c1c1e;
+        font-weight: 700;
+        font-family: 'DM Mono', monospace;
+      }
+      @media (orientation: landscape) {
+        .surcharge-group {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+        }
+        .surcharge-group::-webkit-scrollbar {
+          display: none;
+        }
+      }

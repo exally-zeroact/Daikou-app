@@ -1,0 +1,24 @@
+        <!-- ★設計変更宣言 (2026-05-26・初回データ DL ガード):
+             dlOverlay は X4 方式 E で Phase A 完了時に hide されるが・
+             background load (= 47 県 roads + 282 件 aux) は 33 秒継続する。
+             その間に・「センサーを許可」 → 「業務開始」 → 「代行開始」 が押せると
+             不完全データで業務開始リスク (= 司さん 2026-05-26 実機指摘)。
+             対応: window._mmPipeline._bgLoadDone を polling し・完了まで全 5 ボタン disabled。
+             マーカー (= localStorage daikome_warmup_v1) あり = 2 回目以降は即 active。
+             お節介バナー禁止ルール 抵触なし (= 機能要件・必須表示)。 -->
+        <div
+          id="dataReadyHint"
+          style="
+            display: none;
+            text-align: center;
+            font-size: 13px;
+            color: #007aff;
+            font-weight: 600;
+            padding: 10px 18px;
+            margin: 0 24px;
+            background: rgba(0, 122, 255, 0.08);
+            border-radius: 10px;
+            line-height: 1.5;
+            max-width: 320px;
+          "
+        ></div>
