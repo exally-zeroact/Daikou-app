@@ -66,6 +66,9 @@ export const WEBKIT_KUMI = [
   'kyuryo-honnin-mise.spec.js', // 本人の 明細の 絵（pdf.js）＝iPhone の WebKit でも 描けるか（2026-10-31）
   // 従業員の 明細の 期間の ボタン（iPhone の 中身でも 1行に 入るか・対立役 M1 2026-10-20）
   'kyuryo-honnin-kikan.spec.js',
+  // 従業員の 明細の 紙が 幅ぴったり（iPhone の 中身でも 右が 切れないか・本番前の 対立役 N1 2026-10-20）
+  //   makibou は chromium の 巻き棒を 隠す 前提なので 入れない
+  'kyuryo-honnin-haba.spec.js',
   // 従業員の 明細＝勤め始める 前の 期を ¥0 の 紙で 出さない（登録日の 字の 読みが Safari で 違えば iPhone だけ 戻る・N4 対立役 2026-10-21）
   'kyuryo-honnin-hajime.spec.js',
   // 従業員の 明細＝辞めた 人の 記録の 無い 期は ¥0・札が 切れた 後の 入れる 画面に 月の 欄を 出さない（本番前の 対立役 止1・止2 2026-10-30）
