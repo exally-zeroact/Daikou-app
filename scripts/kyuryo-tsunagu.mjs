@@ -69,25 +69,43 @@ export function wari(js) {
   return parts;
 }
 
-export const na = (k) => String(k * 10).padStart(3, '0') + '.js';
-const NA = /^\d{3}\.js$/;
+// 枚の 名＝4桁の 数（初めは 100 ずつ 空ける＝間に 99枚・尻に 足す 時は 10 ずつ）（taiketsu 注10）
+const HABA = 100;
+const SHIRI = 10;
+const SAIDAI = 9999;
+export const na = (k) => String(k * HABA).padStart(4, '0') + '.js';
+const NA = /^\d{4}\.js$/;
 const midashi = (p) => {
   const m = p.split('\n').find((l) => MIDASHI.test(l));
   return m ? m.trim() : '（頭）';
 };
+// 2枚の 中身の 近さ＝同じ 行（空行を 除く）の 数
+function chikasa(a, b) {
+  const s = new Set(a.split('\n').filter((l) => l.trim()));
+  return b.split('\n').filter((l) => l.trim() && s.has(l)).length;
+}
 
-// ★枚の 名を 引き継ぐ★（設計前 taiketsu 止2）
+// ★枚の 名を 引き継ぐ★（設計前 taiketsu 止2・注10・注11）
 //   名を 並び順で 付け直すと、間に 節を 足した 時に 後ろの 枚が みな「名は そのまま・中身は 隣の 節」に なり
-//   枚ごとの git log が 混ざる。⇒ 見出しの 字で 前の 枚に 当て、当たらない 物は 同じ 間に 在った 前の 名を 順に 使い、
-//   それでも 余る（新しい 節）時だけ 間の 番号（015 等）を 付ける。前の 枚が 無い 時は 000,010,…。
+//   枚ごとの git log が 混ざる。⇒ ①見出しの 字で 前の 枚に 当てる ②当たらない 物は 同じ 間に 在った 前の 枚の うち
+//   ★中身が 一番 近い 物★（同じ 行が 半分 以上）の 名を 使う ③それでも 当たらない（新しい 節）時だけ 間の 番号を 付ける。
+//   番号の 間が 尽きたら 全部を 振り直す（その commit だけ 履歴が 名替えに なる・furinaoshi で 知らせる）。
 export function namae(parts, oldNames = [], oldParts = []) {
-  if (!oldNames.length) return parts.map((_, k) => na(k));
-  const num = (n) => Number(n.slice(0, 3));
+  const zenbu = () =>
+    // 印は 数えない 持ち物（配列の 中身の 比べに 混ざらない）
+    Object.defineProperty(
+      parts.map((_, k) => na(k)),
+      'furinaoshi',
+      { value: oldNames.length > 0 }
+    );
+  if (!oldNames.length || !oldNames.every((n) => NA.test(n))) return zenbu();
+  const num = (n) => Number(n.slice(0, 4));
+  const oldP = new Map(oldNames.map((n, k) => [n, oldParts[k]]));
   const oldH = new Map();
-  oldParts.forEach((p, k) => {
-    const h = midashi(p);
+  oldNames.forEach((n) => {
+    const h = midashi(oldP.get(n));
     if (!oldH.has(h)) oldH.set(h, []);
-    oldH.get(h).push(oldNames[k]);
+    oldH.get(h).push(n);
   });
   const as = parts.map(() => null);
   const tsukatta = new Set();
@@ -100,7 +118,6 @@ export function namae(parts, oldNames = [], oldParts = []) {
       mae = num(c);
     }
   });
-  // 当たらない 物の 並び（同じ 当たりの 間）ごとに：前の 名の 余り → 新しい 番号
   let k = 0;
   while (k < parts.length) {
     if (as[k]) {
@@ -110,29 +127,51 @@ export function namae(parts, oldNames = [], oldParts = []) {
     let e = k;
     while (e < parts.length && !as[e]) e++;
     const lo = k > 0 ? num(as[k - 1]) : -1;
-    const hi = e < parts.length ? num(as[e]) : 1000;
-    const amari = oldNames.filter((n) => !tsukatta.has(n) && num(n) > lo && num(n) < hi);
+    const hi = e < parts.length ? num(as[e]) : null; // null＝尻
+    const amari = oldNames.filter(
+      (n) => !tsukatta.has(n) && num(n) > lo && (hi === null || num(n) < hi)
+    );
     const m = e - k;
-    const ireru = [];
+    // ② 中身の 近さで 当てる（並びは 守る＝後ろの 物ほど 大きい 名）
+    const ireru = Array(m).fill(null);
+    let j0 = 0;
     for (let i = 0; i < m; i++) {
-      if (i < amari.length) ireru.push(num(amari[i]));
-      else ireru.push(null);
+      let best = -1,
+        bestV = 0;
+      const nagasa = parts[k + i].split('\n').filter((l) => l.trim()).length;
+      for (let j = j0; j < amari.length; j++) {
+        const v = chikasa(oldP.get(amari[j]), parts[k + i]);
+        if (v > bestV && v * 2 >= nagasa) {
+          best = j;
+          bestV = v;
+        }
+      }
+      if (best >= 0) {
+        ireru[i] = num(amari[best]);
+        tsukatta.add(amari[best]);
+        j0 = best + 1;
+      }
     }
-    // 新しい 番号は 前後の 間を 等しく 割る
+    // ③ 新しい 番号（間は 等しく 割る・尻は 10 ずつ）
     for (let i = 0; i < m; i++) {
       if (ireru[i] !== null) continue;
       const a = i > 0 ? ireru[i - 1] : lo;
       let j = i;
       while (j < m && ireru[j] === null) j++;
-      const b = j < m ? ireru[j] : hi;
       const cnt = j - i;
-      if (b - a - 1 < cnt)
-        throw new Error(`枚の 番号の 間が 足りない（${a} と ${b} の 間に ${cnt}枚）`);
-      for (let q = 0; q < cnt; q++) ireru[i + q] = a + Math.floor(((b - a) * (q + 1)) / (cnt + 1));
+      if (j === m && hi === null) {
+        for (let q = 0; q < cnt; q++) ireru[i + q] = a + SHIRI * (q + 1);
+        if (ireru[m - 1] > SAIDAI) return zenbu();
+      } else {
+        const b = j < m ? ireru[j] : hi;
+        if (b - a - 1 < cnt) return zenbu();
+        for (let q = 0; q < cnt; q++)
+          ireru[i + q] = a + Math.floor(((b - a) * (q + 1)) / (cnt + 1));
+      }
       i = j - 1;
     }
     ireru.forEach((v, q) => {
-      as[k + q] = String(v).padStart(3, '0') + '.js';
+      as[k + q] = String(v).padStart(4, '0') + '.js';
       tsukatta.add(as[k + q]);
     });
     k = e;
@@ -190,7 +229,7 @@ export function zure(js, names, parts, moku) {
   const z = [];
   const want = wari(js);
   if (tsunagu(parts) !== js) z.push(`${SRC} を 繋いだ 物 ≠ ${JS}`);
-  if (!names.every((n) => NA.test(n))) z.push(`枚の 名が 3桁の 数で ない`);
+  if (!names.every((n) => NA.test(n))) z.push(`枚の 名が 4桁の 数で ない`);
   if (names.length !== want.length) z.push(`枚の 数 ${names.length} ≠ 割った 物 ${want.length}`);
   else {
     want.forEach((p, k) => p !== parts[k] && z.push(`${SRC}/${names[k]} ≠ 割った 物`));
@@ -269,6 +308,16 @@ function stageNoMama(root) {
 const onaji = (a, b) =>
   a.names.join(',') === b.names.join(',') && a.parts.every((p, k) => p === b.parts[k]);
 
+// 目次の 字（rev＝'' は index）。無ければ null（taiketsu 注12＝目次だけの 直しも 門で 見る）
+function mokuAt(root, rev) {
+  if (rev === 'HEAD' && !aru(root, 'HEAD')) return null;
+  try {
+    return git(root, ['show', `${rev}:${SRC}/${MOKUJI}`], { stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return null;
+  }
+}
+
 export function mae(root = ROOT, env = undefined) {
   KANKYO = env;
   const sI = srcAt(root, ''),
@@ -277,7 +326,8 @@ export function mae(root = ROOT, env = undefined) {
     jH = jsAt(root, 'HEAD');
   const srcKawari = !onaji(sI, sH),
     jsKawari = jI !== jH;
-  if (!srcKawari && !jsKawari) return { kekka: 'sawaranai' };
+  const mokuKawari = mokuAt(root, '') !== mokuAt(root, 'HEAD');
+  if (!srcKawari && !jsKawari && !mokuKawari) return { kekka: 'sawaranai' };
   if (!stageNoMama(root)) {
     return {
       kekka: 'tomeru',
@@ -307,20 +357,15 @@ export function ato(root = ROOT, env = undefined) {
     jH = jsAt(root, 'HEAD');
   const sI = srcAt(root, ''),
     sH = srcAt(root, 'HEAD');
-  if (jI === jH && onaji(sI, sH)) return { kekka: 'sawaranai' };
+  const mokuI = mokuAt(root, '');
+  if (jI === jH && onaji(sI, sH) && mokuI === mokuAt(root, 'HEAD')) return { kekka: 'sawaranai' };
   if (jI === null) return { kekka: 'tomeru', riyuu: `${JS} が index に 無い` };
   const parts = wari(jI);
-  const mokuI = (() => {
-    try {
-      return git(root, ['show', `:${SRC}/${MOKUJI}`]);
-    } catch {
-      return null;
-    }
-  })();
   if (zure(jI, sI.names, sI.parts, mokuI).length === 0) return { kekka: 'tooru' };
-  kaku(root, parts, namae(parts, sI.names, sI.parts));
+  const names = namae(parts, sI.names, sI.parts);
+  kaku(root, parts, names);
   git(root, ['add', '-A', '--', SRC]);
-  return { kekka: 'src-wo-kaita' };
+  return { kekka: 'src-wo-kaita', furinaoshi: !!names.furinaoshi };
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -339,23 +384,32 @@ if (isMain) {
   } else if (a === '--modosu') {
     const parts = wari(fs.readFileSync(path.join(ROOT, JS), 'utf8'));
     const s = yomuSrc(ROOT);
-    kaku(ROOT, parts, namae(parts, s.names, s.parts));
-    console.error(`${SRC}/ を ${JS} から 書いた`);
+    const furi = process.argv.includes('--furinaosu');
+    const names = furi ? parts.map((_, k) => na(k)) : namae(parts, s.names, s.parts);
+    kaku(ROOT, parts, names);
+    console.error(
+      `${SRC}/ を ${JS} から 書いた${furi || names.furinaoshi ? '（全部 振り直した）' : ''}`
+    );
   } else if (a === '--mae' || a === '--ato') {
     let r;
     try {
       r = a === '--mae' ? mae() : ato();
     } catch (e) {
-      r = { kekka: 'tomeru', riyuu: `${e.message}（何も 書いていない）` };
+      r = {
+        kekka: 'tomeru',
+        riyuu: `${e.message}（途中で 止まった＝git status で ${SRC}/ を 見る）`,
+      };
     }
     if (r.kekka === 'tomeru') {
       console.error(`★給料の js の 門で 止めました★ ${r.riyuu}`);
       process.exit(1);
     }
     if (r.kekka !== 'sawaranai' && r.kekka !== 'tooru')
-      console.error(`kyuryo-tsunagu ${a}: ${r.kekka}`);
+      console.error(
+        `kyuryo-tsunagu ${a}: ${r.kekka}${r.furinaoshi ? '（★枚の 番号が 尽きたので 全部 振り直した＝この commit は 名替え★）' : ''}`
+      );
   } else {
-    console.error('使い方: --check | --modosu | --mae | --ato');
+    console.error('使い方: --check | --modosu [--furinaosu] | --mae | --ato');
     process.exit(2);
   }
 }

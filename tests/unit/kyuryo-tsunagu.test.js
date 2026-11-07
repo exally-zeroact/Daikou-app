@@ -45,13 +45,13 @@ describe('★今の repo の 写し★', () => {
     ).toEqual([]);
   });
 
-  it('枚の 数＝見出しの 数＋1・名は 3桁・各枚に 見出しが 1つ', () => {
+  it('枚の 数＝見出しの 数＋1・名は 4桁・各枚に 見出しが 1つ', () => {
     const js = fs.readFileSync(path.join(ROOT, 'js/kyuryo.js'), 'utf8');
     const heads = js.split('\n').filter((l) => /^ {2}\/\/ ★★/.test(l)).length;
     const s = yomuSrc(ROOT);
     expect(heads).toBeGreaterThan(40);
     expect(s.names.length).toBe(heads + 1);
-    expect(s.names.every((n) => /^\d{3}\.js$/.test(n))).toBe(true);
+    expect(s.names.every((n) => /^\d{4}\.js$/.test(n))).toBe(true);
     s.parts.slice(1).forEach((p, k) => {
       expect(p.split('\n').filter((l) => /^ {2}\/\/ ★★/.test(l)).length, s.names[k + 1]).toBe(1);
     });
@@ -116,15 +116,15 @@ describe('★門（--mae / --ato）★ 一時の git repo', () => {
 
   it('触らない commit は 何も しない（作業木の 他の 直しも 残す）', () => {
     w('hoka.txt', 'x');
-    w('kyuryo-src/010.js', r('kyuryo-src/010.js') + '  // 書きかけ\n');
+    w('kyuryo-src/0100.js', r('kyuryo-src/0100.js') + '  // 書きかけ\n');
     git('add', 'hoka.txt');
     expect(T.mae(R, ENV).kekka).toBe('sawaranai');
     expect(T.ato(R, ENV).kekka).toBe('sawaranai');
-    expect(r('kyuryo-src/010.js')).toMatch(/書きかけ/);
+    expect(r('kyuryo-src/0100.js')).toMatch(/書きかけ/);
   });
 
   it('写しだけ 直す → 繋いで js を 書く', () => {
-    w('kyuryo-src/010.js', r('kyuryo-src/010.js').replace('return a;', 'return a + 1;'));
+    w('kyuryo-src/0100.js', r('kyuryo-src/0100.js').replace('return a;', 'return a + 1;'));
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('js-wo-kaita');
     expect(T.ato(R, ENV).kekka).toBe('tooru'); // 写しは もう js と 揃っている（書き直さない）
@@ -138,14 +138,14 @@ describe('★門（--mae / --ato）★ 一時の git repo', () => {
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('tooru');
     expect(T.ato(R, ENV).kekka).toBe('src-wo-kaita');
-    expect(r('kyuryo-src/020.js')).toMatch(/return 3;/);
-    expect(git('diff', '--cached', '--name-only')).toMatch(/kyuryo-src\/020\.js/);
+    expect(r('kyuryo-src/0200.js')).toMatch(/return 3;/);
+    expect(git('diff', '--cached', '--name-only')).toMatch(/kyuryo-src\/0200.js/);
     expect(kakunin()).toEqual([]);
   });
 
   it('壊す：両方 直して ずれる → 止める（どちらも 書かない）', () => {
     w('js/kyuryo.js', JS0.replace('return 2;', 'return 3;'));
-    w('kyuryo-src/010.js', r('kyuryo-src/010.js').replace('return a;', 'return a + 1;'));
+    w('kyuryo-src/0100.js', r('kyuryo-src/0100.js').replace('return a;', 'return a + 1;'));
     git('add', '-A');
     const m = T.mae(R, ENV);
     expect(m.kekka).toBe('tomeru');
@@ -156,31 +156,31 @@ describe('★門（--mae / --ato）★ 一時の git repo', () => {
   it('両方 直して 同じ 中身 → 通る', () => {
     const js2 = JS0.replace('return 2;', 'return 3;');
     w('js/kyuryo.js', js2);
-    w('kyuryo-src/020.js', r('kyuryo-src/020.js').replace('return 2;', 'return 3;'));
+    w('kyuryo-src/0200.js', r('kyuryo-src/0200.js').replace('return 2;', 'return 3;'));
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('tooru');
     expect(T.ato(R, ENV).kekka).toBe('tooru');
   });
 
   it('壊す：stage していない 写しの 直し → 止める', () => {
-    w('kyuryo-src/010.js', r('kyuryo-src/010.js').replace('return a;', 'return a + 1;'));
+    w('kyuryo-src/0100.js', r('kyuryo-src/0100.js').replace('return a;', 'return a + 1;'));
     git('add', '-A');
-    w('kyuryo-src/020.js', r('kyuryo-src/020.js').replace('return 2;', 'return 9;'));
+    w('kyuryo-src/0200.js', r('kyuryo-src/0200.js').replace('return 2;', 'return 9;'));
     expect(T.mae(R, ENV).kekka).toBe('tomeru');
-    w('kyuryo-src/999.js', '  // 未追跡\n');
-    git('checkout', '--', 'kyuryo-src/020.js');
+    w('kyuryo-src/99999.js', '  // 未追跡\n');
+    git('checkout', '--', 'kyuryo-src/0200.js');
     expect(T.mae(R, ENV).kekka).toBe('tomeru');
   });
 
   it('整形が js を 変えた（lint-staged の 形）→ 写しが 後を 追う', () => {
-    w('kyuryo-src/020.js', r('kyuryo-src/020.js').replace('return 2;', 'return  2;'));
+    w('kyuryo-src/0200.js', r('kyuryo-src/0200.js').replace('return 2;', 'return  2;'));
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('js-wo-kaita');
     // lint-staged の prettier が js を 書き直して add した 形
     w('js/kyuryo.js', r('js/kyuryo.js').replace('return  2;', 'return 2; // 整形'));
     git('add', 'js/kyuryo.js');
     expect(T.ato(R, ENV).kekka).toBe('src-wo-kaita');
-    expect(r('kyuryo-src/020.js')).toMatch(/return 2; \/\/ 整形/);
+    expect(r('kyuryo-src/0200.js')).toMatch(/return 2; \/\/ 整形/);
     // stage していない 残りが 無い（作り直した 物は 全部 commit に 入る）
     expect(git('diff', '--name-only').trim()).toBe('');
     expect(kakunin()).toEqual([]);
@@ -188,28 +188,28 @@ describe('★門（--mae / --ato）★ 一時の git repo', () => {
 
   it('★止2★ 間に 節を 足しても 後ろの 枚の 名は そのまま（新しい 節だけ 間の 番号）', () => {
     w(
-      'kyuryo-src/010.js',
-      r('kyuryo-src/010.js') + '  // ★★節1半★★\n  function h() {\n    return 4;\n  }\n'
+      'kyuryo-src/0100.js',
+      r('kyuryo-src/0100.js') + '  // ★★節1半★★\n  function h() {\n    return 4;\n  }\n'
     );
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('js-wo-kaita');
     expect(T.ato(R, ENV).kekka).toBe('src-wo-kaita');
-    expect(yomuSrc(R).names).toEqual(['000.js', '010.js', '015.js', '020.js']);
-    expect(r('kyuryo-src/015.js')).toMatch(/節1半/);
-    expect(r('kyuryo-src/020.js')).toMatch(/節2/);
+    expect(yomuSrc(R).names).toEqual(['0000.js', '0100.js', '0150.js', '0200.js']);
+    expect(r('kyuryo-src/0150.js')).toMatch(/節1半/);
+    expect(r('kyuryo-src/0200.js')).toMatch(/節2/);
     expect(kakunin()).toEqual([]);
     git('commit', '-qm', 'tasu');
     // 020 の 履歴に 節1半 の 直しが 混ざらない
-    expect(git('log', '--format=%s', '--', 'kyuryo-src/020.js').trim()).toBe('hajime');
+    expect(git('log', '--format=%s', '--', 'kyuryo-src/0200.js').trim()).toBe('hajime');
     // 見出しの 字だけ 変えても 名は 引き継ぐ
     w('js/kyuryo.js', r('js/kyuryo.js').replace('★★節2★★', '★★節2 改め★★'));
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('tooru');
     expect(T.ato(R, ENV).kekka).toBe('src-wo-kaita');
-    expect(yomuSrc(R).names).toEqual(['000.js', '010.js', '015.js', '020.js']);
+    expect(yomuSrc(R).names).toEqual(['0000.js', '0100.js', '0150.js', '0200.js']);
     expect(git('diff', '--cached', '--name-status').trim().split('\n')).toEqual([
       'M\tjs/kyuryo.js',
-      'M\tkyuryo-src/020.js',
+      'M\tkyuryo-src/0200.js',
       'M\tkyuryo-src/MOKUJI.md',
     ]);
   });
@@ -222,14 +222,14 @@ describe('★門（--mae / --ato）★ 一時の git repo', () => {
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('tooru');
     expect(T.ato(R, ENV).kekka).toBe('src-wo-kaita');
-    expect(yomuSrc(R).names).toEqual(['000.js', '020.js']);
-    expect(git('diff', '--cached', '--name-status')).toMatch(/D\tkyuryo-src\/010\.js/);
+    expect(yomuSrc(R).names).toEqual(['0000.js', '0200.js']);
+    expect(git('diff', '--cached', '--name-status')).toMatch(/D\tkyuryo-src\/0100.js/);
   });
 
   it('★注7★ HEAD に 写しが 無い（入れる commit）・js と ずれた 写しを 入れる → 止める', () => {
     git('rm', '-rq', '--cached', 'kyuryo-src');
     git('commit', '-qm', 'src-nashi');
-    w('kyuryo-src/010.js', r('kyuryo-src/010.js').replace('return a;', 'return a + 1;'));
+    w('kyuryo-src/0100.js', r('kyuryo-src/0100.js').replace('return a;', 'return a + 1;'));
     w('js/kyuryo.js', JS0.replace('return 2;', 'return 3;'));
     git('add', '-A');
     expect(T.mae(R, ENV).kekka).toBe('tomeru');
@@ -239,6 +239,51 @@ describe('★門（--mae / --ato）★ 一時の git repo', () => {
     w('js/kyuryo.js', JS0.replace('return 2;', 'return 2;;}'));
     git('add', '-A');
     expect(() => T.ato(R, ENV)).toThrow();
-    expect(r('kyuryo-src/020.js')).toMatch(/return 2;\n/);
+    expect(r('kyuryo-src/0200.js')).toMatch(/return 2;\n/);
+  });
+
+  it('★注12★ 目次だけ 直した commit も 門が 正しい 目次に 書き戻す', () => {
+    w('kyuryo-src/MOKUJI.md', r('kyuryo-src/MOKUJI.md') + 'てがき\n');
+    git('add', '-A');
+    expect(T.mae(R, ENV).kekka).toBe('tooru');
+    expect(T.ato(R, ENV).kekka).toBe('src-wo-kaita');
+    expect(r('kyuryo-src/MOKUJI.md')).not.toMatch(/てがき/);
+    expect(kakunin()).toEqual([]);
+  });
+});
+
+describe('★枚の 名（namae）★', () => {
+  const bu = (h, n) =>
+    `  // ★★${h}★★\n` + Array.from({ length: n }, (_, i) => `  var ${h}${i} = ${i};\n`).join('');
+  it('★注10★ 尻に 30回 足しても 番号が 尽きずに 増える・尽きたら 全部 振り直す（止めない）', () => {
+    let parts = ['(function () {\n', bu('A', 3), bu('B', 3)];
+    let names = T.namae(parts);
+    for (let i = 0; i < 30; i++) {
+      const p2 = [...parts, bu('N' + i, 3)];
+      const n2 = T.namae(p2, names, parts);
+      expect(n2.slice(0, -1)).toEqual(names);
+      expect(n2.furinaoshi).toBeFalsy();
+      parts = p2;
+      names = n2;
+    }
+    const kaku = names.map((n) => Number(n.slice(0, 4)));
+    expect(kaku.every((v, i) => i === 0 || v > kaku[i - 1])).toBe(true);
+    // 間が 尽きる 形（0100 と 0101 の 間に 1枚）→ 全部 振り直し
+    const n3 = T.namae(
+      [parts[0], parts[1], bu('X', 3), parts[2]],
+      ['0000.js', '0100.js', '0101.js'],
+      parts.slice(0, 3)
+    );
+    expect(n3.furinaoshi).toBe(true);
+    expect(n3).toEqual(['0000.js', '0100.js', '0200.js', '0300.js']);
+  });
+  it('★注11★ 見出しを 変える＋その 前に 新しい 節を 足す を 1度に しても、変えた 節は 前の 名を 引き継ぐ', () => {
+    const old = ['(function () {\n', bu('A', 5), bu('B', 5), bu('C', 5)];
+    const on = T.namae(old);
+    const B2 = bu('B', 5).replace('★★B★★', '★★B 改め★★');
+    const nw = ['(function () {\n', bu('A', 5), bu('N', 5), B2, bu('C', 5)];
+    const nn = T.namae(nw, on, old);
+    expect(nn[3], '変えた B は 前の B の 名').toBe(on[2]);
+    expect(nn[2] > on[1] && nn[2] < on[2], '新しい N は A と B の 間').toBe(true);
   });
 });
