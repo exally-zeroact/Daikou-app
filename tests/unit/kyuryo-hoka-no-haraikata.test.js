@@ -16,6 +16,7 @@
 //   わざと壊す（10-06 実測）：compute の 日給「代わり」を「足す」に すり替える ⇒ ★赤★（日給の 段）
 // ============================================================
 const P = require('../../js/daiko-payroll.js');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 
 const HI = '2026-10-03';
 function nyuryoku(rate) {
@@ -255,9 +256,8 @@ describe('★1台の 回数・距離の 額を 乗った 2人で 分ける★', 
 //   画面を 開く 試験は 作り物の 倉庫が 頼まれていない 列まで 返すので 見つけられない ⇒ 頼む 字そのものを 見る
 //   わざと壊す（10-06 実測）：kyuryo.html の 2か所の どちらかから actual_total_m を 消す ⇒ ★赤★
 describe('★給料の 画面は 走った 記録の 回数と 距離を 頼む★', () => {
-  const fs = require('fs');
   const path = require('path');
-  const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'kyuryo.html'), 'utf8');
+  const HTML = yomuGamen(path.join(__dirname, '..', '..', 'kyuryo.html'));
   it('dk_shifts を 頼む 所 全部に trip_count・actual_total_m・total_distance_m が 在る', () => {
     const tanomi = HTML.match(/'dk_shifts\?select=[^']*'/g) || [];
     expect(tanomi.length, '★dk_shifts を 頼む 所が 見つからない★').toBeGreaterThanOrEqual(2);
@@ -273,11 +273,10 @@ describe('★給料の 画面は 走った 記録の 回数と 距離を 頼む�
 //   前は どの 画面も 印を 頼まず ★印の 業務を 数えていた★（給料の 計算は 印で 飛ばす 作りなのに 効いていなかった）
 //   わざと壊す（10-07 実測）：uriage.html の 頼みから excluded を 消す ⇒ ★赤★
 describe('★走った 記録を 頼む 所は 全部 使わない 印も 頼む★', () => {
-  const fs2 = require('fs');
   const path2 = require('path');
   ['kyuryo.html', 'uriage.html', 'shukei.html', 'nyuryoku.html'].forEach((na) => {
     it(na, () => {
-      const H = fs2.readFileSync(path2.join(__dirname, '..', '..', na), 'utf8');
+      const H = yomuGamen(path2.join(__dirname, '..', '..', na));
       const tanomi = (H.match(/'dk_shifts\?select=[^']*'/g) || []).filter(
         (t) => t.indexOf('fare_total_yen') >= 0
       );

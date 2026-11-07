@@ -26,6 +26,7 @@
 //     ★CSP の 書き方（https://cdn.jsdelivr.net だけ）は 誤検知しません★
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -39,7 +40,7 @@ function html() {
   return fs
     .readdirSync(ROOT)
     .filter((f) => f.endsWith('.html'))
-    .map((f) => ({ f, s: fs.readFileSync(path.join(ROOT, f), 'utf8') }));
+    .map((f) => ({ f, s: yomuGamen(path.join(ROOT, f)) }));
 }
 
 describe('★外から 借りる 道具は 版を x.y.z まで 書く★', () => {

@@ -36,8 +36,15 @@ test('★在る 給料明細を そのまま 出す★', async ({ page }) => {
     const m = window.__paper.maisu(0);
     const hi = window.__paper.hi(0);
     const el = window.__paper.build(0, 0, Math.min(hi, m.per), 1, m.n);
-    const kazari = Array.from(document.querySelectorAll('style'))
-      .map((s) => s.textContent)
+    // ★2026-11-07★ 見た目は css/kyuryo.css へ 出した＝<style> だけ 集めると 飾りが 空（11-07 taiketsu 注2）
+    //   ⇒ 文書の 並び順の まま <style> と 自前の css/kyuryo.css の 規則を 集める（外の 字体の CSS は 取らない）
+    const kazari = Array.from(document.styleSheets)
+      .filter((ss) => !ss.href || /\/css\/kyuryo\.css(\?|$)/.test(ss.href))
+      .map((ss) =>
+        Array.from(ss.cssRules)
+          .map((r) => r.cssText)
+          .join('\n')
+      )
       .join('\n');
     return {
       ninzu: window.__paper.ninzu(),
@@ -53,6 +60,8 @@ test('★在る 給料明細を そのまま 出す★', async ({ page }) => {
   expect(kami.ninzu, '★人が 1人も 居ない★').toBeGreaterThan(0);
   expect(kami.ji, '★紙に 字が 無い★').toBeGreaterThan(200);
   expect(kami.html.length, '★紙の 字が 空★').toBeGreaterThan(1000);
+  // 飾りが 空の まま 撮らない（css/kyuryo.css の 紙の 規則 .slip が 入っている）
+  expect(kami.kazari, '★紙の 飾り（css/kyuryo.css）を 集められていない★').toMatch(/\.slip\b/);
 
   const W = Math.round((842 * 96) / 72); // A4 横
   await page.setContent(

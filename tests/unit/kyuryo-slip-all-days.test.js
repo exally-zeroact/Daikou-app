@@ -24,13 +24,13 @@
 //     412px … 同じ ／ 1000px … 今まで通り 横・日 10個
 //     PDFの窓 … 中に 横の表が在り 日 10個（紙は変わっていない）
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 // ★行末を そろえてから見る★
 //   このrepoの手元は CRLF。'\n' で探すと ★在るのに無いと言う（嘘の赤）★（2026-08-25 実測）。
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8').replace(/\r\n/g, '\n');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html')).replace(/\r\n/g, '\n');
 
 // そのCSSの決まり1つ分だけを取り出す（行の頭から探す＝中の同じ名前を掴まない）
 function ruleOf(html, selector) {

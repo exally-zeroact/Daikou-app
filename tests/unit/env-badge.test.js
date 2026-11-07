@@ -19,12 +19,12 @@
 //   ⇒★この見張りは 両repoで 同じ物が 回ります★（本番では「出ない」を 見る）
 'use strict';
 
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..', '..');
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const read = (rel) => yomuGamen(path.join(ROOT, rel));
 
 // ★帯を出す画面（6枚）★
 const GAMEN = [

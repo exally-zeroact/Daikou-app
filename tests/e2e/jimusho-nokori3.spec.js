@@ -21,6 +21,7 @@
 // ============================================================
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const FIX = JSON.parse(
@@ -128,7 +129,7 @@ test('★★① 払い方で 要る 欄だけ 出る★★（10-07 締めの 形
 });
 
 test('★★② 明細に出す の 2か所が 名前で 分かる★★', async () => {
-  const SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'kyuryo.html'), 'utf8');
+  const SRC = yomuGamen(path.join(__dirname, '..', '..', 'kyuryo.html'));
   // ★消していない事★（2つとも 在る）＝別物なので 両方 要る
   expect(SRC.indexOf('明細に出す車'), '★人ごとの 側が ありません★').toBeGreaterThan(0);
   // ★どちらに 効くかが 書いてある事★

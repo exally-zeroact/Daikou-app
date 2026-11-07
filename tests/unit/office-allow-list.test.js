@@ -228,8 +228,12 @@ describe('★JSが 後から読む物も 通してある★', () => {
   });
 
   it('★実物の kyuryo.html でも 拾えている★（見本ではなく 本物で押す）', () => {
-    const html = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+    // ★2026-11-07★ kyuryo.html の 動きは js/kyuryo.js へ 出した＝★殻と js の 両方★で 押す
+    const kara = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+    expect([...OA.refsIn(kara)], '★殻が js/kyuryo.js を 読んでいない★').toContain('/js/kyuryo.js');
+    const html = fs.readFileSync(path.join(ROOT, 'js', 'kyuryo.js'), 'utf8');
     const got = [...OA.runtimeRefsIn(html, ROOT)];
+    expect(OA.buildAllowList(ROOT).allow, '★一覧に 入っていない★').toContain('/js/kami-egaku.js');
     // ★2026-09-26 に 道具が 変わった★
     //   jsPDF + html2canvas（絵にして 貼る）→ pdf-lib（本物の 字を 描く）
     //   押した時に 読むのは ★js/kami-egaku.js★ ただ1本（その先は ②で 追う）

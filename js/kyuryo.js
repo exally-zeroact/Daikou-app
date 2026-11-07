@@ -1,0 +1,8089 @@
+(function () {
+  'use strict';
+
+  // ★管理画面の中に入っている時は、上のリンク列を出さない（1つのアプリに見せる）★
+  //   単体URLで開いた時は今まで通り出る。
+  try {
+    if (window.self !== window.top) document.body.classList.add('embedded');
+  } catch (_) {
+    document.body.classList.add('embedded'); // 読めない = 中に入っている
+  }
+
+  // ★★今の 日本時間（年・月・日の 欄が 日本時間に なる Date）★★ 2026-10-08（司さん「対応させろや」）
+  //   日の 切り方を 給料（payroll-daily.js の 日本時間）と 入力の 画面に 揃える。日本の 端末では 1つも 変わらない
+  function jstNow() {
+    var t = new Date(Date.now() + 9 * 3600 * 1000);
+    return new Date(
+      t.getUTCFullYear(),
+      t.getUTCMonth(),
+      t.getUTCDate(),
+      t.getUTCHours(),
+      t.getUTCMinutes()
+    );
+  }
+  var SESS = null;
+  var COMPANY = null;
+  var TAB = 'slip';
+  var YM = { year: jstNow().getFullYear(), month: jstNow().getMonth() + 1 };
+  var PERIODS = []; // その月の期（司さんは月3回払い＝3つ）
+  var PIDX = 0; // いま見ている期
+  var PERIOD = null;
+  var SET = null; // dk_payroll_settings の行（生）
+  var RAW = {
+    shifts: [],
+    edits: [],
+    labels: [],
+    employees: [],
+    workHours: [],
+    manualDays: [], // 手で入れた1日分（スマホが無くても給料を出せる）
+    payrollSettings: null,
+    // ★人ごとの 歩合・保証・役割の 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
+    rireki: [],
+    // ★役割の 決まりの 変えた 記録（何日から）★ 2026-10-18＝null は 読めなかった（計算が 止める）
+    yakuRireki: [],
+    // ★締めの 形の 変えた 記録（何日から）★ 2026-10-19＝null は 読めなかった（区切りが 止める）
+    shimeRireki: [],
+  };
+  var CTX = null;
+  var REP = null;
+
+  // ★画面に出す車の名前 (2026-08-04)★
+  //   司さん「売上1の横の英語のやつ邪魔でしょうがない」
+  //   名前が無い時に端末ID(UUID)をそのまま出していたのをやめる。
+  //   番号は「その会社の端末を並べた順」で決める＝★開くたびに車1と車2が入れ替わらない★。
+  var _CAR_NAMES = null;
+  function _carNames() {
+    if (_CAR_NAMES) return _CAR_NAMES;
+    var ids = [];
+    // ★★名前を 付けた 車は 走っていなくても 数える★★ 2026-09-04（司さん）
+    //   「★なんで 1173って 登録しとるやつが 反映されてないんど★」
+    //   ★実測★ 1173（端末 22849fdb）は 倉庫に 登録ずみ。
+    //     でも 最後に 走ったのは ★8/3★ ⇒ 9月の 記録には 出てこない
+    //     ⇒ ここで 名前の 元に 入らず ★「車」と 出ていた★
+    //   ★nameMap の 決まりは「その会社の端末ID全部」★（js/car-name.js）
+    //     ＝★走った 記録だけ 渡していたのが 間違い★
+    // ★★選ぶ欄に 出す 車と 同じ 元を 使う★★（別々に 数えない）
+    //   CTX.devices ＝ 名前を 付けた 車 ＋ 走った 車 ＋ 手で 入れた 車
+    //   ★前は ここだけ「走った 記録」しか 見ておらず、
+    //     ★登録しただけの 1173 が 「車」と 出ていました★（司さん 2026-09-04）
+    ((CTX && CTX.devices) || []).forEach(function (d) {
+      if (typeof d === 'string' && d) ids.push(d);
+    });
+    // ★CTX が まだ 出来ていない時の 逃げ道★（同じ 物を 直に 集める）
+    (RAW.labels || []).forEach(function (l) {
+      if (l && typeof l.device_id === 'string' && l.device_id) ids.push(l.device_id);
+    });
+    (RAW.shifts || []).forEach(function (s) {
+      if (s && typeof s.device_id === 'string' && s.device_id) ids.push(s.device_id);
+    });
+    (RAW.workHours || []).forEach(function (w) {
+      if (w && typeof w.device_id === 'string' && w.device_id) ids.push(w.device_id);
+    });
+    (RAW.manualDays || []).forEach(function (m) {
+      if (m && typeof m.device_id === 'string' && m.device_id) ids.push(m.device_id);
+    });
+    _CAR_NAMES = window.CarName ? window.CarName.nameMap(ids, RAW.labels) : {};
+    return _CAR_NAMES;
+  }
+  function _carName(deviceId) {
+    var m = _carNames();
+    return m[deviceId] || '車'; // ★どんな時もUUIDは出さない★
+  }
+
+  var $ = function (id) {
+    return document.getElementById(id);
+  };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[<>&"]/g, function (c) {
+      return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c];
+    });
+  }
+  function showErr(m) {
+    // 期の 計算が 転んだ 間は 他の 成功で 訳を 消さない（対立役 3回目 直す-2：画面が 直って 見えるのに 断られた）
+    if (!m && typeof KEISAN_NG !== 'undefined' && KEISAN_NG) m = KEISAN_NG_JI;
+    $('err').textContent = m || '';
+    $('err').style.display = m ? 'block' : 'none';
+  }
+  // ★2026-08-08: 断られた時に「どの会社に書こうとして断られたか」まで出す★
+  //   司さんの申告では 赤字が「手で入れた分を保存できませんでした。」だけで、
+  //   ★相手の会社が分からないので誰も原因に辿り着けなかった★（実際は検証ゴミの会社だった）。
+  //   401/403 は倉庫が「その会社には書けない」と言っている時なので、会社名を添える。
+  // ★★2026-09-06（司さん「明細にだすのチェック外しても保存されない」）★★
+  //   ★倉庫は 断る時に ★理由★ を 返しています。それを 捨てていました★
+  //   ⇒ 画面には「保存できませんでした。」しか 出ず、★誰も 原因に 辿り着けない★
+  //   ⇒ 会社の 決まり「黙って 落とすな」に 真正面から 当たる。
+  //   ★今★ 倉庫の 言い分（message / details / hint）を ★そのまま 出す★。
+  function saveErr(msg, r) {
+    try {
+      var st = r && r.status;
+      if (st === 401 || st === 403) {
+        var nm = (COMPANY && COMPANY.name) || '(会社が選ばれていません)';
+        return showErr(msg + ' ' + nm + ' には書き込めません。');
+      }
+    } catch (_) {
+      /* 名前が出せなくても、元の言い方はそのまま出す */
+    }
+    // ★理由を 読みに行く★（読めなくても 元の言い方は 必ず 出す）
+    try {
+      if (r && typeof r.text === 'function') {
+        r.text()
+          .then(function (t) {
+            var wake = '';
+            try {
+              var j = JSON.parse(t);
+              wake = [j.message, j.details, j.hint].filter(Boolean).join(' / ');
+            } catch (_) {
+              wake = String(t || '').slice(0, 200);
+            }
+            showErr(msg + (r.status ? ' [' + r.status + ']' : '') + (wake ? ' ' + wake : ''));
+          })
+          .catch(function () {
+            showErr(msg);
+          });
+        return;
+      }
+    } catch (_) {
+      /* 読めなくても 下で 元の言い方を 出す */
+    }
+    return showErr(msg);
+  }
+  function showMsg(m) {
+    $('msg').textContent = m || '';
+    $('msg').style.display = m ? 'block' : 'none';
+  }
+  function flash(id, t) {
+    $(id).textContent = t;
+    setTimeout(function () {
+      $(id).textContent = '';
+    }, 1600);
+  }
+  function yen(v) {
+    if (v === null || v === undefined || !isFinite(v)) return '';
+    return Math.round(v).toLocaleString();
+  }
+  function hrs(v) {
+    if (v === null || v === undefined || !isFinite(v)) return '';
+    return (Math.round(v * 100) / 100).toFixed(2);
+  }
+  var WD = ['日', '月', '火', '水', '木', '金', '土'];
+  function mdw(dateStr) {
+    var p = String(dateStr).split('-');
+    var d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return +p[1] + '/' + +p[2] + '(' + WD[d.getDay()] + ')';
+  }
+  function num(v) {
+    var x = parseFloat(v);
+    return isFinite(x) ? x : 0;
+  }
+
+  // ============================================================
+  // ★★本人モード（従業員が 自分の 給料明細だけ 見る）★★ 2026-09-03
+  //
+  //   ★司さんの言葉★
+  //     「Rakunallyみたいに 従業員ごとに QRコードや URLを 配って
+  //       個人が 勝手に 確認できるようにも しろやぼけ」
+  //
+  //   ★なぜ 同じ画面に 足すか（別画面を 作らない）★
+  //     明細の 組み立ては ★この画面の 中★に 在ります（司さんが 何度も 直させた 並び）。
+  //     別画面に 書き写すと ★2か所に なって 片方だけ 直る★＝うちで 何度も 起きた 事故。
+  //     ⇒ ★同じ画面の 入口だけ 分ける★＝出る 明細は ★事務所と 1文字も 同じ★。
+  //
+  //   ★入口★ kyuryo.html?t=<token>（&c=<初回コード> は QR に 埋めてある）
+  //   ★守り★
+  //     ・材料は ★倉庫の 関数（dk_kyuryo_get）だけ★から 取る＝★自分の分だけ★
+  //     ・事務所の 読み込み（loadCompany / loadMasters）は ★1度も 呼ばない★
+  //     ・タブ・印刷（全員）・会社に残る分・設定は ★出さない★
+  //   ★事務所側の 流れは 1文字も 変えていません★（下の else が 元のまま）
+  // ============================================================
+  var HONNIN = (function () {
+    try {
+      var q = new URLSearchParams(location.search);
+      var t = (q.get('t') || '').trim();
+      if (!t) return null;
+      return { token: t, init: (q.get('c') || '').trim(), pw: null, name: '' };
+    } catch (_) {
+      return null;
+    }
+  })();
+
+  // ---------- 起動 ----------
+  // ★月の 読みの 番号★（古い 月の 返事が 後から 来ても 捨てる・対立役 止3）＝本人の 画面は すぐ 下で 始まる＝その 前に 決める（後で 決めると 始めた 読みの 番号が 消える）
+  var HN_YOMI_NO = 0;
+  // 範囲：'tsuki'＝その 月の 期間 全部／数＝期間の 番号（PIDX と 同じ）。全体で 1つの 変数（描き直しで 戻さない）
+  var HN_HANI = 0;
+  // ★もう 配った リンク（印 openExternalBrowser=1 が 無い）も LINE の 中で 開かない★ 2026-11-01
+  //   新しい リンクは haifuUrl が 印を 付ける。前に 配った リンクは 印が 無い＝LINE の 中の ブラウザで 開き、
+  //   PDF の 保存（blob の a download）が 効かない 端末が 在る。LINE の 中（UA に Line/）で 印が 無ければ
+  //   印を 足して 開き直す（LINE が 外の ブラウザへ 渡す＝実機では 未測定・見立て）。
+  //   ★渡す 間は 倉庫も ログインも 呼ばない★（else の goLogin へ 落ちると login.html に 飛ぶ・設計前 対立役 止1）
+  //   ★LINE が 頁を 替えない 時の 逃げ道★「ここで 見る」で その 場で honninStart（空の 画面に しない・止2）
+  //   ★2回目は 渡さない★（印が どこかで 落ちても 回り続けない・注B2）。URL は URL の 型で 組む（#・c・henshu を 残す・注B1）
+  function hnGaibuWatasu() {
+    try {
+      if (!/\bLine\//.test(String(navigator.userAgent || ''))) return false;
+      var u = new URL(location.href);
+      if (u.searchParams.get('openExternalBrowser') === '1') return false;
+      try {
+        if (sessionStorage.getItem('dkHnGaibu') === '1') return false;
+        sessionStorage.setItem('dkHnGaibu', '1');
+      } catch (_) {
+        // 札が 置けない 端末は 印だけで 止める
+      }
+      u.searchParams.set('openExternalBrowser', '1');
+      if (window.PdfOkuru) PdfOkuru.kesu(); // ★窓の 上に 帯を 残さない★
+      var box = document.createElement('div');
+      box.id = 'hnGaibu';
+      box.style.cssText =
+        'position:fixed;inset:0;z-index:9999;background:#fff;padding:24px 16px;text-align:center;font-size:15px;line-height:1.7';
+      box.textContent =
+        'Safari／Chrome で 開いています。開かない 時は 下を 押すと ここで 見られます（ここでは PDF の 保存が できない 端末が あります）';
+      var b = document.createElement('button');
+      b.id = 'hnGaibuKoko';
+      b.type = 'button';
+      b.textContent = 'ここで 見る';
+      b.style.cssText = 'display:block;margin:16px auto 0;padding:10px 24px;font-size:15px';
+      b.addEventListener('click', function () {
+        if (box.parentNode) box.parentNode.removeChild(box);
+        honninStart();
+      });
+      box.appendChild(b);
+      document.body.appendChild(box);
+      location.replace(u.href);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  if (HONNIN) {
+    if (!hnGaibuWatasu()) honninStart();
+  } else {
+    DKSession.ensure().then(function (s) {
+      if (!s) return DKSession.goLogin();
+      SESS = s;
+      loadCompany();
+    });
+  }
+
+  // ============================================================
+  // ★本人モードの 中身★ 2026-09-03
+  //   ①パスワードを 決める／入れる（倉庫の 関数が 照合）
+  //   ②材料を 倉庫の 関数から 取る（★自分の分だけ★）
+  //   ③明細は ★事務所と 同じ 組み立て★（renderSlips）で 出す
+  // ============================================================
+  function honninRpc(fn, args) {
+    // ★ログインしていない 人でも 呼べる★（token＋パスワードが 守り）
+    return DKSession.rest(null, 'rpc/' + fn, {
+      method: 'POST',
+      body: JSON.stringify(args),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .catch(function () {
+        return { ok: false, reason: 'tsunagaranai' };
+      });
+  }
+
+  // ★★2026-10-01＝「隠す物を 並べる」から「出す物だけ 出す」に 変えた★★
+  //
+  //   ★司さん★「LINEで給料明細送った画面になんで赤丸のところが見えるんど
+  //              個別で送ったんやけん人とか選べたらいかんやろが」
+  //
+  //   ★何が 起きていたか★
+  //     ここは ★隠す物の 名前を 並べた 名簿★ だった:
+  //       tabs / monthCard / paneHours / paneEmp / paneSet / printCard / jimushoLinks
+  //     2026-09-25 に 足した「PDFで 見る（給料表）」(#kamiCard) は
+  //     ★paneSlip の 中★ に 在り、★名簿に 入っていなかった★。
+  //     ⇒ 本人に 配った リンクの 画面に
+  //       ★「月ごと（全体）」「日ごと（全員）」「個別（選んだ人）」が 出ていた★
+  //       ＝★他人を 選べる 口が 本人に 見えていた★。
+  //
+  //   ★名簿に 足すだけでは 直らない★
+  //     次に カードを 足した 人が また 名簿を 忘れる。同じ事が 起きる。
+  //     （今日 SQLの門でも 同じ形を 踏んだ＝黒名簿は 終わらない）
+  //   ⇒ ★出してよい 物だけ 出す（白名簿）★ に した。
+  //     新しい カードを 足しても ★既定で 出ない★。
+  // ★止まった・作り直された 時の 字★ 2026-10-20（docs/pw-4keta.md）
+  var HONNIN_TOMATTA_BUN =
+    '3回 続けて 間違えたので 止めました。会社（事務所）に、リンクを 作り直して もらってください。';
+  var HONNIN_TSUKURINAOSHI_BUN =
+    'この リンクは 作り直されました。会社から 新しい リンク（QR）を もらってください。';
+  // 入口の 箱を 訳だけに する（欄と ボタンを 出さない）
+  function honninTomeru(bun, barNokosu) {
+    var box = document.getElementById('slips');
+    if (box) box.innerHTML = '<div class="card"><div class="msg">' + esc(bun) + '</div></div>';
+    var bar = document.getElementById('hnBar');
+    if (bar && !barNokosu) bar.hidden = true; // 見られない（止めた・作り直した）時は 月も 選ばせない
+  }
+  function honninErr(t) {
+    var e = document.getElementById('hnErr');
+    if (!e) return;
+    e.style.display = t ? '' : 'none';
+    e.textContent = t || '';
+  }
+  // ★★札（24時間 パスワード 無しで 見る）★★ 2026-10-21 司さん
+  //   「パスワードなしで入れる時間を設けてそれこしたら再度パスワード入れ直しは分かるけど
+  //     決めるところからはじまるのはイライラする」
+  //   決め（司さん）＝24時間・会社の 倉庫が 札を 出す（携帯には 期限つきの 札だけ・4桁は 置かない）
+  //   ・パスワードが 合ったら 倉庫の dk_kyuryo_fuda が 札（48桁）と 期限を 返す → この 端末に 置く
+  //   ・開いた 時に 期限内の 札が 在れば 入れる 画面を 出さない（dk_kyuryo_get に 'fuda:'＋札 で 取る）
+  //   ・札を 消すのは 倉庫が fuda_kire を 返した 時だけ（電波が 弱い だけで 毎回 訊かない・対立役 N3）
+  //   ・作り直すと 倉庫の 札は 消える（apply-kyuryo-haifu.sql の device_tokens = '{}'）
+  //   ★名前と 字は 関数の 中に 置く★（honninStart は この 行より 先に 走る＝var は まだ undefined）
+  function hnFudaKey() {
+    return 'dkKyuFuda:' + HONNIN.token;
+  }
+  function hnFudaYomu() {
+    try {
+      var v = JSON.parse(localStorage.getItem(hnFudaKey()) || 'null');
+      if (v && /^[0-9a-f]{48}$/.test(String(v.fuda)) && Number(v.kigen) > Date.now()) return v;
+      if (v) hnFudaKesu();
+    } catch (_) {
+      /* 読めない 端末＝札 無し */
+    }
+    return null;
+  }
+  function hnFudaOku(r) {
+    if (!r || !/^[0-9a-f]{48}$/.test(String(r.fuda)) || !(Number(r.kigen) > Date.now())) return;
+    try {
+      localStorage.setItem(
+        hnFudaKey(),
+        JSON.stringify({ fuda: String(r.fuda), kigen: Number(r.kigen) })
+      );
+    } catch (_) {
+      /* 置けない 端末（非公開の タブ 等）＝次も パスワード */
+    }
+  }
+  function hnFudaKesu() {
+    try {
+      localStorage.removeItem(hnFudaKey());
+    } catch (_) {
+      /* 消せない 端末 */
+    }
+  }
+  // ★期限の 切れた 札（作り直された 古い リンクの 分も）を 掃く★（対立役 軽6）
+  function hnFudaSouji() {
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (!k || k.indexOf('dkKyuFuda:') !== 0) continue;
+        var v = null;
+        try {
+          v = JSON.parse(localStorage.getItem(k) || 'null');
+        } catch (_) {
+          v = null;
+        }
+        if (!v || !(Number(v.kigen) > Date.now())) localStorage.removeItem(k);
+      }
+    } catch (_) {
+      /* 読めない 端末 */
+    }
+  }
+  // ★パスワードを 照らして 札を もらう★（倉庫に 札の 関数が まだ 無い 時は 今の verify に 落とす）
+  //   落とすのは PGRST202（関数が 無い）の 時だけ＝他の 失敗で 2回 照らすと 間違いを 2回 数える（対立役 N3）
+  function hnIreru(pw) {
+    return honninRpc('dk_kyuryo_fuda', { p_token: HONNIN.token, p_pw: pw }).then(function (r) {
+      if (r && r.code === 'PGRST202')
+        return honninRpc('dk_kyuryo_verify', { p_token: HONNIN.token, p_pw: pw });
+      if (r && r.ok === true) hnFudaOku(r);
+      return r;
+    });
+  }
+  function honninStart() {
+    // ★出してよい 物★ … 画面の 頭／小見出し／明細の 置き場 だけ
+    var DASU_WRAP = { topBar: 1, sub: 1, paneSlip: 1 };
+    var DASU_SLIP = { slips: 1, hnBar: 1 }; // hnBar＝月・期間・印刷 / 送る（2026-10-29）
+    var wrap = document.querySelector('.wrap');
+    if (wrap)
+      Array.prototype.forEach.call(wrap.children, function (el) {
+        if (!DASU_WRAP[el.id]) el.style.display = 'none';
+      });
+    var ps = document.getElementById('paneSlip');
+    if (ps) {
+      ps.style.display = '';
+      Array.prototype.forEach.call(ps.children, function (el) {
+        el.style.display = DASU_SLIP[el.id] ? '' : 'none';
+      });
+    }
+    // 頭の 中の 事務所行き（ログアウト等）も 出さない
+    var jl = document.getElementById('jimushoLinks');
+    if (jl) jl.style.display = 'none';
+    var lo = document.getElementById('btnLogout');
+    if (lo) lo.style.display = 'none';
+    var sb = document.getElementById('sub');
+    if (sb) sb.textContent = '自分の 給料明細';
+
+    // ★入口の 箱（パスワード）の 間は 上の 並び（月・期間・印刷 / 送る）を 隠す★ 2026-10-30（本番前の 対立役 止2：
+    //   札が 切れた 後の パスワードの 画面で 月を 替えると p_pw 無しで 倉庫を 呼び「作り直されました」と 嘘が 出た）
+    //   ＝読み終わり（honninTsuki）で hnBarKaku が 出し直す
+    var hnBarK = document.getElementById('hnBar');
+    if (hnBarK) {
+      hnBarK.hidden = true;
+      hnBarK.innerHTML = '';
+    }
+    // ★入口の 箱（パスワード）★
+    var box = document.getElementById('slips');
+    if (!box) return;
+    // ★★期限内の 札が 在れば パスワードを 訊かずに 明細へ★★ 2026-10-21（A の 探りより 先）
+    if (!HONNIN.pw && !HONNIN.fuda) {
+      hnFudaSouji();
+      var fd = hnFudaYomu();
+      if (fd) {
+        HONNIN.fuda = fd.fuda;
+        HONNIN.init = '';
+        return honninMiru();
+      }
+    }
+    // ★★もう 決めた 人を「はじめて」に しない★★ 2026-10-21 司さん「パスワードを決めてからホーム画面に保存…
+    //   またパスワードを決めるがでる…決めるところからはじまるのはイライラする」
+    //   ホーム画面は 配った リンク（c= 付き）の まま 開く＝c= だけで 見ると 毎回「はじめて」。
+    //   ★開く 前に 倉庫に 訊く★：パスワードを 空（null）で 送ると、決めた 人には 形を 見る 前に already_set、
+    //   まだの 人には pw_4keta を 返す（どちらも 倉庫に 何も 書かない＝apply-kyuryo-honnin-kansuu.sql の 43〜54行）。
+    if (HONNIN.init && !HONNIN.sagutta) {
+      HONNIN.sagutta = true;
+      box.innerHTML = '<div class="card"><div class="msg">読み込み中…</div></div>';
+      // ★返って 来ない 時は 5秒で 打ち切って 今までの「はじめて」の 画面★（電波が 弱い 時に 欄が 出ないまま に しない・対立役）
+      var kaetta = false;
+      var uchikiri = setTimeout(function () {
+        if (kaetta) return;
+        kaetta = true;
+        honninStart();
+      }, 5000);
+      honninRpc('dk_kyuryo_pw_set', {
+        p_token: HONNIN.token,
+        p_init: HONNIN.init,
+        p_pw: null, // ★鍵ごと 省かない★（省くと 引数 2つの 関数を 探して 落ちる）
+      }).then(function (r) {
+        if (kaetta) return; // 打ち切った 後に 来た 答えでは 描き直さない
+        kaetta = true;
+        clearTimeout(uchikiri);
+        if (r && r.reason === 'no_token') return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+        if (r && r.reason === 'already_set') HONNIN.init = '';
+        // それ以外（pw_4keta・bad_init・つながらない・ok）は 今までの「はじめて」の 画面
+        honninStart();
+      });
+      return;
+    }
+    var hajimete = !!HONNIN.init;
+    box.innerHTML =
+      '<div class="card"><div class="title" style="font-weight:800;margin-bottom:6px">' +
+      (hajimete ? 'はじめての 方' : '自分の 給料明細を 見る') +
+      '</div><div class="note" style="margin:0 0 10px">' +
+      (hajimete
+        ? '自分の パスワード（数字 4桁）を 決めてください。銀行などの 暗証番号と 同じに しないでください。<br />次からは この パスワードだけで 見られます。'
+        : 'パスワードを 入れてください。<br />忘れた／漏れた ときは 会社に「作り直し」を 頼んでください。') +
+      '</div>' +
+      '<input id="hnPw" type="password" autocomplete="' +
+      (hajimete ? 'new-password' : 'current-password') +
+      // ★はじめては 数字 4桁★ 2026-10-20（2回目は 絞らない＝古い 8文字の 人も 打てる・対立役 N2）
+      (hajimete ? '" inputmode="numeric" maxlength="4' : '') +
+      '" placeholder="' +
+      (hajimete ? 'パスワード（数字 4桁）' : 'パスワード') +
+      '" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:10px" />' +
+      (hajimete
+        ? '<input id="hnPw2" type="password" autocomplete="new-password" inputmode="numeric" maxlength="4" placeholder="パスワード（確認）" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:10px;margin-top:8px" />'
+        : '') +
+      '<div class="err" id="hnErr" style="display:none"></div>' +
+      '<button class="btn" id="hnGo" style="margin-top:10px">' +
+      (hajimete ? 'パスワードを 決める' : '見る') +
+      '</button></div>';
+
+    var err = function (t) {
+      var e = document.getElementById('hnErr');
+      if (!e) return;
+      e.style.display = t ? '' : 'none';
+      e.textContent = t || '';
+    };
+    // ★全角の 数字は 半角に 直してから 送る★（決める・入れる 両方で 同じ＝合っているのに 違う、に しない）
+    var hankaku = function (v) {
+      return String(v || '')
+        .trim()
+        .replace(/[０-９]/g, function (c) {
+          return String.fromCharCode(c.charCodeAt(0) - 0xfee0);
+        });
+    };
+    document.getElementById('hnGo').onclick = function () {
+      var pw = hankaku(document.getElementById('hnPw').value);
+      if (hajimete) {
+        var pw2 = hankaku(document.getElementById('hnPw2').value);
+        // ★数字 4桁★ 2026-10-20 司さん「パスワードは 4桁に しろ」
+        if (!/^[0-9]{4}$/.test(pw)) return err('パスワードは 数字 4桁に してください。');
+        if (pw !== pw2) return err('2つの パスワードが 違います。');
+        err('');
+        return honninRpc('dk_kyuryo_pw_set', {
+          p_token: HONNIN.token,
+          p_init: HONNIN.init,
+          p_pw: pw,
+        }).then(function (r) {
+          if (!r || r.ok !== true) {
+            // ★もう 決めた 人は 2回目の 画面へ 回す★ 2026-10-20（前は「もう一度 開いて」で 同じ リンクを 回り続けた・対立役 k1）
+            if (r && r.reason === 'already_set') {
+              HONNIN.init = '';
+              honninStart();
+              return honninErr('もう パスワードを 決めてあります。パスワードを 入れてください。');
+            }
+            if (r && r.reason === 'no_token') return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+            return err(
+              r && r.reason === 'bad_init'
+                ? 'このリンクが 古いようです。会社に 作り直しを 頼んでください。'
+                : r && r.reason === 'pw_4keta'
+                  ? 'パスワードは 数字 4桁に してください。'
+                  : 'できませんでした。もう一度 お試しください。'
+            );
+          }
+          HONNIN.pw = pw;
+          // 決めた 時も 札を もらう（もらえなくても 明細は 出す＝次に 開いた 時に パスワードを 訊くだけ）
+          return hnIreru(pw).then(function () {
+            honninMiru();
+          });
+        });
+      }
+      if (!pw) return err('パスワードを 入れてください。');
+      err('');
+      return hnIreru(pw).then(function (r) {
+        // ★3回 続けて 間違えたら 止める★ 2026-10-20（止まった・作り直された 時は 打ち続けさせない）
+        if (r && r.reason === 'tomatta') return honninTomeru(HONNIN_TOMATTA_BUN);
+        if (r && r.reason === 'no_token') return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+        if (!r || r.ok !== true)
+          return err(
+            r && r.reason === 'bad_pw' && r.nokori > 0
+              ? 'パスワードが 違います（あと ' + r.nokori + '回 間違えると 止まります）。'
+              : 'パスワードが 違います。'
+          );
+        HONNIN.pw = pw;
+        HONNIN.name = r.name || '';
+        honninMiru();
+      });
+    };
+  }
+
+  // ★材料を 取って 明細を 出す（事務所と 同じ 組み立て）★
+  // ★★2026-10-01＝本人の 画面を「給料明細 そのもの ＋ 月を 選ぶ」に した★★
+  //
+  //   ★司さん★
+  //     「従業員が見る個人の場所その給料明細だけでえんやろが
+  //       月別など選んで見れるようにするのが正解やろが」
+  //
+  //   ★前は どうだったか★
+  //     ・画面用の 一覧（日付と 金額を 縦に 並べた 物）を 出していた
+  //     ・月は ★今月だけ★＝先月の 明細が 見られなかった
+  //   ★今★
+  //     ・★事務所が 印刷/PDF に 使う `_buildPaperSheet` を そのまま 呼ぶ★
+  //       ＝紙と 1文字も 同じ。★明細を 2か所に 書かない★
+  //     ・★月を 選べる★（◀ ▶）。1つの 月に 期間が 2つ以上 在る 会社は
+  //       その 期間も 選べる（締めが 21日 等の 会社）
+  //   ★先の 月は 出さない★（まだ 無い 月を 見せても 空の 紙に なるだけ）
+  var HN_Y = 0;
+  var HN_M = 0;
+  var HN_YOMI = ''; // 今 取ってある 月（二重に 取りに 行かない）
+
+  function _honninHaba(y, m) {
+    // ★締めが 月を またぐ 会社が 在る★ので 前後 1か月 広く 取る
+    var a = new Date(y, m - 2, 1);
+    var b = new Date(y, m + 1, 0);
+    var f = function (d) {
+      return (
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0')
+      );
+    };
+    return { from: f(a), to: f(b) };
+  }
+
+  function honninMiru() {
+    var now = jstNow();
+    HN_Y = now.getFullYear();
+    HN_M = now.getMonth() + 1;
+    honninTsuki(0);
+  }
+
+  // ★月を 動かす（0＝今の まま／-1＝前の月／+1＝次の月）★
+  //   haba＝取る 幅（期が いつもの 幅の 外へ 出る 月だけ 広げて 渡す）
+  function honninTsuki(zure, haba) {
+    clearTimeout(window.__hnT); // ★待っている 描き直しを 捨てる★（前の 月の 紙を 出さない）
+    var d = new Date(HN_Y, HN_M - 1 + zure, 1);
+    var now = jstNow();
+    // ★先の 月へは 行かせない★（締めが 月を またぐ 会社は 今日の 期の 月まで・10-07）
+    var sakiM = HN_SAKI ? HN_SAKI.year * 12 + HN_SAKI.month - 1 : 0;
+    if (
+      d.getFullYear() * 12 + d.getMonth() >
+      Math.max(now.getFullYear() * 12 + now.getMonth(), sakiM)
+    )
+      return;
+    HN_Y = d.getFullYear();
+    HN_M = d.getMonth() + 1;
+    hnPdfSuteru(); // ★前の 月の PDF を 渡さない★
+    // ★この 読みの 番号★（月を 素早く 替えると 古い 月の 返事が 後から 来る＝その 返事で 新しい 月を 描かない・対立役 止3）
+    var yomiNo = ++HN_YOMI_NO;
+    // ★読み直しの 間は「読めた 月」を 消す★ 2026-10-30（対立役 任1：同じ 月を 広い 幅で 取り直す 間も 期間の 欄と
+    //   印刷 / 送る が 押せ、前の 狭い 幅の 記録から PDF を 作れた）＝読み終わりで 入れ直す
+    HN_YOMI = '';
+    hnBarKaku();
+    var box = document.getElementById('slips');
+    if (box) box.innerHTML = '<div class="card"><div class="msg">読み込み中…</div></div>';
+    var h = haba || _honninHaba(HN_Y, HN_M);
+    honninRpc('dk_kyuryo_get', {
+      p_token: HONNIN.token,
+      // ★パスワードを 入れて いない 時は 札で 取る★（2026-10-21）
+      p_pw: HONNIN.pw || (HONNIN.fuda ? 'fuda:' + HONNIN.fuda : null),
+      p_from: h.from,
+      p_to: h.to,
+    })
+      .then(function (r) {
+        if (yomiNo !== HN_YOMI_NO) return; // ★古い 月の 返事は 捨てる★
+        // ★札が 切れた（24時間・作り直し・他の 端末で 5本 越え）＝札を 消して 入れる 画面へ★
+        if (r && r.reason === 'fuda_kire' && !HONNIN.pw) {
+          hnFudaKesu();
+          HONNIN.fuda = null;
+          honninStart();
+          return honninErr(
+            '24時間 たったか、ほかの 端末で 何度も 入ったので、もう一度 パスワードを 入れてください。'
+          );
+        }
+        if (!r || r.ok !== true) {
+          // ★途中で 止まった・作り直された★ 2026-10-20（覚えた パスワードで 取り直す 間に 事務所が 作り直した 等）
+          if (r && r.reason === 'tomatta') return honninTomeru(HONNIN_TOMATTA_BUN);
+          if (r && (r.reason === 'no_token' || r.reason === 'bad_pw'))
+            return honninTomeru(HONNIN_TSUKURINAOSHI_BUN);
+          // 辞めた 後の 月（働いた 日が 無い 月）は 倉庫が 返さない（会社の 売上を 見続けない・10-16）
+          var taishoku = r && r.reason === 'taishoku';
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">' +
+              (taishoku
+                ? 'この 月は 働いた 日も 手当・控除も 無いので 出せません（辞めた 後の 月は、働いたか 手当・控除が 在る 月だけ 見られます）。'
+                : '出せませんでした。もう一度 開いてください。') +
+              '</div></div>';
+          // 辞めた 人が 働いた 月へ 戻れる＝月は 上の 並び（#hnBar・#slips の 外）で 選ぶ（対立役 K3・止4）
+          return;
+        }
+        SET = (r.settings || [])[0] || null;
+        RAW.employees = r.emp ? [r.emp] : []; // ★自分 1人だけ★
+        RAW.labels = r.labels || [];
+        RAW.payrollSettings = SET;
+        // ★会社の「売上から 何を 引くか」（r.salesSettings）と その 記録（r.uriageRireki）は 使わない★ 2026-10-24 件J
+        //   ＝入れた 実費は 全部 引く（事務所と 同じ）。倉庫の 関数は 変えない（返って きても 見ない）
+        RAW.shifts = r.shifts || [];
+        RAW.edits = r.edits || [];
+        RAW.workHours = r.workHours || [];
+        RAW.manualDays = r.manualDays || [];
+        // ★その日 その車に 乗った 人の 役（名前・時間は 無し）★ 2026-10-06＝回数・距離の 1台の 額を 分ける 為
+        //   ★無い（古い 倉庫の 関数）時は 入れない★＝自分の 行だけから 作ると 1人で 全部 もらう 形に なり 事務所と ずれる
+        if (Array.isArray(r.crew)) RAW.crew = r.crew;
+        // ★自分の 変えた 記録（何日から）★ 2026-10-18＝返って こない（古い 倉庫の 関数）時は null＝計算が 止める
+        RAW.rireki = Array.isArray(r.rireki) ? r.rireki : null;
+        RAW.yakuRireki = Array.isArray(r.yakuRireki) ? r.yakuRireki : null; // ★役割の 決まりの 記録★
+        // ★自分の 手当・控除★ 2026-10-06（倉庫の 関数が 本人の 分だけ 返す）
+        // ★返って こない（古い 倉庫の 関数）時は 止める★ 2026-10-07（前は 空＝控除 0 の 明細が 出た・対立役）
+        if (!Array.isArray(r.adjustments)) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">手当・控除を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+          return;
+        }
+        RAW.adjustments = r.adjustments;
+        // ★締めの 形の 変えた 記録を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-19（列の 形で 区切らない）
+        if (!Array.isArray(r.shimeRireki)) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">締めの 記録を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+          return;
+        }
+        RAW.shimeRireki = r.shimeRireki;
+        // ★売上の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-14
+        //   返さないと 本人だけ メーターの 額で 計算し、事務所と 給料が 黙って ずれる（対立役）
+        if (r.uriageNaoshi !== true) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">売上の 直しを 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+          return;
+        }
+        // ★手入力の 日の 足した 実費を 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-20（司さん「揃えろ」）
+        //   返さないと 本人だけ 足した 実費を 引かず、事務所と 給料が 黙って ずれる（対立役）
+        if (r.tebikiJippi !== true) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">手入力の 日の 実費を 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+          return;
+        }
+        // ★回数・距離の 直しを 返さない（古い 倉庫の 関数）時は 止める★ 2026-10-25
+        //   返さないと 本人だけ メーターの 回数・距離で 回数歩合・距離歩合を 出し、事務所と 給料が 黙って ずれる（対立役 止2）
+        if (r.kazuNaoshi !== true) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">回数・距離の 直しを 読めなかったので 出せません。会社に 知らせてください。</div></div>';
+          return;
+        }
+        HN_YOMI = HN_Y + '-' + HN_M;
+        var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+        // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
+        if (!st.periodKata || st.periodKata.dame) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">' +
+              esc(shimeDameBun(st.periodKata)) +
+              '</div></div>';
+          return;
+        }
+        HN_SAKI = kyouNoTsuki(st.periodKata);
+        // ★最初に 開いた 時は 今日の 期の 月へ★（違えば 1回だけ 取り直す）
+        if (!HN_KIMETA) {
+          HN_KIMETA = true;
+          if (HN_SAKI.year !== HN_Y || HN_SAKI.month !== HN_M) {
+            HN_Y = HN_SAKI.year;
+            HN_M = HN_SAKI.month;
+            honninTsuki(0);
+            return;
+          }
+        }
+        PERIODS = PayrollPeriod.periodsOf(HN_Y, HN_M, { kata: st.periodKata });
+        if (kikanKowareta(PERIODS)) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">' +
+              esc(
+                PERIODS.some(function (p) {
+                  return p && p.aki;
+                })
+                  ? '締めの 変え方で この 月の 給料が 無くなっています。会社に 知らせてください。'
+                  : '締めの 変えた 記録から 期を 区切れないので 出せません。会社に 知らせてください。'
+              ) +
+              '</div></div>';
+          return;
+        }
+        // ★期が 取った 幅の 外へ 出る（締めの 形が 変わる 月・始まった 日の 月の 分）＝1回だけ 広げて 取り直す★ 2026-10-19
+        //   取らないと 幅の 外の 日の 勤務が 0 の まま 明細に 出る（対立役 主張4）
+        //   ★記録の 在る 会社だけ★（記録0の 会社の 本人の 幅は 今の まま＝別件・1押し＝1件・対立役 2回目 直1）
+        if (PERIODS.length && !haba && st.periodKata.kind === 'rireki') {
+          var hS = PERIODS[0].start;
+          var hE = PERIODS[PERIODS.length - 1].end;
+          if (hS < h.from || hE > h.to) {
+            honninTsuki(0, { from: hS < h.from ? hS : h.from, to: hE > h.to ? hE : h.to });
+            return;
+          }
+        }
+        if (!PERIODS.length) {
+          if (box)
+            box.innerHTML =
+              '<div class="card"><div class="msg">この 月に 締める 給料は ありません。</div></div>';
+          return;
+        }
+        // ★月3回は 今まで 通り 最初の 期★（今の 会社の 見え方を 変えない）・他は 今日を 含む 期
+        //   締めの 形が 月の 中で 変わる 月は その月の 形で 見る（何日から 2026-10-19）
+        var hnTk = PayrollPeriod.tsukiNoKata(st.periodKata, HN_Y, HN_M);
+        PIDX = hnTk && hnTk.kind === 'thirds' ? 0 : kyouNoKi(PERIODS);
+        PERIOD = PERIODS[PIDX];
+        HN_HANI = PIDX;
+        if (!hnKeisan()) return;
+        TAB = 'slip';
+        honninKami();
+      })
+      .catch(function (e) {
+        if (yomiNo !== HN_YOMI_NO) return; // ★古い 月の 返事は 捨てる★
+        // ★読み終わりの 中で 計算 以外（期の 区切り・設定の 読み 等）が 転んでも 黙って「読み込み中…」で 止めない★ 2026-10-22（対立役 K2）
+        // eslint-disable-next-line no-console -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+        if (window.console) console.warn('[本人の 読み終わり]', e);
+        HN_KEISAN_NG = true;
+        REP = null;
+        hnPdfSuteru();
+        honninTomeru(HN_KEISAN_NG_BUN, true);
+      });
+  }
+
+  // ★締めで 止めた 時も 給料の 設定を 開いて いれば 描く★ 2026-10-19（壊れた 記録を 消せる 様に・対立役 直5）
+  //   設定か 記録を 読めて いない 時は 描かない（既定の 値を 本物の 様に 見せない）
+  function shimeTomeSet() {
+    if (TAB === 'set' && !(SET && SET.yomenai) && Array.isArray(RAW.shimeRireki)) render();
+  }
+  // ★締めの 変えた 記録から 期を 区切れない（PayrollPeriod が dame の 期を 返した）★ 2026-10-19
+  var KIKAN_KOWARE_BUN =
+    '締めの 変えた 記録から 期を 区切れないので 止めました。「給料の 設定」の 明細の 期間で 記録を 直してください。';
+  // ★締めの 変え方で 空いた 月★（期が 0＝0円に しない・2026-10-19 月が 空く 件）
+  var KIKAN_AKI_BUN =
+    '締めの 変え方で この 月の 給料が 無くなっています（給料は 毎月 払う 決まり）。「給料の 設定」の 明細の 期間の「記録」で 直してください。';
+  function kikanBun(ps) {
+    return (ps || []).some(function (p) {
+      return p && p.aki;
+    })
+      ? KIKAN_AKI_BUN
+      : KIKAN_KOWARE_BUN;
+  }
+  function kikanKowareta(ps) {
+    return (ps || []).some(function (p) {
+      return p && p.dame;
+    });
+  }
+  // ★★払い方（締め）が 読めない 時の 文★★ 2026-10-07（金額を 出さずに 止める）
+  function shimeDameBun(kata) {
+    // ★通信で 読めなかった 時は「選び直して」でなく「開き直して」★（対立役：選び直して 保存すると 本物の 設定が 既定で 上書き）
+    if (kata && kata.tsushin === true && kata.kiroku === true)
+      return '締めの 変えた 記録を 読めなかったので 止めました（通信）。もう一度 開いてください。';
+    if (kata && kata.tsushin === true)
+      return '給料の 設定を 読めなかったので 止めました（通信）。もう一度 開いてください。';
+    return (
+      '給料の 払い方の 設定が 読めないので 止めました（' +
+      ((kata && kata.riyuu) || '払い方の 設定が 読めません') +
+      '）。「給料の 設定」で 払い方を 選び直してください。'
+    );
+  }
+  // ★今日を 含む 期の 番号★（無ければ 0）＝今月を 開いた 時に 今の 期を 出す
+  function kyouNoKi(ps) {
+    var t = jstNow();
+    var k =
+      t.getFullYear() +
+      '-' +
+      String(t.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(t.getDate()).padStart(2, '0');
+    for (var i = 0; i < (ps || []).length; i++) if (ps[i].start <= k && k <= ps[i].end) return i;
+    return 0;
+  }
+
+  // ★★今日を 含む 期の 月★★ 2026-10-07（対立役 G：始まった月の分 で 20日締め なら 10/7 の 期は 9月分）
+  //   ＝最初に 開く 月・本人が 進める 一番 先の 月
+  function kyouNoTsuki(kata) {
+    var t = jstNow();
+    var ima = { year: t.getFullYear(), month: t.getMonth() + 1 };
+    if (!kata || kata.dame) return ima;
+    var k =
+      t.getFullYear() +
+      '-' +
+      String(t.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(t.getDate()).padStart(2, '0');
+    var zure = [0, -1, 1];
+    for (var i = 0; i < zure.length; i++) {
+      var ym = PayrollPeriod.shift(ima, zure[i]);
+      var ps = PayrollPeriod.periodsOf(ym.year, ym.month, { kata: kata });
+      for (var j = 0; j < ps.length; j++) if (ps[j].start <= k && k <= ps[j].end) return ym;
+    }
+    return ima;
+  }
+  var YM_KIMETA = false; // ★最初の 1回だけ 今日の 期の 月へ★
+  var HN_SAKI = null; // ★本人が 進める 一番 先の 月★
+  var HN_KIMETA = false;
+
+  // ★期間（同じ月の 中の 1〜3枚目）を 選ぶ★
+  function honninKikan(i) {
+    if (!PERIODS || !PERIODS[i]) return;
+    PIDX = i;
+    PERIOD = PERIODS[i];
+    HN_HANI = i; // 範囲＝この 期間
+    hnPdfSuteru(); // ★前の 期間の PDF を 渡さない★
+    if (!hnKeisan()) return;
+    honninKami();
+  }
+  // ★★本人の 画面の 計算が 転んだ 時は 前の 期の 額を 出さない・PDF も 作らない★★ 2026-10-22
+  //   前：受け皿が 無く、転ぶと 前の 期の 紙と 札が 残り、PDF の ボタンは 生きて いて 別の 期の 名前の PDF を 渡した（対立役）
+  var HN_KEISAN_NG = false;
+  var HN_KEISAN_NG_BUN =
+    'この 期間の 明細を 計算できませんでした。画面を 開き直してください（直らない 時は 会社に 知らせてください）。';
+  function hnKeisan() {
+    try {
+      recalc();
+      HN_KEISAN_NG = false;
+      return true;
+    } catch (e) {
+      // eslint-disable-next-line no-console -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+      if (window.console) console.warn('[本人の 計算]', e);
+      HN_KEISAN_NG = true;
+      REP = null;
+      hnPdfSuteru();
+      honninTomeru(HN_KEISAN_NG_BUN, true);
+      return false;
+    }
+  }
+
+  // ★★本人の 明細の 画面＝代行請求書と 同じ 作り★★ 2026-10-29 司さん
+  //   「赤丸のどこが代行請求書と同じ作りなんどぼけ勝手にごちゃごちゃさすなや記録なくても押せる開くようにしろや」
+  //   「PDFで保存/送ると印刷のボタンは同じ画面が開かれるんやけん1つのボタンにして印刷/送るにまとめろ 給料明細の画面も一緒にしろや」
+  //   ・上の 並び（#hnBar）＝［月］［期間（1か月分／期間ごと）］の 選ぶ 欄 2つ ＋「📄 印刷 / 送る」1つ（代行請求書の 請求書の 欄と 同じ）
+  //     ＝#slips の 外に 置く（辞めた 後の 月・締めが 読めない 等で #slips を 訳に 替えても 月を 選べる・対立役 止4）
+  //   ・紙は 選んだ 範囲を 出す。記録が 無い 期間も ¥0 の 紙を 出し PDF も 作れる（前の「記録は ありません」は 無くした）
+  //   ・前の 画面の 中の 見る 窓・「明細を コピー」「字で 送る」・期間の 札・［この 期間｜1か月分］の 切り替えは 無くした
+  //   ・作るのは 事務所と 同じ 紙（_empSheets）と 同じ 道具（KamiEgaku＝代行請求書と 同じ pdf-lib・軽い 字体）
+  //   ・★月・範囲を 替えたら 作った PDF を 捨てる★（HN_NO が 印・作っている 途中に 替えても 古い 物を 渡さない）
+  var HN_NO = 0; // 月・範囲を 替えた 回数
+  function hnHani() {
+    return HN_HANI === 'tsuki' && PERIODS && PERIODS.length > 1 ? 'tsuki' : 'ki';
+  }
+  // ★月の 選ぶ 欄の 月★＝今日の 期の 月（HN_SAKI）か 今月の 遅い 方から 24か月 前まで（HN_SAKI が 無くても 今月まで 並べる）
+  function hnTsukiNarabi() {
+    var now = jstNow();
+    var hate = now.getFullYear() * 12 + now.getMonth();
+    if (HN_SAKI) hate = Math.max(hate, HN_SAKI.year * 12 + HN_SAKI.month - 1);
+    var out = [];
+    for (var i = 0; i < 24; i++) {
+      var k = hate - i;
+      out.push({ year: Math.floor(k / 12), month: (k % 12) + 1 });
+    }
+    return out;
+  }
+  // ★上の 並びを 描く★（月の 読みが 終わる 前でも 月は 選べる・期間は 読めた 月だけ）
+  function hnBarKaku() {
+    var bar = document.getElementById('hnBar');
+    if (!bar) return;
+    bar.hidden = false;
+    var tsuki = hnTsukiNarabi();
+    var aru = tsuki.some(function (t) {
+      return t.year === HN_Y && t.month === HN_M;
+    });
+    if (!aru) tsuki.push({ year: HN_Y, month: HN_M });
+    var yometa = HN_YOMI === HN_Y + '-' + HN_M && PERIODS && PERIODS.length;
+    var ki = '';
+    if (yometa) {
+      if (PERIODS.length > 1)
+        ki +=
+          '<option value="tsuki"' + (hnHani() === 'tsuki' ? ' selected' : '') + '>1か月分</option>';
+      for (var k = 0; k < PERIODS.length; k++)
+        ki +=
+          '<option value="' +
+          k +
+          '"' +
+          (hnHani() === 'ki' && k === PIDX ? ' selected' : '') +
+          '>' +
+          esc(String(PERIODS[k].rangeLabel || k + 1 + '枚目').replace(/\s*〜\s*/g, '〜')) +
+          '</option>';
+    } else ki = '<option value="">―</option>';
+    bar.innerHTML =
+      '<div class="hn-filterbar">' +
+      '<select class="hn-fselect" id="hnTsukiSel" aria-label="月">' +
+      tsuki
+        .map(function (t) {
+          return (
+            '<option value="' +
+            t.year +
+            '-' +
+            t.month +
+            '"' +
+            (t.year === HN_Y && t.month === HN_M ? ' selected' : '') +
+            '>' +
+            t.year +
+            '年' +
+            t.month +
+            '月</option>'
+          );
+        })
+        .join('') +
+      '</select>' +
+      '<select class="hn-fselect" id="hnKikanSel" aria-label="期間"' +
+      (yometa && PERIODS.length > 1 ? '' : ' disabled') +
+      '>' +
+      ki +
+      '</select></div>' +
+      '<button class="hn-btn-p" id="hnPdf" type="button">' +
+      esc(hnPdfJi()) +
+      '</button>' +
+      '<div class="msg hn-pdf-err" id="hnPdfErr" hidden></div>' +
+      '<div class="msg hn-pdf-annai" id="hnPdfAnnai" hidden></div>';
+    hnPdfBotan();
+    document.getElementById('hnPdf').onclick = honninPdf;
+    document.getElementById('hnTsukiSel').onchange = function () {
+      var v = String(this.value).split('-');
+      var y = Number(v[0]);
+      var m = Number(v[1]);
+      if (!(y > 0 && m > 0)) return;
+      honninTsuki((y - HN_Y) * 12 + (m - HN_M));
+    };
+    document.getElementById('hnKikanSel').onchange = function () {
+      var v = this.value;
+      if (v === 'tsuki') {
+        HN_HANI = 'tsuki';
+        hnPdfSuteru();
+        honninKami();
+        return;
+      }
+      if (v !== '') honninKikan(Number(v));
+    };
+  }
+  // ★1つの 期間の 本人の 行★ → { e, rp } ／ 止める 時は { dame: 字 }
+  //   ①report の 行が 在れば それ
+  //   ②行が 無くて その 期間に 本人の 記録（時間・手当・控除）が 在る＝計算が 転んだ＝止める（¥0 に 倒さない・対立役 止5）
+  //   ③記録が 無い＝勤め始めの 印（ctx.honnin）を 外した 写しで 回して ¥0 の 行を 作る（記録なくても 開く・司さん 10-29）
+  //     辞めた 人も 写しの 中では 今いる 人と して 回す（辞めた 後の 記録の 無い 期も ¥0・2026-10-30）
+  //     写しでも 行が 無い・写しの 行に 働いた 日／手当・控除が 在る 時は 止める
+  function hnKiNoE(p) {
+    var rp = PayrollDaily.report((p && p.dates) || [], CTX);
+    var e = rp && rp.employees ? rp.employees[0] : null;
+    if (e) return { e: e, rp: rp };
+    var hd = (CTX && CTX.hoursByDate) || {};
+    var ad = (CTX && CTX.adjByDate) || {};
+    var kiroku = ((p && p.dates) || []).some(function (d) {
+      return (hd[d] && Object.keys(hd[d]).length) || (ad[d] && ad[d].length);
+    });
+    var keisanNg = {
+      dame:
+        String((p && p.rangeLabel) || '') +
+        ' の 明細を 計算できませんでした。画面を 開き直してください（直らない 時は 会社に 知らせてください）。',
+    };
+    if (kiroku) return keisanNg;
+    // ★辞めた 人（active=false）も 今いる 人と して 回す★ 2026-10-30（本番前の 対立役 止1：report は 辞めた 人の 行を
+    //   記録の 在る 期しか 返さず、記録の 無い 期で「計算できませんでした・会社に知らせて」と 嘘が 出た・1か月分も 止まった）
+    //   ＝写しの 中の 本人の 札だけ 替える（本物の CTX と RAW は 触らない）。¥0 か どうかは 下の 門が 見る
+    var rp2 = PayrollDaily.report(
+      (p && p.dates) || [],
+      Object.assign({}, CTX, {
+        honnin: false,
+        _hajime: null,
+        employees: ((CTX && CTX.employees) || []).map(function (x) {
+          return Object.assign({}, x, { active: true });
+        }),
+      })
+    );
+    var e2 = rp2 && rp2.employees ? rp2.employees[0] : null;
+    if (!e2) return keisanNg;
+    if (e2.workedDays > 0 || (e2.adj || []).length > 0) return keisanNg;
+    return { e: e2, rp: rp2 };
+  }
+  // 今の 範囲の 期間と 行 → { ki: [{ p, e, rp }] } ／ { dame }
+  function hnHaniNoKi() {
+    if (HN_KEISAN_NG || !CTX) return { dame: HN_KEISAN_NG_BUN };
+    if (kyuDameBun(CTX)) return { dame: kyuDameBun(CTX) };
+    var ps = hnHani() === 'tsuki' ? PERIODS || [] : PERIOD ? [PERIOD] : [];
+    if (!ps.length) return { dame: 'この 月に 締める 給料は ありません。' };
+    var ki = [];
+    for (var i = 0; i < ps.length; i++) {
+      var r = hnKiNoE(ps[i]);
+      if (r.dame) return r;
+      ki.push({ p: ps[i], e: r.e, rp: r.rp });
+    }
+    return { ki: ki };
+  }
+  // ★明細の 紙と 同じ 字の 行★（働いた 分／＋手当／−控除／＝差引支給）＝紙の 内わけ（adjMigi）が 使う
+  function meisaiJiGyou(e) {
+    var gyou = ['働いた 分 ¥' + yen(e.kasegi)];
+    (e.adj || []).forEach(function (a) {
+      var na = a.label || (a.kind === 'koujo' ? '控除' : '手当');
+      gyou.push((a.kind === 'koujo' ? '− ' : '＋ ') + na + ' ¥' + yen(a.yen));
+    });
+    return { gyou: gyou, owari: '＝ 差引 支給 ¥' + yen(e.totalPay) };
+  }
+  // ★期間ごとに 紙を 組む★（見出しは その 期間＝PERIOD を 一時 替えて finally で 戻す＝テンプレの 見本 tplMihon と 同じ 形）
+  function hnKiNoKami(k, hami) {
+    var mae = PERIOD;
+    try {
+      PERIOD = k.p;
+      var cars = slipCars(k.rp.cars, k.e.employee_id);
+      if (hami && _maisu(k.e, showCarSalesNow(), cars).hamidasu) hami.push(k);
+      return _empSheets(k.e, cars);
+    } finally {
+      PERIOD = mae;
+    }
+  }
+  var HN_PDF = null; // 作った PDF { no, blob, name }
+  var HN_PDF_CHU = -1; // 作っている 途中の 印（HN_NO と 同じ 時だけ 作っている 途中）
+  var HN_PDF_MATSU = -1; // 押されて 出来上がりを 待つ 印（HN_NO と 同じ 時だけ・出来たら そのまま 出す）
+  // ★出した 後 1秒は 止める 印★（連打で 2本 出さない）。時刻の 差で 測らない＝端末の 時計が 戻ると 押せないまま 残る
+  //   （試験の 止めた 時計でも 同じ＝テスト線 E2E okuru ② が 30秒 押せず 赤 10-31）。タイマーで 外す
+  var HN_PDF_TOMETA = false;
+  var HN_RENDA_MS = 1000;
+  function hnPdfSuteru() {
+    if (window.PdfOkuru) PdfOkuru.kesu(); // ★選び直した＝前の 紙の「送る・印刷する」の 帯を 消す（送らない）★
+    HN_NO++;
+    HN_PDF = null;
+    HN_PDF_CHU = -1;
+    HN_PDF_MATSU = -1;
+    hnPdfBotan();
+    hnMiseSuteru();
+  }
+  function hnPdfAru() {
+    return !!(HN_PDF && HN_PDF.no === HN_NO);
+  }
+  // ★ボタンの 字は 代行請求書と 同じ★ 2026-10-31 司さん「なんなんPDFを作ってますって 代行請求書アプリの請求/集計の作りを見ろや」
+  //   ＝裏で 作っている 間も「📄 印刷 / 送る」の まま 押せる。押して 待つ 間だけ「PDF作成中…」（見本 exportInvoicePDF と 同じ 字）
+  //   前は ホーム画面の アプリで 紙を 描いた とたん 裏の 作りで「PDFを 作っています…」に なり 押せなかった
+  function hnPdfJi() {
+    if (HN_PDF_MATSU === HN_NO && !hnPdfAru()) return 'PDF作成中…';
+    return '📄 印刷 / 送る';
+  }
+  function hnPdfBotan() {
+    var b = document.getElementById('hnPdf');
+    if (!b) return;
+    // ★同じ 字・同じ 止めは 書き直さない★（textContent は 同じ 字でも 字の 節を 替える。
+    //   WebKit は 押し始めた 時の 字の 節を click の 的に 持つ＝押している 間に 節が 替わると click を 出さない
+    //   （iPhone の 形も PC の 形も 0 回・chromium は 1 回＝対立役 10-31 測り）。裏の 作りが 終わった 時に
+    //   押した 人の 押しが 消える。本番 CI webkit ④b の 最初の 押しで 保存 0・30秒 10-31）
+    var ji = hnPdfJi();
+    if (b.textContent !== ji) b.textContent = ji;
+    var yometa = HN_YOMI === HN_Y + '-' + HN_M && PERIODS && PERIODS.length;
+    var tome = !!(!yometa || (HN_PDF_MATSU === HN_NO && !hnPdfAru()) || HN_PDF_TOMETA);
+    if (b.disabled !== tome) b.disabled = tome;
+  }
+  // ★訳は ボタンの すぐ 下に 出す★（#err は 画面の 一番 上＝下で 押した 人には 見えない・対立役）
+  function hnPdfErr(bun) {
+    var el = document.getElementById('hnPdfErr');
+    if (!el) return;
+    el.textContent = bun || '';
+    el.hidden = !bun;
+  }
+  // ★案内（間違いでは ない＝赤く しない）★ 上の 並びに 置く（消えない 所・対立役 止2）
+  function hnAnnai(bun) {
+    var el = document.getElementById('hnPdfAnnai');
+    if (!el) return;
+    el.textContent = bun || '';
+    el.hidden = !bun;
+  }
+  // ★名前は 本人が 見ている 月から★（期間が 2つ以上の 月は 期間も 付ける・1か月分は「1か月分」）
+  function hnPdfNamae(emp) {
+    var nm = '給料明細_' + HN_Y + '-' + String(HN_M).padStart(2, '0');
+    if (hnHani() === 'tsuki') nm += '_1か月分';
+    else if (PERIODS && PERIODS.length > 1 && PERIOD)
+      nm += '_' + String(PERIOD.start).slice(5) + '〜' + String(PERIOD.end).slice(5);
+    nm += '_' + String((emp && emp.name) || '');
+    return nm.replace(/[\\/:*?"<>|]/g, '_') + '.pdf';
+  }
+  // ★出す★ 2026-11-06 司さんの 答え B（代行請求書 本番 bdecd29 と 同じ・js/pdf-okuru.js）
+  //   iPhone・iPad＝共有の 画面に ★PDF と 字（text）だけ★ 渡す（url・title は 付けない）。
+  //   保存の 道（a download）で 開いた PDF の 画面から 共有すると blob:https://… の URL も 届いた（司さん 11-04）。
+  //   ★files だけ（字 無し）の 古い 形には 戻さない★（10-30「LINEないやないか」＝その 形は LINE が 並ばない。
+  //   files＋text は 司さんの 実機で LINE に 字と PDF が 届いた 11-06）。
+  //   Android・PC・共有が 無い 端末＝今までの 道（下の 保存／窓）
+  // ★出した 後 1秒は ボタンを 止める★（見本は 押すと 作り終わるまで 止める＝連打で 2本 出ない。
+  //   こちらは 裏で 作り済みなら すぐ 出る＝止めが 無いと ダブルクリックで 2本 保存・本番前 対立役 止1 10-31）
+  function hnPdfDasu(p) {
+    if (HN_PDF_TOMETA) return;
+    HN_PDF_TOMETA = true;
+    // ★外す タイマーは 保存より 先に★（保存が 転ぶと 印が 立った まま＝黙って 出なく なる・対立役 注1 10-31）
+    setTimeout(function () {
+      HN_PDF_TOMETA = false;
+      hnPdfBotan();
+    }, HN_RENDA_MS);
+    hnPdfBotan();
+    // ★iPhone・iPad＝共有へ★ 作り済みなら click の 中で そのまま 共有を 開く（then を 挟まない＝押した 扱いが 切れない）
+    //   作り待ちの 後で 断られた（NotAllowedError）＝帯「送る・印刷する」
+    //   ★共有が 無い iPhone（tsukaeru が 偽）は 下の 今の 道を その 場で＝押した 手の 中で 保存（約束を 待たない・e2e ⑯）★
+    if (window.PdfOkuru && PdfOkuru.tsukaeru(window.navigator)) {
+      var miss0 = window.KamiEgaku ? window.KamiEgaku.missingBun(p.missing) : '';
+      PdfOkuru.okuru(p.blob, p.name, PdfOkuru.namaeJi(p.name), window, {
+        chui: miss0,
+        hiraku: function () {
+          hnPdfHozon(p);
+        },
+        // ★押した 頭で 前の 帯を 消す★（見本 exportInvoicePDF と 同じ・残ると 同じ PDF を 2回 送れる・作った後の 対立役 止3）
+        kai: PdfOkuru.kesu(),
+      })
+        .then(function (ok) {
+          if (ok.how === 'none') return hnPdfImaNoMichi(p);
+          hnAnnai(PdfOkuru.bun(ok.how, miss0) || '');
+        })
+        .catch(function (e) {
+          // ★見本 exportInvoicePDF の catch と 同じ 字★（黙って 終わらない・作った後の 対立役 注3）
+          hnPdfErr('PDF作成に失敗：' + (e && e.message ? e.message : e));
+        });
+      return;
+    }
+    hnPdfImaNoMichi(p);
+  }
+  // ★今までの 道★（Android・PC・共有が 無い iPhone）
+  function hnPdfImaNoMichi(p) {
+    try {
+      // ★スマホは 保存（PDF の 画面が 開き 共有から 送る・プリント）／PC は 新しい 窓で 開く（印刷も 保存も そこから）★
+      //   見本 exportInvoicePDF（daikou-seikyu）の !insatsuSumaho の 道と 同じ 2026-11-01（司さん 指示②）
+      //   PC で 保存だけに すると ダウンロード欄に 入るだけで 印刷の 画面が 出ない。窓を 止められたら 保存に 落とす
+      var pcMado = false;
+      if (!insatsuSumaho()) {
+        var url = URL.createObjectURL(new Blob([p.blob], { type: 'application/pdf' }));
+        pcMado = !!window.open(url, '_blank');
+        setTimeout(function () {
+          URL.revokeObjectURL(url);
+        }, 60000);
+      }
+      if (!pcMado) hnPdfHozon(p);
+      // ★案内の 字は 見本 exportInvoicePDF の toast と 1字も 違えない★（2026-11-01 見本との違い②）
+      //   出せない 字 ⇒ その 知らせだけ／窓で 開いた ⇒「開きました」／保存（スマホ・PC で 窓を 止められた）⇒「作成しました」
+      //   前は 保存の 時だけ 長い 案内（共有（□↑）・ダウンロード・LINE の 中）を 出していた＝見本に 無い 違い
+      var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(p.missing) : '';
+      hnAnnai(
+        miss
+          ? miss
+          : pcMado
+            ? 'PDFを開きました（印刷・保存は その画面から）'
+            : 'PDFを作成しました（開いた画面の共有から 送る・プリント）'
+      );
+    } catch (e) {
+      // ★見本 exportInvoicePDF の catch と 同じ 字★（見本との違い③ 2026-11-01）
+      hnPdfErr('PDF作成に失敗：' + (e && e.message ? e.message : e));
+    }
+  }
+  // スマホ・タブレット・ホーム画面の アプリ＝保存の 道（新しい 窓は 戻れなく なる 端末が 在る）
+  //   ★見本 daikou-seikyu の insatsuSumaho を 1行も 変えずに 写した★（違いを 作るな＝司さん 10-31）
+  function insatsuSumaho() {
+    try {
+      var n = window.navigator || {};
+      if (n.standalone === true) return true;
+      if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+      var ua = String(n.userAgent || '');
+      if (/iPhone|iPad|iPod|Android|Mobile/i.test(ua)) return true;
+      return /Macintosh/.test(ua) && (n.maxTouchPoints || 0) > 1; // iPadOS の Safari
+    } catch (_) {
+      return true;
+    }
+  }
+  // ★「印刷 / 送る」★ 押すと 選んだ 範囲の PDF を そのまま 出す（代行請求書の「印刷 / 送る」と 同じ 1回）
+  //   紙を 描いた 時に 裏で 作っておく（どの 端末も・見本は 月を 選んだ 時に 作る）＝押したら すぐ 出る。
+  //   出来て いなければ「PDF作成中…」で 待ち 作り終わってから 出す（裏の 作りが 失敗した 後は 作り直す・対立役 止1 10-30）
+  function honninPdf() {
+    hnPdfErr('');
+    hnAnnai('');
+    if (hnPdfAru()) return hnPdfDasu(HN_PDF);
+    HN_PDF_MATSU = HN_NO;
+    if (HN_PDF_CHU === HN_NO) return hnPdfBotan();
+    hnPdfTsukuru();
+  }
+  function hnPdfTsukuru() {
+    var h = hnHaniNoKi();
+    if (h.dame) {
+      if (HN_PDF_MATSU === HN_NO) {
+        HN_PDF_MATSU = -1;
+        // ★待つ 印を 外したら ボタンも 戻す★（転んだ 後は REP が 無く 描き直しが 走らない＝字が「PDF作成中…」の まま 残り得る・2026-10-31）
+        hnPdfBotan();
+        hnPdfErr(h.dame);
+      }
+      return;
+    }
+    var emp = h.ki[0].e;
+    var no = HN_NO;
+    var dougu = false;
+    HN_PDF_CHU = no;
+    hnPdfBotan();
+    // ★道具の 読み込みにも 時間切れ★（字体 約 4.7MB・電波が 止まると「作っています…」の まま 押せなくなる・対立役 軽2）
+    _withTimeout(loadPdfLibs(), PDF_TIMEOUT_MS, '道具')
+      .then(function (E) {
+        dougu = true;
+        if (no !== HN_NO) return null;
+        if (typeof E.tsukuru !== 'function') throw new Error('PDF の 道具が 古い');
+        // ★字体を 読んだ 後で 測る★（事務所の hamiTomeru と 同じ・控えの 字体で 測ると 食い違う）
+        var hami = [];
+        var sheets = [];
+        h.ki.forEach(function (k) {
+          sheets = sheets.concat(hnKiNoKami(k, hami));
+        });
+        if (hami.length)
+          throw new Error(
+            'hamidasu:' + (h.ki.length > 1 ? String(hami[0].p.rangeLabel || '') : '')
+          );
+        return _withTimeout(E.tsukuru(sheets, KAMI_KATA), PDF_TIMEOUT_MS, 'PDF');
+      })
+      .then(function (d) {
+        if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
+        if (no !== HN_NO || !d) return; // 替えた 後に できた 物は 捨てる
+        HN_PDF = { no: no, blob: d.blob, name: hnPdfNamae(emp), missing: d.missing || [] };
+        var matsu = HN_PDF_MATSU === no;
+        if (matsu) HN_PDF_MATSU = -1;
+        hnPdfBotan();
+        if (matsu) hnPdfDasu(HN_PDF);
+        hnMiseru(HN_PDF); // ★出来た PDF を そのまま 絵に★（見本 renderInvoicePreviewPDF）
+      })
+      .catch(function (err) {
+        if (HN_PDF_CHU === no) HN_PDF_CHU = -1;
+        // ★訳は 押して 待つ 人に だけ★（見本 exportInvoicePDF も 押した 時だけ 訳を 出す）2026-10-31（本番前 対立役 注1：
+        //   裏の 作りが 全端末に なり、押していない 人にも「通信・紙に 入らない」が ボタンの 下に 出た）
+        //   押していない 時は 黙って 捨てる＝押せば 作り直し、転べば その 時に 訳を 出す
+        var matsu = HN_PDF_MATSU === no;
+        if (matsu) HN_PDF_MATSU = -1;
+        if (no !== HN_NO) return;
+        hnPdfBotan();
+        var wake = hnPdfWake(err, dougu);
+        // ★絵の 所にも 訳★（見本 _doGenerateInvoices の catch＝「プレビュー作成に失敗：…」を .li-empty で）
+        //   紙に 入らない（hamidasu）時も 同じ＝切れた 紙は 見せない（見本と 同じ・設計前 対立役 N5 10-31）
+        hnMiseKara('プレビュー作成に失敗：' + wake);
+        if (!matsu) {
+          // eslint-disable-next-line no-console -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+          if (window.console) console.warn('[本人の PDF 裏の 作り]', err);
+          return;
+        }
+        // ★ボタンの 下の 字は 見本 exportInvoicePDF の catch と 同じ「PDF作成に失敗：」＋訳★（見本との違い③ 2026-11-01）
+        //   道具（字体・pdf-lib）が 読めない 時も 同じ＝見本も 押した 後に 読む 道具（loadAssets）で 転ぶと この catch。
+        //   見本の「読み込み待ちです」は 押す 前の 確かめ（InvoicePDF が 未定義）＝うちには 当たる 場面が 無い（設計前 対立役 止1）
+        hnPdfErr('PDF作成に失敗：' + wake);
+      });
+  }
+  // ★作れなかった 訳★（ボタンの 下＝「PDF作成に失敗：」の 後ろ・絵の 所＝「プレビュー作成に失敗：」の 後ろ）
+  //   見本の e.message に 当たる 所＝訳だけ（「もう一度 押してください」は 見本に 無い・見本との違い③ 2026-11-01）
+  function hnPdfWake(err, dougu) {
+    var m = String((err && err.message) || err || '');
+    if (m.indexOf('hamidasu:') === 0)
+      return (
+        (m.slice(9) ? m.slice(9) + ' の ' : '') +
+        '手当・控除が 多すぎて 明細の 紙に 入りません（会社に 知らせてください）'
+      );
+    if (m.indexOf('PDF が ') === 0)
+      return (
+        '紙を 作るのに ' + Math.round(PDF_TIMEOUT_MS / 1000) + '秒 かかっても 終わりませんでした'
+      );
+    if (m === 'PDF の 道具が 古い')
+      return 'PDF の 道具が 古い（この 画面を 一度 閉じて 開き直してください）';
+    if (!dougu) return 'PDF の 道具を 読めませんでした（通信）';
+    return m;
+  }
+  // ★保存（ダウンロード）★ 見本の InvoicePDF.save（invoice-pdf.js）と 同じ 形＝a の download で 名前つきで 落とす
+  //   ★ホーム画面の アプリでも これ★（2026-10-30・見本と 同じ。前の 心配＝戻れなく なる 事故は サーバーの 生ファイルへの a で、
+  //   ここは blob の PDF＝見本の 代行請求書の コードも ホーム画面で 同じ 道・iPhone の ホーム画面で 戻れるかは 実機では 未測定）
+  //   URL は 60秒 残す（保存の 画面を 待つ 間に 消すと 白い 窓に なり得る・対立役 S2）
+  function hnPdfHozon(p) {
+    var url = URL.createObjectURL(p.blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = p.name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+      if (a.parentNode) a.parentNode.removeChild(a);
+    }, 60000);
+    // 案内の 字は 呼ぶ 側（hnPdfDasu）が 見本と 同じ 字で 出す（見本 InvoicePDF.save も 字を 出さない）
+  }
+
+  // ============================================================
+  // ★★本人の 明細の 絵＝本物の PDF を pdf.js で 描く★★ 2026-10-31（司さん 指示①
+  //   「代行請求書アプリの請求/集計の作りを見ろや 何回もゆわすな」）
+  //   見本＝daikou-seikyu の ensurePdfjs／generateInvoices(immediate)／renderInvoicePreviewPDF／fitInvoice／_invEmpty。
+  //   前は HTML の 紙（PDF を 作る 前の 板）を 縮めて 見せていた＝押して 出る PDF と 別の 物を 見せていた
+  // ============================================================
+  // pdf.js は vendor から 遅れて 読む（CDN を 使わない＝見本と 同じ 版・同じ バイト）
+  var _pdfjsReady = null;
+  function ensurePdfjs() {
+    if (_pdfjsReady) return _pdfjsReady;
+    _pdfjsReady = new Promise(function (res, rej) {
+      if (window.pdfjsLib) return res(window.pdfjsLib);
+      var s = document.createElement('script');
+      s.src = 'vendor/pdf.min.js';
+      s.onload = function () {
+        res(window.pdfjsLib);
+      };
+      s.onerror = function () {
+        rej(new Error('pdf.js読込失敗'));
+      };
+      document.head.appendChild(s);
+    }).then(function (lib) {
+      lib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+      return lib;
+    });
+    return _pdfjsReady;
+  }
+  // 描き終えた 絵の 束（今の HN_NO の 1束 だけ 持つ・設計前 対立役 N3）
+  var HN_MISE = { no: -1, inner: null };
+  var HN_MISE_SEQ = 0;
+  var HN_MISE_FURUI = {};
+  // ★捨てた 絵の canvas は 0 に して 放す★（iPhone の canvas の 総量に 溜めない・対立役 N2/N3）
+  function hnMiseHanasu(inner) {
+    if (!inner) return;
+    Array.prototype.forEach.call(inner.querySelectorAll('canvas'), function (c) {
+      c.width = 0;
+      c.height = 0;
+    });
+    if (inner.parentNode) inner.parentNode.removeChild(inner);
+  }
+  // 画面から 外れた 束（月を 替えた・止めた 文に 替わった）を 放す
+  //   ★HN_MISE が 置かれる 前にも 呼ばれる★（札の 道は 読み込みの 途中で hnPdfSuteru を 呼ぶ＝var は まだ undefined）
+  function hnMiseSuteru() {
+    if (HN_MISE && HN_MISE.inner && !HN_MISE.inner.isConnected) {
+      hnMiseHanasu(HN_MISE.inner);
+      HN_MISE = { no: -1, inner: null };
+    }
+  }
+  // 見本 fitInvoice と 同じ＝720px の 紙を 枠の 幅に 縮め、縮めた 後の 高さを 枠に 入れる
+  function hnMiseFit() {
+    var out = document.getElementById('hnKami');
+    if (!out) return;
+    var inner = out.querySelector('.inv-scale-inner');
+    if (!inner) return;
+    if (out.clientWidth <= 0) return; // 見えない 間は scale(0) を 当てない
+    var s = Math.min(1, out.clientWidth / 720);
+    inner.style.transform = 'scale(' + s + ')';
+    out.style.height = inner.offsetHeight * s + 'px';
+  }
+  // 見本 _invEmpty と 同じ＝絵の 所に 訳だけ（.li-empty）
+  function hnMiseKara(msg) {
+    var out = document.getElementById('hnKami');
+    if (!out) return;
+    HN_MISE_SEQ++;
+    var old = HN_MISE && HN_MISE.inner;
+    HN_MISE = { no: -1, inner: null };
+    out.classList.remove('inv-loading');
+    out.removeAttribute('data-hn-no');
+    out.innerHTML = '<div class="li-empty">' + esc(msg) + '</div>';
+    out.style.height = '';
+    hnMiseHanasu(old);
+  }
+  // 見本 renderInvoicePreviewPDF と 同じ＝1ページ＝1枚の canvas（scale 2）を .sheet.sheet-pdf で 包む。
+  //   全ページ 描き終えてから 入れ替える（前の 絵は 覆いの 下に 残す＝ちらつかない）
+  function hnMiseru(p) {
+    var seq = ++HN_MISE_SEQ;
+    var no = p.no;
+    var pdf = null;
+    function furui() {
+      return seq !== HN_MISE_SEQ || no !== HN_NO;
+    }
+    var inner = document.createElement('div');
+    inner.className = 'inv-scale-inner';
+    return ensurePdfjs()
+      .then(function (pdfjs) {
+        if (furui()) return null;
+        // ★毎回 新しい 写し★（pdf.js は 渡した 配列を 外す＝同じ blob を 出す 道と 食い合わない）
+        return p.blob.arrayBuffer().then(function (buf) {
+          if (furui()) return null;
+          return pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
+        });
+      })
+      .then(function (d) {
+        if (!d) return false;
+        pdf = d;
+        var jun = Promise.resolve();
+        for (var n = 1; n <= pdf.numPages; n++)
+          (function (pn) {
+            jun = jun.then(function () {
+              if (furui()) throw HN_MISE_FURUI;
+              return pdf.getPage(pn).then(function (pg) {
+                var vp = pg.getViewport({ scale: 2 }); // 高い 解像度＝印刷でも くっきり（見本と 同じ）
+                var cv = document.createElement('canvas');
+                cv.width = vp.width;
+                cv.height = vp.height;
+                cv.className = 'inv-pdf-canvas';
+                var sheet = document.createElement('div');
+                sheet.className = 'sheet sheet-pdf';
+                sheet.dataset.page = pn;
+                sheet.appendChild(cv);
+                inner.appendChild(sheet);
+                return pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+              });
+            });
+          })(n);
+        return jun.then(function () {
+          return true;
+        });
+      })
+      .then(function (ok) {
+        if (!ok || furui()) return hnMiseHanasu(inner);
+        // ★入れる 枠は 描き終えた 後で 取り直す★（待つ 間に 止めた 文・月替えで 箱が 替わる・対立役 N2）
+        var out = document.getElementById('hnKami');
+        if (!out) return hnMiseHanasu(inner);
+        var old = HN_MISE && HN_MISE.inner;
+        out.innerHTML = '';
+        out.appendChild(inner);
+        if (old && old !== inner) hnMiseHanasu(old);
+        HN_MISE = { no: no, inner: inner };
+        out.setAttribute('data-hn-no', String(no)); // 描き終えた 印（試験が 待つ）
+        out.classList.remove('inv-loading');
+        hnMiseFit();
+      })
+      .catch(function (e) {
+        hnMiseHanasu(inner);
+        if (e === HN_MISE_FURUI || furui()) return;
+        hnMiseKara('プレビュー作成に失敗：' + (e && e.message ? e.message : e));
+      })
+      .then(function () {
+        if (pdf)
+          try {
+            pdf.destroy();
+          } catch (_) {
+            /* もう 放した */
+          }
+      });
+  }
+
+  // ★★本人の 明細を 見せる★★（選んだ 範囲の PDF を 描いた 絵・記録が 無い 期間は ¥0 の 紙）
+  function honninKami() {
+    var box = document.getElementById('slips');
+    if (!box) return;
+    hnBarKaku();
+    // 計算が 転んだ 間は 描かない（前の 期の 額を 出さない）
+    if (HN_KEISAN_NG) return honninTomeru(HN_KEISAN_NG_BUN, true);
+    // 売上の 直しが 読めない 業務が 在れば 本人の 明細も 出さない（事務所と 同じ 門）2026-10-14
+    if (kyuDameBun(CTX)) {
+      box.innerHTML = '<div class="card"><div class="msg">' + esc(kyuDameBun(CTX)) + '</div></div>';
+      return;
+    }
+    var h = hnHaniNoKi();
+    if (h.dame) {
+      box.innerHTML =
+        '<div id="hnKami"><div class="card"><div class="msg">' + esc(h.dame) + '</div></div></div>';
+      return;
+    }
+    // ★期間を 替えた 時は 同じ 枠に 覆いを 足す★（見本 generateInvoices(immediate)＝前の 絵を 覆いの 下に 残す・
+    //   設計前 対立役 S2）。月を 替えた 時は honninTsuki が 箱ごと「読み込み中…」に する（古い 月の 紙を 見せない）
+    var mado = document.getElementById('hnKami');
+    if (!mado || !mado.classList.contains('sheet-scale')) {
+      box.innerHTML = '<div id="hnKami" class="sheet-scale"></div>';
+      mado = document.getElementById('hnKami');
+    }
+    hnMiseSuteru();
+    // 同じ 中身の 絵が 手元に 在れば 入れ直す だけ（見本の 作り置き＝_invCache）
+    if (HN_MISE && HN_MISE.no === HN_NO && HN_MISE.inner) {
+      if (HN_MISE.inner.parentNode !== mado) {
+        mado.innerHTML = '';
+        mado.appendChild(HN_MISE.inner);
+      }
+      mado.classList.remove('inv-loading');
+      mado.setAttribute('data-hn-no', String(HN_NO));
+      hnMiseFit();
+      return;
+    }
+    mado.classList.add('inv-loading'); // 白い 画面で なく すぐ「作成中」を 出す（見本と 同じ）
+    // ★PDF は 見せる 時に 作る★（どの 端末も・押したら すぐ 出る 為にも なる）
+    if (hnPdfAru()) hnMiseru(HN_PDF);
+    else if (HN_PDF_CHU !== HN_NO) hnPdfTsukuru();
+  }
+
+  // ============================================================
+  // ★★従業員へ 配る（QR・URL・全員分の印刷・作り直す）★★ 2026-09-03
+  //   ★秘密（初回コード）は 窓に 出していない★ので ★倉庫の 関数から 受け取る★。
+  //   ★お金には 触りません★（配る為の 鍵だけ）
+  // ============================================================
+  var HAIFU = [];
+
+  function haifuUrl(x) {
+    // ★配る URL★ … 同じ画面の ★本人モード★へ（?t= と 初回コード ?c=）
+    //   ★初回コードは パスワードを 決めていない人だけ★（決めた人には 付けない）
+    // ★★先は いつも 事務所の 公開の 住所★★ 2026-10-19（司さん「QRも送るもおれのパソコンがネットに
+    //   繋がってないと使えん仕様にすんなや ほかのユーザーが使えるように考えろや」）
+    //   ★前★ 今 開いている 画面の 住所（location.href）＝パソコンの 中や 別の 住所から 開くと そこを 指した
+    //   ★今★ DKConfig.OFFICE_BASE（テスト線は テストの 住所・本番は 本番の 住所＝1か所で 決まる）
+    //   読めない 時だけ 今の 住所（前と 同じ）
+    var ofc = window.DKConfig && window.DKConfig.OFFICE_BASE;
+    var b = ofc
+      ? String(ofc).replace(/\/+$/, '') + '/kyuryo.html'
+      : location.href.split('?')[0].split('#')[0];
+    // ★LINE の 中の ブラウザで 開かない★ 2026-11-01（司さん「他のサービスの扱いを調べろ」）
+    //   LINE の トークで 押すと LINE の 中の ブラウザで 開く＝PDF の 保存（blob の a download）が 効かない 端末が 在る
+    //   （Android の WebView は blob: を 落とせない）。LINE 公式の openExternalBrowser=1 を 付けると
+    //   Safari／Chrome で 開く（LINE から 開く 全部の URL で 効く・LIFF だけ 効かない＝うちは LIFF でない）。
+    //   カメラの QR・メール等 LINE 以外では 何も しない 字（本人の 画面は t と c だけ 読む）
+    return (
+      b +
+      '?t=' +
+      encodeURIComponent(x.token) +
+      (x.init_code ? '&c=' + encodeURIComponent(x.init_code) : '') +
+      '&openExternalBrowser=1'
+    );
+  }
+
+  function qrSvg(text, cell) {
+    try {
+      var qr = window.qrcode(0, 'M');
+      qr.addData(String(text));
+      qr.make();
+      return qr.createSvgTag({ cellSize: cell || 4, margin: 2 });
+    } catch (e) {
+      return '';
+    }
+  }
+
+  // ★★画面いっぱいの QR を 出す★★ 2026-09-04（司さん）
+  //   ★その場で 本人の スマホに 読ませて 終わり★（紙も 送信も 要らない）
+  //   ★大きさは 窓に 合わせる★＝パソコンでも スマホでも 読める
+  //   ★どこを 押しても 閉じる★／★Esc でも 閉じる★
+  // ★大きい 窓を 出す（中身は 呼ぶ側が 決める）★
+  function haifuMado(naka) {
+    if (window.PdfOkuru) PdfOkuru.kesu(); // ★窓の 上に「送る・印刷する」の 帯を 残さない★
+    var furui = document.getElementById('haifuMise');
+    if (furui) furui.parentNode.removeChild(furui);
+    var d = document.createElement('div');
+    d.id = 'haifuMise';
+    d.className = 'noprint';
+    d.setAttribute(
+      'style',
+      'position:fixed;inset:0;z-index:9999;background:#fff;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer'
+    );
+    d.innerHTML = naka;
+    function tojiru() {
+      if (d.parentNode) d.parentNode.removeChild(d);
+      document.removeEventListener('keydown', kii);
+    }
+    function kii(ev) {
+      if (ev.key === 'Escape') tojiru();
+    }
+    d.onclick = tojiru;
+    document.addEventListener('keydown', kii);
+    document.body.appendChild(d);
+    return d;
+  }
+
+  function haifuMiseru(eid) {
+    if (window.PdfOkuru) PdfOkuru.kesu(); // ★QR の 窓（z9999）の 上に 帯を 残さない★（作った後の 対立役 止1）
+    var x = null;
+    for (var i = 0; i < HAIFU.length; i++) {
+      if (String(HAIFU[i].employee_id) === String(eid)) x = HAIFU[i];
+    }
+    if (!x) {
+      // ★★黙って 何も 起きない のを やめる★★ 2026-09-04
+      //   ★押したのに 無反応★は「壊れている」と 同じに 見えます。
+      //   （その人が 配る 一覧に 居ない＝「従業員」から 外れている 等）
+      haifuMado(
+        '<div id="haifuMiseNai" style="font-weight:800;font-size:18px;text-align:center;max-width:20em">' +
+          'この人の QR は 作れませんでした</div>' +
+          '<div class="note" style="text-align:center;max-width:22em">' +
+          '通信を 確かめて、もう一度 押してください。</div>' +
+          '<div class="note">（どこかを 押すと 閉じます）</div>'
+      );
+      return;
+    }
+    // ★$() は 使いません★＝この 箱は ★その場で 作る★物で HTML に 書いていない
+    //   （$() の 相手は HTML に 在る事、という 見張りが 在る）
+    var furui = document.getElementById('haifuMise');
+    if (furui) furui.parentNode.removeChild(furui);
+    // ★窓の 短い方に 合わせる★（はみ出さない・小さすぎない）
+    var mijikai = Math.min(window.innerWidth, window.innerHeight);
+    var haba = Math.max(240, Math.min(560, Math.round(mijikai * 0.72)));
+    var d = document.createElement('div');
+    d.id = 'haifuMise';
+    d.className = 'noprint';
+    d.setAttribute(
+      'style',
+      'position:fixed;inset:0;z-index:9999;background:#fff;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer'
+    );
+    d.setAttribute('data-eid', String(eid));
+    // ★★止まった 人・作り直しも この 窓で★★ 2026-10-24（給料の 設定の 配る 一覧を 外した＝司さん「配るは明細からできるからのけろ」）
+    //   前は「3回 続けて 間違えて 止まっています」と「作り直す」が 一覧に しか 無かった＝明細から 見せると 使えない QR が 出た
+    //   ★止まって いる 時は QR を 出さない★（古い リンクは 開いても 止まって いる）
+    var saiBtn = function (ji, ghost) {
+      return (
+        '<button class="btn' +
+        (ghost ? ' ghost' : '') +
+        '" type="button" data-mado-sai="' +
+        esc(String(eid)) +
+        '" style="cursor:pointer">' +
+        ji +
+        '</button>'
+      );
+    };
+    d.innerHTML =
+      '<div style="font-weight:800;font-size:20px">' +
+      esc(x.name || '') +
+      '　殿</div>' +
+      (x.tomatta
+        ? '<div class="rolewarn" id="haifuMiseTomatta" style="max-width:22em;text-align:center">' +
+          '3回 続けて 間違えて 止まっています。この リンク（QR）は もう 使えません。' +
+          '「作り直す」で 新しい リンク（QR）に してください。</div>' +
+          saiBtn('作り直す')
+        : '<div id="haifuMiseQr" data-url-mihari="' +
+          esc(haifuUrl(x)) +
+          '" style="width:' +
+          haba +
+          'px;height:' +
+          haba +
+          'px">' +
+          qrSvg(haifuUrl(x), 8) +
+          '</div>' +
+          '<div class="note" style="text-align:center;max-width:22em">' +
+          (x.pw_ari
+            ? 'スマホの カメラで この QR を 読んでください。'
+            : 'スマホの カメラで この QR を 読んで、自分の パスワードを 決めてください。') +
+          '</div>' +
+          '<div class="note" style="text-align:center;max-width:24em">' +
+          'リンクが 鍵です。本人にだけ 渡してください。<br />忘れた・漏れた 時は 作り直す' +
+          '（前の リンクは 使えなく なります）</div>' +
+          saiBtn('リンクを 作り直す', true)) +
+      '<div class="note">（ほかの 所を 押すと 閉じます）</div>';
+    var sb = d.querySelector('[data-mado-sai]');
+    if (sb)
+      sb.onclick = function (ev) {
+        ev.stopPropagation(); // ★押しても 窓を 閉じない★
+        // 止まって いない 時は 生きて いる リンクを 殺す＝1度 確かめる（止まって いる 時は もう 使えない ので 聞かない）
+        if (
+          !x.tomatta &&
+          !window.confirm('作り直すと 前の リンク（QR）は 使えなく なります。作り直しますか？')
+        )
+          return;
+        haifuSaihakkou(eid, sb);
+      };
+    // ★中の QR を 箱いっぱいに 広げる★（svg は そのままだと 元の 大きさ）
+    var sv = d.querySelector('#haifuMiseQr svg');
+    if (sv) {
+      sv.setAttribute('width', '100%');
+      sv.setAttribute('height', '100%');
+      sv.style.width = '100%';
+      sv.style.height = '100%';
+      sv.style.display = 'block';
+    }
+    function tojiru() {
+      if (d.parentNode) d.parentNode.removeChild(d);
+      document.removeEventListener('keydown', kii);
+    }
+    function kii(ev) {
+      if (ev.key === 'Escape') tojiru();
+    }
+    d.onclick = tojiru;
+    document.addEventListener('keydown', kii);
+    document.body.appendChild(d);
+  }
+
+  // ★★明細の「QRを 見せる」★★ 2026-09-04（司さん）
+  //   ★まだ 配っていない時は その場で 配ってから 見せます★
+  //   （事務所の 人に「先に 設定を 開け」と 言わせない）
+  // ★★「送る」の 中身は ここ 1か所★★ 2026-09-04
+  //   ★明細からも 設定からも 同じ 物を 使う★（決まりを 2つに しない）
+  //   ・使える台（スマホ等）… ★共有シートが 出る★（LINE・メール等を 選ぶ）
+  //   ・使えない台 ………… ★コピーに 落ちる★
+  function haifuOkuru(x, botan) {
+    if (!x) return;
+    // ★止まった 人の リンクは 送らない★ 2026-10-24（対立役 S3：送っても 開くと 止まって いる＝同じ 死んだ リンクが 何度も 届く）
+    //   ⇒ 見せる 窓で「止まっています」と「作り直す」を 出す
+    if (x.tomatta) {
+      haifuMiseru(x.employee_id);
+      return;
+    }
+    var url = haifuUrl(x);
+    // ★誰の 分か 分かる 文にする★（渡し間違いを 防ぐ）
+    var bun =
+      (x.name || '') +
+      'さん の 給料明細です。' +
+      'この リンクは 本人にだけ お使いください（リンクが 鍵です）。';
+    function moji(t) {
+      if (botan) botan.textContent = t;
+    }
+    if (typeof navigator.share === 'function') {
+      moji('送っています…');
+      navigator
+        .share({ title: '給料明細', text: bun, url: url })
+        .catch(function () {
+          // ★やめた／送れなかった★ … 黙って 元に 戻す（責めない）
+        })
+        .then(function () {
+          moji('送る');
+        });
+      return;
+    }
+    // ★使えない台★ … コピーに 落ちる
+    try {
+      navigator.clipboard.writeText(bun + ' ' + url);
+      moji('コピーしました');
+    } catch (e) {
+      moji('コピーできません');
+    }
+    setTimeout(function () {
+      moji('送る');
+    }, 1500);
+  }
+
+  // ★★明細の「送る」★★ 2026-09-04（司さん「ないやないか」）
+  //   ★まだ 配っていない時は その場で 配ってから 送る★
+  //   中身は 設定タブの「送る」と ★同じ 1か所★（決まりを 2つに しない）
+  // ★辞めた 人にも QR・送るを 出す★ 2026-10-17 司さん「向こうが URL 消すまで 見れないかん・退職者のページからでもURLの配付ができないかん」
+  //   （10-16 に 入れた「辞めた 人には 出さない」は 外した。倉庫の 1人ぶん・作り直しも 辞めた 人を 通す 様に した）
+  // 辞めた 人か（名簿の active が false）
+  function yametaHito(eid) {
+    var e = (RAW.employees || []).filter(function (x) {
+      return x.employee_id === eid;
+    })[0];
+    return !!e && e.active === false;
+  }
+  function meisaiOkuru(eid) {
+    if (!eid) return;
+    var x = null;
+    for (var i = 0; i < HAIFU.length; i++) {
+      if (String(HAIFU[i].employee_id) === String(eid)) x = HAIFU[i];
+    }
+    if (x) {
+      haifuOkuru(x, document.querySelector('[data-meisai-okuru="' + eid + '"]'));
+      return;
+    }
+    haifuHitori(eid).then(function () {
+      for (var i = 0; i < HAIFU.length; i++) {
+        if (String(HAIFU[i].employee_id) === String(eid)) {
+          haifuOkuru(HAIFU[i], document.querySelector('[data-meisai-okuru="' + eid + '"]'));
+          return;
+        }
+      }
+      haifuMado(
+        '<div style="font-weight:800;font-size:18px;text-align:center;max-width:20em">' +
+          'この人の リンクは 作れませんでした</div>' +
+          '<div class="note" style="text-align:center;max-width:22em">' +
+          '通信を 確かめて、もう一度 押してください。</div>' +
+          '<div class="note">（どこかを 押すと 閉じます）</div>'
+      );
+    });
+  }
+
+  function meisaiQr(eid) {
+    if (!eid) return;
+    // ★控えに 居ても 見せる 前に 取り直す★ 2026-10-20（対立役 本番前 N1）
+    haifuMiseruAtarashiku(eid);
+  }
+
+  // 配るの 訳を 画面の 上（#err）に 出した 時の 字（消す 時は、この 字が まだ 出ている 時だけ 消す）
+  var HAIFU_TOP = '';
+  // ★2026-10-24 給料の 設定の 配る 一覧（と その 赤字の 箱）を 外した＝訳は いつも 画面の 上（#err）に 出す★
+  function haifuErr(t) {
+    // ★配る 一覧が 見えていない 画面（退職者ページ 等）でも 訳を 出す★ 2026-10-17（対立役 N1）
+    if (t) {
+      showErr(t);
+      HAIFU_TOP = t;
+      return;
+    }
+    // ★消す 時は 自分が 出した 字だけ 消す★（押し直して 通っても 赤字が 残った・対立役 直す1。
+    //   前の 直しは 保存の 失敗 等 他の 訳まで 消し、直った 様に 見えた・対立役 10-17）
+    var top = $('err');
+    if (HAIFU_TOP && top && top.textContent === HAIFU_TOP) showErr('');
+    HAIFU_TOP = '';
+  }
+
+  // ★★一覧は 従業員 全員★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+  //   ★配る前から 名前が 出ます★（誰に 配ってあるかが 一目で 分かる）
+  //   鍵が 出来ている人 … 〔大きく 見せる〕〔送る〕〔作り直す〕
+  //   まだの人 ……………… 〔配る〕（★その人だけ★）
+  function haifuHito(eid) {
+    for (var i = 0; i < HAIFU.length; i++) {
+      if (String(HAIFU[i].employee_id) === String(eid)) return HAIFU[i];
+    }
+    return null;
+  }
+
+  // ★画面に 戻った 時に 配る 一覧を 取り直す★ 2026-10-20（別の 端末で 作り直した 後に 古い リンクを 送らない・対立役 本番前 直2）
+  //   「送る」は 押した その 場で 共有の 窓を 開く 決まり（待つと 開かない）ので、押す 前に 新しく して おく
+  var HAIFU_TORINAOSHI = 0;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || HONNIN || !HAIFU.length) return;
+    if (Date.now() - HAIFU_TORINAOSHI < 30000) return;
+    HAIFU_TORINAOSHI = Date.now();
+    HAIFU.slice().forEach(function (x) {
+      if (x && x.employee_id) haifuHitori(x.employee_id, true);
+    });
+  });
+  // ★★配る 札を 描き直す★★ 2026-10-24（給料の 設定の 配る 一覧は 外した＝司さん「配るは明細からできるからのけろ」）
+  //   今 描く 所は 退職者ページの 開いた 配る 箱と、明細の 見せる 窓（作り直しの 後）だけ
+  function renderHaifu() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-yame-box]'), function (box) {
+      if (box.style.display === 'none') return;
+      yameHaifuNuru(box, box.getAttribute('data-yame-box'));
+    });
+  }
+
+  // ★配ってある人の 札★（前と 同じ 中身）
+  function haifuFuda(x) {
+    return (function (x) {
+      var url = haifuUrl(x);
+      return (
+        '<div class="card" style="margin:10px 0 0">' +
+        '<div style="font-weight:800">' +
+        esc(x.name || '') +
+        '　殿' +
+        (yametaHito(x.employee_id)
+          ? '<span class="note" style="margin-left:6px">（退職）</span>'
+          : '') +
+        '</div>' +
+        '<div class="note" style="margin:2px 0 8px">' +
+        (x.tomatta
+          ? '<span class="rolewarn">3回 続けて 間違えて 止まっています。「作り直す」で 新しい リンク（QR）を 配ってください（古い リンクは 使えなく なります）。</span>'
+          : x.pw_ari
+            ? 'もう 自分の パスワードを 決めています（このQRは そのまま 使えます）'
+            : 'まだ パスワードを 決めていません（このQRから 決めます）') +
+        '</div>' +
+        // ★★一覧には QR も URL も 出しません★★ 2026-09-04（司さん）
+        //   「★一気に 見せる メリット ないやろが★」
+        //   ・その場で 読ませるのは ★1人ずつ（大きく 見せる）★
+        //   ・一覧の 小さい QR（152px）は ★離れて 読めない★＝使い道が 無い
+        //   ・★リンクが 鍵★＝7人ぶんを 一度に 出すと
+        //     ★その場に 居る 誰でも 全員ぶんを 撮れる★
+        //   ⇒ 一覧は ★名前と 様子と ボタンだけ★。URL は「送る」で 渡す。
+        '<div>' +
+        '<div style="flex:1 1 200px;min-width:0">' +
+        // ★★初回コードは 画面に 出しません★★ 2026-09-04（司さん）
+        //   「初回コードなんか Rakunally でやってなかろが」
+        //   ★Rakunally の 実物（kyuyo/js/app.js:4301）★ も
+        //   ★コードそのものは 1文字も 出さず★、?c= に 埋めるだけです。
+        //   ⇒ ★出すと 事務所の 人が 見えてしまう★／★本人が 打つ 必要も 無い★
+        //   ⇒ ★渡すのは リンク（QR）1つだけ★＝★リンクが 鍵★
+        (x.init_code
+          ? '<div class="note" style="margin:0 0 6px">この リンク（QR）を 開くと 本人が パスワードを 決めます。<b>リンクは 本人にだけ 渡してください</b>（リンクが 鍵です）。</div>'
+          : '') +
+        // ★★本命は これ＝その場で 読ませる★★ 2026-09-04（司さん）
+        //   「QRコードは 見せるだけで ええやろが」
+        //   ★紙も 送信も 要りません★。押すと 画面いっぱいの QR が 出ます。
+        // ★★ボタンは 箱に 入れる★★ 2026-09-04（司さん）
+        //   「前から 色んな アプリで いよるけど なんで ボタンが 引っ付くんど」
+        //   ★裸で 並べると 折り返した時に 上下が くっつきます★
+        //   （字の 間の 空白 1つ ぶんしか 空かない・縦は 0）
+        //   ⇒ ★flex + gap の 箱に 入れる★＝横も 縦も 同じだけ 空く
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:2px">' +
+        '<button class="btn chi" type="button" data-hmise="' +
+        esc(x.employee_id) +
+        '">大きく 見せる</button>' +
+        // ★★「コピー」→「送る」★★ 2026-09-04（司さん「送るに 変えて」）
+        //   ・使える台（スマホ等）… ★共有シートが 出る★（LINE・メール等を 選ぶ）
+        //   ・使えない台 ………… ★コピーに 落ちる★（今までと 同じ）
+        //   ★誰の 分か 名前も 一緒に 送る★（渡し間違いを 防ぐ）
+        // ★data-url-mihari … 見張りが 中身を 確かめる 為の 印★
+        //   （画面には 出しません／送る 中身は haifuOkuru が 作ります）
+        '<button class="btn sub2 chi" type="button" data-hokuru="' +
+        esc(x.employee_id) +
+        '" data-url-mihari="' +
+        esc(url) +
+        '">送る</button>' +
+        '<button class="btn sub2 chi" type="button" data-hsai="' +
+        esc(x.employee_id) +
+        '">作り直す</button>' +
+        '</div>' +
+        '</div></div></div>'
+      );
+    })(x);
+  }
+
+  // ★明細の 札から 押された時★（1か所で 受ける）
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    var q = t && t.getAttribute && t.getAttribute('data-meisai-qr');
+    if (q) meisaiQr(q);
+    var mo = t.getAttribute && t.getAttribute('data-meisai-okuru');
+    if (mo) meisaiOkuru(mo);
+    var ma = t.getAttribute && t.getAttribute('data-meisai-adj');
+    if (ma) adjHiraku(ma);
+    var ad = t.getAttribute && t.getAttribute('data-adj-del');
+    if (ad) adjKesu(ad);
+    var aa = t.getAttribute && t.getAttribute('data-adj-add');
+    if (aa) adjTasu(aa);
+  });
+
+  // ★★手当・控除を 打つ 所★★ 2026-10-06（司さん「ア」＝給料の 総額と 会社に 残る分も 動く）
+  //   1行＝1人の 1つの 手当 か 控除。日付は ★今 見ている 払う回の 中★（その回の 明細に 載る）
+  // ★★手当・控除の 知らせ★★ 2026-10-06（対立役）
+  //   ①外した 人（明細に 出ない 人）の 手当・控除＝どの 明細にも 出ない（給料の 合計 REP.harai にも 入らない・2026-11-06 字を 直した）
+  //   ②差引 支給が マイナスの 人（控除が 働いた 分より 多い）
+  //   ★止めは しない★（止めるかは お金の 決め＝司さんに 訊く）。数えて 出すだけ
+  function adjChui() {
+    if (HONNIN || !REP) return '';
+    var aru = {};
+    (REP.employees || []).forEach(function (e) {
+      aru[e.employee_id] = true;
+    });
+    var nokori = 0;
+    var nokoriKen = 0; // ★行の 数でも 見る★（手当と 控除が 同じ 額で 打ち消すと 0円 に なり 知らせが 消えた）
+    Object.keys(REP.days || {}).forEach(function (d) {
+      ((REP.days[d] || {}).adj || []).forEach(function (a) {
+        if (aru[a.employee_id]) return;
+        nokori += a.kind === 'koujo' ? -a.yen : a.yen;
+        nokoriKen += 1;
+      });
+    });
+    var minus = (REP.employees || []).filter(function (e) {
+      return e.totalPay < 0;
+    });
+    var t = '';
+    if (nokoriKen) {
+      t +=
+        '<div>外した 人に 手当・控除が ' +
+        nokoriKen +
+        '件（差し引き ¥' +
+        yen(nokori) +
+        '）あります（どの 明細にも 出ません・給料の 合計にも 入れていません）。</div>';
+    }
+    if (minus.length) {
+      t +=
+        '<div>差引 支給が マイナスの 人：' +
+        minus
+          .map(function (e) {
+            return esc(e.name) + ' ¥' + yen(e.totalPay);
+          })
+          .join('、') +
+        '</div>';
+    }
+    return t ? '<div class="card adj-chui noprint">' + t + '</div>' : '';
+  }
+
+  function adjPanelOf(eid) {
+    return document.querySelector('[data-adj-panel="' + String(eid).replace(/"/g, '') + '"]');
+  }
+  function adjHiraku(eid) {
+    var p = adjPanelOf(eid);
+    if (!p) return;
+    if (p.style.display !== 'none') {
+      p.style.display = 'none';
+      return;
+    }
+    var e = ((REP && REP.employees) || []).filter(function (x) {
+      return String(x.employee_id) === String(eid);
+    })[0];
+    var rows = ((e && e.adj) || [])
+      .map(function (a) {
+        return (
+          '<div class="adj-gyou">' +
+          esc(String(a.date).slice(5).replace('-', '/')) +
+          '　' +
+          (a.kind === 'koujo' ? '控除' : '手当') +
+          '　' +
+          esc(a.label || '') +
+          '　¥' +
+          yen(a.yen) +
+          (a.adj_id
+            ? ' <button class="xbtn" data-adj-del="' +
+              esc(a.adj_id) +
+              '" aria-label="消す">✕</button>'
+            : '') +
+          '</div>'
+        );
+      })
+      .join('');
+    p.innerHTML =
+      (rows || '<div class="adj-nashi">まだ ありません。</div>') +
+      '<div class="adj-form">' +
+      '<input type="date" data-adj-f="date" value="' +
+      esc(PERIOD.start) +
+      '" min="' +
+      esc(PERIOD.start) +
+      '" max="' +
+      esc(PERIOD.end) +
+      '">' +
+      '<select data-adj-f="kind"><option value="teate">手当（足す）</option><option value="koujo">控除（引く）</option></select>' +
+      '<input type="text" data-adj-f="label" placeholder="名前（ガソリン代・前借り など）">' +
+      '<input type="number" inputmode="numeric" min="1" data-adj-f="yen" placeholder="円">' +
+      '<button class="btn" data-adj-add="' +
+      esc(eid) +
+      '">足す</button></div>' +
+      '<div class="adj-msg" data-adj-msg></div>';
+    p.style.display = '';
+  }
+  function adjTasu(eid) {
+    var p = adjPanelOf(eid);
+    if (!p || !COMPANY) return;
+    if (keisanNgNara()) return;
+    var v = function (k) {
+      var el = p.querySelector('[data-adj-f="' + k + '"]');
+      return el ? el.value : '';
+    };
+    var hi = v('date');
+    var en = Math.round(num(v('yen')));
+    var msg = p.querySelector('[data-adj-msg]');
+    if (!hi || hi < PERIOD.start || hi > PERIOD.end) {
+      if (msg) msg.textContent = '日付は ' + PERIOD.rangeLabel + ' の 中に してください。';
+      return;
+    }
+    if (!(en > 0)) {
+      if (msg) msg.textContent = '円を 入れてください。';
+      return;
+    }
+    DKSession.rest(SESS, 'dk_pay_adjustments', {
+      method: 'POST',
+      body: JSON.stringify({
+        company_id: COMPANY.company_id,
+        employee_id: eid,
+        work_date: hi,
+        kind: v('kind') === 'koujo' ? 'koujo' : 'teate',
+        label: v('label') || '',
+        yen: en,
+      }),
+    })
+      .then(function (r) {
+        if (!r.ok) return saveErr('手当・控除を 保存できませんでした。', r);
+        showErr('');
+        loadPeriod();
+      })
+      .catch(function () {
+        showErr('手当・控除を 保存できませんでした。');
+      });
+  }
+  function adjKesu(id) {
+    if (keisanNgNara()) return;
+    DKSession.rest(SESS, 'dk_pay_adjustments?adj_id=eq.' + encodeURIComponent(id), {
+      method: 'DELETE',
+    })
+      .then(function (r) {
+        if (!r.ok) return saveErr('手当・控除を 消せませんでした。', r);
+        showErr('');
+        loadPeriod();
+      })
+      .catch(function () {
+        showErr('手当・控除を 消せませんでした。');
+      });
+  }
+
+  // ★★1人ぶんだけ 配る★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+  //   ★渡していない 人の 鍵まで 作らない★（鍵は 渡す 相手 1人にだけ）
+  //   ★もう 在る人は そのまま★（作り直しでは ない＝押しても 壊れない）
+  // ★取り直しの 番号★ 2026-10-20（後から 着いた 古い 返りで 新しい token を 上書きしない・対立役 本番前 N5）
+  var HAIFU_BAN = {};
+  //   damatte＝画面に 戻った 時の 取り直し（赤字を 出さない・ボタンも 触らない・対立役 本番前 N3）
+  //   返り：true＝取れた／false＝取れなかった（見せる 側が 訳を 出す・対立役 本番前 N4）
+  function haifuHitori(eid, damatte) {
+    var ban = (HAIFU_BAN[eid] = (HAIFU_BAN[eid] || 0) + 1);
+    if (!damatte) haifuErr('');
+    var b = damatte ? null : document.querySelector('[data-hhito="' + eid + '"]');
+    if (b) {
+      b.disabled = true;
+      b.textContent = '用意中…';
+    }
+    return DKSession.rest(SESS, 'rpc/dk_kyuryo_haifu_hitori', {
+      method: 'POST',
+      body: JSON.stringify({ p_employee_id: eid }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (j) {
+        if (b) {
+          b.disabled = false;
+          b.textContent = '配る';
+        }
+        if (HAIFU_BAN[eid] !== ban) return 'atarashii'; // もっと 新しい 取り直し か 作り直しが 在る（落ちたのでは ない）
+        if (!j || j.ok !== true) {
+          // ★出来なかった事を 0件で 隠さない★（「0人 配った」に 見せない）
+          if (!damatte)
+            haifuErr(
+              '配れませんでした（' +
+                ((j && j.reason) || '理由不明') +
+                '）。もう一度 お試しください。'
+            );
+          return false;
+        }
+        // ★その人ぶんだけ 差し替える★（他の 人は 触らない）
+        var h = j.hito;
+        if (h && h.employee_id) {
+          var atta = false;
+          for (var i = 0; i < HAIFU.length; i++) {
+            if (String(HAIFU[i].employee_id) === String(h.employee_id)) {
+              HAIFU[i] = h;
+              atta = true;
+            }
+          }
+          if (!atta) HAIFU.push(h);
+        }
+        renderHaifu();
+        return true;
+      })
+      .catch(function () {
+        if (b) {
+          b.disabled = false;
+          b.textContent = '配る';
+        }
+        if (!damatte) haifuErr('配れませんでした（通信）。もう一度 お試しください。');
+        return false;
+      });
+  }
+  // ★見せる 前に 取り直してから 大きく 見せる★ 2026-10-20（別の 端末で 作り直すと token が 替わる・対立役 本番前 直2・N1・N4）
+  //   取れなかった 時は 前の 控えで 見せるが、窓の 中に その 事を 出す（黙って 古い QR を 見せない）
+  function haifuMiseruAtarashiku(eid) {
+    return haifuHitori(eid).then(function (toreta) {
+      haifuMiseru(eid);
+      // 'atarashii'＝別の 取り直しが 先に 走って いた（落ちたのでは ない＝警告を 出さない・対立役 本番前 D5）
+      if (toreta) return;
+      var m = document.getElementById('haifuMiseQr');
+      if (m && m.parentNode) {
+        var n = document.createElement('div');
+        n.className = 'rolewarn';
+        n.id = 'haifuMiseFurui';
+        n.textContent =
+          'この QR が 新しいか 確かめられませんでした。別の 画面で 作り直して いれば 使えません。';
+        m.parentNode.insertBefore(n, m);
+      }
+    });
+  }
+
+  // ★配る 札の 押し口★（2026-10-24 までは 給料の 設定の 配る 一覧の onclick＝一覧を 外したので 名前を 付けて 退職者の 札から 呼ぶ）
+  function haifuOshi(ev) {
+    var t = ev.target;
+    if (!t) return;
+    var mi = t.getAttribute && t.getAttribute('data-hmise');
+    if (mi) {
+      // ★見せる 前に その人を 取り直す★ 2026-10-20（別の 端末で 作り直すと token が 替わる＝古い QR を 見せない・対立役 本番前 直2）
+      //   取り直しが 落ちても 前の 控えで 見せる（前と 同じ）
+      haifuMiseruAtarashiku(mi);
+      return;
+    }
+    var hh = t.getAttribute && t.getAttribute('data-hhito');
+    if (hh) {
+      haifuHitori(hh);
+      return;
+    }
+    var ok = t.getAttribute && t.getAttribute('data-hokuru');
+    if (ok) {
+      // ★中身は haifuOkuru 1か所★（明細からも 同じ 物を 使う）
+      haifuOkuru(haifuHito(ok), t);
+      return;
+    }
+    var sai = t.getAttribute && t.getAttribute('data-hsai');
+    if (sai) haifuSaihakkou(sai, t);
+  }
+  // ★★作り直す（新しい リンク・QR）★★ 2026-10-24 押し口の 中から 切り出した（明細の 見せる 窓と 退職者の 札の 2か所から 呼ぶ）
+  //   中身は 前と 同じ＝返りの token・初回コードで すぐ 控えを 差し替える／走って いる 取り直しの 古い 返りは 捨てる
+  //   ★同じ 人の 作り直しを 2本 走らせない★（二度押しで 後から 着いた 古い 返りが 新しい token を 上書き しない・対立役 N5）
+  var HAIFU_SAI = {};
+  function haifuSaihakkou(sai, t) {
+    if (HAIFU_SAI[sai]) return Promise.resolve(false);
+    HAIFU_SAI[sai] = true;
+    if (t) t.disabled = true;
+    haifuErr('');
+    return DKSession.rest(SESS, 'rpc/dk_kyuryo_saihakkou', {
+      method: 'POST',
+      body: JSON.stringify({ p_employee_id: sai }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (j) {
+        HAIFU_SAI[sai] = false;
+        if (t) t.disabled = false;
+        if (!j || j.ok !== true) {
+          // 倉庫の 内側の 名前を そのまま 出さない（10-17 対立役 K2。辞めた 人も 作り直せる 様に なったので taishoku は 来ない）
+          haifuErr(
+            j && j.reason === 'not_yours'
+              ? 'この 会社の 人では ないので 作り直せません。開き直してください。'
+              : '作り直せませんでした（' + ((j && j.reason) || '理由不明') + '）。'
+          );
+          return false;
+        }
+        // 走って いる 取り直しの 古い 返りは 捨てる（対立役 本番前 N5）
+        HAIFU_BAN[sai] = (HAIFU_BAN[sai] || 0) + 1;
+        // ★作り直すと token も 替わる★ 2026-10-20＝返りの token・初回コードで すぐ 控えを 差し替える
+        //   （1人ぶんの 取り直しが 落ちても、古い 死んだ リンクを 黙って 送らない・対立役 小）
+        for (var hi = 0; hi < HAIFU.length; hi++) {
+          if (String(HAIFU[hi].employee_id) === String(sai)) {
+            HAIFU[hi] = Object.assign({}, HAIFU[hi], {
+              token: j.token,
+              init_code: j.init_code,
+              pw_ari: false,
+              tomatta: false,
+            });
+          }
+        }
+        renderHaifu();
+        haifuMadoNaoshi(sai);
+        // ★作り直した後の 札を 出し直す★（その人だけ）
+        return Promise.resolve(haifuHitori(sai)).then(function () {
+          haifuMadoNaoshi(sai);
+          return true;
+        });
+      })
+      .catch(function () {
+        HAIFU_SAI[sai] = false;
+        if (t) t.disabled = false;
+        haifuErr('作り直せませんでした（通信）。');
+        return false;
+      });
+  }
+  // 見せる 窓が その 人の 物で 開いて いれば 新しい token で 描き直す（閉じて いれば 開かない・対立役 N5）
+  function haifuMadoNaoshi(eid) {
+    var md = document.getElementById('haifuMise');
+    if (md && md.getAttribute('data-eid') === String(eid)) haifuMiseru(eid);
+  }
+
+  $('btnLogout').onclick = function () {
+    DKSession.logout();
+  };
+  // ★★「明細を PDFで 見る（全員ぶん）」と「給料表（まとめた表）」は 消した★★ 2026-11-06（司さん「赤丸のところがいらない」）
+  //   ここに 在った 押し口（btnPrint・btnPrintSel・kamiTsuki/kamiHi/kamiKojin/kamiNen と その 道具）は 消した。
+  //   1人ずつの PDF は その人の 紙を 押す（printAll([id])）／「送る」。代わりに #haraiCard（その 期に 渡す 給料の 合計）。
+  // ★★名前で 選ぶ★★ 2026-10-03（司さん「月と名前で選んでPDFで見れるように」）
+  //   HITO＝選んだ 人の employee_id（''＝全員）。明細が この人だけに なる（2026-11-06 から 上の 合計は 全員の まま）。
+  var HITO = '';
+  function hitoErabiTsukuru() {
+    var s = $('hitoSel');
+    if (!s || HONNIN) return;
+    var hito = REP && REP.employees ? REP.employees : [];
+    if (
+      HITO &&
+      !hito.some(function (e) {
+        return String(e.employee_id) === HITO;
+      })
+    )
+      HITO = '';
+    var h = '<option value="">全員（' + hito.length + '人）</option>';
+    hito.forEach(function (e) {
+      var id = String(e.employee_id);
+      h +=
+        '<option value="' +
+        esc(id) +
+        '"' +
+        (id === HITO ? ' selected' : '') +
+        '>' +
+        esc(e.name || '') +
+        '</option>';
+    });
+    s.innerHTML = h;
+  }
+  if ($('hitoSel')) {
+    $('hitoSel').onchange = function () {
+      HITO = this.value || '';
+      renderSlips();
+      nurikae();
+    };
+  }
+  // ★描き直した／人を 選び直した＝前の 紙の 帯を 消す（送らない）★
+  //   2026-11-06 チェック（選んだ人を 印刷）は 消した が ★帯を 消す 所は 残す★（renderSlips と 名前の 選び直しから 呼ぶ・設計前 対立役 止3）
+  function nurikae() {
+    if (window.PdfOkuru) PdfOkuru.kesu();
+  }
+  $('prevM').onclick = function () {
+    YM_KIMETA = true; // ★押した 月を 守る★（設定を 読み終わる 前でも 今日の 月へ 戻さない・対立役 10-07）
+    YM = PayrollPeriod.shift(YM, -1);
+    PIDX = 0;
+    loadPeriod();
+  };
+  $('nextM').onclick = function () {
+    YM_KIMETA = true;
+    YM = PayrollPeriod.shift(YM, 1);
+    PIDX = 0;
+    loadPeriod();
+  };
+  // ★★「見るだけ」か「決める」か★★ 2026-09-05（司さん）
+  //   ★?henshu=1 が 付いている時だけ「従業員」「給料の設定」を 出す★
+  //   （会社設定 →「車」「従業員」チップから 来ると 付いています）
+  //   ★本人モード（?t=）では 元から 出ません★（別の 守りで 隠しています）
+  (function kimeruDake() {
+    var h = false;
+    try {
+      h = new URLSearchParams(location.search).get('henshu') === '1';
+    } catch (_) {
+      h = false;
+    }
+    if (h) {
+      // ★どの タブで 開くか★（会社設定の チップが #set / #emp を 付けて 来る）
+      var doko = (location.hash || '').replace('#', '');
+      // ★★#kuruma＝車だけ★★ 2026-10-16（司さん「車の決めるとこに なんで 関係ないものが あるんど」）
+      //   前は 車の チップが「給料の 設定」を まるごと 開き、役割・売上の 分け方・明細の 期間・配る が 並んでいた。
+      //   ⇒ 車の 箱（と 保存）だけ 出す。他は 給料の 画面の「給料の 設定」の タブに 今までどおり 在る
+      var kurumaDake = doko === 'kuruma';
+      if (kurumaDake) doko = 'set';
+      if (doko === 'set' || doko === 'emp') {
+        var b2 = document.querySelector('.tab[data-tab="' + doko + '"]');
+        if (kurumaDake) {
+          var ps = document.getElementById('paneSet');
+          if (ps) ps.classList.add('kuruma-dake');
+          // ★「載せる」の 印も 変えたら その場で 保存★（車ごとの 印・名前と 同じ。保存を 押し忘れて 戻ると
+          //   黙って 消えた・保存の 帯は 下の 帯に 覆われて 押せなかった＝対立役）
+          //   ★送るのは この 印 だけ★（設定 ぜんぶを 送ると、隠れた 積立・段階の 率が 画面の 丸めで
+          //     0.0525→0.053 に 書き換わった＝お金の 決まりが 黙って 変わる・対立役）
+          var sc = document.getElementById('showCarSales');
+          if (sc) sc.addEventListener('change', noseruDakeHozon);
+        }
+        if (b2) {
+          TAB = doko;
+          Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+            x.className = 'tab' + (x === b2 ? ' on' : '');
+          });
+          // ★★入口を 2つに しない★★ 2026-09-06（司さん）
+          //   ★司さんの言葉★「従業員と給料の設定がなんで2個もある」
+          //   ★私の しくじり★ 会社設定に チップを 足した時、★中身を 移さず リンクで 済ませた★
+          //     ⇒ 同じ物への 入口が「会社設定の チップ」と「給料の タブ」で ★2つ★に なった。
+          //   ⇒★会社設定から 来た時は タブの 行を 出さない★＝入口は チップ ただ1つ。
+          var tabs = document.getElementById('tabs');
+          if (tabs) tabs.style.display = 'none';
+          // ★★戻る所を 作る★★ 2026-09-06（司さん「全ページで戻るボタンすらない」）
+          //   ★会社設定から 来たのに 会社設定へ 帰れませんでした★
+          // ★見出しは 出さない★（チップの 列で 光る 物が 見出し・2026-11-04）。箱は 従業員／退職者の 切り替えの 時だけ
+          var modoru = document.getElementById('modoruSet');
+          if (modoru && doko === 'emp') {
+            modoru.style.display = '';
+            empKiriWoMidashiE();
+          }
+        }
+      }
+      return;
+    }
+    // ★★給料の 画面にも「従業員」「給料の設定」の タブを 出す★★ 2026-10-06
+    //   司さん「給料の所に給料設定と従業員設定のボタンも作れや どこで設定するか分からんやろが」
+    //   前（09-06）は「2個もある」と 言われて 会社設定の チップ 1つに 絞り、ここでは 隠していた。
+    //   ⇒ 今は 出す（会社設定の チップも 同じ 画面を 開く＝中身は 1つ）。
+    //   ★本人の 画面（?t=）には 出ない★＝honninStart が 白名簿で タブの 行ごと 隠す。
+  })();
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
+    b.onclick = function () {
+      TAB = b.getAttribute('data-tab');
+      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+        x.className = 'tab' + (x === b ? ' on' : '');
+      });
+      render();
+    };
+  });
+  // ★車だけの 画面の「載せる」＝この 印 だけを 書く★ 2026-10-16（対立役 S-1・M-b・軽1）
+  //   保存している 間は 押せない／書けたら 車の 箱の 中に「保存しました」／書けなければ 印を 戻して 知らせる。
+  //   まだ 設定の 行が 無い 会社（1行も 当たらない）は 今までの 保存（既定の 値）で 行を 作る
+  function noseruDakeHozon() {
+    var sc = document.getElementById('showCarSales');
+    if (!sc || !COMPANY) return;
+    var ima = sc.checked;
+    var modosu = function (msg) {
+      sc.checked = !ima;
+      showErr(msg);
+      flash('carSaved', '保存できませんでした');
+    };
+    if (SET && SET.yomenai)
+      return modosu('給料の 設定を 読めていないので 保存しません。もう一度 開いてください。');
+    sc.disabled = true;
+    DKSession.rest(
+      SESS,
+      'dk_payroll_settings?company_id=eq.' + encodeURIComponent(COMPANY.company_id),
+      {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        // 押して すぐ「戻る」でも 切らない（倉庫は 別の 住所＝問い合わせを 挟む 間に 切られた・対立役 S-2）
+        keepalive: true,
+        body: JSON.stringify({ show_car_sales: ima, updated_at: new Date().toISOString() }),
+      }
+    )
+      .then(function (r) {
+        if (!r || !r.ok) throw new Error('保存できない');
+        return r.json();
+      })
+      .then(function (rows) {
+        if (!Array.isArray(rows)) throw new Error('返りが 読めない');
+        if (rows.length === 0) {
+          // 設定の 行が まだ 無い（または 当たらない）＝ここでは 作らない（全部の 保存へ 倒すと 隠れた 率が
+          //   画面の 丸めで 書き換わり、結果も 待たずに「保存しました」と 出した・対立役 S-A）
+          modosu(
+            'まだ 給料の 設定が 保存されていません。給料の 画面の「給料の 設定」で 一度 保存してから 選んでください。'
+          );
+          return;
+        }
+        showErr('');
+        if (SET) SET.show_car_sales = ima;
+        // 倉庫の 更新の 時刻も 手元に 揃える（給料の 設定の 保存の 前の「他の 画面で 変わったか」の 比べに 使う）
+        if (SET && rows[0] && rows[0].updated_at) SET.updated_at = rows[0].updated_at;
+        RAW.payrollSettings = SET;
+        flash('carSaved', '保存しました');
+        recalc();
+      })
+      .catch(function () {
+        modosu(
+          '「給料明細に 車ごとの売上を 載せる」を 保存できませんでした。通信を 確かめて もう一度 押してください。'
+        );
+      })
+      .then(function () {
+        sc.disabled = false;
+      });
+  }
+  // ★「人ごとに 変えたい」から 従業員タブへ 1押しで 飛ぶ★ 2026-09-03（司さん）
+  //   ★探し回らせない為★＝設定が 2つのタブに 分かれているのを 埋める。
+  //   ★タブの押し方は 上と 同じ物を 使う★（決まりを 2か所に 書かない）
+  (function () {
+    var b = document.getElementById('toEmpTab');
+    if (!b) return;
+    b.onclick = function () {
+      // 会社設定から 来た 時（チップの 列が 在る）は チップ「従業員」と 同じ 道（保存を 待って 移る・2026-11-04）
+      if (document.getElementById('dkChipRow') && window.DKChipNi) {
+        window.DKChipNi('hito');
+        return;
+      }
+      var t = document.querySelector('.tab[data-tab="emp"]');
+      if (t && t.onclick) t.onclick();
+    };
+  })();
+
+  // ---------- 通信の共通 ----------
+  // ★1つ失敗しても画面を殺さない★（表がまだ無くても他は出す）
+  // ★2026-08-09: 取れなかったことを 数える★
+  //   旧: 通信が失敗しても 黙って空配列 → 画面には 0 と出ていた。
+  //       ＝「本当に0」と「取れなかった」が見分けられない。
+  //   新: 空は返す（落ちないため）が ★失敗は必ず数える★。
+  //       数えた結果は画面の上に出し、数字は「—」にする。
+  var LOAD = DKSession.newLoadState();
+  // ★★ダイコメの 表を 読む 時は この 会社だけに 絞る★★ 2026-10-17
+  //   前は 会社で 絞らず 読んでいた（設定は limit=1）＝会社を 2つ 持つ 人は 別の 会社の 歩合・人・売上が 混ざる
+  //   （今は テスト・本番とも 0人＝害は 0）。dk_ の 表だけ（請求の 表 meisai 等には 足さない）
+  function kaishaDake(p) {
+    if (!COMPANY || !/^dk_/.test(p) || /[?&]company_id=/.test(p)) return p;
+    return (
+      p +
+      (p.indexOf('?') < 0 ? '?' : '&') +
+      'company_id=eq.' +
+      encodeURIComponent(COMPANY.company_id)
+    );
+  }
+  function soft(path) {
+    return DKSession.softList(SESS, kaishaDake(path), LOAD);
+  }
+  var SET_YOMI = { tried: 0, failed: 0 };
+  // ★期の 計算が 転んだ★（対立役 2回目 直す-2：読み終えの 印が 下りず「読み込み中です」の 断りが 終わらなかった）
+  var KEISAN_NG_JI = '画面の計算で問題が出ました。画面を読み込み直してください。';
+  var KEISAN_NG = false;
+  // ★計算が 転んだ 間は 描かない・書かない★（対立役 4回目 直す-A・直す-B：名前で 選ぶ・日の 帯 は render を 通らずに
+  //   前の 期の 明細・日の 欄を 描き、そこから 車の 時間・売上・手当を 送れた）
+  function keisanNgNara() {
+    if (!KEISAN_NG) return false;
+    showErr(KEISAN_NG_JI);
+    return true;
+  }
+  function afterLoad(retry) {
+    DKSession.showUnknownBar(LOAD, retry);
+  }
+  // ★書いている 最中の 物★ 2026-10-16（「← 会社設定へ 戻る」は これが 済んでから 移る）
+  var KAKI_CHU = [];
+  function kakiNoseru(p) {
+    KAKI_CHU.push(p);
+    var owari = function () {
+      var i = KAKI_CHU.indexOf(p);
+      if (i >= 0) KAKI_CHU.splice(i, 1);
+    };
+    p.then(owari, owari);
+    return p;
+  }
+  (function kakiWoMiru() {
+    var S = window.DKSession;
+    if (S && S.rest) {
+      var r0 = S.rest;
+      S.rest = function (s, p, o) {
+        var x = r0.apply(this, arguments);
+        return o && o.method && o.method !== 'GET' && x && x.then ? kakiNoseru(x) : x;
+      };
+    }
+    var f0 = window.fetch;
+    if (f0)
+      window.fetch = function (u, o) {
+        var x = f0.apply(this, arguments);
+        // ★GET と HEAD は 数えない★（帯の 部品が 新しい 版を 見る HEAD を 書きかけに 数え、圏外で 偽の「保存できなかった」に なる・対立役 注A2）
+        return o && o.method && o.method !== 'GET' && o.method !== 'HEAD' && x && x.then
+          ? kakiNoseru(x)
+          : x;
+      };
+  })();
+  // 欄を 離れた 時の 保存も 拾う ため 先に 欄を 離し、書き終わって（最長 10 秒）から 移る
+  // ★書けなかった 物が 1つでも 在れば 移らない★ 2026-10-16（指示役・対立役：待った 後に 移ると 赤字が 消え、
+  //   事務所の 人が 直した 設定が 倉庫に 入っていないのに「保存できた」に 見えた）。10 秒で 終わらない 時も 移らない
+  function kakiOwattekara(go, tomaru) {
+    var a = document.activeElement;
+    if (a && a.blur) a.blur();
+    setTimeout(function () {
+      var owari = false;
+      var kimeru = function (yoi) {
+        if (owari) return;
+        owari = true;
+        yoi ? go() : tomaru();
+      };
+      Promise.all(
+        KAKI_CHU.slice().map(function (p) {
+          return p.then(
+            function (r) {
+              return !(r && r.ok === false);
+            },
+            function () {
+              return false;
+            }
+          );
+        })
+      ).then(function (kekka) {
+        kimeru(kekka.every(Boolean));
+      });
+      setTimeout(function () {
+        kimeru(false);
+      }, 10000);
+    }, 0);
+  }
+  // ★★移る 前の 門★★ 2026-11-04＝チップと 下の 帯の 両方が 通る（js/jimusho-footer.js）
+  //   前は「← 会社設定へ 戻る」だけが 待ち、下の 帯は 待たずに 移った（車の 名前が 黙って 切られ得た・対立役 止1）
+  window.DKUtsuruMae = function () {
+    return new Promise(function (yoi) {
+      kakiOwattekara(
+        function () {
+          yoi({ ok: true });
+        },
+        function () {
+          yoi({
+            ok: false,
+            ji: '保存できなかった 物が あるので、画面を 移りませんでした。赤字を 見て 直してから もう一度 押してください。',
+          });
+        }
+      );
+    });
+  };
+  function upsert(table, conflict, body) {
+    return DKSession.rest(SESS, table + '?on_conflict=' + conflict, {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function loadCompany() {
+    // ★2026-08-08: 自分の会社だけを、決まった順で取る★
+    //   旧: limit=1 ・並び順なしで j[0] を無条件に採用していた。
+    //       司さんを dk_admins に入れた結果 11社見えるようになり、
+    //       検証ゴミの会社を掴んでいた（給料が保存できない・台数が0）。
+    DKSession.myCompanies(SESS, 'company_id,name')
+      .then(function (r) {
+        // ★自分が誰か分からない時は 会社を一切出さない (2026-08-08)★
+        if (r && r.noUid) return 'unknown';
+        return r.json();
+      })
+      .then(function (j) {
+        if (!Array.isArray(j) || !j.length) {
+          $('sub').textContent = '会社が登録されていません';
+          showMsg('先に「会社設定」で会社を登録してください。');
+          return;
+        }
+        if (j === 'unknown') {
+          $('sub').textContent = '読み込み中…';
+          return;
+        }
+        // ★黙って先頭を選ばない★（2件以上なら事務所の画面で選んでもらう）
+        var picked = DKSession.pickCompany(j, DKSession.rememberedCompanyId());
+        if (picked.mode !== 'one') {
+          $('sub').textContent = '会社を選んでください';
+          showMsg('会社が複数あります。事務所の画面でどの会社を出すか選んでください。');
+          return;
+        }
+        COMPANY = picked.company;
+        $('sub').textContent = COMPANY.name || '';
+        loadMasters();
+      })
+      .catch(function () {
+        showErr('会社の読み込みに失敗しました。通信を確認してください。');
+      });
+  }
+
+  // 期間に関係ない物（従業員・車名・決め方）
+  // ★★読めなかった 数は「期間に 関係ない 物」と「期間の 物」に 分ける★★ 2026-10-07
+  //   前は 1度 読めないと 数が 戻らず、もう一度 読んでも 帯が 消えなかった（明細の PDF を 止める 様に したので 直す）
+  var LOAD_KIHON = { tried: 0, failed: 0 };
+  function yomiNaoshiObi() {
+    afterLoad(function () {
+      if (LOAD_KIHON.failed > 0) loadMasters();
+      else loadPeriod();
+    });
+  }
+  var RIREKI_YOMI = { tried: 0, failed: 0 };
+  var YAKU_RIREKI_YOMI = { tried: 0, failed: 0 };
+  var SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }; // ★締めの 記録★ 2026-10-19
+  function loadMasters() {
+    // ★読み直す 間も 前の「読めなかった」数を LOAD に 残す★ 2026-11-06（作った後 対立役 注1）
+    //   前は 頭で LOAD を 0 に した＝「もう一度読む」の 返り待ちの 間、読めなかった 時に 組んだ REP の まま
+    //   門（loadFailed）が 開き、名前の 選び直し・幅の 変化で 控除の 抜けた 合計と 明細の PDF が 出せた。
+    //   ⇒ 数えるのは 別の 箱（MS）・返った 所で LOAD に 入れ替える（止めの 印は 足さない＝下ろし忘れで 止めっぱなしに しない）
+    var MS = DKSession.newLoadState();
+    haraiKakusu();
+    Promise.all([
+      DKSession.softList(
+        SESS,
+        kaishaDake('dk_employees?select=*&order=sort_order.asc&limit=500'),
+        MS
+      ),
+      DKSession.softList(SESS, kaishaDake('dk_device_labels?select=*&limit=500'), MS),
+      // ★給料の 設定は 読めたかを 別に 数える★ 2026-10-07（対立役 D：読めない 時に 月3回で 明細が 出た）
+      ((SET_YOMI = { tried: 0, failed: 0 }),
+      DKSession.softList(SESS, kaishaDake('dk_payroll_settings?select=*&limit=1'), SET_YOMI)),
+      // res[3]＝空き：売上から 何を 引くかの 設定（dk_sales_settings）は 2026-10-24 件J で 読まなくした
+      //   （入れた 実費は 全部 引く）。番号を 詰めると 下の res[4]〜 が ずれる ので 空きの まま
+      null,
+      // ★変えた 記録（何日から）は 読めたかを 別に 数える★ 2026-10-18（読めない 時に 列の 値で 出さない）
+      ((RIREKI_YOMI = { tried: 0, failed: 0 }),
+      DKSession.softList(
+        SESS,
+        kaishaDake('dk_hito_rireki?select=*&order=from_date.asc&limit=100000'),
+        RIREKI_YOMI
+      )),
+      // ★役割の 決まりの 変えた 記録（何日から）★ 2026-10-18
+      ((YAKU_RIREKI_YOMI = { tried: 0, failed: 0 }),
+      DKSession.softList(
+        SESS,
+        kaishaDake('dk_yaku_rireki?select=*&order=from_date.asc&limit=100000'),
+        YAKU_RIREKI_YOMI
+      )),
+      // res[6]＝空き：売上から 引く 物の 変えた 記録（dk_uriage_rireki）は 2026-10-24 件J で 読まなくした
+      null,
+      // ★締めの 形の 変えた 記録（何日から）★ 2026-10-19＝res[7]
+      ((SHIME_RIREKI_YOMI = { tried: 0, failed: 0 }),
+      DKSession.softList(
+        SESS,
+        kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+        SHIME_RIREKI_YOMI
+      )),
+    ]).then(function (res) {
+      LOAD.tried = MS.tried;
+      LOAD.failed = MS.failed;
+      RAW.employees = res[0] || [];
+      LOAD.tried += SHIME_RIREKI_YOMI.tried;
+      LOAD.failed += SHIME_RIREKI_YOMI.failed;
+      RAW.shimeRireki = SHIME_RIREKI_YOMI.failed > 0 ? null : res[7] || [];
+      LOAD.tried += RIREKI_YOMI.tried;
+      LOAD.failed += RIREKI_YOMI.failed;
+      RAW.rireki = RIREKI_YOMI.failed > 0 ? null : res[4] || [];
+      LOAD.tried += YAKU_RIREKI_YOMI.tried;
+      LOAD.failed += YAKU_RIREKI_YOMI.failed;
+      RAW.yakuRireki = YAKU_RIREKI_YOMI.failed > 0 ? null : res[5] || [];
+      RAW.labels = res[1] || [];
+      SET = (res[2] && res[2][0]) || null;
+      LOAD.tried += SET_YOMI.tried; // ★取れなかった 帯にも 出す★
+      LOAD.failed += SET_YOMI.failed;
+      if (SET_YOMI.failed > 0) SET = { yomenai: true }; // ★止める 印★（PayrollPeriod.yomu が dame に する）
+      SET_YONDA = true;
+      yakuMotoKesu(); // 役割の 名前の 直しの 控えを 読み込んだ 名前から 始め直す
+      LOAD_KIHON = { tried: LOAD.tried, failed: LOAD.failed };
+      RAW.payrollSettings = SET;
+      // ★★配る 一覧を 最初から 出す★★ 2026-09-04（司さん「従業員毎に 配るんやないんか」）
+      //   ★前は「配る」を 押すまで 何も 出なかった★（全員ぶんを 一度に 作る 作りだった）
+      //   ⇒ ★今は 従業員 全員を 出して、その人の〔配る〕を 押す★
+      if (!HONNIN) renderHaifu();
+      loadPeriod();
+    });
+  }
+
+  // 期間ぶん（勤務・手入力・時数）
+  var LP_NO = 0; // ★読みの 番号★（古い 返事を 捨てる）
+  var LP_YOMICHU = false;
+  var SET_YONDA = false; // ★給料の 設定を 読み終えたか★（読む 前は 締めの 形が 分からない）
+  function loadPeriod() {
+    if (window.PdfOkuru) PdfOkuru.kesu(); // ★月・期を 読み直す＝前の 紙の 帯を 消す（送らない）★
+    haraiKakusu(); // ★前の 期の 合計を 残さない★（早い return より 前・設計前 対立役 注4）
+    if (!COMPANY) return;
+    // ★設定を 読み終える 前は 組まない★ 2026-10-07（読む 前は 月3回に 見え、20日締めの 会社でも 月3回で 明細を 組んだ・対立役 Q）
+    if (!SET_YONDA) return;
+    var lpNo = ++LP_NO;
+    // 乗った人・手で 入れた 日 は 読めたかを 別に 数える（読めない 期は その 保存を 断る）
+    var WH_YOMI = DKSession.newLoadState();
+    var MD_YOMI = DKSession.newLoadState();
+    LP_YOMICHU = true; // ★読み込み中は 明細の PDF を 作らない★（対立役 10-08 A）
+    LOAD.tried = LOAD_KIHON.tried; // ★期間の 分は 読み直す 度に 数え直す★
+    LOAD.failed = LOAD_KIHON.failed;
+    var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    // ★★締めの 形は 設定の 1か所（periodKata）★★ 2026-10-07
+    //   読めない ⇒ ★止める★（前は 知らない 値を 黙って 月3回に した）
+    if (!st.periodKata || st.periodKata.dame) {
+      PERIODS = [];
+      PERIOD = null;
+      if ($('slips')) $('slips').innerHTML = '';
+      renderPeriodBar();
+      showMsg('');
+      showErr(shimeDameBun(st.periodKata));
+      LP_YOMICHU = false; // ★止めた／期が 無い＝読み込み中 では ない★
+      shimeTomeSet();
+      return;
+    }
+    if (!YM_KIMETA) {
+      YM_KIMETA = true;
+      YM = kyouNoTsuki(st.periodKata);
+    }
+    PERIODS = PayrollPeriod.periodsOf(YM.year, YM.month, { kata: st.periodKata });
+    if (kikanKowareta(PERIODS)) {
+      var kwBun = kikanBun(PERIODS);
+      PERIODS = [];
+      PERIOD = null;
+      if ($('slips')) $('slips').innerHTML = '';
+      renderPeriodBar();
+      showMsg('');
+      showErr(kwBun);
+      LP_YOMICHU = false;
+      shimeTomeSet();
+      return;
+    }
+    if (!PERIODS.length) {
+      PERIOD = null;
+      if ($('slips')) $('slips').innerHTML = '';
+      renderPeriodBar();
+      showErr('');
+      showMsg('この 月に 締める 給料は ありません。');
+      LP_YOMICHU = false; // ★止めた／期が 無い＝読み込み中 では ない★
+      return;
+    }
+    if (!(PIDX >= 0 && PIDX < PERIODS.length)) PIDX = 0;
+    PERIOD = PERIODS[PIDX];
+    showErr('');
+    showMsg('読み込み中…');
+    // ★読み込み中は 古い 月の 紙を 消す★（10-05 対立役：押すと 名前だけ 新しい 月・中身は 古い 月）
+    if (!HONNIN && $('slips')) $('slips').innerHTML = '';
+
+    // 期間の日付は日本時間。勤務は開始時刻で数える。
+    var from = PERIOD.start + 'T00:00:00+09:00';
+    var toD = new Date(
+      +PERIOD.end.slice(0, 4),
+      +PERIOD.end.slice(5, 7) - 1,
+      +PERIOD.end.slice(8, 10) + 1
+    );
+    var to =
+      toD.getFullYear() +
+      '-' +
+      ('0' + (toD.getMonth() + 1)).slice(-2) +
+      '-' +
+      ('0' + toD.getDate()).slice(-2) +
+      'T00:00:00+09:00';
+
+    Promise.all([
+      soft(
+        // ★距離も 取る★ 2026-10-06（1kmいくら の 材料。無いと 事務所と 紙だけ 0円＝本人の 画面と ずれる・対立役）
+        'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded' +
+          '&started_at=gte.' +
+          encodeURIComponent(from) +
+          '&started_at=lt.' +
+          encodeURIComponent(to) +
+          '&order=started_at.asc&limit=2000'
+      ),
+      soft('dk_shift_edits?select=*&limit=2000'),
+      DKSession.softList(
+        SESS,
+        kaishaDake(
+          'dk_work_hours?select=*&work_date=gte.' +
+            PERIOD.start +
+            '&work_date=lte.' +
+            PERIOD.end +
+            '&limit=2000'
+        ),
+        WH_YOMI
+      ),
+      DKSession.softList(
+        SESS,
+        kaishaDake(
+          'dk_manual_days?select=*&work_date=gte.' +
+            PERIOD.start +
+            '&work_date=lte.' +
+            PERIOD.end +
+            '&limit=2000'
+        ),
+        MD_YOMI
+      ),
+      // ★手当・控除★ 2026-10-06
+      soft(
+        'dk_pay_adjustments?select=*&work_date=gte.' +
+          PERIOD.start +
+          '&work_date=lte.' +
+          PERIOD.end +
+          // 読みの 順は 鍵の 順（js/dk-session.js KAGI_JUN・同じ 日・同じ 時刻でも 一意）2026-10-23 件G
+          '&order=work_date.asc,adj_id.asc&limit=5000'
+      ),
+    ]).then(function (res) {
+      // ★古い 返事は 捨てる★ 2026-10-07（月を 素早く 送ると 前の 月の 返事が 後から 上書きした・対立役 Q）
+      if (lpNo !== LP_NO) return;
+      LOAD.tried += WH_YOMI.tried + MD_YOMI.tried;
+      LOAD.failed += WH_YOMI.failed + MD_YOMI.failed;
+      RAW.shifts = res[0] || [];
+      RAW.adjustments = res[4] || [];
+      RAW.edits = res[1] || [];
+      RAW.workHours = res[2] || [];
+      RAW.manualDays = res[3] || [];
+      showMsg('');
+      // 計算が 転んだら 読み込み直しの 訳を 出す（「読み込み中です」の まま 黙って 待たせない・対立役 2回目 直す-2）
+      //   ★読み込み中の 印は 下ろさない★（下ろすと 前の 期の 額で 新しい 月の 明細 PDF が 出た・対立役 3回目 止め-1）
+      //   明細と 日の 欄は 描かず、月の 札だけ 新しい 期に 揃える（対立役 3回目 直す-1）
+      try {
+        recalc();
+        if (KEISAN_NG) {
+          KEISAN_NG = false;
+          if (String($('err').textContent || '') === KEISAN_NG_JI) showErr('');
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+        if (window.console) console.warn('[期の 計算]', e);
+        KEISAN_NG = true;
+        showErr(KEISAN_NG_JI);
+        render();
+        return;
+      }
+      // ★読み込み中の 印は 計算し終えた 後で 下ろす★（前で 下ろすと recalc が 投げた 時に 新しい 期・古い 中身で 押せた・対立役）
+      LP_YOMICHU = false;
+      render();
+      // ★取れなかった物があれば 画面の上に出す★（期間に 関係ない 物が 読めなかった 時は そこから 読み直す）
+      yomiNaoshiObi();
+    });
+  }
+
+  function recalc() {
+    _CAR_NAMES = null; // ★データを読み直したら車の名前も作り直す★
+    CTX = PayrollDaily.buildCtx(Object.assign({}, RAW, { yakuRireki: yakuRirekiNoIma() }));
+    // 本人の 画面は 1人＝その人の 登録日で 勤め始める 前の 期を 出さない（N4・js/payroll-daily.js の hajimeOf）
+    if (HONNIN) CTX.honnin = true;
+    REP = PayrollDaily.report(PERIOD ? PERIOD.dates : [], CTX);
+    var ub = kyuDameBun(CTX);
+    // 保存中の 字は 赤い 字に 出さない。その 時は 他の 止めの 訳を 出す（隠さない・対立役 11回目 ⑯）
+    if (ub === EMP_HOZONCHU) ub = kyuDameBunHoka(CTX);
+    // 返事待ちの 字は 赤い 字が 空か 止めの 字の 時だけ 出す（他の 欄の 断られた 訳を 上書き しない・対立役 12回目 止1）
+    if (ub && empTomeNoJi(ub)) {
+      var imaJi = String($('err').textContent || '');
+      if (imaJi && !empTomeNoJi(imaJi)) ub = '';
+    }
+    if (ub) showErr(ub);
+  }
+  // 売上の 直しが 読めない 業務が 在る 時の 字（明細・紙を 止める）2026-10-14
+  //   メーターの 額に 黙って 倒すと 給料が 違う 額で 出る＝お金の 出力は 止めて 警告
+  function uriageDameBun(ctx) {
+    var k = (ctx && ctx.uriageDame && ctx.uriageDame.length) || 0;
+    return k
+      ? '売上の 直しが 読めない 業務が ' +
+          k +
+          '件 あります。給料の 明細・紙は 止めています。下の 帯の「入力」で その 日の 車を 開き、売上を 直してください。'
+      : '';
+  }
+
+  // ★給料を 止める 訳★（売上の 直しが 読めない・役割の 決まりが 無くて 計算できない）2026-10-17
+  //   明細・紙・PDF・本人の 画面は 全部 ここを 見る（訳の 字は PayrollDaily の 1か所）
+  // 従業員の 欄の 保存中 以外の 止める 訳（売上の 直しが 読めない・役割の 決まりが 無い）
+  function kyuDameBunHoka(ctx) {
+    return uriageDameBun(ctx) || (ctx && ctx.yakuDameRiyuu) || '';
+  }
+  function kyuDameBun(ctx) {
+    // 従業員の 欄の 保存が 返らない 間も 止める（歩合・最低保証が 計算に 入って いない かも しれない・2026-10-21）
+    return empTomeBun() || kyuDameBunHoka(ctx);
+  }
+
+  // ---------- 描画 ----------
+  function render() {
+    // ★★折れる 場所を 決める★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+    //   ★前は 1つの 字の 塊★だったので 狭い 画面で「9/1」と「~ 9/10」の 間で 折れていた。
+    //   ⇒ ★2つに 分け、それぞれは 折らない★＝折れるなら ★月と 日付の 間★で 折れる。
+    $('monthLabel').innerHTML = PERIOD
+      ? '<span class="mb-1">' +
+        esc(PERIOD.year + '年 ' + PERIOD.label) +
+        '</span> <span class="mb-2">' +
+        esc(PERIOD.rangeLabel) +
+        '</span>'
+      : '—';
+    renderPeriodBar();
+    $('monthCard').style.display = TAB === 'slip' ? '' : 'none';
+    $('paneSlip').style.display = TAB === 'slip' ? '' : 'none';
+    $('paneEmp').style.display = TAB === 'emp' ? '' : 'none';
+    $('paneSet').style.display = TAB === 'set' ? '' : 'none';
+    if ($('paneTpl')) $('paneTpl').style.display = TAB === 'tpl' ? '' : 'none';
+    // 期の 計算が 転んだ 時は 明細を 描かない（前の 期の 額を 新しい 期の 札の 下に 出さない・対立役 3回目）
+    if (KEISAN_NG && TAB === 'slip') {
+      if ($('slips')) $('slips').innerHTML = '';
+      haraiKakusu(); // ★計算が 転んだ＝合計も 出さない★
+      showErr(KEISAN_NG_JI);
+      return;
+    }
+    meisaiGaiObi();
+    if (TAB === 'slip') renderSlips();
+    if (TAB === 'emp') renderEmp();
+    if (TAB === 'tpl') renderTpl();
+    if (TAB === 'set') {
+      renderSet();
+      renderCars(); // ★車の名前と並びも同じ画面に出す★
+    }
+  }
+
+  // ★明細に 載らない 手当・控除の 帯★ 2026-10-23 件G（本人の 画面には 出さない）
+  function meisaiGaiObi() {
+    var b = $('meisaiGaiObi');
+    if (!b) return;
+    var ji =
+      !HONNIN && TAB === 'slip' && REP
+        ? PayrollDaily.meisaiGaiJi((REP.meisaiGai || []).length)
+        : '';
+    b.textContent = ji;
+    b.style.display = ji ? '' : 'none';
+  }
+
+  // ── 期の選び方（司さんは月3回払い）────────────────
+  function renderPeriodBar() {
+    var bar = $('periodBar');
+    if (!PERIODS || PERIODS.length < 2) {
+      bar.innerHTML = ''; // 1回払いの会社では出さない
+      return;
+    }
+    bar.innerHTML = PERIODS.map(function (p, i) {
+      return (
+        '<button class="pbtn' +
+        (i === PIDX ? ' on' : '') +
+        '" data-pidx="' +
+        i +
+        '">' +
+        esc(p.name) +
+        '</button>'
+      );
+    }).join('');
+    Array.prototype.forEach.call(bar.querySelectorAll('[data-pidx]'), function (b) {
+      b.onclick = function () {
+        PIDX = parseInt(b.getAttribute('data-pidx'), 10) || 0;
+        loadPeriod();
+      };
+    });
+  }
+
+  // ── 明細（実物の給料1〜8と同じ並び）──────────────
+  // ★載せるかどうかは ここ1か所で決める★（画面と設定で食い違わない）2026-08-25
+  //   倉庫にまだ列が無い会社は ★載せる（今までと同じ）★。
+  function showCarSalesNow() {
+    return !(SET && SET.show_car_sales === false);
+  }
+  // ============================================================
+  // ★1人ぶんだけを 紙だけの新しい窓で刷る★ 2026-08-25（司さん）
+  //   「給料は1人ごとにPDFとして送るようにする」
+  //   ・★本体の画面を汚さない★＝新しい窓に その人の1枚だけを描く（決まり）
+  //   ・★窓の名前を そのままファイル名にする★＝「PDFで保存」した時の既定の名前
+  //       例）給料明細_2026-08_見本一四
+  //   ・スマホは その紙を そのまま共有（LINE・メール）で送れる
+  // ============================================================
+  // ★紙(PDF)は 自前で作る★ 2026-08-25（司さん「Aでやれ」）
+  //
+  //   ▼前は window.open + window.print だった。★他の3アプリが「使わない」と決めた形★。
+  //     ・代行請求 invoice-pdf.js 冒頭:
+  //       「iOS Safari の window.print() は ★ページ最下部に URL＋日付を勝手に付ける
+  //         （ブラウザの仕様で CSS では消せない）★」
+  //       ＝司さんの紙に出た「https://…/kyuryo.html」「2026/08/25 18:39 1/1ページ」がこれ。
+  //     ・給与アプリ app.js:2819:
+  //       「jsPDFで自前生成(A4ぴったり・iOSのURL/日付フッター無し・★新窓を開かないので戻れる★)。
+  //         iOSのwebページ印刷は フッターが必ず付き ★余白で2ページ化＋戻れない★ため不採用」
+  //       ＝司さんの「PDF押してから前の画面に戻れん」がこれ。
+  //     ・飲み屋 nomiya-ui-kami.js:1470:
+  //       「同じ画面のまま window.print() すると、iPhoneでは ★真っ白で出る★」
+  //     ★3アプリとも 同じ所でつまずいて 同じ答えに辿り着いていた。読まずに同じ穴に落ちた。★
+  //
+  //   ▼この形（給与アプリと同じ＝司さんが選んだ A）
+  //     ・★自分でA4を組む★（URL・日付・ページ番号は 出ない）
+  //       ★2026-09-26 に 中身を 入れ替えた★
+  //         前 … jsPDF + html2canvas＝紙を ★絵にして★ 貼る
+  //         今 … pdf-lib で ★本物の 字を 描く★（代行請求書・Rakually と 同じ）
+  //     ・★A4横★（明細は 日が最大11列＝縦だと入らない・司さん「表が見切れとん」）
+  //     ・道具は ★自分のrepoの vendor/★ から ★押した時だけ★ 読む
+  //       （ダイコメは ★完全オフライン前提★＝外のCDNは使わない。実測 0件）
+  //     ・出来た紙は ★blob を新しいタブで開く★（iOSの不具合回避・給与アプリと同じ）
+  //       ＝画面そのものは動かないので ★戻れる★
+  //     ・道具が読めない時だけ ★保険で window.print★（何も出ないよりまし）
+  // ★★紙を 描く 1本を 読む★★ 2026-09-26（司さん「なんで完成形があるのに確かめてやらんのど」）
+  //   ★前★ html2canvas で 紙を ★絵にして★ jsPDF に 貼っていた。
+  //   ★今★ 代行請求書・Rakually・集計の 9種と 同じ
+  //        ★pdf-lib で 本物の 字を 描く★（js/kami-egaku.js）。
+  //   ★組み方（_buildPaperSheet）は 1行も 変えていません★
+  //        ★描く 手だけ 差し替えた★＝見た目は そのまま。
+  function loadPdfLibs() {
+    if (window.KamiEgaku) return window.KamiEgaku.yomu().then(() => window.KamiEgaku);
+    return new Promise(function (ok, ng) {
+      var el = document.createElement('script');
+      el.src = 'js/kami-egaku.js';
+      el.onload = function () {
+        window.KamiEgaku ? ok(window.KamiEgaku) : ng(new Error('js/kami-egaku.js'));
+      };
+      el.onerror = function () {
+        ng(new Error('js/kami-egaku.js'));
+      };
+      document.head.appendChild(el);
+    }).then(function (E) {
+      return E.yomu().then(function () {
+        return E;
+      });
+    });
+  }
+
+  // ★紙は 画面の写しではなく「紙専用の1枚」を組む★ 2026-08-25（指示役の数字どおり）
+  //
+  //   ▼前は 画面の明細を そのまま写して A4に貼っていた。その結果（指示役が実測）
+  //     ・★表は 紙の縦の 38%しか使わず 下に 62%の空白★
+  //     ・★左の項目列が 表幅の22%★（日付列の2.9倍）＝一番長い車名1本に引っ張られる
+  //     ・★字が小さすぎて 刷ったら読めない★
+  //     ・★中身が空の売上行が 4本 並ぶ★（しま1／車1／確認用8627号車／車2）
+  //
+  //   ▼満たす数字（2026-08-26 指示役が ①②を ★取り消し★）
+  //     ★取り消し★ 表の縦 ÷ 使える高さ ≧ 0.75 … ★行が間延びした★
+  //     ★取り消し★ 左の項目列 ÷ 表幅 ≦ 0.15 … ★列を細くするのは 間違い★
+  //     ⇒ ★正しくは「余白(padding)を詰める・幅は 中身が入るだけ」★
+  // eslint-disable-next-line no-irregular-whitespace -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+  //     ①一番小さい字 ≧ 9pt　②空の売上行 0件
+  //     ③★合計の箱の右端 と 表の右端 が 揃う（差 ±1px）★
+  //     ④★一番右の枠線より右に 字が 1pxも出ない★（11日ある月・31日ある月でも）
+  //   ▼表は ★小さくまとまって 紙の上★（下の余白は そのままで良い＝司さん）
+  //     ★行を引き伸ばさない・字の大きさも 変えない★
+  //
+  //   ▼どう作るか
+  //     A4横 842×595pt を ★1123×794px の板★ で組む（1px = 0.75pt）。
+  //     ＝★板の 12px = 紙の 9pt★。だから 板では 13px 以上を使う。
+  //     行の高さは 板で 50px＝紙で 37.5pt（指示役「1行 38pt前後」）。
+  var PAPER_W = 842; // A4横 (pt)
+  var PAPER_H = 595;
+  var PAPER_MARGIN = 20; // 紙の余白(pt)＝使える高さ 555pt
+  var SHEET_W = 1123; // 板の幅(px)＝842pt ÷ 0.75
+  var SHEET_H = 794; // 板の高さ(px)＝595pt ÷ 0.75
+  // eslint-disable-next-line no-unused-vars -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+  var PX2PT = PAPER_W / SHEET_W; // 0.75
+  // ★★横 1列に 入らない 期間は 紙を 縦に 使い 日付を 左の 縦・項目を 上の 横に した 表 1枚★★ 2026-10-23
+  //   司さん「なんで明細を全部10日で区切っとんど 月1回やったら1枚やろが 週一でも7日区切りとか」
+  //         「紙を縦に使うのは項目と日付を入れ替えて日付を左端の縦にして項目を上の横にして作成しろ」
+  //   前は 横の 紙に 入る 日（約 11日）ごとに 次の 紙へ 送った＝月1回（31日）が 3枚・月2回（16日）が 2枚。
+  //   今は A4縦（板 794×1123）に 1日 1行（31日 でも 1枚）。車が 多くても 無くても 同じ 形（車は 上の 横の 列）。
+  //   ★横 1列に 入る 期間（月3回の 10〜11日・週の 7日・毎日）は 今までの 紙と 1文字も 変えない★
+  var TATE_MAI = 31; // 縦の 紙 1枚に 載せる 一番 多い 日。越える 期間（日数で 切る 昔の 形の 62日 等）だけ 紙を 分ける
+  var TATE_ROW_H = 26; // 縦の 紙の 1日の 行の 一番 低い 高さ（板 26px・字 13px が 入る）
+  var TATE_HEAD_H = 46; // 縦の 紙の 項目の 行の 高さ（車の 番号の 2行目が 入る）
+  // ★組んだ 紙が その 紙の 高さに 入るか★（縦の 紙は 高さ 1123・横は 794）
+  // ★縦の 紙の 日付★ 2026-10-23（司さん「日付をもう少しコンパクトに」）
+  //   1行目と 月が 変わる 日だけ「10/1(木)」・ほかは「2(金)」（何月かは 上の 行で 分かる）
+  function hiTate(c, cells) {
+    var i = cells.indexOf(c);
+    var m = String(c.date).slice(5, 7);
+    if (i <= 0 || String(cells[i - 1].date).slice(5, 7) !== m) return mdw(c.date);
+    return mdw(c.date).replace(/^\d+\//, '');
+  }
+  // ★画面に 並べる 時の 紙の 大きさ★（縦の 紙は 794×1123・横は 1123×794＝紙ごとに 違う）
+  function kamiWH(el) {
+    var t = el && el.getAttribute && el.getAttribute('data-muki') === 'tate';
+    return { w: t ? SHEET_H : SHEET_W, h: t ? SHEET_W : SHEET_H };
+  }
+  // 1枚ずつ 画面の 幅に 合わせて 縮める（枠の 高さも その 紙の 高さ から）
+  function kamiNobasu(waku, haba) {
+    var el = waku.firstElementChild;
+    var wh = kamiWH(el);
+    var sc = Math.min(1, (haba - 2) / wh.w);
+    el.style.transform = 'scale(' + sc + ')';
+    waku.style.height = Math.ceil(wh.h * sc) + 'px';
+    return sc;
+  }
+  function _hamideru(el) {
+    var lim = +el.getAttribute('data-sheet-h') || SHEET_H;
+    // 縦の 紙で 車の 列が 横に 入らない 時も「入らない」（車の 列を 次の 紙へ 分ける）
+    if (el.getAttribute('data-haba-dame') === '1') return true;
+    return _takasa(el) > lim;
+  }
+
+  // ★明細の字の作り方は ここ1本★（★画面も 紙も 同じ物を使う★）
+  //   前は 画面と紙で 別々に書いていた＝★片方だけ直すと 画面と紙で 数が食い違う★。
+  //   （見張り tests/unit/kyuryo-slip-all-days.test.js「字の作り方は 1本（F）」）
+  // ★その日の金額が「最低保証」で出た物か★ 2026-08-26（司さん）
+  //   司さん「最低保証の時給になったら 金額の数字を赤文字で表示させてた」
+  //     例）最低保証 1,000円／時 で 金額÷時間 が 1,000円ちょうど付近 → その金額は赤
+  //   ★割り算で当てない★＝エンジンが ★どちらで出したか★を持っている。
+  //     js/daiko-payroll.js:169 usedFloor = (最低保証の額 >= 歩合の額)
+  //     js/payroll-daily.js:512 で 1日ごとに そのまま運ばれてくる。
+  //   実測（本物の倉庫の行）… 4日とも usedFloor=true
+  //     太郎 8/1 ¥9,000÷9.00h=1,000（保証1,000）／8/2 ¥9,500÷9.50h=1,000
+  //     次郎 8/1 ¥7,000÷7.00h=1,000 ／ 三郎 8/2 ¥11,400÷9.50h=1,200（その人だけ1,200）
+  //   ★0円の日は 赤にしない★（決め方が入っていないだけの日まで赤くなる）
+  var SLIP_RED = '#e0483d'; // --danger（このアプリが元から使っている赤）
+  function payByFloor(c) {
+    return !!(c && c.usedFloor && c.pay > 0);
+  }
+
+  var SLIP_F = {
+    pay: function (c) {
+      return c.pay === null ? '' : yen(c.pay);
+    },
+    hours: function (c) {
+      return c.hours === null ? '' : hrs(c.hours);
+    },
+    car: function (c, i) {
+      return c.carSales[i] === null ? '' : yen(c.carSales[i]);
+    },
+    pool: function (c) {
+      return c.poolHours === null ? '' : hrs(c.poolHours);
+    },
+  };
+
+  // ★字の幅を 実際に測る★（列の幅を ★中身が入るだけ★ にする為）
+  //   ＝「表幅の◯%」で決めると ★字が欠ける／逆に 余って間延びする★。
+  var _measCtx = null;
+  function _textW(text, px, weight) {
+    if (!_measCtx) _measCtx = document.createElement('canvas').getContext('2d');
+    // ★紙と 同じ 字体で 測る★ 2026-10-08（対立役：前は 'Noto Sans JP' だけで 測り、描く 字（DKKami・端末の 控え）と
+    //   違う 幅で 列を 決めた＝字体が 替わると 字が 列から はみ出し得た）
+    _measCtx.font = (weight || 400) + ' ' + px + "px 'DKKami', 'Noto Sans JP', sans-serif";
+    return _measCtx.measureText(String(text || '')).width;
+  }
+
+  // ★2行に収まらない車名は 自分で切って「…」を付ける★
+  //   overflow:hidden だけだと ★黙って 途中で消える★＝紙を見た人は
+  //   「これで全部」と読む。切ったなら ★切ったと分かる形★で出す。
+  function _fit2(text, px, lineW, lines) {
+    var t = String(text || '');
+    if (_textW(t, px, 400) <= lineW * lines) return t;
+    var dots = _textW('…', px, 400);
+    var kagiri = lineW * lines - dots;
+    var n = t.length;
+    while (n > 0 && _textW(t.slice(0, n), px, 400) > kagiri) n--;
+    return t.slice(0, n) + '…';
+  }
+
+  // ★★「明細に出す」を 選んだ 車は 中身が 0でも 行を 出す★★ 2026-09-06（司さん）
+  //   ★司さんの言葉★
+  //     「入ってなくても明細に出すってチェックしとんやけん
+  //       車の名前の行がないのがおかしいやろが」
+  //
+  //   ★前★「その期間に 売上が 1件も無い車は 紙に出さない」
+  //     ⇒ 画面（3197行）は ★slipCars＝明細に出す印★で 出しているのに、
+  //       ★紙だけ 中身で 消していた★＝★同じ 明細なのに 出方が 違う★。
+  //     ⇒ 実際 9月は 時数が 0件なので ★車の行が 1本も 出ませんでした★
+  //       （司さんは「明細に出す」を 全部 選んでいるのに）。
+  //   ★今★ ★選んだ車は そのまま 出す★（金額が 空でも 行と 車名は 出る）
+  //     ⇒ 選んだのに 出ない＝「選べていないのか 中身が 無いのか」が 分からない、が 消える。
+  //   ★選ぶ所は 変えていません★（従業員 →「明細に出す車」／会社の 既定）
+  function _paperCars(e, cars) {
+    return (cars || []).slice();
+  }
+
+  // ★紙1枚を組む★（板 1123×794px・戻り値は 画面外に置いた要素）
+  // ★★手当・控除の 内わけ（紙の 見出しの 下 1行）★★ 2026-10-06（司さん「ア」）
+  //   無い 人は 何も 出さない＝今までの 紙と 1文字も 変わらない
+  // migiOk＝手当・控除を 合計の 右の 空きに 出した（見出しの 下には「うち 日給…」だけ）
+  function adjGyou(e, migiOk) {
+    // ★ほかの 払い方の 内わけ★ 2026-10-06（日給・1回/1km・指定日）＝使った 人だけ 1行
+    var hoka = [];
+    if (e && e.nikkyuHi) hoka.push('日給 ' + e.nikkyuHi + '日');
+    if (e && e.kasan) hoka.push('1回・1km の 分 ¥' + yen(e.kasan));
+    if (e && e.wariHi) hoka.push('指定日の 割増 ' + e.wariHi + '日');
+    if (e && e.yakanHi) hoka.push('夜の 割増 ' + e.yakanHi + '日');
+    var hokaGyou = hoka.length
+      ? '<div style="font-size:15px;color:#14243d;margin:-4px 0 6px;">うち ' +
+        hoka.join('・') +
+        '</div>'
+      : '';
+    if (!e || !(e.teate || e.koujo) || migiOk) return hokaGyou;
+    var uchi = function (kind) {
+      return (e.adj || [])
+        .filter(function (a) {
+          return a.kind === kind;
+        })
+        .map(function (a) {
+          return esc(a.label || (kind === 'koujo' ? '控除' : '手当')) + ' ' + yen(a.yen);
+        })
+        .join('・');
+    };
+    return (
+      '<div style="font-size:15px;color:#14243d;margin:-4px 0 10px;">' +
+      '働いた 分 ¥' +
+      yen(e.kasegi) +
+      (e.teate ? '　＋ 手当 ¥' + yen(e.teate) + '（' + uchi('teate') + '）' : '') +
+      (e.koujo ? '　− 控除 ¥' + yen(e.koujo) + '（' + uchi('koujo') + '）' : '') +
+      '　＝ <b>差引 支給 ¥' +
+      yen(e.totalPay) +
+      '</b></div>' +
+      hokaGyou
+    );
+  }
+
+  // ★★手当・控除の 内わけを 合計の 塊の 右の 空きへ★★ 2026-10-23
+  //   司さん「手当や控除がある時は合計金額の右に空いてるスペースにどのぐらいの数入れれるか出して」
+  //   1行に 1つ（働いた分／＋手当／−控除／＝差引支給）を 上から 6行・入りきらない 時は 右の 列へ。
+  //   空きの 幅と 一番 長い 行の 幅から 入る 数を 出し、越える 時は 今まで 通り 見出しの 下の 行に 出す
+  var MIGI_GYOU = 6;
+  var MIGI_PX = 13;
+  function adjMigi(e, areaW) {
+    var nashi = { ok: false, cap: 0, html: '', n: 0 };
+    if (!e || !(e.teate || e.koujo)) return nashi;
+    var mj = meisaiJiGyou(e); // ★本人の「明細を コピー」と 同じ 行★（2026-10-25）
+    var gyou = mj.gyou;
+    var owari = mj.owari;
+    var haba = _textW(owari, MIGI_PX, 700);
+    gyou.forEach(function (g) {
+      haba = Math.max(haba, _textW(g, MIGI_PX, 400));
+    });
+    haba = Math.ceil(haba) + 2;
+    var GAP = 12;
+    var retsu = Math.floor((areaW + GAP) / (haba + GAP));
+    if (!(retsu > 0)) retsu = 0;
+    var cap = retsu * MIGI_GYOU;
+    var n = gyou.length + 1;
+    if (n > cap) return { ok: false, cap: cap, html: '', n: n };
+    var html =
+      '<div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(' +
+      MIGI_GYOU +
+      ',auto);column-gap:' +
+      GAP +
+      'px;justify-content:start;font-size:' +
+      MIGI_PX +
+      'px;line-height:1.2;color:#14243d;white-space:nowrap;">' +
+      gyou
+        .map(function (g) {
+          return '<div>' + esc(g) + '</div>';
+        })
+        .join('') +
+      '<div style="font-weight:700;">' +
+      esc(owari) +
+      '</div></div>';
+    return { ok: true, cap: cap, html: html, n: n };
+  }
+  // 合計の 塊の 幅（見出しの 字の 大きさと 同じ 数で 測る）
+  function goukeiHaba(e, tate) {
+    return (
+      (tate ? 14 : 20) * 2 +
+      2 +
+      _textW('合計', 15, 700) +
+      (tate ? 10 : 14) * 2 +
+      _textW('¥' + yen(e.totalPay), tate ? 28 : 34, 800) +
+      _textW(hrs(e.totalHours) + ' 時間', tate ? 17 : 20, 800)
+    );
+  }
+
+  // ★日の 欄と 差引支給の 1円の ずれの 注記は 明細の 紙に 出さない★ 2026-10-23
+  //   司さん「たまに赤丸の説明書きがいらない」（件G の 丸めの 注記・払う 額は 変えない）
+  // uw … 内わけ（手当・控除の 行）の 置き方：既定＝見出しの 下／'nashi'＝載せない／'dake'＝内わけだけの 紙
+  function _buildPaperSheet(e, showCarSales, allCars, from, to, maiNo, maiN, carFrom, carTo, uw) {
+    var cars = showCarSales ? _paperCars(e, allCars) : [];
+    // ★★車の 行が 1枚に 入らない 時は 次の 紙へ★★ 2026-10-07（司さん「前からある2つもやれ」・対立役：
+    //   車 9台＋内わけ 1行 で 紙の 下が 切れた）＝★字も 行の 高さも 変えず★ 車の 行を 分ける。番号は 続き
+    var carOff = carFrom || 0;
+    cars = cars.slice(carOff, carTo === undefined ? cars.length : carTo);
+    // ★画面と 同じ 1本を使う★（紙で 別に書くと 画面と紙で 違う数が出る）
+    var F = SLIP_F;
+
+    // 出す行（見出し＋金額＋時間＋売上n＋時間（全台））
+    var rows = [];
+    rows.push({ lbl: '金額', get: F.pay, aka: payByFloor }); // ★最低保証の日は 赤★
+    rows.push({ lbl: '時間', get: F.hours });
+    cars.forEach(function (x, n) {
+      rows.push({
+        lbl: '売上' + (n + 1 + carOff),
+        sub: x.car.label, // ★車名は 小さい2行目★＝列を広げない
+        get: function (c) {
+          return F.car(c, x.i);
+        },
+      });
+    });
+    // ★項目は 2行★ 2026-10-23（司さん「時間（全台）を売上のように2行にしてコンパクトに」）＝列・行の 幅を 取らない
+    rows.push({
+      lbl: '時間（全台）',
+      ji: '時間',
+      sub: '（全台）',
+      subNobasu: '（全台）',
+      get: F.pool,
+    });
+
+    // ★この紙に載せる日★（1枚に入らない時は 何枚かに分ける・下の _maisu を見て）
+    var allCells = e.cells;
+    var cells = allCells.slice(from || 0, to === undefined ? allCells.length : to);
+    var days = cells.length;
+    var PAD = 18; // 板の左右の余白(px)
+    var tableW = SHEET_W - PAD * 2;
+
+    // ★字の大きさは 決め打ち★（★行の高さで つじつまを合わせない★）
+    //   板の 12px = 紙の 9pt。★本文15px=11.25pt／2行目13px=9.75pt★＝どちらも 9pt以上。
+    var fontPx = 15;
+    var subPx = 13;
+    // ★行を 詰めた★ 2026-10-23（司さん「全部の幅と数字の大きさを大きくしてるからもったいなくないか」）
+    //   50 → 38（紙 28.5pt）。字は 15px（9pt 以上）の まま・車の 番号の 2行目も 入る
+    var rowH = 38; // 板38px
+
+    // ★左の項目列 … 幅は「中身が入るだけ」／詰めるのは 余白★
+    //   前は「表幅の15%」で決めていた（指示役が取り消し）。
+    //   ⇒ ★項目の字を 実際に測って★ ＋ ★内側の余白 LABEL_PAD★ だけ。
+    var LABEL_PAD = 6; // 項目の字の 左右の余白(px)＝紙で 4.5pt
+    //   ★車名（2行目）で 列を広げない★（指示役 2026-08-26）
+    //     広げると 日付の列が痩せて ★日付や金額が欠ける★。長い車名は ★2行に折る★。
+    //     実測：27字「事務所の裏に置いてある予備の軽自動車（黒）8627号車」
+    //       直す前 … 項目の列 104→★326px★（表幅の30%）／日付の列 98→76px
+    //       直した後 … 項目の列は ★104pxのまま★／車名は 2行
+    // ★★1枚で 終わる 様に 字の 大きさを 自動で 合わせる★★ 2026-10-14
+    //   司さん「給料明細もなんで2つに分かれるんどぼけ １枚で終わるように自動調整しろってゆうとったろが」
+    //   前は 字を 15px に 決め打ちし、入らない 日は 次の 紙へ 送っていた（10日 が 9日＋1日 の 2枚）。
+    //   ⇒ その 紙の 日が 全部 入るまで 字を 15px から 0.5px ずつ 小さく する。
+    //     ★下限は 13px（PDF で 9.09pt）★＝一番 小さい 字 ≧9pt の 決まりは 守る。
+    //     13px でも 入らない 時（31日 まとめ 等）だけ 紙を 分ける（_maisu）。
+    var LABEL_MAX = Math.floor(tableW * 0.3);
+    var CELL_PAD = 8;
+    var labelInk, labelW, labelKake, minColW;
+    // 引数の 名前は 外と 同じ fontPx（その 大きさで 測る）
+    var hakaru = function (fontPx) {
+      var li = 0;
+      rows.forEach(function (r) {
+        li = Math.max(li, _textW(r.ji || r.lbl, fontPx, 700));
+        if (r.subNobasu) li = Math.max(li, _textW(r.subNobasu, subPx, 400));
+      });
+      li = Math.max(li, _textW('日付', fontPx, 700));
+      // ★字が欠けない★＝測った幅を 切り捨てず 上に丸める（＋枠線1px）
+      var lw = Math.ceil(li) + LABEL_PAD * 2 + 2;
+      // 車名が とても長い時だけ 上限（それでも ★日付の列より 表を壊さない★）
+      var kake = lw > LABEL_MAX; // ★欠けたか★＝見張りが数で見る
+      if (kake) lw = LABEL_MAX;
+      // ★1つの日の列に 最低いる幅★＝★その日の一番長い字★＋余白（＝字を欠けさせない）
+      var mc = 0;
+      cells.forEach(function (c) {
+        mc = Math.max(mc, _textW(mdw(c.date), fontPx, 700));
+        rows.forEach(function (r) {
+          mc = Math.max(mc, _textW(r.get(c), fontPx, 400));
+        });
+      });
+      mc = Math.ceil(mc) + CELL_PAD * 2 + 2;
+      labelInk = li;
+      labelW = lw;
+      labelKake = kake;
+      minColW = mc;
+      return mc * days <= tableW - lw;
+    };
+    // 板の 13px ＝ PDF で 9.09pt（紙に 置く 倍率は 0.75 で なく 0.699＝js/kami-egaku.js の bai：
+    //   min((842-40)/1123, (595-40)/794)。12px だと 8.39pt で 9pt を 割る＝対立役 10-14）
+    var FONT_MIN = 13;
+    while (!hakaru(fontPx) && fontPx > FONT_MIN) {
+      fontPx = Math.max(FONT_MIN, fontPx - 0.5);
+    }
+    // ★横 1列に 入らない ⇒ 紙を 縦に 使い 日付を 左の 縦・項目を 上の 横に★ 2026-10-23
+    // ★毎日（日払い）の 1日も 同じ 縦の 形★ 2026-10-23（司さん「日払いも上行に項目で左端に日付にして」）
+    var tate = days === 1 || !hakaru(fontPx);
+    var habaDame = false;
+    var tateDateW = 0;
+    var tateColW = [];
+    if (tate) {
+      tableW = SHEET_H - PAD * 2;
+      CELL_PAD = 4; // 数字は 中央揃え＝左右の 余白は 少しで 足りる（車の 列を 多く 入れる）
+      var hakaruTate = function (f) {
+        var dw = _textW('日付', f, 700);
+        cells.forEach(function (c) {
+          dw = Math.max(dw, _textW(hiTate(c, cells), f, 700));
+        });
+        tateDateW = Math.ceil(dw) + CELL_PAD * 2 + 2;
+        tateColW = rows.map(function (r) {
+          var w = _textW(r.ji || r.lbl, f, 700);
+          if (r.subNobasu) w = Math.max(w, _textW(r.subNobasu, subPx, 400));
+          cells.forEach(function (c) {
+            w = Math.max(w, _textW(r.get(c), f, 400));
+          });
+          return Math.ceil(w) + CELL_PAD * 2 + 2;
+        });
+        var goukei = tateDateW;
+        tateColW.forEach(function (w) {
+          goukei += w;
+        });
+        return goukei <= tableW;
+      };
+      fontPx = 15;
+      while (!hakaruTate(fontPx) && fontPx > FONT_MIN) {
+        fontPx = Math.max(FONT_MIN, fontPx - 0.5);
+      }
+      habaDame = !hakaruTate(fontPx);
+      // ★日付の 列にも ゆとり★ 2026-10-23（司さん「余白あるんやけんもう少しゆったり幅を持たせろ」）＝余りから 最大 20px
+      var tsukau0 = tateDateW;
+      tateColW.forEach(function (w) {
+        tsukau0 += w;
+      });
+      tateDateW += Math.max(0, Math.min(20, tableW - tsukau0));
+      // 項目の 列は 同じ 幅（一番 広い 列が 入る なら 全部 その 幅で 紙の 幅いっぱい）
+      var hiroi = Math.max.apply(null, tateColW.length ? tateColW : [0]);
+      var hitoshi = tateColW.length ? Math.floor((tableW - tateDateW) / tateColW.length) : 0;
+      if (hitoshi >= hiroi)
+        tateColW = tateColW.map(function () {
+          return hitoshi;
+        });
+      // 余りは 項目の 列に 均して 配る（表は 紙の 幅いっぱい＝合計の 塊の 中心と 揃う）
+      var tsukatta = tateDateW;
+      tateColW.forEach(function (w) {
+        tsukatta += w;
+      });
+      var amari = tableW - tsukatta;
+      if (amari > 0 && tateColW.length) {
+        var tasu = Math.floor(amari / tateColW.length);
+        tateColW = tateColW.map(function (w) {
+          return w + tasu;
+        });
+        tateColW[tateColW.length - 1] += amari - tasu * tateColW.length;
+      }
+      labelW = tateDateW;
+      minColW = Math.min.apply(null, tateColW.length ? tateColW : [0]);
+    }
+    // 2行目（車の 番号）も 同じ だけ 小さく（下限 13px）
+    subPx = Math.max(FONT_MIN, subPx - (15 - fontPx));
+
+    // ★★行の 高さと 項目の 列の 幅は 中身の 数で 自動で 決める★★ 2026-10-23
+    //   司さん「見せる売上の数ごとに幅を自動調整されるようにしとけよ」
+    //   紙の 高さ − 見出し − 内わけの 行 を 行の 数で 割る（少ない 時は ゆったり・多い 時は 詰める）
+    // ★見出しの 左に 要る 幅★（期間の 字・名前・給料明細 の 一番 長い 物）
+    //   真ん中の 合計に 届く 時（縦の 紙で 名前が 長い・合計が 7桁 等）は 左を その 幅に し 合計は 右へ ずらす＝重ねない
+    //   届かない 時は 今まで 通り 左右 同じ 幅（合計は 真ん中＝司さん 08-25 の 決め）
+    var gHaba = goukeiHaba(e, tate);
+    var hidariIru =
+      Math.ceil(
+        Math.max(
+          _textW('給料明細', 20, 800) +
+            (maiN > 1 ? _textW('　（' + maiNo + '/' + maiN + '枚目）', 13, 400) : 0),
+          _textW(PERIOD.label + '　' + PERIOD.rangeLabel, 15, 400),
+          _textW(e.name + '　殿', 24, 800)
+        )
+      ) + 4;
+    var hanbun = (tableW - gHaba - 32) / 2;
+    var hidariW = hidariIru > hanbun ? hidariIru : 0; // 0＝左右 同じ 幅
+    // 右の 空き＝表の 幅 − 合計の 塊 − 間 2つ − 左
+    var migiW = hidariW ? tableW - gHaba - 32 - hidariW : hanbun;
+    var migi =
+      uw === 'nashi' || uw === 'dake' ? { ok: false, cap: 0, html: '', n: 0 } : adjMigi(e, migiW);
+    var ueGyou = uw === 'nashi' ? '' : adjGyou(e, migi.ok);
+    // 見出しの 下の 行の 高さ＝字の 幅から 折り返す 行の 数を 出す（手当・控除が 多いと 2〜3行に なる）
+    var ueH = 0;
+    (ueGyou.match(/<div[^>]*>[\s\S]*?<\/div>/g) || []).forEach(function (d) {
+      var ji = d.replace(/<[^>]+>/g, '');
+      ueH += Math.ceil(_textW(ji, 15, 400) / (tableW * 0.85)) * 19 + 12; // 折り返しは 語の 切れ目で 起きる＝ゆとりを 見る
+    });
+    var aki = (tate ? SHEET_W : SHEET_H) - PAD * 2 - 96 - ueH - 8;
+    if (tate) {
+      // 縦の 紙：日の 行（30〜40px）
+      var hiTakasa = Math.floor((aki - TATE_HEAD_H) / days);
+      rowH = Math.max(TATE_ROW_H, Math.min(40, hiTakasa));
+    } else {
+      // 横の 紙：項目の 行（38〜50px）
+      var gyouTakasa = Math.floor(aki / (rows.length + 1));
+      rowH = Math.max(38, Math.min(50, gyouTakasa));
+      // ★項目の 列にも ゆとり★（司さん「日付の列に余白あるんやけんもう少しゆったり幅を持たせろ」）
+      //   日の 列の 要る 幅を 引いた 余りから 最大 40px（字が 欠けた 時の 上限は 越えない）
+      if (!labelKake)
+        labelW = Math.min(
+          LABEL_MAX,
+          labelW + Math.max(0, Math.min(40, tableW - labelW - minColW * days))
+        );
+    }
+
+    var dayW = Math.floor((tableW - labelW) / days);
+    var headH = 96; // 見出し（給料明細／名前／期間／合計）の高さ(px)
+
+    var el = document.createElement('div');
+    el.style.cssText =
+      'position:fixed;left:-10000px;top:0;background:#ffffff;box-sizing:border-box;' +
+      'width:' +
+      (tate ? SHEET_H : SHEET_W) +
+      'px;height:' +
+      (tate ? SHEET_W : SHEET_H) +
+      'px;padding:' +
+      PAD +
+      'px;' +
+      // ★★字体は PDF と 同じ 物★★ 2026-09-26
+      //   紙は pdf-lib で BIZ UDP ゴシックを 描く（js/kami-egaku.js）。
+      //   ★画面の 並べ方を そのまま 紙に 写す★作りなので、
+      //   別の 字体で 並べると ★字幅が ずれて 重なる★。
+      //   ★実測 2026-09-26★ Noto のままだと
+      //     「¥18,500」と「8.50 時間」が 重なって 出た（絵で 見つけた）。
+      "font-family:'DKKami','Noto Sans JP',sans-serif;color:#333333;";
+
+    // ── 見出し（画面と同じ並び：給料明細 → 名前 → 合計）──
+    var head =
+      '<div style="display:flex;align-items:center;gap:16px;height:' +
+      headH +
+      'px;">' +
+      // ★名前と 何月分の 場所は どの 形でも 同じ★ 2026-10-23（司さん「全パターン名前の場所と何月分とかの項目の場所を固定しろ」）
+      //   左に 上から 給料明細／何月分 期間／名前 殿（合計の 塊は 真ん中の まま）
+      (hidariW
+        ? '<div style="flex:0 0 ' +
+          hidariW +
+          'px;min-width:0;display:flex;flex-direction:column;gap:2px;">'
+        : '<div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px;">') +
+      '<div><div style="font-size:20px;font-weight:800;color:#14243d;white-space:nowrap;">給料明細' +
+      // ★2枚以上に分かれた時だけ 何枚めかを出す★（2026-10-23 期間の 字の 後ろから 給料明細の 横へ＝期間の 行を 短く）
+      (maiN > 1
+        ? '<span style="font-size:13px;font-weight:400;color:#5a6b82;">　（' +
+          maiNo +
+          '/' +
+          maiN +
+          '枚目）</span>'
+        : '') +
+      '</div>' +
+      '<div style="font-size:15px;margin-top:4px;white-space:nowrap;">' +
+      esc(PERIOD.label) +
+      '　' +
+      esc(PERIOD.rangeLabel) +
+      '</div></div>' +
+      '<div style="font-size:24px;font-weight:800;color:#14243d;white-space:nowrap;">' +
+      esc(e.name) +
+      '　殿</div>' +
+      '</div>' +
+      '<div style="flex:0 0 auto;border:1px solid #dbe7f7;background:#f7fbff;' +
+      'border-radius:10px;padding:' +
+      (tate ? '8px 14px' : '10px 20px') +
+      ';white-space:nowrap;">' +
+      '<span style="font-size:15px;color:#5a6b82;font-weight:700;">合計</span>' +
+      // 縦の 紙は 幅が 狭い＝合計の 字を 少し 小さく（7桁でも 期間・名前と 重ならない）
+      '<span style="font-size:' +
+      (tate ? 28 : 34) +
+      'px;font-weight:800;color:#14243d;margin-left:' +
+      (tate ? 10 : 14) +
+      'px;">¥' +
+      yen(e.totalPay) +
+      '</span>' +
+      '<span style="font-size:' +
+      (tate ? 17 : 20) +
+      'px;font-weight:800;color:#14243d;margin-left:' +
+      (tate ? 10 : 14) +
+      'px;">' +
+      hrs(e.totalHours) +
+      ' 時間</span>' +
+      '</div>' +
+      // ★合計の塊は 見出しの ★中心★★（司さん 2026-08-25 決定・8/26 再確認）
+      //   ・左（給料明細／期間／名前）と 右 を ★同じ幅の詰め物★で挟む＝真ん中に来る
+      //   ・★この詰め物を外すと 右端に貼り付く★（8/26 に一度 外して 突き返された）
+      //   ・指示役の「表の右端にピタリ」は ★司さんの決定が先★なので 取り消し
+      '<div style="flex:1 1 0;min-width:0;align-self:center;">' +
+      (migi.ok ? migi.html : '') +
+      '</div>' +
+      '</div>' +
+      (uw === 'nashi' ? '' : adjGyou(e, migi.ok));
+
+    // ── 表 ──
+    var TD =
+      'border:1px solid #999999;padding:0 8px;height:' +
+      rowH +
+      'px;' +
+      'font-size:' +
+      fontPx +
+      'px;line-height:1.15;';
+    var TH =
+      'border:1px solid #999999;height:' +
+      rowH +
+      'px;line-height:1.15;' +
+      'font-size:' +
+      fontPx +
+      'px;' +
+      // ★詰めるのは 余白★（幅ではない）＝指示役 2026-08-26
+      'padding:0 ' +
+      LABEL_PAD +
+      'px;' +
+      // ★項目（日付／金額／時間／売上n／時間（全台））は 中央揃え★ 2026-08-26 司さん
+      'background:#f7fbff;text-align:center;color:#333333;font-weight:700;' +
+      'width:' +
+      labelW +
+      'px;max-width:' +
+      labelW +
+      'px;overflow:hidden;';
+    var t =
+      '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+      '<colgroup><col style="width:' +
+      labelW +
+      'px"><col span="' +
+      days +
+      '" style="width:' +
+      dayW +
+      'px"></colgroup><tbody>';
+    t += '<tr><th style="' + TH + '">日付</th>';
+    cells.forEach(function (c) {
+      t +=
+        '<th style="' +
+        TD +
+        'background:#f7fbff;text-align:center;font-weight:700;white-space:nowrap;">' +
+        mdw(c.date) +
+        '</th>';
+    });
+    t += '</tr>';
+    rows.forEach(function (r) {
+      t +=
+        '<tr><th style="' +
+        TH +
+        '"><div style="white-space:nowrap;">' +
+        esc(r.ji || r.lbl) +
+        '</div>' +
+        (r.sub
+          ? '<div style="font-size:' +
+            subPx +
+            // ★折り返す★＝画面のCSS（tbody th は白空白を折り返さない）を 打ち消す
+            'px;font-weight:400;color:#5a6b82;line-height:1.15;white-space:normal;' +
+            // ★2行まで★（行の高さ50pxに 15px＋13px×2＝47px で収まる）
+            'max-height:' +
+            Math.round(subPx * 1.15 * 2) +
+            'px;overflow:hidden;word-break:break-all;">' +
+            esc(_fit2(r.sub, subPx, labelW - LABEL_PAD * 2 - 2, 2)) +
+            '</div>'
+          : '') +
+        '</th>';
+      cells.forEach(function (c) {
+        var aka = r.aka && r.aka(c);
+        t +=
+          '<td style="' +
+          TD +
+          'text-align:center;white-space:nowrap;' +
+          (aka ? 'color:' + SLIP_RED + ';font-weight:700;' : '') +
+          '">' +
+          r.get(c) +
+          '</td>';
+      });
+      t += '</tr>';
+    });
+    t += '</tbody></table>';
+
+    if (tate) {
+      // ★縦の 表★：上の 横＝項目（金額・時間・売上n・時間（全台））／左の 縦＝日付（1日 1行）
+      var TDT =
+        'border:1px solid #999999;padding:0 ' +
+        CELL_PAD +
+        'px;height:' +
+        rowH +
+        'px;font-size:' +
+        fontPx +
+        'px;line-height:1.15;';
+      var KOU = 'background:#f7fbff;text-align:center;font-weight:700;color:#333333;';
+      t =
+        '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+        '<colgroup><col style="width:' +
+        tateDateW +
+        'px">' +
+        tateColW
+          .map(function (w) {
+            return '<col style="width:' + w + 'px">';
+          })
+          .join('') +
+        '</colgroup><tbody>';
+      t += '<tr><th style="' + TDT + 'height:' + TATE_HEAD_H + 'px;' + KOU + '">日付</th>';
+      rows.forEach(function (r, i) {
+        t +=
+          '<th style="' +
+          TDT +
+          'height:' +
+          TATE_HEAD_H +
+          'px;' +
+          KOU +
+          'overflow:hidden;"><div style="white-space:nowrap;">' +
+          esc(r.ji || r.lbl) +
+          '</div>' +
+          (r.sub
+            ? '<div style="font-size:' +
+              subPx +
+              'px;font-weight:400;color:#5a6b82;line-height:1.15;white-space:normal;max-height:' +
+              Math.round(subPx * 1.15 * 2) +
+              'px;overflow:hidden;word-break:break-all;">' +
+              esc(_fit2(r.sub, subPx, tateColW[i] - CELL_PAD * 2 - 2, 2)) +
+              '</div>'
+            : '') +
+          '</th>';
+      });
+      t += '</tr>';
+      cells.forEach(function (c) {
+        t += '<tr><th style="' + TDT + KOU + 'white-space:nowrap;">' + hiTate(c, cells) + '</th>';
+        rows.forEach(function (r) {
+          var aka = r.aka && r.aka(c);
+          t +=
+            '<td style="' +
+            TDT +
+            'text-align:center;white-space:nowrap;' +
+            (aka ? 'color:' + SLIP_RED + ';font-weight:700;' : '') +
+            '">' +
+            r.get(c) +
+            '</td>';
+        });
+        t += '</tr>';
+      });
+      t += '</tbody></table>';
+    }
+    el.innerHTML = head + (uw === 'dake' ? '' : t);
+    // ★測れるように 印を付ける★（見張りが 数で確かめる為）
+    el.setAttribute('data-paper', '1');
+    el.setAttribute('data-label-w', String(labelW));
+    el.setAttribute('data-day-w', String(dayW));
+    el.setAttribute('data-row-h', String(rowH));
+    el.setAttribute('data-label-pad', String(LABEL_PAD));
+    el.setAttribute('data-min-col-w', String(minColW));
+    el.setAttribute('data-usable-w', String(tableW - labelW));
+    el.setAttribute('data-days', String(days));
+    el.setAttribute('data-muki', tate ? 'tate' : 'yoko');
+    el.setAttribute('data-sheet-h', String(tate ? SHEET_W : SHEET_H));
+    el.setAttribute('data-haba-dame', habaDame ? '1' : '0');
+    el.setAttribute('data-migi', migi.ok ? '1' : '0');
+    el.setAttribute('data-migi-cap', String(migi.cap));
+    el.setAttribute('data-label-ink', String(Math.ceil(labelInk)));
+    el.setAttribute('data-label-kake', labelKake ? '1' : '0');
+    el.setAttribute('data-font-px', String(fontPx));
+    el.setAttribute('data-sub-px', String(subPx));
+    el.setAttribute('data-rows', String(rows.length + 1));
+    return el;
+  }
+
+  // ★何枚に分けるか★＝1枚に入る日の数から出す
+  //   ★62日ぶんの期間まで作れる★（js/payroll-period.js:128 days<=62／月まとめは28〜31日）
+  //   実測：本物の10日・11日 → 1枚／31日 → 3枚（★字は 9pt以上のまま★）
+  // ★組んだ 紙の 本当の 高さ★（画面の 外に 1度 置いて 測る）
+  function _takasa(el) {
+    el.style.position = 'absolute';
+    el.style.left = '-99999px';
+    el.style.top = '0';
+    el.style.visibility = 'hidden';
+    document.body.appendChild(el);
+    var h = el.scrollHeight;
+    el.remove();
+    return h;
+  }
+  function _maisu(e, showCarSales, allCars) {
+    var probe = _buildPaperSheet(e, showCarSales, allCars, 0, e.cells.length);
+    var hairu = Math.floor(
+      +probe.getAttribute('data-usable-w') / +probe.getAttribute('data-min-col-w')
+    );
+    var per = hairu > 1 ? hairu : 1;
+    // ★縦の 紙（1日 1行）は 1枚に 31日まで★ 2026-10-23（司さん「月1回やったら1枚やろが」）
+    if (probe.getAttribute('data-muki') === 'tate') per = Math.min(e.cells.length, TATE_MAI);
+    var mai = Math.ceil(e.cells.length / per);
+    var n = mai > 1 ? mai : 1;
+    // ★★縦（車の 行）の 分け方★★ 2026-10-07
+    //   紙の 高さ − 上下の 余白 − 見出し − 内わけの 行 に 入る 行の 数から、決まった 4行
+    //   （日付・金額・時間・時間（全台））を 引いた 分が 1枚に 入る 車の 数
+    //   ★★見積もりは 使わず 組んだ 紙の 高さを 測る★★（対立役 10-07：内わけが 折り返すと 26px の
+    //     見積もりより 高く なり 800〜876px で 切れた）＝入るまで 1台ずつ 減らす
+    var nCars = showCarSales ? _paperCars(e, allCars).length : 0;
+    var carPer = nCars > 0 ? nCars : 1;
+    var to0 = Math.min(e.cells.length, per);
+    while (
+      carPer > 1 &&
+      _hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer))
+    ) {
+      carPer--;
+    }
+    // ★★車 1台（車が 無い 人も）でも 入らない ⇒ 内わけを 自分の 紙へ★★ 2026-10-07
+    //   （対立役：手当・控除が 長いと 黙って 切れた。止めずに 内わけを 別の 紙に 送る＝金額は 1つも 消さない）
+    //   ★人ごとに 必ず 1回 測る★（車が 0台・1台の 人は 上の ループが 回らない）
+    var betsu = false;
+    if (_hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer))) {
+      betsu = true;
+      carPer = nCars > 0 ? nCars : 1;
+      while (
+        carPer > 1 &&
+        _hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, carPer, 'nashi'))
+      ) {
+        carPer--;
+      }
+    }
+    var carN = nCars > 0 ? Math.ceil(nCars / carPer) : 1;
+    // ★内わけだけの 紙も 入らない（手当・控除が 長く 多い）⇒ はみ出す★（対立役 10-07：66件 で 差引支給が 紙の 外へ）
+    //   ＝明細の PDF を 止めて 知らせる（司さんの 決め「計算できなければ 止めて 警告」の 向き）
+    var hamidasu =
+      betsu && _hamideru(_buildPaperSheet(e, showCarSales, allCars, 0, to0, 1, 1, 0, 0, 'dake'));
+    return {
+      per: per,
+      n: n,
+      carPer: carPer,
+      carN: carN,
+      betsu: betsu,
+      hamidasu: hamidasu,
+    };
+  }
+
+  // ★返らない時に 永久に待たない★（指示役 2026-08-26）
+  //   ＝押した人は「PDFを作っています…」のまま ★何も起きない★。
+  //   ⇒ ★PDF_TIMEOUT_MS で 打ち切って エラーにする★
+  //   ★2026-09-26 実測★ 1人 0.3秒／3人 0.1秒（字体を 軽くする 2回描きを 含む）
+  //     ＝絵にしていた 頃より ★速い★。30秒は 十分 余裕が 在る。
+  //     （集計の 9種を 出す js/kami-pdf.js と 同じ 30秒に 揃えた）
+  var PDF_TIMEOUT_MS = 30000;
+  // ★明細の PDF を 出す★ 時間切れ（PDF_TIMEOUT_MS）は 作り終える（dekita）まで＝共有の 画面の 待ちは 数えない 2026-11-06
+  //   （LINE で 相手を 選ぶ 間に 30秒 過ぎると「PDFは出していません」と 嘘に なる・設計前 対立役 止1）
+  //   作る 所が 返らない 時は 今まで 通り 時間切れ（e2e kyuryo-paper「永久に待たない」）。字は _withTimeout と 同じ
+  function _dasuMachi(E, itas, title, kai) {
+    var tid = null;
+    return new Promise(function (ok, ng) {
+      tid = setTimeout(function () {
+        ng(new Error('PDF が ' + PDF_TIMEOUT_MS + 'ms で返りませんでした'));
+      }, PDF_TIMEOUT_MS);
+      E.dasu(itas, title, KAMI_KATA, {
+        kai: kai,
+        dekita: function () {
+          clearTimeout(tid);
+        },
+      }).then(
+        function (v) {
+          clearTimeout(tid);
+          ok(v);
+        },
+        function (e) {
+          clearTimeout(tid);
+          ng(e);
+        }
+      );
+    });
+  }
+  function _withTimeout(pr, ms, name) {
+    var tid = null;
+    return Promise.race([
+      pr.then(function (v) {
+        clearTimeout(tid);
+        return v;
+      }),
+      new Promise(function (_, ng) {
+        tid = setTimeout(function () {
+          ng(new Error(name + ' が ' + ms + 'ms で返りませんでした'));
+        }, ms);
+      }),
+    ]);
+  }
+
+  // ★★紙の 重さ（実測）★★
+  //   2026-09-06 絵だった頃 … 3人ぶん 340,594B（1人 約 111kB）
+  //   2026-09-26 字に した 後 … 下の 見張りが 毎回 測る
+  //   ★司さんの 目安★「請求書は ええとこ 200kBぐらいのもんやろが」
+  //
+  // ★紙の 余白★ 四方 20pt。★縦横 同じ 倍率で 縮めて 真ん中★に 置く
+  //   （前の 絵は 縦と横を 別々に 引き伸ばして ★ 2% 歪んでいた★）
+  var KAMI_KATA = {
+    yoko: { w: PAPER_W, h: PAPER_H, bw: SHEET_W, bh: SHEET_H, pad: PAPER_MARGIN },
+    tate: { w: PAPER_H, h: PAPER_W, bw: SHEET_H, bh: SHEET_W, pad: PAPER_MARGIN },
+  };
+
+  // ★぀1人ぶんの 板を 作る★（1枚に 入らない 期間は ★分けて 何枚か★）
+  //   ★字を小さくして押し込む事はしない★＝入らないなら 紙を増やす。
+  function _empSheets(e, cars) {
+    var m = _maisu(e, showCarSalesNow(), cars);
+    var out = [];
+    var zen = m.n * m.carN + (m.betsu ? 1 : 0);
+    for (var k = 0; k < m.carN; k++) {
+      for (var i = 0; i < m.n; i++) {
+        var from = i * m.per;
+        var to = Math.min(e.cells.length, from + m.per);
+        out.push({
+          el: _buildPaperSheet(
+            e,
+            showCarSalesNow(),
+            cars,
+            from,
+            to,
+            out.length + 1,
+            zen,
+            k * m.carPer,
+            (k + 1) * m.carPer,
+            m.betsu ? 'nashi' : undefined
+          ),
+          muki: 'yoko',
+        });
+      }
+    }
+    // ★内わけだけの 紙★（最後に 1枚）
+    if (m.betsu)
+      out.push({
+        el: _buildPaperSheet(
+          e,
+          showCarSalesNow(),
+          cars,
+          0,
+          Math.min(e.cells.length, m.per),
+          out.length + 1,
+          zen,
+          0,
+          0,
+          'dake'
+        ),
+        muki: 'yoko',
+      });
+    // ★紙の 向きは 組んだ 紙が 決める★ 2026-10-23（横 1列に 入らない 期間は 縦）
+    out.forEach(function (x) {
+      x.muki = x.el.getAttribute('data-muki') === 'tate' ? 'tate' : 'yoko';
+    });
+    return out;
+  }
+
+  // ★出なかった時の知らせ★（★中身を 場合で書き分ける★）
+  //   前は どちらでも「道具が読めませんでした」と出していた＝★時間切れの時は 嘘★（実測）。
+  //   ・道具が読めない … ★保険で印刷★（何も出ないよりまし・URLと日付は付いてしまう）
+  //   ・時間切れ ……… ★印刷に落とさない★
+  //       印刷で出る紙は ★司さんが 8/25 に突き返した物★（URL・日付・見切れ）。
+  //       ＝出さない方がまし。起きた事を そのまま出す。
+  function _pdfShippai(err) {
+    showMsg('');
+    var jikangire = String((err && err.message) || err || '').indexOf('PDF が ') === 0;
+    if (jikangire) {
+      showErr(
+        '紙を作るのに ' +
+          Math.round(PDF_TIMEOUT_MS / 1000) +
+          '秒 かかっても終わりませんでした。PDFは出していません。'
+      );
+      return;
+    }
+    showErr('PDFの道具が読めませんでした。印刷で出します。');
+    try {
+      window.print();
+    } catch (_) {
+      /* これ以上は打つ手なし */
+    }
+  }
+
+  // ★★1人ぶん★★
+  // ★読み込み中は 作らない★（押した 時の 期で 作る）
+  function yomikomichuTomeru() {
+    // 期の 計算が 転んだ 時も 作らない（前の 期の 額で 新しい 月の 明細を 作った・対立役 3回目 止め-1）
+    if (KEISAN_NG) {
+      showErr(KEISAN_NG_JI);
+      return true;
+    }
+    if (!LP_YOMICHU) return false;
+    showErr('まだ 読み込み中です。読み終わってから もう一度 押してください。');
+    return true;
+  }
+  function printOne(ei) {
+    if (yomikomichuTomeru()) return;
+    // 売上の 直しが 読めない 業務が 在れば 明細の PDF を 作らない（画面の 明細と 同じ 門）2026-10-14
+    if (kyuDameBun(CTX)) return showErr(kyuDameBun(CTX));
+    var kiOne = PERIOD;
+    if (DKSession.loadFailed(LOAD)) {
+      yomiNaoshiObi(); // ★帯を 出す★（押す 所が 無い 文で 止めない・対立役 10-07）
+      showErr(
+        '読めなかった 物が あるので 明細の PDF は 作りません。上の「もう一度読む」を 押してください。'
+      );
+      return;
+    }
+    var box = document.getElementById('slip-' + ei);
+    var emp = REP && REP.employees ? REP.employees[ei] : null;
+    if (!box || !emp) {
+      showErr('その人の明細が見つかりません。');
+      return;
+    }
+    // ★中身から作った名前★（保存する時の既定のファイル名になる）
+    var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
+    var title = '給料明細_' + ym + '_' + String(emp.name || '');
+
+    showMsg('PDFを作っています…');
+    var kai1 = window.PdfOkuru ? PdfOkuru.kesu() : null;
+    var dougu1 = false;
+    loadPdfLibs()
+      .then(function (E) {
+        dougu1 = true;
+        // ★はみ出す 人は 作らない★ 2026-10-08（printAll と 同じ 門・対立役：printOne だけ 門が 無かった）
+        if (hamiTomeru([emp], kiOne)) return null;
+        // ★時間切れは 作る 所だけ★（共有の 画面の 待ちを 包まない・_dasuMachi・対立役 止1 2026-11-06）
+        return _dasuMachi(E, _empSheets(emp, slipCars(REP.cars, emp.employee_id)), title, kai1);
+      })
+      .then(function (x) {
+        showMsg(meisaiBun(x));
+      })
+      .catch(function (err) {
+        // ★印刷の 保険へ 落ちる 時も はみ出す 人は 止める・道具を 読めた 後の 失敗は 印刷しない★
+        pdfAtoshimatsu([emp], dougu1, err, kiOne);
+      });
+  }
+  window.printOne = printOne;
+
+  // ★全員ぶんを 1つのPDFに★（1人1ページ・A4横）
+  //   給与アプリと同じ「複数人=複数ページ」。作り方は printOne と同じ。
+  // ★誰を 出すか★ null＝全員／配列＝その人だけ（2026-09-05 司さん）
+  // ★★手当・控除が 紙に 入りきらない 人が 居れば 止める（真＝止めた）★★ 2026-10-07
+  //   今 入っている 字体で 測る（PDF の 道具を 読んだ 後なら DKKami・読めなかった 時は 控えの 字体＝印刷も その 字体）
+  // ★★PDF の 失敗の 後始末（印刷の 保険へ 落とすか）★★ 2026-10-08
+  //   道具を 読めた 後の 失敗（紙を 組めない・PDF を 作れない）は 印刷に 落とさず 止める
+  //   （前は「PDFの道具が読めませんでした。印刷で出します。」と 嘘の 文で 画面の 写しを 印刷した・対立役）
+  function pdfAtoshimatsu(boxes, dougu, err, ki) {
+    if (hamiTomeru(boxes, ki)) return;
+    var m = String((err && err.message) || err || '');
+    if (dougu && m.indexOf('PDF が ') !== 0) {
+      showMsg('');
+      showErr(
+        '明細の 紙を 作れませんでした（' +
+          m +
+          '）。PDF は 出していません。もう一度 押してください。'
+      );
+      return;
+    }
+    _pdfShippai(err);
+  }
+  function hamiTomeru(boxes, ki) {
+    // ★押した 後に 画面（月・期）が 変わった ⇒ 止める★（古い 人で 門を 素通りしない・対立役 3-b）
+    // ★押した 時の 期と 今の 期が 違う・読み込み中 も「変わった」★（対立役 10-08 A：期を 変えた 読み込み中に
+    //   新しい 期の 名前で 古い 期の 明細が 出た）
+    var kawatta =
+      LP_YOMICHU ||
+      (ki !== undefined && ki !== PERIOD) ||
+      boxes.some(function (b) {
+        return !REP || REP.employees.indexOf(b) < 0;
+      });
+    if (kawatta) {
+      showMsg('');
+      showErr('画面が 変わったので 明細の PDF は 作りません。もう一度 押してください。');
+      return true;
+    }
+    var hami;
+    try {
+      hami = boxes.filter(function (b) {
+        var ei = REP.employees.indexOf(b);
+        return ei >= 0 && window.__paper && window.__paper.maisu(ei).hamidasu;
+      });
+    } catch (e) {
+      // ★測れない（紙を 組めない）時も 止める★ 2026-10-08（前は 投げて「PDFを作っています…」の まま 止まった・対立役）
+      showMsg('');
+      showErr(
+        '明細の 紙を 組めませんでした（' +
+          (e && e.message ? e.message : e) +
+          '）。明細の PDF は 作りません。もう一度 開いてください。'
+      );
+      return true;
+    }
+    if (!hami.length) return false;
+    showMsg('');
+    showErr(
+      hami
+        .map(function (b) {
+          return b.name;
+        })
+        .join('・') +
+        ' さんの 手当・控除が 多すぎて 明細の 紙に 入りません。明細の PDF は 作りません（手当・控除を まとめてください）。'
+    );
+    return true;
+  }
+  // ★★明細の テンプレ（払い方の 形）★★ 2026-10-23
+  //   司さん「全パターンをPDFで見て選べるようにして 選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」
+  //   見本は 作り物で なく 今の 月の 本当の 記録（代行請求書と 同じ）で、その 払い方の 区切りの 紙を 組む。
+  // ★★払い方の 種類ごとに 1つ★★ 2026-10-24（司さん「月1回のテンプレは給料設定があるんやから1個でええやろ。
+  //   月2回、3回、週一も一緒や。同じものを並べてどうするんのど」「今の給料設定は何日締めです。変えたい時は給料設定から変更して下さい」）
+  //   前は 12通り（締め日違い・何月分違いの 同じ 払い方が 並んだ）＋押すと 給料の 設定の 欄に 入れた
+  //   ⇒ 種類（月1回・月2回・月3回・週1回・毎日）ごとに 1枚。今の 設定と 同じ 種類は 今の 設定の 締め日で、他は 既定の 締め日で 組む
+  //   ⇒ 押すと その 払い方を 給料の 設定の 欄に 入れる（10-24 司さん「テンプレから選択して変えれないのはなぜか」・書くのは 給料の 設定の 保存 1つ）
+  var TPL_KITEI = [
+    { shurui: 'tsuki1', raw: { kind: 'tsuki', hi: [0] } },
+    { shurui: 'tsuki2', raw: { kind: 'tsuki', hi: [15, 0] } },
+    { shurui: 'tsuki3', raw: { kind: 'tsuki', hi: [10, 20, 0] } },
+    { shurui: 'shuu', raw: { kind: 'shuu', youbi: 0, nazuke: 'shime' } },
+    { shurui: 'hi', raw: { kind: 'hi' } },
+  ];
+  // 形（seiki を 通した 物）→ 種類
+  function tplShurui(k) {
+    if (!k) return '';
+    if (k.kind === 'thirds') return 'tsuki3';
+    if (k.kind === 'tsuki') return 'tsuki' + k.hi.length;
+    return k.kind;
+  }
+  // ★今の 給料の 設定の 形（今日に 効く 形）★ 読めない 時は dame（既定を 黙って 出さない）
+  function tplImaKata() {
+    if (!SET_YONDA) return { dame: '給料の 設定を 読み込み中です' };
+    var y = PayrollPeriod.yomu(SET);
+    if (!y || !y.ok) return { dame: '給料の 設定を 読めませんでした（開き直してください）' };
+    // ★記録が 読めない・壊れて いる 時に 列の 形へ 黙って 落ちない★（対立役 S1：shimeNoHiKata は null で 返す＝|| で 列の 形が 出た）
+    var rk = PayrollPeriod.rirekiKata(y.kata, RAW.shimeRireki);
+    if (!rk || rk.dame)
+      return {
+        dame: '給料の 設定（締めを 変えた 記録）を 読めませんでした（開き直してください）',
+      };
+    var k = PayrollPeriod.kataNoHi(rk, kyouJst());
+    var t = k.kind === 'thirds' ? { ok: true, kata: k } : PayrollPeriod.seiki(k);
+    if (!t.ok || !haraiNa(t.kata))
+      return { dame: '給料の 設定を 読めませんでした（開き直してください）' };
+    return { kata: t.kata };
+  }
+  // 見本の 並び（種類ごとに 1つ）。今の 形が 既定に 無い 種類（月4回 等）なら その 種類を 足す
+  function tplNarabi() {
+    var ima = tplImaKata().kata || null;
+    var imaS = tplShurui(ima);
+    var imaRaw = ima && ima.kind === 'thirds' ? { kind: 'tsuki', hi: [10, 20, 0] } : ima;
+    var l = TPL_KITEI.map(function (t) {
+      return t.shurui === imaS ? { shurui: t.shurui, raw: imaRaw } : t;
+    });
+    if (
+      ima &&
+      !TPL_KITEI.some(function (t) {
+        return t.shurui === imaS;
+      })
+    )
+      l.push({ shurui: imaS, raw: imaRaw });
+    return l.map(function (t) {
+      var r = PayrollPeriod.seiki(t.raw);
+      var hs = r.ok ? haraiSetsumei(r.kata) : null;
+      return {
+        shurui: t.shurui,
+        raw: t.raw,
+        na: hs ? hs.na : '',
+        desc: hs ? hs.bun.slice(hs.bun.indexOf('：') + 1) : '',
+      };
+    });
+  }
+  // 見本の 形（raw）
+  function tplKata(t) {
+    return t.raw;
+  }
+  function tplOnaji(a, b) {
+    if (!a || !b || a.kind !== b.kind) return false;
+    if (a.kind === 'tsuki') return a.hi.join(',') === b.hi.join(',') && a.nazuke === b.nazuke;
+    if (a.kind === 'shuu') return a.youbi === b.youbi && a.nazuke === b.nazuke;
+    return true;
+  }
+  // ★見本の 材料★ 前の 月の 頭（の 7日 前）〜 次の 月の 末 を 1回 読む（明細と 同じ 表・同じ 絞り方）
+  //   明細の 材料（CTX）は 今 開いて いる 区切りの 範囲 だけ＝それで 月1回 等を 組むと 時間と 額が 足りない（対立役 止2）
+  function tplYmd(d) {
+    return (
+      d.getFullYear() +
+      '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) +
+      '-' +
+      ('0' + d.getDate()).slice(-2)
+    );
+  }
+  // ★読む 範囲＝見本の 候補（種類ごとの 1枚・2026-10-24 までは 12通り）（前の 月・今の 月の 区切り）の 一番 早い 始まり 〜 一番 遅い 終わり★
+  //   決め打ち（前の 月の 頭の 7日前）だと 20日締め（締めた 日の 月の 分）の 前の 月の 区切り（2つ 前の 月の 21日〜）を 覆わず
+  //   見本の 頭の 3〜4日が 抜けた（対立役 止A）
+  function tplHani(ym) {
+    var kara = null;
+    var made = null;
+    tplNarabi().forEach(function (t) {
+      var r = PayrollPeriod.seiki(tplKata(t));
+      if (!r.ok) return;
+      [-1, 0].forEach(function (z) {
+        var t2 = PayrollPeriod.shift(ym, z);
+        (PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []).forEach(function (p) {
+          if (!kara || p.start < kara) kara = p.start;
+          if (!made || p.end > made) made = p.end;
+        });
+      });
+    });
+    return { kara: kara, made: made };
+  }
+  var TPL_ZAIRYO = null; // { key, pr }
+  function tplZairyo() {
+    var hani = tplHani(YM);
+    var kara = hani.kara;
+    var made = hani.made;
+    var key = kara + '|' + made + '|' + LP_NO;
+    if (TPL_ZAIRYO && TPL_ZAIRYO.key === key) return TPL_ZAIRYO.pr;
+    var st = DKSession.newLoadState();
+    var yomu = function (path) {
+      return DKSession.softList(SESS, kaishaDake(path), st);
+    };
+    var toD = new Date(+made.slice(0, 4), +made.slice(5, 7) - 1, +made.slice(8, 10) + 1);
+    var pr = Promise.all([
+      yomu(
+        'dk_shifts?select=shift_id,device_id,started_at,ended_at,elapsed_sec,fare_total_yen,trip_count,actual_total_m,total_distance_m,excluded' +
+          '&started_at=gte.' +
+          encodeURIComponent(kara + 'T00:00:00+09:00') +
+          '&started_at=lt.' +
+          encodeURIComponent(tplYmd(toD) + 'T00:00:00+09:00') +
+          '&order=started_at.asc&limit=5000'
+      ),
+      yomu('dk_shift_edits?select=*&limit=5000'),
+      yomu(
+        'dk_work_hours?select=*&work_date=gte.' + kara + '&work_date=lte.' + made + '&limit=5000'
+      ),
+      yomu(
+        'dk_manual_days?select=*&work_date=gte.' + kara + '&work_date=lte.' + made + '&limit=5000'
+      ),
+      yomu(
+        'dk_pay_adjustments?select=*&work_date=gte.' +
+          kara +
+          '&work_date=lte.' +
+          made +
+          '&order=work_date.asc,adj_id.asc&limit=5000'
+      ),
+    ]).then(function (res) {
+      // ★1つでも 読めなければ 見本を 出さない★（足りない 材料で 額を 出さない）
+      if (DKSession.loadFailed(st)) return { dame: true };
+      var ctx = PayrollDaily.buildCtx(
+        Object.assign({}, RAW, {
+          shifts: res[0] || [],
+          edits: res[1] || [],
+          workHours: res[2] || [],
+          manualDays: res[3] || [],
+          adjustments: res[4] || [],
+          yakuRireki: yakuRirekiNoIma(),
+        })
+      );
+      return { ctx: ctx };
+    });
+    TPL_ZAIRYO = { key: key, pr: pr };
+    return pr;
+  }
+  // 見本の 紙に 載せる 名前（作り物・本当の 人の 名前は 出さない）
+  var TPL_MIHON_NA = '見本 太郎';
+  // 見本の 紙（前の 月・今の 月の 区切りで 働いた 日が 一番 多い 区切り・その 区切りで 時間が 一番 多い 人）
+  function tplMihon(t, ctx) {
+    var CTX = ctx; // 見本の 材料（明細の CTX とは 別）
+    var r = PayrollPeriod.seiki(tplKata(t));
+    if (!r.ok || !CTX || !YM) return null;
+    // 前の 月と 今の 月の 区切りから 選ぶ（始まった 日の 月の 分 は 今の 月の 分が まだ 始まって いない 事が ある）
+    var ps = [];
+    [-1, 0].forEach(function (z) {
+      var t2 = PayrollPeriod.shift(YM, z);
+      ps = ps.concat(PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []);
+    });
+    var hd = (CTX && CTX.hoursByDate) || {};
+    var p = null;
+    var best = -1;
+    ps.forEach(function (q) {
+      var n = (q.dates || []).filter(function (d) {
+        return hd[d] && Object.keys(hd[d]).length;
+      }).length;
+      if (n > best) {
+        best = n;
+        p = q;
+      }
+    });
+    if (!p || best <= 0) return null;
+    var rp = PayrollDaily.report(p.dates, CTX);
+    var es = (rp && rp.employees) || [];
+    if (!es.length) return null;
+    var e0 = es.slice().sort(function (a, b) {
+      return (b.totalHours || 0) - (a.totalHours || 0);
+    })[0];
+    // ★見本に 本当の 名前を 載せない★ 2026-10-24（司さん「テンプレに実名を勝手に使うな」）
+    //   手当・控除の 名目も 自由な 字（人の 名前・いきさつが 入り得る）＝「手当」「控除」に 替える（額は そのまま・対立役 S2）
+    var e = Object.assign({}, e0, {
+      name: TPL_MIHON_NA,
+      adj: (e0.adj || []).map(function (a) {
+        return Object.assign({}, a, { label: a.kind === 'koujo' ? '控除' : '手当' });
+      }),
+    });
+    var mae = PERIOD;
+    var sheets;
+    try {
+      PERIOD = p; // 紙の 見出し（何月分・期間）は その 区切り
+      sheets = _empSheets(e, slipCars(rp.cars, e.employee_id));
+    } finally {
+      PERIOD = mae;
+    }
+    // ★見本の 印★（本物の 明細と 取り違えない＝画面にも PDF にも 載る・対立役 止C）
+    //   紙の 下の 余白（18px）に 13px（PDF で 9pt 以上）の 赤い 字（上の 余白だと「給料明細」に くっついた）
+    sheets.forEach(function (x) {
+      var m = document.createElement('div');
+      m.className = 'tpl-mihon-ji';
+      m.style.cssText =
+        'position:absolute;left:0;right:0;bottom:2px;text-align:center;font-size:13px;line-height:15px;' +
+        'font-weight:700;color:#c0392b;white-space:nowrap;';
+      m.textContent = '見本（払い方を 選ぶ ための 紙です・本物の 明細では ありません）';
+      x.el.style.position = x.el.style.position || 'relative';
+      x.el.insertBefore(m, x.el.firstChild);
+    });
+    return { sheets: sheets, p: p, e: e };
+  }
+  function renderTpl() {
+    var g = $('tplGrid');
+    if (!g) return;
+    // ★★上の 字＝今の 給料の 設定★★ 2026-10-24（司さん「給料設定を読み込んで今の給料設定は何日締めです。
+    //   変えたい時は給料設定から変更して下さい。みたいに載せろ」）。読めない 時は 既定を 黙って 出さない
+    var imaY = tplImaKata();
+    var ue = $('tplIma');
+    if (ue) {
+      var imaNa = imaY.kata ? haraiNa(imaY.kata) : '';
+      ue.innerHTML =
+        (imaY.kata
+          ? '今の 給料の 設定は <b>' + esc(imaNa) + '</b> です。'
+          : '<span class="rolewarn">' + esc(imaY.dame) + '</span>') +
+        // ★テンプレを 押して 選べる★ 2026-10-24（司さん「テンプレから選択して変えれないのはなぜか」）
+        '下の テンプレを 押すと その 払い方が <button type="button" class="linkbtn" data-tpl-settei="1" style="padding: 0 2px">給料の 設定</button> に 入ります（「保存する」を 押すまで 変わりません）。';
+      var sb = ue.querySelector('[data-tpl-settei]');
+      if (sb)
+        sb.onclick = function () {
+          tplSetteiHe();
+        };
+    }
+    var ima = imaY.kata || null;
+    var narabi = (TPL_NARABI = tplNarabi());
+    g.innerHTML = narabi
+      .map(function (t, i) {
+        var r = PayrollPeriod.seiki(tplKata(t));
+        var on = !!ima && r.ok && tplOnaji(ima, r.kata);
+        return (
+          '<div class="tpl-card' +
+          (on ? ' on' : '') +
+          '" data-shurui="' +
+          esc(t.shurui) +
+          '" data-tpl="' +
+          i +
+          '"><div class="tpl-badge">✓</div><div class="tpl-thumb" data-tpl-thumb="' +
+          i +
+          '"><span class="tpl-thumb-msg">見本を 作っています…</span></div><div class="tpl-meta"><div class="tpl-name">' +
+          esc(t.na) +
+          '</div><div class="tpl-desc">' +
+          esc(t.desc) +
+          (on ? '（今の 払い方）' : '') +
+          '</div><button class="tpl-pdf" type="button" data-tpl-pdf="' +
+          i +
+          '">PDFで 見る</button></div></div>'
+        );
+      })
+      .join('');
+    var mihon = {};
+    var thumbs = g.querySelectorAll('[data-tpl-thumb]');
+    var dasuMsg = function (ji) {
+      Array.prototype.forEach.call(thumbs, function (box) {
+        box.innerHTML = '<span class="tpl-thumb-msg">' + ji + '</span>';
+      });
+    };
+    // ★明細が 止まる 時は 見本も 出さない★（明細と 同じ 門・対立役 止2 の ついで）
+    var tome =
+      KEISAN_NG || !CTX
+        ? '明細を 計算 できて いない ので<br />見本は 出しません'
+        : LP_YOMICHU
+          ? '読み込み中です'
+          : DKSession.loadFailed(LOAD) || kyuDameBun(CTX)
+            ? '明細が 止まって いる ので<br />見本は 出しません'
+            : '';
+    var hyouji = Number(g.getAttribute('data-gen') || 0) + 1;
+    g.setAttribute('data-gen', String(hyouji));
+    var oku = function (ctx) {
+      // ★見本の 材料にも 明細と 同じ 止め★（今の 区切りの 外に 読めない 売上の 直し 等が 在る 時・対立役 止B）
+      var tomeZ = kyuDameBunHoka(ctx);
+      if (tomeZ)
+        return dasuMsg('見本の 期間に 計算 できない 所が ある ので<br />見本は 出しません');
+      Array.prototype.forEach.call(thumbs, function (box) {
+        var i = Number(box.getAttribute('data-tpl-thumb'));
+        var m = null;
+        try {
+          m = tplMihon(narabi[i], ctx);
+        } catch (_) {
+          m = null;
+        }
+        mihon[i] = m;
+        if (!m || !m.sheets.length) {
+          box.innerHTML =
+            '<span class="tpl-thumb-msg">この 月に 時数が 入ると<br />ここに 実際の 紙が 出ます</span>';
+          return;
+        }
+        // ★札には 写しを 縮めて 置く★（元の 紙は PDF へ そのまま 渡す＝縮めた 紙を PDF に 描かない・札から 紙を 抜かない・対立役 止1）
+        var el = m.sheets[0].el.cloneNode(true);
+        var wh = kamiWH(el);
+        var bw = box.clientWidth || 150;
+        var bh = box.clientHeight || bw * 1.414;
+        var sc = Math.min(bw / wh.w, bh / wh.h);
+        el.style.position = 'absolute';
+        el.style.left = Math.round((bw - wh.w * sc) / 2) + 'px';
+        el.style.top = Math.round((bh - wh.h * sc) / 2) + 'px';
+        el.style.width = wh.w + 'px';
+        el.style.transformOrigin = 'top left';
+        el.style.transform = 'scale(' + sc + ')';
+        el.style.boxShadow = '0 0 0 1px #e3eaf2';
+        box.innerHTML = '';
+        box.appendChild(el);
+      });
+    };
+    if (tome) dasuMsg(tome);
+    else
+      tplZairyo()
+        .then(function (z) {
+          // 読み終える 前に 描き直した・別の タブへ 行った ⇒ 置かない
+          if (TAB !== 'tpl' || g.getAttribute('data-gen') !== String(hyouji)) return;
+          if (!z || z.dame) return dasuMsg('記録を 読めなかった ので<br />見本は 出しません');
+          oku(z.ctx);
+        })
+        .catch(function () {
+          if (g.getAttribute('data-gen') === String(hyouji))
+            dasuMsg('記録を 読めなかった ので<br />見本は 出しません');
+        });
+    // ★札を 押す＝その 払い方を 給料の 設定の 欄に 入れる★（PDF の ボタンは 選ばない）
+    Array.prototype.forEach.call(g.querySelectorAll('.tpl-card[data-tpl]'), function (c) {
+      c.onclick = function () {
+        tplErabu(narabi[Number(c.getAttribute('data-tpl'))]);
+      };
+    });
+    Array.prototype.forEach.call(g.querySelectorAll('[data-tpl-pdf]'), function (b) {
+      b.onclick = function (ev) {
+        ev.stopPropagation(); // ★PDF を 見るだけ＝選ばない★
+        var i = Number(b.getAttribute('data-tpl-pdf'));
+        var m = mihon[i];
+        if (!m || !m.sheets.length)
+          return showErr('この 月に 時数が 無いので 見本の 紙を 作れません。');
+        showMsg('PDFを作っています…（見本）');
+        var kai2 = window.PdfOkuru ? PdfOkuru.kesu() : null;
+        loadPdfLibs()
+          .then(function (E) {
+            return _dasuMachi(E, m.sheets, '給料明細_見本_' + narabi[i].na, kai2);
+          })
+          .then(function (x) {
+            showMsg(meisaiBun(x));
+          })
+          .catch(function () {
+            showMsg('');
+            showErr('見本の PDF を 作れませんでした。もう一度 押してください。');
+          });
+      };
+    });
+  }
+  // ★給料の 設定へ 移る★（書く 道は 給料の 設定の 保存 1つ・2026-10-24）
+  // eslint-disable-next-line no-unused-vars -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+  var TPL_NARABI = [];
+  // ★選ぶ＝給料の 設定の 払い方の 欄に 入れて 開く★ 2026-10-24（司さん「テンプレから選択して変えれないのはなぜか」）
+  //   倉庫へは 書かない（保存は 給料の 設定の「保存する」＝何日からも そこで 決める）
+  function tplErabu(t) {
+    if (!t || !t.raw) return;
+    // ★設定を 読めない 時は 入れない★（保存も 止まる＝「入れました」が 嘘に なる・対立役 N4）
+    var imaY = tplImaKata();
+    if (imaY.dame) return showErr(imaY.dame);
+    tplSetteiHe();
+    var raw = t.raw;
+    // 月3回（10日・20日・末日）は 欄の「月3回」で 出す（締め日を 並べる で 出さない）
+    var sanKai = raw.kind === 'tsuki' && Array.isArray(raw.hi) && raw.hi.join(',') === '10,20,0';
+    shimeRanNiIreru(sanKai ? null : raw, sanKai ? 'thirds' : 'shime');
+    // ★欄を 触った 印★（手で 選んだ 時と 同じ＝保存で 何日からの 記録を 書く・何日からを 変えても 欄を 戻さない）
+    SHIME_SAWATTA = true;
+    kikanDashiwake();
+    showMsg(
+      'テンプレの「' +
+        t.na +
+        '」を 入れました。「何日から」を 決めて「保存する」を 押すと 変わります。'
+    );
+  }
+  function tplSetteiHe() {
+    TAB = 'set';
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+      x.className = 'tab' + (x.getAttribute('data-tab') === 'set' ? ' on' : '');
+    });
+    render();
+    if ($('pMode') && $('pMode').scrollIntoView) $('pMode').scrollIntoView({ block: 'center' });
+  }
+
+  function printAll(dake) {
+    if (yomikomichuTomeru()) return;
+    var kiAll = PERIOD;
+    if ((!dake || !dake.length) && HITO) dake = [HITO]; // ★名前で 選んだ人だけ（10-03）★
+    // ★数えるのは 人の数★（画面の枚数ではない＝紙は人ごとに組む）
+    var zenin = REP && REP.employees ? REP.employees : [];
+    var boxes =
+      dake && dake.length
+        ? zenin.filter(function (e) {
+            return dake.indexOf(String(e.employee_id)) >= 0;
+          })
+        : zenin;
+    // 売上の 直しが 読めない 業務が 在れば 明細の PDF を 作らない（画面の 明細と 同じ 門）2026-10-14
+    if (kyuDameBun(CTX)) return showErr(kyuDameBun(CTX));
+    // ★「選んだ人」で 呼ばれたのに 選びが 空＝★全員には しない★（10-03 対立役：前は 全員ぶん 出た）
+    if (Array.isArray(dake) && !dake.length) {
+      showErr('選んだ人が いません。明細の チェックで 選んでください。');
+      return;
+    }
+    if (!boxes.length) {
+      showErr(dake && dake.length ? '選んだ人の 明細が ありません。' : '明細がありません。');
+      return;
+    }
+    // ★★読めなかった 物が 在る 時は 明細の PDF を 作らない★★ 2026-10-07（対立役：手当・控除が 読めないと
+    //   控除の 無い 明細が 出た＝司さん「計算できなければ 止めて 警告」）
+    if (DKSession.loadFailed(LOAD)) {
+      yomiNaoshiObi(); // ★帯を 出す★（押す 所が 無い 文で 止めない・対立役 10-07）
+      showErr(
+        '読めなかった 物が あるので 明細の PDF は 作りません。上の「もう一度読む」を 押してください。'
+      );
+      return;
+    }
+    var ym = String(YM.year) + '-' + String(YM.month).padStart(2, '0');
+    showMsg('PDFを作っています…（' + boxes.length + '人ぶん）');
+    // ★PDF の 道具が 読めず 印刷の 保険へ 落ちる 時も はみ出す 人が 居れば 止める★（対立役 10-07 4回目：
+    //   門を 道具の 後へ 移したら 道具が 読めない 時に 門を 通らず 切れた 明細が 印刷に 出た）
+    var dougu = false;
+    var shippai = function (err) {
+      pdfAtoshimatsu(boxes, dougu, err, kiAll);
+    };
+    var kai3 = window.PdfOkuru ? PdfOkuru.kesu() : null;
+    loadPdfLibs()
+      .then(function (E) {
+        dougu = true;
+        // ★手当・控除が 紙に 入りきらない 人が 居れば 作らない★ 2026-10-07（差引支給が 紙の 外に 出る）
+        //   ★PDF の 字体を 読んだ 後で 測る★（前は 控えの 字体で 測り「入るのに 止める」事が あった・対立役 B）
+        //   止める 時は 投げない（投げると 印刷の 保険へ 落ちる）＝文を 出して 抜ける
+        if (hamiTomeru(boxes, kiAll)) return null;
+        var mai = [];
+        boxes.forEach(function (e2) {
+          mai = mai.concat(_empSheets(e2, slipCars(REP.cars, e2.employee_id)));
+        });
+        return _dasuMachi(E, mai, '給料明細_' + ym, kai3);
+      })
+      .then(function (x) {
+        showMsg(meisaiBun(x));
+      })
+      .catch(shippai);
+  }
+  window.printAll = printAll;
+  // ★明細の PDF を 出した 後の 字★ 出せない 字（見本と 同じ 字・2026-10-31）＋iPhone・iPad の 共有の 字（how ごと）
+  function meisaiBun(x) {
+    if (!x) return '';
+    var miss = window.KamiEgaku ? window.KamiEgaku.missingBun(x.missing) : '';
+    var w = window.PdfOkuru ? PdfOkuru.bun(x.how, miss) : null;
+    return w !== null ? w : miss;
+  }
+
+  // ★見張りが 実際に紙を組んで 数を測る為の入口★ 2026-08-26
+  //   ＝★ソースを読むだけの見張りにしない★（読むだけの見張りは 何度も嘘をついた）。
+  //   組むだけ・返すだけ＝画面も倉庫も 1文字も動かさない。
+  window.__paper = {
+    build: function (ei, from, to, no, n) {
+      var e = REP.employees[ei];
+      return _buildPaperSheet(
+        e,
+        showCarSalesNow(),
+        slipCars(REP.cars, e.employee_id),
+        from,
+        to,
+        no,
+        n
+      );
+    },
+    // ★1人ぶんの 紙を 全部（日と 車の 両方で 分けた 後）★ 2026-10-07（見張りが 高さと 売上n を 数える）
+    sheets: function (ei) {
+      var e = REP.employees[ei];
+      return _empSheets(e, slipCars(REP.cars, e.employee_id)).map(function (x) {
+        return x.el;
+      });
+    },
+    // テンプレの 見本を 読む 範囲（見張りが 12通りの 区切りを 全部 覆うかを 数える）
+    tplHani: function (y, m) {
+      return { hani: tplHani({ year: y, month: m }), n: tplNarabi().length };
+    },
+    tplKiri: function (y, m) {
+      var out = [];
+      tplNarabi().forEach(function (t) {
+        var r = PayrollPeriod.seiki(tplKata(t));
+        if (!r.ok) return;
+        [-1, 0].forEach(function (z) {
+          var t2 = PayrollPeriod.shift({ year: y, month: m }, z);
+          (PayrollPeriod.periodsOf(t2.year, t2.month, { kata: r.kata }) || []).forEach(
+            function (p) {
+              out.push({ k: t.shurui, start: p.start, end: p.end });
+            }
+          );
+        });
+      });
+      return out;
+    },
+    maisu: function (ei) {
+      var e = REP.employees[ei];
+      return _maisu(e, showCarSalesNow(), slipCars(REP.cars, e.employee_id));
+    },
+    ninzu: function () {
+      return REP && REP.employees ? REP.employees.length : 0;
+    },
+    hi: function (ei) {
+      return REP.employees[ei].cells.length;
+    },
+    emp: function (ei) {
+      return REP.employees[ei];
+    },
+    cars: function () {
+      return REP.cars;
+    },
+    // ★紙に 出す 車（明細に出す 印で 絞った 後）★ 2026-09-06
+    //   ★見張りが「選んだ 車の 行が 出るか」を 数える 為★
+    slipCars: function (ei) {
+      var e = REP.employees[ei || 0];
+      return slipCars(REP.cars, e.employee_id);
+    },
+    timeoutMs: function () {
+      return PDF_TIMEOUT_MS;
+    },
+  };
+
+  // ★どの車を 給料明細に出すか★ 2026-08-25（司さん「個別で見せる見せないも選べたら最高」）
+  //   ・持ち場は ★車の棚（dk_device_labels.show_in_slip）★＝新しい棚を作らない
+  //   ・★空（まだ決めていない）＝出す★＝今までと同じ見た目
+  //   ・決めるのは 社長・会社ごと（「車の名前と並び」の表で1台ずつ）
+  //   ・判定は ★ここ1か所★（設定の画面と 明細で 食い違わない）
+  function carShowsInSlip(deviceId) {
+    var hit = null;
+    (RAW.labels || []).forEach(function (l) {
+      if (l && l.device_id === deviceId) hit = l;
+    });
+    return !(hit && hit.show_in_slip === false);
+  }
+
+  // ★その人だけの車の指定★ 2026-08-25
+  //   司さん「個人個人で給料明細に載せるかも選びたいんや
+  //           山田太郎は車1、山田花子は車2と3とかカスタムしたい」
+  //   ・持ち場は ★人の棚（dk_employees.slip_cars）★＝新しい棚を作らない
+  //   ・★空（打っていない）＝会社の決まりどおり★＝今までと同じ見た目
+  //   ・入っていれば ★その人は その車だけ★
+  function empSlipCars(employeeId) {
+    var hit = null;
+    (RAW.employees || []).forEach(function (x) {
+      if (x && x.employee_id === employeeId) hit = x;
+    });
+    var v = hit && hit.slip_cars;
+    if (!v) return null;
+    try {
+      if (typeof v === 'string') v = JSON.parse(v); // 倉庫から文字で返る事がある
+    } catch (_) {
+      return null;
+    }
+    return v && v.length ? v : null;
+  }
+
+  // ★明細に出す車だけを 並び順のまま 取り出す★
+  //   元の並びの何番目か（i）も一緒に持つ＝売上の数字を取り違えない。
+  //   出す物だけで「売上1・売上2…」と番号を振り直す（間が抜けない）。
+  //   ★決める順番は ここ1か所★
+  //     ①その人の指定が在れば その車だけ
+  //     ②無ければ 会社の「明細に出す」（車ごと）
+  function slipCars(cars, employeeId) {
+    var mine = empSlipCars(employeeId);
+    var out = [];
+    (cars || []).forEach(function (car, i) {
+      var ok = mine ? mine.indexOf(car.device_id) >= 0 : carShowsInSlip(car.device_id);
+      if (ok) out.push({ car: car, i: i });
+    });
+    return out;
+  }
+
+  // ★★期間を 通した 乗った人の 入れ漏れの 帯★★ 2026-10-23（時数は 入力の 画面へ 移した＝ここは 確かめる 所・対立役 A-6）
+  //   前は「時数を入れる」の 日の 帯（hibar）が 出していた。判じは js/jisuu-hozon.js の 1か所（入力の 画面と 同じ）
+  //   日を 押すと 入力の 画面の その 日へ 行く（?hi=）。読めない 物が 在る 期は 印を 出さない（自分の 車に 嘘の 印を 出さない）
+  function noriMoreObi() {
+    if (HONNIN || !PERIOD || !CTX) return '';
+    if ((SET && SET.yomenai) || (LOAD && LOAD.failed > 0)) {
+      return (
+        '<div class="card noprint nori-obi"><span class="note" style="margin:0">' +
+        '読めない 記録が あるので、乗った人の 入れ漏れは 確かめていません。</span></div>'
+      );
+    }
+    var more = (PERIOD.dates || []).filter(function (d) {
+      var r = JisuuHozon.noriNashi(CTX, d);
+      return r.cars.length + r.hito.length > 0;
+    });
+    if (!more.length) {
+      return (
+        '<div class="card noprint nori-obi nori-obi-ok"><span class="note" style="margin:0">' +
+        'この 期間に 乗った人の 入れ漏れは ありません。</span></div>'
+      );
+    }
+    return (
+      '<div class="card noprint nori-obi"><div class="nnari">給料が出る人の居ない車・記録の無い車の人がいる日：' +
+      more
+        .map(function (d) {
+          return (
+            '<a class="nnhi" href="nyuryoku.html?hi=' +
+            d +
+            '">' +
+            +d.slice(5, 7) +
+            '/' +
+            +d.slice(8, 10) +
+            '</a>'
+          );
+        })
+        .join('') +
+      '</div><div class="note" style="margin:4px 0 0">日を 押すと 入力の 画面の その 日へ 行きます（車を 開いて 乗った人と 時数を 入れます）。</div></div>'
+    );
+  }
+  // ★★その 期に 渡す 給料の 合計（#haraiCard）★★ 2026-11-06（司さん「切り替える度に その時に 渡す 給料の 合計」）
+  //   額＝REP.harai（明細の 差引支給を 人ごとに 丸めて 全員 足した 額・js/payroll-daily.js haraiGoukei）
+  //   ＝下の「みんなの給料」・月次集計の 回の 額と 同じ 数（ここで 足し直さない）。名前を 選んでも 全員の 合計。
+  //   ★出さない★ 本人の 画面／読み込み中（REP は 前の 期の まま・対立役 止2）／読めなかった 物が 在る（控除の 抜けた 額・止1）／
+  //              計算が 転んだ／計算 できない 人が 居る（kyuDameBun）／期が 無い／0人／額が 数で ない
+  //   門は 明細の PDF（printAll）と 同じ 物に 揃える。
+  function haraiKakusu() {
+    var c = $('haraiCard');
+    if (c) c.hidden = true;
+  }
+  function haraiNuru() {
+    var c = $('haraiCard');
+    if (!c) return;
+    if (
+      HONNIN ||
+      LP_YOMICHU ||
+      KEISAN_NG ||
+      !PERIOD ||
+      !REP ||
+      !REP.employees ||
+      !REP.employees.length ||
+      DKSession.loadFailed(LOAD) ||
+      kyuDameBun(CTX) ||
+      !isFinite(REP.harai)
+    ) {
+      c.hidden = true;
+      return;
+    }
+    $('haraiKi').textContent = PERIOD.rangeLabel + ' の 分　全員に 渡す 給料';
+    $('haraiGaku').textContent = '¥' + yen(REP.harai);
+    // ★差引支給が マイナスの 人が 居れば 一言★ 2026-11-06（作った後 対立役 注2）
+    //   額は「みんなの給料」と 同じ（マイナスも 足す）＝額は 変えない（変えるなら お金の 決め＝司さんに 訊く）。字だけ 足す
+    var minus = REP.employees.filter(function (e) {
+      return PayrollDaily.haraiGaku(e.totalPay) < 0;
+    }).length;
+    $('haraiNote').textContent =
+      REP.employees.length +
+      '人ぶん（明細の 差引支給の 合計）' +
+      (minus ? '・差引支給が マイナスの 人 ' + minus + '人を 含みます' : '');
+    c.hidden = false;
+  }
+  function renderSlips() {
+    haraiNuru();
+    if (KEISAN_NG) {
+      $('slips').innerHTML = '';
+      showErr(KEISAN_NG_JI);
+      return;
+    }
+    var SHOW_CAR_SALES = showCarSalesNow();
+    var box = $('slips');
+    // ★名前の 選ぶ欄を 今の 人で 作り直す★（いなくなった人を 選んだままに しない・0人の 時も）
+    hitoErabiTsukuru();
+    if (!REP || !REP.employees.length) {
+      // 本人の 画面で 0人＝その 月に 働いた 日も 手当・控除も 無い（辞めた 人など）＝「登録して」は 嘘に なる
+      // 事務所で 人は 居るのに 0人＝全員 この 期間より 後に 勤め始めた（「登録して」は 嘘・D の 本番前の 叩き N1）2026-10-20
+      box.innerHTML = HONNIN
+        ? '<div class="card"><div class="msg">この 月は 働いた 日が ありません。</div></div>'
+        : CTX && CTX.employees.length
+          ? '<div class="card"><div class="msg">この 期間に 勤めて いた 人は いません。</div></div>'
+          : '<div class="card"><div class="msg">まず「従業員」で人を登録してください。</div></div>';
+      return;
+    }
+    var ubDame = kyuDameBun(CTX);
+    if (ubDame) {
+      box.innerHTML =
+        noriMoreObi() + '<div class="card"><div class="msg">' + esc(ubDame) + '</div></div>';
+      return;
+    }
+    var html = noriMoreObi() + adjChui();
+    // ★描き直した＝前の 紙の 帯を 消す（送らない）★（チェックと「選んだ人を 印刷」は 2026-11-06 に 消した・帯を 消す 所は 残す）
+    setTimeout(nurikae, 0);
+    REP.employees.forEach(function (e, ei) {
+      // ★名前で 選んでいれば その人だけ★ 2026-10-03
+      if (HITO && String(e.employee_id) !== HITO) return;
+      // ★出す車は 人ごとに決まる★（その人の指定が無ければ 会社の決まりどおり）
+      var cars = slipCars(REP.cars, e.employee_id);
+      // ★★事務所の 画面＝紙の 上は 1行だけ★★ 2026-10-05（司さん「くどくど 見せとんど」）
+      //   名前・期間・合計は ★紙の 中に 書いてある★＝重ねて 出さない。名前と 渡し方だけ。
+      if (!HONNIN) {
+        html +=
+          '<div class="slip" id="slip-' +
+          ei +
+          '"><div class="kami-ue noprint">' +
+          // ★印刷する 人の チェックは 消した★ 2026-11-06（「選んだ人を 印刷」を 消した＝押しても 何も 起きない 欄に なる）
+          '<span class="kami-ue-na" data-emp="' +
+          esc(String(e.employee_id)) +
+          '">' +
+          esc(e.name) +
+          '</span>' +
+          '<div class="kami-ue-btn">' +
+          '<button class="btn ghost" data-meisai-qr="' +
+          esc(e.employee_id || '') +
+          '">QRを 見せる</button>' +
+          '<button class="btn ghost" data-meisai-okuru="' +
+          esc(e.employee_id || '') +
+          '">送る</button>' +
+          // ★手当・控除★ 2026-10-06（司さん「ア」）
+          '<button class="btn ghost" data-meisai-adj="' +
+          esc(e.employee_id || '') +
+          '">手当・控除</button>' +
+          '</div></div>' +
+          '<div class="adj-panel noprint" data-adj-panel="' +
+          esc(e.employee_id || '') +
+          '" style="display:none"></div>';
+      } else {
+        html +=
+          '<div class="slip" id="slip-' +
+          ei +
+          '"><div class="shead">' +
+          // ★左のかたまり★（題＋期間＋名前）
+          //   ★名前は「給料明細」のすぐ右★ 2026-08-25（司さん「赤丸の所に名前もってきて」）
+          '<div class="sh-l">' +
+          '<div><div class="title">給料明細</div>' +
+          '<div>' +
+          esc(PERIOD.label) +
+          '　' +
+          esc(PERIOD.rangeLabel) +
+          '</div></div>' +
+          '<div class="who">' +
+          esc(e.name) +
+          '　殿</div>' +
+          '</div>' +
+          // ★合計は 行の 真ん中★ 2026-08-25（司さん「金額は赤丸の中心ぐらいに」）
+          //   左のかたまりと 右のかたまりを ★同じ幅★にして 合計を真ん中に置く。
+          //   （余った所の真ん中では ★右に寄って見える★＝1度 それで直っていなかった）
+          '<div class="sums">合計<span class="big">¥' +
+          yen(e.totalPay) +
+          '</span><span class="mid">' +
+          hrs(e.totalHours) +
+          ' 時間</span></div>' +
+          // ★右のかたまり★（幅合わせ＋その人の QR）
+          //   ★紙でもボタンが消えるだけで この箱は残す★＝紙でも真ん中がずれない
+          '<div class="sh-r">' +
+          // ★★「この人のPDF」を やめました★★ 2026-09-04（司さん）
+          //   「明細の この人のPDFを 消して QRコードか URLを 配るボタン 作って」
+          //   ⇒ ★紙を 作って 送るのでは なく、その場で QR を 見せる★
+          //   ★本人の 画面（?t=）には 出しません★＝配るのは 事務所の 仕事
+          // ★★明細にも「送る」を 出します★★ 2026-09-04（司さん「ないやないか」）
+          //   ★渡し方の 2つ（見せる／送る）は 同じ 場所に 並べる★
+          //   ★ボタンは 箱に 入れる★（裸で 並べると 折り返しで くっつく）
+          (HONNIN
+            ? ''
+            : '<div class="noprint" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">' +
+              '<button class="btn ghost noprint" data-meisai-qr="' +
+              esc(e.employee_id || '') +
+              '">QRを 見せる</button>' +
+              '<button class="btn ghost noprint" data-meisai-okuru="' +
+              esc(e.employee_id || '') +
+              '">送る</button>' +
+              '</div>') +
+          '</div>' +
+          '</div>';
+      }
+
+      // ★字の作り方は ここ1本★（横＝紙 と 縦＝スマホ画面 で 二度書かない）
+      //   2026-08-25：司さん「なんで2日分しか載せてないんど」
+      //   実物は 1期＝10〜11日ぶん。横に並べると スマホでは ★2日ぶんしか見えない★。
+      var F = SLIP_F;
+
+      // ★★事務所の 画面は ★PDF と 同じ 紙★を そのまま 見せる★★ 2026-10-05
+      //   司さん「PDFつくっとんやけんそれを見せろや」「何をくどくど訳わからんこと見せとんど」
+      //   ★前★ 紙とは 別に 画面用の 横の表・縦の一覧を 組んでいた（＝PDF と 違う 物）。
+      //   ⇒ 紙（__paper.build＝印刷・PDF と 同じ _buildPaperSheet）を 入れる 枠だけ 置き、
+      //     描いた 後に kamiMadoNuru() が 埋める。本人の 画面（HONNIN）は 今まで 通り。
+      if (!HONNIN) {
+        html += '<div class="kami-mado" data-ei="' + ei + '"></div>';
+      } else {
+        // ───────── 横（今まで通り・★紙はこれ★）─────────
+        html += '<div class="yoko scroller"><table><tbody>';
+
+        // eslint-disable-next-line no-inner-declarations -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+        function row(label, get, aka) {
+          var s = '<tr><th>' + esc(label) + '</th>';
+          e.cells.forEach(function (c) {
+            // ★赤にするかは payByFloor 1か所で決める★（画面と紙で 食い違わない）
+            s += '<td' + (aka && payByFloor(c) ? ' class="floor"' : '') + '>' + get(c) + '</td>';
+          });
+          return s + '</tr>';
+        }
+
+        // 日付
+        html += '<tr><th>日付</th>';
+        e.cells.forEach(function (c) {
+          html += '<th>' + mdw(c.date) + '</th>';
+        });
+        html += '</tr>';
+
+        html += row('金額', F.pay, true); // ★最低保証で出た日は 赤★
+        html += row('時間', F.hours);
+        // ★車ごとの売上を載せるか（社長が決める・既定は載せる）★ 2026-08-25
+        if (SHOW_CAR_SALES) {
+          cars.forEach(function (x, n) {
+            html += row('売上' + (n + 1) + '（' + x.car.label + '）', function (c) {
+              return F.car(c, x.i);
+            });
+          });
+        }
+        html += row('時間（全台）', F.pool);
+
+        html += '</tbody></table></div>';
+
+        // ───────── 縦（★スマホの画面だけ★・1日1行で 全部の日が見える）─────────
+        //   紙は ★1バイトも変えない★。出し分けは CSS（@media）だけ。
+        html += '<div class="tate">';
+        e.cells.forEach(function (c) {
+          var pay = F.pay(c);
+          var hh = F.hours(c);
+          var yasumi = pay === '' && hh === '';
+          html +=
+            '<div class="d' +
+            (yasumi ? ' off' : '') +
+            '"><div class="dh"><b>' +
+            mdw(c.date) +
+            '</b>' +
+            (yasumi
+              ? '<span class="dn">—</span>'
+              : '<span' +
+                (payByFloor(c) ? ' class="floor"' : '') +
+                '>¥' +
+                pay +
+                '</span><span>' +
+                hh +
+                ' 時間</span>') +
+            '</div></div>';
+          // ★スマホの一覧は 金額と時間だけ★ 2026-08-25（司さん
+          //   「この一覧の所は 赤丸の部分除けて 金額と時間だけにして スマートにしろ」）
+          //   売上・時間（全台）は ★紙（PDF）には 今までどおり出る★。
+          //   ＝この画面は「いくら・何時間」を ざっと見る所、紙が 渡す物。
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    // ★会社に残る分（オーナーの 取り分）★ ★人の 名前は 出さない★（司さん 2026-09-04）
+    // ★★本人モードでは 出しません★★ 2026-09-03
+    //   ★従業員に 会社の 取り分・みんなの給料・売上合計を 見せない★
+    //   ★絵を 開いて 見たら 本人の 画面に 出ていた★（数字だけ 見ていたら 気づかなかった）
+    if (HONNIN) {
+      box.innerHTML = html;
+      return;
+    }
+    // ★★給料と 会社に残る分は 明細の 差引支給（人ごとに 丸めた 額）から★★ 2026-10-23 件G
+    //   みんなの給料＝明細の 差引支給を 全員分 足した 額（REP.harai）＝月次集計の 回の 額と 同じ
+    //   会社に残る分＝売上 − みんなの給料 − 積立（REP.nokori・決まりは js/payroll-daily.js の 1か所）
+    html +=
+      '<div class="card noprint"><b>会社に残る分</b>　¥' +
+      yen(REP.nokori) +
+      // ★売上・積立は 自分の 車も 入れた 全部★ 2026-10-23 件G（月次集計と 同じ 数・売上 − 給料 − 積立 ＝ 会社に残る分）
+      '<div class="note">売上合計 ¥' +
+      yen(REP.uriageZen) +
+      '　／　積立 ¥' +
+      yen(REP.reserveTotal + REP.reserveOwnerTotal) +
+      '　／　みんなの給料 ¥' +
+      yen(REP.harai) +
+      '　／　時数合計 ' +
+      hrs(REP.poolHoursTotal) +
+      ' 時間</div></div>';
+    // ★箱の 高さを 保って 入れ替える★ 2026-10-23（入れ替えた 直後は 紙の 箱が 空＝ページが 短く なり、
+    //   幅を 測る 所で 巻いた 位置が その 底へ 詰められた。webkit 390×664 で 1147→469・kami-maki-zurenai）
+    var tamotsu = box.offsetHeight;
+    if (tamotsu) box.style.minHeight = tamotsu + 'px';
+    box.innerHTML = html;
+    kamiMadoNuru();
+    box.style.minHeight = '';
+  }
+
+  // ★幅が 変わったら 紙を 描き直す★（10-05 対立役：PC で 開いて 窓を 縮めると 紙の 右が 切れた）
+  // ★描いた 時の 幅（kamiMadoNuru が 残す data-haba）と 比べる★ 2026-10-23
+  //   前は「前の 幅＝0」から 数え、iPhone の 幅の 同じ resize（帯の 伸び縮み・板の 開け閉め）で 全員の 紙を
+  //   作り直して 巻いた 位置が 飛んだ（tests/e2e/kami-maki-zurenai.spec.js）
+  window.addEventListener('resize', function () {
+    if (HONNIN || TAB !== 'slip' || !REP) return;
+    var b = $('slips');
+    var w = b ? b.clientWidth : 0;
+    if (!w || String(w) === b.getAttribute('data-haba')) return;
+    clearTimeout(window.__slipT);
+    window.__slipT = setTimeout(renderSlips, 150);
+  });
+  // ★本人の 画面は 幅が 変わったら 縮め直す だけ★ 2026-10-31（見本 _onViewportChange → fitInvoice と 同じ 3つの 合図）
+  //   絵（本物の PDF）は 幅で 変わらない＝作り直さない（前は HTML の 紙を 幅ごとに 組み直していた）
+  function hnMiseKawatta() {
+    if (HONNIN) hnMiseFit();
+  }
+  window.addEventListener('resize', hnMiseKawatta);
+  window.addEventListener('orientationchange', hnMiseKawatta);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', hnMiseKawatta);
+  // ★明細の 箱に PDF と 同じ 紙を 入れる★（本人の 画面 honninKami と 同じ 縮め方）2026-10-05
+  // ★★PDF の 字体（DKKami）が 入ったら 画面の 紙を 組み直す★★ 2026-10-07（対立役 C）
+  //   画面の 紙は 控えの 字体で 測って 組む。PDF（明細・給料表 どちらでも）を 押して DKKami が 入ると
+  //   字の 幅・高さが 変わり 組んだ 紙が 切れ得た ⇒ js/kami-egaku.js が 字体を 足した 直後に 出す 合図で 組み直す
+  window.addEventListener('dkkami-yonda', function () {
+    // ★測る canvas を 作り直す★ 2026-10-08（対立役：WebKit は 使い回した canvas が 字体を 足す 前の 幅を 返した）
+    _measCtx = null;
+    try {
+      if (!HONNIN) kamiMadoNuru();
+    } catch (_) {
+      /* 組み直せなくても PDF は 止めない */
+    }
+  });
+  function kamiMadoNuru() {
+    if (!window.__paper) return;
+    if (_kamiRO) _kamiRO.disconnect(); // ★前に 描いた 箱は 見張らない★
+    // ★組み直す 間は 箱の 高さを 保つ★ 2026-10-23（字体が 入った 時の 組み直しでも 巻いた 位置を 詰めない）
+    //   renderSlips から 来た 時は もう 保って いる（入れ替える 前の 高さ）＝ここでは 測らない
+    var slipsBox = $('slips');
+    var jibunDeTamotsu = !!slipsBox && !slipsBox.style.minHeight;
+    if (jibunDeTamotsu && slipsBox.offsetHeight)
+      slipsBox.style.minHeight = slipsBox.offsetHeight + 'px';
+    Array.prototype.forEach.call(document.querySelectorAll('#slips .kami-mado'), function (mado) {
+      var ei = Number(mado.getAttribute('data-ei'));
+      mado.innerHTML = ''; // ★組み直す 時に 2束 並べない★（対立役 10-07 B）
+      // ★手当・控除が 紙に 入りきらない 人は 画面にも 知らせる★（明細の PDF は 作らない）
+      if (window.__paper.maisu(ei).hamidasu) {
+        var tsuchi = document.createElement('div');
+        tsuchi.className = 'err';
+        tsuchi.style.display = 'block';
+        tsuchi.textContent =
+          '手当・控除が 多すぎて 明細の 紙に 入りません（下が 切れます）。手当・控除を まとめてください。';
+        mado.appendChild(tsuchi);
+      }
+      // ★★PDF と 同じ 紙の 束★★ 2026-10-07（対立役：日だけで 分けて 車が 多いと 下が 切れた）
+      var taba = window.__paper.sheets(ei);
+      var haba = mado.clientWidth || 360;
+      // ★紙 1枚が 画面に 全部 入る 大きさ★（見切れさせない・司さん 10-05「見切れてめちゃくちゃ」）
+      //   細かい 字は ★押すと 開く PDF★で 見る（代行請求書の 請求書ページと 同じ）
+      var empId = String(window.__paper.emp(ei).employee_id);
+      for (var i = 0; i < taba.length; i++) {
+        var el = taba[i];
+        el.style.position = 'static';
+        el.style.left = 'auto';
+        el.style.top = 'auto';
+        el.style.transformOrigin = 'top left';
+        el.style.width = kamiWH(el).w + 'px'; // 縦の 紙は 794
+        var waku = document.createElement('div');
+        waku.className = 'hn-kami-waku kami-oseru';
+        waku.title = '押すと PDF で 開きます';
+        waku.setAttribute('role', 'button');
+        waku.onclick = (function (id) {
+          return function () {
+            printAll([id]); // ★押すと その人の PDF★（印刷と 同じ 作り方）
+          };
+        })(empId);
+        waku.appendChild(el);
+        kamiNobasu(waku, haba);
+        mado.appendChild(waku);
+      }
+      // 縮めた 時の 幅（縮め直しは この 幅より 狭く なった 時だけ）
+      mado.setAttribute('data-sc', String(haba));
+      if (_kamiRO) _kamiRO.observe(mado);
+    });
+    // ★紙を 全部 入れた 後で 幅を 測り直す★ 2026-10-20（本人の 画面 honninKami の 止2 と 同じ 穴）
+    //   PC で 人が 少ないと 紙を 入れる 前は ページが 短く 巻き棒が 無い＝入れた 後に 縦の 巻き棒が 出て 幅が 縮む
+    //   （resize は 起きない）＝1人・1000×900 で 紙の 右が 14px 切れた
+    Array.prototype.forEach.call(document.querySelectorAll('#slips .kami-mado'), kamiChijimeru);
+    if (slipsBox) {
+      if (jibunDeTamotsu) slipsBox.style.minHeight = '';
+      slipsBox.setAttribute('data-haba', String(slipsBox.clientWidth));
+    }
+  }
+  // ★紙を 入れた 後に ページが 伸びても（下の 帯・知らせ が 後から 出る）縮め直す★（対立役：1000×1340〜1400 で 15px 切れた）
+  //   縮める 向きだけ（広げると 巻き棒が 消えて また 出る＝描き直しが 回り続ける）。
+  //   ★縮めた 後に 巻き棒が 消える 境目の 高さ（1人・1000×1400 等）では 右に 16px の 隙間が 残る★（切れは しない・対立役）
+  //   窓の 大きさを 変えると たいてい 描き直して 戻るが、境目の 高さでは 描き直しても また 同じ 隙間に なる
+  function kamiChijimeru(mado) {
+    var haba2 = mado.clientWidth;
+    var haba1 = Number(mado.getAttribute('data-sc')) || 0;
+    if (!haba2 || !haba1) return;
+    if (haba2 >= haba1) return;
+    mado.setAttribute('data-sc', String(haba2));
+    Array.prototype.forEach.call(mado.querySelectorAll('.hn-kami-waku'), function (w) {
+      kamiNobasu(w, haba2);
+    });
+  }
+  var _kamiRO =
+    typeof ResizeObserver === 'function'
+      ? new ResizeObserver(function (ents) {
+          // ★縮め直しは 次の 絵で★（見張りの 中で 箱の 高さを 変えると「ResizeObserver loop completed with
+          //   undelivered notifications」が window の error に 出た・対立役 14/184形）
+          requestAnimationFrame(function () {
+            ents.forEach(function (e) {
+              kamiChijimeru(e.target);
+            });
+          });
+        })
+      : null;
+
+  // ── 従業員 ─────────────────────────────
+  function roleNames() {
+    var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    return Object.keys(st.roles);
+  }
+
+  // ★★従業員／退職者★★ 2026-10-16（司さん）＝退職は active=false ＋ 辞めた日（retired_on）
+  var EMP_MIRU = 'ima';
+  function empKiriWoMidashiE() {
+    // 会社設定から 来た 時は 見出しの 横（赤丸）に 切り替えを 置き、見出しの 字は 消す（ボタンが 同じ 字）
+    var k = document.getElementById('empKiri');
+    var bar = document.getElementById('modoruSet');
+    var mi = document.getElementById('modoruMidashi');
+    if (k && bar && k.parentNode !== bar) bar.appendChild(k);
+    if (mi) mi.textContent = '';
+  }
+  (function empKiriWoTsunagu() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-kiri]'), function (b) {
+      b.onclick = function () {
+        EMP_MIRU = b.getAttribute('data-kiri');
+        Array.prototype.forEach.call(document.querySelectorAll('[data-kiri]'), function (x) {
+          x.className = 'kiri' + (x === b ? ' on' : '');
+        });
+        renderEmp();
+      };
+    });
+  })();
+  function kyouJst() {
+    return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  // ★★「何日から」で 選んだ 日を 画面を 行き来しても 残す★★ 2026-10-25
+  //   司さん「何日からってのを2026/10/1に設定したのに画面変えて入力からやるとまた2026/10/25にもどってる
+  //   他の所もこうゆうのがないか確認して直せ」＝人（EMP_HI）・締め（SHIME_HI）・役割の 決まり（YAKU_HI）の 3か所。
+  //   前は 画面の 中の 覚え だけ＝開き直すと 既定の「今日」に 戻った。
+  //   ★残すのは その 日の うち だけ★（日が 変われば 今日に 戻す＝何週間も 前の 日付が 残って 気付かずに 過去の 月を
+  //   書き換えない 為）。会社ごと・この 端末だけ（localStorage・読めない 端末では 今まで 通り 今日）
+  function hiOboeKagi(kind) {
+    return 'dk-hi-oboe:' + ((COMPANY && COMPANY.company_id) || '') + ':' + kind;
+  }
+  function hiOboeYomu(kind) {
+    try {
+      var o = JSON.parse(window.localStorage.getItem(hiOboeKagi(kind)) || 'null');
+      return o && o.kyou === kyouJst() && o.m && typeof o.m === 'object' ? o.m : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  // 返り＝覚えた 日（'YYYY-MM-DD' か ''＝最初から）・覚えて いなければ null
+  function hiOboeHiku(kind, key) {
+    var m = hiOboeYomu(kind);
+    if (!Object.prototype.hasOwnProperty.call(m, key)) return null;
+    var v = m[key];
+    return v === '' || /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : null;
+  }
+  // ★窓に 固めた 日の 寿命も その 日 だけ★（開いた ままの 窓で 何日も 経つと、誰も 選んで いないのに
+  //   開いた 日から 書いて 過去の 明細を 変えた・対立役 本番前 2回目 S2）
+  //   固めた 日（HI_KOTEI_KYOU）と 今日が 違えば 固めを 全部 捨てる＝覚えも 切れて いるので 今日に 戻る
+  var HI_KOTEI_KYOU = null;
+  // ★日の 変わりは 保存の 前の 守りが 知らせる まで 残す★（読み出し（empHi・shimeHi・yakuHi）や 日を 選んだ 時に
+  //   先に 捨てると、保存の 前の 守りが「変わって いない」と 見て 選んだ 日を 黙って 今日に 替えて 書いた・対立役 本番前 3回目 S4）
+  var HI_GAWARI_MADA = false;
+  function hiHiGawari() {
+    var kyou = kyouJst();
+    if (HI_KOTEI_KYOU === null) {
+      HI_KOTEI_KYOU = kyou;
+      return false;
+    }
+    if (HI_KOTEI_KYOU === kyou) return false;
+    EMP_HI = {};
+    YAKU_HI = {};
+    SHIME_HI = null;
+    HI_KOTEI_KYOU = kyou;
+    HI_GAWARI_MADA = true;
+    return true;
+  }
+  // 保存の 前に 呼ぶ：日が 変わって いたら 保存せず「何日から」を 今日に 戻して 描き直し 知らせる（画面の 日＝書く 日を 守る）
+  function hiHiGawariTomeru() {
+    hiHiGawari();
+    if (!HI_GAWARI_MADA) return false;
+    HI_GAWARI_MADA = false;
+    try {
+      renderEmp();
+    } catch (_) {
+      /* 従業員の 表が まだ 無い */
+    }
+    try {
+      renderRoles();
+    } catch (_) {
+      /* 役割の 表が まだ 無い */
+    }
+    if ($('pHi')) $('pHi').value = shimeHi();
+    showErr(
+      // ★字は「保存を 止めた」だけ 言い切る★（日の 変わりの 後に 客が 選び直した 欄は 今日に 戻らない＝「戻しました」は 嘘に なる・対立役 4回目 任2）
+      '日付が 変わったので 保存を 止めました。「何日から」の 日付を 確かめて もう一度 入れてください（保存は していません）。'
+    );
+    return true;
+  }
+  function hiOboeKaku(kind, key, v) {
+    try {
+      var m = hiOboeYomu(kind);
+      if (v === null || v === undefined) delete m[key];
+      else m[key] = v;
+      window.localStorage.setItem(hiOboeKagi(kind), JSON.stringify({ kyou: kyouJst(), m: m }));
+    } catch (_) {
+      /* 覚えられない 端末＝今まで 通り（画面の 中だけ） */
+    }
+  }
+  // 退職・復職を 書く（返った 行が 1件で、active が 送った 値の 時だけ 画面を 移す＝0行の 黙りを 防ぐ）
+  //   ★書けた かを true/false で 返す★（押した ボタンを 戻す 為・10-17 対立役 N2＝失敗の 後も 灰色の まま 押せなかった）
+  //   ★訳を 分けて 出す★（10-17 対立役 N1＝倉庫が 断っても 0行でも いつも「通信を 確かめて」だった）
+  //     倉庫が 断った＝倉庫の 言い分（saveErr）／0行＝書けた 行が 無い／届かない＝通信
+  function empTaishoku(id, active, hi) {
+    var nani = active ? '復職' : '退職';
+    var body = {
+      active: active,
+      retired_on: active ? null : hi,
+      updated_at: new Date().toISOString(),
+    };
+    return DKSession.rest(SESS, 'dk_employees?employee_id=eq.' + encodeURIComponent(id), {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(body),
+    })
+      .then(
+        function (r) {
+          if (!r || !r.ok) {
+            saveErr(nani + 'に できませんでした。', r);
+            return null;
+          }
+          return r.json();
+        },
+        function () {
+          showErr(nani + 'に できませんでした。通信を 確かめて もう一度 押してください。');
+          return null;
+        }
+      )
+      .then(function (rows) {
+        if (rows === null) return false;
+        if (!Array.isArray(rows) || rows.length !== 1 || rows[0].active !== active) {
+          showErr(
+            nani +
+              'に できませんでした。倉庫に 書けた 行が ありません（' +
+              (Array.isArray(rows) ? rows.length : '?') +
+              '行）。会社が 合っているか 確かめて、開き直してください。'
+          );
+          return false;
+        }
+        showErr('');
+        var hiDake = false; // 辞めた 人の 日付だけを 直した
+        RAW.employees.forEach(function (e) {
+          if (e.employee_id === id) {
+            hiDake = !active && e.active === false;
+            e.active = active;
+            e.retired_on = body.retired_on;
+          }
+        });
+        recalc();
+        renderEmp();
+        // 配る 一覧も 描き直す（前は 開き直すまで 辞めた 人の「配る・作り直す」が 残った・対立役）
+        if (!HONNIN) renderHaifu();
+        flash(
+          'empSaved',
+          active ? '復職しました' : hiDake ? '辞めた日を直しました' : '退職にしました'
+        );
+        return true;
+      })
+      .catch(function () {
+        showErr(nani + 'に できませんでした。通信を 確かめて もう一度 押してください。');
+        return false;
+      });
+  }
+  function renderYame() {
+    var yame = RAW.employees
+      .filter(function (e) {
+        return e.active === false;
+      })
+      .sort(function (a, b) {
+        return String(b.retired_on || '').localeCompare(String(a.retired_on || ''));
+      });
+    var html = yame
+      .map(function (e) {
+        return (
+          // 辞めた 日は 押すと 直せる（10-17 対立役 N5＝前は 復職して 退職し直すしか 無く、元の 日が 今日に 戻った）
+          '<tr><td colspan="7"><div class="yame-hi" role="button" tabindex="0" data-hi-naosu="' +
+          esc(e.employee_id) +
+          '">' +
+          (e.retired_on ? esc(String(e.retired_on).replace(/-/g, '/')) : '日付なし') +
+          '</div><div class="yame-na"><span>' +
+          esc(e.name) +
+          '</span><button class="btn ghost" type="button" data-fukushoku="' +
+          esc(e.employee_id) +
+          '">復職</button>' +
+          // ★配る（QR・送る・作り直す）★ 2026-10-17 司さん「退職者のページからでもURLの配付ができないかん」
+          '<button class="btn ghost" type="button" data-yame-haifu="' +
+          esc(e.employee_id) +
+          '">配る</button>' +
+          // ★歩合・役割を 直す★ 2026-10-20 司さん 10-17「辞めた人の歩合等を復職させずに直せる様に」
+          '<button class="btn ghost" type="button" data-yame-naosu="' +
+          esc(e.employee_id) +
+          '" aria-expanded="' +
+          (YAME_NAOSU[e.employee_id] ? 'true' : 'false') +
+          '">歩合・役割を直す</button></div>' +
+          '<div class="yame-haifu" data-yame-box="' +
+          esc(e.employee_id) +
+          '" style="display:none"></div>' +
+          (YAME_NAOSU[e.employee_id] ? yameNaosuRan(e) : '') +
+          '</td></tr>' +
+          // 記録の 一覧は 行の 隣に（td の 中に tr を 入れない・対立役 壊5）
+          (YAME_NAOSU[e.employee_id] && RIREKI_HIRAKU[e.employee_id] ? rirekiNoGyou(e) : '')
+        );
+      })
+      .join('');
+    if (!yame.length) html = '<tr><td colspan="7" class="empty">退職者は 居ません。</td></tr>';
+    $('empBody').innerHTML = html + roleDatalist();
+    // 開いて いた 配る 箱は 描き直しても 開いた まま（対立役 壊1）
+    yame.forEach(function (e) {
+      if (!YAME_HAIFU[e.employee_id]) return;
+      var box = document.querySelector('[data-yame-box="' + e.employee_id + '"]');
+      if (!box) return;
+      yameHaifuNuru(box, e.employee_id);
+      box.style.display = '';
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-yame-naosu]'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-yame-naosu');
+        YAME_NAOSU[id] = !YAME_NAOSU[id];
+        renderEmp();
+      };
+    });
+    empOshiguchi();
+    Array.prototype.forEach.call(document.querySelectorAll('[data-fukushoku]'), function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        YAME_NAOSU[b.getAttribute('data-fukushoku')] = false; // 復職したら 閉じる（また 退職しても 勝手に 開かない・対立役 2回目）
+        empTaishoku(b.getAttribute('data-fukushoku'), true, null).then(function (ok) {
+          if (!ok) b.disabled = false;
+        });
+      };
+    });
+    // 配る：押すと その人の 配る 札（配る 一覧と 同じ 中身）を 下に 開く。中の ボタンは 配る 一覧の 押し口に 渡す
+    Array.prototype.forEach.call(document.querySelectorAll('[data-yame-haifu]'), function (b) {
+      b.onclick = function () {
+        var eid = b.getAttribute('data-yame-haifu');
+        var box = document.querySelector('[data-yame-box="' + eid + '"]');
+        if (!box) return;
+        if (box.style.display !== 'none') {
+          box.style.display = 'none';
+          YAME_HAIFU[eid] = false;
+          return;
+        }
+        yameHaifuNuru(box, eid);
+        box.style.display = '';
+        YAME_HAIFU[eid] = true;
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-hi-naosu]'), function (d) {
+      d.onclick = function () {
+        if (d.querySelector('input')) return;
+        var id = d.getAttribute('data-hi-naosu');
+        var e0 = RAW.employees.filter(function (e) {
+          return e.employee_id === id;
+        })[0];
+        d.innerHTML =
+          '<label>辞めた日 <input type="date" class="taishoku-hi" max="' +
+          kyouJst() +
+          '" value="' +
+          esc((e0 && e0.retired_on) || kyouJst()) +
+          '"></label> <button class="btn" type="button" data-hi-kakutei>直す</button> ' +
+          '<button class="btn ghost" type="button" data-hi-yameru>やめる</button>';
+        d.querySelector('[data-hi-yameru]').onclick = function (ev) {
+          ev.stopPropagation();
+          renderYame();
+        };
+        d.querySelector('[data-hi-kakutei]').onclick = function (ev) {
+          ev.stopPropagation();
+          var hi = d.querySelector('.taishoku-hi').value;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(hi)) return showErr('辞めた日を 入れてください。');
+          if (hi > kyouJst()) return showErr('辞めた日は 今日より 先に できません。');
+          var kb = this;
+          kb.disabled = true;
+          empTaishoku(id, false, hi).then(function (ok) {
+            if (!ok) kb.disabled = false;
+          });
+        };
+      };
+    });
+  }
+  // ★退職者ページで 開いて いる 物★（描き直しても 閉じない・対立役 壊1）
+  var YAME_NAOSU = {}; // 歩合・役割を 直す 欄
+  var YAME_HAIFU = {}; // 配る 箱
+  // 辞めた 人の 歩合・役割・最低保証を 直す 欄（今いる人と 同じ 欄・同じ 押し口・復職は しない）
+  //   ★何日から の 既定は 今日★（司さん 10-17「今いる人も 辞めた人も 同じ」）
+  //   選んだ 日より 後の 分だけに 効く＝前の 分を 直す 時の 日の 選び方を いつも 字で 出す
+  //   （辞めた 日で「効きません」とは 言い切らない＝計算は 辞めた 日を 見ない・対立役 止1。
+  //    辞めた 日より 後を 選んだ 時に 黙らない・対立役 2回目 C）
+  function yameNaosuRan(e0) {
+    var hi = empHi(e0.employee_id);
+    var md = function (d) {
+      return String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/');
+    };
+    return (
+      '<div class="yame-naosu">' +
+      hitoRan(hiNoHito(e0), 'label') +
+      '</div>' +
+      (hi
+        ? '<div class="th-sub yame-naosu-chui">' +
+          esc(md(hi)) +
+          ' から 後の 分だけに 効きます（前の 分は 前の 値の まま）。' +
+          (e0.retired_on && hi > e0.retired_on
+            ? '辞めた 日（' +
+              esc(md(e0.retired_on)) +
+              '）より 後に 働いた 日・手当・控除が 無ければ、明細は 変わりません。'
+            : '') +
+          '前の 分を 直す 時は「何日から」に 直したい 初めの 日を 選んでください。</div>'
+        : '')
+    );
+  }
+  // 退職者ページの 配る 札を 描く（配ってあれば 札・まだなら「配る」）
+  function yameHaifuNuru(box, eid) {
+    var x = haifuHito(eid);
+    box.innerHTML = x
+      ? haifuFuda(x)
+      : '<div class="card" style="margin:10px 0 0"><div class="note" style="margin:0 0 8px">まだ 配っていません</div>' +
+        '<button class="btn chi" type="button" data-hhito="' +
+        esc(eid) +
+        '">配る</button></div>';
+    box.onclick = function (ev) {
+      var t = ev.target;
+      var hh = t && t.getAttribute && t.getAttribute('data-hhito');
+      if (hh) {
+        t.disabled = true;
+        Promise.resolve(haifuHitori(hh)).then(function () {
+          yameHaifuNuru(box, eid);
+        });
+        return;
+      }
+      haifuOshi(ev);
+    };
+  }
+  // ★役割・歩合・最低保証・何日から の 欄★ 2026-10-20（今いる人の 行と 退職者ページで 同じ 物を 使う）
+  //   kata='td'＝今いる人の 表の 升（名前は data-l＝スマホの 見出し）
+  //   kata='label'＝退職者ページ（見出し行が 無いので 欄ごとに 名前を 付ける）
+  //   e は 選んだ 日の その 人（hiNoHito）
+  function hitoRan(e, kata) {
+    function waku(mi, naka) {
+      if (kata === 'td') return '<td data-l="' + mi + '">' + naka + '</td>';
+      return (
+        '<div class="yn-ran"><span class="yn-mi">' + mi + '</span><div>' + naka + '</div></div>'
+      );
+    }
+    return (
+      // ★役割は 選んでも 打ってもいい★ 2026-08-25（司さん
+      //   「乙の所が 自由に入力してカスタムできるようにしたらええやないか」）
+      //   前は select だけ＝「給料の設定」で足すまで 新しい役割を書けなかった。
+      //   ★決まりに無い役割は 給料が 黙って0円になる★ ので、その時は赤く知らせる。
+      waku(
+        '役割',
+        '<input class="txt rolein" list="roleList" data-emp="' +
+          esc(e.employee_id) +
+          '" data-f="role" value="' +
+          esc(e.role || '') +
+          '" placeholder="役割を打つ／選ぶ">' +
+          (function () {
+            var w = _roleWarn(e);
+            return w ? '<div class="rolewarn">' + w + '</div>' : '';
+          })()
+      ) +
+      // ★人ごとの歩合・最低保証 (2026-08-05・A案)★
+      //   空欄＝役割どおり。役割の値を薄く出しておく＝何もしなければどうなるか見える。
+      waku(
+        '歩合',
+        '<input class="hrs" data-emp="' +
+          esc(e.employee_id) +
+          '" data-f="pay_rate" inputmode="decimal" placeholder="' +
+          _roleRateOf(e.role, empHi(e.employee_id)) +
+          '" value="' +
+          (e.pay_rate === null || e.pay_rate === undefined ? '' : e.pay_rate) +
+          '">'
+      ) +
+      waku(
+        '最低保証',
+        '<input class="yen" data-emp="' +
+          esc(e.employee_id) +
+          '" data-f="pay_floor" inputmode="numeric" placeholder="' +
+          _roleFloorOf(e.role, empHi(e.employee_id)) +
+          '" value="' +
+          (e.pay_floor === null || e.pay_floor === undefined ? '' : e.pay_floor) +
+          '"> 円'
+      ) +
+      waku(
+        '何日から',
+        '<input type="date" class="hi-in" data-hi="' +
+          esc(e.employee_id) +
+          '" value="' +
+          esc(empHi(e.employee_id)) +
+          '"> <button class="btn ghost" type="button" data-rireki="' +
+          esc(e.employee_id) +
+          '">記録 ' +
+          rirekiNoHito(e.employee_id).length +
+          '</button>' +
+          hiNoChui(e)
+      )
+    );
+  }
+  // ★打つ時の候補★（決まりが在る役割を出す・打ちたければ そのまま打てる）
+  function roleDatalist() {
+    return (
+      '<datalist id="roleList">' +
+      roleNames()
+        .map(function (r) {
+          return '<option value="' + esc(r) + '"></option>';
+        })
+        .join('') +
+      '</datalist>'
+    );
+  }
+  function renderEmp() {
+    var tbl = $('empBody') && $('empBody').closest('table');
+    if (tbl) tbl.classList.toggle('yame-miru', EMP_MIRU === 'yame');
+    var tasu = document.getElementById('btnAddEmp');
+    if (tasu) tasu.style.display = EMP_MIRU === 'yame' ? 'none' : '';
+    if (EMP_MIRU === 'yame') return renderYame();
+    var html = '';
+    RAW.employees.forEach(function (e0) {
+      if (e0.active === false) return; // 辞めた 人は「退職者」に 出す
+      // ★役割・歩合・最低保証は「何日から」の 日の 値★ 2026-10-18（計算と 同じ PayrollDaily.empOn）
+      var e = hiNoHito(e0);
+      // data-l は★スマホで1人1枚にした時の見出し★（横スクロールさせないため）
+      html +=
+        '<tr><td data-l="名前"><input class="txt" data-emp="' +
+        esc(e.employee_id) +
+        '" data-f="name" value="' +
+        esc(e.name) +
+        '"></td>' +
+        hitoRan(e, 'td') +
+        '<td data-l="並び"><input class="hrs" data-emp="' +
+        esc(e.employee_id) +
+        '" data-f="sort_order" value="' +
+        (e.sort_order || 0) +
+        '"></td>' +
+        // ★その人だけの車 (2026-08-25)★ 何も付けなければ 会社の決まりどおり
+        '<td data-l="明細に出す車" class="empcars">' +
+        _empCarBoxes(e) +
+        '</td>' +
+        // ★★退職★★ 2026-10-16（司さん「青丸の所に退職ボタンを作って 従業員のページから消せるように」）＝箱の 右下
+        '<td data-l="退職" class="taishoku-ran"><button class="btn ghost" type="button" data-taishoku="' +
+        esc(e.employee_id) +
+        '">退職</button></td></tr>' +
+        (RIREKI_HIRAKU[e.employee_id] ? rirekiNoGyou(e0) : '');
+    });
+    if (!html) {
+      // 全員が 辞めた 時に「まだ誰も」と 出していた（10-17 対立役 K3）
+      html = RAW.employees.length
+        ? '<tr><td colspan="8" class="empty">今いる人は 居ません（辞めた 人は「退職者」に 居ます）。</td></tr>'
+        : '<tr><td colspan="8" class="empty">まだ誰も登録されていません。</td></tr>';
+    }
+    html += roleDatalist();
+    $('empBody').innerHTML = html;
+    // 退職：押すと 辞めた 日（既定は 日本時間の 今日・遡って 直せる）と「退職にする」「やめる」を 出す
+    Array.prototype.forEach.call(document.querySelectorAll('[data-taishoku]'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-taishoku');
+        var td = b.parentNode;
+        td.innerHTML =
+          // ★先の 日は 選べない★（10-17 対立役 N4＝選んだ 時点で 今いる人から 消え、残りの 日の 時間を 入れられなかった）
+          '<label>辞めた日 <input type="date" class="taishoku-hi" max="' +
+          kyouJst() +
+          '" value="' +
+          kyouJst() +
+          '"></label> <button class="btn" type="button" data-kakutei>退職にする</button> ' +
+          '<button class="btn ghost" type="button" data-yameru>やめる</button>';
+        td.querySelector('[data-yameru]').onclick = function () {
+          renderEmp();
+        };
+        td.querySelector('[data-kakutei]').onclick = function () {
+          var hi = td.querySelector('.taishoku-hi').value;
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(hi)) return showErr('辞めた日を 入れてください。');
+          if (hi > kyouJst())
+            return showErr(
+              '辞めた日は 今日より 先に できません。その日まで 働く 人は、辞めた 後に 押してください。'
+            );
+          var kb = this;
+          kb.disabled = true;
+          empTaishoku(id, false, hi).then(function (ok) {
+            if (!ok) kb.disabled = false;
+          });
+        };
+      };
+    });
+    empOshiguchi();
+  }
+  // ★欄の 押し口★（今いる人の 表と 退職者ページで 同じ 物）2026-10-20
+  function empOshiguchi() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-emp]'), function (i) {
+      i.onchange = function () {
+        var f = i.getAttribute('data-f');
+        var v;
+        if (f === 'slip_cars') v = _collectEmpCars(i.getAttribute('data-emp'));
+        else if (f === 'active') v = i.checked;
+        else if (f === 'sort_order') v = num(i.value);
+        else if (f === 'pay_rate' || f === 'pay_floor') {
+          // ★空欄なら null＝役割どおりに戻す★（0 は「0にしたい」なので通す）
+          v = String(i.value).trim() === '' ? null : num(i.value);
+        } else v = i.value;
+        var id = i.getAttribute('data-emp');
+        // ★何日から★ 日付が 在れば 記録に（その 日から 次の 変更まで）・空なら 列（最初から）
+        if ((f === 'role' || f === 'pay_rate' || f === 'pay_floor') && hiHiGawariTomeru()) return;
+        if ((f === 'role' || f === 'pay_rate' || f === 'pay_floor') && empHi(id))
+          return saveRireki(id, f, v, empHi(id));
+        saveEmp(id, f, v);
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-hi]'), function (i) {
+      i.onchange = function () {
+        hiHiGawari();
+        EMP_HI[i.getAttribute('data-hi')] = i.value || '';
+        hiOboeKaku('emp', i.getAttribute('data-hi'), i.value || '');
+        renderEmp();
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rireki]'), function (b) {
+      b.onclick = function () {
+        var id = b.getAttribute('data-rireki');
+        RIREKI_HIRAKU[id] = !RIREKI_HIRAKU[id];
+        renderEmp();
+      };
+    });
+    rirekiNoBotan();
+  }
+
+  // ★★人ごとの 歩合・最低保証・役割の「何日から」★★ 2026-10-18（docs/nannichi-kara-hito.md）
+  //   司さん 10-17「その日より前は前の値」「1週間前の日付で設定したら遡って変わる」
+  //   「何日から変えれるかはユーザーが自由に指定できるように」（記録の 日付も 値も 直せて 消せる）
+  //   ★記録が 無い 日（一番 古い 記録より 前）は 列の 値★＝記録0の 人は 今と 同じ
+  var EMP_HI = {}; // 人 → 選んだ 日（既定は 今日の 日本時間・空＝最初から）
+  var RIREKI_HIRAKU = {}; // 記録の 一覧を 開いた 人
+  var RIREKI_NA = { pay_rate: '歩合', pay_floor: '最低保証', role: '役割' };
+  function empHi(id) {
+    hiHiGawari();
+    if (Object.prototype.hasOwnProperty.call(EMP_HI, id)) return EMP_HI[id];
+    var o = hiOboeHiku('emp', id); // ★その 日の うちに 選んだ 日★（画面を 行き来しても 残す・2026-10-25）
+    // ★この 窓で 最初に 描いた 日に 固定★（別の 窓が 後から 覚えを 書いても、画面の 日と 保存の 日を 分けない・
+    //   0時を またいでも 画面の 日の まま 書く・対立役 本番前 S1）
+    EMP_HI[id] = o !== null ? o : kyouJst();
+    return EMP_HI[id];
+  }
+  function rirekiNoHito(id) {
+    return (RAW.rireki || []).filter(function (x) {
+      return x && x.employee_id === id;
+    });
+  }
+  // 選んだ 日の その 人（計算と 同じ 引き方）。空＝最初から＝列の 値
+  function hiNoHito(e) {
+    var hi = empHi(e.employee_id);
+    if (!hi || !Array.isArray(RAW.rireki)) return e;
+    var c = PayrollDaily.buildCtx({ employees: [e], rireki: rirekiNoHito(e.employee_id) });
+    return PayrollDaily.empOn(c, e.employee_id, hi) || e;
+  }
+  // ★日付を 空（最初から）に した 時の 注意★（記録が 在る 人は 一番 古い 記録より 前だけに 効く）
+  function hiNoChui(e) {
+    if (empHi(e.employee_id)) return '';
+    var l = rirekiNoHito(e.employee_id)
+      .map(function (x) {
+        return x.from_date;
+      })
+      .sort();
+    if (!l.length) return '';
+    return '<div class="th-sub">最初から＝' + esc(l[0]) + ' より 前の 日だけに 効きます</div>';
+  }
+  function rirekiAtai(x) {
+    if (x.value === null || x.value === undefined) return '';
+    return String(x.value);
+  }
+  function rirekiNoGyou(e) {
+    var l = rirekiNoHito(e.employee_id)
+      .slice()
+      .sort(function (a, b) {
+        return a.from_date < b.from_date ? -1 : a.from_date > b.from_date ? 1 : 0;
+      });
+    var h =
+      '<tr class="rireki-tr"><td colspan="8"><div class="rireki-waku"><b>' +
+      esc(e.name || '') +
+      ' の 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 値＝役割 ' +
+      esc(e.role || '空') +
+      '・歩合 ' +
+      esc(e.pay_rate == null ? '役割どおり' : e.pay_rate) +
+      '・最低保証 ' +
+      esc(e.pay_floor == null ? '役割どおり' : e.pay_floor) +
+      '）';
+    if (!Array.isArray(RAW.rireki))
+      return (
+        h +
+        '<div class="rolewarn">記録を 読めませんでした。開き直してください。</div></div></td></tr>'
+      );
+    if (!l.length) h += '<div class="th-sub">まだ 記録は ありません。</div>';
+    l.forEach(function (x) {
+      h +=
+        '<div class="rireki-r"><input type="date" data-rk-hi="' +
+        esc(x.rireki_id) +
+        '" value="' +
+        esc(x.from_date) +
+        '"> から ' +
+        esc(RIREKI_NA[x.key] || x.key) +
+        ' <input class="txt" data-rk-v="' +
+        esc(x.rireki_id) +
+        '" data-rk-key="' +
+        esc(x.key) +
+        '" value="' +
+        esc(rirekiAtai(x)) +
+        '" placeholder="' +
+        (x.key === 'role' ? '役割の 名前' : '空＝役割どおり') +
+        '"> <button class="btn ghost" type="button" data-rk-del="' +
+        esc(x.rireki_id) +
+        '">消す</button></div>';
+    });
+    return h + '</div></td></tr>';
+  }
+  function rirekiNoAtai(key, v) {
+    if (key === 'role') return String(v == null ? '' : v).trim() === '' ? null : String(v).trim();
+    if (v === null || v === undefined || String(v).trim() === '') return null;
+    return num(v);
+  }
+  // 記録を 読み直して 出し直す（書いた 後）
+  function rirekiYomiNaoshi() {
+    var y = { tried: 0, failed: 0 };
+    return DKSession.softList(
+      SESS,
+      kaishaDake('dk_hito_rireki?select=*&order=from_date.asc&limit=100000'),
+      y
+    ).then(function (rows) {
+      RAW.rireki = y.failed > 0 ? null : rows || [];
+      recalc();
+      renderEmp();
+    });
+  }
+  // ★書けた 行が 1つか まで 見る★（RLS で 0行でも 204 で「保存しました」と 出さない・10-18 対立役 D3）
+  function rirekiKaku(path, method, body) {
+    return DKSession.rest(SESS, path, {
+      method: method,
+      headers: { Prefer: 'return=representation' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).then(function (r) {
+      if (!r.ok) return { ok: false, r: r };
+      return r.json().then(function (rows) {
+        return {
+          ok: Array.isArray(rows) && rows.length === 1,
+          r: r,
+          zero: !(rows && rows.length),
+        };
+      });
+    });
+  }
+  function rirekiErr(msg, x) {
+    if (x && x.r && x.r.status === 409)
+      return showErr(
+        'その 人の 同じ 欄に 同じ 日の 記録が もう 在ります。そちらを 直すか 消してください。'
+      );
+    if (x && x.zero) return showErr(msg + '（書けた 行が ありません。開き直してください）');
+    return saveErr(msg, x && x.r);
+  }
+  function rirekiOwari(msg, flashMsg) {
+    return function (x) {
+      if (!x.ok) return rirekiErr(msg, x);
+      showErr('');
+      if (flashMsg) flash('empSaved', flashMsg);
+      return rirekiYomiNaoshi();
+    };
+  }
+  // 選んだ 日から この 値（同じ 人・欄・日の 記録が 在れば 直す・無ければ 足す）
+  function saveRireki(id, key, v, hi) {
+    if (!Array.isArray(RAW.rireki))
+      return showErr('記録を 読めていないので 保存しません。開き直してください。');
+    var aru = rirekiNoHito(id).filter(function (x) {
+      return x.key === key && x.from_date === hi;
+    })[0];
+    var atai = rirekiNoAtai(key, v);
+    // ★保存中は 明細・紙を 止める★（日付付きの 歩合・最低保証・役割も 同じ・対立役 9回目 止1）
+    //   記録を 書いて 読み直して 計算に 入るまで（rirekiYomiNaoshi まで）を 数える
+    var matsuOwari = empMatsuHajime('rk|' + id + '|' + key);
+    var p = aru
+      ? rirekiKaku('dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(aru.rireki_id), 'PATCH', {
+          value: atai,
+        })
+      : rirekiKaku('dk_hito_rireki', 'POST', {
+          company_id: COMPANY.company_id,
+          employee_id: id,
+          key: key,
+          from_date: hi,
+          value: atai,
+        });
+    return p
+      .then(rirekiOwari('保存できませんでした。', hi + ' から 保存しました'))
+      .catch(function () {
+        showErr('保存できませんでした。');
+      })
+      .then(matsuOwari, matsuOwari); // 書けた 時は rirekiOwari の 読み直しが recalc 済み
+  }
+  function rirekiNoBotan() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rk-hi]'), function (i) {
+      i.onchange = function () {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(i.value)) return showErr('日付を 入れてください。');
+        rirekiKaku(
+          'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-rk-hi')),
+          'PATCH',
+          {
+            from_date: i.value,
+          }
+        )
+          .then(rirekiOwari('日付を 直せませんでした。', '日付を 直しました'))
+          .catch(function () {
+            showErr('日付を 直せませんでした。');
+          });
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rk-v]'), function (i) {
+      i.onchange = function () {
+        rirekiKaku(
+          'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-rk-v')),
+          'PATCH',
+          {
+            value: rirekiNoAtai(i.getAttribute('data-rk-key'), i.value),
+          }
+        )
+          .then(rirekiOwari('値を 直せませんでした。', '値を 直しました'))
+          .catch(function () {
+            showErr('値を 直せませんでした。');
+          });
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-rk-del]'), function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        rirekiKaku(
+          'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(b.getAttribute('data-rk-del')),
+          'DELETE'
+        )
+          .then(function (x) {
+            if (!x.ok) b.disabled = false;
+            return rirekiOwari('記録を 消せませんでした。', '記録を 消しました')(x);
+          })
+          .catch(function () {
+            b.disabled = false;
+            showErr('記録を 消せませんでした。');
+          });
+      };
+    });
+  }
+  // ★役割の 名前を 直した 時は 役割の 記録の 名前も 直す★ 2026-10-18（対立役 止2）
+  //   名前の 直し（dk_yaku_namae_naoshi）は 人の 列と 決まりの 鍵だけ 直す。記録は 名前の 字で 持つので ここで 直す。
+  //   入れ替え（甲⇔乙）でも 壊れない様に、直す 前の 記録から 1行ずつ 新しい 名前を 決めて 送る。
+  //   途中で 落ちたら 古い 名前が 残る＝計算は「決まりに 無い 役割」で 止まる（黙って 0円には ならない）
+  function rirekiNoYakuNaoshi(map) {
+    var l = (RAW.rireki || []).filter(function (x) {
+      return (
+        x &&
+        x.key === 'role' &&
+        typeof x.value === 'string' &&
+        Object.prototype.hasOwnProperty.call(map, x.value)
+      );
+    });
+    return l.reduce(function (p, x) {
+      return p.then(function (ok) {
+        if (!ok) return false;
+        return rirekiKaku(
+          'dk_hito_rireki?rireki_id=eq.' + encodeURIComponent(x.rireki_id),
+          'PATCH',
+          {
+            value: map[x.value],
+          }
+        ).then(function (y) {
+          return y.ok;
+        });
+      });
+    }, Promise.resolve(true));
+  }
+
+  // ★その人だけの車のチェック (2026-08-25)★
+  //   並びは「車の名前と並び」で決めた順（明細の売上1・売上2…と同じ順）。
+  //   ★何も付けなければ 会社の決まりどおり★＝今までと同じ見た目。
+  function _empCarBoxes(e) {
+    var cars = (REP && REP.cars) || [];
+    if (!cars.length) return '<span class="th-sub">まだ車がありません</span>';
+    var mine = empSlipCars(e.employee_id);
+    return cars
+      .map(function (c) {
+        return (
+          '<label class="empcar"><input type="checkbox" style="width:16px;height:16px" data-emp="' +
+          esc(e.employee_id) +
+          '" data-f="slip_cars" data-car="' +
+          esc(c.device_id) +
+          '"' +
+          (mine && mine.indexOf(c.device_id) >= 0 ? ' checked' : '') +
+          '>' +
+          esc(c.label) +
+          '</label>'
+        );
+      })
+      .join('');
+  }
+
+  // ★その人の今のチェックを 全部 集めて 1本の並びにする★
+  //   1つずつ保存すると 途中の状態が倉庫に残る（片方だけ入る）ので まとめて送る。
+  //   ★1つも付いていなければ null＝会社の決まりどおりに戻す★
+  function _collectEmpCars(empId) {
+    var out = [];
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-emp="' + empId + '"][data-f="slip_cars"]'),
+      function (cb) {
+        if (cb.checked) out.push(cb.getAttribute('data-car'));
+      }
+    );
+    return out.length ? out : null;
+  }
+
+  // ★決まりの無い役割を打つと 何が起きるか★ 2026-08-25
+  //   engine（daiko-payroll.js）は st.roles[役割] が無いと
+  //   ★歩合0・最低保証0★ を使う。エラーは出ない＝★黙って金額が小さくなる★。
+  //   ただし その人に打ってある物は そちらが勝つので、起きる事は3通り。
+  //
+  //   ★言葉は 実測して決めた★（2026-08-25）
+  //     はじめ「0円になります」と1つだけ出したが、最低保証だけ打ってある人は
+  //     ★0円ではなく 11,400円（1200 x 9.50時間）★だった＝★注意が嘘をついていた★。
+  //     押して見つけたので 3通りに書き分ける。
+  function _roleWarn(e) {
+    var role = String((e && e.role) || '').trim();
+    if (!role) return null; // まだ何も打っていない人には出さない
+    var st;
+    try {
+      st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    } catch (_) {
+      return null;
+    }
+    if (st.roles && st.roles[role]) return null; // 決まりが在る＝何も起きない
+    var has = function (v) {
+      return v !== null && v !== undefined && v !== '' && isFinite(parseFloat(v));
+    };
+    var r = has(e.pay_rate);
+    var f = has(e.pay_floor);
+    if (r && f) return null; // その人だけで足りている＝役割は使われない
+    if (!r && !f) {
+      return (
+        'この役割の決まりがありません<br>このままだと この人の給料は <b>0円</b> になります。<br>' +
+        '「給料の設定 → 役割ごとの決まり」で <b>' +
+        esc(role) +
+        '</b> を足すか、この人の<b>歩合と最低保証</b>を打ってください。'
+      );
+    }
+    if (r) {
+      return (
+        'この役割の決まりがありません<br><b>最低保証が 0円</b>として計算されます' +
+        '（打ってある歩合だけで出ます）。<br>' +
+        '「給料の設定 → 役割ごとの決まり」で <b>' +
+        esc(role) +
+        '</b> を足すか、この人の<b>最低保証</b>を打ってください。'
+      );
+    }
+    return (
+      'この役割の決まりがありません<br><b>歩合が 0</b>として計算されます' +
+      '（打ってある最低保証だけで出ます）。<br>' +
+      '「給料の設定 → 役割ごとの決まり」で <b>' +
+      esc(role) +
+      '</b> を足すか、この人の<b>歩合</b>を打ってください。'
+    );
+  }
+
+  // 役割の値（打たなかった時にどうなるかを薄く見せる）
+  function _roleRateOf(role, hi) {
+    try {
+      var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+      var r = yakuNoHiAtai(role || '', hi) || st.roles[role || ''];
+      return r ? String(r.rate) : '';
+    } catch (_) {
+      return '';
+    }
+  }
+  function _roleFloorOf(role, hi) {
+    try {
+      var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+      var r = yakuNoHiAtai(role || '', hi) || st.roles[role || ''];
+      return r ? String(r.floor) : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  $('btnAddEmp').onclick = function () {
+    if (!COMPANY) return;
+    var roles = roleNames();
+    DKSession.rest(SESS, 'dk_employees', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        company_id: COMPANY.company_id,
+        name: '新しい人',
+        role: roles[0] || '2種',
+        sort_order: RAW.employees.length + 1,
+      }),
+    })
+      .then(function (r) {
+        return r.ok ? r.json() : null;
+      })
+      .then(function (j) {
+        if (!j || !j.length) return showErr('従業員を足せませんでした。');
+        showErr('');
+        RAW.employees.push(j[0]);
+        // ★足したばかりの 人は「最初から」★（今日から に すると 前の 日の 時数が 打った 歩合で 出ない・10-18 対立役 止3）
+        if (j[0] && j[0].employee_id) {
+          EMP_HI[j[0].employee_id] = '';
+          hiOboeKaku('emp', j[0].employee_id, '');
+        }
+        recalc();
+        renderEmp();
+        flash('empSaved', '足しました');
+      })
+      .catch(function () {
+        showErr('従業員を足せませんでした。');
+      });
+  };
+
+  // ★書けた 行に その 人が 居るか まで 見る★ 2026-10-20（前は 0行でも「保存しました」と 出し、画面の 値だけ 変えていた）
+  //   退職・復職（empTaishoku）・記録（rirekiKaku）と 同じ 形。主キーで 絞るので 本物は 1行か 0行
+  // ★書けなかった 欄 1つだけを 倉庫の 値（RAW）へ 戻す★ 2026-10-20
+  //   表 全体を 描き直すと 他の 欄の 打ちかけ・開いた 日付の 欄・フォーカスが 飛び、
+  //   後から 通った 別の 欄の 保存と 食い違う（対立役 2回目 指1・指2）＝その 欄だけ 触る
+  function empRanModosu(id, field) {
+    var e = null;
+    (RAW.employees || []).forEach(function (x) {
+      if (x && x.employee_id === id) e = x;
+    });
+    if (!e) return;
+    // ★欄を 描く 時と 同じ 値で 戻す★（役割・歩合・最低保証は 選んだ 日の 値＝hiNoHito・並びの 空は 0）
+    //   列の 値で 戻すと、日付を 挟んだ 時に 今日の 欄へ「最初から」の 値が 出た（対立役 3回目 指1）
+    var d = hiNoHito(e);
+    if (field === 'slip_cars') {
+      // 明細に出す車は 描く 所（_empCarBoxes）で その人の 箱を 描き直す＝決め方を 2か所に 書かない
+      var box = document.querySelector('[data-emp="' + id + '"][data-f="slip_cars"]');
+      var td = box && box.closest('.empcars');
+      if (td) {
+        td.innerHTML = _empCarBoxes(e);
+        empOshiguchi();
+      }
+      return;
+    }
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-emp="' + id + '"][data-f="' + field + '"]'),
+      function (el) {
+        if (el.type === 'checkbox') el.checked = !!d[field];
+        else if (field === 'sort_order') el.value = String(d.sort_order || 0);
+        else el.value = d[field] === null || d[field] === undefined ? '' : String(d[field]);
+      }
+    );
+  }
+  // ★人と 欄ごとの 通し番号★ 2026-10-20（対立役 4回目 指1）
+  //   同じ 欄を 続けて 打つと 返りの 順が 入れ替わる。古い 返りが 欄を 戻したり 訳を 消したり すると
+  //   歩合の 欄と 計算の 値が 食い違った ⇒ 欄を 戻す・訳を 出す／消すのは ★一番 新しい 送り★の 返りだけ。
+  //   倉庫に 書けた 古い 返りは RAW（計算）には 入れ、新しい 送りが もう 失敗で 終わって いれば 欄も 描き直す。
+  var EMP_SOKU = {};
+  // ★保存中は 給料の 明細・紙を 止める★ 2026-10-21（対立役 8回目 止1・9回目 止1 止2）
+  //   従業員の 欄（歩合・最低保証・役割・名前…）を 送ってから 返りが 着いて 計算に 入るまでは、
+  //   明細・紙・PDF が 古い 値で 出る＝お金の 出力は 計算できなければ 止めて 警告（司さん 10-04）。
+  //   人と 欄ごとに 数え（EMP_MATSU）、kyuDameBun（明細・紙・PDF が 全部 見る 1か所）が 止める。
+  //   15秒を 過ぎても 返らない 送りは「返事が 来ません」に 字を 変える。saveEmp と saveRireki（日付付き）の 両方が 使う
+  var EMP_MATSU = {};
+  // 返事を 待つ 長さ（15秒）。試験だけ window.__EMP_MATSU_MS で 短くできる
+  var EMP_MATSU_MS = Number(window.__EMP_MATSU_MS) > 0 ? Number(window.__EMP_MATSU_MS) : 15000;
+  // 止めの 字の 頭（作る 所も 片付けを 判じる 所も これ 1つを 使う＝字を 言い換えても ずれない・対立役 11回目 中2）
+  var EMP_OSOI_ATAMA = '従業員の 欄の 保存の 返事が 来ません';
+  // 保存中（0.1秒 ほど）の 字＝明細・紙の 箱に だけ 出す。recalc は 赤い 字の 欄（#err）に 出さない
+  //   （出すと 他の 操作の 失敗の 訳を 上書きして 消した・対立役 10回目 止2）
+  var EMP_HOZONCHU = '従業員の 欄を 保存して います。終わるまで 給料の 明細・紙は 止めています。';
+  function empTomeBun() {
+    var kazu = 0;
+    var osoi = 0;
+    Object.keys(EMP_MATSU).forEach(function (k) {
+      kazu += EMP_MATSU[k].kazu || 0;
+      osoi += EMP_MATSU[k].osoi || 0;
+    });
+    if (osoi)
+      return (
+        EMP_OSOI_ATAMA +
+        '（' +
+        osoi +
+        '件）。給料の 明細・紙は 止めています。電波を 確かめてください。返事が 来ない ままなら 画面を 読み込み直して 保存されたか 確かめてください。'
+      );
+    return kazu ? EMP_HOZONCHU : '';
+  }
+  // 赤い 字が この 止めの 字（保存中 か 返事待ち）か
+  function empTomeNoJi(ji) {
+    ji = String(ji || '');
+    return ji === EMP_HOZONCHU || ji.indexOf(EMP_OSOI_ATAMA) === 0;
+  }
+  // 止めが 変わった 時に 明細を 開いて いれば 描き直す（札が 残り続けない・対立役 10回目 止1）
+  function empMeisaiNuriNaoshi() {
+    if (TAB === 'slip') render();
+  }
+  function empMatsuHajime(kagi) {
+    var m = (EMP_MATSU[kagi] = EMP_MATSU[kagi] || { kazu: 0, osoi: 0 });
+    m.kazu++;
+    var osoi = false;
+    var sumi = false;
+    var t = setTimeout(function () {
+      if (sumi) return;
+      osoi = true;
+      m.osoi++;
+      // 赤い 字が 空か この 止めの 字の 時だけ 出す（他の 失敗の 訳を 上書き しない）
+      var mae = String($('err').textContent || '');
+      if (!mae || empTomeNoJi(mae)) showErr(empTomeBun());
+      empMeisaiNuriNaoshi();
+    }, EMP_MATSU_MS);
+    // 終わり＝計算（recalc）に 入れた 後に 呼ぶ（前に 呼ぶと 古い 額で 明細を 描き直した・対立役 11回目 止1）
+    return function () {
+      if (sumi) return; // 2回 減らさない
+      sumi = true;
+      clearTimeout(t);
+      m.kazu = Math.max(0, m.kazu - 1);
+      if (osoi) m.osoi = Math.max(0, m.osoi - 1);
+      // 赤い 字が この 止めの 字（PDF を 押した 時の 保存中・返事待ち）なら 今の 止めに 合わせる
+      //   保存中は 赤い 字に 残さない＝返事待ちが 在る 時だけ 出し直し、無ければ 消す（対立役 11回目 止2）
+      if (empTomeNoJi($('err').textContent)) {
+        var nokori = empTomeBun();
+        // 返事待ちが 無ければ 他の 止め（売上が 読めない 等）を 出し直す（隠さない・対立役 12回目 中1）
+        showErr(nokori && nokori !== EMP_HOZONCHU ? nokori : kyuDameBunHoka(CTX) || '');
+      }
+      empMeisaiNuriNaoshi();
+    };
+  }
+  // 今 出ている 保存の 訳を 出した 欄と ★その 字そのもの★（字が 同じ 時だけ 消す＝他の 操作の 訳を 消さない・対立役 6回目 止B）
+  var EMP_ERR = null;
+  // ★失敗の 字は その場で 作る★（列の 1段の 中で 倉庫の 訳も 読む＝後から 字を 出して 書けた 後に 古い 訳が 残る 事を 作らない・対立役 6回目 中1・7回目 中1）
+  function empErrJi(r, t) {
+    var st = r && r.status;
+    if (st === 401 || st === 403)
+      return (
+        '保存できませんでした。 ' +
+        ((COMPANY && COMPANY.name) || '(会社が選ばれていません)') +
+        ' には書き込めません。'
+      );
+    var wake = '';
+    try {
+      var j = JSON.parse(t);
+      wake = [j.message, j.details, j.hint].filter(Boolean).join(' / ');
+    } catch (_) {
+      wake = String(t || '').slice(0, 200);
+    }
+    return '保存できませんでした。' + (st ? ' [' + st + ']' : '') + (wake ? ' ' + wake : '');
+  }
+  function saveEmp(id, field, value) {
+    var kagi = id + '|' + field;
+    var me = (EMP_SOKU[kagi] = EMP_SOKU[kagi] || { n: 0 });
+    me.n++;
+    var ban = me.n;
+    var saishin = function () {
+      return ban === me.n;
+    };
+    // 打った 時から 数える（列で 待つ 間も 計算に 入って いない＝止める）
+    var matsuOwari = empMatsuHajime(kagi);
+    var shiraseru = function (ji) {
+      showErr(ji);
+      EMP_ERR = { kagi: kagi, ji: ji };
+    };
+    // 失敗＝一番 新しい 送りの 時だけ 欄を 戻し 訳を 出す
+    var shippai = function (ji) {
+      matsuOwari(); // 保存中の 止めを 外す（明細は 描き直す・赤い 字は 触らない）
+      if (!saishin()) return; // 古い 送りの 失敗は 新しい 送りに 任せる
+      try {
+        empRanModosu(id, field);
+      } catch (_) {
+        /* 欄を 戻せなくても 訳は 必ず 出す（対立役 6回目 中2） */
+      }
+      shiraseru(ji);
+    };
+    var body = {};
+    body[field] = value;
+    body.updated_at = new Date().toISOString();
+    // ★人と 欄ごとに 送りを 1本の 列に 並べる★（前の 返りを 待って から 次を 送る・対立役 5回目 止1）
+    //   並べないと 返りの 順が 入れ替わり、倉庫と 計算（RAW）が 古い 値に なった。
+    //   返事が 遅い 時も 列は 進めない（進めると 前と 次が 同時に 飛び 倉庫だけ 古い 値に なった・7回目 止1〜3）。
+    //   遅れて 着いた 返りは いつも 通り 扱う（書けて いれば 計算に 入れ、止めも 外れる）
+    me.retsu = (me.retsu || Promise.resolve()).then(function () {
+      return DKSession.rest(SESS, 'dk_employees?employee_id=eq.' + encodeURIComponent(id), {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify(body),
+      })
+        .then(function (r) {
+          // ★書けない 時は その 欄を 倉庫の 値へ 戻す★（打った 字が 残ると 保存済みに 見える・対立役 指4）
+          if (!r.ok)
+            return (typeof r.text === 'function' ? r.text() : Promise.resolve(''))
+              .catch(function () {
+                return '';
+              })
+              .then(function (txt) {
+                return { ng: empErrJi(r, txt) };
+              });
+          return r.json().then(function (rows) {
+            return { rows: rows };
+          });
+        })
+        .then(function (x) {
+          if (x.ng) return shippai(x.ng);
+          var kaketa =
+            Array.isArray(x.rows) &&
+            x.rows.some(function (e) {
+              return e && e.employee_id === id;
+            });
+          if (!kaketa)
+            return shippai(
+              '保存できませんでした。倉庫に 書けた 行が ありません。会社が 合っているか 確かめて、開き直してください。'
+            );
+          // ★自分が 出した 訳だけ 消す・recalc より 前に★（recalc が 出す 明細・紙の 止めの 警告を 消さない・対立役 5回目 止2）
+          if (EMP_ERR && EMP_ERR.kagi === kagi) {
+            if (String($('err').textContent || '') === EMP_ERR.ji) showErr('');
+            EMP_ERR = null;
+          }
+          RAW.employees.forEach(function (e) {
+            if (e.employee_id === id) e[field] = value;
+          });
+          RAW.employees.sort(function (a, b) {
+            return num(a.sort_order) - num(b.sort_order);
+          });
+          recalc();
+          matsuOwari(); // 計算に 入れた 後に 保存中を 外す（明細の 描き直しが 新しい 額で 描く）
+          if (!saishin()) return; // 次の 送りが 列で 待って いる＝欄は その 送りに 任せる
+          // ★役割を打ち替えたら その場で 出し直す★ 2026-08-25
+          //   決まりの無い役割を打った時の ★赤い注意★ を すぐ出す為。
+          //   （打ち終わって 欄から離れた時に来るので 字が消える事は無い）
+          if (field === 'role') renderEmp();
+          else {
+            // 返りを 待つ 間に 日付を 変えた 時も 欄を 今の 値に（打っている 欄は 触らない・指3）
+            var ima = document.activeElement;
+            var ran = document.querySelector('[data-emp="' + id + '"][data-f="' + field + '"]');
+            if (ran && ran !== ima && field !== 'slip_cars') empRanModosu(id, field);
+          }
+          flash('empSaved', '保存しました');
+        })
+        .catch(function () {
+          // 通信が 切れた・返りが 読めない 時も 戻す（対立役 2回目 指3）
+          try {
+            shippai('保存できませんでした。通信を 確かめて、もう一度 打ってください。');
+          } catch (_) {
+            matsuOwari(); // 列と 止めは 必ず 進める
+          }
+        });
+    });
+  }
+
+  // ── 決め方 ─────────────────────────────
+  // ★★払い方で 要る 欄だけ 出す★★ 2026-09-06（司さん
+  //   「明細の期間のやり方がまったく理解できない」）
+  //   ★前★ 3つが 同じ 重さで 並び、どれが どれに 効くか 見えなかった
+  //     （月3回なら「何日から」も「日数」も 使わないのに 出ていた）
+  //   ★今★ 払い方を 選ぶ ⇒ ★その 払い方に 要る 欄だけ★ 出す ＋ 今の 区切りを 字で 出す
+  // ★★画面の 欄 → 締めの 形（period_shime）★★ 2026-10-07
+  //   月3回は null（昔の 列 period_end_mode='thirds' の まま＝今の 本番の 1社と 同じ 読み）
+  // ★28・29・30日締めは「締めた 日の 月の 分」で 書く★（読む 側 seiki と 同じ・司さん 10-19）
+  function nijuhachiShime(k) {
+    //   28〜30 を 1つでも 含めば（seiki と 同じ。31・末＝0 は 末日締め＝何月分は 要らない）
+    var nijuhachi = (k.hi || []).some(function (h) {
+      return Number(h) >= 28 && Number(h) <= 30;
+    });
+    return nijuhachi ? Object.assign({}, k, { nazuke: 'shime' }) : k;
+  }
+  function shimeKataYomu() {
+    var m = ($('pMode') || {}).value || '';
+    var nz = ($('pNazuke') || {}).value || undefined;
+    if (m === 'thirds') return { kata: null };
+    if (m === 'tsuki2') return { kata: { kind: 'tsuki', hi: [15, 0] } };
+    if (m === 'matsu') return { kata: { kind: 'tsuki', hi: [0] } };
+    if (m === 'tsuki1') {
+      var dTxt = String(($('pShimeHi') || {}).value || '').trim();
+      // ★空は 0（末日）に しない★（対立役 ③）
+      if (!dTxt) return { dame: '何日に 締めるかを 入れてください' };
+      var d = Number(dTxt);
+      return { kata: nijuhachiShime({ kind: 'tsuki', hi: [d], nazuke: nz }) };
+    }
+    if (m === 'narabe') {
+      var hi = String(($('pNarabe') || {}).value || '')
+        .split(/[,、，\s]+/)
+        .filter(function (x) {
+          return x !== '';
+        })
+        .map(function (x) {
+          return x === '末' || x === '末日' ? 0 : Number(x);
+        });
+      return { kata: nijuhachiShime({ kind: 'tsuki', hi: hi, nazuke: nz }) };
+    }
+    if (m === 'shuu')
+      return { kata: { kind: 'shuu', youbi: Number(($('pYoubi') || {}).value), nazuke: nz } };
+    if (m === 'hi') return { kata: { kind: 'hi' } };
+    return { dame: '払い方を 選んでください' };
+  }
+  // ★★選んだ 形の 本当の 区切りを 出す（言葉で 説明しない）★★
+  function kikanDashiwake() {
+    var m = ($('pMode') || {}).value || '';
+    var show = function (id, on) {
+      if ($(id)) $(id).style.display = on ? '' : 'none';
+    };
+    show('pShimeHiRow', m === 'tsuki1');
+    show('pNarabeRow', m === 'narabe');
+    show('pYoubiRow', m === 'shuu');
+    var ms = $('pMsg');
+    var y = shimeKataYomu();
+    var kosu = false;
+    if (y.kata) {
+      // 月を またぐ 期が 在るか（何月分を 決めないと 区切れない）
+      var t = PayrollPeriod.seiki(Object.assign({}, y.kata, { nazuke: 'shime' }));
+      // ★28・29・30日締めは「締めた 日の 月の 分」だけ＝欄を 出さない★（司さん 10-19）
+      kosu =
+        !!t.ok &&
+        (t.kata.kind === 'shuu' ||
+          (t.kata.kind === 'tsuki' &&
+            t.kata.hi[t.kata.hi.length - 1] !== 0 &&
+            !t.kata.hi.some(function (h) {
+              return h >= 28;
+            })));
+    }
+    show('pNazukeRow', kosu);
+    // ★★保存の 下の 説明（#pSetsumei）は 選んで いる 払い方の 確かめの 字★★ 2026-10-24
+    //   司さん「締め日の下の区切りの説明書きいらん。月2回に変えても保存するボタンの下の説明書が変わらない。
+    //   この説明書は選択したものに関してリアルタイムで確認のための説明書として変わるようにしろ」
+    //   ⇒ #pMsg（払い方の 下）は 区切りの 一覧を やめ、保存 できない 訳（空く 月・記録が 読めない）だけ
+    //   ⇒ #pSetsumei は 欄の 形から 1文（月3回の 時だけ 実物の「月別」シートの 一文も）＋切り替わりの 短い 期
+    var se = $('pSetsumei');
+    var setsu = function (ji, tsuika) {
+      if (!se) return;
+      se.textContent = ji;
+      if (tsuika) {
+        var b = document.createElement('div');
+        b.style.marginTop = '4px';
+        b.textContent = tsuika;
+        se.appendChild(b);
+      }
+    };
+    if (ms) ms.textContent = '';
+    // ★設定を 読めない 時は 欄の 形（月3回 等）を 言い切らない★（テンプレの 上の 字と 揃える・対立役）
+    if (SET && SET.yomenai) {
+      setsu('給料の 設定を 読めませんでした（開き直してください）。');
+      return;
+    }
+    if (y.dame) {
+      setsu(y.dame);
+      return;
+    }
+    var r = y.kata ? PayrollPeriod.seiki(y.kata) : { ok: true, kata: { kind: 'thirds' } };
+    if (!r.ok) {
+      setsu(r.riyuu);
+      return;
+    }
+    var hs = haraiSetsumei(r.kata);
+    var bun = hs ? hs.bun : '';
+    if (r.kata.kind === 'thirds')
+      bun +=
+        '実物の「月別」シートの バ1〜10 / バ11〜20 / バ21〜31 が この3回で、バ21〜31 は' +
+        '給料明細（21日〜末日）の 人数ぶんの 合計と 一致します。';
+    // ★記録と 合わせた 区切り★（何日から 2026-10-19＝選んだ 日から この 形に した 時の 本当の 区切り・切り替わりの 短い 期も 出る）
+    var zen = shimeMitoshi(y.kata);
+    if (zen && zen.dame) {
+      setsu(bun);
+      if (ms) ms.textContent = zen.riyuu || '締めの 記録が 読めません';
+      return;
+    }
+    // ★切り替わりの 月★＝記録 込みの 区切りが 今までの 区切りとも 欄の 形だけの 区切りとも 違う 月だけ 出す
+    //   （短い 期を 黙らない・shime-rireki ⑦／今までと 同じ 月は 出さない・対立役）
+    var ima = jstNow();
+    var ym = { year: ima.getFullYear(), month: ima.getMonth() + 1 };
+    var hh = shimeHi();
+    if (hh) ym = { year: Number(hh.slice(0, 4)), month: Number(hh.slice(5, 7)) };
+    var kawari = [];
+    var retsu = shimeRetsuKata();
+    var imamade = retsu ? PayrollPeriod.rirekiKata(retsu, RAW.shimeRireki) : null;
+    if (imamade && imamade.dame) imamade = null;
+    if (zen)
+      [-1, 0, 1].forEach(function (z) {
+        var t2 = PayrollPeriod.shift(ym, z);
+        var kiri = function (kk) {
+          var ps = PayrollPeriod.periodsOf(t2.year, t2.month, { kata: kk });
+          if (ps.length === 1 && ps[0].aki) return '給料が 無くなります';
+          if (ps.length > 6) return ps.length + '回'; // 毎日 等（並べると 長すぎる）
+          return ps
+            .map(function (p) {
+              return p.rangeLabel;
+            })
+            .join(' ／ ');
+        };
+        var a = kiri(zen);
+        if (a !== kiri(r.kata) && (!imamade || a !== kiri(imamade)))
+          kawari.push(t2.month + '月分は ' + (a || '締める 給料 なし'));
+      });
+    setsu(bun, kawari.length ? '切り替わりで ' + kawari.join('、') + ' に なります。' : '');
+    // ★この 変え方で 空く 月＝保存 できない★（保存の 時は 倉庫から 読み直して もう一度 確かめる）
+    var akiMae = shimeAkiNo(shimeRetsuKata(), RAW.shimeRireki) || [];
+    var akiF = (zen ? PayrollPeriod.akiTsuki(zen) : []).filter(function (x) {
+      return akiMae.indexOf(x) < 0;
+    });
+    if (ms && akiF.length) ms.textContent = shimeAkiBun(akiF) + 'この ままでは 保存できません。';
+  }
+  (function wireKikan() {
+    ['pMode', 'pShimeHi', 'pNarabe', 'pYoubi', 'pNazuke'].forEach(function (id) {
+      var n = $(id);
+      if (!n) return;
+      n.addEventListener('change', kikanDashiwake);
+      n.addEventListener('input', kikanDashiwake);
+      // ★欄を 触ったか★（触って いない 時は 日付が 在っても 記録を 書かない・対立役 直4）
+      n.addEventListener('change', function () {
+        SHIME_SAWATTA = true;
+      });
+      n.addEventListener('input', function () {
+        SHIME_SAWATTA = true;
+      });
+    });
+    if ($('pHi'))
+      $('pHi').addEventListener('change', function () {
+        hiHiGawari();
+        SHIME_HI = $('pHi').value || '';
+        hiOboeKaku('shime', 'kaisha', SHIME_HI);
+        shimeKataIreru();
+        renderShimeRireki();
+      });
+    if ($('pRirekiBtn'))
+      $('pRirekiBtn').onclick = function () {
+        SHIME_RIREKI_HIRAKU = !SHIME_RIREKI_HIRAKU;
+        renderShimeRireki();
+      };
+  })();
+  // ★★締めの 形の「何日から」★★ 2026-10-19（docs/nannichi-kara-shime.md）
+  //   記録は dk_shime_rireki（列 period_shime に 置かない＝古い 版の 画面が 保存しても 消えない）
+  //   日付が 在る 保存＝列の 締めは 変えず、欄の 形が その 日の 形と 違えば 記録を 書く／空＝列を 直す
+  var SHIME_HI = null; // 選んだ 日（null＝まだ 選んで いない＝今日・''＝最初から）
+  var SHIME_SAWATTA = false; // 締めの 欄を 触ったか
+  var SHIME_RIREKI_HIRAKU = false;
+  function shimeHi() {
+    hiHiGawari();
+    if (SHIME_HI !== null) return SHIME_HI;
+    var o = hiOboeHiku('shime', 'kaisha'); // ★その 日の うちに 選んだ 日★（2026-10-25）
+    SHIME_HI = o !== null ? o : kyouJst(); // ★この 窓で 最初に 描いた 日に 固定★（empHi と 同じ・対立役 S1）
+    return SHIME_HI;
+  }
+  // 列の 形（記録より 前の 日）。読めなければ null
+  //   ★設定の 行が 無い 会社は 計算と 同じ yomu で 月3回★ 2026-10-25（前は null＝既定の「今日から」で 保存すると
+  //   「最初からの 払い方が 読めない」で 必ず 止まった）。止めるのは 通信で 読めなかった（yomenai）時だけ
+  function shimeRetsuKata() {
+    if (SET && SET.yomenai) return null;
+    var y = PayrollPeriod.yomu(SET);
+    return y && y.ok ? y.kata : null;
+  }
+  // 選んだ 日に 効く 形（計算と 同じ 引き方）。空・読めない＝null（列の 形を 出す）
+  function shimeNoHiKata(hi) {
+    if (!hi || !Array.isArray(RAW.shimeRireki)) return null;
+    var b = shimeRetsuKata();
+    if (!b) return null;
+    var k = PayrollPeriod.rirekiKata(b, RAW.shimeRireki);
+    if (!k || k.dame) return null;
+    return PayrollPeriod.kataNoHi(k, hi);
+  }
+  // 欄の 形（raw）を 選んだ 日から 入れた 時の 区切り（記録 込み）。日付が 空＝欄の 形を 列に した 時
+  function shimeMitoshi(rawKata) {
+    if (!Array.isArray(RAW.shimeRireki)) return null;
+    var hi = shimeHi();
+    var mine = rawKata || { kind: 'tsuki', hi: [10, 20, 0] };
+    if (!hi) {
+      var t = PayrollPeriod.seiki(mine);
+      if (!t.ok) return null;
+      return PayrollPeriod.rirekiKata(t.kata, RAW.shimeRireki);
+    }
+    var b = shimeRetsuKata();
+    if (!b) return null;
+    var rows = RAW.shimeRireki
+      .filter(function (x) {
+        return x && String(x.from_date).slice(0, 10) !== hi;
+      })
+      .concat([{ from_date: hi, value: mine }]);
+    return PayrollPeriod.rirekiKata(b, rows);
+  }
+  var YOUBI_NA = ['日', '月', '火', '水', '木', '金', '土'];
+  // 形の 字（記録の 一覧）
+  function shimeNoNa(v) {
+    var t = PayrollPeriod.seiki(v);
+    if (!t.ok) return '読めない 形（' + t.riyuu + '）＝消してください';
+    var k = t.kata;
+    var nz = k.nazuke === 'hajime' ? '・始まった 日の 月の 分' : '';
+    if (k.kind === 'thirds') return '月3回（10日・20日・末日 締め）';
+    if (k.kind === 'hi') return '毎日';
+    if (k.kind === 'shuu') return '週1回（' + YOUBI_NA[k.youbi] + '曜 締め' + nz + '）';
+    var hiJi = k.hi
+      .map(function (h) {
+        return h === 0 ? '末日' : h + '日';
+      })
+      .join('・');
+    var kosu = k.hi[k.hi.length - 1] !== 0;
+    return (
+      '締め日 ' +
+      hiJi +
+      (kosu ? (k.nazuke === 'hajime' ? '・始まった 日の 月の 分' : '・締めた 日の 月の 分') : '')
+    );
+  }
+  // ★★払い方の 名前と 区切りの 言葉（ここ 1か所）★★ 2026-10-24（司さん「保存するボタンの下の説明書が変わらない。
+  //   選択したものに関してリアルタイムで確認のための説明書として変わるようにしろ」「テンプレの上に今の給料設定は何日締めです」）
+  //   kata は seiki を 通した 形（thirds／tsuki／shuu／hi）。返り＝{ na: 名前, bun: 確かめの 一文 }・読めない 形は null
+  function haraiNa(kata) {
+    if (!kata) return null;
+    if (kata.kind === 'thirds') return '月3回（10日・20日・末日締め）';
+    if (kata.kind === 'hi') return '毎日';
+    if (kata.kind === 'shuu') return '週1回（' + YOUBI_NA[kata.youbi] + '曜締め）';
+    if (kata.kind !== 'tsuki' || !Array.isArray(kata.hi) || !kata.hi.length) return null;
+    return (
+      '月' +
+      kata.hi.length +
+      '回（' +
+      kata.hi
+        .map(function (h) {
+          return h === 0 ? '末日' : h + '日';
+        })
+        .join('・') +
+      '締め）'
+    );
+  }
+  function haraiSetsumei(kata) {
+    var na = haraiNa(kata);
+    if (!na) return null;
+    if (kata.kind === 'thirds')
+      return {
+        na: na,
+        bun: na + '：1日〜10日／11日〜20日／21日〜末日の3回で明細を出します。',
+      };
+    if (kata.kind === 'hi') return { na: na, bun: na + '：1日ごとに明細を出します。' };
+    var nz = kata.nazuke === 'hajime' ? '始まった日の月の分' : '締めた日の月の分';
+    if (kata.kind === 'shuu')
+      return {
+        na: na,
+        bun:
+          na +
+          '：' +
+          YOUBI_NA[(kata.youbi + 1) % 7] +
+          '曜〜' +
+          YOUBI_NA[kata.youbi] +
+          '曜の1週ごとに明細を出します（' +
+          nz +
+          '）。',
+      };
+    var hi = kata.hi;
+    var n = hi.length;
+    var matsu = hi[n - 1] === 0; // 最後が 末日＝月を またがない
+    var ku = [];
+    for (var i = 0; i < n; i++) {
+      var owari = hi[i] === 0 ? '末日' : hi[i] + '日';
+      var hajime =
+        i > 0 ? hi[i - 1] + 1 + '日' : matsu ? '1日' : '前の月の' + (hi[n - 1] + 1) + '日';
+      ku.push(hajime + '〜' + owari);
+    }
+    return {
+      na: na,
+      bun:
+        na +
+        '：' +
+        ku.join('／') +
+        'の' +
+        n +
+        '回で明細を出します' +
+        (matsu ? '' : '（' + nz + '）') +
+        '。',
+    };
+  }
+  function renderShimeRireki() {
+    var l = Array.isArray(RAW.shimeRireki)
+      ? RAW.shimeRireki.slice().sort(function (a, b) {
+          return a.from_date < b.from_date ? -1 : a.from_date > b.from_date ? 1 : 0;
+        })
+      : null;
+    if ($('pHi') && $('pHi').value !== shimeHi()) $('pHi').value = shimeHi();
+    if ($('pRirekiBtn')) $('pRirekiBtn').textContent = '記録 ' + (l ? l.length : '?');
+    var hi = shimeHi();
+    var chui = '';
+    if (!l) chui = '締めの 変えた 記録を 読めませんでした。開き直してください（保存しません）。';
+    else if (hi) {
+      chui = hi + ' から 次の 記録の 日まで、この 払い方で 区切ります。';
+      var tsugi = l
+        .map(function (x) {
+          return String(x.from_date).slice(0, 10);
+        })
+        .filter(function (d) {
+          return d > hi;
+        })[0];
+      if (tsugi) chui += '（' + tsugi + ' の 記録まで）';
+      chui += ' 切り替わりの 期は 短く なります。';
+    } else if (l.length)
+      chui =
+        '空（最初から）＝ ' +
+        String(l[0].from_date).slice(0, 10) +
+        ' より 前の 日だけ 変わります。';
+    // ★記録が 無い 時の 空＝今までの 全部の 月が 変わる★ 2026-10-24（前は 何も 出さず 黙って 全部の 月を 書き換えた・対立役 B／司さん「おけ」）
+    else chui = '空（最初から）＝ 今までの 全部の 月の 払い方が 変わります。';
+    if ($('pHiChui')) $('pHiChui').textContent = chui;
+    var box = $('pRireki');
+    if (!box) return;
+    box.style.display = SHIME_RIREKI_HIRAKU ? '' : 'none';
+    if (!SHIME_RIREKI_HIRAKU) return;
+    var h =
+      '<div class="rireki-waku"><b>締めの 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 払い方）' +
+      '<div class="th-sub">形を 直す 時は「何日から」に その 日を 入れて 払い方を 選び直し「保存する」</div>';
+    if (!l) h += '<div class="rolewarn">記録を 読めませんでした。開き直してください。</div>';
+    else if (!l.length) h += '<div class="th-sub">まだ 記録は ありません。</div>';
+    (l || []).forEach(function (x) {
+      h +=
+        '<div class="rireki-r"><input type="date" data-sk-hi="' +
+        esc(x.rireki_id) +
+        '" value="' +
+        esc(String(x.from_date).slice(0, 10)) +
+        '"> から ' +
+        esc(shimeNoNa(x.value)) +
+        ' <button class="btn ghost" type="button" data-sk-del="' +
+        esc(x.rireki_id) +
+        '">消す</button></div>';
+    });
+    box.innerHTML = h + '</div>';
+    Array.prototype.forEach.call(box.querySelectorAll('[data-sk-hi]'), function (i) {
+      i.onchange = function () {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(i.value)) return showErr('日付を 入れてください。');
+        var skId = i.getAttribute('data-sk-hi');
+        var skHi = i.value;
+        shimeAkiMonRows(function (rows) {
+          return rows.map(function (x) {
+            return x && x.rireki_id === skId ? Object.assign({}, x, { from_date: skHi }) : x;
+          });
+        })
+          .then(function (aki) {
+            if (aki) return { tome: aki };
+            return rirekiKaku('dk_shime_rireki?rireki_id=eq.' + encodeURIComponent(skId), 'PATCH', {
+              from_date: skHi,
+            });
+          })
+          .then(function (x) {
+            if (!x || !x.tome)
+              return shimeRirekiOwari('日付を 直せませんでした。', '日付を 直しました')(x);
+            // ★止めた＝倉庫の 日付に 戻して 訳を 出す★
+            return shimeRirekiYomiNaoshi().then(function () {
+              showErr(x.tome);
+            });
+          })
+          .catch(function () {
+            // 訳は 読み直し（loadPeriod が 字を 消す）の 後に 出す
+            return shimeRirekiYomiNaoshi().then(function () {
+              showErr('日付を 直せませんでした。');
+            });
+          });
+      };
+    });
+    Array.prototype.forEach.call(box.querySelectorAll('[data-sk-del]'), function (b) {
+      b.onclick = function () {
+        var skId = b.getAttribute('data-sk-del');
+        shimeAkiMonRows(function (rows) {
+          return rows.filter(function (x) {
+            return !(x && x.rireki_id === skId);
+          });
+        })
+          .then(function (aki) {
+            if (aki) return { tome: aki };
+            return rirekiKaku('dk_shime_rireki?rireki_id=eq.' + encodeURIComponent(skId), 'DELETE');
+          })
+          .then(function (x) {
+            if (!x || !x.tome) return shimeRirekiOwari('消せませんでした。', '消しました')(x);
+            return shimeRirekiYomiNaoshi().then(function () {
+              showErr(x.tome);
+            });
+          })
+          .catch(function () {
+            // 訳は 読み直し（loadPeriod が 字を 消す）の 後に 出す
+            return shimeRirekiYomiNaoshi().then(function () {
+              showErr('消せませんでした。');
+            });
+          });
+      };
+    });
+  }
+  //   nokosu＝欄を 倉庫の 形に 戻さない（書けなかった 時＝選んだ 形を 残して もう一度 押せる・対立役 3回目 直1）
+  function shimeRirekiYomiNaoshi(nokosu) {
+    var y = { tried: 0, failed: 0 };
+    return DKSession.softList(
+      SESS,
+      kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+      y
+    ).then(function (rows) {
+      RAW.shimeRireki = y.failed > 0 ? null : rows || [];
+      recalc();
+      shimeKataIreru(!nokosu);
+      renderShimeRireki();
+      loadPeriod(); // 期が 変わる
+      return RAW.shimeRireki;
+    });
+  }
+  function shimeRirekiOwari(msg, flashMsg) {
+    return function (x) {
+      if (!x.ok) {
+        // ★読み直し（loadPeriod が 字を 消す）の 後に 訳を 出す★（前は 訳が すぐ 消えた・2026-10-19）
+        return shimeRirekiYomiNaoshi().then(function () {
+          if (x && x.r && x.r.status === 409)
+            showErr('その 日には もう 締めの 記録が 在ります。そちらを 直すか 消してください。');
+          else if (x && x.zero) showErr(msg + '（書けた 行が ありません。開き直してください）');
+          else saveErr(msg, x && x.r);
+        });
+      }
+      showErr('');
+      return shimeRirekiYomiNaoshi().then(function () {
+        if (flashMsg) flash('setSaved', flashMsg);
+      });
+    };
+  }
+  // ★★月が 空く 締めの 変え方は 書かない★★ 2026-10-19（docs/nannichi-kara-shime.md「月が 空く 件」）
+  //   給料は 毎月 払う 決まり（労基法24条）。★今より 空く 月が 増える 時だけ★ 止める（月の 組で 比べる・対立役 直4）
+  //   比べる 元は ★書く 直前に 倉庫から 読み直した 記録★（古い タブの 控えで 判じない）
+  function shimeAkiNo(retsu, rows) {
+    if (!retsu) return null;
+    var k = PayrollPeriod.rirekiKata(retsu, rows);
+    if (!k || k.dame) return null;
+    return PayrollPeriod.akiTsuki(k);
+  }
+  function shimeAkiFueta(retsuMae, rowsMae, retsuAto, rowsAto) {
+    var ato = shimeAkiNo(retsuAto, rowsAto);
+    if (!ato) return [];
+    var mae = shimeAkiNo(retsuMae, rowsMae) || [];
+    return ato.filter(function (x) {
+      return mae.indexOf(x) < 0;
+    });
+  }
+  function shimeAkiBun(l) {
+    return (
+      'この 変え方だと ' +
+      l
+        .map(function (x) {
+          return Number(x.slice(0, 4)) + '年' + Number(x.slice(5, 7)) + '月分';
+        })
+        .join('・') +
+      'の 給料が 無くなります（給料は 毎月 払う 決まり）。'
+    );
+  }
+  function shimeRowsYomu() {
+    var y = { tried: 0, failed: 0 };
+    return DKSession.softList(
+      SESS,
+      kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+      y
+    ).then(function (rows) {
+      if (y.failed > 0)
+        throw new Error(
+          '締めの 変えた 記録を 読み直せませんでした（通信）。保存していません。もう一度 押してください。'
+        );
+      return rows || [];
+    });
+  }
+  function shimeHiTasu(hi, k) {
+    var d = new Date(
+      Number(hi.slice(0, 4)),
+      Number(hi.slice(5, 7)) - 1,
+      Number(hi.slice(8, 10)) + k
+    );
+    return (
+      d.getFullYear() +
+      '-' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(d.getDate()).padStart(2, '0')
+    );
+  }
+  //   保存の 前の 門：返り＝'' 通す／字＝止める 訳
+  //   hi＝何日から（空＝最初から＝列）・kaku＝記録を 書く 保存か・rawKata＝欄の 形
+  function shimeAkiMon(hi, kaku, rawKata) {
+    if (hi && !kaku) return Promise.resolve('');
+    var mine = rawKata || { kind: 'tsuki', hi: [10, 20, 0] };
+    var t = PayrollPeriod.seiki(mine);
+    if (!t.ok) return Promise.resolve('');
+    var retsu = shimeRetsuKata();
+    return shimeRowsYomu().then(function (rows) {
+      if (!hi) {
+        var f0 = shimeAkiFueta(retsu, rows, t.kata, rows);
+        return f0.length
+          ? shimeAkiBun(f0) +
+              '最初からの 払い方か 何月分の 呼び方を 選び直してください。設定も 保存していません。'
+          : '';
+      }
+      var ato = function (d) {
+        return rows
+          .filter(function (x) {
+            return x && String(x.from_date).slice(0, 10) !== d;
+          })
+          .concat([{ from_date: d, value: mine }]);
+      };
+      // 前の 側（今の 記録）は 候補ごとに 変わらない＝1回だけ 数える（対立役 本番前3 直A）
+      var akiIma = shimeAkiNo(retsu, rows) || [];
+      var fuetaKa = function (d) {
+        var aa = shimeAkiNo(retsu, ato(d));
+        return (aa || []).filter(function (x) {
+          return akiIma.indexOf(x) < 0;
+        });
+      };
+      var f = fuetaKa(hi);
+      if (!f.length) return '';
+      // ★空かない 一番 近い 日を 出す★（「選び直して」だけだと 当てずっぽう・対立役 直2）
+      var chika = '';
+      //   ★探すのは 0.6秒 まで★（1回の 比べは 記録の 数の 2乗で 重い＝記録 20件で 1回 約0.1秒・全部 試すと 十数秒 固まる・対立役 本番前2 直A）
+      var owari = Date.now() + 600;
+      for (var k = 1; k <= 62 && !chika && Date.now() < owari; k++) {
+        [k, -k].forEach(function (z) {
+          if (chika || Date.now() >= owari) return;
+          var d = shimeHiTasu(hi, z);
+          if (!fuetaKa(d).length) chika = d;
+        });
+      }
+      return (
+        shimeAkiBun(f) +
+        (chika
+          ? '変える 日を ' +
+            Number(chika.slice(5, 7)) +
+            '/' +
+            Number(chika.slice(8, 10)) +
+            ' に すると 空きません。'
+          : '') +
+        '変える 日か 何月分の 呼び方を 選び直してください。設定も 保存していません。'
+      );
+    });
+  }
+  //   記録の 日付を 直す・消す 前の 門（rowsAto＝倉庫から 読み直した 行を 変えた 物）
+  function shimeAkiMonRows(henkou) {
+    var retsu = shimeRetsuKata();
+    return shimeRowsYomu().then(function (rows) {
+      var f = shimeAkiFueta(retsu, rows, retsu, henkou(rows));
+      return f.length ? shimeAkiBun(f) + '別の 日に するか、払い方を 先に 直してください。' : '';
+    });
+  }
+  // ★保存の 後に 締めの 記録を 書く★（倉庫の 今の 記録を 読み直して 比べる・同じ 形なら 書かない＝対立役 直4）
+  //   返り：'' ＝書いた／書かなくて よかった ・ 字＝書けなかった 訳 ・ {aki}＝空く 月が 増える＝書かなかった
+  function shimeKirokuKaku(hi, rawKata) {
+    var y = { tried: 0, failed: 0 };
+    var mine = rawKata || { kind: 'tsuki', hi: [10, 20, 0] };
+    return DKSession.softList(
+      SESS,
+      kaishaDake('dk_shime_rireki?select=*&order=from_date.asc&limit=100000'),
+      y
+    ).then(function (rows) {
+      if (y.failed > 0) return '締めの 記録を 読み直せませんでした（通信）';
+      RAW.shimeRireki = rows || [];
+      var b = shimeRetsuKata();
+      var k = b ? PayrollPeriod.rirekiKata(b, RAW.shimeRireki) : null;
+      var t = PayrollPeriod.seiki(mine);
+      if (!t.ok) return t.riyuu;
+      if (k && !k.dame && JSON.stringify(PayrollPeriod.kataNoHi(k, hi)) === JSON.stringify(t.kata))
+        return '';
+      // ★書く 直前の 記録で もう一度 空く 月を 比べる★（門の 後に 別の タブが 書いた 時・対立役 本番前 直3）
+      var aki = shimeAkiFueta(
+        b,
+        RAW.shimeRireki,
+        b,
+        RAW.shimeRireki
+          .filter(function (x) {
+            return x && String(x.from_date).slice(0, 10) !== hi;
+          })
+          .concat([{ from_date: hi, value: mine }])
+      );
+      if (aki.length) return { aki: shimeAkiBun(aki) };
+      return DKSession.rest(SESS, 'dk_shime_rireki?on_conflict=company_id,from_date', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify({ company_id: COMPANY.company_id, from_date: hi, value: mine }),
+      }).then(function (r) {
+        if (r && (r.status === 401 || r.status === 403))
+          return 'ログインが 切れました。ログインし直してください';
+        if (!r || !r.ok) return '倉庫が 断りました（' + (r ? r.status : '?') + '）';
+        return r.json().then(function (j) {
+          return Array.isArray(j) && j.length === 1 ? '' : '書けた 行が ありません';
+        });
+      });
+    });
+  }
+  // ★★倉庫の 設定 → 画面の 欄★★
+  //   tsuyoku＝触った 欄も 倉庫の 形に 戻す（保存・記録の 読み直しの 後だけ）
+  //   ★触った 欄は 役割の 足し消し・タブ・日付の 変更で 黙って 戻さない★（対立役 2回目 直3）
+  function shimeKataIreru(tsuyoku) {
+    if (SHIME_SAWATTA && !tsuyoku) {
+      kikanDashiwake();
+      return;
+    }
+    var sh = SET && SET.period_shime;
+    var mo = SET && SET.period_end_mode;
+    // ★日付が 在る＝その 日に 効く 形を 出す★（何日から 2026-10-19・列の 形を 出すと 直した 後に 戻って 見える）
+    var hiNoK = shimeNoHiKata(shimeHi());
+    if (hiNoK) {
+      if (hiNoK.kind === 'thirds') {
+        sh = null;
+        mo = 'thirds';
+      } else {
+        sh = hiNoK;
+        mo = 'shime';
+      }
+    }
+    SHIME_SAWATTA = false;
+    shimeRanNiIreru(sh, mo);
+    kikanDashiwake();
+  }
+  // ★締めの 形 → 払い方の 欄★（倉庫の 形を 出す 時と テンプレを 選んだ 時の 1か所・2026-10-24）
+  //   sh＝{kind,hi,youbi,nazuke}（無い 時は mo で 月3回 か 選び直し）
+  function shimeRanNiIreru(sh, mo) {
+    $('pShimeHi').value = '';
+    $('pNarabe').value = '';
+    $('pYoubi').value = '0';
+    $('pNazuke').value = '';
+    if (sh && typeof sh === 'object') {
+      if (sh.nazuke) $('pNazuke').value = sh.nazuke;
+      var hi = Array.isArray(sh.hi) ? sh.hi : [];
+      var j = hi.join(',');
+      if (sh.kind === 'hi') $('pMode').value = 'hi';
+      else if (sh.kind === 'shuu') {
+        $('pMode').value = 'shuu';
+        $('pYoubi').value = String(sh.youbi);
+      } else if (sh.kind === 'tsuki' && j === '15,0') $('pMode').value = 'tsuki2';
+      else if (sh.kind === 'tsuki' && j === '0') $('pMode').value = 'matsu';
+      else if (sh.kind === 'tsuki' && hi.length === 1) {
+        $('pMode').value = 'tsuki1';
+        $('pShimeHi').value = String(hi[0]);
+      } else if (sh.kind === 'tsuki') {
+        $('pMode').value = 'narabe';
+        $('pNarabe').value = hi
+          .map(function (x) {
+            return x === 0 ? '末' : String(x);
+          })
+          .join(',');
+      } else $('pMode').value = '';
+    } else if (!mo || mo === 'thirds') {
+      $('pMode').value = 'thirds';
+    } else {
+      // ★昔の month_end／days は 今の 作りでは 読めない＝選び直して もらう★
+      $('pMode').value = '';
+    }
+  }
+
+  function renderSet() {
+    var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    kikanDashiwake();
+    renderRoles();
+    hokaKaku(st);
+
+    $('poolMode').value = st.poolMode;
+    $('resPool').value = Math.round(st.reservePoolRate * 1000) / 10;
+    $('resOwner').value = Math.round(st.reserveOwnerRate * 1000) / 10;
+    $('resFirst').checked = !!st.deductReserveBeforeRate;
+    // ★既定は 載せる（true）★＝倉庫にまだ無い会社も 今までと同じ見た目
+    $('showCarSales').checked = !(SET && SET.show_car_sales === false);
+    shimeKataIreru(); // ★締めの 形★ 2026-10-07
+    renderShimeRireki(); // ★締めの 何日から★ 2026-10-19
+
+    var devs = ((CTX && CTX.devices) || []).slice();
+    // ★今の 自分の 車が 名簿に 無くても 選び肢に 残す★ 2026-10-16 対立役
+    //   （名前が 無く この 期に 走っていない 車だと「決めていない」に なり、保存で 黙って 空に なった＝
+    //     売上の 分け方「自分の車を 除いた 全部」の 取り分が 変わる）
+    if (st.ownerDeviceId && devs.indexOf(st.ownerDeviceId) < 0) devs.push(st.ownerDeviceId);
+    $('ownerDev').innerHTML =
+      '<option value="">（決めていない）</option>' +
+      devs
+        .map(function (d) {
+          var lab = _carName(d); // ★UUIDは出さない (2026-08-05)★
+          return (
+            '<option value="' +
+            esc(d) +
+            '"' +
+            (d === st.ownerDeviceId ? ' selected' : '') +
+            '>' +
+            esc(lab) +
+            '</option>'
+          );
+        })
+        .join('');
+  }
+
+  // ★役割の 表だけ 描き直す★ 2026-10-18（何日から・対立役 3回目 直2）
+  //   日付・記録・値の 直しで renderSet を 呼ぶと、打っただけで 保存していない 積立・締め 等の 欄が SET の 値に 戻った
+  function renderRoles() {
+    var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    var html = '';
+    // data-l は★スマホで1行1枚にした時の見出し★（横スクロールさせない）
+    //   ★欄には 選んだ 日に 効く 値★（何日から 10-18・対立役 止2＝列の 値を 出すと 直した 後に 戻って 見える）
+    Object.keys(st.roles).forEach(function (r) {
+      var v = yakuNoHiAtai(r, yakuHi(r)) || st.roles[r];
+      var n = yakuRirekiNo(yakuMotoNo(r)).length;
+      html +=
+        '<tr><td data-l="役割"><input class="txt" data-role="' +
+        esc(r) +
+        '" data-f="name" value="' +
+        esc(r) +
+        '"></td>' +
+        // ★日付は 値の 前★（値を 打ってから 日付を 変えると 前の 日付で 書かれる・対立役 直3）
+        '<td data-l="何日から"><input type="date" class="hi-in" data-yh="' +
+        esc(r) +
+        '" value="' +
+        esc(yakuHi(r)) +
+        '"> <button class="btn ghost" type="button" data-yrk="' +
+        esc(r) +
+        '">記録 ' +
+        (Array.isArray(RAW.yakuRireki) ? n : '?') +
+        '</button>' +
+        yakuHiNoChui(r) +
+        '<span class="saved" data-yk-saved="' +
+        esc(r) +
+        '"></span></td>' +
+        '<td data-l="歩合"><input class="hrs" data-role="' +
+        esc(r) +
+        '" data-f="rate" value="' +
+        v.rate +
+        '"></td>' +
+        '<td data-l="最低保証"><input class="yen" data-role="' +
+        esc(r) +
+        '" data-f="floor" value="' +
+        v.floor +
+        '"> 円</td>' +
+        '<td data-l="消す"><button class="xbtn" data-role-del="' +
+        esc(r) +
+        '">✕</button></td></tr>';
+      if (YAKU_RIREKI_HIRAKU[r]) html += yakuRirekiNoGyou(yakuMotoNo(r), st.roles[r]);
+    });
+    // ★決まりに 無い 役割の 記録（残った 記録）も 出して 消せる 様に★（対立役 2回目 止1）
+    yakuNokoriNo(st).forEach(function (y) {
+      html += yakuRirekiNoGyou(y, null);
+    });
+    $('roleBody').innerHTML = html;
+    yakuRirekiNoBotan();
+    Array.prototype.forEach.call(document.querySelectorAll('[data-role-del]'), function (b) {
+      b.onclick = function () {
+        var r = b.getAttribute('data-role-del');
+        var st2 = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+        // ★最後の 1つは 消させない★（空に すると 既定の 役割に 黙って 戻る）2026-10-17
+        if (Object.keys(st2.roles).length <= 1)
+          return showErr('役割を 全部 消す 事は できません。1つは 残してください。');
+        // ★その 役割の 人（辞めた 人も）が 居れば 消させない★（消すと その人の 給料が 計算できない）
+        var hito = yakuNoHito(r);
+        if (hito.length)
+          return showErr(
+            '「' +
+              r +
+              '」の 人が 居るので 消せません：' +
+              hito.slice(0, 5).join('・') +
+              (hito.length > 5 ? ' ほか ' + (hito.length - 5) + '人' : '') +
+              '。先に「従業員」で その 人の 役割を 変えてください。'
+          );
+        // ★変えた 記録の 在る 役割は 消させない★（何日から 10-18＝同じ 名前を 足すと 古い 記録が 黙って 効く）
+        if (!Array.isArray(RAW.yakuRireki))
+          return showErr('役割の 変えた 記録を 読めていないので 消せません。開き直してください。');
+        if (yakuRirekiNo(yakuMotoNo(r)).length)
+          return showErr(
+            '「' + r + '」には 変えた 記録が 在るので 消せません。先に「記録」で 消してください。'
+          );
+        delete st2.roles[r];
+        delete YAKU_MOTO[r];
+        stageRoles(st2.roles);
+        renderSet();
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-role]'), function (i) {
+      i.onchange = function () {
+        var st2 = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+        var old = i.getAttribute('data-role');
+        var f = i.getAttribute('data-f');
+        var cur = st2.roles[old] || { rate: 0, floor: 0 };
+        if (f === 'name') {
+          var nv = String(i.value || '').trim();
+          if (!nv || nv === old) {
+            i.value = old;
+            return;
+          }
+          // ★在る 名前には 直させない★（その 役割の 決まりが 上書きされる）2026-10-17
+          if (Object.prototype.hasOwnProperty.call(st2.roles, nv)) {
+            i.value = old;
+            return showErr('「' + nv + '」は もう 在る 役割です。同じ 名前には できません。');
+          }
+          // ★この 画面で 消した 名前には 保存の 前に 直させない★（倉庫には まだ 在る＝保存で「同じ 名前」と 断られる）
+          if (
+            YAKU_YOMI.indexOf(nv) >= 0 &&
+            !Object.keys(YAKU_MOTO).some(function (ima) {
+              return YAKU_MOTO[ima] === nv;
+            })
+          ) {
+            i.value = old;
+            return showErr(
+              '「' +
+                nv +
+                '」は この 画面で 消した 名前です。一度 保存してから その 名前に 直してください。'
+            );
+          }
+          // ★変えた 記録が 残っている 名前には 直させない★（その 記録が 黙って 効く・対立役 2回目 止1）
+          if (
+            (RAW.yakuRireki || []).some(function (x) {
+              return x && x.yaku === nv;
+            }) &&
+            !Object.keys(YAKU_MOTO).some(function (ima) {
+              return YAKU_MOTO[ima] === nv;
+            })
+          ) {
+            i.value = old;
+            return showErr(
+              '「' + nv + '」には 変えた 記録が 残っています。先に その 記録を 消してください。'
+            );
+          }
+          if (Object.prototype.hasOwnProperty.call(YAKU_HI, old)) {
+            YAKU_HI[nv] = YAKU_HI[old];
+            delete YAKU_HI[old];
+          }
+          // 覚えた 日も 新しい 名前へ 付け替える（古い 名前の 覚えを 残さない・2026-10-25）
+          var oboe = hiOboeHiku('yaku', old);
+          hiOboeKaku('yaku', old, null);
+          if (oboe !== null) hiOboeKaku('yaku', nv, oboe);
+          delete st2.roles[old];
+          st2.roles[nv] = cur;
+          // ★日給・段階歩合も 新しい 名前へ 一緒に 移す★（前は 古い 名前の まま 残り、保存で 消えた）
+          var px = hokaYomu();
+          if (px && px.roles && px.roles[old]) {
+            px = JSON.parse(JSON.stringify(px));
+            px.roles[nv] = px.roles[old];
+            delete px.roles[old];
+          }
+          if (px) {
+            SET = SET || {};
+            SET.pay_extra = px;
+          }
+          // 読み込んだ 時の 名前を 控える（保存の 時に 人の 役割も 倉庫で 一緒に 直す）
+          var moto = Object.prototype.hasOwnProperty.call(YAKU_MOTO, old) ? YAKU_MOTO[old] : old;
+          delete YAKU_MOTO[old];
+          YAKU_MOTO[nv] = moto;
+        } else {
+          // ★日付が 在る＝その 日から の 記録を その場で 書く★（列は 変えない・何日から 10-18）
+          if (hiHiGawariTomeru()) return;
+          var yh = yakuHi(old);
+          if (yh) return saveYakuRireki(old, f, i.value, yh);
+          cur[f] = num(i.value);
+          st2.roles[old] = cur;
+          stageRoles(st2.roles);
+          return renderRoles();
+        }
+        stageRoles(st2.roles);
+        renderSet();
+      };
+    });
+  }
+
+  // ── 車の名前と並び (2026-08-05) ─────────────────
+  //   司さん「売上1,2.3とかもここで並べ変えや名前を決めれるようにしたら楽」
+  //   ★保存はその場★（役割の決まりと違い「保存」ボタンを押させない）
+  function renderCars() {
+    var devs = (CTX && CTX.devices) || [];
+    var rows = (RAW && RAW.labels) || [];
+    var byId = {};
+    rows.forEach(function (l) {
+      if (l && l.device_id) byId[l.device_id] = l;
+    });
+    var names = window.CarName ? window.CarName.nameMap(devs, rows) : {};
+    var sorted = window.CarName ? window.CarName.sortIds(devs, rows) : devs.slice();
+
+    var html = sorted
+      .map(function (d) {
+        var cur = byId[d] || {};
+        return (
+          '<tr><td data-l="今の呼び方">' +
+          esc(names[d] || '車') +
+          '</td>' +
+          '<td data-l="名前"><input class="txt" data-car="' +
+          esc(d) +
+          '" data-f="label" placeholder="' +
+          esc(names[d] || '') +
+          '" value="' +
+          esc(cur.label || '') +
+          '"></td>' +
+          '<td data-l="並び"><input class="hrs" data-car="' +
+          esc(d) +
+          '" data-f="sort_order" inputmode="numeric" value="' +
+          (cur.sort_order === null || cur.sort_order === undefined ? '' : cur.sort_order) +
+          '"></td>' +
+          // ★1台ずつ 明細に出す/出さない (2026-08-25)★ 決めていなければ出す（今までどおり）
+          '<td data-l="明細に出す"><input type="checkbox" style="width:17px;height:17px" data-car="' +
+          esc(d) +
+          '" data-f="show_in_slip"' +
+          // ★出す/出さないの判定は carShowsInSlip 1か所★
+          //   ここで もう一度 決めると 設定の画面と 明細が 食い違う。
+          (carShowsInSlip(d) ? ' checked' : '') +
+          '></td></tr>'
+        );
+      })
+      .join('');
+    if (!sorted.length) {
+      html = '<tr><td colspan="3" class="empty">まだ車がありません。</td></tr>';
+    }
+    $('carBody').innerHTML = html;
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-car]'), function (i) {
+      i.onchange = function () {
+        var f = i.getAttribute('data-f');
+        var v;
+        if (i.type === 'checkbox') {
+          // ★チェックは value ではなく checked★（value を読むと いつも "on" になる）
+          v = i.checked;
+        } else if (f === 'sort_order') {
+          v = String(i.value).trim() === '' ? null : num(i.value); // ★空欄なら今までどおり★
+        } else {
+          v = String(i.value).trim();
+        }
+        saveCar(i.getAttribute('data-car'), f, v);
+      };
+    });
+  }
+
+  function saveCar(deviceId, field, value) {
+    if (!COMPANY) return Promise.resolve(false);
+    var body = {
+      company_id: COMPANY.company_id,
+      device_id: deviceId,
+      updated_at: new Date().toISOString(),
+    };
+    body[field] = value;
+    // 返り値＝書けたか（true/false）。新しい 車を 足す 時は 書けてから その日の 行を 足す
+    return DKSession.rest(SESS, 'dk_device_labels?on_conflict=company_id,device_id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) {
+        if (!r.ok) {
+          saveErr('車の名前を保存できませんでした。', r);
+          return false;
+        }
+        showErr('');
+        // 手元の控えも合わせる（画面のあちこちで同じ名前になるように）
+        var hit = null;
+        RAW.labels.forEach(function (l) {
+          if (l && l.device_id === deviceId) hit = l;
+        });
+        if (!hit) {
+          hit = { company_id: COMPANY.company_id, device_id: deviceId };
+          RAW.labels.push(hit);
+        }
+        hit[field] = value;
+        // 名前は 書けた＝true を 返す。描き直しが 転んだら 黙らず 赤字で 知らせる（対立役：console だけだと
+        //   給料の 計算が 古い まま 何も 出なかった）
+        try {
+          recalc();
+          renderCars();
+          flash('carSaved', '保存しました');
+        } catch (e) {
+          // eslint-disable-next-line no-console -- 2026-11-07 html から 出した 前からの 行（中身は 変えない・件2 で 直す）
+          if (window.console) console.warn('[saveCar] 描き直し', e);
+          showErr(
+            '車の名前は保存しましたが、画面の計算で問題が出ました。画面を読み込み直してください。'
+          );
+        }
+        return true;
+      })
+      .catch(function () {
+        showErr('車の名前を保存できませんでした。');
+        return false;
+      });
+  }
+
+  // ★★ほかの 払い方の 欄を 描く／読む★★ 2026-10-06
+  //   読む 形＝js/daiko-payroll.js normExtra の 形（倉庫の pay_extra）。空の 欄は 使わない
+  function hokaKaku(st) {
+    var ex = st.extra || {};
+    var re = ex.roles || {};
+    var h = '';
+    Object.keys(st.roles).forEach(function (r) {
+      var x = re[r] || {};
+      var dk = x.dankai || [];
+      var a = function (k, v, w) {
+        return (
+          '<input class="yen" data-hr="' +
+          esc(r) +
+          '" data-hk="' +
+          k +
+          '" value="' +
+          (v ? v : '') +
+          '" style="width:' +
+          (w || 90) +
+          'px" inputmode="decimal">'
+        );
+      };
+      var dan = '';
+      for (var i = 0; i < 3; i++) {
+        var t = dk[i] || {};
+        dan +=
+          '<div class="hoka-gyou">売上 ' +
+          a('d' + i + 'i', t.ijou) +
+          ' 円 以上で 歩合 ' +
+          a('d' + i + 'r', t.rate ? Math.round(t.rate * 1000) / 10 : '', 60) +
+          ' ％</div>';
+      }
+      var mode = ['kawari:歩合の 代わり', 'tasu:歩合に 足す', 'takai:歩合と 高い方']
+        .map(function (o) {
+          var p = o.split(':');
+          return (
+            '<option value="' +
+            p[0] +
+            '"' +
+            (x.nikkyuMode === p[0] ? ' selected' : '') +
+            '>' +
+            p[1] +
+            '</option>'
+          );
+        })
+        .join('');
+      h +=
+        '<div class="hoka-yaku"><div class="hoka-na">' +
+        esc(r) +
+        '</div>' +
+        '<div class="hoka-gyou">日給 ' +
+        a('nikkyu', x.nikkyu) +
+        ' 円 <select data-hr="' +
+        esc(r) +
+        '" data-hk="nikkyuMode">' +
+        mode +
+        '</select> <label><input type="checkbox" data-hr="' +
+        esc(r) +
+        '" data-hk="nikkyuHoshou"' +
+        (x.nikkyuHoshou === false ? '' : ' checked') +
+        '> 最低保証も 効かせる</label></div>' +
+        dan +
+        '</div>';
+    });
+    var wh = ex.wariHi || {};
+    var hi = Object.keys(wh).sort();
+    var wr = '';
+    for (var j = 0; j < Math.max(3, hi.length + 1); j++) {
+      var d = hi[j] || '';
+      var o = wh[d] || {};
+      wr +=
+        '<div class="hoka-gyou"><input type="date" data-hw="' +
+        j +
+        '" data-hk="hi" value="' +
+        d +
+        '"> × <input class="yen" data-hw="' +
+        j +
+        '" data-hk="mult" value="' +
+        (o.mult || '') +
+        '" style="width:60px" inputmode="decimal"> <input class="txt" data-hw="' +
+        j +
+        '" data-hk="label" value="' +
+        esc(o.label || '') +
+        '" placeholder="名前（大晦日 など）" style="width:150px"></div>';
+    }
+    h +=
+      '<div class="hoka-yaku"><div class="hoka-na">会社 全体</div>' +
+      // ★回数・距離は 1台 として★（司さん 10-06「回数距離は1台としてやろが」）
+      '<div class="hoka-gyou">1回 いくら（1台 あたり） <input class="yen" data-hk="kaisu" value="' +
+      (ex.kaisu || '') +
+      '" style="width:90px" inputmode="decimal"> 円</div>' +
+      '<div class="hoka-gyou">1km いくら（1台 あたり） <input class="yen" data-hk="kyori" value="' +
+      (ex.kyori || '') +
+      '" style="width:70px" inputmode="decimal"> 円</div>' +
+      '<div class="hoka-gyou">1台の 額の 分け方 <select data-hk="bunpai"><option value="ritsu"' +
+      (ex.bunpai === 'touwari' ? '' : ' selected') +
+      '>役の 歩合の 比で 分ける</option><option value="touwari"' +
+      (ex.bunpai === 'touwari' ? ' selected' : '') +
+      '>乗った 人数で 等分</option></select></div>' +
+      '<div class="hoka-gyou">1km の 距離は <select data-hk="kyoriShu"><option value="jissha"' +
+      (ex.kyoriShu === 'sou' ? '' : ' selected') +
+      '>客を 乗せた 距離</option><option value="sou"' +
+      (ex.kyoriShu === 'sou' ? ' selected' : '') +
+      '>全部の 距離</option></select></div>' +
+      '<div class="hoka-gyou"><label><input type="checkbox" data-hk="kasanAto"' +
+      (ex.kasanAto ? ' checked' : '') +
+      '> 1回・1km の 分は 最低保証と 比べた 後で 足す</label></div>' +
+      '<div class="hoka-na2">指定日の 割増（倍率）</div>' +
+      wr +
+      '<div class="hoka-gyou">掛け方 <select data-hk="wariMode"><option value="buai"' +
+      (ex.wariMode === 'zentai' ? '' : ' selected') +
+      '>歩合だけに 掛ける</option><option value="zentai"' +
+      (ex.wariMode === 'zentai' ? ' selected' : '') +
+      '>その日の 給料 全体に 掛ける</option></select></div>' +
+      // ★★夜の 割増★★ 2026-10-06（車の 打刻から 夜の 時間の 割合を 出して 掛ける・手で 入れた 日は 付かない）
+      '<div class="hoka-na2">夜の 割増</div>' +
+      '<div class="hoka-gyou">時間帯 <input type="time" data-hk="yKara" value="' +
+      hmOf(ex.yakan && ex.yakan.kara, '22:00') +
+      '"> 〜 <input type="time" data-hk="yMade" value="' +
+      hmOf(ex.yakan && ex.yakan.made, '05:00') +
+      '"> × <input class="yen" data-hk="yMult" value="' +
+      ((ex.yakan && ex.yakan.mult) || '') +
+      // 空の 時は 割増 無し（計算は 1 より 大きい 時だけ）＝例と 分かる 字に する 2026-10-19（自動の 数を 濃く した 時の 対立役 指摘）
+      '" style="width:72px" inputmode="decimal" placeholder="例 1.25"></div>' +
+      '<div class="hoka-gyou">掛け方 <select data-hk="yMode"><option value="buai"' +
+      (ex.yakan && ex.yakan.mode === 'zentai' ? '' : ' selected') +
+      '>歩合だけに 掛ける</option><option value="zentai"' +
+      (ex.yakan && ex.yakan.mode === 'zentai' ? ' selected' : '') +
+      '>その日の 給料 全体に 掛ける</option></select></div>' +
+      '<div class="hoka-gyou">指定日と 重なる 日は <select data-hk="kasane"><option value="kakeru"' +
+      (ex.kasane === 'tasu' ? '' : ' selected') +
+      '>掛け合わせる</option><option value="tasu"' +
+      (ex.kasane === 'tasu' ? ' selected' : '') +
+      '>足す</option></select></div>' +
+      '<div class="hoka-chui">車の 打刻（始まり〜終わり）の うち 時間帯に 入る 割合で 掛けます。手で 入れた 日は 時刻が 無いので 付きません。</div>' +
+      '</div>' +
+      '<div class="hoka-chui">空の 所は 使いません（今の 給料の まま）。決めたら 下の「保存する」。</div>';
+    $('hokaBody').innerHTML = h;
+    Array.prototype.forEach.call(
+      document.querySelectorAll('#hokaBody input, #hokaBody select'),
+      function (el) {
+        el.onchange = function () {
+          SET = SET || {};
+          SET.pay_extra = hokaYomu();
+          RAW.payrollSettings = SET;
+          recalc();
+        };
+      }
+    );
+  }
+  // ★分の 数（0時から）→「HH:MM」★（夜の 時間帯の 欄に 戻す 為）
+  function hmOf(v, dflt) {
+    if (typeof v !== 'number' || !(v >= 0)) return dflt;
+    var h = Math.floor(v / 60) % 24;
+    var m = v % 60;
+    return ('0' + h).slice(-2) + ':' + ('0' + m).slice(-2);
+  }
+  function hokaYomu() {
+    var body = document.getElementById('hokaBody');
+    if (!body || !body.querySelector('[data-hk]')) return (SET && SET.pay_extra) || null;
+    var out = { roles: {}, wariHi: {} };
+    var v = function (el) {
+      return el ? num(el.value) : 0;
+    };
+    var hr = {};
+    Array.prototype.forEach.call(body.querySelectorAll('[data-hr]'), function (el) {
+      var r = el.getAttribute('data-hr');
+      if (!hr[r]) hr[r] = {};
+      hr[r][el.getAttribute('data-hk')] = el;
+    });
+    Object.keys(hr).forEach(function (r) {
+      var b = hr[r];
+      var dk = [];
+      for (var i = 0; i < 3; i++) {
+        var ij = v(b['d' + i + 'i']);
+        var rt = v(b['d' + i + 'r']) / 100;
+        if (ij > 0 && rt > 0) dk.push({ ijou: ij, rate: rt });
+      }
+      var x = {
+        nikkyu: v(b.nikkyu),
+        nikkyuMode: (b.nikkyuMode || {}).value || 'kawari',
+        nikkyuHoshou: !!(b.nikkyuHoshou || {}).checked,
+        dankai: dk,
+      };
+      if (x.nikkyu || dk.length) out.roles[r] = x;
+    });
+    var hw = {};
+    Array.prototype.forEach.call(body.querySelectorAll('[data-hw]'), function (el) {
+      var j = el.getAttribute('data-hw');
+      if (!hw[j]) hw[j] = {};
+      hw[j][el.getAttribute('data-hk')] = el;
+    });
+    Object.keys(hw).forEach(function (j) {
+      var w = hw[j];
+      var m = v(w.mult);
+      if (w.hi && w.hi.value && m > 0) {
+        out.wariHi[w.hi.value] = { mult: m, label: (w.label || {}).value || '' };
+      }
+    });
+    var g = function (k) {
+      return body.querySelector('[data-hk="' + k + '"]:not([data-hr]):not([data-hw])');
+    };
+    out.kaisu = v(g('kaisu'));
+    out.kyori = v(g('kyori'));
+    out.bunpai = (g('bunpai') || {}).value || 'ritsu';
+    out.kyoriShu = (g('kyoriShu') || {}).value || 'jissha';
+    out.kasanAto = !!(g('kasanAto') || {}).checked;
+    out.wariMode = (g('wariMode') || {}).value || 'buai';
+    out.kasane = (g('kasane') || {}).value || 'kakeru';
+    var ym = v(g('yMult'));
+    out.yakan =
+      ym > 1
+        ? {
+            kara: (g('yKara') || {}).value || '22:00',
+            made: (g('yMade') || {}).value || '05:00',
+            mult: ym,
+            mode: (g('yMode') || {}).value || 'buai',
+          }
+        : null;
+    return out;
+  }
+
+  // ★★役割の 名前の 直しの 控え★★ 2026-10-17
+  //   前は 名前を 直すと 決まりの 鍵だけ 変わり、人の 役割（辞めた 人も）は 古い 名前の まま＝
+  //   歩合0・保証0で 計算されていた。保存の 時に 倉庫の 関数 dk_yaku_namae_naoshi が
+  //   決まり・日給/段階歩合・人の 役割を 1つの 取引で 一緒に 直す。
+  //   YAKU_MOTO＝{ 今の 名前: 読み込んだ 時の 名前 }（A→B→C や 入れ替えも 読み込んだ 名前から 数える）
+  var YAKU_MOTO = {};
+  var YAKU_YOMI = []; // 読み込んだ 時の 役割の 名前
+  function yakuMotoKesu() {
+    YAKU_MOTO = {};
+    // 設定の 行が まだ 無い 会社も 画面は 既定の 役割を 出している＝その 名前を 直したら 人も 直す（対立役 S2）
+    YAKU_YOMI =
+      SET && SET.yomenai ? [] : Object.keys(PayrollDaily.normSettings(SET, RAW.shimeRireki).roles);
+  }
+  // その 役割の 人（辞めた 人も）の 名前。人の 役割は 保存までは 読み込んだ 時の 名前の まま
+  function yakuNoHito(r) {
+    var moto = Object.prototype.hasOwnProperty.call(YAKU_MOTO, r) ? YAKU_MOTO[r] : r;
+    return (RAW.employees || [])
+      .filter(function (e) {
+        if (!Array.isArray(RAW.rireki)) return true; // ★記録を 読めない 時は 全員を「使う 人」に 数える＝消させない★
+        // ★変えた 記録で その 役割に なる 人も★（何日から・10-18＝記録だけで 使う 役割を 消すと その 日から 止まる）
+        return (
+          e &&
+          ((e.role || '') === moto ||
+            (RAW.rireki || []).some(function (x) {
+              return x && x.employee_id === e.employee_id && x.key === 'role' && x.value === moto;
+            }))
+        );
+      })
+      .map(function (e) {
+        return (e.name || '名前の 無い 人') + (e.active === false ? '（退職）' : '');
+      });
+  }
+  // 倉庫へ 送る { 読み込んだ 時の 名前: 今の 名前 }（この 画面で 足した 役割は 倉庫に 無いので 入れない）
+  function yakuMap() {
+    var m = {};
+    Object.keys(YAKU_MOTO).forEach(function (ima) {
+      var moto = YAKU_MOTO[ima];
+      if (moto !== ima && YAKU_YOMI.indexOf(moto) >= 0) m[moto] = ima;
+    });
+    return m;
+  }
+  // ★倉庫の 時刻を ミリ秒に★（'2026-08-06 14:59:12.00606+00' と ISO の 'Z' を 同じ 数に 読む・空は null）
+  //   読めない 字は 字の まま 返す（数に ならない 物どうしを 同じと 見ない＝NaN !== NaN で 毎回 止まらない 様に）
+  function tokiMs(v) {
+    if (v === null || v === undefined || v === '') return null;
+    var t = String(v)
+      .replace(' ', 'T')
+      .replace(/([+-]\d\d)$/, '$1:00')
+      .replace(/(\.\d{3})\d+/, '$1');
+    var ms = Date.parse(t);
+    return isNaN(ms) ? String(v) : ms;
+  }
+  var YAKU_NAOSHI_WAKE = {
+    not_yours: '自分の 会社では ありません',
+    exists: '直さない 役割と 同じ 名前に なります',
+    dup: '同じ 名前が 2つ に なります',
+    not_found:
+      '直す 前の 役割が 見つかりません（他の 画面で 変わった かも しれません。開き直してください）',
+    blank: '名前が 空です',
+    empty: '直す 物が ありません',
+    no_roles: '役割の 決まりが 読めません',
+    kiroku_nokori:
+      'その 名前の 役割の 変えた 記録が 残っています。「給料の 設定」の 残った 記録を 消してから 直してください',
+  };
+
+  // ★★役割の 決まり（歩合・最低保証）の「何日から」★★ 2026-10-18（docs/nannichi-kara-yaku.md）
+  //   記録は dk_yaku_rireki（roles の 中に 置かない＝古い 版の 画面が 保存しても 消えない）
+  //   ★日付が 在る 直し＝その場で 記録を 書く（列は 変えない）／日付が 空＝列を 直して「保存する」★
+  var YAKU_HI = {}; // 役割 → 選んだ 日（既定は 今日の 日本時間・空＝最初から）
+  var YAKU_RIREKI_HIRAKU = {};
+  var YAKU_RIREKI_NA = { rate: '歩合', floor: '最低保証' };
+  function yakuHi(r) {
+    hiHiGawari();
+    if (Object.prototype.hasOwnProperty.call(YAKU_HI, r)) return YAKU_HI[r];
+    var o = hiOboeHiku('yaku', r); // ★その 日の うちに 選んだ 日★（2026-10-25）
+    YAKU_HI[r] = o !== null ? o : kyouJst(); // ★この 窓で 最初に 描いた 日に 固定★（empHi と 同じ・対立役 S1）
+    return YAKU_HI[r];
+  }
+  // 倉庫の 名前（保存 前に 名前を 直した 役割は 読み込んだ 時の 名前）
+  function yakuMotoNo(r) {
+    return Object.prototype.hasOwnProperty.call(YAKU_MOTO, r) ? YAKU_MOTO[r] : r;
+  }
+  // ★計算に 渡す 記録★（保存 前に 名前を 直した 役割の 記録は 今の 名前で＝倉庫の 関数が 保存で する 事と 同じ）
+  //   付け替えないと 名前を 直した 途端に「決まりに 無い 役割の 記録」で 止まり、消せと 出る（対立役 3回目 直1）
+  function yakuRirekiNoIma() {
+    if (!Array.isArray(RAW.yakuRireki)) return RAW.yakuRireki;
+    var ima = {};
+    Object.keys(YAKU_MOTO).forEach(function (k) {
+      if (YAKU_MOTO[k] !== k) ima[YAKU_MOTO[k]] = k;
+    });
+    if (!Object.keys(ima).length) return RAW.yakuRireki;
+    return RAW.yakuRireki.map(function (x) {
+      return x && Object.prototype.hasOwnProperty.call(ima, x.yaku)
+        ? Object.assign({}, x, { yaku: ima[x.yaku] })
+        : x;
+    });
+  }
+  function yakuRirekiNo(r) {
+    return (RAW.yakuRireki || []).filter(function (x) {
+      return x && x.yaku === r;
+    });
+  }
+  // 選んだ 日に 効く 決まり（計算と 同じ 引き方）。空＝最初から＝列の 値（null を 返す）
+  function yakuNoHiAtai(r, hi) {
+    if (!hi || !Array.isArray(RAW.yakuRireki)) return null;
+    try {
+      var mine = yakuRirekiNo(yakuMotoNo(r)).map(function (x) {
+        return Object.assign({}, x, { yaku: r });
+      });
+      var c = PayrollDaily.buildCtx({ payrollSettings: SET, yakuRireki: mine });
+      if (c.yakuDame.length) return null;
+      var st = PayrollDaily.settingsOn(c, hi);
+      return (st && st.roles && st.roles[r]) || null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function yakuHiNoChui(r) {
+    var h = '';
+    var ex = (SET && SET.pay_extra && SET.pay_extra.roles && SET.pay_extra.roles[r]) || null;
+    if (ex && Array.isArray(ex.dankai) && ex.dankai.length)
+      h += '<div class="th-sub">段階歩合が 在る 日は 段階の 率が 勝ちます</div>';
+    if (yakuHi(r)) return h;
+    var l = yakuRirekiNo(r)
+      .map(function (x) {
+        return x.from_date;
+      })
+      .sort();
+    if (!l.length) return h;
+    return (
+      h + '<div class="th-sub">空（最初から）＝' + esc(l[0]) + ' より 前の 日だけに 効きます</div>'
+    );
+  }
+  // 決まり（今 画面に 在る 役割の 読み込んだ 時の 名前）に 無い 役割の 記録
+  function yakuNokoriNo(st) {
+    var aru = {};
+    Object.keys(st.roles).forEach(function (r) {
+      aru[yakuMotoNo(r)] = true;
+    });
+    var out = [];
+    (RAW.yakuRireki || []).forEach(function (x) {
+      if (x && !aru[x.yaku] && out.indexOf(x.yaku) < 0) out.push(x.yaku);
+    });
+    return out;
+  }
+  function yakuRirekiNoGyou(r, retsu) {
+    var l = yakuRirekiNo(r)
+      .slice()
+      .sort(function (a, b) {
+        return a.from_date < b.from_date ? -1 : a.from_date > b.from_date ? 1 : 0;
+      });
+    var h =
+      '<tr class="rireki-tr"><td colspan="5"><div class="rireki-waku"><b>' +
+      esc(r) +
+      (retsu
+        ? ' の 変えた 記録</b>（その 日から 次の 記録の 日まで 効く。一番 古い 記録より 前は 最初からの 値＝歩合 ' +
+          esc(retsu.rate) +
+          '・最低保証 ' +
+          esc(retsu.floor) +
+          '）'
+        : ' の 変えた 記録</b><div class="rolewarn">この 役割は 決まりに ありません。記録が 残っていると 給料は 止まります。消してください。</div>');
+    if (!Array.isArray(RAW.yakuRireki))
+      return (
+        h +
+        '<div class="rolewarn">記録を 読めませんでした。開き直してください。</div></div></td></tr>'
+      );
+    if (!l.length) h += '<div class="th-sub">まだ 記録は ありません。</div>';
+    l.forEach(function (x) {
+      h +=
+        '<div class="rireki-r"><input type="date" data-yk-hi="' +
+        esc(x.rireki_id) +
+        '" value="' +
+        esc(String(x.from_date).slice(0, 10)) +
+        '"> から ' +
+        esc(YAKU_RIREKI_NA[x.key] || x.key) +
+        ' <input class="txt" data-yk-v="' +
+        esc(x.rireki_id) +
+        '" value="' +
+        esc(x.value) +
+        '"> <button class="btn ghost" type="button" data-yk-del="' +
+        esc(x.rireki_id) +
+        '">消す</button></div>';
+    });
+    return h + '</div></td></tr>';
+  }
+  function yakuRirekiYomiNaoshi() {
+    var y = { tried: 0, failed: 0 };
+    return DKSession.softList(
+      SESS,
+      kaishaDake('dk_yaku_rireki?select=*&order=from_date.asc&limit=100000'),
+      y
+    ).then(function (rows) {
+      RAW.yakuRireki = y.failed > 0 ? null : rows || [];
+      recalc();
+      renderRoles();
+    });
+  }
+  function yakuRirekiErr(msg, x) {
+    if (x && x.r && x.r.status === 409)
+      return showErr(
+        'その 役割の 同じ 欄に 同じ 日の 記録が もう 在ります。そちらを 直すか 消してください。'
+      );
+    if (x && x.zero) return showErr(msg + '（書けた 行が ありません。開き直してください）');
+    return saveErr(msg, x && x.r);
+  }
+  function yakuRirekiOwari(msg, flashMsg) {
+    return function (x) {
+      if (!x.ok) {
+        yakuRirekiErr(msg, x);
+        return yakuRirekiYomiNaoshi();
+      }
+      showErr('');
+      return yakuRirekiYomiNaoshi().then(function () {
+        if (!flashMsg) return;
+        var el = Array.prototype.filter.call(
+          document.querySelectorAll('[data-yk-saved]'),
+          function (e) {
+            return e.getAttribute('data-yk-saved') === x.yaku;
+          }
+        )[0];
+        if (el) {
+          el.textContent = flashMsg;
+          setTimeout(function () {
+            el.textContent = '';
+          }, 2500);
+        } else flash('setSaved', flashMsg);
+      });
+    };
+  }
+  // 値の 字（数に 直せない・空は 書かない）
+  function yakuRirekiAtai(v) {
+    var t = String(v == null ? '' : v).trim();
+    if (t === '' || !isFinite(Number(t)) || Number(t) < 0) return null;
+    return Number(t);
+  }
+  // 選んだ 日から この 値（同じ 役割・欄・日の 記録が 在れば 直す・無ければ 足す）
+  function saveYakuRireki(r, key, v, hi) {
+    var modosu = function (m) {
+      showErr(m);
+      renderRoles();
+    };
+    if (!COMPANY) return;
+    if (!Array.isArray(RAW.yakuRireki))
+      return modosu('役割の 変えた 記録を 読めていないので 保存しません。開き直してください。');
+    // ★まだ 倉庫に 無い 役割（足したばかり・名前を 直した 後）は 書かせない★
+    if (!SET || SET.yomenai || !SET.company_id || YAKU_YOMI.indexOf(r) < 0 || yakuMotoNo(r) !== r)
+      return modosu(
+        '「' +
+          r +
+          '」は まだ 保存していない 役割です。先に「保存する」を 押してから 日付を 入れて 直してください。'
+      );
+    var atai = yakuRirekiAtai(v);
+    if (atai === null) return modosu('半角の 数を 入れてください（0 以上）。何も 書いていません。');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(hi)) return modosu('日付を 入れてください。');
+    var aru = yakuRirekiNo(r).filter(function (x) {
+      return x.key === key && String(x.from_date).slice(0, 10) === hi;
+    })[0];
+    var p = aru
+      ? rirekiKaku('dk_yaku_rireki?rireki_id=eq.' + encodeURIComponent(aru.rireki_id), 'PATCH', {
+          value: atai,
+        })
+      : rirekiKaku('dk_yaku_rireki', 'POST', {
+          company_id: COMPANY.company_id,
+          yaku: r,
+          key: key,
+          from_date: hi,
+          value: atai,
+        });
+    return p
+      .then(function (x) {
+        x.yaku = r;
+        return yakuRirekiOwari('保存できませんでした。', hi + ' から 保存しました')(x);
+      })
+      .catch(function () {
+        modosu('保存できませんでした。');
+      });
+  }
+  function yakuRirekiNoBotan() {
+    var q = function (sel, fn) {
+      Array.prototype.forEach.call(document.querySelectorAll(sel), fn);
+    };
+    q('[data-yh]', function (i) {
+      i.onchange = function () {
+        hiHiGawari();
+        YAKU_HI[i.getAttribute('data-yh')] = i.value || '';
+        hiOboeKaku('yaku', i.getAttribute('data-yh'), i.value || '');
+        renderRoles();
+      };
+    });
+    q('[data-yrk]', function (b) {
+      b.onclick = function () {
+        var r = b.getAttribute('data-yrk');
+        YAKU_RIREKI_HIRAKU[r] = !YAKU_RIREKI_HIRAKU[r];
+        renderRoles();
+      };
+    });
+    q('[data-yk-hi]', function (i) {
+      i.onchange = function () {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(i.value)) return showErr('日付を 入れてください。');
+        rirekiKaku(
+          'dk_yaku_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-yk-hi')),
+          'PATCH',
+          { from_date: i.value }
+        )
+          .then(yakuRirekiOwari('日付を 直せませんでした。', '日付を 直しました'))
+          .catch(function () {
+            showErr('日付を 直せませんでした。');
+          });
+      };
+    });
+    q('[data-yk-v]', function (i) {
+      i.onchange = function () {
+        var atai = yakuRirekiAtai(i.value);
+        if (atai === null) return showErr('数を 入れてください（空に する 時は「消す」）。');
+        rirekiKaku(
+          'dk_yaku_rireki?rireki_id=eq.' + encodeURIComponent(i.getAttribute('data-yk-v')),
+          'PATCH',
+          { value: atai }
+        )
+          .then(yakuRirekiOwari('値を 直せませんでした。', '値を 直しました'))
+          .catch(function () {
+            showErr('値を 直せませんでした。');
+          });
+      };
+    });
+    q('[data-yk-del]', function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        rirekiKaku(
+          'dk_yaku_rireki?rireki_id=eq.' + encodeURIComponent(b.getAttribute('data-yk-del')),
+          'DELETE'
+        )
+          .then(yakuRirekiOwari('記録を 消せませんでした。', '記録を 消しました'))
+          .catch(function () {
+            b.disabled = false;
+            showErr('記録を 消せませんでした。');
+          });
+      };
+    });
+  }
+
+  function stageRoles(roles) {
+    SET = SET || {};
+    SET.roles = roles;
+    RAW.payrollSettings = SET;
+    recalc();
+  }
+
+  $('btnAddRole').onclick = function () {
+    // ★変えた 記録を 読めない 時は 足させない★（残った 記録と 同じ 名前を 作れる・対立役 3回目 直3）
+    if (!Array.isArray(RAW.yakuRireki))
+      return showErr('役割の 変えた 記録を 読めていないので 足せません。開き直してください。');
+    var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    var i = 1;
+    while (
+      st.roles['役割' + i] ||
+      (RAW.yakuRireki || []).some(function (x) {
+        return x && x.yaku === '役割' + i;
+      })
+    )
+      i++;
+    st.roles['役割' + i] = { rate: 0.3, floor: 1000 };
+    stageRoles(st.roles);
+    renderSet();
+  };
+
+  // ★下に 貼り付けた「保存する」は ★元の ボタンを 押すだけ★★ 2026-09-04
+  //   ★保存の 決まりを 2か所に 書かない★（片方だけ 直って 食い違うのを 防ぐ）
+  (function () {
+    var b2 = document.getElementById('btnSaveSet2');
+    if (!b2) return;
+    b2.onclick = function () {
+      var b = document.getElementById('btnSaveSet');
+      if (b && b.onclick) b.onclick();
+    };
+  })();
+
+  // 空（最初から）で 払い方を 変える 保存の 1回目に 止めた 形（同じ 形で もう 一度 押すと 保存）
+  var KARA_KAKUNIN = null;
+  // 欄の 形が 今の 最初からの 形（列）と 同じか（同じなら 過去の 月は 変わらない）
+  function karaOnaji(rawKata) {
+    // ★今の 最初からの 形は 計算と 同じ yomu で 引く★（設定の 行が 無い 会社＝計算は 月3回・shimeRetsuKata は null を 返して
+    //   何も 変えて いないのに 止めた＝対立役 2回目 止A）。読めない（yomenai）は yomu が dame で 返す＝止める 側
+    if (SET && SET.yomenai) return false;
+    var y = PayrollPeriod.yomu(SET);
+    if (!y || !y.ok) return false;
+    var ima = y.kata;
+    var a = PayrollPeriod.seiki(rawKata || { kind: 'tsuki', hi: [10, 20, 0] });
+    // ★列の 月3回は yomu が {kind: thirds} で 返す＝seiki に 通すと 読めない（tplImaKata と 同じ 扱い・対立役 止1）
+    var b = ima.kind === 'thirds' ? { ok: true, kata: ima } : PayrollPeriod.seiki(ima);
+    return !!(a.ok && b.ok && tplOnaji(a.kata, b.kata));
+  }
+  $('btnSaveSet').onclick = function () {
+    if (!COMPANY) return;
+    // ★設定を 読めなかった（通信）時は 保存しない★ 2026-10-07（既定の 値で 本物の 行を 上書きしない・対立役 ②）
+    if (SET && SET.yomenai)
+      return showErr('給料の 設定を 読めていないので 保存しません。もう一度 開いてください。');
+    var st = PayrollDaily.normSettings(SET, RAW.shimeRireki);
+    // ★締めの 変えた 記録を 読めて いない 時は 保存しない★ 2026-10-19（列だけ 直すと 記録との 食い違いが 見えない）
+    if (!Array.isArray(RAW.shimeRireki))
+      return showErr('締めの 変えた 記録を 読めていないので 保存しません。開き直してください。');
+    if (hiHiGawariTomeru()) return;
+    var shHi = shimeHi();
+    if (shHi && !/^\d{4}-\d{2}-\d{2}$/.test(shHi))
+      return showErr('何日からの 日付を 入れてください。');
+    var shKaku = !!shHi && SHIME_SAWATTA; // ★日付が 在って 欄を 触った 時だけ 記録を 書く★
+    // ★最初からの 形（列）が 読めない 時は 記録を 書いても 止まった まま★＝空で 直して もらう（対立役 2回目 直4）
+    if (shHi && !shimeRetsuKata())
+      return showErr(
+        '最初からの 払い方が 読めないので、何日からの 記録では 直せません。「何日から」を 空にして 払い方を 選び直し、保存してください。'
+      );
+    // ★★締めの 形を 確かめてから 保存★★ 2026-10-07（壊れた 形・何月分 無しは 保存しない）
+    var sk = shimeKataYomu();
+    if (sk.dame) return showErr(sk.dame);
+    if (sk.kata) {
+      var chk = PayrollPeriod.seiki(sk.kata);
+      if (!chk.ok) return showErr('払い方を 保存できません：' + chk.riyuu);
+    }
+    // ★★「何日から」が 空で 払い方が 変わる 時は 1回 止めて 知らせる★★ 2026-10-24（司さん「おけ」）
+    //   空＝最初から＝過去の 月の 区切りも 変わる（記録が 無い 会社は 全部の 月）。前は 何も 言わずに 書き換えた（対立役 B）
+    //   もう 一度「保存する」を 押せば 保存（同じ 払い方の まま の 時だけ・払い方を 変えたら また 止める）
+    if (!shHi && !karaOnaji(sk.kata)) {
+      var kagi = JSON.stringify(sk.kata || 'thirds');
+      if (KARA_KAKUNIN !== kagi) {
+        KARA_KAKUNIN = kagi;
+        var mae =
+          Array.isArray(RAW.shimeRireki) && RAW.shimeRireki.length
+            ? RAW.shimeRireki
+                .map(function (x) {
+                  return String(x.from_date).slice(0, 10);
+                })
+                .sort()[0] + ' より 前の 日'
+            : '今までの 全部の 月';
+        return showErr(
+          '「何日から」が 空です＝' +
+            mae +
+            'の 払い方が 変わります（給料の 区切りも 変わります）。よければ もう一度「保存する」を 押してください。今日から 変える 時は「何日から」に 日付を 入れてください。'
+        );
+      }
+    }
+    KARA_KAKUNIN = null;
+    var body = {
+      company_id: COMPANY.company_id,
+      pool_mode: $('poolMode').value,
+      deduct_reserve_before_rate: $('resFirst').checked,
+      reserve_pool_rate: num($('resPool').value) / 100,
+      reserve_owner_rate: num($('resOwner').value) / 100,
+      // ★昔の 列は 今の 値を そのまま 運ぶ★（月3回 以外は 'shime'＝新しい 版は period_shime を 読む）
+      period_start_day: st.periodStartDay,
+      //   ★日付が 在る 時は 列の 締めを 読んだ 値の まま 運ぶ★（その 日からは 記録・何日から 2026-10-19）
+      period_end_mode: shHi
+        ? (SET && SET.period_end_mode) || 'thirds'
+        : sk.kata
+          ? 'shime'
+          : 'thirds',
+      period_days: st.periodDays,
+      // ★月3回に 戻す 時は null を はっきり 書く★（書かないと 古い 締めが 勝ち続ける・対立役 J）
+      period_shime: shHi ? (SET && SET.period_shime) || null : sk.kata,
+      owner_device_id: $('ownerDev').value || '',
+      show_car_sales: $('showCarSales').checked, // ★車ごとの売上を載せるか★ 2026-08-25
+      roles: st.roles,
+      // ★ほかの 払い方★ 2026-10-06（空なら 使わない）。欄が 無い 時は 今の 値を その まま 運ぶ（消さない）
+      pay_extra: hokaYomu(),
+      updated_at: new Date().toISOString(),
+    };
+    // ★保存中は 押せない★ 2026-10-17（二度 押すと 2回目の 名前の 直しが「見つからない」で 赤く 出た・対立役）
+    var hozonBtn = [$('btnSaveSet'), document.getElementById('btnSaveSet2')].filter(Boolean);
+    if (
+      hozonBtn.some(function (b) {
+        return b.disabled;
+      })
+    )
+      return;
+    hozonBtn.forEach(function (b) {
+      b.disabled = true;
+    });
+    var hozonOwari = function () {
+      hozonBtn.forEach(function (b) {
+        b.disabled = false;
+      });
+    };
+    // ★役割の 名前を 直した 時は 先に 倉庫で 決まり・日給/段階歩合・人の 役割を 一緒に 直す★ 2026-10-17
+    //   （1つの 取引。ここで 断られたら 設定も 保存しない＝名前だけ 変わって 人が 取り残されない）
+    var yMap = yakuMap();
+    // ★★保存の 前に「他の 画面で 設定が 変わって いないか」を 倉庫で 確かめる★★ 2026-10-17（対立役 S1）
+    //   この 保存は 決まり（roles）を 丸ごと 上書きする。開いた 後に 別の 画面が 役割の 名前を 直していたら、
+    //   古い 名前に 戻し、人だけ 新しい 名前で 取り残す（歩合0・保証0）。変わって いたら 止めて 開き直して もらう
+    var kawariMae = DKSession.rest(
+      SESS,
+      kaishaDake('dk_payroll_settings?select=updated_at&limit=1')
+    )
+      .then(function (r) {
+        if (r && (r.status === 401 || r.status === 403))
+          throw new Error('ログインが 切れました。ログインし直してから 保存してください。');
+        if (!r || !r.ok) throw new Error('yomenai');
+        return r.json();
+      })
+      .then(function (rows) {
+        if (!Array.isArray(rows)) throw new Error('yomenai');
+        var mae = tokiMs(SET && SET.updated_at);
+        var ima = tokiMs(rows[0] && rows[0].updated_at);
+        if (mae !== ima)
+          throw new Error(
+            '給料の 設定が 他の 画面で 変わりました。上書き しない 様に 止めました。画面を 開き直してから もう一度 直してください。'
+          );
+      })
+      .catch(function (e) {
+        throw new Error(
+          e && e.message && e.message !== 'yomenai'
+            ? e.message
+            : '給料の 設定を 確かめられませんでした（通信）。保存していません。もう一度 押してください。'
+        );
+      });
+    // ★月が 空く 締めの 変え方は 保存しない★（設定も 書かない・2026-10-19 月が 空く 件）
+    kawariMae = kawariMae
+      .then(function () {
+        return shimeAkiMon(shHi, shKaku, sk.kata);
+      })
+      .then(function (aki) {
+        if (aki) throw new Error(aki);
+      });
+    var yakuMae = function () {
+      if (!Object.keys(yMap).length) return Promise.resolve(null);
+      // ★変えた 記録を 読めていない 時は 直さない★（記録の 役割の 名前を 一緒に 直せない・10-18）
+      if (!Array.isArray(RAW.rireki) || !Array.isArray(RAW.yakuRireki))
+        return Promise.reject(
+          new Error(
+            '変えた 記録を 読めていないので 役割の 名前を 直せません。開き直してください。設定も 保存していません。'
+          )
+        );
+      return DKSession.rest(SESS, 'rpc/dk_yaku_namae_naoshi', {
+        method: 'POST',
+        body: JSON.stringify({ p_company_id: COMPANY.company_id, p_map: yMap }),
+      }).then(function (r) {
+        return r
+          .json()
+          .catch(function () {
+            return null;
+          })
+          .then(function (j) {
+            if (!r.ok || !j || j.ok !== true) {
+              var w =
+                (j && YAKU_NAOSHI_WAKE[j.reason]) ||
+                (r.status === 401 || r.status === 403
+                  ? 'ログインが 切れました。ログインし直してください'
+                  : r.status === 404
+                    ? '倉庫に 名前を 直す 仕組みが まだ ありません'
+                    : '倉庫に 届きませんでした');
+              throw new Error(
+                '役割の 名前を 直せませんでした（' + w + '）。設定も 保存していません。'
+              );
+            }
+            // 倉庫は もう 直った＝控えを 今の 名前から 始め直し、手元の 人の 役割も 揃える
+            (RAW.employees || []).forEach(function (e) {
+              if (e && Object.prototype.hasOwnProperty.call(yMap, e.role || ''))
+                e.role = yMap[e.role];
+            });
+            YAKU_MOTO = {};
+            YAKU_YOMI = Object.keys(st.roles);
+            // 倉庫が 書いた 時刻に 揃える（upsert が 落ちた 後の 次の 保存で 自分を 止めない）
+            if (SET && j.updated_at) SET.updated_at = j.updated_at;
+            // ★役割の 記録の 名前も 直す★（何日から・10-18 対立役 止2）
+            //   ★直しきれなくても 設定の 保存は 続ける★（名前は もう 倉庫で 直った＝同じ 押しの 歩合等を 黙って 捨てない・10-18 対立役 止A）
+            //   落ちた 時も 読み直す（手元に 古い 名前を 残さない）
+            return rirekiNoYakuNaoshi(yMap).then(function (ok) {
+              if (!ok)
+                yakuRirekiChui =
+                  '役割の 名前と 設定は 保存しましたが、変えた 記録の 役割の 名前を 直しきれませんでした。今すぐ 従業員の「記録」で 直してください（直すまで、その 日から 後の 給料は 止まるか、名前を 入れ替えた 時は 前の 役割の 決まりで 出ます）。';
+              // 役割の 決まりの 記録は 倉庫の 関数が 同じ 取引で 直した＝読み直す
+              return Promise.all([rirekiYomiNaoshi(), yakuRirekiYomiNaoshi()]).then(function () {
+                return j;
+              });
+            });
+          });
+      });
+    };
+    var yakuRirekiChui = '';
+    kawariMae
+      .then(yakuMae)
+      .then(
+        function () {
+          return upsert('dk_payroll_settings', 'company_id', body);
+        },
+        function (e) {
+          showErr(e && e.message ? e.message : '役割の 名前を 直せませんでした。');
+          return null;
+        }
+      )
+      .then(function (r) {
+        if (r === null) return;
+        if (!r.ok) return saveErr('給料の設定を保存できませんでした。', r);
+        showErr(yakuRirekiChui);
+        SET = body;
+        RAW.payrollSettings = SET;
+        YAKU_MOTO = {};
+        YAKU_YOMI = Object.keys(st.roles);
+        flash('setSaved', '保存しました');
+        // ★下に 貼り付けた 側にも 同じ 合図を 出す★ 2026-09-04
+        //   （下のボタンから 押した時に ★何も 起きていない様に 見える★のを 防ぐ）
+        if (document.getElementById('setSaved2')) flash('setSaved2', '保存しました');
+        if (!shKaku) {
+          SHIME_SAWATTA = false; // 保存できた＝欄は 倉庫の 形
+          loadPeriod(); // 期間が変わることがあるので読み直す
+          return;
+        }
+        // ★締めの 記録（何日から）は 設定を 保存 できた 後に 書く★
+        return shimeKirokuKaku(shHi, sk.kata)
+          .catch(function () {
+            return '倉庫に 届きませんでした';
+          })
+          .then(function (wake) {
+            if (!wake) SHIME_SAWATTA = false; // 書けた＝読み直しで 欄を 倉庫の 形へ
+            // ★訳は 読み直し（loadPeriod が 字を 消す）の 後に 出す★
+            return shimeRirekiYomiNaoshi(!!wake).then(function () {
+              // ★書く 直前の 比べ直しで 空く 月＝押し直しでは 通らない＝日を 選び直して もらう★（対立役 本番前2 小1）
+              if (wake && wake.aki)
+                showErr(
+                  wake.aki +
+                    '締めの 払い方は 保存していません（他は 保存しました）。変える 日か 何月分の 呼び方を 選び直してください。'
+                );
+              else if (wake)
+                showErr(
+                  '締めの 払い方は 保存できませんでした（' +
+                    wake +
+                    '）。他は 保存しました。もう一度「保存する」を 押してください。'
+                );
+            });
+          });
+      })
+      .catch(function () {
+        showErr('給料の設定を保存できませんでした。');
+      })
+      .then(hozonOwari);
+  };
+})();

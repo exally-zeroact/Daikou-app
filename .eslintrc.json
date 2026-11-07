@@ -1,7 +1,16 @@
 {
-  "env": { "browser": true, "es2021": true, "serviceworker": true },
-  "extends": ["eslint:recommended"],
-  "parserOptions": { "ecmaVersion": 2021, "sourceType": "module" },
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "serviceworker": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
   "globals": {
     "dlog": "readonly",
     "DEBUG": "readonly",
@@ -15,17 +24,41 @@
     "Buffer": "readonly"
   },
   "rules": {
-    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
-    "no-empty": ["error", { "allowEmptyCatch": true }],
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "no-empty": [
+      "error",
+      {
+        "allowEmptyCatch": true
+      }
+    ],
     "no-undef": "error",
-    "no-console": ["error", { "allow": ["error"] }],
+    "no-console": [
+      "error",
+      {
+        "allow": [
+          "error"
+        ]
+      }
+    ],
     "prefer-const": "error",
     "no-var": "error"
   },
   "overrides": [
     {
-      "files": ["tests/**/*.js", "tests/**/*.mjs"],
-      "env": { "node": true },
+      "files": [
+        "tests/**/*.js",
+        "tests/**/*.mjs"
+      ],
+      "env": {
+        "node": true
+      },
       "globals": {
         "describe": "readonly",
         "it": "readonly",
@@ -40,12 +73,41 @@
       }
     },
     {
-      "files": ["scripts/**/*.js", "scripts/**/*.mjs"],
-      "env": { "node": true, "browser": false },
-      "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+      "files": [
+        "scripts/**/*.js",
+        "scripts/**/*.mjs"
+      ],
+      "env": {
+        "node": true,
+        "browser": false
+      },
+      "parserOptions": {
+        "ecmaVersion": 2022,
+        "sourceType": "module"
+      },
       "rules": {
         "no-console": "off",
         "no-undef": "off"
+      }
+    },
+    {
+      "files": [
+        "js/kyuryo.js"
+      ],
+      "parserOptions": {
+        "ecmaVersion": 2021,
+        "sourceType": "script"
+      },
+      "globals": {
+        "DKSession": "readonly",
+        "PayrollPeriod": "readonly",
+        "PayrollDaily": "readonly",
+        "PdfOkuru": "readonly",
+        "JisuuHozon": "readonly"
+      },
+      "rules": {
+        "no-var": "off",
+        "prefer-const": "off"
       }
     }
   ]

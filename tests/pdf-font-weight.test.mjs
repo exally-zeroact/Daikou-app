@@ -49,6 +49,8 @@
  * 使い方: node tests/pdf-font-weight.test.mjs [--self-test]
  */
 import fs from 'node:fs';
+import { createRequire as _cr } from 'node:module';
+const { yomuGamen } = _cr(import.meta.url)('./helpers/gamen-src.js');
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -70,7 +72,7 @@ function findEmbeds(dir, acc = [], depth = 0) {
     if (e.isDirectory()) { findEmbeds(p, acc, depth + 1); continue; }
     if (!/\.js$/.test(e.name)) continue;
     if (/[\\/]vendor[\\/]/.test(p)) continue;          /* 借り物の 中は 見ない */
-    const src = fs.readFileSync(p, 'utf8');
+    const src = yomuGamen(p);
     if (!/\.embedFont\s*\(/.test(src)) continue;
     src.split('\n').forEach((line, i) => {
       const m = /\.embedFont\s*\(([^,)]*)/.exec(line);
@@ -95,7 +97,7 @@ function findBuilds(dir, acc = [], depth = 0) {
     if (e.isDirectory()) { findBuilds(p, acc, depth + 1); continue; }
     if (!/\.(?:js|mjs)$/.test(e.name)) continue;
     if (/[\\/]vendor[\\/]/.test(p)) continue;
-    const src = fs.readFileSync(p, 'utf8');
+    const src = yomuGamen(p);
     if (!/PdfSlim/.test(src) || !/\.build\s*\(/.test(src)) continue;
     acc.push({ file: path.relative(ROOT, p).split(path.sep).join('/') });
   }
@@ -182,7 +184,7 @@ T('④ 字体を 軽くする 道具を ★先に★ 読んでいる', () => {
   /* (a) HTML の <script src> の 順
      ★<script src> だけを 見る★＝生の字で 探すと コメントの 名前を 拾う */
   for (const f of allFiles(ROOT, /\.html$/)) {
-    const s2 = fs.readFileSync(f, 'utf8');
+    const s2 = yomuGamen(f);
     const srcs = [...s2.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => basename(m[1]));
     const a = srcs.indexOf('font-slim.js');
     if (a < 0) continue;
@@ -202,7 +204,7 @@ T('④ 字体を 軽くする 道具を ★先に★ 読んでいる', () => {
        tsukau の 中身は 実物を 歩いて 拾った 物 ➕ lib/pdf-slim.js（③が 在る事を 見ている）。
        ⇒ 無いなら ★数え方が 壊れている★ので 赤に する。 */
     ok(fs.existsSync(p2), '★' + t + ' が 無い（数え方が 壊れている）★');
-    const s2 = fs.readFileSync(p2, 'utf8')
+    const s2 = yomuGamen(p2)
       .replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
     const a = s2.indexOf('font-slim.js');
     const b = s2.indexOf('pdf-slim.js');

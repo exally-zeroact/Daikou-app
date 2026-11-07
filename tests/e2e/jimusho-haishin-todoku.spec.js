@@ -40,7 +40,8 @@ function yomikomu() {
   aru.forEach((g) => {
     const p = path.join(ROOT, g);
     const s = fs.readFileSync(p, 'utf8');
-    (s.match(/(?:src|href)="((?:js|vendor)\/[^"]+)"/g) || []).forEach((m) => {
+    // ★2026-11-07★ kyuryo.html の 見た目を css/kyuryo.css へ 出した＝css/ も 数える（?v= は 付けたまま 引く＝客と 同じ URL）
+    (s.match(/(?:src|href)="((?:js|vendor|css)\/[^"]+)"/g) || []).forEach((m) => {
       const u = m.replace(/.*"(.*)"/, '$1');
       if (!dete[u]) dete[u] = [];
       dete[u].push(g);

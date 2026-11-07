@@ -29,6 +29,7 @@
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-08 実測 ＝ 下に 書く）★★
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -40,7 +41,7 @@ const BUHIN = [
 ];
 
 function yomu(f) {
-  return fs.readFileSync(path.join(ROOT, f), 'utf8');
+  return yomuGamen(path.join(ROOT, f));
 }
 
 // ★<script> の 中は 見ない★（画面の 字だけ 見たい時）
@@ -127,9 +128,7 @@ describe('★どこにも PayPay を 残さない★', () => {
       //   旧い 名前を 書かないと 名前を 変えられない（それ自体が 仕事）
       .filter((f) => f !== 'apply-denshi-kessai-rename.sql')
       .forEach((f) => {
-        nokori(fs.readFileSync(path.join(dir, f), 'utf8')).forEach((x) =>
-          warui.push(f + ' … 「' + x + '」')
-        );
+        nokori(yomuGamen(path.join(dir, f))).forEach((x) => warui.push(f + ' … 「' + x + '」'));
       });
     expect(warui, '★倉庫の 台本に paypay が 残っています★').toEqual([]);
   });
@@ -140,7 +139,7 @@ describe('★どこにも PayPay を 残さない★', () => {
     // ★倉庫の 引っ越しの 台本が 在る★＝画面だけ 直して 倉庫を 忘れていない
     const rename = path.join(ROOT, 'supabase', 'apply-denshi-kessai-rename.sql');
     expect(fs.existsSync(rename), '★倉庫の 名前替えの 台本が ありません★').toBe(true);
-    const r = fs.readFileSync(rename, 'utf8');
+    const r = yomuGamen(rename);
     expect(r.indexOf('rename column'), '★名前替えを していません★').toBeGreaterThan(0);
     // ★窓は security_invoker を 付け直す★（2026-09-06 の 事故）
     expect(r.indexOf('security_invoker = true'), '★窓の 鍵を 付け直していません★').toBeGreaterThan(

@@ -20,7 +20,7 @@
 //     幅と高さは 画面が要る（試験では測れない）ので、
 //     ★二度と同じ形に戻らない★ 決まりが CSS に残っているかを見る。
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -31,7 +31,7 @@ const BAR_PAGES = ['kyuryo.html', 'uriage.html', 'shukei.html'];
 const TAG_PAGES = ['kyuryo.html', 'uriage.html', 'shukei.html', 'dashboard.html'];
 
 function read(f) {
-  return fs.readFileSync(path.join(ROOT, f), 'utf8');
+  return yomuGamen(path.join(ROOT, f));
 }
 // そのCSSの決まり1つ分だけを取り出す（他の所の字を数えて緑にしない）
 //   ★行の頭から探す★：「      .navb {」は「        .navb {」（狭い画面の中の同じ名前）の

@@ -4,7 +4,8 @@
 //   わざと壊す：
 //     照らす 所を 古い `<>` に 戻す ⇒ ① 赤 ／ 最初の for update を 外す ⇒ ② 赤（kiridasu が 投げる）
 //     verify に exception を 足す ⇒ ② 赤 ／ 4桁の 形の 門から null を 外す ⇒ ① 赤
-import fs from 'node:fs';
+import { createRequire as _cr } from 'node:module';
+const { yomuGamen } = _cr(import.meta.url)('../helpers/gamen-src.js');
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
@@ -16,7 +17,7 @@ import {
 } from '../../scripts/apply-kyuryo-pw-4keta.mjs';
 
 const ROOT = path.join(__dirname, '..', '..');
-const yomu = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const yomu = (f) => yomuGamen(path.join(ROOT, f));
 
 describe('★4桁・3回 続けて 間違えたら 止める★', () => {
   KANSUU.forEach((k) => {

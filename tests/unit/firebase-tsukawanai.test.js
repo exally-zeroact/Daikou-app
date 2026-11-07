@@ -42,6 +42,7 @@
 //     gstatic の SDK を 1本 戻す → ★赤★
 //     戻して ★緑★
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -49,7 +50,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 function yomu(rel) {
   const p = path.join(ROOT, rel);
   expect(fs.existsSync(p), '★見に行く ファイルが ありません: ' + rel + '★').toBe(true);
-  return fs.readFileSync(p, 'utf8');
+  return yomuGamen(p);
 }
 
 // ★★repo の 画面を 全部 集める★★ 2026-09-04
@@ -175,7 +176,7 @@ describe('★Firebase は 使わない★', () => {
     const warui = [];
     let mita = 0;
     for (const y of fs.readdirSync(WF)) {
-      const yml = fs.readFileSync(path.join(WF, y), 'utf8');
+      const yml = yomuGamen(path.join(WF, y));
       const files = [...new Set(yml.match(/[A-Za-z0-9_./-]+\.(js|mjs|cjs)/g) || [])];
       // ★飛ばす書き方は しない★（無い物を 黙って 通すと 見張りが 嘘に なる）
       const aru = files.filter((rel) => {
@@ -185,7 +186,7 @@ describe('★Firebase は 使わない★', () => {
       for (const rel of aru) {
         const p = path.join(ROOT, rel);
         mita++;
-        if (ATENA.test(kesu(fs.readFileSync(p, 'utf8')))) warui.push(y + ' → ' + rel);
+        if (ATENA.test(kesu(yomuGamen(p)))) warui.push(y + ' → ' + rel);
       }
     }
     // ★数えた 数も 出す★（0本を 見ただけで 緑に しない＝何も 見ていない のと 区別する）
@@ -255,7 +256,7 @@ describe('★Firebase は 使わない★', () => {
     // ★候補だけ 注記を 消して もう一度 見る★（説明文に 名前が 出るだけの 物を 外す）
     const ima = kouho.filter((rel) => {
       const p = path.join(ROOT, rel);
-      return fs.existsSync(p) && ATENA.test(kesu(fs.readFileSync(p, 'utf8')));
+      return fs.existsSync(p) && ATENA.test(kesu(yomuGamen(p)));
     });
     // ★何本 見たかも 数える★（0本を 見て 緑に しない）
     expect(mita, '★ファイルを ほとんど 見つけられていません★').toBeGreaterThan(300);

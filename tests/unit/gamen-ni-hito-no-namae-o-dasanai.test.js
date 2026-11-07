@@ -23,6 +23,7 @@
 //     戻した後 … ★緑★
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -71,7 +72,7 @@ describe('★画面に 人の 名前を 出さない★', () => {
     const aru = files.filter((rel) => fs.existsSync(path.join(ROOT, rel)));
     aru.forEach((rel) => {
       const p = path.join(ROOT, rel);
-      const naka = kesu(fs.readFileSync(p, 'utf8'));
+      const naka = kesu(yomuGamen(p));
       NAMAE.forEach((na) => {
         if (naka.indexOf(na) >= 0) {
           const i = naka.indexOf(na);

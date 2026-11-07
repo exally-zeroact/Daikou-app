@@ -29,12 +29,12 @@
 //   ★★わざと壊して 赤に なる事を 見た（2026-09-08 実測）★★
 //     ①fare-calc.js を 名簿から 抜く … ★赤★
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const SW = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
-const HTML = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const SW = yomuGamen(path.join(ROOT, 'sw.js'));
+const HTML = yomuGamen(path.join(ROOT, 'index.html'));
 
 function meibo(name) {
   const m = SW.match(new RegExp('const ' + name + ' = \\[([\\s\\S]*?)\\n\\];'));
@@ -97,7 +97,7 @@ describe('★紙を 出す 頁の PDF を 送る 道具は 先取りに 在る�
       page +
         ' は js/pdf-okuru.js を（kami-pdf.js を 読む なら その 前に）読み、それが 先取りに 在る',
       () => {
-        const h = fs.readFileSync(path.join(ROOT, page), 'utf8');
+        const h = yomuGamen(path.join(ROOT, page));
         const a = h.indexOf('<script src="js/pdf-okuru.js"></script>');
         const b = h.indexOf('<script src="js/kami-pdf.js"></script>');
         expect(a, page + ' が js/pdf-okuru.js を 読んでいません').toBeGreaterThanOrEqual(0);

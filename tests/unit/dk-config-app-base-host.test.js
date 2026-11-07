@@ -17,6 +17,7 @@
 //   ★このテストは恒久★ 同期のたびに効く。消さないこと。
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -48,19 +49,19 @@ function repoName() {
 }
 
 function appBaseInConfig() {
-  const src = fs.readFileSync(path.join(ROOT, 'js', 'dk-config.js'), 'utf8');
+  const src = yomuGamen(path.join(ROOT, 'js', 'dk-config.js'));
   const m = src.match(/const\s+APP_BASE\s*=\s*'([^']+)'/);
   return m ? m[1] : null;
 }
 
 function officeBaseInConfig() {
-  const src = fs.readFileSync(path.join(ROOT, 'js', 'dk-config.js'), 'utf8');
+  const src = yomuGamen(path.join(ROOT, 'js', 'dk-config.js'));
   const m = src.match(/const\s+OFFICE_BASE\s*=\s*'([^']+)'/);
   return m ? m[1] : null;
 }
 
 function readJson(...p) {
-  return JSON.parse(fs.readFileSync(path.join(ROOT, ...p), 'utf8'));
+  return JSON.parse(yomuGamen(path.join(ROOT, ...p)));
 }
 
 describe('★APP_BASE は そのrepoのホストと一致していなければならない★', () => {
@@ -231,7 +232,7 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
     expect(nai, '★設定ファイルが 在りません（CONFIGS を 直してください）★').toEqual([]);
     CONFIGS.forEach((rel) => {
       const p = path.join(ROOT, ...rel.split('/'));
-      walk(JSON.parse(fs.readFileSync(p, 'utf8')), rel);
+      walk(JSON.parse(yomuGamen(p)), rel);
     });
     expect(offenders, '設定ごと拒否される（vercel.json / .eslintrc.json で実際に踏んだ）').toEqual(
       []
@@ -259,7 +260,7 @@ describe('★vercel.json の行き先も同じ側であること★', () => {
       'git',
     ]);
     ['vercel.json', 'office-host/vercel.json'].forEach((rel) => {
-      const obj = JSON.parse(fs.readFileSync(path.join(ROOT, ...rel.split('/')), 'utf8'));
+      const obj = JSON.parse(yomuGamen(path.join(ROOT, ...rel.split('/'))));
       Object.keys(obj).forEach((k) => {
         expect(ALLOWED.has(k), `${rel} の "${k}" は Vercel が知らないキー`).toBe(true);
       });
@@ -294,7 +295,7 @@ describe('★事務所の画面をメーターのSWが預からないこと★',
   //     ＝画面を 足したら 自動で ここも 増える（置いていかれない）
   it('sw.js の OFFICE_PATHS が 事務所の 画面を 全部 含む', async () => {
     const OA = await import('../../scripts/office-allow.mjs');
-    const src = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const src = yomuGamen(path.join(ROOT, 'sw.js'));
     const m = src.match(/const\s+OFFICE_PATHS\s*=\s*(\/.+\/)\s*;/);
     expect(m, 'OFFICE_PATHS が無い').toBeTruthy();
     // eslint-disable-next-line no-eval
@@ -314,7 +315,7 @@ describe('★事務所の画面をメーターのSWが預からないこと★',
   });
 
   it('fetch ハンドラが OFFICE_PATHS を network-only にしている', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const src = yomuGamen(path.join(ROOT, 'sw.js'));
     const i = src.indexOf('OFFICE_PATHS.test');
     expect(i).toBeGreaterThan(-1);
     // navigationHandler(cache-first) より前で捕まえていないと意味がない
@@ -322,7 +323,7 @@ describe('★事務所の画面をメーターのSWが預からないこと★',
   });
 
   it('メーター内の事務所リンクが OFFICE_BASE 直行になっている', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const src = yomuGamen(path.join(ROOT, 'index.html'));
     const i = src.indexOf('data-office-link="1"');
     expect(i).toBeGreaterThan(-1);
     const around = src.slice(i, i + 400);
@@ -332,7 +333,7 @@ describe('★事務所の画面をメーターのSWが預からないこと★',
 
 describe('会社URL(ドライバーに配る物)の組み立て方', () => {
   it('★dashboard は location.origin ではなく APP_BASE から組む★', () => {
-    const dash = fs.readFileSync(path.join(ROOT, 'dashboard.html'), 'utf8');
+    const dash = yomuGamen(path.join(ROOT, 'dashboard.html'));
     const i = dash.indexOf("'/?c=' +");
     expect(i).toBeGreaterThan(-1);
     const around = dash.slice(Math.max(0, i - 400), i + 100);
@@ -342,7 +343,7 @@ describe('会社URL(ドライバーに配る物)の組み立て方', () => {
   });
 
   it('APP_BASE の行に「本番ドメイン確定時はここを差し替える」の注意が残っている', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'js', 'dk-config.js'), 'utf8');
+    const src = yomuGamen(path.join(ROOT, 'js', 'dk-config.js'));
     expect(src).toContain('APP_BASE');
     expect(src).toMatch(/会社URL|url_token/);
   });
@@ -374,7 +375,7 @@ const EXPECTED_SB_URL = {
 };
 
 function sbUrlInConfig() {
-  const src = fs.readFileSync(path.join(ROOT, 'js', 'dk-config.js'), 'utf8');
+  const src = yomuGamen(path.join(ROOT, 'js', 'dk-config.js'));
   const m = src.match(/const\s+SB_URL\s*=\s*'([^']+)'/);
   return m ? m[1] : null;
 }

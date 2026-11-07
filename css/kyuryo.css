@@ -1,0 +1,1617 @@
+:root {
+  --blue: #007aff;
+  --blue-d: #0a5fd0;
+  --ink: #14243d;
+  --muted: #5a6b82;
+  --bg: #f2f7ff;
+  --line: #dbe7f7;
+  --danger: #e0483d;
+}
+
+/* ★自動で 入っている 数（placeholder）を 濃く★ 2026-10-19
+   司さん「入力の自動反映されてる数値が薄くて分かりにくい」
+   ⇒ 前は ブラウザの 既定（薄い 灰）。今は 説明の 字と 同じ 濃さ（--muted）。打った 値（--ink）とは 少し 違う 濃さ */
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 22px 18px 60px;
+
+  /* ★★iPhone の 時計・電池の 下に 潜るのを 止める★★ 2026-09-18（司さん「見切れとる」）
+     ★viewport-fit=cover を 付けると 画面の 端まで 広がる★＝
+     逃がし（safe-area）を 書かないと ★上の 字が 時計に 重なる★。
+     下の 帯は js/jimusho-footer.js が 既に 逃がしている（padding-bottom）。 */
+  padding-top: max(22px, env(safe-area-inset-top));
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
+}
+
+/* ★紙だけの窓は 上を広く空ける★ 2026-08-25（司さん「上に余白ってゆわんかったか？」）
+     1度目は ★箱の中★の余白しか広げていなかった＝紙の一番上が 詰まったままだった。
+     ここは ★printOne が作る窓だけ★（body.paper）＝本体の画面は 1文字も変えない。
+     ★em（字の大きさ）で決める★ので 中身が増えても 上の空き方は変わらない。 */
+.paper .wrap {
+  padding-top: 3.4em;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+
+  /* ★狭い画面では 名前と行き先ボタンを 上下に分ける（押し合って字が割れない）★ 2026-08-25 */
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.logo {
+  font-weight: 800;
+
+  /* ★詰めた★ 2026-09-05（20px→17px・他のアプリと 同じ 並び） */
+  font-size: 17px;
+  color: var(--blue-d);
+}
+
+.top .tag {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-left: 8px;
+
+  /* ★狭い画面で「給料」の2文字が 縦に割れていた★（2026-08-25 実測 375px … 110 x 51＝2行）
+     札の字は 折り返さない。 */
+  white-space: nowrap;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 13px;
+
+  /* ★詰めた★ 2026-09-05（16px→8px） */
+  margin-bottom: 8px;
+}
+
+.linkbtn {
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+/* 管理画面の中に出している時は、その画面の上のリンク列を隠す */
+body.embedded .top,
+body.embedded .sub {
+  display: none;
+}
+
+body.embedded .wrap {
+  padding-top: 8px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+
+  /* ★詰めた★ 2026-09-05（司さん「デカすぎる」）16px→12px / 14px→10px */
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+/* ★保存を 下に 貼り付ける★ 2026-09-04（3.4画面 スクロールしないと 押せなかった）
+   ★紙には 出さない★（noprint）／★元の 保存ボタンは 残す★ */
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: rgb(242 247 255 / 94%);
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+  margin-top: -6px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+
+  /* ★詰めた★ 2026-09-05（14px→8px） */
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.tab,
+.kiri {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+
+  /* ★詰めた★ 2026-09-05 */
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tab.on,
+.kiri.on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+/* ★★明細の テンプレ（払い方の 形）の 一覧★★ 2026-10-23
+   司さん「選ばせ方や見せ方は代行請求書アプリの見せ方を真似て」＝daikou-seikyu.html の .tpl-grid と 同じ 作り
+   （2列・A4縦の 見本は 実際の 紙を 縮めた 物・名前と 説明・選んでいる 物に ✓） */
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.tpl-card {
+  position: relative;
+  border: 1.5px solid #cfe0ff;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.tpl-card.on {
+  border-color: #007aff;
+  box-shadow: 0 0 0 1.5px #007aff inset;
+}
+
+.tpl-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.414;
+  background: #fff;
+  border-bottom: 1px solid #e3eaf2;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tpl-thumb-msg {
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+  padding: 0 8px;
+  line-height: 1.5;
+}
+
+.tpl-meta {
+  padding: 9px 11px 11px;
+}
+
+.tpl-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: #333;
+}
+
+.tpl-desc {
+  font-size: 11px;
+  color: #555;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.tpl-pdf {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid #cfe0ff;
+  background: #fff;
+  color: var(--blue);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tpl-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0b57d0;
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  box-shadow: 0 1px 4px rgb(0 122 255 / 45%);
+  z-index: 1;
+}
+
+.tpl-card.on .tpl-badge {
+  display: flex;
+}
+
+/* ★★日付を 左右の ボタンで 挟む★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+   ★前は flex-wrap: wrap★ だったので、日付の 字が 長い（実測 328px）と
+   ★折り返して 日付が 上・ボタンが 下★の 2段に なっていました。
+   ⇒ ★折り返さない★＝ボタンは 左右に 固定、日付は 真ん中で 縮む。 */
+.monthbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+/* ★折れるなら 月と 日付の 間で★ 2026-09-05 */
+.monthbar .m .mb-1,
+.monthbar .m .mb-2 {
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.monthbar .m .mb-2 {
+  font-weight: 700;
+}
+
+.monthbar .m {
+  /* ★詰めた★ 2026-09-05（18px→16px） */
+  font-size: 16px;
+  font-weight: 800;
+  flex: 1 1 auto; /* ★真ん中で 縮む★ 2026-09-05 */
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* ★狭い画面で 押す物の字が1文字ずつ縦に割れる★（2026-08-25 実測・375px）
+     給料 「‹ 前の月」 45 x 102（＝4行に割れていた）
+     売上表 62 x 58 ／ 月次集計 72 x 58（＝2行）  ※1行なら 約34px
+   原因：真ん中の「月の字」の箱が min-width で場所を先に取り、
+         押す物だけが縮められていた（flex は 押す物から縮める）。
+   直し方：月(年)の字を 上の行へ落として、押す物は 横1行で並べる。
+           ★480px より広い画面は 今まで通り（1文字も変えない）★ */
+
+/* ★★狭い画面でも 挟む形の まま★★ 2026-09-05（司さん「挟む 形に したら スッキリ」）
+   ★前は ここで 日付を order:-1 で 上の 段へ 追い出していました★
+   ⇒ 日付が 上・ボタンが 下の 2段（実測 日付 top=144 / ボタン top=179）
+   ⇒ ★1段に 収める★＝日付の 字だけ 少し 小さくして 左右の ボタンで 挟む */
+@media (max-width: 480px) {
+  .monthbar .m {
+    font-size: 15px;
+  }
+
+  .navb {
+    padding: 6px 10px;
+  }
+}
+
+.periodbar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+
+  /* ★詰めた★ 2026-09-05（12px→8px） */
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pbtn {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pbtn.on {
+  background: var(--blue-d);
+  border-color: var(--blue-d);
+  color: #fff;
+}
+
+.navb {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--blue-d);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap; /* ★1文字ずつ縦に割れない★ */ /* ★押す物は縮めない★ */
+
+  /* ★挟む形★ 左右の ボタンは 縮まない（2026-09-05） */
+  flex: 0 0 auto;
+}
+
+.btn {
+  background: var(--blue);
+  border: none;
+  border-radius: 10px;
+
+  /* ★詰めた★ 2026-09-05（8px 18px→7px 14px） */
+  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn.ghost {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--blue-d);
+}
+
+/* ★★数字の 表を「紙」に 寄せる★★ 2026-09-05（司さん「PDFっぽく 見せてるよな？」）
+   ★数字の 幅を 揃える★＝1と8で 幅が 変わらない＝★縦に 揃って 比べられる★
+   （紙の 帳票と 同じ 見え方。字の 大きさは 変えていません） */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-size: 14px;
+}
+
+th,
+td {
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+th {
+  /* ★紙の 表と 同じ★＝見出しに 薄い 地色（2026-09-05） */
+  background: #f7fafd;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  border-bottom: 2px solid var(--line);
+}
+
+th:first-child,
+td:first-child {
+  text-align: left;
+
+  /* ★★ここに width:1% を 置いても 効かなかった★★（2026-09-25 実測・390px 幅）
+     「決まり 有り」と「無し」で ★列の 幅が 1pxも 変わらなかった★
+       先頭36px／58／16／27／40 ＝ 有りも 無しも 同じ
+     ⇒ ★効かない 決まりを 残さない★（次の 人が「効いている」と 読む）
+     ★司さんが 見た「月の列の 余白」は 別の 表★＝実物を 見て 当て直す。 */
+}
+
+/* 見出しの下に出す小さい説明（例: 歩合「空欄=役割どおり」） 2026-08-05 */
+.th-sub {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: #98a6b8;
+  margin-top: 1px;
+}
+
+/* ★スマホでは従業員を「1人1枚」にする (2026-08-05)★
+   歩合・最低保証を足して6列になり、横にはみ出して★最低保証が見えなくなった★。
+   司さんはスマホで見る。横スクロールさせない。 */
+@media (max-width: 620px) {
+  .emp-body td[data-l]::before {
+    content: attr(data-l);
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .emp-pane thead {
+    display: none;
+  }
+
+  .emp-pane .scroller {
+    overflow-x: visible;
+  }
+
+  .emp-pane table,
+  .emp-pane tbody,
+  .emp-pane tr,
+  .emp-pane td {
+    display: block;
+    width: 100%;
+  }
+
+  .emp-pane tr {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px 12px;
+    margin-bottom: 10px;
+  }
+
+  .emp-pane td {
+    border: none;
+    padding: 5px 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  /* 名前は1枚の見出しとして大きく（名前の 升に 直に 置いた 欄だけ・2026-10-20）
+     前は 升が 1つの 行の 中にも 効いた＝退職者の 役割の 欄と「記録」の 値の 欄が 太字・幅いっぱいだった */
+  .emp-pane td:first-child > .txt {
+    width: 100%;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  /* 歩合・最低保証・並び は横に3つ並べる（1枚が縦に長くなりすぎない） */
+  .emp-pane td[data-l='歩合'],
+  .emp-pane td[data-l='最低保証'],
+  .emp-pane td[data-l='並び'] {
+    display: inline-block;
+    width: auto;
+    margin-right: 14px;
+  }
+
+  .emp-pane .hrs,
+  .emp-pane .yen {
+    width: 5.5em;
+  }
+
+  /* 車の名前と並びも同じ形（1台1枚） */
+
+  /* ★車だけ★（会社設定の「車」から 来た時）＝車の 箱と 保存の 帯 以外は 出さない */
+  #paneSet.kuruma-dake > .card:not(.car-pane),
+  #paneSet.kuruma-dake > .save-bar {
+    display: none !important;
+  }
+
+  .car-body td[data-l]::before {
+    content: attr(data-l);
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .car-pane thead {
+    display: none;
+  }
+
+  .car-pane .scroller {
+    overflow-x: visible;
+  }
+
+  .car-pane table,
+  .car-pane tbody,
+  .car-pane tr,
+  .car-pane td {
+    display: block;
+    width: 100%;
+  }
+
+  .car-pane tr {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px 12px;
+    margin-bottom: 10px;
+  }
+
+  .car-pane td {
+    border: none;
+    padding: 5px 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .car-pane td[data-l='今の呼び方'] {
+    font-weight: 800;
+    font-size: 16px;
+  }
+
+  .car-pane td[data-l='名前'],
+  .car-pane td[data-l='並び'] {
+    display: inline-block;
+    width: auto;
+    margin-right: 14px;
+  }
+
+  /* ★「売上の分け方」「明細の期間」も横にはみ出していた (2026-08-05)★
+     車の表を足した時に測って見つけた。選ぶ欄の文が長く、
+     2列の表が画面より広くなっていた（元からの持ち越し）。
+     左の言葉を上に、選ぶ欄を下に置いて、幅いっぱいに収める。 */
+  .kv-pane td {
+    display: block;
+    width: 100%;
+    text-align: left;
+    white-space: normal;
+    border: none;
+    padding: 2px 0;
+  }
+
+  .kv-pane tr {
+    display: block;
+    border-bottom: 1px solid var(--line);
+    padding: 8px 0;
+  }
+
+  .kv-pane select,
+  .kv-pane .hrs {
+    max-width: 100%;
+  }
+
+  .kv-pane select {
+    width: 100%;
+  }
+
+  /* 役割の決まりも同じ形（1行1枚）＝画面ごとにバラバラにしない */
+  .role-body td[data-l]::before {
+    content: attr(data-l);
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .role-pane {
+    overflow-x: visible;
+  }
+
+  .role-pane thead {
+    display: none;
+  }
+
+  .role-pane table,
+  .role-pane tbody,
+  .role-pane tr,
+  .role-pane td {
+    display: block;
+    width: 100%;
+  }
+
+  .role-pane tr {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px 12px;
+    margin-bottom: 10px;
+  }
+
+  .role-pane td {
+    border: none;
+    padding: 5px 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .role-pane td[data-l='歩合'],
+  .role-pane td[data-l='最低保証'] {
+    display: inline-block;
+    width: auto;
+    margin-right: 14px;
+  }
+
+  /* 消すボタンは右上に逃がす */
+  .role-pane td[data-l='消す'] {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: auto;
+    padding: 0;
+  }
+
+  .role-pane td[data-l='消す']::before {
+    content: none;
+  }
+}
+
+.scroller {
+  overflow-x: auto;
+}
+
+/* ★役割は 打っても 選んでもいい (2026-08-25)★ */
+.rolein {
+  min-width: 7em;
+}
+
+/* ★決まりの無い役割＝給料が黙って0円になる★ その場で赤く知らせる */
+.rolewarn {
+  margin-top: 5px;
+  padding: 6px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: #fdf1f0;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  max-width: 22em;
+  white-space: normal;
+}
+
+/* ★その人だけの車のチェック (2026-08-25)★ 1台ずつ 名前つきで並べる */
+.empcars {
+  min-width: 12em;
+}
+
+.empcar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 10px 4px 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.yen,
+.hrs,
+.txt {
+  text-align: right;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+
+  /* ★★iOS は 16px 未満の 入力欄を 触ると 画面が 勝手に 寄ります★★ 2026-09-04
+     ★実測★ iPhone13(390px) / Pixel5(393px) で ★13px の 打つ欄が 4つ★ 在った
+       （resPool / resOwner / pStart / pDays）
+     ⇒ ★16px に する★（★打つ 欄だけ★。チェック箱は 字を 打たないので そのまま）
+     ★他の 画面（ryokinhyou.html）も 同じ 理由で 16px に してある★ */
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+
+.hrs {
+  width: 5em;
+}
+
+.yen {
+  width: 6.5em;
+}
+
+.txt {
+  width: 9em;
+  text-align: left;
+}
+
+.yen:focus,
+.hrs:focus,
+.txt:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 6px;
+
+  /* ★選ぶ箱も 16px★ 2026-09-04
+     ★iOS は 16px 未満の 入力/選択を 触ると 画面が 勝手に 寄ります★
+     実測（iPhone13 390px / Pixel5 393px）… 13px の select が
+       「時数を入れる」10個 ／「給料の設定」3個（poolMode / ownerDev / pMode） */
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+
+.msg {
+  text-align: center;
+  color: var(--muted);
+  padding: 26px 10px;
+  font-size: 14px;
+}
+
+.err {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.saved {
+  color: #1a8a4a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+/* ★手当・控除・役割の ✕ と 空の 行★（時数の 画面を 入力へ 移した 時に 残した 物・2026-10-23） */
+.xbtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  font-family: inherit;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+/* ── 明細 ────────────────────────────── */
+
+/* ★余白は 字の大きさを ものさしにする★ 2026-08-25（司さん
+     「もう少し上に余白作ってバランス考えろ 売上が1.2.3.4と増えても
+       自動で余白のバランス考えろ」）
+   px で決め打ちにすると 行が増えた時／字を大きくした時に 詰まって見える。
+   ★em（字の大きさ）で決める★と、中身が増えても 見た目の間の取り方が変わらない。 */
+.slip {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.7em 1.5em 1.5em;
+  margin-bottom: 1.1em;
+  background: #fff;
+}
+
+/* ★見出しの並び★ 2026-08-25
+     司さん「赤丸の所に名前もってきて」→ 名前は「給料明細」のすぐ右
+     司さん「金額は赤丸の中心ぐらいに」→ 合計は ★行の真ん中★
+   ★左のかたまりと 右のかたまりを 同じ幅にして 合計を 真ん中に置く★
+   （1度目：余った所の真ん中にしたら ★右に寄って見えた★＝直っていなかった）
+   ★右のかたまりは 紙でも残す★＝ボタンが消えても 真ん中がずれない。 */
+
+/* ★印刷する人を えらぶ チェック★ 2026-09-05（紙には 出さない） */
+
+/* ★押せない 時は 押せない 顔に する★ 2026-09-05
+   （青いままだと ★押せると 思って 押す★＝何も 起きなくて 不安に なる） */
+.btn.btn-off,
+.btn:disabled {
+  background: #eef3fa;
+  color: #90a2ba;
+  cursor: default;
+}
+
+/* ★名前で 選ぶ・出す 所は 箱 1つ★ 2026-10-03（司さん「スッキリさせろ」） */
+.hitobar {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* ★何日から の 日付と 記録の 欄★ 2026-10-18＝iPhone で 押すと 拡大しない 大きさ（kyuryo-sumaho の 見張り） */
+.hi-in,
+.rireki-r input,
+.taishoku-hi {
+  font-size: 16px;
+}
+
+.hito-sel {
+  min-width: 0;
+  width: 100%;
+  max-width: 320px;
+  font-size: 16px; /* iPhone で 押すと 拡大しない 大きさ */
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.dasu-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ★その 期に 渡す 給料の 合計★ 2026-11-06 */
+.harai-ki {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.harai-gaku {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.harai-note {
+  margin: 2px 0 0;
+}
+
+/* ★紙の 上の 1行★（名前 ／ QR・送る）2026-10-05・チェックは 2026-11-06 に 消した */
+.kami-ue {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.kami-ue-na {
+  font-weight: 700;
+}
+
+.adj-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 6px 0 10px;
+  background: #fff;
+}
+
+.adj-gyou,
+.adj-nashi {
+  padding: 4px 0;
+}
+
+.adj-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.adj-form input,
+.adj-form select {
+  font-size: 16px;
+}
+
+.adj-chui {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.adj-msg {
+  color: #b42318;
+  font-size: 14px;
+}
+
+.kami-ue-btn {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kami-oseru {
+  cursor: pointer;
+}
+
+.slip .shead {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 1.1em;
+}
+
+.slip .sh-l,
+.slip .sh-r {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.slip .sh-r {
+  justify-content: flex-end;
+}
+
+/* ★狭い画面は 上下に並べる★（横に3つ 並べると どれも読めない） */
+@media (max-width: 640px) {
+  .slip .sh-l,
+  .slip .sh-r,
+  .slip .sums {
+    flex: 1 1 100%;
+  }
+
+  .slip .sh-r {
+    justify-content: flex-start;
+  }
+}
+
+.slip .title {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.slip .who {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* ★合計は 給料明細で 一番 見たい所★（2026-08-25 司さん
+     「給料明細なんやけん 赤丸の所は 大きく 見やすく 目立つようにしろよ」）
+   色は付けない（色は 押せる物と 選ばれている物だけ）。
+   ★大きさと 太さと 薄い枠★ で目立たせる。紙にも そのまま出る。 */
+.slip .sums {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  background: #f7fbff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  white-space: nowrap;
+}
+
+.slip .sums .big {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+}
+
+.slip .sums .mid {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.slip table {
+  font-size: 13px;
+}
+
+.slip th,
+.slip td {
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+}
+
+/* ★最低保証で出した日の 金額は 赤★ 2026-08-26（司さん）
+   ＝どちらで出したかは JS の payByFloor 1か所で決める（画面と紙で 食い違わない） */
+.slip td.floor,
+.slip .tate .floor {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.slip tbody th {
+  text-align: left;
+  color: var(--muted);
+  background: #f7fbff;
+  white-space: nowrap;
+}
+
+/* ★1期は 10〜11日ぶん在る★（2026-08-25 司さん「なんで2日分しか載せてないんど」）
+     横に並べると 375px では ★2日ぶんしか見えない★（実測：表 715px / 箱 324px）。
+     ⇒ ★紙は 今まで通り 横（実物の給料明細と同じ並び）★
+       ★スマホの画面だけ 1日1行の縦★＝10日 ぜんぶ見える。
+     出し分けは CSS だけ。字の作り方は JS の1本（F）で共通。 */
+.slip .tate {
+  display: none;
+}
+
+.slip .tate .d {
+  border-bottom: 1px solid var(--line);
+  padding: 7px 2px;
+}
+
+.slip .tate .d:last-child {
+  border-bottom: none;
+}
+
+.slip .tate .dh {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.slip .tate .dh b {
+  min-width: 5.5em;
+}
+
+.slip .tate .dn {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.slip .tate .dl {
+  font-size: 13px;
+
+  /* ★横の表と同じ字の色（新しい色を足さない）★ */
+  color: var(--ink);
+  padding-left: 5.5em;
+}
+
+.slip .tate .d.off .dh {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+@media (max-width: 480px) {
+  .slip .yoko {
+    display: none;
+  }
+
+  .slip .tate {
+    display: block;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .noprint {
+    display: none !important;
+  }
+
+  /* ★紙は いつも 横（実物の給料明細と同じ並び）★ */
+  .slip .yoko {
+    display: block !important;
+  }
+
+  .slip .tate {
+    display: none !important;
+  }
+
+  .wrap {
+    max-width: none;
+    padding: 0;
+  }
+
+  /* ★刷る時も 紙の頭に間を作る★（上0だと 端から字が始まって見える） */
+  .paper .wrap {
+    padding-top: 2.2em;
+  }
+
+  /* ★紙も 上に余白★（今までは 上0＝いきなり字が始まっていた）
+       ここも em なので 売上の行が増えても 間の取り方は変わらない。 */
+  .slip {
+    break-inside: avoid;
+    border: none;
+    padding: 1.4em 0 2em;
+  }
+}
+
+/* ★★会社設定から 来た時の 戻る帯★★ 2026-09-06（司さん） */
+.emp-kiri {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+table.yame-miru thead {
+  display: none;
+}
+
+td.taishoku-ran {
+  text-align: right;
+}
+
+.yame-hi {
+  color: #555;
+  font-size: 13px;
+
+  /* 押すと 辞めた 日を 直せる（10-17） */
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+.yame-na {
+  display: flex;
+  flex-wrap: wrap; /* ボタンが 3つに なっても 字を 縦に 割らない（10-20） */
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-weight: 700;
+}
+
+.yame-na > span,
+.yame-na .btn {
+  white-space: nowrap;
+}
+
+/* ★辞めた 人の 歩合・役割を 直す 欄★ 2026-10-20（見出し行が 無いので 欄ごとに 名前を 付ける） */
+.yame-naosu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: flex-start;
+  margin: 4px 0 0;
+}
+
+.yame-naosu .yn-ran {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.yame-naosu .yn-mi {
+  color: #555;
+  font-size: 12px;
+}
+
+.modoru-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+/* ★期間を 通した 乗った人の 入れ漏れの 帯★ 2026-10-23（時数は 入力の 画面へ 移した） */
+.nori-obi {
+  padding: 10px 12px;
+}
+
+.nori-obi .nnari {
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.9;
+}
+
+.nori-obi .nnhi {
+  display: inline-block;
+  margin: 2px 4px;
+  padding: 3px 9px;
+  border: 1px solid #f5c2bd;
+  border-radius: 999px;
+  background: #fdecea;
+  color: #b42318;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* ★本人の 画面＝月を 選ぶ 帯と 紙の 枠★ 2026-10-01 */
+.hn-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 2px 0 10px;
+}
+
+/* ★要素(b)でなく 名札で 指す★
+   （要素で 指すと stylelint の no-descending-specificity に 当たる） */
+#hnTsukiJi {
+  font-size: 17px;
+}
+
+.hn-ya {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.hn-ya:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ★本人の PDF（保存・印刷）★ 2026-10-21 */
+.hn-pdf {
+  text-align: center;
+  margin: 0 0 10px;
+}
+
+.hn-pdf-b {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.hn-pdf-b:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hn-pdf-err {
+  margin-top: 6px;
+  color: var(--danger);
+}
+
+/* ★本人の 画面の 上の 並び＝代行請求書の 請求書の 欄と 同じ 部品★ 2026-10-29
+   （daikou-seikyu.html の .filterbar・.fselect・.btn.btn-primary.btn-sm を 写した） */
+.hn-bar2 {
+  margin: 2px 0 12px;
+}
+
+.hn-filterbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.hn-fselect {
+  flex: 1;
+  min-width: 0;
+
+  /* 左右の 空きは 見本（30px/10px）より 詰めた＝狭い 画面で 期間の 字を 入れる（2026-10-29・下の 月の 欄の 訳） */
+  padding: 8px 26px 8px 8px;
+  border: 1.5px solid #dbe7f7;
+  border-radius: 10px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #333;
+  outline: none;
+  background: #fff
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%23007AFF' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>")
+    no-repeat right 9px center;
+  appearance: none;
+}
+
+.hn-fselect:focus {
+  border-color: #007aff;
+}
+
+.hn-fselect:disabled {
+  color: #333;
+  opacity: 1;
+}
+
+/* ★月の 欄は 字の 幅だけ・残りを 期間の 欄へ★ 2026-10-29（半分ずつだと 360px 以下で
+   一番 長い 期間「11/26〜12/10」が 欄に 入らなかった＝試験 kyuryo-honnin-kikan の 1px ずつ）
+   字は 16px の まま（16px 未満だと iPhone が 押した 時に 画面を 拡大する） */
+#hnTsukiSel {
+  flex: 0 0 auto;
+}
+
+/* ★359px 以下は 月と 期間を 2行に★（320px で 期間の 字が 20px 足りなかった・360px で 20px の ゆとり） */
+@media (max-width: 359px) {
+  .hn-filterbar {
+    flex-wrap: wrap;
+  }
+
+  #hnTsukiSel,
+  #hnKikanSel {
+    flex: 1 1 100%;
+  }
+}
+
+.hn-btn-p {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 12px;
+  background: #0b57d0;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 3px 12px rgb(0 122 255 / 32%);
+  cursor: pointer;
+}
+
+.hn-btn-p:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hn-pdf-annai {
+  margin-top: 6px;
+  color: var(--ink);
+}
+
+/* ★期間の ボタンは 1行★ 2026-10-20（司さん「赤丸のところは1行にしろ」）
+   3つ まで（月3回・締め日2つ/3つ）＝幅を 等分して 画面に 収める
+   4つ 以上（週1回・毎日）＝1行の まま その 中だけ 横に 送る（字を 潰さない・ページは 横に すべらない） */
+.hn-kikan {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  justify-content: center;
+  margin: 0 0 10px;
+}
+
+.hn-kikan.ooi {
+  justify-content: flex-start;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.hn-chip {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ★字の 大きさは ボタンの 並びの 幅から 続けて 決める（段を 作らない）★ 2026-10-20（本番前の 対立役 直1）
+   前は 400/380/340px の 段で 変えた＝段の 境の すぐ 上（月3回 282〜312・401〜403px／締め日 10・20・25 は 291〜315・341〜342・381〜382・401〜406px
+   ＝iPhone 16 Pro/17 の 402px も）で iPhone の 字（1割 広い）が ボタンに 入らなかった。
+   並びの 幅＝C。ボタンの 中＝(C−8)/3 −2(枠) −4(左右の 空き)。一番 広い「12/21〜12/25」は 字の 大きさの 7.69倍。
+   7.69 × 1.1 ＝ 8.46 より 少し 大きい 8.8 で 割る＝ C/26.4 − 0.985px（13px で 止める）。
+   8.55 で 割ると CI の Linux の chromium で 396px（13px）が 赤（a7d7eae）＝8.8 に 戻し、320px だけ 下の 段で 10px を 守る。
+   C は cqw で 測る（PC の 巻き棒が 在っても ずれない・対立役 a）。cqw が 読めない 古い iPhone（iOS 16 より 前）は 上の 100vw の 行（C＝画面−36）が 効く。 */
+.hn-kikan.sukunai {
+  gap: 4px;
+  container-type: inline-size;
+}
+
+.hn-kikan.sukunai .hn-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 160px;
+  padding: 0 2px;
+  font-size: clamp(9px, calc(100vw / 26.4 - 2.35px), 13px);
+  font-size: clamp(9px, calc(100cqw / 26.4 - 0.985px), 13px);
+
+  /* ★字の 大きさは 1px 刻みに 切り下げる★ 半端な 大きさ（11.5px 等）だと CI の Linux の chromium だけ
+     9.5・11.5・12.5px を 越えた すぐ 上の 幅（313〜318・366〜369・393〜396px 等）で ゆとりが 消えた（fd4f830 の CI・Windows と webkit は 緑）。
+     見立て＝Linux は 半端な 大きさを 整数の 大きさで 描く（測っていない）。
+     切り下げなので 入る 側に しか 動かない。round() が 読めない 古い 中身は 上の 行が 効く */
+  font-size: round(down, clamp(9px, calc(100cqw / 26.4 - 0.985px), 13px), 1px);
+}
+
+/* ★319〜330px（iPhone SE 初代 の 320px 等）は 10px★（318px の 10px は CI の Linux で 赤・4136497＝9px の まま） 8.8 で 割って 切り下げると 9px に 縮む（前の 本番は 10px・本番前の 対立役）
+   この 幅の 10px は 9171e81 の CI の Linux の chromium の 1px 走査で 緑（a7d7eae の 走査は 396px で 赤・319〜330px は 崩れに 出なかった）。331px から 上は 上の 式で 10px 以上 */
+@media (min-width: 319px) and (max-width: 330px) {
+  .hn-kikan.sukunai .hn-chip {
+    font-size: 10px;
+  }
+}
+
+/* ★344〜352px は 11px★（式では 10px＝前の 本番の 11px より 縮んだ・本番前の 対立役。11px は dadcb21 の CI の Linux の 1px 走査で 緑。4136497 の CI は 318px で 赤だったが 344〜352px は 崩れに 出なかった。a7d7eae の 式では 344px は 10px＝そこでは 確かめて いない・対立役） */
+@media (min-width: 344px) and (max-width: 352px) {
+  .hn-kikan.sukunai .hn-chip {
+    font-size: 11px;
+  }
+}
+
+/* ★310px 以下（折りたたみの 閉じた 画面）は 3つが 1行に 入らない★＝必ず 2つ＋1つに 折る（対立役 D1：280px で 字が はみ出した）
+   300〜305px は 字が 下限の 9px で ゆとりが 1px 無く、CI の Linux で 300px が 赤（03f4873）＝境を 310px に 上げた（よく 在る 一番 狭い 機械は 320px）
+   ボタンの 中＝(C−4)/2 −2 −4 を 8.8 で 割る＝ C/17.6 − 0.909px（12px で 止める） */
+@media (max-width: 310px) {
+  .hn-kikan.sukunai {
+    flex-wrap: wrap;
+  }
+
+  .hn-kikan.sukunai .hn-chip {
+    flex: 1 1 40%;
+    max-width: none;
+    font-size: min(12px, calc(100vw / 17.6 - 2.95px));
+    font-size: min(12px, calc(100cqw / 17.6 - 0.909px));
+    font-size: round(down, min(12px, calc(100cqw / 17.6 - 0.909px)), 1px);
+  }
+}
+
+.hn-chip.on {
+  background: #0a5fd0;
+  border-color: #0a5fd0;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ★選んだ ボタンは 色だけで 見せる（太字に しない）★ 一番 広い 字が 太字に なると iPhone の 太字の 幅の 分 ゆとりが 減る（対立役 直3） */
+.hn-kikan.sukunai .hn-chip.on {
+  font-weight: 400;
+}
+
+/* ★紙は A4 の 大きさで 組まれる★ので 縮めて 入れる（はみ出しを 切らない） */
+.hn-kami-waku {
+  /* ★幅に 合わせて 縮めるので 横に 送らない★（2026-10-20 本人の 画面も 事務所と 同じ） */
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 0 0 12px;
+}
+
+.kami-mado .hn-kami-waku {
+  overflow: hidden; /* ★幅に 合わせた ので 横に 送らない★ */
+}
+
+/* ★★本人の 明細の 絵＝本物の PDF を pdf.js で 描いた 物★★ 2026-10-31（司さん 指示①
+     「代行請求書アプリの請求/集計の作りを見ろや」）＝見本 daikou-seikyu の .sheet-scale／.inv-scale-inner／
+     .sheet.sheet-pdf／.inv-pdf-canvas／.inv-loading／.li-empty を そのまま 写した（字・色・大きさ 同じ） */
+.li-empty {
+  text-align: center;
+  color: #8a94a6;
+  font-size: 12px;
+  padding: 30px 0;
+}
+
+.sheet-scale {
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+
+/* 720px の 紙を スマホ幅に 縮めて 全体を 見せる */
+.inv-scale-inner {
+  width: 720px;
+  transform-origin: top left;
+}
+
+.sheet.sheet-pdf {
+  width: 720px;
+  min-height: 0;
+  padding: 0;
+  margin: 0 auto 18px;
+  border: none;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 16px rgb(10 95 208 / 10%); /* = #0A5FD0 */
+  position: relative;
+}
+
+.inv-pdf-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sheet-scale.inv-loading {
+  position: relative;
+  min-height: 150px; /* 空の まま 読み込み中でも「作成中」が 見える 高さ */
+}
+
+/* 前の 絵を 薄く 覆って「更新中」を 示す */
+.sheet-scale.inv-loading::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(255 255 255 / 55%);
+  z-index: 5;
+}
+
+.sheet-scale.inv-loading::after {
+  content: '⏳ プレビュー作成中…';
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 9px 18px;
+  background: #0a5fd0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13.5px;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 28%);
+  white-space: nowrap;
+  z-index: 6;
+}
+
+@media print {
+  #hnKami.sheet-scale {
+    overflow: visible;
+    height: auto !important;
+  }
+
+  #hnKami .inv-scale-inner {
+    transform: none !important;
+    width: auto !important;
+  }
+
+  #hnKami .sheet.sheet-pdf {
+    box-shadow: none;
+    margin: 0;
+    width: 100% !important;
+    break-after: page;
+  }
+
+  #hnKami .sheet.sheet-pdf:last-child {
+    break-after: auto;
+  }
+
+  #hnKami .inv-pdf-canvas {
+    width: 100% !important;
+    height: auto !important;
+  }
+}
+
+.hoka-harai {
+  margin-top: 12px;
+}
+
+.hoka-harai > summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 700;
+  padding: 8px 2px;
+}
+
+.hoka-yaku {
+  border-top: 1px solid #dbe3ef;
+  padding: 8px 0;
+}
+
+.hoka-na {
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.hoka-na2 {
+  font-weight: 700;
+  margin: 8px 0 4px;
+}
+
+.hoka-gyou {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+
+/* ★打つ 欄は 16px★（iPhone で 押すと 画面が 勝手に 寄る のを 防ぐ＝kyuryo-sumaho の 見張り） */
+#hokaBody input,
+#hokaBody select {
+  font-size: 16px;
+}
+
+.hoka-chui {
+  color: #6b7a90;
+  font-size: 13px;
+  margin-top: 6px;
+}

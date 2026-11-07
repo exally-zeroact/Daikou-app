@@ -15,10 +15,11 @@
 //     6. 単体URLで開いた時は今まで通り出る（隠しっぱなしにしない）
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const read = (f) => yomuGamen(path.join(ROOT, f));
 const DASH = read('dashboard.html');
 
 // ★事務所の 画面（帯が 出る 所）★

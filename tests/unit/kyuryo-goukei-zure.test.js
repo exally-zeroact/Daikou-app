@@ -17,7 +17,7 @@
 //     ②直した 後 ⇒ 21本 全部 緑
 //     ③直した 後で getsuji-agg の 回の 額を 前の 作り（日の staffTotal を 丸めずに 足す）に 戻す ⇒ ★赤 6 / 緑 15★
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const { parseHTML } = require('./_kami-dom.js');
 global.document = {
@@ -47,8 +47,8 @@ const H = require('../../js/kami-hyou.js');
 const KS = require('../../js/kami-shukei.js');
 
 const ROOT = path.join(__dirname, '..', '..');
-const KYU = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
-const SHU = fs.readFileSync(path.join(ROOT, 'shukei.html'), 'utf8');
+const KYU = yomuGamen(path.join(ROOT, 'kyuryo.html'));
+const SHU = yomuGamen(path.join(ROOT, 'shukei.html'));
 
 // ── 偽の 会社 ──
 const emps = [1, 2, 3].map((i) => ({

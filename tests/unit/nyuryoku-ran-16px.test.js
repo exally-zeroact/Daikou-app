@@ -16,7 +16,7 @@
 //   ★わざと壊して 赤（2026-11-04 実測）★ uriage の .yen を 13px に 戻す ⇒ ② 赤／index の vehName を 13px に 戻す ⇒ ① 赤
 //   ★0本で 緑に しない★＝下の 下限（ファイル・欄・決まりの 数）を 割ったら 赤
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -39,7 +39,7 @@ const skipType =
 const ran = [];
 const jiNoNaka = [];
 for (const f of files) {
-  const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const s = yomuGamen(path.join(ROOT, f));
   // 打たない 欄（チェック欄 など）は 外して 数える
   for (const m of [...s.matchAll(tagRe)].filter((x) => !skipType.test(x[2]))) {
     const at = m[2];
@@ -57,7 +57,7 @@ for (const f of files) {
 const tsukuru = [];
 const styleNoAna = [];
 for (const f of files) {
-  const lines = fs.readFileSync(path.join(ROOT, f), 'utf8').split('\n');
+  const lines = yomuGamen(path.join(ROOT, f)).split('\n');
   lines.forEach((l, i) => {
     const m = /(\w+)\s*=\s*document\.createElement\(\s*['"](input|select|textarea)['"]\s*\)/.exec(
       l
@@ -80,7 +80,7 @@ for (const f of files) {
 }
 const kimari = [];
 for (const f of files.filter((x) => x.endsWith('.html'))) {
-  const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const s = yomuGamen(path.join(ROOT, f));
   for (const st of s.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
     const clean = st[1].replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
     const base = s.slice(0, st.index + st[0].indexOf(st[1])).split('\n').length - 1;

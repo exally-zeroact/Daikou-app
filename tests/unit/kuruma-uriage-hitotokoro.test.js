@@ -29,10 +29,10 @@
 // ============================================================
 'use strict';
 
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
-const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'kyuryo.html'), 'utf8');
+const HTML = yomuGamen(path.join(__dirname, '..', '..', 'kyuryo.html'));
 
 // 「給料の設定」タブの 中の「車の売上」の 箱だけ 切り出す
 function kurumaHako() {

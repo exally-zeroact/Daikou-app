@@ -15,10 +15,11 @@
 //   ここが勝手に戻されると、また古いiPhoneで崩れるので機械で縛る。
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const CFG = JSON.parse(fs.readFileSync(path.join(ROOT, '.stylelintrc.json'), 'utf8'));
+const CFG = JSON.parse(yomuGamen(path.join(ROOT, '.stylelintrc.json')));
 
 describe('★古いiPhoneで効く書き方を守ること★', () => {
   it('★max-width 形を使う設定になっている★（新しい範囲記法は旧iOSで無視される）', () => {
@@ -50,7 +51,7 @@ describe('★古いiPhoneで効く書き方を守ること★', () => {
     expect(nai, '★事務所の画面が 在りません（一覧を 直してください）★').toEqual([]);
     files.forEach(function (f) {
       const p = path.join(ROOT, f);
-      const t = fs.readFileSync(p, 'utf8');
+      const t = yomuGamen(p);
       // @media (width <= 620px) / (width >= 700px) のような形
       const re = /@media[^{]*\(\s*(width|height)\s*[<>]=?/g;
       let m;
@@ -62,7 +63,7 @@ describe('★古いiPhoneで効く書き方を守ること★', () => {
   });
 
   it('給料の画面がスマホ向けの区切りを持っている（max-width 形で）', () => {
-    const t = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+    const t = yomuGamen(path.join(ROOT, 'kyuryo.html'));
     expect(t, '★スマホ向けの区切りが無い＝最低保証が画面の外に出る★').toContain(
       '@media (max-width: 620px)'
     );

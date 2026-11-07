@@ -22,12 +22,12 @@
 //     はじめ「0円になります」と1つだけ出したが、三郎は 0円ではなく 11,400円だった。
 //     ★押して 実際の金額を見た★ ので気づけた（文だけ読んでいたら 通していた）。
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8').replace(/\r\n/g, '\n');
-const ENGINE = fs.readFileSync(path.join(ROOT, 'js', 'daiko-payroll.js'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html')).replace(/\r\n/g, '\n');
+const ENGINE = yomuGamen(path.join(ROOT, 'js', 'daiko-payroll.js'));
 
 describe('★役割は 自由に打てる★', () => {
   it('選ぶ事も 打つ事も できる（select だけにしない）', () => {

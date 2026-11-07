@@ -17,12 +17,12 @@
 //     ・打った人だけ変わり、他の人は巻き込まれない
 // ============================================================
 const path = require('path');
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const P = require(path.join(ROOT, 'js', 'daiko-payroll.js'));
 const PD = require(path.join(ROOT, 'js', 'payroll-daily.js'));
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html'));
 
 // 司さんの決まり（実物: 2種=35%/1150円, 1種=30%/1000円）
 const SET = {

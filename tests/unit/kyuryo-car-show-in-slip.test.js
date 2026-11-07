@@ -22,12 +22,13 @@
 //     実測：金額 26px・薄い枠の箱 274 x 60（375px）／紙にも そのまま出る
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 // ★行末をそろえてから見る★（手元は CRLF。'\n' で探すと 在るのに無いと言う）
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8').replace(/\r\n/g, '\n');
-const SQL = fs.readFileSync(path.join(ROOT, 'supabase', 'apply-car-show-in-slip.sql'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html')).replace(/\r\n/g, '\n');
+const SQL = yomuGamen(path.join(ROOT, 'supabase', 'apply-car-show-in-slip.sql'));
 
 function ruleOf(html, selector) {
   const i = html.indexOf('\n' + selector + ' {');
@@ -97,7 +98,7 @@ describe('★車を1台ずつ 明細に出す/出さない★', () => {
 
   it('★給料明細だけの決まり★（売上表・月次集計は今までどおり）', () => {
     for (const f of ['uriage.html', 'shukei.html']) {
-      const other = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      const other = yomuGamen(path.join(ROOT, f));
       expect(other, `★${f} まで 車を隠している★`).not.toContain('show_in_slip');
     }
   });
@@ -108,10 +109,11 @@ describe('★車を1台ずつ 明細に出す/出さない★', () => {
   //   わざと壊す（10-05）：js/kami-hyou.js に show_in_slip を 1字 足す ⇒ 赤
   it('★紙の 作り方（js/）も まとめた 表も 車を 隠さない★', () => {
     const JS = path.join(ROOT, 'js');
-    const naka = fs.readdirSync(JS).filter((f) => f.endsWith('.js'));
+    // js/kyuryo.js は 給料の 画面 そのもの（11-07 に kyuryo.html から 出した）＝明細の 側＝上の HTML で 見ている
+    const naka = fs.readdirSync(JS).filter((f) => f.endsWith('.js') && f !== 'kyuryo.js');
     expect(naka.length, '★js/ が 読めていない（空回り）★').toBeGreaterThan(10);
     for (const f of naka) {
-      const s = fs.readFileSync(path.join(JS, f), 'utf8');
+      const s = yomuGamen(path.join(JS, f));
       expect(s, `★js/${f} が 車を 隠している★`).not.toMatch(/show_in_slip|carShowsInSlip/);
     }
     // 給料の まとめた 表（給料の 画面の 中で 組んでいた）は 2026-11-06 に 消した（司さん「赤丸のところがいらない」）

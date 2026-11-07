@@ -12,7 +12,7 @@
 //     ⑦給料（normSettings・buildCtx）と 月次（getsuji の 年の 期ごと）に 通る
 //     ⑧画面の 呼び口が 全部 記録を 渡す
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const P = require('../../js/payroll-period.js');
 const D = require('../../js/payroll-daily.js');
@@ -367,8 +367,8 @@ describe('締めの 何日から', () => {
   }, 60000); // ★全部 見る 道は 重い（並べて 回すと 20秒 近く かかった＝1回 時間切れで 赤・2026-10-19）★
 
   it('⑧ 画面の 呼び口が 全部 記録を 渡す（呼び忘れると 黙って 列の 形で 区切る・対立役 止2）', () => {
-    const ky = fs.readFileSync(path.join(__dirname, '../../kyuryo.html'), 'utf8');
-    const sk = fs.readFileSync(path.join(__dirname, '../../shukei.html'), 'utf8');
+    const ky = yomuGamen(path.join(__dirname, '../../kyuryo.html'));
+    const sk = yomuGamen(path.join(__dirname, '../../shukei.html'));
     const ns = ky.match(/normSettings\([^)]*\)/g);
     // 2026-11-06 給料表（kamiCtx）を 消した＝1か所 減る（14→13）
     expect(ns.length).toBeGreaterThanOrEqual(13);

@@ -201,11 +201,12 @@ describe('★止める（黙って 月3回に しない）★', () => {
 // ★★月次集計（司さん「イ」＝その月に 締めた 分）★★
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const D = require('../../js/payroll-daily.js');
 const G = require('../../js/getsuji-agg.js');
 const FIXM = JSON.parse(
-  fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'daiko-month-jan2026.json'), 'utf8')
+  yomuGamen(path.join(__dirname, '..', 'fixtures', 'daiko-month-jan2026.json'))
 );
 function ctxOf(shime) {
   const f = JSON.parse(JSON.stringify(FIXM));
@@ -293,7 +294,7 @@ describe('★門：画面と 集計は periodsOf を kata で 呼ぶ★', () => 
     files.forEach((f) => {
       const p = path.join(R, f);
       // ★無い ファイルは 読めずに 落ちる＝赤★（黙って 飛ばさない）
-      const s = fs.readFileSync(p, 'utf8');
+      const s = yomuGamen(p);
       const re = /periodsOf\(([^;]*?)\)\s*;/g;
       let m;
       while ((m = re.exec(s))) {

@@ -19,6 +19,7 @@
 //     ②★誰にも渡らない式★（書いたのに どこにも届かない行）が無いか
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 let acorn;
@@ -129,7 +130,10 @@ describe('★HTMLの中のJSが 動く形になっている★', () => {
     // ★2026-08-28: 前は 黙って return＝★無い画面は 何も見ずに緑★でした。
     //   ⇒ 見るはずの画面が 消えた／名前が変わった時に 気づけません。
     expect(fs.existsSync(p), '★見るはずの画面が 在りません: ' + f + '★').toBe(true);
-    const ss = inlineScripts(fs.readFileSync(p, 'utf8'));
+    const ss = inlineScripts(yomuGamen(p));
+    // ★2026-11-07★ 割った画面（kyuryo.html）は 殻に <script> の 中身が 0＝★何も 見ずに 緑★に なり得る
+    //   ⇒ 戻した 字で 1本以上 見た 事を 縛る（9枚とも 今 1本以上・11-07 実測）
+    expect(ss.length, '★' + f + ' の <script> を 1本も 見ていません★').toBeGreaterThan(0);
     for (const s of ss) {
       const e = syntaxError(s.code);
       expect(e, `★${f} の ${s.line} 行あたりの <script> が壊れている★ ${e || ''}`).toBe(null);
@@ -142,7 +146,7 @@ describe('★HTMLの中のJSが 動く形になっている★', () => {
     //   FILES は ★今 9本とも 両repoに 在る★（2026-08-28 実測）。
     //   画面を1枚 消したなら ★FILES からも 消してください★（黙って緑にしない）。
     expect(fs.existsSync(p), '★' + f + ' が 在りません（FILES を 直してください）★').toBe(true);
-    const html = fs.readFileSync(p, 'utf8');
+    const html = yomuGamen(p);
     const all = [];
     for (const s of inlineScripts(html)) all.push(...deadExpressions(s.code, s.line, acorn.parse));
     const doc = all

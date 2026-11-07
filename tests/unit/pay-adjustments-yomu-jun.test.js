@@ -8,11 +8,11 @@
 //
 //   ★わざと壊して 赤（2026-10-23 実測）★ 直す 前の 版（KAGI_JUN と 3か所の order が 無い）⇒ ★赤 3 / 3★・直した 後 ⇒ 緑 3 / 3
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const DK = require('../../js/dk-session.js');
 
-const yomu = (f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8');
+const yomu = (f) => yomuGamen(path.join(__dirname, '..', '..', f));
 
 function fakeSess() {
   const payload = Buffer.from(JSON.stringify({ sub: 'u1' }), 'utf8').toString('base64url');

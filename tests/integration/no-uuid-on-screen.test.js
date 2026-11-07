@@ -10,13 +10,14 @@
 //   1つでも漏らすと、そこだけ英語の羅列が残る。
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const CN = require(path.join(ROOT, 'js', 'car-name.js'));
 
 const SCREENS = ['kyuryo.html', 'uriage.html', 'shukei.html', 'dashboard.html'];
-const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
+const read = (f) => yomuGamen(path.join(ROOT, f));
 
 describe('★名前を決める所が1箇所だけであること★', () => {
   it('js/car-name.js が在る', () => {

@@ -37,7 +37,7 @@
 //       ・JS の 字で repo の .js を 名指し（el.src='x.js'・importScripts・sw.js の 先取り 名簿）
 //         した 物が 範囲の 外（data/ vendor/ *.min.js を 除く）なら 赤
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const acorn = require('acorn');
@@ -287,7 +287,7 @@ function gitNoFile() {
 }
 
 function yomu(f) {
-  return fs.readFileSync(path.join(ROOT, f), 'utf8');
+  return yomuGamen(path.join(ROOT, f));
 }
 
 function srcWoRepoNoNamaeNi(s, karaFile) {

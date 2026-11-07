@@ -12,11 +12,11 @@
 //     ・★窓の名前＝保存する時の既定のファイル名★「給料明細_2026-08_◯◯」
 //     ・その窓の中のボタンは noprint なので 紙には出ない
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html'));
 
 // ★見張りは 書き方の空白で 赤にならない★ 2026-08-26
 //   prettier が 折り返し方を変えると ★中身は1文字も変わっていないのに 赤★ になった。

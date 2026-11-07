@@ -30,11 +30,11 @@
 //     ③打ち込み中の 見張り（activeElement）を 消す … ★赤★
 // ============================================================
 
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const yomu = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
+const yomu = (p) => yomuGamen(path.join(ROOT, p)).replace(/\r\n/g, '\n');
 
 // ★事務所の 5枚★（1枚でも 抜けると そこだけ 見切れる）
 const GAMEN = ['dashboard.html', 'nyuryoku.html', 'uriage.html', 'shukei.html', 'kyuryo.html'];

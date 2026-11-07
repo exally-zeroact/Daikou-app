@@ -21,6 +21,7 @@
 //     ここが守るのは「repo の中で辻褄が合っているか」まで。
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -28,7 +29,7 @@ const SQL = path.join(ROOT, 'supabase', 'windows-public.sql');
 
 // ── 窓の紙から「窓の名前 → 見せている列」を読む ──
 function readWindows() {
-  const s = fs.readFileSync(SQL, 'utf8');
+  const s = yomuGamen(SQL);
   const out = {};
   const re = /create or replace view public\.(\w+) as\s*([\s\S]*?);\s*\n/gi;
   let m;
@@ -93,7 +94,7 @@ function listFiles(roots) {
 // 1つのファイルは1回だけ読む（Windows でここが一番遅い）
 const _cache = new Map();
 function readCached(p) {
-  if (!_cache.has(p)) _cache.set(p, fs.readFileSync(p, 'utf8'));
+  if (!_cache.has(p)) _cache.set(p, yomuGamen(p));
   return _cache.get(p);
 }
 
@@ -132,7 +133,7 @@ describe('★窓の紙そのもの★', () => {
   });
 
   it('★security_invoker を付け直す行が、窓の数だけある★（落ちると RLS を素通りする）', () => {
-    const s = fs.readFileSync(SQL, 'utf8');
+    const s = yomuGamen(SQL);
     // 行頭の実行文だけ数える（頭の説明書きに同じ字が出てくるので）
     const views = (s.match(/^create or replace view public\./gim) || []).length;
     const inv = (s.match(/^alter view public\.\w+ set \(security_invoker = true\);/gim) || [])

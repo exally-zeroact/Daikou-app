@@ -8,3 +8,7 @@
 #   コミット内容の品質ガードとして機能する。
 #   既存 lint errors (217件) は MA-8 後の lint fix で別タスクで段階的に解消する想定。
 npx lint-staged
+# ★割った画面（kyuryo.html）の css/js の 指紋を 書く★ 2026-11-07
+#   lint-staged の prettier / eslint が js・css を 直した ★後★ に 測る（順が 逆だと 指紋が ずれる）。
+#   書き直した 時だけ html を その commit に 入れる（git add は 台本の 中・書きかけの html が 在れば 止める＝1押し1件）。
+node scripts/kyuryo-shimon.mjs --commit

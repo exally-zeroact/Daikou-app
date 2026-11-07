@@ -12,6 +12,7 @@
 //     ⑦列に 無い 役割の 記録は 使わない（別の 役割の 額を 動かさない）
 // ============================================================
 const P = require('../../js/payroll-daily.js');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 
 const ROLES = { '1種': { rate: 0.3, floor: 1000 }, '2種': { rate: 0.35, floor: 1150 } };
 const HI = ['2026-09-10', '2026-09-11', '2026-09-12'];
@@ -144,9 +145,8 @@ describe('役割の 決まりの 何日から', () => {
 
 // ★製品の 呼び口が 役割の 記録を 渡す★（渡し忘れると 記録無し＝列の 値で 黙って 出る）
 describe('呼び口と 読み', () => {
-  const fs = require('fs');
   const path = require('path');
-  const yomu = (f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8');
+  const yomu = (f) => yomuGamen(path.join(__dirname, '..', '..', f));
   it('設定を 渡す buildCtx は 全部 yakuRireki も 渡す', () => {
     let n = 0;
     for (const f of ['kyuryo.html', 'shukei.html']) {

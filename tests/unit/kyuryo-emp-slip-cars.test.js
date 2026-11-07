@@ -24,12 +24,12 @@
 //   ★名前を 真ん中に★（司さん「目が散るから 赤丸の所に名前もってきて」）
 //     給料明細 → ★名前★ → 合計 の順。紙でも 一息で「誰の・いくら」が読める。
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8').replace(/\r\n/g, '\n');
-const SQL = fs.readFileSync(path.join(ROOT, 'supabase', 'apply-emp-slip-cars.sql'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html')).replace(/\r\n/g, '\n');
+const SQL = yomuGamen(path.join(ROOT, 'supabase', 'apply-emp-slip-cars.sql'));
 
 // ★見張りは 書き方の空白で 赤にならない★ 2026-08-26
 //   prettier が 折り返し方を変えると ★中身は1文字も変わっていないのに 赤★ になった。
@@ -124,7 +124,7 @@ describe('★人ごとに 明細に出す車★', () => {
 
   it('★給料明細だけの決まり★（売上表・月次集計は今までどおり）', () => {
     for (const f of ['uriage.html', 'shukei.html']) {
-      const other = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      const other = yomuGamen(path.join(ROOT, f));
       expect(other, `★${f} まで 人ごとに車を隠している★`).not.toContain('slip_cars');
     }
   });

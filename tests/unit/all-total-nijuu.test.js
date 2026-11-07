@@ -20,7 +20,7 @@
 //
 //   ★わざと壊して 赤（2026-10-23 実測）★ 直す 前の 版 ⇒ ★赤 8 / 緑 4★（緑は 既定・per_car が 変わらない 事と others_total の 会社に 残る分・日ごと）・直した 後 ⇒ 緑 12 / 12
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 globalThis.PayrollPeriod = require('../../js/payroll-period.js');
 globalThis.DaikoPayroll = require('../../js/daiko-payroll.js');
@@ -29,7 +29,7 @@ const P = globalThis.DaikoPayroll;
 const PD = require('../../js/payroll-daily.js');
 const GA = require('../../js/getsuji-agg.js');
 const PP = globalThis.PayrollPeriod;
-const KYU = fs.readFileSync(path.join(__dirname, '..', '..', 'kyuryo.html'), 'utf8');
+const KYU = yomuGamen(path.join(__dirname, '..', '..', 'kyuryo.html'));
 
 const INPUT = {
   owner: { sales: 10000, expense: 1000, hours: 3 },

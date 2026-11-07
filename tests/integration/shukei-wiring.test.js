@@ -11,10 +11,11 @@
 //     6. 事務所の画面どうしが行き来できる（最後に管理画面へまとめるとき迷子にしない）
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'shukei.html'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'shukei.html'));
 
 describe('読み込み順', () => {
   const order = [
@@ -177,13 +178,13 @@ describe('★事務所の画面どうしが行き来できる★', () => {
   const GAMEN = ['uriage.html', 'kyuryo.html', 'shukei.html', 'dashboard.html', 'ryokinhyou.html'];
   GAMEN.forEach((from) => {
     it(from + ' は 下の 帯を 読んでいる（＝どこへでも 行ける）', () => {
-      const src = fs.readFileSync(path.join(ROOT, from), 'utf8');
+      const src = yomuGamen(path.join(ROOT, from));
       expect(src, '★下の 帯を 読んでいません★').toContain('js/jimusho-footer.js');
     });
   });
 
   it('★行き先は 5つ・1か所に 書いてある★', () => {
-    const foot = fs.readFileSync(path.join(ROOT, 'js', 'jimusho-footer.js'), 'utf8');
+    const foot = yomuGamen(path.join(ROOT, 'js', 'jimusho-footer.js'));
     GAMEN.forEach((to) => {
       expect(foot, '★帯に ' + to + ' が ありません★').toContain(to);
     });

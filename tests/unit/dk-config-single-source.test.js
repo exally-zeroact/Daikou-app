@@ -12,6 +12,7 @@
 //   ★このテストは移設が終わった後も恒久的に価値がある(再発防止)。消さないこと。★
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -51,7 +52,7 @@ const RE_SB_URL = /https:\/\/[a-z0-9]{15,}\.supabase\.co/;
 const RE_ANON_JWT = /eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.[A-Za-z0-9_-]{40,}/;
 
 function read(rel) {
-  return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  return yomuGamen(path.join(ROOT, rel));
 }
 
 // ★repo によって「在る画面」が違う（本番には廃止予定の manage.html が無い）★
@@ -159,7 +160,7 @@ describe('dk-config = Supabase接続先の単一真実源', () => {
     });
     const offenders = [];
     for (const fn of fns) {
-      const src = fs.readFileSync(path.join(fnDir, fn, 'index.ts'), 'utf8');
+      const src = yomuGamen(path.join(fnDir, fn, 'index.ts'));
       if (!/APP_BASE/.test(src)) continue; // アプリURLを使わない関数は対象外
       // 環境変数を読んでいること
       if (!/Deno\.env\.get\(\s*['"]DK_APP_BASE['"]\s*\)/.test(src))

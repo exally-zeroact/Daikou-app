@@ -14,13 +14,13 @@
 //     並びを決めていない今、★見え方が1つも変わってはいけない★。
 //     決めた時だけ、その順で 売上1・売上2 になる。
 // ============================================================
-const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const CN = require(path.join(ROOT, 'js', 'car-name.js'));
 const PD = require(path.join(ROOT, 'js', 'payroll-daily.js'));
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html'));
 
 const A = '22849fdb-cde7-4f1d-afc7-47009a6222222';
 const B = '7e1919ef-4aaa-411e-8db0-ba0424111111';

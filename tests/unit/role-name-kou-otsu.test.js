@@ -17,6 +17,7 @@
 //     役割の話ではないので ここでは見ない。
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -29,7 +30,7 @@ describe('★役割の名前に 甲・乙 を使わない★', () => {
     const p = path.join(ROOT, f);
     // ★2026-08-28: 前は 黙って return＝★無い画面は 何も見ずに緑★でした。
     expect(fs.existsSync(p), '★見るはずの画面が 在りません: ' + f + '★').toBe(true);
-    const s = fs.readFileSync(p, 'utf8');
+    const s = yomuGamen(p);
     // 役割として使われる形だけを見る（住所の小字は '甲' 単体では出てこない書き方）
     const hits = [];
     const RE = /['"「]([甲乙])['"」]/g;
@@ -44,7 +45,7 @@ describe('★役割の名前に 甲・乙 を使わない★', () => {
   });
 
   it('★作り物のデータは 本番と同じ 1種・2種★', () => {
-    const s = fs.readFileSync(path.join(ROOT, 'supabase', 'seed-test-fake.sql'), 'utf8');
+    const s = yomuGamen(path.join(ROOT, 'supabase', 'seed-test-fake.sql'));
     expect(s, '★1種が無い★').toContain('"1種"');
     expect(s, '★2種が無い★').toContain('"2種"');
     expect(s, '★従業員に 1種が付いていない★').toContain("'1種'");
@@ -58,7 +59,7 @@ describe('★役割の名前に 甲・乙 を使わない★', () => {
     expect(fs.existsSync(p), '★見張る相手（address-street-build.test.js）が 在りません★').toBe(
       true
     );
-    const s = fs.readFileSync(p, 'utf8');
+    const s = yomuGamen(p);
     // ここを うっかり消すと 実在の住所が出せなくなる
     expect(s, '★実在の小字を消してしまっている★').toContain("koaza: '甲'");
     expect(s, '★実在の小字を消してしまっている★').toContain("koaza: '乙'");

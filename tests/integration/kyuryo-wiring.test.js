@@ -13,15 +13,16 @@
 //     5. 触る棚は dk_ だけ（他アプリの棚に触らない）
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const HTML = fs.readFileSync(path.join(ROOT, 'kyuryo.html'), 'utf8');
+const HTML = yomuGamen(path.join(ROOT, 'kyuryo.html'));
 // 時数の 保存（乗った人・車の 時間）は 入力の 画面と 同じ 部品 2026-10-23
-const JISUU = fs.readFileSync(path.join(ROOT, 'js', 'jisuu-hozon.js'), 'utf8');
+const JISUU = yomuGamen(path.join(ROOT, 'js', 'jisuu-hozon.js'));
 // ★時数・乗った人・手で 入れた 1日分は 入力の 画面へ 移した★ 2026-10-23（司さん「給料タブは確認と従業員の設定だけにして」）
-const NYU = fs.readFileSync(path.join(ROOT, 'nyuryoku.html'), 'utf8');
-const JIPPI = fs.readFileSync(path.join(ROOT, 'js', 'jippi-hozon.js'), 'utf8');
+const NYU = yomuGamen(path.join(ROOT, 'nyuryoku.html'));
+const JIPPI = yomuGamen(path.join(ROOT, 'js', 'jippi-hozon.js'));
 
 describe('読み込み順', () => {
   const order = [
@@ -189,7 +190,7 @@ describe('金額の計算は自前で書かない（エンジンだけが正）'
   it('引く実費は売上表と同じ関数を通す', () => {
     // 2026-10-14 時数を入れる の 実費は 画面で 引き直さず、計算（payroll-daily）が 売上表と 同じ
     //   UriageAgg.deductOf で 引いた 車ごとの 額（CTX.byDate の expense）を そのまま 出す
-    const PD = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'payroll-daily.js'), 'utf8');
+    const PD = yomuGamen(path.join(__dirname, '..', '..', 'js', 'payroll-daily.js'));
     expect(PD).toMatch(/Uriage\.deductOf\(/);
   });
 });

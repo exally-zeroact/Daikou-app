@@ -14,6 +14,8 @@ export default defineConfig({
     ],
     environment: 'node',
     globals: true,
+    // ★kyuryo.html を 生で 読む 試験を 赤に★ 2026-11-07（割った 中身を 見ずに 緑に なるのを 防ぐ）
+    setupFiles: ['./tests/helpers/nama-yomi-mihari.js'],
     // ★1本の 時間切れは 30秒★ 2026-10-31
     //   押す前の 門は 全部（4052本・試験の 時間の 和 1465秒）を 191秒で 回す＝混んで 子を 起こす 試験が 5.6〜5.7秒、
     //   kata の 門（単独 18ms）も 5.2〜5.4秒に なり 既定の 5秒で 毎回 別の 試験が 切れた（10-29〜31 で 5本・8回）。

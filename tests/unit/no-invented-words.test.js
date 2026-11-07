@@ -15,6 +15,7 @@
 //   増やす時は、実際に叱られた物だけを足すこと（先回りで増やさない）。
 // ============================================================
 const fs = require('fs');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -36,7 +37,7 @@ const NG = [{ bad: '合言葉', good: 'パスワード', why: '司さんに「�
 
 function read(f) {
   const p = path.join(ROOT, f);
-  return fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '';
+  return fs.existsSync(p) ? yomuGamen(p) : '';
 }
 
 describe('★勝手な言い換えをしていないこと★', () => {

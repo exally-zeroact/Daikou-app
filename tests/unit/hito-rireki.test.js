@@ -12,6 +12,7 @@
 //     ⑦本人の 画面（crew を 倉庫が 返す）でも 同じ 額
 // ============================================================
 const P = require('../../js/payroll-daily.js');
+const { yomuGamen } = require('../helpers/gamen-src.js');
 
 const ROLES = { '1種': { rate: 0.3, floor: 1000 }, '2種': { rate: 0.35, floor: 1150 } };
 const HI = ['2026-09-10', '2026-09-11', '2026-09-12'];
@@ -115,9 +116,8 @@ describe('人の 何日から', () => {
 
 // ★製品の buildCtx の 呼び口が 全部 記録を 渡す★（渡し忘れると 記録無し＝列の 値で 黙って 出る・10-18 対立役 D1）
 describe('呼び口', () => {
-  const fs = require('fs');
   const path = require('path');
-  const yomu = (f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8');
+  const yomu = (f) => yomuGamen(path.join(__dirname, '..', '..', f));
   it('kyuryo・shukei の buildCtx は 全部 rireki を 持つ 物を 渡す', () => {
     let n = 0;
     for (const f of ['kyuryo.html', 'shukei.html']) {
@@ -148,9 +148,8 @@ describe('呼び口', () => {
 
 // ★記録の 読みは 1000行で 切れない★（limit が 無いと softList は 1回しか 頼まない＝新しい 記録が 落ちる・10-18 対立役 N1）
 describe('記録の 読みの 全部', () => {
-  const fs = require('fs');
   const path = require('path');
-  const yomu = (f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8');
+  const yomu = (f) => yomuGamen(path.join(__dirname, '..', '..', f));
   it('kyuryo・shukei の 記録の 読みは 全部 limit が 1000 より 大きい・並びの 鍵が 在る', () => {
     let n = 0;
     for (const f of ['kyuryo.html', 'shukei.html']) {
