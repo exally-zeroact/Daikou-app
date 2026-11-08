@@ -728,7 +728,10 @@
             // 自動の 線は 生きている＝そのまま（段を 線の 段に 戻す）
             _setDan(_sen ? _sen.dan || 'gatt' : 'tsunagi_naoshi');
             _susumiDashinaosu(_sen); // 預かった 線の 字を 出し直す（帯が「機械を 選んでください」の まま 残らない）
+            // ★車待ちに 戻った 時は 訳も 出し直す★ 2026-11-09（本番前 taiketsu 止め 2回目）
+            //   進みの 字が 最後だと 字の 出どころが 進みの まま＝後で 切れた 帯で 訳（エンジン／抜き挿し）が 消える
             if (_ji) _emit('error', _ji);
+            else if (_sen && _dan === 'kuruma_machi' && _sen.yakuAto) _emit('error', _sen.yakuAto);
           } else {
             _setStatus('error');
             if (_ji) _emit('error', _ji);
@@ -856,12 +859,11 @@
         // ★進みの 字を 先に・訳の 字を 後に★ 2026-11-09（設計前 taiketsu 止め1）
         //   帯に 残るのは 後に 出た 字＝前の 並びだと 訳（エンジン／抜き挿し）が「つながりませんでした」で 消えた
         _susumi('つながりませんでした', 0, sen);
-        _emit(
-          'error',
-          _ecuKotae
-            ? '車から 返事が ありません。エンジンを かけた まま もう一度 押してください。'
-            : 'OBDの 機械から 返事が ありません。一度 抜いて 挿し直して もう一度 押してください。'
-        );
+        // 訳は 線に 預ける＝人が 選ぶ 画面を やめた 後に 出し直す（_susumiDashinaosu の 後）
+        sen.yakuAto = _ecuKotae
+          ? '車から 返事が ありません。エンジンを かけた まま もう一度 押してください。'
+          : 'OBDの 機械から 返事が ありません。一度 抜いて 挿し直して もう一度 押してください。';
+        _emit('error', sen.yakuAto);
         return undefined;
       })
       .then(function () {

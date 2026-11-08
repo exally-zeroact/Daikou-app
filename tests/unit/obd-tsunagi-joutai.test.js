@@ -633,20 +633,22 @@ describe('OBD 押しの 口×今の 形（T5・T6 差①〜④）と 段', () =>
 describe('OBD 車が 黙った 線の 上で 人が 繋ぐ（kuruma_machi→connect）', () => {
   const damaru = (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c));
 
-  it('選ぶ 画面を やめた → 段は kuruma_machi に 戻る・status は connected の まま・古い 線は 生きた まま・字は 出さない', async () => {
+  // ★新しい 訳は 出さない（やめたのは 間違いでは ない）★。前の 訳の 出し直し 1本だけ（SU6・11-09 本番前 taiketsu 止め 2回目）
+  it('選ぶ 画面を やめた → 段は kuruma_machi に 戻る・status は connected の まま・古い 線は 生きた まま・新しい 訳は 出さない（前の 訳を 出し直す）', async () => {
     const d1 = makeDev('A', { responder: damaru });
     const bt = makeBT([d1]);
     const { O, rec } = loadOBD(bt);
     await O.connect();
     expect(O.getDan()).toBe('kuruma_machi');
     const errMae = rec.error.length;
+    const yakuMae = rec.error[errMae - 1];
     bt.nextPick('yameru');
     await expect(O.connect()).rejects.toBeTruthy();
     expect(O.getDan()).toBe('kuruma_machi');
     expect(O.getStatus()).toBe('connected');
     expect(O.getDare()).toBe('hito');
     expect(d1.server.connected).toBe(true);
-    expect(rec.error.length).toBe(errMae);
+    expect(rec.error.slice(errMae)).toEqual([yakuMae]);
     expect(rec.status).toEqual(['connecting', 'connected']);
     O.disconnect();
   });
@@ -973,6 +975,49 @@ describe('OBD 進みの 字（susumi）の 順と 線', () => {
     h.yameru();
     await tick(20);
     expect(jun.slice(k)[0]).toBe('s:車と 話しています（方式 2/3）');
+    O.disconnect();
+  }, 20000);
+  // ★本番前 taiketsu 止め（11-09 2回目）★ 車待ち（kuruma_machi）で 言われた 通り 押す→選ぶ 画面を やめる
+  //   前は 出し直した「つながりませんでした」が 最後＝字の 出どころが 進みの まま→後で 切れた 帯で 訳が 消えた
+  it('SU6: 車待ちの 線の 上で 選ぶ 画面を やめる → 最後に 出るのは 訳（エンジン）', async () => {
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const bt = makeBT([d]);
+    const { O } = loadOBD(bt);
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    const h = yameruErabu(bt);
+    O.connect().catch(() => {});
+    const k = jun.length;
+    expect(jun[k - 1]).toBe('s:機械を 選んでください');
+    h.yameru();
+    await tick(20);
+    expect(O.getDan()).toBe('kuruma_machi');
+    expect(jun.slice(k)[0]).toBe('s:つながりませんでした');
+    expect(jun[jun.length - 1]).toBe(
+      'e:車から 返事が ありません。エンジンを かけた まま もう一度 押してください。'
+    );
+    O.disconnect();
+  }, 20000);
+  it('SU7: 車待ちから 車が 話して 緑（tsunagatta）に なった 後に 選ぶ 画面を やめる → 古い 訳は 出し直さない', async () => {
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const bt = makeBT([d]);
+    const { O } = loadOBD(bt);
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    d.responder = ichiban; // エンジンが かかった＝次の 車速で 緑
+    expect(await made(() => O.getDan() === 'tsunagatta', 3000)).toBe(true);
+    const h = yameruErabu(bt);
+    O.connect().catch(() => {});
+    const k = jun.length;
+    h.yameru();
+    await tick(20);
+    expect(jun.slice(k).filter((x) => x.indexOf('e:') === 0)).toEqual([]);
     O.disconnect();
   }, 20000);
   it('SU4: 殺した 線（warmup の 途中）からは 新しい 線の 字の 後に 古い 字が 来ない', async () => {
