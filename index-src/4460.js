@@ -146,6 +146,8 @@
             var _nihongo = /[\u3040-\u30ff\u4e00-\u9faf]/.test(_m);
             window._obdSusumiJi = _nihongo ? _m : '';
             window._obdSusumiMade = 0;
+            // ★字の 出どころ★ 2026-11-09＝切れた 帯に 出して よいのは 訳（ayamari）だけ・進みの 字は 出さない
+            window._obdSusumiKara = 'ayamari';
             if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
           });
           // ★★今 何を していて あと 何秒か★★ 2026-09-08（司さん「直せや」）
@@ -155,6 +157,7 @@
             if (!x) return;
             window._obdSusumiJi = String(x.ji || '');
             window._obdSusumiMade = x.nokori_ms > 0 ? Date.now() + x.nokori_ms : 0;
+            window._obdSusumiKara = 'susumi';
             if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
           });
           // ★OBD距離能力プローブ結果 (2026-06-09・随伴車Tier判定)★:

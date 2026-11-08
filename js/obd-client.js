@@ -215,7 +215,18 @@
       return null;
     }
   };
-  const _listeners = { status: [], speed: [], error: [], probe: [], canwheel: [], dan: [] };
+  // ★susumi・canprobe を 足した★ 2026-11-09（_emit で 出す 名前が ここに 無いと on は 黙って 捨て、_emit は 黙って 戻る＝
+  //   09-08 の 進みの 字は 作った 日から 1回も 画面に 届いていなかった。試験＝obd-tsunagi-joutai の SU0／SU1）
+  const _listeners = {
+    status: [],
+    speed: [],
+    error: [],
+    probe: [],
+    canwheel: [],
+    dan: [],
+    susumi: [],
+    canprobe: [],
+  };
 
   // ★★繋ぎの「線」（sen）★★ 2026-11-08（司さん「めちゃくちゃの構造やないかぼけ・ちゃんとやれや」）
   //   ★前★ 1回の 繋ぐ試みの 持ち物（機械の 聞き手・server・口・待ち・polling・繋ぎ直しの タイマー）が
@@ -420,12 +431,25 @@
   //   ★今★ 段ごとに 'susumi' を 出す（画面が そのまま 出せる）
   //   ★通信の 手順は 1つも 変えていません★（出すだけ）
   let _susumiT0 = 0;
-  function _susumi(ji, nokoriMs) {
+  // ★線を 渡された 字は その 線が 今の 線の 時だけ 出す★ 2026-11-09（殺された 線・替わった 後の 線の 字で 帯を 上書きしない）
+  //   人が 機械を 選ぶ 画面を 開いている 間は 線の 字を 預かる（「機械を 選んでください」を 消さない）。
+  //   やめたら _susumiDashinaosu で 線の 今の 字を 出し直す。線を 渡さない 字（選ぶ 画面の 字）は 今まで通り 出す。
+  function _susumi(ji, nokoriMs, sen) {
+    if (sen) {
+      if (sen.shinda || sen !== _sen) return;
+      sen.susumiAto = { ji: ji, made: nokoriMs > 0 ? Date.now() + nokoriMs : 0 };
+      if (_hitoErabu) return;
+    }
     _emit('susumi', {
       ji: ji,
       keika_ms: _susumiT0 ? Date.now() - _susumiT0 : 0,
       nokori_ms: nokoriMs || 0,
     });
+  }
+  function _susumiDashinaosu(sen) {
+    const a = sen && !sen.shinda && sen === _sen ? sen.susumiAto : null;
+    if (!a) return;
+    _susumi(a.ji, a.made ? Math.max(0, a.made - Date.now()) : 0, sen);
   }
 
   // ─── 純関数: ELM327 応答文字列 → 車速 km/h (単体テスト対象) ──────────────
@@ -703,6 +727,7 @@
           if (_sen || _reconnecting) {
             // 自動の 線は 生きている＝そのまま（段を 線の 段に 戻す）
             _setDan(_sen ? _sen.dan || 'gatt' : 'tsunagi_naoshi');
+            _susumiDashinaosu(_sen); // 預かった 線の 字を 出し直す（帯が「機械を 選んでください」の まま 残らない）
             if (_ji) _emit('error', _ji);
           } else {
             _setStatus('error');
@@ -761,7 +786,7 @@
     }
     if (!_susumiT0) _susumiT0 = Date.now();
     _setDan(G ? 'tsunagi_naoshi' : 'gatt');
-    _susumi('機械に つないでいます', 5000);
+    _susumi('機械に つないでいます', 5000, sen);
     const p = _race(
       sen,
       _jikangire(
@@ -794,14 +819,14 @@
           /* ignore */
         }
         if (!G) _setDan('kata');
-        _susumi('話し方を 探しています', 4000);
+        _susumi('話し方を 探しています', 4000, sen);
         return _race(sen, _jikangire(sen, _findProfile(server, sen), KATA_MS, 'kata'));
       })
       .then(function () {
         mada();
         if (!G) _setDan('okosu');
-        _susumi('機械を 起こしています', 4000);
-        return _race(sen, _uchi(sen, _initElm()));
+        _susumi('機械を 起こしています', 4000, sen);
+        return _race(sen, _uchi(sen, _initElm(sen)));
       })
       .then(function () {
         mada();
@@ -809,7 +834,7 @@
         _last('dk_obd_device_id', device && device.id ? device.id : ''); // 次回 getDevices で照合
         _setDan('hanasu');
         // ★プロトコル確立ウォームアップ (probe/速度の前に必ず)★: ECU通信を 0100×長timeout で確立。
-        return _race(sen, _uchi(sen, _warmup()));
+        return _race(sen, _uchi(sen, _warmup(sen)));
       })
       .then(function (established) {
         mada();
@@ -817,7 +842,7 @@
         //   STOPPED 全滅が再発する(監査指摘)。未確立なら probe を飛ばし、自己回復する速度ポーリングへ。
         if (established) {
           _setDan('tsunagatta');
-          _susumi('つながりました', 0);
+          _susumi('つながりました', 0, sen);
           return _probe().catch(function () {
             /* プローブ失敗は致命でない */
           });
@@ -828,13 +853,15 @@
         //     ①機械は 返事を するが 車が 黙っている ⇒ ★エンジン★
         //     ②機械が 一度も 返事を しない ⇒ ★機械の 抜き挿し★
         _setDan('kuruma_machi');
+        // ★進みの 字を 先に・訳の 字を 後に★ 2026-11-09（設計前 taiketsu 止め1）
+        //   帯に 残るのは 後に 出た 字＝前の 並びだと 訳（エンジン／抜き挿し）が「つながりませんでした」で 消えた
+        _susumi('つながりませんでした', 0, sen);
         _emit(
           'error',
           _ecuKotae
             ? '車から 返事が ありません。エンジンを かけた まま もう一度 押してください。'
             : 'OBDの 機械から 返事が ありません。一度 抜いて 挿し直して もう一度 押してください。'
         );
-        _susumi('つながりませんでした', 0);
         return undefined;
       })
       .then(function () {
@@ -1056,7 +1083,7 @@
     2500 + 300 + WARMUP_RETRIES * PROTOCOL_TIMEOUT_MS + (WARMUP_RETRIES - 1) * WARMUP_RETRY_WAIT_MS;
   // ★ECU から 1度も 返事が 無かったか★（＝エンジンが 止まっている 見立て）
   let _ecuKotae = false;
-  function _warmup() {
+  function _warmup(sen) {
     let pi = 0;
     _ecuKotae = false;
     function tryProto() {
@@ -1067,21 +1094,22 @@
       //     （機械が 死んで いるか、前の 繋がりを 掴んだ まま）
       //     ⇒ 1つ目で 打ち切る（約80秒 → ★約25秒★）
       if (pi === 1 && !_ecuKotae) {
-        _susumi('機械が 返事を しません', 0);
+        _susumi('機械が 返事を しません', 0, sen);
         return Promise.resolve(false);
       }
       //   ②ATSP0（自動）は ★機械が 自分で 全部の 方式を 探す★ 物。
       //     それが 駄目なら ATSP7 は ★同じ 所を もう一度 探すだけ★
       //     ⇒ 2つ目で 打ち切る（約80秒 → ★約50秒★）
       if (pi === 2 && _WARMUP_PROTOS[1] === '0') {
-        _susumi('この 車とは 話せませんでした', 0);
+        _susumi('この 車とは 話せませんでした', 0, sen);
         return Promise.resolve(false);
       }
       const sp = _WARMUP_PROTOS[pi++];
       // ★今 何番目を 試していて あと どれくらいか★
       _susumi(
         '車と 話しています（方式 ' + pi + '/' + _WARMUP_PROTOS.length + '）',
-        (_WARMUP_PROTOS.length - pi + 1) * _WARMUP_ONE_MS
+        (_WARMUP_PROTOS.length - pi + 1) * _WARMUP_ONE_MS,
+        sen
       );
       return _send('ATSP' + sp, 2500)
         .catch(function () {
@@ -1122,7 +1150,7 @@
   // ─── ELM327 初期化 ───
   //   ★ATZ(リセット)はチップ再起動(~1-2s)を伴うため長timeout+settleを与える(短timeoutだと再起動中に
   //     次の ATE0 が捨てられ echo off が効かない個体がある・監査指摘)。その後 echo/lf/space/headers off。
-  function _initElm() {
+  function _initElm(sen) {
     // ★★機械を 丸ごと 起こし直すのは「要る時だけ」★★ 2026-09-08
     //   ★司さん★「OBDの構造を把握してやり方変え最速にしろや」
     //   ★前★ 毎回 ATZ（チップの 丸ごと 再起動）＋★必ず 1秒 待つ★
@@ -1139,7 +1167,7 @@
       })
       .catch(function () {
         // ★おかしい 時だけ 丸ごと 起こし直す（前と 同じ 道）★
-        _susumi('機械を 起こし直しています', 4000);
+        _susumi('機械を 起こし直しています', 4000, sen);
         return _send('ATZ', 3000)
           .catch(function () {
             /* ATZ 失敗は致命でない */
@@ -1867,6 +1895,7 @@
   }
   function stopCanWheelMeter() {
     if (!_cwOn) return Promise.resolve(getCanWheelMeter());
+    const cwSen = _sen; // ★止めた 時の 線★（線が 替わった 後の warmup の 字を 新しい 線の 帯に 出さない・2026-11-09）
     _cwOn = false; // ループ停止(次tickで抜ける)
     _cwBurstGen++; // ★監査M-B: in-flight捕捉の完了クリアを無効化(世代不一致)★
     if (_cwBurstTimer) {
@@ -1891,7 +1920,7 @@
       })
       .then(function () {
         // ★監査m1: start で ATSP6/ATAL を撃った往復の片道を是正=プロトコル再pin(自己治癒)。
-        return isConnected() ? _warmup().catch(function () {}) : null;
+        return isConnected() ? _warmup(cwSen).catch(function () {}) : null;
       })
       .then(function () {
         _stopRequested = _cwWasStop;
@@ -1996,7 +2025,7 @@
         if (_consecFail >= RECOVER_AFTER && !_recovering) {
           _recovering = true;
           _consecFail = 0;
-          sen.hIma = _warmup()
+          sen.hIma = _warmup(sen)
             .catch(function () {
               return false;
             })

@@ -17879,6 +17879,8 @@
             var _nihongo = /[\u3040-\u30ff\u4e00-\u9faf]/.test(_m);
             window._obdSusumiJi = _nihongo ? _m : '';
             window._obdSusumiMade = 0;
+            // ★字の 出どころ★ 2026-11-09＝切れた 帯に 出して よいのは 訳（ayamari）だけ・進みの 字は 出さない
+            window._obdSusumiKara = 'ayamari';
             if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
           });
           // ★★今 何を していて あと 何秒か★★ 2026-09-08（司さん「直せや」）
@@ -17888,6 +17890,7 @@
             if (!x) return;
             window._obdSusumiJi = String(x.ji || '');
             window._obdSusumiMade = x.nokori_ms > 0 ? Date.now() + x.nokori_ms : 0;
+            window._obdSusumiKara = 'susumi';
             if (typeof window._obdBarKakinaosu === 'function') window._obdBarKakinaosu();
           });
           // ★OBD距離能力プローブ結果 (2026-06-09・随伴車Tier判定)★:
@@ -18177,16 +18180,20 @@
             var reconBar = document.getElementById('obdReconnectBar');
             if (reconBar) {
               reconBar.style.display = _showRecon || _tsunagichu ? 'flex' : 'none';
-              if (_tsunagichu || window._obdSusumiJi) {
+              // ★★帯の 字の 順★★ 2026-11-09（進みの 字が 届く ように した 時の 直し・設計 sekkei_obd_susumi v1）
+              //   ①繋いでいる 途中＝進みの 字 ②つなぎ直し＝つなぎ直しの 字（前は 古い 字に 負けた＝注4）
+              //   ③訳の 字（ayamari）＝その 字 ④それ 以外＝切れました（「つながりました」等の 進みの 字を 切れた 帯に 出さない）
+              if (_tsunagichu) {
                 var _ji = window._obdSusumiJi || 'つないでいます';
                 var _ato = window._obdSusumiMade
                   ? Math.max(0, Math.round((window._obdSusumiMade - Date.now()) / 1000))
                   : 0;
-                reconBar.textContent = _tsunagichu
-                  ? '⏳ OBD ' + _ji + (_ato > 0 ? '（あと 約' + _ato + '秒）' : '')
-                  : _ji;
+                reconBar.textContent =
+                  '⏳ OBD ' + _ji + (_ato > 0 ? '（あと 約' + _ato + '秒）' : '');
               } else if (_obdDan === 'tsunagi_naoshi') {
                 reconBar.textContent = '⏳ OBD つなぎ直しています（タップで選び直し）';
+              } else if (window._obdSusumiKara === 'ayamari' && window._obdSusumiJi) {
+                reconBar.textContent = window._obdSusumiJi;
               } else {
                 reconBar.textContent = '⚠ OBDが切れました — タップで再接続';
               }

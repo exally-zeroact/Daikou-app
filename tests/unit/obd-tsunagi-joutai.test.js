@@ -815,7 +815,7 @@ describe('わざと 壊す（前の 穴の 形に 戻すと 赤に なる事）'
 
   it('壊2: 古い 線の「死んだら 降りる」（race と mada）を 両方 外す → 古い 線が 字・段を 書く', async () => {
     const src = kowasu([
-      ['return _race(sen, _uchi(sen, _warmup()));', 'return _uchi(sen, _warmup());'],
+      ['return _race(sen, _uchi(sen, _warmup(sen)));', 'return _uchi(sen, _warmup(sen));'],
       ['if (sen.shinda || _sen !== sen) throw _shindaErr();', '/* kowashita */'],
     ]);
     const r = await BAMEN.furuiKaku(src);
@@ -863,5 +863,117 @@ describe('わざと 壊す（前の 穴の 形に 戻すと 赤に なる事）'
     const src = kowasu([['return d && d.id === wantId;', 'return !!d;']]);
     const r = await BAMEN.betsuKikai(src);
     expect(r.ok).toBe(false);
+  });
+});
+
+// ★★進みの 字（susumi）が 画面の 受け口に 届く★★ 2026-11-09（09-08 司さん「直せや」の 直しが 届いていなかった）
+//   ★前★ _listeners に susumi が 無く、on('susumi') は 登録されず、_emit('susumi') は 何もせずに 戻っていた
+//     ＝帯の「機械を 起こしています（あと 約4秒）」は 09-08 から 1回も 出ていなかった
+describe('OBD 進みの 字（susumi）が 届く', () => {
+  function kikuSusumi(O) {
+    const ji = [];
+    O.on('susumi', (x) => ji.push(x && x.ji));
+    return ji;
+  }
+  it('SU1: 本物の on→_emit で 人の 繋ぎの 段ごとに 字が 届く', async () => {
+    const bt = makeBT([makeDev('A')]);
+    const { O } = loadOBD(bt);
+    const ji = kikuSusumi(O);
+    await O.connect();
+    await tick(50);
+    O.disconnect();
+    expect(ji[0]).toBe('機械を 選んでください');
+    expect(ji).toContain('機械に つないでいます');
+    expect(ji).toContain('つながりました');
+  });
+});
+
+describe('OBD 進みの 字（susumi）の 順と 線', () => {
+  function kiku(O) {
+    const jun = [];
+    O.on('susumi', (x) => jun.push('s:' + (x && x.ji)));
+    O.on('error', (e) => jun.push('e:' + e));
+    return jun;
+  }
+  function yameruErabu(bt) {
+    const h = { yameru: null };
+    bt.requestDevice = () =>
+      new Promise((_, rej) => {
+        h.yameru = () => {
+          const e = new Error('User cancelled the requestDevice() chooser.');
+          e.name = 'NotFoundError';
+          rej(e);
+        };
+      });
+    return h;
+  }
+  it('SU0: _emit で 出す 名前は 全部 _listeners に 在る（無いと on が 黙って 捨てる）', () => {
+    const i = SRC.indexOf('const _listeners = {');
+    const blk = SRC.slice(i, SRC.indexOf('};', i));
+    const names = Array.from(
+      new Set(Array.from(SRC.matchAll(/_emit\('([a-z]+)'/g)).map((m) => m[1]))
+    );
+    expect(names.length).toBeGreaterThanOrEqual(8);
+    const nai = names.filter((n) => !new RegExp('\\b' + n + ':\\s*\\[\\]').test(blk));
+    expect(nai).toEqual([]);
+  });
+  it('SU2: 車が 黙る（kuruma_machi）→「つながりませんでした」の 後に 訳＝帯に 残るのは 訳', async () => {
+    // 車が 黙る＝0100 も 010D も NO DATA（§5 と 同じ）
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const { O } = loadOBD(makeBT([d]));
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    await tick(50);
+    O.disconnect();
+    const a = jun.indexOf('s:つながりませんでした');
+    expect(a).toBeGreaterThan(-1);
+    expect(jun[a + 1]).toBe(
+      'e:車から 返事が ありません。エンジンを かけた まま もう一度 押してください。'
+    );
+    expect(jun.slice(a + 2).filter((x) => x.indexOf('s:') === 0)).toEqual([]);
+  }, 20000);
+  it('SU3: 線が 生きた まま 人が 選ぶ 画面を 開く → 線の 字は 預かる・やめたら 線の 今の 字を 出し直す', async () => {
+    const d = makeDev('A', { responder: (c) => (c === '0100' ? 'NO DATA\r\r>' : ichiban(c)) });
+    const bt = makeBT([d]);
+    const { O } = loadOBD(bt);
+    const jun = kiku(O);
+    O.connect().catch(() => {});
+    expect(await made(() => d.count('ATSP6') >= 1, 3000)).toBe(true);
+    const h = yameruErabu(bt);
+    O.connect().catch(() => {});
+    const k = jun.length;
+    expect(jun[k - 1]).toBe('s:機械を 選んでください');
+    // 線は 方式 2 へ 進む（字は 預かる）
+    expect(await made(() => d.count('ATSP0') >= 1, 4000)).toBe(true);
+    await tick(20);
+    expect(jun.slice(k)).toEqual([]);
+    h.yameru();
+    await tick(20);
+    expect(jun.slice(k)[0]).toBe('s:車と 話しています（方式 2/3）');
+    O.disconnect();
+  }, 20000);
+  it('SU4: 殺した 線（warmup の 途中）からは 新しい 線の 字の 後に 古い 字が 来ない', async () => {
+    const d1 = makeDev('A', { responder: (c) => (c === '0100' ? null : ichiban(c)) });
+    const d2 = makeDev('B');
+    const bt = makeBT([d1, d2]);
+    const { O } = loadOBD(bt);
+    const jun = kiku(O);
+    O.connect().catch(() => {});
+    expect(await made(() => d1.count('0100') >= 1, 1000)).toBe(true);
+    bt.nextPick(d2);
+    await O.connect();
+    await tick(300);
+    O.disconnect();
+    const a = jun.lastIndexOf('s:機械に つないでいます');
+    expect(jun.slice(a)).toEqual([
+      's:機械に つないでいます',
+      's:話し方を 探しています',
+      's:機械を 起こしています',
+      's:車と 話しています（方式 1/3）',
+      's:つながりました',
+    ]);
   });
 });

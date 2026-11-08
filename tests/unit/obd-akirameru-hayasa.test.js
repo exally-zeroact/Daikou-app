@@ -59,7 +59,7 @@ function tsukuru(kotae) {
   const _WARMUP_PROTOS = ['6', '0', '7'];
 
   // ★本物の _warmup を 切り出す★
-  const i = SRC.indexOf('  function _warmup() {');
+  const i = SRC.indexOf('  function _warmup(sen) {');
   const j = SRC.indexOf('\n  }\n', i) + 4;
   const honmono = SRC.slice(i, j);
 

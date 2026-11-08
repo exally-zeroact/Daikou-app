@@ -57,7 +57,7 @@ function tsukuru(kotae) {
   const _susumi = () => {};
   const INIT_CMDS = ['ATE0', 'ATL0', 'ATS0', 'ATH0'];
 
-  const i = SRC.indexOf('  function _initElm() {');
+  const i = SRC.indexOf('  function _initElm(sen) {');
   const j = SRC.indexOf('\n  }\n', i) + 4;
   const honmono = SRC.slice(i, j);
 
