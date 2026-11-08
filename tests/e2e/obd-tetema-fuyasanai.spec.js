@@ -100,11 +100,20 @@ test('★★② OBD が どうなっても 業務開始は 止まらない★★
 });
 
 test('★★③ OBD を 使っていない 人には 何も 出さない★★', async ({ page }) => {
+  // ★一度も 使っていない 端末★＝覚えた 印（dk_obd_tsunaida）を 読み込む 前に 消す。
+  //   2026-11-08 直し：前は 下で window._obdWasConnected = false と していたが、
+  //   _obdWasConnected は bindObdUI の 中の var で 外からは 効かない（叩きの 注）＝偶然の 緑だった。
+  await page.addInitScript(() => {
+    try {
+      localStorage.removeItem('dk_obd_tsunaida');
+    } catch (e) {
+      /* 使えない 端末は 覚えも 無い */
+    }
+  });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(3000);
   const r = await page.evaluate(() => {
     let yonda = 0;
-    window._obdWasConnected = false; // ★一度も 使っていない★
     if (window.OBDClient) {
       window.OBDClient.isSupported = function () {
         return true;

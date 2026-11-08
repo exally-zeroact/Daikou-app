@@ -124,11 +124,16 @@ test('★★② この 業務で 繋いだ のに 切れたら 出す（守り�
   ).toBeGreaterThan(0);
 
   // ★★localStorage は 消していない★★（自動で 繋ぎに 行く 判断に 要る）
+  //   2026-11-08 直し：前は「消す 枝が 在る || 覚える 所が 在る」で いつも true だった（叩きの 注）。
+  //   ★覚える 所が 在る★ と ★覚えを 消す 呼び出しが 0★ を 別々に 見る（手で 切っても 消さない 決め）。
   expect(
-    HTML.indexOf('localStorage.removeItem(_OBD_TSUNAIDA_KEY)') > 0 ||
-      HTML.indexOf('_obdTsunaidaHozon(true)') > 0,
-    '★前に 使った 端末の 覚えが 消えました★（自動接続が 効かなく なります）'
-  ).toBe(true);
+    HTML.indexOf('_obdTsunaidaHozon(true)'),
+    '★繋がった時に 端末に 覚えていません★（自動接続が 効かなく なります）'
+  ).toBeGreaterThan(0);
+  expect(
+    (HTML.match(/_obdTsunaidaHozon\(\s*(false|0|!1)\s*\)/g) || []).length,
+    '★前に 使った 端末の 覚えを 消す 所が 在ります★（自動接続が 効かなく なります）'
+  ).toBe(0);
 });
 
 test('★★③ 帯そのものは 消していない★★', () => {

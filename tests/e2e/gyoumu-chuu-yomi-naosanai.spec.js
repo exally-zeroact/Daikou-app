@@ -169,7 +169,36 @@ test('★★③ 一度 繋いだ事を 端末に 覚える（読み直しても 
   // eslint-disable-next-line no-console
   console.log('★覚える ' + tsunaida + '／消す ' + keshita + '★');
   expect(tsunaida, '★繋がった時に 覚えていません★').toBe(1);
-  expect(keshita, '★手動で 切った時に 消していません（2か所)★').toBe(2);
+  // ★★2026-11-08 向け直し（OBD の 繋ぎの 作り直し・司さんの 直「手で 切っても 記憶は 消さない」）★★
+  //   ★前★ 手で 切ると 覚えた 印を 2か所で 消した＝次の 業務開始で ずっと 繋ぎに 行かなかった。
+  //   ★今★ 切る 口は _obdKiru 1つ。消すのは この 業務の 印（_konoGyoumuHozon(false)＝帯を 出さない）だけ。
+  //     覚えた 印（_obdTsunaidaHozon）と _obdWasConnected は 消さない。
+  expect(keshita, '★手で 切った時に 覚えた 印を 消しています（作り直しで 消さない 決め）★').toBe(0);
+  // ★体は 括弧を 数えて 切り出す★（中に if {…} が 在っても 早く 切れない）。注の 行は 外して 見る。
+  const kiruAt = SRC.indexOf('function _obdKiru()');
+  expect(kiruAt, '★切る 口 _obdKiru が 見つかりません★').toBeGreaterThan(-1);
+  expect(SRC.indexOf('function _obdKiru()', kiruAt + 1), '★切る 口が 2つ 在ります★').toBe(-1);
+  const hajime = SRC.indexOf('{', kiruAt);
+  let fukasa = 0;
+  let owari = -1;
+  for (let k = hajime; k < SRC.length; k++) {
+    if (SRC[k] === '{') fukasa++;
+    else if (SRC[k] === '}' && --fukasa === 0) {
+      owari = k;
+      break;
+    }
+  }
+  expect(owari, '★_obdKiru の 終わりが 読めません★').toBeGreaterThan(hajime);
+  const kiru = SRC.slice(hajime, owari + 1)
+    .split('\n')
+    .map((l) => l.replace(/\/\/.*$/, ''))
+    .join('\n');
+  expect(kiru, '★手で 切った時に この 業務の 印を 消していません（帯が 出る）★').toMatch(
+    /_konoGyoumuHozon\(false\)/
+  );
+  expect(kiru, '★手で 切った時に 覚えた 印を 消しています★').not.toMatch(
+    /_obdTsunaidaHozon\(\s*(false|0|!1)\s*\)|_obdWasConnected\s*=(?!=)|removeItem\(\s*_OBD_TSUNAIDA_KEY/
+  );
 
   // ★読み込む 側★＝変数の 初期値が localStorage から 来ているか
   expect(
