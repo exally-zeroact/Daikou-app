@@ -392,6 +392,11 @@ describe('OBD 古い 線は 新しい 線へ 書かない（T4・U1・V1・V2）
     O.disconnect();
   });
 
+  it('T4c: 古い 自動の 線の warmup（0100 に NO DATA・寝ている 途中）で 人が 繋ぐ → 新しい 機械への 書きは まっさらと 同じ（叩き 注1）', async () => {
+    const r = await BAMEN.atarashiiKikai(SRC);
+    expect(r.atarashii).toEqual(r.kijun);
+  });
+
   it('U1: gatt.connect が 返らない 自動の 線 → 人が 繋ぐと 待たずに 繋がる（25秒 待たない）', async () => {
     const d1 = makeDev('A', { tomeru: true });
     const d2 = makeDev('B');
@@ -635,6 +640,31 @@ function kowasu(pairs) {
 
 // 場面（src を 変えて 回す）。戻りの ok＝上の 試験と 同じ 物差しで 正しいか
 const BAMEN = {
+  // T4c の 形：新しい 機械（B）が 010D を 書き始める 前の 並びを、まっさらに 繋いだ 時と 比べる
+  async atarashiiKikai(src) {
+    const mae = (d) => {
+      const i = d.writes.findIndex((w) => w.cmd === '010D');
+      return d.writes.slice(0, i < 0 ? d.writes.length : i).map((w) => w.cmd);
+    };
+    const k = makeDev('B');
+    const L0 = loadOBD(makeBT([k]), null, src);
+    await L0.O.connect();
+    await tick(800);
+    L0.O.disconnect();
+    const d1 = makeDev('A', { responder: (c) => (c === '0100' ? 'NO DATA\r\r>' : ichiban(c)) });
+    const d2 = makeDev('B');
+    const bt = makeBT([d1, d2]);
+    const { O } = loadOBD(bt, { dk_obd_device_id: 'A' }, src);
+    O.tryAutoConnect().catch(() => {});
+    await made(() => d1.count('0100') >= 1, 3000);
+    bt.nextPick(d2);
+    await O.connect().catch(() => {});
+    await tick(800);
+    O.disconnect();
+    const atarashii = mae(d2);
+    const kijun = mae(k);
+    return { ok: JSON.stringify(atarashii) === JSON.stringify(kijun), atarashii, kijun };
+  },
   // T1b の 形：繋いだ まま もう一度 人で 繋ぐ
   async nihon(src) {
     const d1 = makeDev('A');
@@ -724,7 +754,7 @@ const BAMEN = {
 };
 
 describe('わざと 壊す（前の 穴の 形に 戻すと 赤に なる事）', () => {
-  it('今の コードでは 5つの 場面が 全部 正しい', async () => {
+  it('今の コードでは 6つの 場面が 全部 正しい', async () => {
     for (const k of Object.keys(BAMEN)) {
       const r = await BAMEN[k](SRC);
       expect({ k, ok: r.ok }).toEqual({ k, ok: true });
@@ -739,7 +769,7 @@ describe('わざと 壊す（前の 穴の 形に 戻すと 赤に なる事）'
 
   it('壊2: 古い 線の「死んだら 降りる」（race と mada）を 両方 外す → 古い 線が 字・段を 書く', async () => {
     const src = kowasu([
-      ['return _race(sen, _warmup());', 'return _warmup();'],
+      ['return _race(sen, _uchi(sen, _warmup()));', 'return _uchi(sen, _warmup());'],
       ['if (sen.shinda || _sen !== sen) throw _shindaErr();', '/* kowashita */'],
     ]);
     const r = await BAMEN.furuiKaku(src);
@@ -758,6 +788,17 @@ describe('わざと 壊す（前の 穴の 形に 戻すと 赤に なる事）'
       ],
     ]);
     const r = await BAMEN.furuiKireta(src);
+    expect(r.ok).toBe(false);
+  });
+
+  it('壊6: race の 中の 生の 連なり（_uchi）を 待たない → 古い warmup が 新しい 機械へ 0100 を 書く', async () => {
+    const src = kowasu([
+      [
+        '[sen.ima, sen.loopIma, sen.hIma].concat(sen.uchi).map(',
+        '[sen.ima, sen.loopIma, sen.hIma].map(',
+      ],
+    ]);
+    const r = await BAMEN.atarashiiKikai(src);
     expect(r.ok).toBe(false);
   });
 

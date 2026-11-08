@@ -175,3 +175,34 @@ test('★★⑥ 業務中に 切れたら 帯は 出す（消していない）�
   // ★帯そのものを 消して いない★
   expect(HTML.indexOf('id="obdReconnectBar"'), '★帯を 消してしまいました★').toBeGreaterThan(0);
 });
+
+test('★★⑦ 業務の 外で 車と 話している 間（段 hanasu・status connected）も 帯を 出さない★★', async ({
+  page,
+}) => {
+  // ★2026-11-08 作った後の 叩きの 止め1★
+  //   起動の 自動接続が _initElm を 越えると status=connected・段=hanasu。
+  //   エンジンを 切った まま 開くと 0100 に 黙る 間（約23秒）帯が ホームや 設定の 上に 浮いた。
+  //   ⇒ hanasu の 帯は 業務中だけ（業務の 外は 前の 版と 同じ＝connecting の 間だけ）。
+  //   ★わざと壊す★ index.html の `(_gyoumuChuDaKa && _obdDan === 'hanasu')` を `_obdDan === 'hanasu'` に すると 赤（11-08 実測）。
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1500);
+  const ok = await page.evaluate(() => {
+    const O = window.OBDClient;
+    if (!O) return false;
+    O.isSupported = () => true;
+    O.getStatus = () => 'connected';
+    O.isConnected = () => true;
+    O.getDan = () => 'hanasu';
+    return true;
+  });
+  expect(ok, '★OBDClient が ありません★').toBe(true);
+  await page.waitForTimeout(3000);
+  const r = await page.evaluate(() => {
+    const b = document.getElementById('obdReconnectBar');
+    return { mieru: b ? b.offsetHeight > 0 : false, ji: b ? (b.textContent || '').trim() : '' };
+  });
+  // eslint-disable-next-line no-console
+  console.log('★業務の 外・hanasu★ ' + JSON.stringify(r));
+  expect(r.mieru, '★業務の 外なのに 車と 話している 帯が 出ています★').toBe(false);
+});

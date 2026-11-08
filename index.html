@@ -18147,7 +18147,10 @@
             var _tsunagichu =
               _obdSupported &&
               ((O.getStatus && O.getStatus() === 'connecting') ||
-                ['erabu', 'gatt', 'kata', 'okosu', 'hanasu'].indexOf(_obdDan) >= 0);
+                ['erabu', 'gatt', 'kata', 'okosu'].indexOf(_obdDan) >= 0 ||
+                // ★車と 話している 間（status は connected）は 業務中だけ★ 2026-11-08（叩きの 止め1）
+                //   業務の 外で 帯を 出すと ホームや 設定の 上に 浮く（09-09 司さん「位置変えるなや」）＝前の 版も 業務の 外は 出ていない
+                (_gyoumuChuDaKa && _obdDan === 'hanasu'));
             var reconBar = document.getElementById('obdReconnectBar');
             if (reconBar) {
               reconBar.style.display = _showRecon || _tsunagichu ? 'flex' : 'none';

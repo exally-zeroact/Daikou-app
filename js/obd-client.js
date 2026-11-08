@@ -271,6 +271,7 @@
       ima: null,
       loopIma: null,
       hIma: null,
+      uchi: [], // race の 中の 生の 連なり（_initElm・_warmup）＝殺した 後も settle まで 待つ
       polling: false,
       shinu: null,
       _shinuReject: null,
@@ -282,6 +283,14 @@
       /* 殺した 知らせ＝誰も 待っていなくても 落とさない */
     });
     return sen;
+  }
+  // ★race の 中の 生の 連なりを 覚える★ 2026-11-08（作った後の 叩き 注1）
+  //   race は 殺すと すぐ 降りるが、中の _warmup は 寝て（_sleep）起きた 後に 新しい 線へ 0100 を 書いた。
+  //   ⇒ _matsu は 中の 連なりも settle まで 待つ（_sen=null の 間は _send が 即 reject・_sleep が 即 起きる＝待ちは マイクロタスク数個）
+  function _uchi(sen, p) {
+    const ok = function () {};
+    sen.uchi.push(Promise.resolve(p).then(ok, ok));
+    return p;
   }
   function _race(sen, p) {
     return Promise.race([p, sen.shinu]);
@@ -373,7 +382,7 @@
     if (!sen) return Promise.resolve();
     const ok = function () {};
     return Promise.all(
-      [sen.ima, sen.loopIma, sen.hIma].map(function (p) {
+      [sen.ima, sen.loopIma, sen.hIma].concat(sen.uchi).map(function (p) {
         return p ? Promise.resolve(p).then(ok, ok) : null;
       })
     );
@@ -792,7 +801,7 @@
         mada();
         if (!G) _setDan('okosu');
         _susumi('機械を 起こしています', 4000);
-        return _race(sen, _initElm());
+        return _race(sen, _uchi(sen, _initElm()));
       })
       .then(function () {
         mada();
@@ -800,7 +809,7 @@
         _last('dk_obd_device_id', device && device.id ? device.id : ''); // 次回 getDevices で照合
         _setDan('hanasu');
         // ★プロトコル確立ウォームアップ (probe/速度の前に必ず)★: ECU通信を 0100×長timeout で確立。
-        return _race(sen, _warmup());
+        return _race(sen, _uchi(sen, _warmup()));
       })
       .then(function (established) {
         mada();
