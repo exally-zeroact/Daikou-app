@@ -10,9 +10,22 @@ const vm = require('vm');
 
 const OBD_PATH = path.join(__dirname, '..', '..', 'js', 'obd-client.js');
 
-function loadOBD(bluetooth) {
+function loadOBD(bluetooth, kioku) {
   const src = fs.readFileSync(OBD_PATH, 'utf8');
+  // ★端末の 記憶（dk_obd_device_id）★ 2026-11-08
+  const _ls = Object.assign({}, kioku || {});
   const sandbox = {
+    localStorage: {
+      getItem(k) {
+        return Object.prototype.hasOwnProperty.call(_ls, k) ? _ls[k] : null;
+      },
+      setItem(k, v) {
+        _ls[k] = String(v);
+      },
+      removeItem(k) {
+        delete _ls[k];
+      },
+    },
     console,
     setTimeout,
     clearTimeout,
@@ -264,8 +277,8 @@ describe('OBDClient 監査修正の保全 (静的)', () => {
   it('M-1: _send 冒頭で _rxBuffer をクリアする', () => {
     expect(/_rxBuffer\s*=\s*''/.test(src)).toBe(true);
   });
-  it('M-2: _onDisconnected が pending を解放する', () => {
-    const m = src.match(/function _onDisconnected[\s\S]*?\n {2}\}/);
+  it('M-2: 線の 片付け（_katazuke・前の _onDisconnected）が pending を解放する', () => {
+    const m = src.match(/function _katazuke[\s\S]*?\n {2}\}/);
     expect(m).toBeTruthy();
     expect(/_pendingResolve\s*=\s*null/.test(m[0])).toBe(true);
   });
@@ -275,7 +288,8 @@ describe('OBDClient 監査修正の保全 (静的)', () => {
 describe('OBDClient 自動接続/自動再接続', () => {
   it('tryAutoConnect: getDevices経由で選択ダイアログ(requestDevice)なしに接続', async () => {
     const mock = makeMockBluetooth();
-    const O = loadOBD(mock.bluetooth);
+    // ★2026-11-08★ 覚えた id に 合う 機器だけへ 行く（id が 無い 端末は 起動で 繋がない＝差⑤）
+    const O = loadOBD(mock.bluetooth, { dk_obd_device_id: 'mock-obd-1' });
     const ok = await O.tryAutoConnect();
     expect(ok).toBe(true);
     expect(O.isConnected()).toBe(true);

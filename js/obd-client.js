@@ -215,7 +215,178 @@
       return null;
     }
   };
-  const _listeners = { status: [], speed: [], error: [], probe: [], canwheel: [] };
+  const _listeners = { status: [], speed: [], error: [], probe: [], canwheel: [], dan: [] };
+
+  // ★★繋ぎの「線」（sen）★★ 2026-11-08（司さん「めちゃくちゃの構造やないかぼけ・ちゃんとやれや」）
+  //   ★前★ 1回の 繋ぐ試みの 持ち物（機械の 聞き手・server・口・待ち・polling・繋ぎ直しの タイマー）が
+  //     全部 グローバルで「どの 試みの 物か」が 無かった ⇒ 2本 走ると 潰し合い・古い 試みが 新しい 方へ 書いた
+  //   ★今★ 試みを 1つの 箱「線」に まとめ、グローバルは _sen（今の 線）1本だけ。
+  //     古い 線は 待ちから 起きる たびに sen.shinda を 見て ★何も 触らずに 降りる★。
+  //     線を 殺すのは _korosu 1か所。新しい 線は 古い 線を 殺して settle してから 入れる。
+  //   ★外の status（idle/connecting/connected/disconnected/error）の 立ち落ちは 今と 同じ★。
+  //     緑・帯は 新しい「段」（getDan）で 決める。
+  let _sen = null;
+  let _senNo = 0;
+  let _gFuda = 0; // 自動の 繋ぎ直し（G）の 札。止める＝++
+  const _gTimers = new Set();
+  let _hitoErabu = false; // 人が 機械を 選ぶ 画面を 開いている
+  let _dan = 'yasumi';
+  // 段：yasumi／erabu／gatt／kata／okosu／hanasu／kuruma_machi／tsunagatta／tsunagi_naoshi／kireta
+  const GATT_MS = 25000; // gatt.connect が 返らない 時の 打ち切り
+  const KATA_MS = 15000; // 話し方（service/char）探し 全体の 打ち切り
+  function _shindaErr() {
+    const er = new Error('OBD sen shinda');
+    er.name = 'ObdSenShinda';
+    return er;
+  }
+  function _isShinda(er) {
+    return !!(er && er.name === 'ObdSenShinda');
+  }
+  function _setDan(d) {
+    if (_sen && d !== 'erabu') _sen.dan = d;
+    if (_dan === d) return;
+    _dan = d;
+    _emit('dan', d);
+  }
+  function getDan() {
+    return _dan;
+  }
+  function getDare() {
+    if (_sen) return _sen.dare;
+    if (_hitoErabu) return 'hito';
+    if (_reconnecting) return 'G';
+    return null;
+  }
+  function _senTsukuru(device, dare) {
+    const sen = {
+      no: ++_senNo,
+      dare: dare,
+      device: device,
+      server: null,
+      dan: null,
+      shinda: false,
+      timers: new Set(),
+      sleeps: new Set(),
+      onDisc: null,
+      ima: null,
+      loopIma: null,
+      hIma: null,
+      polling: false,
+      shinu: null,
+      _shinuReject: null,
+    };
+    sen.shinu = new Promise(function (_ok, ng) {
+      sen._shinuReject = ng;
+    });
+    sen.shinu.catch(function () {
+      /* 殺した 知らせ＝誰も 待っていなくても 落とさない */
+    });
+    return sen;
+  }
+  function _race(sen, p) {
+    return Promise.race([p, sen.shinu]);
+  }
+  // 時間切れ（タイマーは 線の timers に 入れる＝殺すと 消える）
+  function _jikangire(sen, p, ms, na) {
+    let t = null;
+    const kire = new Promise(function (_ok, ng) {
+      t = setTimeout(function () {
+        sen.timers.delete(t);
+        ng(new Error('OBD timeout: ' + na));
+      }, ms);
+      sen.timers.add(t);
+    });
+    return Promise.race([p, kire]).then(
+      function (v) {
+        clearTimeout(t);
+        sen.timers.delete(t);
+        return v;
+      },
+      function (err) {
+        clearTimeout(t);
+        sen.timers.delete(t);
+        throw err;
+      }
+    );
+  }
+  // 線の 上で 後で 呼ぶ（殺すと 消える）
+  function _ato(sen, fn, ms) {
+    const t = setTimeout(function () {
+      sen.timers.delete(t);
+      fn();
+    }, ms);
+    sen.timers.add(t);
+  }
+  // ★線を 殺す（同期・1か所）★
+  function _korosu(sen) {
+    if (!sen) return;
+    if (sen.shinda) {
+      if (_sen === sen) _sen = null;
+      return;
+    }
+    sen.shinda = true;
+    try {
+      sen._shinuReject(_shindaErr());
+    } catch (_) {
+      /* ignore */
+    }
+    sen.timers.forEach(function (t) {
+      clearTimeout(t);
+    });
+    sen.timers.clear();
+    sen.sleeps.forEach(function (r) {
+      try {
+        r();
+      } catch (_) {
+        /* ignore */
+      }
+    });
+    sen.sleeps.clear();
+    if (sen.onDisc) {
+      try {
+        sen.device.removeEventListener('gattserverdisconnected', sen.onDisc);
+      } catch (_) {
+        /* ignore */
+      }
+      sen.onDisc = null;
+    }
+    sen.polling = false;
+    _katazuke();
+    try {
+      if (_notifyChar) _notifyChar.removeEventListener('characteristicvaluechanged', _onNotify);
+    } catch (_) {
+      /* ignore */
+    }
+    const srv = sen.server;
+    _cleanup();
+    try {
+      if (srv && srv.connected) srv.disconnect();
+      else if (sen.device && sen.device.gatt && typeof sen.device.gatt.disconnect === 'function')
+        sen.device.gatt.disconnect();
+    } catch (_) {
+      /* ignore */
+    }
+    if (_sen === sen) _sen = null;
+  }
+  // 古い 線の 書ける 連なりが 全部 settle するまで 待つ
+  function _matsu(sen) {
+    if (!sen) return Promise.resolve();
+    const ok = function () {};
+    return Promise.all(
+      [sen.ima, sen.loopIma, sen.hIma].map(function (p) {
+        return p ? Promise.resolve(p).then(ok, ok) : null;
+      })
+    );
+  }
+  // 自動の 繋ぎ直し（G）を 止める
+  function _gTomeru() {
+    _gFuda++;
+    _gTimers.forEach(function (t) {
+      clearTimeout(t);
+    });
+    _gTimers.clear();
+    _reconnecting = false;
+  }
 
   function _emit(event, payload) {
     const arr = _listeners[event];
@@ -425,34 +596,78 @@
     // Date.now を使う (本 module は通常実行環境・workflow制約の外)
     return typeof Date !== 'undefined' && Date.now ? Date.now() : 0;
   }
+  // ★線の 上で 寝る★（殺すと 即 起きる＝古い 線は 次の _send で 降りる）
   function _sleep(ms) {
+    const sen = _sen;
     return new Promise(function (r) {
-      setTimeout(r, ms);
+      if (!sen || sen.shinda) {
+        r();
+        return;
+      }
+      let t = null;
+      const okiru = function () {
+        if (t) {
+          clearTimeout(t);
+          sen.timers.delete(t);
+        }
+        sen.sleeps.delete(okiru);
+        r();
+      };
+      t = setTimeout(okiru, ms);
+      sen.timers.add(t);
+      sen.sleeps.add(okiru);
     });
   }
 
   // ─── 接続 (要ユーザー操作起点) ───────────────────────────────
+  // ★人で 繋ぐ★ 2026-11-08（線の 作り直し）
+  //   押した 瞬間に 同期で requestDevice（status は 自動の 線が 在れば 立てない）。
+  //   選ばれたら 古い 線を 殺し・G を 止め・settle を 待ってから 新しい 線を 作る＝★同時に 1本★。
+  //   選ぶ 画面を やめた 時、自動の 線が 生きていれば ★そのまま★（前は error で 自動の 線を 殺していた）。
   function connect() {
     if (!isSupported()) {
       _setStatus('error');
       _emit('error', 'Web Bluetooth 非対応 (Android Chrome で開いてください)');
       return Promise.reject(new Error('Web Bluetooth unsupported'));
     }
-    _stopRequested = false;
-    _setStatus('connecting');
+    if (_hitoErabu) return Promise.reject(new Error('OBD erabichu'));
+    const senAri = !!_sen || _reconnecting;
+    if (!senAri) _setStatus('connecting');
     _susumiT0 = Date.now();
+    _setDan('erabu');
     _susumi('機械を 選んでください', 0);
-    return navigator.bluetooth
-      .requestDevice({
+    _hitoErabu = true;
+    let sen = null;
+    let req;
+    try {
+      req = navigator.bluetooth.requestDevice({
         // ELM327 は名前が "OBDII"/"Vgate"/"Veepeak" 等まちまち → 全デバイス許可 + 必要 service を optional に
         acceptAllDevices: true,
         optionalServices: ALL_SERVICES,
-      })
+      });
+    } catch (err) {
+      req = Promise.reject(err);
+    }
+    return Promise.resolve(req)
       .then(function (device) {
-        return _establishWith(device);
+        _stopRequested = false;
+        _gTomeru();
+        const furui = _sen;
+        _korosu(furui);
+        return _matsu(furui).then(function () {
+          // 待つ 間に 切るが 押された／別の 線が 入った ⇒ 作らない
+          if (_stopRequested || _sen) {
+            _hitoErabu = false;
+            throw _shindaErr();
+          }
+          _setStatus('connecting');
+          sen = _senTsukuru(device, 'hito');
+          _sen = sen;
+          _hitoErabu = false;
+          return _establishWith(sen);
+        });
       })
       .catch(function (e) {
-        _setStatus('error');
         // ★★生の 英語を そのまま 出さない★★ 2026-09-09
         //   ★司さん★「なんで 英語に かわったんど」
         //   ★実物で 赤帯に 出ていた 字★
@@ -462,6 +677,8 @@
         //     Bluetooth が 切れている 等は ★言わないと 直せない★ので
         //     ★日本語に して 伝える★。
         //   ★生の 字は console に 残す★（調べる 時に 要る）
+        _hitoErabu = false;
+        if (_isShinda(e)) throw e; // 線を 殺された＝黙って 降りる
         const _nama = (e && e.message) || String(e || '');
         const _na = (e && e.name) || '';
         try {
@@ -471,8 +688,24 @@
           /* console が 無い 端末でも 落とさない */
         }
         const _ji = _yakusu(_na, _nama);
-        if (_ji) _emit('error', _ji);
-        _cleanup();
+        if (!sen) {
+          // 選ぶ 画面の 失敗（線を 作る 前）
+          if (_sen || _reconnecting) {
+            // 自動の 線は 生きている＝そのまま（段を 線の 段に 戻す）
+            _setDan(_sen ? _sen.dan || 'gatt' : 'tsunagi_naoshi');
+            if (_ji) _emit('error', _ji);
+          } else {
+            _setStatus('error');
+            if (_ji) _emit('error', _ji);
+            _setDan('yasumi');
+            _cleanup();
+          }
+        } else if (_sen === sen) {
+          _setStatus('error');
+          if (_ji) _emit('error', _ji);
+          _korosu(sen);
+          _setDan('yasumi');
+        }
         throw e;
       });
   }
@@ -506,43 +739,74 @@
     return 'OBD に つなげませんでした。機械を 一度 抜いて 挿し直して から もう一度 押して ください。';
   }
 
-  function _establishWith(device) {
+  // ★線の 上で 繋ぐ★ 2026-11-08（各 .then の 頭で mada()＝殺された 線は 何も 書かずに 降りる）
+  //   gatt.connect と 話し方 探しは 時間切れ付き（返らない 機械で 永遠に connecting に しない）。
+  //   切れた 知らせの 聞き手は ★gatt.connect が 解けた 後に★ 線ごとに 付ける（古い 切断の 知らせを 拾わない）。
+  function _establishWith(sen) {
+    const device = sen.device;
     _device = device;
-    try {
-      device.removeEventListener('gattserverdisconnected', _onDisconnected);
-    } catch (_) {
-      /* ignore */
+    const G = sen.dare === 'G';
+    function mada() {
+      if (sen.shinda || _sen !== sen) throw _shindaErr();
     }
-    device.addEventListener('gattserverdisconnected', _onDisconnected);
     if (!_susumiT0) _susumiT0 = Date.now();
+    _setDan(G ? 'tsunagi_naoshi' : 'gatt');
     _susumi('機械に つないでいます', 5000);
-    return device.gatt
-      .connect()
-      .catch(function (e) {
+    const p = _race(
+      sen,
+      _jikangire(
+        sen,
+        Promise.resolve().then(function () {
+          return device.gatt.connect();
+        }),
+        GATT_MS,
+        'gatt'
+      )
+    )
+      .catch(function (err) {
         // ★★ここで こけたら 機械が 前の 繋がりを 掴んだ まま★★ 2026-09-08
-        //   ⇒ 何を すれば よいかを ★名指しで★ 出す
-        _emit('error', 'OBDの 機械に つなげません。機械を 一度 抜いて 挿し直して ください。');
-        throw e;
+        //   ⇒ 何を すれば よいかを ★名指しで★ 出す（殺された 線は 黙る）
+        if (!_isShinda(err) && !sen.shinda) {
+          _emit('error', 'OBDの 機械に つなげません。機械を 一度 抜いて 挿し直して ください。');
+        }
+        throw err;
       })
       .then(function (server) {
+        mada();
+        sen.server = server;
         _server = server;
+        sen.onDisc = function () {
+          _senKireta(sen);
+        };
+        try {
+          device.addEventListener('gattserverdisconnected', sen.onDisc);
+        } catch (_) {
+          /* ignore */
+        }
+        if (!G) _setDan('kata');
         _susumi('話し方を 探しています', 4000);
-        return _findProfile(server);
+        return _race(sen, _jikangire(sen, _findProfile(server, sen), KATA_MS, 'kata'));
       })
       .then(function () {
+        mada();
+        if (!G) _setDan('okosu');
         _susumi('機械を 起こしています', 4000);
-        return _initElm();
+        return _race(sen, _initElm());
       })
       .then(function () {
+        mada();
         _setStatus('connected');
         _last('dk_obd_device_id', device && device.id ? device.id : ''); // 次回 getDevices で照合
+        _setDan('hanasu');
         // ★プロトコル確立ウォームアップ (probe/速度の前に必ず)★: ECU通信を 0100×長timeout で確立。
-        return _warmup();
+        return _race(sen, _warmup());
       })
       .then(function (established) {
+        mada();
         // ★確立できた時だけ probe を撃つ★: 未確立で 1.5s の 0100/01A6 を撃つと検出を再中断し
         //   STOPPED 全滅が再発する(監査指摘)。未確立なら probe を飛ばし、自己回復する速度ポーリングへ。
         if (established) {
+          _setDan('tsunagatta');
           _susumi('つながりました', 0);
           return _probe().catch(function () {
             /* プローブ失敗は致命でない */
@@ -553,6 +817,7 @@
         //   ★今★ どちらかを はっきり 出す
         //     ①機械は 返事を するが 車が 黙っている ⇒ ★エンジン★
         //     ②機械が 一度も 返事を しない ⇒ ★機械の 抜き挿し★
+        _setDan('kuruma_machi');
         _emit(
           'error',
           _ecuKotae
@@ -563,6 +828,7 @@
         return undefined;
       })
       .then(function () {
+        mada();
         // ★自動輪速discovery: 既定OFF(WS_AUTO_DISCOVERY_DEFAULT=false)★。診断モード(_wsDiscoveryForced)時のみON。
         //   ATMA捕捉が走行中OBDを中断し距離を汚す実機回帰の根治(上記定数コメント)。OBDは中断せず連続供給=距離整合。
         _wsAuto = _wsDiscoveryForced || WS_AUTO_DISCOVERY_DEFAULT;
@@ -573,41 +839,64 @@
         Object.keys(_wsBins).forEach(function (k) {
           delete _wsBins[k];
         });
-        _startPolling();
+        _startPolling(sen);
         return true;
       });
+    const ok = function () {};
+    sen.ima = p.then(ok, ok);
+    return p;
+  }
+
+  // ★線が 本当に 切れた★（線ごとの 聞き手から 来る）
+  //   古い 線・殺した 線の 知らせは 捨てる。server が まだ 生きている 時の 知らせ（古い 切断の 遅れ）も 捨てる。
+  function _senKireta(sen) {
+    if (sen !== _sen || sen.shinda) return;
+    if (sen.server && sen.server.connected) return;
+    _setStatus('disconnected');
+    const dev = sen.device;
+    _korosu(sen); // ★_katazuke の 中で CAN輪速の _stopRequested を 戻す（再接続の 門より 前）★
+    _setDan('kireta');
+    // ★自動再接続 (2026-06-18)★: 明示 disconnect() 以外の切断(走行中の瞬断/圏外/スリープ復帰)は
+    //   同一デバイスへバックオフ再接続。明示切断(_stopRequested)は再接続しない(電池/混乱防止)。
+    if (!_stopRequested && _autoReconnect) _scheduleReconnect(dev);
   }
 
   // ★起動時 自動接続 (2026-06-18・ユーザー操作なし・選択ダイアログ無し)★:
-  //   navigator.bluetooth.getDevices() で前回許可済みデバイスを取得し、保存IDに一致(or 唯一)のものへ自動接続。
-  //   getDevices 非対応/許可デバイス無し/既接続 は no-op。失敗は idle に戻すだけ(手動connectは従来通り可能)。
+  //   navigator.bluetooth.getDevices() で前回許可済みデバイスを取得し、★保存IDに 一致する 物だけ★へ自動接続。
+  //   ★2026-11-08★ 前は 一致が 無いと devices[0]（別の Bluetooth 機器）へ 行き 黙って 失敗していた
+  //     ⇒ 司さんの 直「id が 合わない 機器へ 行かない」＝id が 無い・合わない なら 繋がない（業務開始で 選ぶ）。
+  //   線が 在る・人が 選んでいる・繋ぎ直し中 は 何もしない。失敗は idle に戻すだけ(手動connectは従来通り可能)。
   function tryAutoConnect() {
     if (!isSupported() || typeof navigator.bluetooth.getDevices !== 'function') {
       return Promise.resolve(false);
     }
     if (isConnected()) return Promise.resolve(true);
-    _stopRequested = false;
+    if (_sen || _hitoErabu || _reconnecting) return Promise.resolve(false);
     return navigator.bluetooth
       .getDevices()
       .then(function (devices) {
         if (!devices || !devices.length) return false;
         const wantId = _last('dk_obd_device_id');
-        let dev = null;
-        if (wantId) {
-          dev = devices.filter(function (d) {
-            return d && d.id === wantId;
-          })[0];
-        }
-        if (!dev) dev = devices[0];
+        if (!wantId) return false;
+        const dev = devices.filter(function (d) {
+          return d && d.id === wantId;
+        })[0];
         if (!dev) return false;
+        if (_sen || _hitoErabu || _reconnecting) return false; // 待つ 間に 人が 押した
+        _stopRequested = false;
         _setStatus('connecting');
-        return _establishWith(dev)
+        const sen = _senTsukuru(dev, 'auto');
+        _sen = sen;
+        return _establishWith(sen)
           .then(function () {
             return true;
           })
           .catch(function () {
-            _setStatus('idle');
-            _cleanup();
+            if (_sen === sen) {
+              _setStatus('idle');
+              _korosu(sen);
+              _setDan('yasumi');
+            }
             return false;
           });
       })
@@ -617,27 +906,35 @@
   }
 
   // service/char を既知プロファイル順に探索
-  function _findProfile(server) {
+  //   ★口は 手元に 受け、線が 生きている 時だけ グローバルへ 入れる★（降りた 線が 後から 書かない）
+  function _findProfile(server, sen) {
     let i = 0;
     function tryNext() {
+      if (sen && sen.shinda) return Promise.reject(_shindaErr());
       if (i >= PROFILES.length) {
         return Promise.reject(new Error('対応する BLE service が見つからない (ELM327 BLE か確認)'));
       }
       const p = PROFILES[i++];
+      let nc = null;
+      let wc = null;
       return server
         .getPrimaryService(p.service)
         .then(function (svc) {
           return Promise.all([svc.getCharacteristic(p.notify), svc.getCharacteristic(p.write)]);
         })
         .then(function (chars) {
-          _notifyChar = chars[0];
-          _writeChar = chars[1];
-          return _notifyChar.startNotifications();
+          nc = chars[0];
+          wc = chars[1];
+          return nc.startNotifications();
         })
         .then(function () {
-          _notifyChar.addEventListener('characteristicvaluechanged', _onNotify);
+          if (sen && sen.shinda) throw _shindaErr();
+          _notifyChar = nc;
+          _writeChar = wc;
+          nc.addEventListener('characteristicvaluechanged', _onNotify);
         })
-        .catch(function () {
+        .catch(function (err) {
+          if (_isShinda(err) || (sen && sen.shinda)) throw _shindaErr();
           return tryNext(); // このプロファイルは不一致 → 次を試す
         });
     }
@@ -687,7 +984,8 @@
   // 1 コマンド送信 → '>' プロンプトまでの応答を待つ。timeoutMs 省略時は CMD_TIMEOUT_MS。
   //   ★初回プロトコル検出(0100)は ELM327 が数秒かかるため長いタイムアウトを渡す(_warmup)。★
   function _send(cmd, timeoutMs) {
-    if (!_writeChar) return Promise.reject(new Error('not connected'));
+    // ★線が 無い・殺された 線＝書かない★ 2026-11-08（古い 試みが 新しい 線へ 書かない）
+    if (!_sen || _sen.shinda || !_writeChar) return Promise.reject(new Error('not connected'));
     // ★M-1 監査修正: 送信前に前コマンド(timeout 等)の残バッファを破棄(クロストーク防止)。
     _rxBuffer = '';
     const data = _str2buf(cmd + '\r');
@@ -695,9 +993,12 @@
     return new Promise(function (resolve, reject) {
       _pendingResolve = resolve;
       _pendingTimer = setTimeout(function () {
-        _pendingResolve = null;
-        _pendingTimer = null;
-        _rxBuffer = ''; // ★M-1: タイムアウト時も残バッファを破棄
+        // ★自分の 待ちの 時だけ 消す★ 2026-11-08（前は 無条件に 消して 次の 待ちを 潰した）
+        if (_pendingResolve === resolve) {
+          _pendingResolve = null;
+          _pendingTimer = null;
+          _rxBuffer = ''; // ★M-1: タイムアウト時も残バッファを破棄
+        }
         reject(new Error('OBD timeout: ' + cmd));
       }, _to);
       _writeCharSafe(data).catch(function (e) {
@@ -707,11 +1008,21 @@
     });
   }
   function _writeCharSafe(data) {
-    // 一部の実装は writeValueWithoutResponse のみ対応
-    if (typeof _writeChar.writeValueWithoutResponse === 'function') {
-      return _writeChar.writeValueWithoutResponse(data);
+    // ★口が 無い＝同期で 投げない★ 2026-11-08（前は TypeError が 呼ぶ側の 外へ 飛んだ）
+    if (!_writeChar) return Promise.reject(new Error('not connected'));
+    let w;
+    try {
+      // 一部の実装は writeValueWithoutResponse のみ対応
+      if (typeof _writeChar.writeValueWithoutResponse === 'function') {
+        w = _writeChar.writeValueWithoutResponse(data);
+      } else {
+        w = _writeChar.writeValue(data);
+      }
+    } catch (err) {
+      return Promise.reject(err);
     }
-    return _writeChar.writeValue(data);
+    // ★線を 殺すと 書きの 待ちも 即 解ける★（返らない 書きで 古い 線が 残らない）
+    return _sen ? Promise.race([Promise.resolve(w), _sen.shinu]) : Promise.resolve(w);
   }
   function _str2buf(s) {
     const buf = new Uint8Array(s.length);
@@ -1644,48 +1955,63 @@
   }
 
   // ─── 速度ポーリングループ (010D を連続 query・自動輪速discovery を合間に挟む) ───
-  function _startPolling() {
-    if (_polling) return;
+  //   ★2026-11-08★ loop は 線の 物（sen.polling・次回は sen.timers）。殺された 線の loop は 何も 触らずに 降りる。
+  //   probe 系の 再開（引数なし）は 今の 線（_sen）を 使う。
+  function _startPolling(sen) {
+    sen = sen || _sen;
+    if (!sen || sen.shinda || sen.polling) return;
+    sen.polling = true;
     _polling = true;
+    function ikiteru() {
+      return !(sen.shinda || _sen !== sen || _stopRequested || !isConnected());
+    }
+    function owari() {
+      sen.polling = false;
+      if (_sen === sen) _polling = false;
+    }
     function loop() {
-      if (_stopRequested || !isConnected()) {
-        _polling = false;
+      if (!ikiteru()) {
+        owari();
         return;
       }
       const t0 = _now();
       _pollCount++;
       // 1tick分の処理が終わったら次をスケジュール(両経路=通常ポーリング/自動輪速捕捉 で共有)
       function _schedNext() {
-        if (_stopRequested || !isConnected()) {
-          _polling = false;
+        if (!ikiteru()) {
+          owari();
           return;
         }
         // ★mid-drive 回復 (監査指摘)★: STOPPED 連発を _warmup(長timeout)で確立し直す。
         if (_consecFail >= RECOVER_AFTER && !_recovering) {
           _recovering = true;
           _consecFail = 0;
-          _warmup()
+          sen.hIma = _warmup()
             .catch(function () {
               return false;
             })
-            .then(function () {
+            .then(function (ok) {
+              if (sen.shinda) return;
               _recovering = false;
-              if (!_stopRequested && isConnected()) setTimeout(loop, POLL_MIN_INTERVAL_MS);
-              else _polling = false;
+              // 車と 話せた＝「車 待ち」から 緑へ
+              if (ok === true && _dan === 'kuruma_machi') _setDan('tsunagatta');
+              if (ikiteru()) _ato(sen, loop, POLL_MIN_INTERVAL_MS);
+              else owari();
             });
           return;
         }
         const elapsed = _now() - t0;
         const wait = Math.max(0, POLL_MIN_INTERVAL_MS - elapsed);
-        setTimeout(loop, wait);
+        _ato(sen, loop, wait);
       }
 
       // ★自動輪速discovery: 条件を満たせばこのtickは輪速捕捉に充てる(010Dポーリングの代わり・ユーザー操作ゼロ)★
       //   捕捉中(~2s)は010Dが欠落するが、走行中gapはpipelineが保守fill(過大ゼロ維持)。十分集めたら自動終了。
       if (_wsCaptureDecision(_wsState(_now()))) {
         const spd = _latest.kmh;
-        _captureWheelSpeed(WS_AUTO_DUR_MS, spd)
+        sen.loopIma = _captureWheelSpeed(WS_AUTO_DUR_MS, spd)
           .then(function (res) {
+            if (sen.shinda) return;
             _wsCaps++;
             _wsLastCapTs = _now();
             const b = _speedBin(spd);
@@ -1713,8 +2039,9 @@
       const _isDistPoll = !_isOdoPoll && _dist0131Supported && _pollCount % DIST_POLL_EVERY === 0;
       const _isRpmPoll = !_isOdoPoll && !_isDistPoll && _pollCount % RPM_POLL_EVERY === 0; // odo/distと衝突時は優先
       const _cmd = _isOdoPoll ? ODO_PID : _isDistPoll ? DIST_PID : _isRpmPoll ? RPM_PID : SPEED_PID;
-      _send(_cmd)
+      sen.loopIma = _send(_cmd)
         .then(function (resp) {
+          if (sen.shinda) return; // ★殺された 線の 返事は 捨てる★
           if (_isOdoPoll) {
             const km = _parseOdometerKm(resp);
             if (km != null) {
@@ -1748,12 +2075,15 @@
               _latest = { kmh: kmh, mps: _mps, ts: _spdTs };
               _emit('speed', getSpeed());
               _consecFail = 0; // 正常応答 → 失敗カウンタ reset
+              // ★最初の 正しい 車速＝車と 話せた★（緑）
+              if (_dan === 'hanasu' || _dan === 'kuruma_machi') _setDan('tsunagatta');
             } else {
               _consecFail++; // NO DATA / STOPPED / 別PID = 通信不全
             }
           }
         })
         .catch(function () {
+          if (sen.shinda) return;
           _consecFail++; // timeout = 通信不全
         })
         .then(_schedNext);
@@ -1761,8 +2091,8 @@
     loop();
   }
 
-  function _onDisconnected() {
-    _setStatus('disconnected');
+  // ★線を 殺す 時の 値の 片付け★（前の _onDisconnected の 中身・status と 繋ぎ直しは 呼ぶ側）
+  function _katazuke() {
     _polling = false;
     _latest = { kmh: -1, mps: -1, ts: 0 };
     _latestOdo = { km: -1, ts: 0 };
@@ -1781,7 +2111,7 @@
     _wsMapping = null;
     // ★監査M1/M2: CAN輪速メーター(バースト)の畳み込み(_capturingと対称化)★。これが無いと切断後も
     //   バーストtimerが残り、_cwOn=true残存で再接続後のループ/捕捉が本番ポーリング(distance_m速度源)を
-    //   横取りする。_stopRequested は ★再接続ガード(下記)評価より前★ に戻す。
+    //   横取りする。_stopRequested は ★再接続ガード(_senKireta)評価より前★ に戻す。
     if (_cwBurstTimer) {
       clearTimeout(_cwBurstTimer);
       _cwBurstTimer = null;
@@ -1805,54 +2135,62 @@
     if (_pendingResolve) {
       const r = _pendingResolve;
       _pendingResolve = null;
-      r(''); // 空応答で解放 → 呼び出し側は parse 失敗で無視(次ループは isConnected=false で停止)
+      r(''); // 空応答で解放 → 呼び出し側は parse 失敗で無視(次ループは線が 死んで 停止)
     }
     _rxBuffer = '';
-    // ★自動再接続 (2026-06-18)★: 明示 disconnect() 以外の切断(走行中の瞬断/圏外/スリープ復帰)は
-    //   同一デバイスへバックオフ再接続。明示切断(_stopRequested)は再接続しない(電池/混乱防止)。
-    if (!_stopRequested && _autoReconnect && _device) _scheduleReconnect();
   }
 
-  function _scheduleReconnect() {
-    if (_reconnecting) return;
+  // ★自動の 繋ぎ直し（G）★ 札 _gFuda で 止める（人が 繋ぐ・手で 切る と ++）。
+  //   次回の タイマーは _gTimers（線の 物ではない＝切れた 線は もう 死んでいる）。
+  function _scheduleReconnect(dev) {
+    if (_reconnecting || !dev) return;
     _reconnecting = true;
+    const fuda = ++_gFuda;
     let attempt = 0;
-    const tryOnce = function () {
-      if (_stopRequested || isConnected()) {
+    function ato(ms) {
+      const t = setTimeout(function () {
+        _gTimers.delete(t);
+        tryOnce();
+      }, ms);
+      _gTimers.add(t);
+    }
+    function tryOnce() {
+      if (fuda !== _gFuda) return;
+      if (_stopRequested || _sen) {
         _reconnecting = false;
         return;
       }
       attempt++;
-      _establishWith(_device)
+      const sen = _senTsukuru(dev, 'G');
+      _sen = sen;
+      _establishWith(sen)
         .then(function () {
-          _reconnecting = false; // 復帰成功
+          if (fuda === _gFuda) _reconnecting = false; // 復帰成功
         })
         .catch(function () {
+          if (fuda !== _gFuda) return;
+          if (_sen === sen) _korosu(sen);
           if (!_stopRequested && attempt < OBD_RECONNECT_MAX) {
-            setTimeout(tryOnce, Math.min(8000, _reconnectDelayMs * attempt));
+            ato(Math.min(8000, _reconnectDelayMs * attempt));
           } else {
             _reconnecting = false;
+            _setDan('kireta');
           }
         });
-    };
-    setTimeout(tryOnce, _reconnectDelayMs);
+    }
+    _setDan('tsunagi_naoshi');
+    ato(_reconnectDelayMs);
   }
 
+  // ★手で 切る★（記憶 dk_obd_device_id は 消さない）。遅れて 来る 切断の 知らせは 線が 無いので 捨てる。
   function disconnect() {
-    _stopRequested = true;
+    _gTomeru();
+    if (_sen) _korosu(_sen);
+    else _cleanup();
+    _stopRequested = true; // ★_katazuke の 後★（CAN輪速の 戻しで 消されない）
     _polling = false;
-    try {
-      if (_notifyChar) _notifyChar.removeEventListener('characteristicvaluechanged', _onNotify);
-    } catch (_) {
-      /* ignore */
-    }
-    try {
-      if (_server && _server.connected) _server.disconnect();
-    } catch (_) {
-      /* ignore */
-    }
-    _cleanup();
     _setStatus('idle');
+    _setDan('yasumi');
   }
   function _cleanup() {
     _server = null;
@@ -1873,7 +2211,7 @@
     _cwStarting = false;
     _cwBurstGen++;
     _cwBurstInflight = false;
-    _capturing = false; // ★監査MINOR: _onDisconnected と対称化★
+    _capturing = false; // ★監査MINOR: _katazuke と対称化★
   }
 
   function on(event, cb) {
@@ -1899,6 +2237,8 @@
     getRpm: getRpm,
     speedProvider: speedProvider,
     getStatus: getStatus,
+    getDan: getDan, // ★繋ぎの 段（緑＝'tsunagatta'＝車と 話せた）★ 2026-11-08
+    getDare: getDare, // ★今の 線は 誰の 物か（'hito'/'auto'/'G'/null）★ 2026-11-08
     probeWheelSpeed: probeWheelSpeed, // ★ABS各輪速 read-only プローブ(距離未配線)★
     canBusProbe: canBusProbe, // ★CAN見えるかチェック(停車・read-only・距離不可侵)★
     startCanWheelMeter: startCanWheelMeter, // ★CAN輪速メーター開始(1B8連続積分・read-only・距離不可侵)★
