@@ -660,7 +660,8 @@
             _hitoErabu = false;
             throw _shindaErr();
           }
-          _setStatus('connecting');
+          // 線が 無かった 時は 押した 時に 立て済み＝同じ 字を 2回 出さない（前と 同じ 並び）
+          if (_status !== 'connecting') _setStatus('connecting');
           sen = _senTsukuru(device, 'hito');
           _sen = sen;
           _hitoErabu = false;
