@@ -627,6 +627,52 @@ describe('OBD 押しの 口×今の 形（T5・T6 差①〜④）と 段', () =>
   });
 });
 
+// ★★車が 黙った（段 kuruma_machi）間に 押すと 人で 繋ぐ★★ 2026-11-09
+//   画面の _obdOsu は kuruma_machi の 時 チップ・業務ボタン・設定の 接続で connect() を 呼ぶ（e2e obd-matsu-oshi）。
+//   ここは その connect() の 側＝古い 線が 生きた まま 呼ばれても 壊れない 事を 見る（設計 v1 の unit）。
+describe('OBD 車が 黙った 線の 上で 人が 繋ぐ（kuruma_machi→connect）', () => {
+  const damaru = (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c));
+
+  it('選ぶ 画面を やめた → 段は kuruma_machi に 戻る・status は connected の まま・古い 線は 生きた まま・字は 出さない', async () => {
+    const d1 = makeDev('A', { responder: damaru });
+    const bt = makeBT([d1]);
+    const { O, rec } = loadOBD(bt);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    const errMae = rec.error.length;
+    bt.nextPick('yameru');
+    await expect(O.connect()).rejects.toBeTruthy();
+    expect(O.getDan()).toBe('kuruma_machi');
+    expect(O.getStatus()).toBe('connected');
+    expect(O.getDare()).toBe('hito');
+    expect(d1.server.connected).toBe(true);
+    expect(rec.error.length).toBe(errMae);
+    expect(rec.status).toEqual(['connecting', 'connected']);
+    O.disconnect();
+  });
+
+  it('選んだ → 古い 線の 書き 0・新しい 機械と 話せて tsunagatta・status に idle／error は 出ない', async () => {
+    const d1 = makeDev('A', { responder: damaru });
+    const d2 = makeDev('B');
+    const bt = makeBT([d1, d2]);
+    const { O, rec } = loadOBD(bt);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    bt.nextPick(d2);
+    const p = O.connect();
+    expect(await p).toBe(true);
+    const aAto = d1.writes.length;
+    await tick(400);
+    expect(d1.writes.length - aAto).toBe(0);
+    expect(d1.server.connected).toBe(false);
+    expect(O.getDan()).toBe('tsunagatta');
+    expect(O.getStatus()).toBe('connected');
+    // 古い 線を 降ろした 後 connecting を 立て直す（設計 v1 任意1 の 差）＝idle・error・disconnected は 出ない
+    expect(rec.status).toEqual(['connecting', 'connected', 'connecting', 'connected']);
+    O.disconnect();
+  });
+});
+
 // ★わざと 壊す★ 前の 穴の 形に 戻した 写しで、上の 場面が 本当に 赤に なるかを 数える。
 //   守りが 2重の 所（聞き手を 外す＋知らせを 捨てる・race＋mada）は 2つとも 外して 前の 形に する。
 function kowasu(pairs) {

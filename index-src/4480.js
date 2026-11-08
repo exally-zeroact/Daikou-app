@@ -15,6 +15,18 @@
             var st = O.getStatus ? O.getStatus() : '';
             var dare = O.getDare ? O.getDare() : null;
             if (st === 'connected') {
+              // ★車が 黙った（段 kuruma_machi）＝「もう一度 押してください」と 出している★ 2026-11-09
+              //   ★前★ 言われた 通り チップ・業務ボタンを 押すと 切れるだけ／設定の 接続は 何も 起きなかった
+              //   ★今★ この 3つの 口は 人で 繋ぐ（connect が 古い 線を 降ろしてから 新しい 線＝同時 1本）。
+              //   切るのは 設定の 切断（kiru）で 今まで 通り。帯（obi）・他の 段は 今の まま
+              if (
+                O.getDan &&
+                O.getDan() === 'kuruma_machi' &&
+                (kuchi === 'chip' || kuchi === 'gyoumu' || kuchi === 'settei')
+              ) {
+                doConnect();
+                return;
+              }
               if (kuchi === 'chip' || kuchi === 'gyoumu') _obdKiru();
               return; // 帯・設定の 接続は 切る 口に しない
             }
