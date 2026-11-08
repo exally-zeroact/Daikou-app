@@ -18079,13 +18079,14 @@
             }
             // ★青バーチップ: 接続状態は #obdDot の色だけで示す (緑=接続済 / 半透明白=未接続)★
             //   ラベルは常に「OBD」固定 (速度はメーター本体に表示・ここでは重複させない)。
+            // ★★緑は 車と 話せてから★★ 2026-11-08（前は 機械に 繋いだ 瞬間＝車と 話す 25〜50秒も 緑だった）
+            //   チップ・チップの 点・業務開始の ボタンの 3つとも 同じ _obdDan で 決める（本番前 taiketsu 止め1）
+            var _obdDan = O.getDan ? O.getDan() : _obdConnected ? 'tsunagatta' : '';
             var obdDot = document.getElementById('obdDot');
-            if (obdDot) obdDot.className = _obdConnected ? 'gps-dot ok' : 'gps-dot';
+            if (obdDot) obdDot.className = _obdDan === 'tsunagatta' ? 'gps-dot ok' : 'gps-dot';
             // ★司さん2026-06-27: 接続中はチップ自体を緑ベタ塗り(connectedクラス)で示す。
             //   緑で一目で分かるのでレ点(✓)は不要・ラベルは常に「OBD」。
             var obdChipEl = document.getElementById('obdChip');
-            // ★★緑は 車と 話せてから★★ 2026-11-08（前は 機械に 繋いだ 瞬間＝車と 話す 25〜50秒も 緑だった）
-            var _obdDan = O.getDan ? O.getDan() : _obdConnected ? 'tsunagatta' : '';
             if (obdChipEl) obdChipEl.classList.toggle('connected', _obdDan === 'tsunagatta');
             // ★OBD切断 再接続バー(全画面・司さん2026-06-30「全部の画面に途切れたら出して」)★
             //   一度繋いだ後(_obdWasConnected)に切断したら、猶予4s(自動再接続の余地)後に
@@ -18188,15 +18189,20 @@
                   ? 'OBD 待ち'
                   : 'OBD';
             // ★業務開始画面のOBD接続ボタン: 接続済=緑/未接続=青枠で状態を反映(司さん2026-06-27)
+            //   ★2026-11-08★ 緑は 車と 話せてから（tsunagatta）。機械に 繋いで 車と 話す 間・車が 黙る 間は
+            //   チップと 同じ「OBD 待ち」（青枠の まま）＝前は ここだけ 緑で 運転手が 繋がったと 思って 走り出した
             var bizObd = document.getElementById('bizObdConnect');
             if (bizObd) {
-              if (_obdConnected) {
+              if (_obdDan === 'tsunagatta') {
                 bizObd.textContent = '✅ OBD接続済';
                 bizObd.style.background = '#34c759';
                 bizObd.style.borderColor = '#34c759';
                 bizObd.style.color = '#fff';
               } else {
-                bizObd.textContent = '🔌 OBDを接続';
+                bizObd.textContent =
+                  _obdConnected && (_obdDan === 'hanasu' || _obdDan === 'kuruma_machi')
+                    ? '⏳ OBD 待ち'
+                    : '🔌 OBDを接続';
                 bizObd.style.background = '#fff';
                 bizObd.style.borderColor = '#007aff';
                 bizObd.style.color = '#007aff';
