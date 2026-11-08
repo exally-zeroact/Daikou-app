@@ -87,8 +87,17 @@
               obdChip.title = 'OBDはAndroid Chromeのみ対応';
             }
           }
+          // ★★2026-11-08★★ 設定の「接続済み」も 車と 話せてから（本番前 叩き直しの 止め1）。
+          //   機械に 繋いで 車と 話す 間（hanasu）・車が 黙る 間（kuruma_machi）は チップと 同じ「OBD 待ち」。
+          //   ★connected の 知らせの 時の 段は まだ okosu（繋ぎ直しは tsunagi_naoshi）＝段が hanasu に なるのは 後★
+          //   ⇒ connected の 間は 段が tsunagatta に なるまで「OBD 待ち」（繋いだ 瞬間に「接続済み」を 出さない）。
+          //   tsunagatta に なっても status の 知らせは 来ないので 500ms 毎の 書き直しで「接続済み」に する
+          var _obdStatusJi = function (s) {
+            if (s === 'connected' && O.getDan && O.getDan() !== 'tsunagatta') return 'OBD 待ち';
+            return JA[s] || s;
+          };
           O.on('status', function (s) {
-            if (statusEl) statusEl.textContent = JA[s] || s;
+            if (statusEl) statusEl.textContent = _obdStatusJi(s);
             _obdConnected = s === 'connected';
             // ★★OBD メイン距離源 (2026-06-10・司さん裁定)★★:
             //   OBD = 車輪回転距離 = タクシー認定の基準ローラーが測る量。接続中は OBD を ★メイン距離源★

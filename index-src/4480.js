@@ -93,6 +93,7 @@
             var _obdDan = O.getDan ? O.getDan() : _obdConnected ? 'tsunagatta' : '';
             var obdDot = document.getElementById('obdDot');
             if (obdDot) obdDot.className = _obdDan === 'tsunagatta' ? 'gps-dot ok' : 'gps-dot';
+            if (statusEl && _obdConnected) statusEl.textContent = _obdStatusJi('connected');
             // ★司さん2026-06-27: 接続中はチップ自体を緑ベタ塗り(connectedクラス)で示す。
             //   緑で一目で分かるのでレ点(✓)は不要・ラベルは常に「OBD」。
             var obdChipEl = document.getElementById('obdChip');

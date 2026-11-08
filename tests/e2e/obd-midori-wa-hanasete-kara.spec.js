@@ -8,10 +8,14 @@
 //
 //   ★ここで 守る 事★
 //     ①段 hanasu／kuruma_machi の 間は ボタンも 点も 緑に しない（ボタンは チップと 同じ「OBD 待ち」）
-//     ②段 tsunagatta で 3つとも 緑
+//       設定の #obdStatus も「接続済み」に しない＝「OBD 待ち」（本番前 叩き直しの 止め1・同じ 形の 穴）
+//     ②段 tsunagatta で 3つとも 緑・設定は「接続済み」
 //
 //   ★わざと壊す★ index.html の `if (_obdDan === 'tsunagatta') {` を `if (_obdConnected) {` に 戻すと ①が 赤
 //     （点は `_obdDan === 'tsunagatta' ? 'gps-dot ok'` を `_obdConnected ? 'gps-dot ok'` に 戻すと 赤）
+//     （設定は `_obdStatusJi` の 中の `return 'OBD 待ち'` を `return JA[s]` に 戻すと 赤3）
+//     （500ms 毎の 書き直しの `if (statusEl && _obdConnected) statusEl.textContent` の 行を 消すと ②が 赤）
+//     （`_obdStatusJi` を 前の「段が hanasu／kuruma_machi の 時だけ OBD 待ち」に 戻すと 繋いだ 瞬間の 字で 赤）
 // ============================================================
 const { test, expect } = require('@playwright/test');
 
@@ -48,18 +52,28 @@ async function dan(page, d) {
     O.isSupported = () => true;
     O.getStatus = () => 'connected';
     O.isConnected = () => true;
-    O.getDan = () => d;
+    // ★本物の 順★ js/obd-client.js は status connected を 出した 時は 段が まだ okosu、
+    //   その 後で 段を hanasu／tsunagatta に 変える（status の 知らせは もう 来ない）
+    //   ⇒ 段を 変えた 後の 字は 500ms 毎の 書き直しだけが 作る＝その 1行を 消すと 赤（叩き直しの 任意1）
+    O.getDan = () => 'okosu';
     uke.forEach((cb) => cb('connected'));
-    return true;
+    // ★繋いだ 瞬間（段 okosu）の 字★＝知らせの 時に もう「OBD 待ち」（前の 関数に 戻すと「接続済み」で 赤・叩き直しの 任意1）
+    const stEl = document.getElementById('obdStatus');
+    const shunkan = stEl ? (stEl.textContent || '').trim() : null;
+    O.getDan = () => d;
+    return { ok: true, shunkan };
   }, d);
-  expect(ok, '★OBDClient か status の 受け口が ありません★').toBe(true);
+  expect(ok && ok.ok, '★OBDClient か status の 受け口が ありません★').toBe(true);
+  expect(ok.shunkan, '★繋いだ 瞬間（車と 話す前）に 設定が「OBD 待ち」で ない★').toBe('OBD 待ち');
   // ★見た目は 500ms 毎に 書き直す★
   await page.waitForTimeout(1200);
   return page.evaluate(() => {
     const b = document.getElementById('bizObdConnect');
     const dot = document.getElementById('obdDot');
     const chip = document.getElementById('obdChip');
+    const st = document.getElementById('obdStatus');
     return {
+      settei: st ? (st.textContent || '').trim() : null,
       botan: b ? (b.textContent || '').trim() : null,
       botanIro: b ? b.style.background : null,
       ten: dot ? dot.className : null,
@@ -81,6 +95,7 @@ for (const d of ['hanasu', 'kuruma_machi']) {
     expect(r.botanIro, '★車と 話す前なのに ボタンが 緑★').not.toMatch(/52,\s*199,\s*89|#34c759/i);
     expect(r.ten, '★車と 話す前なのに チップの 点が 緑★').toBe('gps-dot');
     expect(r.chip, '★車と 話す前なのに チップが 緑★').toBe(false);
+    expect(r.settei, '★車と 話す前なのに 設定が「接続済み」★').toBe('OBD 待ち');
   });
 }
 
@@ -93,4 +108,5 @@ test('★★② 段 tsunagatta（車と 話せた）で ボタン・点・チッ
   expect(r.botanIro, '★車と 話せたのに ボタンが 緑で ない★').toMatch(/52,\s*199,\s*89|#34c759/i);
   expect(r.ten, '★車と 話せたのに 点が 緑で ない★').toBe('gps-dot ok');
   expect(r.chip, '★車と 話せたのに チップが 緑で ない★').toBe(true);
+  expect(r.settei, '★車と 話せたのに 設定が「接続済み」で ない★').toBe('接続済み');
 });
