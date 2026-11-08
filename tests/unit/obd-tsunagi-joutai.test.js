@@ -935,6 +935,26 @@ describe('OBD 進みの 字（susumi）の 順と 線', () => {
     );
     expect(jun.slice(a + 2).filter((x) => x.indexOf('s:') === 0)).toEqual([]);
   }, 20000);
+  // ★本番前 taiketsu 止め（11-09）★ kuruma_machi の 間も 速度の 問い合わせは 続く→5回 しくじると 走りの 途中の 回復（_warmup）
+  //   前は 回復の 進みの 字が 訳を 上書きし、後で 切れた 帯が「切れました」になって 訳（エンジン／抜き挿し）が 消えた
+  it('SU5: 車が 黙った まま 走りの 途中の 回復が 走っても 訳の 後に 進みの 字は 来ない', async () => {
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const { O } = loadOBD(makeBT([d]));
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    const n0 = d.writes.length;
+    await tick(2000);
+    // 回復が 本当に 走った（ATSP を 打ち直した）
+    expect(d.writes.slice(n0).filter((w) => /^ATSP/.test(w.cmd)).length).toBeGreaterThan(0);
+    O.disconnect();
+    const a = jun.indexOf('s:つながりませんでした');
+    expect(a).toBeGreaterThan(-1);
+    expect(jun[a + 1].indexOf('e:')).toBe(0);
+    expect(jun.slice(a + 2).filter((x) => x.indexOf('s:') === 0)).toEqual([]);
+  }, 20000);
   it('SU3: 線が 生きた まま 人が 選ぶ 画面を 開く → 線の 字は 預かる・やめたら 線の 今の 字を 出し直す', async () => {
     const d = makeDev('A', { responder: (c) => (c === '0100' ? 'NO DATA\r\r>' : ichiban(c)) });
     const bt = makeBT([d]);

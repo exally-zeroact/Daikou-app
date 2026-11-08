@@ -1083,8 +1083,14 @@
     2500 + 300 + WARMUP_RETRIES * PROTOCOL_TIMEOUT_MS + (WARMUP_RETRIES - 1) * WARMUP_RETRY_WAIT_MS;
   // ★ECU から 1度も 返事が 無かったか★（＝エンジンが 止まっている 見立て）
   let _ecuKotae = false;
-  function _warmup(sen) {
+  // ★damaru＝進みの 字を 出さない★ 2026-11-09（本番前 taiketsu 止め）
+  //   走りの 途中の 回復・車輪速の 後の 再 pin は 段が kuruma_machi／tsunagatta＝帯は 出ていない。
+  //   字を 出すと 帯の 字の 出どころが 進みに 替わり、後で 切れた 時に 訳（エンジン／抜き挿し）が 消える。
+  function _warmup(sen, damaru) {
     let pi = 0;
+    const ji = function (j, ms) {
+      if (!damaru) _susumi(j, ms, sen);
+    };
     _ecuKotae = false;
     function tryProto() {
       if (pi >= _WARMUP_PROTOS.length) return Promise.resolve(false);
@@ -1094,22 +1100,21 @@
       //     （機械が 死んで いるか、前の 繋がりを 掴んだ まま）
       //     ⇒ 1つ目で 打ち切る（約80秒 → ★約25秒★）
       if (pi === 1 && !_ecuKotae) {
-        _susumi('機械が 返事を しません', 0, sen);
+        ji('機械が 返事を しません', 0);
         return Promise.resolve(false);
       }
       //   ②ATSP0（自動）は ★機械が 自分で 全部の 方式を 探す★ 物。
       //     それが 駄目なら ATSP7 は ★同じ 所を もう一度 探すだけ★
       //     ⇒ 2つ目で 打ち切る（約80秒 → ★約50秒★）
       if (pi === 2 && _WARMUP_PROTOS[1] === '0') {
-        _susumi('この 車とは 話せませんでした', 0, sen);
+        ji('この 車とは 話せませんでした', 0);
         return Promise.resolve(false);
       }
       const sp = _WARMUP_PROTOS[pi++];
       // ★今 何番目を 試していて あと どれくらいか★
-      _susumi(
+      ji(
         '車と 話しています（方式 ' + pi + '/' + _WARMUP_PROTOS.length + '）',
-        (_WARMUP_PROTOS.length - pi + 1) * _WARMUP_ONE_MS,
-        sen
+        (_WARMUP_PROTOS.length - pi + 1) * _WARMUP_ONE_MS
       );
       return _send('ATSP' + sp, 2500)
         .catch(function () {
@@ -1920,7 +1925,7 @@
       })
       .then(function () {
         // ★監査m1: start で ATSP6/ATAL を撃った往復の片道を是正=プロトコル再pin(自己治癒)。
-        return isConnected() ? _warmup(cwSen).catch(function () {}) : null;
+        return isConnected() ? _warmup(cwSen, true).catch(function () {}) : null;
       })
       .then(function () {
         _stopRequested = _cwWasStop;
@@ -2025,7 +2030,7 @@
         if (_consecFail >= RECOVER_AFTER && !_recovering) {
           _recovering = true;
           _consecFail = 0;
-          sen.hIma = _warmup(sen)
+          sen.hIma = _warmup(sen, true)
             .catch(function () {
               return false;
             })
