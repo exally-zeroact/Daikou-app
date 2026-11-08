@@ -6,8 +6,7 @@
           type="button"
           onclick="
             event.stopPropagation();
-            var c = document.getElementById('obdChip');
-            if (c) c.click();
+            if (window._obdOsu) window._obdOsu('gyoumu');
           "
           style="
             width: 80%;

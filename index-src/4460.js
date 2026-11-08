@@ -256,30 +256,3 @@
               /* status/error は on() 経由で表示済 */
             });
           }
-          if (btnC) {
-            btnC.addEventListener('click', doConnect);
-          }
-          if (btnD) {
-            btnD.addEventListener('click', function () {
-              _obdLastGoodT = null; // 手動切断 = 警告対象外 (ユーザー意図のOFF)
-              _obdWasConnected = false; // 手動切断 = 再接続バーも出さない
-              // ★手で 切ったら この 業務の 印も 消す★ 2026-09-10
-              _konoGyoumuHozon(false);
-              _obdTsunaidaHozon(false); // ★覚えている分も 消す★
-              O.disconnect();
-            });
-          }
-          // ★青バーチップ: タップで接続 / 接続中タップで切断 (トグル)。Web Bluetooth は
-          //   user gesture 起点必須 → チップ click から requestDevice が走る。
-          if (obdChip && O.isSupported()) {
-            obdChip.addEventListener('click', function () {
-              if (_obdConnected) {
-                _obdLastGoodT = null; // 手動切断 = 警告対象外
-                _obdWasConnected = false; // 手動切断 = 再接続バーも出さない
-                // ★手で 切ったら この 業務の 印も 消す★ 2026-09-10
-                _konoGyoumuHozon(false);
-                _obdTsunaidaHozon(false); // ★覚えている分も 消す★
-                O.disconnect();
-              } else doConnect();
-            });
-          }

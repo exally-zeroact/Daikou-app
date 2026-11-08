@@ -6,8 +6,7 @@
       role="alert"
       onclick="
         (function () {
-          var c = document.getElementById('obdChip');
-          if (c) c.click();
+          if (window._obdOsu) window._obdOsu('obi');
         })()
       "
       style="

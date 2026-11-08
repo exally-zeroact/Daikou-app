@@ -1,9 +1,51 @@
+          // ★★押しの 口は 1つ（_obdOsu）★★ 2026-11-08（OBD の 繋ぎの 作り直し）
+          //   ★前★ チップ・帯・業務画面ボタン・設定の 接続が ばらばらに connect を 呼び、
+          //     人の 繋ぎの 途中に 押すと 2本目が 走って 潰し合った。
+          //     手で 切ると _obdWasConnected と 覚えた 印まで 消し、業務開始で ずっと 繋ぎに 行かなかった。
+          //   ★今★ 口 × 今の 形 で する事を 決める（設計 v2 §4 の 表）。★手で 切っても 記憶は 消さない★。
+          function _obdKiru() {
+            _obdLastGoodT = null; // 手動切断 = 警告対象外 (ユーザー意図のOFF)
+            // ★手で 切ったら この 業務の 印は 消す★ 2026-09-10（帯を 出さない）
+            _konoGyoumuHozon(false);
+            O.disconnect();
+          }
+          window._obdOsu = function (kuchi) {
+            if (!O || typeof O.isSupported !== 'function' || !O.isSupported()) return;
+            if (kuchi === 'kiru') return _obdKiru();
+            var st = O.getStatus ? O.getStatus() : '';
+            var dare = O.getDare ? O.getDare() : null;
+            if (st === 'connected') {
+              if (kuchi === 'chip' || kuchi === 'gyoumu') _obdKiru();
+              return; // 帯・設定の 接続は 切る 口に しない
+            }
+            if (dare === 'hito') return; // 人の 繋ぎの 途中＝2本目を 走らせない
+            doConnect(); // 自動・繋ぎ直し・線なし ＝ 人で 繋ぐ
+          };
+          if (btnC) {
+            btnC.addEventListener('click', function () {
+              window._obdOsu('settei');
+            });
+          }
+          if (btnD) {
+            btnD.addEventListener('click', function () {
+              window._obdOsu('kiru');
+            });
+          }
+          // ★青バーチップ: タップで接続 / 接続中タップで切断 (トグル)。Web Bluetooth は
+          //   user gesture 起点必須 → チップ click から requestDevice が走る。
+          if (obdChip && O.isSupported()) {
+            obdChip.addEventListener('click', function () {
+              window._obdOsu('chip');
+            });
+          }
           // ★★業務開始の 時に 繋ぎに 行く★★ 2026-09-08（司さん「めんどくさいことやらすな」）
           //   ★押す 回数は 増やさない★＝もともと 押す ボタンに ぶら下げるだけ
           window._obdGyoumuKaishiDeTsunagu = function () {
             if (!O || typeof O.isSupported !== 'function' || !O.isSupported()) return;
             if (O.isConnected && O.isConnected()) return; // もう 繋がっている
             if (O.getStatus && O.getStatus() === 'connecting') return; // 繋ぎに 行っている
+            // ★線が 在る（自動・繋ぎ直し・人が 選んでいる）＝2本目を 走らせない★ 2026-11-08
+            if (O.getDare && O.getDare()) return;
             // ★前に OBD を 使った 端末だけ★（使っていない 人に 一覧を 出さない）
             if (!_obdWasConnected) return;
             // ★人が 押した この 瞬間に 呼ぶ★（後ろで 待つと 選べなく なる）
@@ -51,7 +93,9 @@
             // ★司さん2026-06-27: 接続中はチップ自体を緑ベタ塗り(connectedクラス)で示す。
             //   緑で一目で分かるのでレ点(✓)は不要・ラベルは常に「OBD」。
             var obdChipEl = document.getElementById('obdChip');
-            if (obdChipEl) obdChipEl.classList.toggle('connected', !!_obdConnected);
+            // ★★緑は 車と 話せてから★★ 2026-11-08（前は 機械に 繋いだ 瞬間＝車と 話す 25〜50秒も 緑だった）
+            var _obdDan = O.getDan ? O.getDan() : _obdConnected ? 'tsunagatta' : '';
+            if (obdChipEl) obdChipEl.classList.toggle('connected', _obdDan === 'tsunagatta');
             // ★OBD切断 再接続バー(全画面・司さん2026-06-30「全部の画面に途切れたら出して」)★
             //   一度繋いだ後(_obdWasConnected)に切断したら、猶予4s(自動再接続の余地)後に
             //   全画面の赤バー+赤チップ「OBD 再接続」で再接続を促す。手動切断/未接続/非対応では出さない。
@@ -108,7 +152,11 @@
             var _showRecon =
               _obdDropped && _obdDropSince != null && Date.now() - _obdDropSince > 4000;
             // ★★繋いでいる 途中は 帯に 進み具合を 出す★★ 2026-09-08
-            var _tsunagichu = _obdSupported && O.getStatus && O.getStatus() === 'connecting';
+            // ★★繋いでいる 途中＝段で 決める★★ 2026-11-08（車と 話している 間も 途中）
+            var _tsunagichu =
+              _obdSupported &&
+              ((O.getStatus && O.getStatus() === 'connecting') ||
+                ['erabu', 'gatt', 'kata', 'okosu', 'hanasu'].indexOf(_obdDan) >= 0);
             var reconBar = document.getElementById('obdReconnectBar');
             if (reconBar) {
               reconBar.style.display = _showRecon || _tsunagichu ? 'flex' : 'none';
@@ -120,6 +168,8 @@
                 reconBar.textContent = _tsunagichu
                   ? '⏳ OBD ' + _ji + (_ato > 0 ? '（あと 約' + _ato + '秒）' : '')
                   : _ji;
+              } else if (_obdDan === 'tsunagi_naoshi') {
+                reconBar.textContent = '⏳ OBD つなぎ直しています（タップで選び直し）';
               } else {
                 reconBar.textContent = '⚠ OBDが切れました — タップで再接続';
               }
@@ -136,7 +186,13 @@
             window._obdBarKakinaosu = window._obdBarKakinaosu || function () {};
             if (obdChipEl) obdChipEl.classList.toggle('reconnect', _showRecon || _tsunagichu);
             var obdChipLabelEl = document.getElementById('obdChipLabel');
-            if (obdChipLabelEl) obdChipLabelEl.textContent = _showRecon ? 'OBD 再接続' : 'OBD';
+            // ★V7★ 機械には 繋がったが 車と まだ 話せていない＝「OBD 待ち」（押すと 切れる＝今と 同じ）
+            if (obdChipLabelEl)
+              obdChipLabelEl.textContent = _showRecon
+                ? 'OBD 再接続'
+                : _obdConnected && (_obdDan === 'hanasu' || _obdDan === 'kuruma_machi')
+                  ? 'OBD 待ち'
+                  : 'OBD';
             // ★業務開始画面のOBD接続ボタン: 接続済=緑/未接続=青枠で状態を反映(司さん2026-06-27)
             var bizObd = document.getElementById('bizObdConnect');
             if (bizObd) {
