@@ -446,6 +446,21 @@
       nokori_ms: nokoriMs || 0,
     });
   }
+  // ★車待ち（hanasu／kuruma_machi）から 緑へ＝普通の 繋ぎ（つながりました）と 同じ 字を 出す★ 2026-11-09（候補①）
+  //   前は 走りの 途中の 回復・最初の 正しい 車速で 段だけ 緑に して 字を 出さなかった
+  //   ⇒ 字の 出どころが 訳（ayamari）の まま＝後で 切れた 帯に 古い 訳（エンジン／抜き挿し）が 出て「切れました」が 出なかった
+  //   預けた 訳も 捨てる（緑の 後に 選ぶ 画面を やめても 出し直さない）。一度 緑なら 比べ 1回で 戻る（車速の 度に 字を 出さない）
+  //   人が 選ぶ 画面を 開いている 間（_dan＝erabu）は 線の 段（sen.dan）で 判じ、段の 知らせは 出さず 線の 段だけ 緑に する
+  //   （_setDan だと erabu を 上書きする）。字は 預かり＝やめた 時に 段は 緑・出し直しは「つながりました」・訳は 出し直さない
+  function _kurumaGaHanashita(sen) {
+    const erabu = _dan === 'erabu' && !!sen;
+    const ima = erabu ? sen.dan : _dan;
+    if (ima !== 'hanasu' && ima !== 'kuruma_machi') return;
+    if (sen) sen.yakuAto = null;
+    if (erabu) sen.dan = 'tsunagatta';
+    else _setDan('tsunagatta');
+    _susumi('つながりました', 0, sen);
+  }
   function _susumiDashinaosu(sen) {
     const a = sen && !sen.shinda && sen === _sen ? sen.susumiAto : null;
     if (!a) return;
@@ -2039,8 +2054,8 @@
             .then(function (ok) {
               if (sen.shinda) return;
               _recovering = false;
-              // 車と 話せた＝「車 待ち」から 緑へ
-              if (ok === true && _dan === 'kuruma_machi') _setDan('tsunagatta');
+              // 車と 話せた＝「車 待ち」から 緑へ（字も 出す＝_kurumaGaHanashita）
+              if (ok === true) _kurumaGaHanashita(sen);
               if (ikiteru()) _ato(sen, loop, POLL_MIN_INTERVAL_MS);
               else owari();
             });
@@ -2122,7 +2137,7 @@
               _emit('speed', getSpeed());
               _consecFail = 0; // 正常応答 → 失敗カウンタ reset
               // ★最初の 正しい 車速＝車と 話せた★（緑）
-              if (_dan === 'hanasu' || _dan === 'kuruma_machi') _setDan('tsunagatta');
+              _kurumaGaHanashita(sen);
             } else {
               _consecFail++; // NO DATA / STOPPED / 別PID = 通信不全
             }

@@ -133,8 +133,19 @@
               }
             }
           });
+          // ★設定の 字（noteEl）が 訳か★ 2026-11-09（候補① 設計前 taiketsu 止め1）
+          //   車待ちから 黙って 緑に 戻る 道は probe を 撃たない＝noteEl の「エラー: 車から 返事が…」が「接続済み」の 横に 残った
+          //   ⇒ 段が 緑に なったら 訳の 字だけ 消す（probe・押した 時の 字は 消さない）
+          var _obdNoteWake = false;
+          O.on('dan', function (d) {
+            if (d === 'tsunagatta' && _obdNoteWake && noteEl) {
+              noteEl.textContent = '';
+              _obdNoteWake = false;
+            }
+          });
           O.on('error', function (msg) {
             if (noteEl) noteEl.textContent = 'エラー: ' + msg;
+            _obdNoteWake = true;
             // ★★帯に 出すのは ★日本語の 訳★だけ★★ 2026-09-09
             //   ★司さん★「なんで 英語に かわったんど」
             //   ★実物で 出ていた 字★
@@ -181,6 +192,7 @@
                 msg = 'OBD距離能力プローブ完了 (結果はログに記録)';
               }
               if (noteEl) noteEl.textContent = msg + ' ※詳細はログ送信で解析';
+              _obdNoteWake = false;
               // ── 随伴車カードに反映 (VIN/メーカー/距離能力 + 保存プロファイル読込) ──
               var q = (res && res.queries) || {};
               var vin = q.vin_0902 ? _parseVin(q.vin_0902.raw) : '';
@@ -264,6 +276,7 @@
           });
           function doConnect() {
             if (noteEl) noteEl.textContent = '';
+            _obdNoteWake = false;
             O.connect().catch(function () {
               /* status/error は on() 経由で表示済 */
             });

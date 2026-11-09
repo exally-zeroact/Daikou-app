@@ -1018,6 +1018,68 @@ describe('OBD 進みの 字（susumi）の 順と 線', () => {
     h.yameru();
     await tick(20);
     expect(jun.slice(k).filter((x) => x.indexOf('e:') === 0)).toEqual([]);
+    // ★出し直されるのは「つながりました」（緑に なった 時の 字）★ 2026-11-09 候補①
+    expect(jun.slice(k)).toEqual(['s:つながりました']);
+    O.disconnect();
+  }, 20000);
+  // ★候補①（11-09）★ 車待ち（訳を 出した 後）から 黙って 緑に 戻ると 字の 出どころが 訳の まま
+  //   ⇒ 後で 切れた 帯に 古い 訳が 出て「切れました」が 出なかった＝緑に なったら「つながりました」を 出す
+  it('SU8: 車待ちから 最初の 正しい 車速で 緑 → 訳の 後に「つながりました」・その 後は 字が 増えない', async () => {
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const { O } = loadOBD(makeBT([d]));
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    const a = jun.length;
+    expect(jun[a - 1].indexOf('e:')).toBe(0);
+    d.responder = ichiban; // エンジンが かかった＝次の 車速で 緑
+    expect(await made(() => O.getDan() === 'tsunagatta', 3000)).toBe(true);
+    await tick(1500); // 車速が 何回 来ても 字は 1回だけ
+    expect(jun.slice(a)).toEqual(['s:つながりました']);
+    O.disconnect();
+  }, 20000);
+  it('SU9: 車待ちから 走りの 途中の 回復（_warmup）で 緑 → 訳の 後に「つながりました」', async () => {
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const { O } = loadOBD(makeBT([d]));
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    const a = jun.length;
+    // 車速（010D）は 黙った まま・0100 だけ 返す＝回復の _warmup だけが 緑に する
+    d.responder = (c) => (c === '010D' ? 'NO DATA\r\r>' : ichiban(c));
+    const n0 = d.writes.length;
+    expect(await made(() => O.getDan() === 'tsunagatta', 8000)).toBe(true);
+    expect(d.writes.slice(n0).filter((w) => /^ATSP/.test(w.cmd)).length).toBeGreaterThan(0);
+    expect(jun.slice(a)).toEqual(['s:つながりました']);
+    O.disconnect();
+  }, 20000);
+  // ★任意1（11-09 叩き直し）★ 選ぶ 画面を 開いている 間に 車が 話した → やめたら 緑・古い 訳を 出し直さない
+  it('SU10: 車待ちで 選ぶ 画面を 開いている 間に 車が 話す → やめた 直後に 緑・字は「つながりました」だけ', async () => {
+    const d = makeDev('A', {
+      responder: (c) => (c === '0100' || c === '010D' ? 'NO DATA\r\r>' : ichiban(c)),
+    });
+    const bt = makeBT([d]);
+    const { O } = loadOBD(bt);
+    const jun = kiku(O);
+    await O.connect();
+    expect(O.getDan()).toBe('kuruma_machi');
+    const h = yameruErabu(bt);
+    O.connect().catch(() => {});
+    expect(O.getDan()).toBe('erabu');
+    const n0 = d.writes.length;
+    d.responder = ichiban; // 選ぶ 画面の 間に エンジンが かかった
+    expect(await made(() => d.writes.slice(n0).some((w) => w.cmd === '010D'), 3000)).toBe(true);
+    await tick(300);
+    expect(O.getDan()).toBe('erabu');
+    const k = jun.length;
+    h.yameru();
+    await tick(20);
+    expect(O.getDan()).toBe('tsunagatta');
+    expect(jun.slice(k)).toEqual(['s:つながりました']);
     O.disconnect();
   }, 20000);
   it('SU4: 殺した 線（warmup の 途中）からは 新しい 線の 字の 後に 古い 字が 来ない', async () => {
