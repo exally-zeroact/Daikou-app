@@ -196,6 +196,13 @@
         if (typeof Meter !== 'undefined' && Meter.setMapMatcher) {
           Meter.setMapMatcher(_mmWorker);
         }
+        // ★経由の前後の記録 (2026-11-13)★: mmResult（距離の増えの入口）を写すだけ。
+        //   Meter の後に付ける＝距離を足した後に走る。worker を作り直すたびにここを通る＝付け直し。
+        try {
+          if (window.KeiyuKiroku && typeof window.KeiyuKiroku.attachMm === 'function') {
+            window.KeiyuKiroku.attachMm(_mmWorker);
+          }
+        } catch (_) {}
         // ★設計変更宣言 (2026-05-18・configPlatform 配線完了 / G6 残課題解消):
         //   旧: configPlatform 未送信 → iOS でも Viterbi N=15 で起動 (= 初回 commit ラグ 16 秒)
         //   新: _setupMmWorker (init / 再起動 両経路) で Worker B に platform 通知

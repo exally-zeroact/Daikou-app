@@ -235,6 +235,20 @@
               //   ★1秒★＝business.js の保存と同じ間隔（5秒だと時速50kmで約70m＝金額が消える）。
               //   実測 287バイト・0.0008ミリ秒。距離の計算には割り込まない（呼ぶだけ）。
               _saveMeterSnapshot();
+              // ★経由の前後の記録 (2026-11-13)★: GPS の点ごとに写すだけ（js/keiyu-kiroku.js・距離は触らない）。
+              //   _saveMeterSnapshot の直後＝Meter.update と Business.onGps の後（getState の表示の動きと同じ目標値）。
+              try {
+                if (window.KeiyuKiroku && typeof window.KeiyuKiroku.feed === 'function') {
+                  window.KeiyuKiroku.feed(
+                    g,
+                    Meter.getState(),
+                    appState,
+                    window.OBDClient && typeof window.OBDClient.isConnected === 'function'
+                      ? window.OBDClient.isConnected()
+                      : null
+                  );
+                }
+              } catch (_) {}
               // ★設計変更宣言 (2026-05-23・住所② 現在地ライブ表示・raw GPS 配信):
               //   走行中 / 停止中 を問わず・1Hz で・raw GPS を Business に通知・常時表示 source。
               //   表示専用 (= distance_m / Meter / Worker B 完全無関係)。

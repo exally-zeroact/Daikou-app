@@ -146,6 +146,15 @@
       <table id="tSync"></table>
     </div>
 
+    <!-- 2026-11-13 経由の前後の記録（js/keiyu-kiroku.js が IndexedDB daikome-keiyu に書く）。
+         司さん 11/11「経由を押したら距離が増えた」を次に起きた時に数で決める為。読むだけ（DB が無ければ開かない＝作らない）。 -->
+    <div class="card">
+      <h2>経由の前後の記録（daikome-keiyu）</h2>
+      <table id="tKeiyu"></table>
+      <button id="copyKeiyuBtn" type="button">経由の記録をコピーする</button>
+      <pre id="rawKeiyu"></pre>
+    </div>
+
     <div class="card">
       <h2>そのままの中身（貼り付け用）</h2>
       <pre id="raw"></pre>
@@ -408,6 +417,112 @@
         row(tY, '登録された車', String(veh.length) + ' 台');
 
         document.getElementById('raw').textContent = JSON.stringify(dump, null, 1);
+
+        // ── 経由の前後の記録（読むだけ）──
+        (function () {
+          const tK = document.getElementById('tKeiyu');
+          const pre = document.getElementById('rawKeiyu');
+          let list = [];
+          function show(msg, cls) {
+            row(tK, '記録', msg, cls);
+          }
+          function draw() {
+            row(tK, '件数', String(list.length) + ' 件', list.length ? 'ok' : 'zero');
+            // 新しい順に要約。中身は最新1件を下に出す（全部はコピーで）
+            list
+              .slice()
+              .sort(function (a, b) {
+                return b.at - a.at;
+              })
+              .forEach(function (r, i) {
+                const s = r.sum || {};
+                const when = new Date(r.at).toLocaleString('ja-JP');
+                row(
+                  tK,
+                  i + 1 + '. ' + when + (r.partial ? '（途中）' : ''),
+                  '押す前30秒 +' + s.preIncM + 'm／押した後 +' + s.postIncM + 'm'
+                );
+                row(
+                  tK,
+                  '　　　' + (r.os || '') + '・押した回数 ' + (r.marks || []).length,
+                  '合成点 ' +
+                    s.synPost +
+                    '・最長の空き ' +
+                    s.maxGapMs +
+                    'ms・押した処理 ' +
+                    s.maxMarkMs +
+                    'ms'
+                );
+              });
+            if (list.length) {
+              const last = list.reduce(function (a, b) {
+                return b.at > a.at ? b : a;
+              });
+              pre.textContent = JSON.stringify(last);
+            }
+          }
+          try {
+            if (!window.indexedDB || typeof indexedDB.databases !== 'function') {
+              show('この端末では読めない（indexedDB.databases が無い）', 'zero');
+              return;
+            }
+            indexedDB
+              .databases()
+              .then(function (dbs) {
+                const ari = (dbs || []).some(function (d) {
+                  return d && d.name === 'daikome-keiyu';
+                });
+                if (!ari) {
+                  row(tK, '件数', '0 件（まだ経由を押していない）', 'zero');
+                  return;
+                }
+                // 版を付けずに開く＝在る DB をそのまま開く（作り直さない）
+                const req = indexedDB.open('daikome-keiyu');
+                req.onsuccess = function () {
+                  const db = req.result;
+                  try {
+                    if (!db.objectStoreNames.contains('kiroku')) {
+                      db.close();
+                      show('読めない（棚 kiroku が無い）', 'zero');
+                      return;
+                    }
+                    const g = db.transaction('kiroku', 'readonly').objectStore('kiroku').getAll();
+                    g.onsuccess = function () {
+                      list = g.result || [];
+                      db.close();
+                      draw();
+                    };
+                    g.onerror = function () {
+                      db.close();
+                      show('読めない', 'zero');
+                    };
+                  } catch (_) {
+                    try {
+                      db.close();
+                    } catch (__) {}
+                    show('読めない', 'zero');
+                  }
+                };
+                req.onerror = function () {
+                  show('読めない', 'zero');
+                };
+              })
+              .catch(function () {
+                show('読めない', 'zero');
+              });
+          } catch (_) {
+            show('読めない', 'zero');
+          }
+          document.getElementById('copyKeiyuBtn').addEventListener('click', function () {
+            const t = JSON.stringify(list);
+            try {
+              navigator.clipboard.writeText(t);
+              this.textContent = '✅ コピーしました（' + list.length + ' 件）';
+            } catch (_) {
+              this.textContent = '下の黒い所を長押しでコピーしてください';
+            }
+          });
+        })();
 
         document.getElementById('copyBtn').addEventListener('click', function () {
           const t = JSON.stringify(dump, null, 1);

@@ -11,6 +11,12 @@
         if (typeof blockIfSensorNotGranted === 'function' && blockIfSensorNotGranted()) return;
         if (appState !== 'driving') return;
         if (typeof Business === 'undefined' || typeof Business.onWaypoint !== 'function') return;
+        // ★経由の前後の記録 (2026-11-13)★: 押した前後30秒を端末に残す（写すだけ・距離は触らない）
+        //   司さん 11/11「経由を押したら距離が増えた」＝再現0 → 次に起きた時の数を残す。
+        try {
+          if (window.KeiyuKiroku && typeof window.KeiyuKiroku.mark === 'function')
+            window.KeiyuKiroku.mark();
+        } catch (_) {}
         let lat = null;
         let lng = null;
         try {
@@ -37,6 +43,11 @@
           if (navigator && typeof navigator.vibrate === 'function') navigator.vibrate(10);
         } catch (_) {}
         updateWaypointCardUI();
+        // ★経由の前後の記録 (2026-11-13)★: 押した処理の長さ（ms）を付ける（js/keiyu-kiroku.js）
+        try {
+          if (window.KeiyuKiroku && typeof window.KeiyuKiroku.markEnd === 'function')
+            window.KeiyuKiroku.markEnd();
+        } catch (_) {}
       }
       function updateWaypointCardUI() {
         // ★設計変更宣言 (2026-05-16・waypointCard 表示拡張・出発地+経由地連結):

@@ -144,6 +144,7 @@ const CORE_CODE_FILES = [
   '/js/data-registry.js',
   '/js/region-helper.js',
   '/js/page-lifecycle.js',
+  '/js/keiyu-kiroku.js', // 経由の前後の記録 (2026-11-13)
   '/js/debug-config.js',
   '/js/firebase-config.js',
   '/js/firebase.js',
