@@ -52,6 +52,7 @@ function st(dist) {
   return {
     distance_m: dist,
     business_distance_m: dist + 100,
+    display_distance_m: dist + 5,
     fare_yen: 700,
     distanceSource: 'pipeline',
   };
@@ -79,6 +80,9 @@ describe('keiyu-kiroku：前後30秒', () => {
     expect(r.pre[0].t).toBeGreaterThanOrEqual(-30000);
     expect(r.pre[0].t).toBe(-30000);
     expect(r.marks).toEqual([{ t: 0, ms: 250 }]);
+    // 客が見るメーターの表示距離も写す（表示の側だけの増えも残す）
+    expect(r.pre[0].dist).toBe(300);
+    expect(r.pre[0].ddist).toBe(305);
     expect(r.sum.preIncM).toBe(290); // 300→590
     expect(r.sum.postIncM).toBe(30 + 10); // 590→630
     expect(r.sum.maxMarkMs).toBe(250);
@@ -178,6 +182,19 @@ describe('keiyu-kiroku：前後30秒', () => {
     expect(h.saved[1].at).toBe(h.saved[0].at); // 同じ件＝書き直し
     expect(h.saved[1].partial).toBe(0);
     expect(h.saved[1].sum.mmPostM).toBe(50);
+  });
+
+  it('メーターの値が取れない（_saveMeterSnapshot が null を返した）点も落とさず数だけ空にする', () => {
+    const h = mk();
+    h.k.feed(g(), null, 'driving', false);
+    h.k.mark();
+    for (let i = 0; i < 31; i++) {
+      h.k.feed(g(), null, 'driving', false);
+      h.adv(1000);
+    }
+    expect(h.saved.length).toBe(1);
+    expect(h.saved[0].pre[0].dist).toBeNull();
+    expect(h.saved[0].pre[0].ddist).toBeNull();
   });
 
   it('throw しない（壊れた値・書き先の例外）', () => {

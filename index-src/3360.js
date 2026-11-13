@@ -234,14 +234,14 @@
               //   車両プロファイル）。閉じた瞬間に消えるので、ここで1秒ごとに控える。
               //   ★1秒★＝business.js の保存と同じ間隔（5秒だと時速50kmで約70m＝金額が消える）。
               //   実測 287バイト・0.0008ミリ秒。距離の計算には割り込まない（呼ぶだけ）。
-              _saveMeterSnapshot();
+              const _snapSt = _saveMeterSnapshot();
               // ★経由の前後の記録 (2026-11-13)★: GPS の点ごとに写すだけ（js/keiyu-kiroku.js・距離は触らない）。
-              //   _saveMeterSnapshot の直後＝Meter.update と Business.onGps の後（getState の表示の動きと同じ目標値）。
+              //   _saveMeterSnapshot が取った getState の値をそのまま渡す（getState は表示の滑らかさを進める＝2回呼ばない）。
               try {
                 if (window.KeiyuKiroku && typeof window.KeiyuKiroku.feed === 'function') {
                   window.KeiyuKiroku.feed(
                     g,
-                    Meter.getState(),
+                    _snapSt,
                     appState,
                     window.OBDClient && typeof window.OBDClient.isConnected === 'function'
                       ? window.OBDClient.isConnected()

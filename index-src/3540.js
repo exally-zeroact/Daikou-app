@@ -245,11 +245,16 @@
       }
 
       function _saveMeterSnapshot() {
+        // 取った値を返す＝経由の記録（js/keiyu-kiroku.js）が getState をもう1回呼ばずに同じ値を写す (2026-11-13)
+        //   控えの書きで throw しても、取れていた値は返す（記録の数を落とさない）
+        let st = null;
         try {
-          if (typeof MeterPersist === 'undefined' || typeof Meter === 'undefined') return;
-          MeterPersist.save(null, Meter.getState(), _meterCtx());
+          if (typeof MeterPersist === 'undefined' || typeof Meter === 'undefined') return null;
+          st = Meter.getState();
+          MeterPersist.save(null, st, _meterCtx());
         } catch (_) {
           /* ★控えが書けなくても業務は止めない★ */
         }
+        return st;
       }
 

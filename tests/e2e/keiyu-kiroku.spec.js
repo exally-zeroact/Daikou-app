@@ -81,6 +81,7 @@ async function hashiru(browser, kirokuAri) {
     const s = Meter.getState();
     return {
       d: Math.round(s.distance_m * 10) / 10,
+      dd: Math.round(s.display_distance_m * 10) / 10,
       fare: s.fare_yen,
       wp: (Business.getCurrentTrip() || { waypoints: [] }).waypoints.length,
     };
@@ -115,6 +116,7 @@ test('経由の前後の記録：1件残る・shindan に出る・距離と料�
   expect(ari.recs.length).toBe(1);
   const r = ari.recs[0];
   expect(r.pre.some((e) => e.k === 'g')).toBe(true);
+  expect(r.pre.some((e) => e.k === 'g' && typeof e.ddist === 'number')).toBe(true);
   expect(r.pre.some((e) => e.k === 'm')).toBe(true);
   expect(r.post.some((e) => e.k === 'g')).toBe(true);
   expect(r.post.some((e) => e.k === 'm')).toBe(true);
@@ -136,5 +138,6 @@ test('経由の前後の記録：1件残る・shindan に出る・距離と料�
   expect(nashi.st.wp).toBe(1);
   expect(ari.st.d).toBeGreaterThan(100);
   expect(ari.st.d).toBe(nashi.st.d);
+  expect(ari.st.dd).toBe(nashi.st.dd);
   expect(ari.st.fare).toBe(nashi.st.fare);
 });

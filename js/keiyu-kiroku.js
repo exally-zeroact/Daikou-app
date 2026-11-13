@@ -142,6 +142,7 @@
           syn: syn,
           stat: g.isStationary ? 1 : 0,
           dist: _r1(st.distance_m),
+          ddist: _r1(st.display_distance_m), // 客が見るメーターの表示距離（表示の側だけの増えも残す）
           bdist: _r1(st.business_distance_m),
           fare: _num(st.fare_yen),
           dsrc: typeof st.distanceSource === 'string' ? st.distanceSource : null,
