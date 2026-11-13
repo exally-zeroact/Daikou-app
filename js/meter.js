@@ -811,6 +811,7 @@ const Meter = (() => {
           speedKmh: gpsResult.speedKmh,
           speedSrc: gpsResult.speedSrc || null, // ★speedSrc 貫通 (2026-06-07): 'dop'/'hav'/'obd'/'coast'
           isSynthetic: gpsResult.isSynthetic === true, // ★タイマー穴埋め合成点 (2026-06-10): 平滑バイパス印
+          stopHint: gpsResult.stopHint === true, // ★止まった印 (2026-11-13): 経由を押した後の穴＝距離だけ 0
           headingDeg: gpsResult.compassHeading != null ? gpsResult.compassHeading : null,
           altitude: typeof gpsResult.altitude === 'number' ? gpsResult.altitude : null,
           isStationary: gpsResult.isStationary === true,

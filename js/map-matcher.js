@@ -388,6 +388,8 @@ function _confirmedRoadDelta(msg, outSnap) {
       // ★合成タイマー連続前進: GPS stale 中の coast 穴埋め点 (gps.js _gapTick・位置据え置き+速度既知)。
       //   平滑バッファをバイパスして即 _core で speed×dt 前進させる印 (トンネル一括ドン根治)。
       synthetic: msg.isSynthetic === true,
+      // ★止まった印 (2026-11-13): 経由を押した後の非OBD の穴＝pipeline が足す距離だけ 0 (他は今と同じ)
+      stopHint: msg.stopHint === true,
     });
     // 確定道路読み取り (連結性拘束済) の道なり区間増分。正値のみ採用。
     // ★距離源タグ (2026-06-12・OBD+センサーメイン・アーキ)★: この delta が ∫v(OBD) 駆動か否かを

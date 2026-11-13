@@ -17,6 +17,11 @@
           if (window.KeiyuKiroku && typeof window.KeiyuKiroku.mark === 'function')
             window.KeiyuKiroku.mark();
         } catch (_) {}
+        // ★止まった印 (2026-11-13)★: 押した時に GPS が途切れた穴の中なら、この穴の合成の距離を 0 にする
+        //   （トンネル＝押さない穴は1つも変えない・OBD の穴は触らない）。
+        try {
+          if (typeof GPS !== 'undefined' && typeof GPS.stopHint === 'function') GPS.stopHint();
+        } catch (_) {}
         let lat = null;
         let lng = null;
         try {

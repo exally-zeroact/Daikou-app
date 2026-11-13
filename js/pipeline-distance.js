@@ -2390,6 +2390,9 @@ function createDistanceTracker(decoder, opts) {
           synDelta = allowM;
         }
       }
+      // ★止まった印 (2026-11-13・経由を押した後の非OBD の穴)★: 上の allowM・coastHole*・凍結・
+      //   coastSpdMps・prev は今と全く同じに進め、total へ足す分だけ 0 にする (減る向きだけ)。
+      if (cur.stopHint === true && !_obdCoast) synDelta = 0;
       total += synDelta;
       stats.coastSegs = (stats.coastSegs || 0) + 1;
       bd.coastM = (bd.coastM || 0) + synDelta;

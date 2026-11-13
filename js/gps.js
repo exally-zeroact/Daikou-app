@@ -383,6 +383,10 @@ const GPS = (() => {
   let _coastHoleSec = 0; // この穴で合成 coast を積分した累積秒数
   let _coastHoleM = 0; // この穴で合成 coast が前進させた累積距離 m
   let _coastHoleFrozen = false; // この穴は cap/減速停車で前進停止済
+  // ★止まった印 (2026-11-13・経由を押した)★: 非OBD の穴の中で GPS.stopHint() が呼ばれたら true。
+  //   点・時刻・速度・凍結は今と同じに送り、合成点に stopHint:true を付けるだけ (距離は pipeline で 0)。
+  //   穴明けの実 fix (688-690 と同じ所) で false に戻す＝次の穴に持ち越さない。
+  let _coastHoleHinted = false;
   let isStationary = false;
   let trafficJamSince = null;
   let isTrafficJam = false;
@@ -688,6 +692,7 @@ const GPS = (() => {
     _coastHoleSec = 0;
     _coastHoleM = 0;
     _coastHoleFrozen = false;
+    _coastHoleHinted = false;
     // 加速度サンプル取り出し（案A・2026/04/29）
     const accelSamples = accelBuffer.slice();
     accelBuffer = [];
@@ -823,6 +828,7 @@ const GPS = (() => {
           timestamp: now,
           compassHeading: compassHeading != null ? compassHeading : null,
           isSynthetic: true, // ★合成印 (map-matcher が平滑バッファをバイパスし即 _core で前進)
+          stopHint: !_obdValid && _coastHoleHinted, // ★止まった印 (経由を押した後の穴・距離だけ 0)
         });
       }
     } catch (_) {
@@ -1105,6 +1111,13 @@ const GPS = (() => {
   // T5 (2026-05-09): map-matcher.js が commit した snap の typeCode を Worker に伝達
   //   meter.js の mmResult ハンドラから呼ばれる
   //   Worker 側で typeCode → Q の動的マッピングを行う
+  // ★止まった印 (2026-11-13・司さん「止まった時の増えだけ消す・トンネルは変えない」)★:
+  //   経由を押した時に呼ぶ。非OBD の穴の中 (_coastHoleSec > 0＝合成で前進した後) だけ印を立てる。
+  //   穴の外では何もしない (印は持ち越さない)。点の送り方・時刻・速度・凍結は1つも変えない。
+  function stopHint() {
+    if (_coastHoleSec > 0) _coastHoleHinted = true;
+  }
+
   function setRoadType(typeCode) {
     if (useWorker && worker) {
       worker.postMessage({ type: 'setRoadType', data: { typeCode: typeCode } });
@@ -1129,6 +1142,8 @@ const GPS = (() => {
     startMotion,
     // T5 (2026-05-09): Adaptive Kalman Q (道路種別連動) 用 API
     setRoadType,
+    // 2026-11-13：経由を押した時の止まった印
+    stopHint,
   };
 })();
 

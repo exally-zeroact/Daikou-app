@@ -140,6 +140,7 @@
           src: typeof g.speedSrc === 'string' ? g.speedSrc : null,
           acc: _r1(g.accuracy),
           syn: syn,
+          hint: g.stopHint ? 1 : 0, // 止まった印（この合成点の距離は 0 にした）
           stat: g.isStationary ? 1 : 0,
           dist: _r1(st.distance_m),
           ddist: _r1(st.display_distance_m), // 客が見るメーターの表示距離（表示の側だけの増えも残す）
