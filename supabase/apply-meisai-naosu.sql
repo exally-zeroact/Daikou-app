@@ -44,6 +44,7 @@ declare
   v_ids uuid[];
   n_u integer := 0;
   n_s integer := 0;
+  n_s0 integer := 0; -- うち 0（＝請求書 なし）と 打っていた 数 2026-11-15
 begin
   if v_uid is null then
     return json_build_object('ok', false, 'reason', 'no_user');
@@ -170,7 +171,12 @@ begin
   get diagnostics n_u = row_count;
 
   -- ⑧ 請求書の 手打ちを 外す（入力の 請求書の 欄は 車×日＝その 日の 回 全部・excluded の 回は 欄に 入らない＝外さない）
+  --   ★うち 0 の 数★ 2026-11-15 司さん「0 も 外す・知らせで 分ける」（行は 上の for update で 錠を 取った 後＝間に 変わらない）
   if v_sh.excluded is not true then
+    select count(*) into n_s0
+      from daikome.dk_shift_edits e
+     where e.shift_id = any (v_ids)
+       and e.seikyu_yen = 0;
     update daikome.dk_shift_edits e
        set seikyu_yen = null
      where e.shift_id = any (v_ids)
@@ -183,7 +189,8 @@ begin
     'updated', 1,
     'shift_total', v_goukei,
     'uriage_hazushita', n_u,
-    'seikyu_hazushita', n_s
+    'seikyu_hazushita', n_s,
+    'seikyu_zero_hazushita', n_s0
   );
 end;
 $fn$;

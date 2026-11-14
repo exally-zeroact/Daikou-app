@@ -201,6 +201,23 @@ test('★★② 直す＝rpc に 額と 控えを 1回・読み直す・外し�
   expect(await errJi(page)).toBe('');
 });
 
+test('★★②b うち 0（請求書 なし）を 外した 数は 分けて 言う（2026-11-15 司さん）★★', async ({
+  page,
+}) => {
+  await hiraku(page, {
+    kotae: {
+      status: 200,
+      json: { ok: true, uriage_hazushita: 0, seikyu_hazushita: 2, seikyu_zero_hazushita: 1 },
+      ato: 3500,
+    },
+  });
+  await utsu(page, 'm1', '3,500');
+  await okutta(page);
+  const kekka = await page.locator('[data-meisai-kekka]').textContent();
+  expect(kekka).toContain('請求書の 額（2件・うち 請求書なし（0）と 打っていた 1件）');
+  expect(kekka).not.toContain('売上（');
+});
+
 test('★★③ 空・同じ 額は 呼ばない（空は 元の 額に 戻す）★★', async ({ page }) => {
   await hiraku(page);
   await utsu(page, 'm1', '');

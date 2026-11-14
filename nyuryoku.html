@@ -2539,8 +2539,19 @@
             var soto = [];
             if (Number(j.uriage_hazushita) > 0)
               soto.push('売上（' + Number(j.uriage_hazushita) + '件）');
+            // うち 0（＝請求書 なし）と 打っていた 数は 分けて 書く 2026-11-15 司さん
             if (Number(j.seikyu_hazushita) > 0)
-              soto.push('請求書の 額（' + Number(j.seikyu_hazushita) + '件）');
+              soto.push(
+                '請求書の 額（' +
+                  Number(j.seikyu_hazushita) +
+                  '件' +
+                  (Number(j.seikyu_zero_hazushita) > 0
+                    ? '・うち 請求書なし（0）と 打っていた ' +
+                      Number(j.seikyu_zero_hazushita) +
+                      '件'
+                    : '') +
+                  '）'
+              );
             return {
               ok: true,
               ji:

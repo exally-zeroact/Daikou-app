@@ -130,7 +130,7 @@ begin
     values ('${MID}','${UID}','くらべ','2026-08-01',${b.mae},
             json_build_object('dk_source','daikome','dk_ref','${DEV}:${b.ms}:${b.seq}'${extra0})::jsonb);
   insert into daikome.dk_shift_edits(shift_id,company_id,uriage_yen,uriage_at,seikyu_yen) values
-    ('${SH1}','${CO}',9999,now(),5000), ('${SHX}','${CO}',1200,now(),3000), ('${SHE}','${CO}',null,null,4000),
+    ('${SH1}','${CO}',9999,now(),5000), ('${SHX}','${CO}',1200,now(),0), ('${SHE}','${CO}',null,null,0),
     ('${SH2}','${CO}',8888,now(),6000), ('${SH3}','${CO}',null,null,7000)
     on conflict (shift_id) do update set uriage_yen=excluded.uriage_yen, uriage_at=excluded.uriage_at, seikyu_yen=excluded.seikyu_yen;
   mae := ${STATE_SQL};
@@ -338,17 +338,20 @@ async function main(args) {
     const edge = await edgeNoMichi(src, kekka.mae, b);
     const chigai = kuraberu(sugata(edge.ato), sugata(kekka.ato));
     const rj = kekka.r || {};
-    ['ok', 'uriage_hazushita', 'seikyu_hazushita', 'shift_total'].forEach((x) => {
-      if (edge.j[x] !== rj[x])
-        chigai.push(
-          '返事.' +
-            x +
-            ': 請求書アプリの道=' +
-            JSON.stringify(edge.j[x]) +
-            ' 入力の道=' +
-            JSON.stringify(rj[x])
-        );
-    });
+    // seikyu_zero_hazushita＝うち 0（請求書 なし）の 数 2026-11-15（同じ 車×日の SHX と 使わない 回 SHE を 0＝請求書 なし に した）
+    ['ok', 'uriage_hazushita', 'seikyu_hazushita', 'seikyu_zero_hazushita', 'shift_total'].forEach(
+      (x) => {
+        if (edge.j[x] !== rj[x])
+          chigai.push(
+            '返事.' +
+              x +
+              ': 請求書アプリの道=' +
+              JSON.stringify(edge.j[x]) +
+              ' 入力の道=' +
+              JSON.stringify(rj[x])
+          );
+      }
+    );
     // 何も 変わっていない のに 一致、を 通さない（直しが 効いた 事も 見る）
     if (sugata(kekka.ato).meisai.amount !== b.ato)
       chigai.push('入力の 道で 明細が ' + b.ato + ' に なっていない');
