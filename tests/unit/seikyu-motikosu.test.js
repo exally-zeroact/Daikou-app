@@ -36,9 +36,19 @@ describe('★走った 車（1回の 業務）★ karada', () => {
     const b = J.karada('s1', 'c1', {}, 'seikyu_yen', '10000');
     expect(b.seikyu_yen).toBe(10000);
   });
-  it('前に 打った 請求書は 別の 欄を 打っても 消えない', () => {
+  // 2026-11-14 件⑧（対立役 止め1）：前は 古い 写しの 額を 送った＝請求書アプリの 直しで 空に した 額が 戻った。
+  //   送らない 列は merge-duplicates が 倉庫の 値の まま 残す＝消えない。
+  //   わざと壊す：karada に motikosuSeikyu(body, cur) を 戻す ⇒ ★赤★
+  it('前に 打った 請求書は 別の 欄を 打っても 送らない（古い 写しで 倉庫の 額を 戻さない）', () => {
     const b = J.karada('s1', 'c1', { seikyu_yen: 10000, denshi_yen: 300 }, 'bridge', '400');
-    expect(b.seikyu_yen, '★請求書が 消えた★').toBe(10000);
+    expect(
+      Object.prototype.hasOwnProperty.call(b, 'seikyu_yen'),
+      '★別の 欄の 保存で 古い 請求書の 額を 送った★'
+    ).toBe(false);
+    for (const f of ['toll', 'other', 'denshi_yen', 'kind_x']) {
+      const c = J.karada('s1', 'c1', { seikyu_yen: 0 }, f, '100');
+      expect(Object.prototype.hasOwnProperty.call(c, 'seikyu_yen'), f).toBe(false);
+    }
     expect(b.denshi_yen, '★電子決済が 消えた★').toBe(300);
     expect(b.bridge_yen).toBe(400);
   });

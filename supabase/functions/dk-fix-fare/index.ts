@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
   const startIso = new Date(shiftStartMs).toISOString();
   const { data: shift, error: shErr } = await sb
     .from('dk_shifts')
-    .select('shift_id')
+    .select('shift_id, started_at, excluded')
     .eq('company_id', co.company_id)
     .eq('device_id', deviceId)
     .eq('started_at', startIso)
@@ -141,7 +141,8 @@ Deno.serve(async (req: Request) => {
   if (tsErr || !Array.isArray(trips))
     return json({ ok: false, reason: 'read_failed', at: 'trips', updated: count || 0 }, 500);
   const goukei = (trips || []).reduce(
-    (a: number, t: { fare_yen: number | null }) => a + (typeof t.fare_yen === 'number' ? t.fare_yen : 0),
+    (a: number, t: { fare_yen: number | null }) =>
+      a + (typeof t.fare_yen === 'number' ? t.fare_yen : 0),
     0
   );
   const { error: sErr } = await sb
@@ -174,10 +175,72 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // ⑥ 事務所が 入力で 打った 請求書の 額（dk_shift_edits.seikyu_yen）を 外す 2026-11-14 件⑧
+  //   司さん「請求書アプリで金額直しても事務所の入力の請求書に反映されんのはなぜ・お互い反映やないんか」
+  //   ＝⑤と 同じ「後から 直した 方が 勝つ」。入力の 請求書の 欄は ★車×日★（nyuryoku.html shaSeikyuUtta・月次 shukei も 同じ）
+  //   ＝同じ 会社・同じ 端末・日本時間の 同じ 日・使わない 印（excluded）の 無い 回の どれかに 打って あれば 打った 額の 合計。
+  //   1回だけ 空に しても 他の 回の 打った 額が 残る ⇒ 欄は 明細の 額に ならない ⇒ ★その 車×日の 回 全部★を 空に する。
+  //   ★直した 回が excluded＝その 回の 明細は 欄に 元から 入らない＝空に しない★（対立役 11-14 止め2）
+  //   ★③④ で 額が 直った 後に 外す★（前に 置くと no_trip・trip_update_failed で「何も 直っていない」と 言うのに 消えている＝止め3）
+  //   日の 境＝nyuryoku hiRange・PayrollDaily.dateOf と 同じ 日本時間 0時（+9時間）。0（＝請求書 なし）も 空に する。
+  let seikyuHazushita = 0;
+  if (shift.excluded !== true) {
+    const jst = 9 * 3600 * 1000;
+    const hiMs =
+      Math.floor((Date.parse(String(shift.started_at)) + jst) / 86400000) * 86400000 - jst;
+    const { data: onaji, error: oErr } = await sb
+      .from('dk_shifts')
+      .select('shift_id, excluded')
+      .eq('company_id', co.company_id)
+      .eq('device_id', deviceId)
+      .gte('started_at', new Date(hiMs).toISOString())
+      .lt('started_at', new Date(hiMs + 86400000).toISOString());
+    if (oErr || !Array.isArray(onaji)) {
+      console.warn('[dk-fix-fare] 車×日の 回を 読めなかった ' + shift.shift_id);
+      return json(
+        {
+          ok: false,
+          reason: 'seikyu_reset_failed',
+          at: 'kuruma_hi',
+          updated: count || 0,
+          shift_total: goukei,
+        },
+        500
+      );
+    }
+    const ids = onaji
+      .filter(
+        (x: { shift_id: string; excluded: boolean | null }) =>
+          x && x.shift_id && x.excluded !== true
+      )
+      .map((x: { shift_id: string }) => x.shift_id);
+    if (ids.indexOf(shift.shift_id) < 0) ids.push(shift.shift_id);
+    const { data: sHazushita, error: kErr } = await sb
+      .from('dk_shift_edits')
+      .update({ seikyu_yen: null })
+      .in('shift_id', ids)
+      .not('seikyu_yen', 'is', null)
+      .select('shift_id');
+    if (kErr) {
+      console.warn(
+        '[dk-fix-fare] seikyu_yen を 外せなかった ' +
+          shift.shift_id +
+          ' ' +
+          String(kErr.message || kErr).slice(0, 80)
+      );
+      return json(
+        { ok: false, reason: 'seikyu_reset_failed', updated: count || 0, shift_total: goukei },
+        500
+      );
+    }
+    seikyuHazushita = (sHazushita || []).length;
+  }
+
   return json({
     ok: true,
     updated: count || 0,
     shift_total: goukei,
     uriage_hazushita: (hazushita || []).length,
+    seikyu_hazushita: seikyuHazushita,
   });
 });

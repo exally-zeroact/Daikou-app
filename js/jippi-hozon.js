@@ -114,7 +114,11 @@
       expenses: cur.expenses || {},
       updated_at: new Date().toISOString(),
     };
-    motikosuSeikyu(body, cur);
+    // ★★請求書の 額は 請求書の 欄を 打った 時だけ 送る（持ち越さない）★★ 2026-11-14 件⑧
+    //   請求書アプリで 額を 直すと dk-fix-fare が seikyu_yen を 空に 戻す（後から 直した 方が 勝つ）。
+    //   開いた ままの 画面の 古い 写し（cur.seikyu_yen）を 別の 欄の 保存で 送ると、空に した 額が 黙って 戻る（対立役 11-14 止め1）。
+    //   送らない 列は merge-duplicates が 倉庫の 値の まま 残す（uriage_yen・時数と 同じ 形）。
+    //   ★手で 入れた 日（saveTebiki・dk_manual_days）は 今まで 通り 持ち越す★（明細と 結ばない＝空に する 者が 居ない）
     if (field === 'seikyu_yen') {
       body.seikyu_yen = yomuSeikyu(value); // ★空＝null（メーターの 額）・0＝請求書 なし★
     } else if (FURUI[field]) {
