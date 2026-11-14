@@ -35,6 +35,8 @@ const DOUGU = [
   { f: 'apply-yaku-namae.mjs', hiki: ['--ateru'] },
   // 2026-10-24 地元の市を 持ち主が 保存する 関数（dk_set_home_city）
   { f: 'apply-home-city-kansuu.mjs', hiki: ['--ateru'] },
+  // 2026-11-14 件⑧b 入力から 明細 1行を 直す 関数（dk_meisai_naosu）
+  { f: 'apply-meisai-naosu.mjs', hiki: ['--ateru'] },
 ];
 
 function ne(ref) {
@@ -49,6 +51,7 @@ function ne(ref) {
     'apply-kyuryo-haifu-hitori.sql',
     'apply-yaku-namae.sql',
     'apply-home-city-kansuu.sql',
+    'apply-meisai-naosu.sql',
   ])
     fs.copyFileSync(path.join(ROOT, 'supabase', f), path.join(d, 'supabase', f));
   // apply-kyuryo-pw-4keta.mjs＝apply-kyuryo-get.mjs が 4桁の 後の md5 の 門で 読む（2026-10-20）

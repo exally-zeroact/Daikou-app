@@ -424,6 +424,13 @@
         margin-top: 4px;
       }
 
+      /* 請求書アプリの 明細の 行（件⑧b）＝回ごとの 欄と 同じ 区切り・見出し（上の 欄の 説明と 見分ける） */
+      .meisai-gyou {
+        border-top: 1px dashed var(--line);
+        padding-top: 8px;
+        margin-top: 4px;
+      }
+
       .kai-ttl {
         font-size: 12px;
         font-weight: 800;
@@ -671,6 +678,52 @@
           HOZON_Q[kagi] = p.then(owari, owari);
           return p;
         }
+        // ★★その 車×日の 業務 全部の 順番を 待つ★★ 2026-11-14 件⑧b（明細の 行の 直し）
+        //   倉庫の 関数は その 日の 回 全部の 手打ち（請求書）を 外し 得る＝回ごとの 鍵（'s:'+id）の 前の 保存を 全部 待ち、
+        //   済むまで 全部の 鍵に この 約束を 置く（後の 保存は この 後に 並ぶ）。数えは 1つ。時間切れの 字は 2倍 待つ
+        function junbanSubete(kagi, ids, tsukuru) {
+          var kagis = ids.map(function (id) {
+            return 's:' + id;
+          });
+          HOZON_KAZU++;
+          var owari = function () {
+            HOZON_KAZU--;
+            if (HOZON_KAZU === 0 && LOAD_MACHI) {
+              LOAD_MACHI = false;
+              load();
+            }
+          };
+          var mae = Promise.all(
+            kagis.map(function (k) {
+              return HOZON_Q[k] || Promise.resolve();
+            })
+          );
+          var p = mae.then(function () {
+            return tsukuru();
+          });
+          mae.then(function () {
+            var kire = kagi + ':kire';
+            var t = setTimeout(function () {
+              ERR_KAGI[kire] = HOZON_KIRE_JI;
+              errNuru();
+              kireUe();
+            }, matsuMs() * 2);
+            var yame = function () {
+              clearTimeout(t);
+              if (ERR_KAGI[kire]) {
+                delete ERR_KAGI[kire];
+                errNuru();
+                kireUe();
+              }
+            };
+            p.then(yame, yame);
+          });
+          var ato = p.then(owari, owari);
+          kagis.forEach(function (k) {
+            HOZON_Q[k] = ato;
+          });
+          return p;
+        }
         function hozonDekita(kagi) {
           if (!ERR_KAGI[kagi]) return;
           delete ERR_KAGI[kagi];
@@ -698,6 +751,17 @@
         //   shift_id → 円。請求書アプリで 直した・消した 額が そのまま 入る（司さん 10-29「代行請求書アプリの方を修正しても事務所の方に反映」）
         var GYO_SEIKYU = {};
         var GYO_SEIKYU_NG = false; // 窓が 読めなかった（黙って 0円と 出さない）
+        // ★★請求書アプリの 明細の 行（業務ごと）★★ 2026-11-14 件⑧b（司さん「お互い修正したら反映されるようにしろ」）
+        //   窓 dk_meisai_gyou（読むだけ・見る 人の RLS）で 車×日の 明細を 1行ずつ 出し、ここで 直せる。
+        //   直すのは 倉庫の 関数 dk_meisai_naosu＝明細・代行・業務の 合計・事務所の 手打ちの 外しを ★1つの 取引★で
+        //   （途中で 落ちても 半分だけ 直った 姿は 残らない）。shift_id → [{id,date,company,name,destination,amount,seq}]
+        var MEISAI_GYOU = {};
+        var MEISAI_GYOU_JOUTAI = ''; // ''＝読めた／'nai'＝窓が 無い 線（出さない）／'yomenai'＝読めなかった（訳を 出す）
+        var MEISAI_MAX = 2147483647; // 倉庫の 額の 列（integer）の 上（越えると 倉庫が 断る＝送らない）
+        var MEISAI_KEKKA = null; // 直した 後の 字 {dev, hi, ji}（読み直した 後も その 車の 明細の 上に 出す）
+        // 返事を 待つ 行（明細の id → true）。欄を 止めると blur で もう一度 change が 出る＝同じ 控えで 2回 送ると
+        //   2回目は 倉庫が chigau で 断り「別の 画面で 直されていました」と 嘘の 字が 出る（11-14 e2e で 実測）
+        var MEISAI_MACHI = {};
         // ★倉庫に メーターの 車の 回数・距離の 直しの 列が 在るか★ 2026-10-25（無い 線では メーターの 車に 欄を 出さない）
         var KAZU_ARU = false;
         var KAZU_YOMENAI = false; // 列が 在るかを 通信で 確かめられなかった（欄を 黙って 消さず 訳を 出す）
@@ -1024,6 +1088,21 @@
                 '&order=shift_id.asc&limit=1000',
               stG
             ),
+            // ★★請求書アプリの 明細の 行★★ 2026-11-14 件⑧b＝res[13]（日の 決まりは 上の res[12] と 同じ）
+            //   窓が 無い 線（404）＝出さない／他の 失敗・1000行＝読めなかった（黙って 行を 欠かさない）
+            DKSession.rest(
+              SESS,
+              'dk_meisai_gyou?select=id,shift_id,date,company,name,destination,amount,seq&date=eq.' +
+                encodeURIComponent(HI) +
+                '&order=shift_id.asc,seq.asc&limit=1000'
+            )
+              .then(function (x) {
+                if (x && x.ok) return x.json();
+                return x && x.status === 404 ? 'nai' : 'yomenai';
+              })
+              .catch(function () {
+                return 'yomenai';
+              }),
           ])
             .then(function (res) {
               if (no !== LOADNO) return; // ★古い 読みの 返事は 捨てる★
@@ -1081,6 +1160,20 @@
                 if (!x || !x.shift_id || String(x.date).slice(0, 10) !== HI) return;
                 GYO_SEIKYU[x.shift_id] = (GYO_SEIKYU[x.shift_id] || 0) + (Number(x.goukei) || 0);
               });
+              MEISAI_GYOU = {};
+              MEISAI_GYOU_JOUTAI = Array.isArray(res[13])
+                ? res[13].length >= 1000
+                  ? 'yomenai'
+                  : ''
+                : res[13] === 'nai'
+                  ? 'nai'
+                  : 'yomenai';
+              if (!MEISAI_GYOU_JOUTAI)
+                res[13].forEach(function (x) {
+                  if (!x || !x.id || !x.shift_id || String(x.date).slice(0, 10) !== HI) return;
+                  (MEISAI_GYOU[x.shift_id] = MEISAI_GYOU[x.shift_id] || []).push(x);
+                });
+              if (MEISAI_KEKKA && MEISAI_KEKKA.hi !== HI) MEISAI_KEKKA = null;
               TEBIKI = {};
               TEBIKI_HI = HI;
               (Array.isArray(res[5]) ? res[5] : []).forEach(function (x) {
@@ -1448,6 +1541,59 @@
           );
         }
 
+        // ★★請求書アプリの 明細の 行（車×日）★★ 2026-11-14 件⑧b
+        //   請求書の 列が 在る 線・窓が 在る 線だけ。行が 無い 車は 出さない（今の 手打ちの 欄の まま）
+        function meisaiGyouHtml(sh, dev) {
+          if (!SEIKYU_ARU || !sh || MEISAI_GYOU_JOUTAI === 'nai') return '';
+          if (MEISAI_GYOU_JOUTAI === 'yomenai')
+            return (
+              '<div class="frow" data-meisai-ng="1"><span class="hint" style="color:#b42318;font-weight:700">' +
+              '請求書アプリの 明細の 行を 読めませんでした（通信）。この 日を 開き直すと 1行ずつ 直せます。</span></div>'
+            );
+          var rows = [];
+          sh.ids.forEach(function (id) {
+            (MEISAI_GYOU[id] || []).forEach(function (x) {
+              rows.push(x);
+            });
+          });
+          if (!rows.length) return '';
+          var dis = YOMENAI ? ' disabled' : '';
+          var h =
+            '<div class="meisai-gyou" data-meisai-dev="' +
+            esc(dev) +
+            '"><div class="kai-ttl">請求書アプリの 明細（' +
+            rows.length +
+            '行）</div><div class="frow"><span class="hint">ここで 直すと 請求書アプリと 売上にも 入ります。' +
+            '</span></div>';
+          if (MEISAI_KEKKA && MEISAI_KEKKA.dev === dev && MEISAI_KEKKA.hi === HI)
+            h +=
+              '<div class="frow"><span class="hint" data-meisai-kekka="1" style="font-weight:700">' +
+              esc(MEISAI_KEKKA.ji) +
+              '</span></div>';
+          rows.forEach(function (x) {
+            var d = String(x.date || '')
+              .slice(5, 10)
+              .replace('-', '/');
+            var na = [x.company, x.name].filter(Boolean).join(' ');
+            if (x.destination) na += '（' + x.destination + '）';
+            h +=
+              '<div class="frow"><span class="flabel">' +
+              esc(d + ' ' + (na || 'お客の 名前なし')) +
+              '</span><div class="fen"><input class="finput fnum" inputmode="numeric"' +
+              dis +
+              ' data-meisai-id="' +
+              esc(x.id) +
+              '" data-meisai-hikae="' +
+              esc(String(Number(x.amount) || 0)) +
+              '" data-meisai-dev="' +
+              esc(dev) +
+              '" value="' +
+              esc(String(Number(x.amount) || 0)) +
+              '"><span class="en">円</span></div></div>';
+          });
+          return h + '</div>';
+        }
+
         // ★★1台ぶん（畳んだ 見出し＋中身）★★
         function shaHitotsu(dev) {
           var sh = DETA[dev] || null;
@@ -1482,6 +1628,7 @@
               seikyuMi(sh, sh.ids, shaUeNoE(sh, hoka.length > 0))
             );
             naka += '</div>';
+            naka += meisaiGyouHtml(sh, dev); // 請求書アプリの 明細の 行（1行ずつ 直せる・件⑧b）
             // ★★時数（車の 時間）★★ 経費の 下（司さん「経費の下に時数、乗った人」）
             //   2回 以上 走った 日・売上が 読めない 日は 回ごとに 売上・時数（業務ごとの 鍵＝1つの 欄に 足すと 時間が 二重に なる・対立役 A-2）
             if (fuku) naka += kaiHtml(sh, hoka.length > 0);
@@ -2303,6 +2450,15 @@
               };
             }
           );
+          // ★★請求書アプリの 明細の 行★★ 2026-11-14 件⑧b
+          Array.prototype.forEach.call(
+            document.querySelectorAll('#shaList [data-meisai-id]'),
+            function (i) {
+              i.onchange = function () {
+                saveMeisaiGyou(i);
+              };
+            }
+          );
           Array.prototype.forEach.call(document.querySelectorAll('#shaList .nori'), bindNori);
           Array.prototype.forEach.call(
             document.querySelectorAll('#shaList [data-man-del]'),
@@ -2352,6 +2508,130 @@
           return YOMENAI === '読み込み中'
             ? '読み込み中です。読み終わるまで 打てません。'
             : YOMENAI + YOMENAI_JI;
+        }
+
+        // ★★明細の 行の 直しの 返事の 字★★ 2026-11-14 件⑧b（設計 4.1・倉庫の 関数 dk_meisai_naosu の reason）
+        //   届いて 断られた＝何も 変わっていない と 言える。届いたか 分からない（5xx・通信・返事が 読めない）は 言い切らない
+        var MEISAI_WAKE = {
+          chigau: '別の 画面で 直されていました。読み直しました（打った 額は 入れていません）。',
+          no_row: '別の 画面で 消されていました。読み直しました（打った 額は 入れていません）。',
+          deleted: '別の 画面で 消されていました。読み直しました（打った 額は 入れていません）。',
+          no_shift:
+            '入力の 代行と 結べない 行です（何も 変わっていません）。請求書アプリで 直してください。',
+          no_trip:
+            '入力の 代行と 結べない 行です（何も 変わっていません）。請求書アプリで 直してください。',
+          bad_ref:
+            '入力の 代行と 結べない 行です（何も 変わっていません）。請求書アプリで 直してください。',
+          not_daikome:
+            '入力の 代行と 結べない 行です（何も 変わっていません）。請求書アプリで 直してください。',
+          unknown_device:
+            '入力の 代行と 結べない 行です（何も 変わっていません）。請求書アプリで 直してください。',
+          no_company: '直せませんでした（何も 変わっていません）。',
+          not_yours: '直せませんでした（何も 変わっていません）。',
+          no_user: 'ログインが 切れました。ログインし直してください（何も 変わっていません）。',
+          bad_amount: '明細の 金額は 0以上の 整数で 入れてください（何も 変わっていません）。',
+        };
+        var MEISAI_WAKARAN =
+          '届いたか 分かりません。読み直した 額を 見てください（打った 額が 出ていれば 直っています）。';
+        function meisaiNaosuJi(r, j) {
+          var st = r && r.status;
+          if (r && r.ok && j && j.ok === true) {
+            var soto = [];
+            if (Number(j.uriage_hazushita) > 0)
+              soto.push('売上（' + Number(j.uriage_hazushita) + '件）');
+            if (Number(j.seikyu_hazushita) > 0)
+              soto.push('請求書の 額（' + Number(j.seikyu_hazushita) + '件）');
+            return {
+              ok: true,
+              ji:
+                '直しました（請求書アプリの 明細・代行の 料金・売上）。' +
+                (soto.length
+                  ? '事務所が 前に 打っていた ' + soto.join('・') + 'は、この 直しで 外しました。'
+                  : ''),
+            };
+          }
+          if (r && r.ok && j && j.ok === false && MEISAI_WAKE[j.reason])
+            return { ok: false, ji: MEISAI_WAKE[j.reason] };
+          if (st === 401) return { ok: false, ji: MEISAI_WAKE.no_user };
+          if (st === 404)
+            return {
+              ok: false,
+              ji: '倉庫に 明細を 直す 仕組みが まだ ありません（何も 変わっていません）。',
+            };
+          if (st >= 400 && st < 500) return { ok: false, ji: MEISAI_WAKE.not_yours };
+          return { ok: false, ji: MEISAI_WAKARAN };
+        }
+        function saveMeisaiGyou(inp) {
+          if (!COMPANY) return;
+          if (yomenaiNara()) return;
+          var id = inp.getAttribute('data-meisai-id');
+          if (MEISAI_MACHI[id]) return; // 同じ 行の 返事を 待つ 間は 呼ばない（上の 訳）
+          var dev = inp.getAttribute('data-meisai-dev');
+          var hikae = Number(inp.getAttribute('data-meisai-hikae'));
+          var kagi = 'm:' + id;
+          delete ERR_KAGI[kagi + ':katachi'];
+          var t = JippiHozon.seiri(inp.value);
+          // 空は 書かない（0円に する 時は 0 を 打つ）＝元の 額に 戻す
+          if (t === '') {
+            inp.value = String(hikae);
+            errNuru();
+            return;
+          }
+          var v = JippiHozon.yomuEn(t);
+          if (v === undefined || v > MEISAI_MAX) {
+            ERR_KAGI[kagi + ':katachi'] =
+              '明細の 金額は 0以上の 整数で 入れてください。保存していません。';
+            akeru(dev, true);
+            errNuru();
+            return;
+          }
+          errNuru();
+          if (v === hikae) {
+            inp.value = String(v); // 同じ 額は 呼ばない（手打ちを 黙って 外さない）
+            return;
+          }
+          var sh = DETA[dev];
+          if (!sh) return;
+          MEISAI_KEKKA = null;
+          MEISAI_MACHI[id] = true; // 欄を 止める 前に 立てる（止めた 時の blur の change が 先に 来る）
+          // 呼ぶ 前に その 車の 欄を 止める（返事の 前に 同じ 車へ 打たせない）＝返事の 後は 読み直しが 描き直す
+          var car = document.querySelector(
+            '#shaList .sha[data-car="' + CSS.escape(String(dev)) + '"]'
+          );
+          if (car)
+            Array.prototype.forEach.call(
+              car.querySelectorAll('input, select, textarea, .sha-naka button'),
+              function (i) {
+                i.disabled = true;
+              }
+            );
+          var hi0 = HI;
+          return junbanSubete(kagi, sh.ids, function () {
+            return DKSession.rest(SESS, 'rpc/dk_meisai_naosu', {
+              method: 'POST',
+              body: JSON.stringify({ p_meisai_id: id, p_amount: v, p_hikae: hikae }),
+            }).then(function (r) {
+              return r
+                .json()
+                .catch(function () {
+                  return null;
+                })
+                .then(function (j) {
+                  return meisaiNaosuJi(r, j);
+                });
+            });
+          })
+            .catch(function () {
+              return { ok: false, ji: MEISAI_WAKARAN };
+            })
+            .then(function (x) {
+              delete MEISAI_MACHI[id];
+              if (x.ok) {
+                hozonDekita(kagi);
+                MEISAI_KEKKA = { dev: dev, hi: hi0, ji: x.ji };
+              } else hozonDekinai(kagi, x.ji, null, dev);
+              load(); // 倉庫の 姿（全部 入った か 何も 入っていない か）を 読み直す
+            });
         }
 
         // メーターの 車の 売上を 事務所が 直す（dk_shift_edits.uriage_yen・給料の 画面と 同じ）2026-10-14

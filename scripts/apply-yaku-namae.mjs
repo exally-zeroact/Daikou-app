@@ -65,7 +65,12 @@ export function kiridasu(sql, k) {
   const atama = kesu(block.slice(0, a));
   if (!/\bsecurity\s+definer\b/i.test(atama)) throw new Error('security definer が 無い');
   if (/\bsecurity\s+invoker\b/i.test(atama)) throw new Error('security invoker が 在る');
-  if (!/set search_path = daikome, public, extensions/.test(atama))
+  // k.searchPath＝その 関数の 決まった 1行（2026-11-14 件⑧b dk_meisai_naosu は '' ＋ 表の 名前を 全部 書く・設計 4.1 N5）。
+  //   無ければ 今までの 関数の 形（判じも 今まで 通り）
+  if (k.searchPath) {
+    if (!atama.split('\n').some((l) => l.trim() === k.searchPath))
+      throw new Error('search_path を 固定していない');
+  } else if (!/set search_path = daikome, public, extensions/.test(atama))
     throw new Error('search_path を 固定していない');
   const naka = kesu(block.slice(a + 4, b));
   // execute（字を つないで 別の 文を 走らせる）も 断る

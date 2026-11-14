@@ -168,6 +168,30 @@ export const ATO_NO_KAKUNIN = {
       ok: (rows) => rows?.[0]?.n === 1,
     },
   ],
+  // ★入力の 画面に 出す 明細の 行★ 2026-11-14 件⑧b（直すのは 関数 public.dk_meisai_naosu）
+  'supabase/apply-dk-meisai-gyou.sql': [
+    {
+      w: '窓 public.dk_meisai_gyou が id・shift_id・date・company・name・destination・amount・seq の 8列',
+      q: "select count(*)::int as n from information_schema.columns where table_schema='public' and table_name='dk_meisai_gyou' and column_name in ('id','shift_id','date','company','name','destination','amount','seq')",
+      ok: (rows) => rows?.[0]?.n === 8,
+    },
+    {
+      w: '窓 public.dk_meisai_gyou が security_invoker=true（見る 人の RLS が 効く）',
+      q: "select count(*)::int as n from pg_class c join pg_namespace s on s.oid=c.relnamespace where s.nspname='public' and c.relname='dk_meisai_gyou' and 'security_invoker=true' = any(c.reloptions)",
+      ok: (rows) => rows?.[0]?.n === 1,
+    },
+    {
+      w: 'authenticated が 窓を 読める',
+      q: "select has_table_privilege('authenticated','public.dk_meisai_gyou','select') as ok",
+      ok: (rows) => rows?.[0]?.ok === true,
+    },
+    {
+      // 窓 dk_meisai_gyoumu_goukei と 同じ 結び＝行の 数は 向こうの sum(kensuu) と 合う（黙って 行を 落とさない・増やさない）
+      w: '窓の 行の 数＝窓 dk_meisai_gyoumu_goukei の sum(kensuu)',
+      q: 'select (select count(*)::int from public.dk_meisai_gyou) as gyou, (select coalesce(sum(kensuu),0)::int from public.dk_meisai_gyoumu_goukei) as goukei',
+      ok: (rows) => Number.isInteger(rows?.[0]?.gyou) && rows[0].gyou === rows[0].goukei,
+    },
+  ],
 };
 
 // ─── 鍵 ─────────────────────────────────────────────
