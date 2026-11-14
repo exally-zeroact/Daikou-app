@@ -205,6 +205,7 @@ describe('件⑧ dk-fix-fare が 入力の 請求書の 手打ちを 外す（�
     expect(r.j.ok).toBe(true);
     expect(r.j.shift_total).toBe(4500 + 14000);
     expect(r.j.seikyu_hazushita).toBe(3);
+    expect(r.j.seikyu_zero_hazushita).toBe(1); // b＝0（請求書 なし）2026-11-15
     expect(seikyu(db)).toEqual({
       a: null,
       b: null,
@@ -251,6 +252,40 @@ describe('件⑧ dk-fix-fare が 入力の 請求書の 手打ちを 外す（�
     expect(seikyu(db).a).toBe(5900);
   });
 
+  it('0 の 回を 読めない＝黙らない・0 の 印も 他の 手打ちも 触らない（2026-11-15 止め1）', async () => {
+    const db = db0();
+    const r = await yobu(SRC, db, { 'dk_shift_edits:select:': true });
+    expect(r.status).toBe(500);
+    expect(r.j.reason).toBe('seikyu_reset_failed');
+    expect(r.j.at).toBe('zero_yomu');
+    expect(r.j.uriage_hazushita).toBe(0);
+    expect(seikyu(db).a).toBe(5900);
+    expect(seikyu(db).b).toBe(0);
+  });
+
+  it('0 が 無い 日＝うち 0件・0 だけの 日＝全部 うち（2026-11-15）', async () => {
+    const db = db0();
+    db.dk_shift_edits.find((e) => e.shift_id === 'b').seikyu_yen = 3000;
+    const r = await yobu(SRC, db);
+    expect(r.j.seikyu_hazushita).toBe(3);
+    expect(r.j.seikyu_zero_hazushita).toBe(0);
+    const d2 = db0();
+    d2.dk_shift_edits.forEach((e) => {
+      if (e.shift_id === 'a' || e.shift_id === 'atama') e.seikyu_yen = 0;
+    });
+    const r2 = await yobu(SRC, d2);
+    expect(r2.j.seikyu_hazushita).toBe(3);
+    expect(r2.j.seikyu_zero_hazushita).toBe(3);
+  });
+
+  it('外せない 500 にも 売上を 外した 数を 付ける（2026-11-15 止め2）', async () => {
+    const db = db0();
+    db.dk_shift_edits.find((e) => e.shift_id === 'a').uriage_yen = 7000;
+    const r = await yobu(SRC, db, { 'dk_shift_edits:update:seikyu_yen': true });
+    expect(r.j.reason).toBe('seikyu_reset_failed');
+    expect(r.j.uriage_hazushita).toBe(1);
+  });
+
   it('車×日の 回を 読めない＝黙らない・手打ちは 触らない', async () => {
     const db = db0();
     const r = await yobu(SRC, db, { 'dk_shifts:select:gte': true });
@@ -270,10 +305,17 @@ describe('件⑧ dk-fix-fare が 入力の 請求書の 手打ちを 外す（�
 
   it('壊し：その 回だけ／excluded を 見ない／③の 前／UTC の 日 ⇒ 全部 赤', async () => {
     const kowasu = [
-      SRC.replace(".in('shift_id', ids)", ".eq('shift_id', shift.shift_id)"),
+      SRC.replaceAll(".in('shift_id', ids)", ".eq('shift_id', shift.shift_id)"), // 0 の 読みと update の 両方
       SRC.replace('if (shift.excluded !== true) {', 'if (true) {'),
       SRC.replace('const jst = 9 * 3600 * 1000;', 'const jst = 0;'),
     ];
+    // うち 0 の 数を 数えない ⇒ 赤（2026-11-15）
+    const zeroNashi = SRC.replace(
+      'seikyu_zero_hazushita: seikyuZero,',
+      'seikyu_zero_hazushita: 0,'
+    );
+    expect(zeroNashi).not.toBe(SRC);
+    expect((await yobu(zeroNashi, db0())).j.seikyu_zero_hazushita).not.toBe(1);
     for (const s of kowasu) {
       expect(s).not.toBe(SRC);
       const a = db0();

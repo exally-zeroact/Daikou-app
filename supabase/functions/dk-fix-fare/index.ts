@@ -184,6 +184,10 @@ Deno.serve(async (req: Request) => {
   //   ★③④ で 額が 直った 後に 外す★（前に 置くと no_trip・trip_update_failed で「何も 直っていない」と 言うのに 消えている＝止め3）
   //   日の 境＝nyuryoku hiRange・PayrollDaily.dateOf と 同じ 日本時間 0時（+9時間）。0（＝請求書 なし）も 空に する。
   let seikyuHazushita = 0;
+  // ★うち 0（＝請求書 なし）と 打っていた 数★ 2026-11-15 司さん「0 も 外す・知らせで 分ける」
+  //   update は ★1本の まま★（2本に 割ると 1本目だけ 通った 半端な 姿が 残る＝対立役 11-15 止め1）。
+  //   前に 0 の 回を 読み、update が 返した 回と 重なる 数を 数える（間に 打ち直されても ずれるのは「うち」だけ・合計は update の 数）。
+  let seikyuZero = 0;
   if (shift.excluded !== true) {
     const jst = 9 * 3600 * 1000;
     const hiMs =
@@ -204,6 +208,7 @@ Deno.serve(async (req: Request) => {
           at: 'kuruma_hi',
           updated: count || 0,
           shift_total: goukei,
+          uriage_hazushita: (hazushita || []).length,
         },
         500
       );
@@ -215,6 +220,26 @@ Deno.serve(async (req: Request) => {
       )
       .map((x: { shift_id: string }) => x.shift_id);
     if (ids.indexOf(shift.shift_id) < 0) ids.push(shift.shift_id);
+    const { data: zeroYomu, error: zErr } = await sb
+      .from('dk_shift_edits')
+      .select('shift_id')
+      .in('shift_id', ids)
+      .eq('seikyu_yen', 0);
+    if (zErr || !Array.isArray(zeroYomu)) {
+      console.warn('[dk-fix-fare] 0 の 回を 読めなかった ' + shift.shift_id);
+      return json(
+        {
+          ok: false,
+          reason: 'seikyu_reset_failed',
+          at: 'zero_yomu',
+          updated: count || 0,
+          shift_total: goukei,
+          uriage_hazushita: (hazushita || []).length,
+        },
+        500
+      );
+    }
+    const zeroIds = zeroYomu.map((x: { shift_id: string }) => x && x.shift_id);
     const { data: sHazushita, error: kErr } = await sb
       .from('dk_shift_edits')
       .update({ seikyu_yen: null })
@@ -229,11 +254,20 @@ Deno.serve(async (req: Request) => {
           String(kErr.message || kErr).slice(0, 80)
       );
       return json(
-        { ok: false, reason: 'seikyu_reset_failed', updated: count || 0, shift_total: goukei },
+        {
+          ok: false,
+          reason: 'seikyu_reset_failed',
+          updated: count || 0,
+          shift_total: goukei,
+          uriage_hazushita: (hazushita || []).length,
+        },
         500
       );
     }
     seikyuHazushita = (sHazushita || []).length;
+    seikyuZero = (sHazushita || []).filter(
+      (x: { shift_id: string }) => x && zeroIds.indexOf(x.shift_id) >= 0
+    ).length;
   }
 
   return json({
@@ -242,5 +276,6 @@ Deno.serve(async (req: Request) => {
     shift_total: goukei,
     uriage_hazushita: (hazushita || []).length,
     seikyu_hazushita: seikyuHazushita,
+    seikyu_zero_hazushita: seikyuZero,
   });
 });
