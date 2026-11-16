@@ -471,6 +471,29 @@
         font-size: 13px;
       }
 
+      .tome-yomi {
+        background: #f3f4f6;
+        color: #4b5563;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 9px 11px;
+        font-size: 13px;
+        margin-top: 10px;
+
+        /* animation が 走らない 環境でも 字は 見える 側（元は opacity 1・最初の 1秒だけ 隠す） */
+        animation: tome-yomi-iri 0.2s ease 1s both;
+      }
+
+      @keyframes tome-yomi-iri {
+        from {
+          opacity: 0;
+        }
+
+        to {
+          opacity: 1;
+        }
+      }
+
       .err {
         background: #fdecea;
         color: #a1281e;
@@ -1229,7 +1252,10 @@
           if (mae) mae.parentNode.removeChild(mae);
           var d = document.createElement('div');
           d.id = 'tomeJi';
-          d.className = 'err';
+          // ★日を 替えた 時の 読み込み中は 赤い 警告に しない★ 2026-11-16（司さん「一瞬 赤い 字が 出て 読めない・出さない方が いい」）
+          //   読み込み中の 字は 失敗では ない＝灰色の 控えめな 字を 1秒 経っても 読み終わらない 時だけ 出す（欄は 今まで通り すぐ 止める）。
+          //   読めない・保存の 返事が 来ない 等の 本物の 止めは 今まで通り 赤
+          d.className = YOMENAI === '読み込み中' && ji === yomenaiJi() ? 'tome-yomi' : 'err';
           d.style.display = 'block';
           d.textContent = ji;
           $('shaList').insertBefore(d, $('shaList').firstChild);

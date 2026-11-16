@@ -562,6 +562,42 @@ test('★読み込み待ちの 間は 売上の 返事が 来ても 売上の �
   }
 });
 
+// 2026-11-16 司さん「日を 替えると 赤い 警告が 一瞬 出て 読めない」＝読み込み中の 字は 失敗では ない＝赤にしない
+const tomeKurasu = (page) =>
+  page.evaluate(() => {
+    const e = document.getElementById('tomeJi');
+    return e ? e.className : '';
+  });
+test('★日を 替えた 読み込み中の 字は 赤い 警告に しない（灰色）★', async ({ page }) => {
+  await hiraku(page, [], '2026-09-02');
+  await page.evaluate(() => {
+    window.__osoiHozon = 4000;
+  });
+  await utsuMuri(page, '#shaList [data-sid][data-f="toll"]', '2000');
+  await page.fill('#hiSel', '2026-09-03');
+  await page.dispatchEvent('#hiSel', 'change');
+  await page.waitForTimeout(300);
+  expect(await tomeJi(page)).toContain('読み込み中です');
+  const k = await tomeKurasu(page);
+  expect(k, '★読み込み中の 字が 赤い 警告に なった★').toContain('tome-yomi');
+  expect(k).not.toContain('err');
+});
+test('★返事の 来ない 保存の 止めの 字は 赤いまま★', async ({ page }) => {
+  await hiraku(page, [], '2026-09-02');
+  await page.evaluate(() => {
+    window.__DK_HOZON_MATSU_MS = 1000;
+    window.__osoiHozon = 4000;
+  });
+  await utsuMuri(page, '#shaList [data-sid][data-f="toll"]', '2000');
+  await page.evaluate(() => {
+    window.__osoiHozon = 0;
+  });
+  await hiErabu(page, '2026-09-03');
+  await page.waitForTimeout(1500);
+  expect(await tomeJi(page)).toContain('返事が 来ません');
+  expect(await tomeKurasu(page), '★本物の 止めが 灰色に なった★').toContain('err');
+});
+
 // 見立て（4回目）：手で 入れた 日の「順に 送る」に 効く 試験が 0本だった（22ff487 では 2つ目が 高速代を 2500→1000 に 戻した）
 test('★手で 入れた 日：続けて 2つ 打っても 2つ目は 1つ目の 額を 戻さない・日を 送っても 混ざらない★', async ({
   page,
